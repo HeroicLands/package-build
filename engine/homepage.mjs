@@ -43,8 +43,8 @@
  * module, which is most of the packages that need a homepage and nothing else.
  *
  * **Published at the package root, addressed like every other note.** A
- * homepage is written as the mount's `_index.md`, so Hugo's `home` kind renders
- * it at `/<package>/` — the address a reader expects a package's front page at,
+ * homepage is rendered at `/<package>/` — the address a reader expects a
+ * package's front page at,
  * and the one `package.json`'s `homepage` states. It still declares a
  * `shortcode` — conventionally {@link HOMEPAGE_SHORTCODE} — because that is what
  * a link is written with: `[[homepage-root|Text]]` is an ordinary wikilink, and
@@ -95,19 +95,6 @@ export const HOMEPAGE_FIELDS = Object.freeze([]);
  * @type {string}
  */
 export const HOMEPAGE_SHORTCODE = "root";
-
-/**
- * The file a homepage is written to, relative to the package's site root.
- *
- * The mount's own `_index.md`: Hugo renders it as the `home` kind, at
- * `baseURL` — which is `/<package>/`, the package's own address. One fixed
- * destination rather than one derived from the note's address, because the
- * homepage's address *is* the package root; the note's `shortcode` names the
- * page in links and decides no file.
- *
- * @type {string}
- */
-export const HOMEPAGE_DESTINATION = "_index.md";
 
 /**
  * Whether a note's frontmatter declares the homepage type.
@@ -337,8 +324,10 @@ function positionOfType(file) {
  * authored `name.full` wins, because a front page may greet a reader
  * differently from a package browser.
  *
- * Falls back to `contentPackage` last, so a package that has no manifest of its
- * own still yields a titled page rather than a blank heading.
+ * A package with no manifest title — a `documentation` package has no manifest
+ * at all — takes `site.title`, the name its site is known by. It falls back to
+ * `contentPackage` last, so a package that states neither still yields a
+ * titled page rather than a blank heading.
  *
  * @param {object|null|undefined} fm - The note's frontmatter.
  * @param {object} config - The resolved configuration.
@@ -351,7 +340,9 @@ export function homepageTitle(fm, config) {
         config?.packageBuild?.manifest
     );
     const title = manifest?.title;
-    return typeof title === "string" && title.trim() ? title : config.contentPackage;
+    if (typeof title === "string" && title.trim()) return title;
+    const site = config?.site?.title;
+    return typeof site === "string" && site.trim() ? site : config.contentPackage;
 }
 
 /**
@@ -359,20 +350,17 @@ export function homepageTitle(fm, config) {
  *
  * The note's own, plus the two derived values every emitted page carries: the
  * resolved `title`, and the package the build derived — no note declares one
- * and the theme's breadcrumb partial reads `.Params.package`.
+ * and the theme's breadcrumbs read.
  *
- * **No `url` and no `slug`.** Hugo publishes the `home` kind at `baseURL`,
- * whose path is already where the package is served, so the page has no
- * address to state; a content page states one because its file sits under the
- * mount and its address does not.
+ * **No `url` and no `slug`.** The homepage publishes at the package root, so
+ * the page has no address to state.
  *
- * An authored `aliases` is dropped for the same reason it is on every other
- * page: Hugo reads it as URL redirects, so passing it through would publish a
- * redirect stub at each one.
+ * An authored `aliases` is dropped, as it is on every other page: this build
+ * emits no redirects.
  *
  * `related` is derived like every other page's — what links to the homepage
  * is a fact about the rest of the tree — so an authored value is dropped and
- * the caller's block, where it has one, is written in its place.
+ * the caller's block, where it has one, is set in its place.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {object} options - Options.
@@ -380,7 +368,7 @@ export function homepageTitle(fm, config) {
  * @param {string} options.title - The resolved title.
  * @param {object} [options.related] - The homepage's backlinks and mentions,
  *   where the site build found either.
- * @returns {object} The frontmatter to write.
+ * @returns {object} The frontmatter.
  */
 export function homepageFrontmatter(fm, { contentPackage, title, related }) {
     const data = { ...fm, package: contentPackage, title };
@@ -395,7 +383,7 @@ export function homepageFrontmatter(fm, { contentPackage, title, related }) {
  *
  * Reference-style links are deliberately not matched: a homepage is published
  * verbatim, so a `[x][y]` whose definition sits in the body reaches the reader
- * as Hugo renders it, and one whose definition is missing is a defect the
+ * as authored, and one whose definition is missing is a defect the
  * rendered page shows for itself.
  *
  * @type {RegExp}

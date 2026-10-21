@@ -47,7 +47,7 @@ import log from "loglevel";
 import prefix from "loglevel-plugin-prefix";
 import { readStdin } from "../engine/read-stdin.mjs";
 import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
-import { compilesFoundryDocuments, publishesContentPages } from "../content-config.mjs";
+import { compilesFoundryDocuments, publishesContentPages, siteBase } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { buildPdf, listBookAssets } from "../engine/pdf-build.mjs";
 import { summaryLines } from "../engine/pdf-coverage.mjs";
@@ -65,19 +65,7 @@ import {
     unaddressableForeignPackages,
     formatUnaddressableFinding,
 } from "../engine/metadata-index.mjs";
-import {
-    fetchNavigation,
-    generateHugoConfig,
-    HUGO_SOURCE,
-    writeHugoConfig,
-} from "../engine/site-config.mjs";
-import {
-    checkScriptFonts,
-    copyScriptFonts,
-    scriptFontFiles,
-    SITE_FONTS_DIR,
-    siteFontsDestination,
-} from "../engine/script-font-delivery.mjs";
+import { DEPLOY_ROOT, fetchNavigation } from "../engine/site-config.mjs";
 import { renderItemFieldReference, renderItemFieldsPage } from "../engine/field-reference.mjs";
 import { checkDocLinks, checkDocIndex } from "../engine/docs-checks.mjs";
 import { checkArtSlotSizes } from "../engine/art-fields.mjs";
@@ -139,8 +127,12 @@ import {
 import {
     buildSite,
     gatesFailed,
+    siteBuildFailed,
     formatUnaddressableFinding as formatUnaddressable,
 } from "../engine/site-build.mjs";
+import { buildPackageSite, siteDirectory } from "../engine/site-render.mjs";
+import { serveSite } from "../engine/site-serve.mjs";
+import { writeSiteRoot } from "../engine/site-root.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
 import { prepareLinkSqlTables, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 import { createContentSession, CONTENT_TARGETS } from "../engine/content-session.mjs";
@@ -1930,60 +1922,123 @@ function pdfCommand() {
 }
 
 /**
- * Copy the installed script fonts into the Hugo static tree, under a path that
- * names their version, and drop any other version's copy.
+ * Report what a site build found, in the order {@link siteCommand} sets out:
+ * the gates first, stopping at the first that fired, then each note's findings,
+ * then what drawing the maps found.
  *
- * A package that has not installed `@heroiclands/fonts`, or sets no text in
- * one of its faces, gets no copy; a package missing a file its fonts depend on
- * gets a located error and a non-zero exit.
- *
- * @param {object} config - The resolved content configuration.
- * @returns {void}
+ * @param {object} result - From `buildSite`.
+ * @returns {boolean} Whether the build may be written: no gate fired and no
+ *   note is in error.
  */
-function stageSiteFonts(config) {
-    const root = path.join(config.rootDir, HUGO_SOURCE, "static", SITE_FONTS_DIR);
-    fs.rmSync(root, { recursive: true, force: true });
-    const found = scriptFontFiles(config, ["woff2"]);
-    if (!found) return;
-    const findings = checkScriptFonts(config);
-    for (const finding of findings) emitDiagnostic(finding);
-    if (findings.length) {
-        process.exitCode = 1;
-        return;
+function reportSiteBuild(result) {
+    const { gates } = result;
+
+    // First, because it is decided before the tree is walked and
+    // before the output is cleared: a package with no front page,
+    // or two competing for it, has nothing to say about its pages
+    // yet.
+    for (const f of gates.homepages) emitDiagnostic(f);
+    for (const f of gates.frontmatterLinks) {
+        emitDiagnostic({
+            file: f.file,
+            severity: "error",
+            message:
+                `wikilink ${f.link} authored in frontmatter at ` +
+                `${f.path} — frontmatter is data, is copied to the ` +
+                `page verbatim, and reaches the reader as brackets`,
+        });
     }
-    const dest = path.join(
-        config.rootDir,
-        HUGO_SOURCE,
-        "static",
-        siteFontsDestination(found.version),
-    );
-    const count = copyScriptFonts(config, dest, ["woff2"]);
-    log.info(`wrote ${count} script font file(s) to ${path.relative(process.cwd(), dest)}`);
+    for (const f of gates.addressErrors) {
+        emitDiagnostic({
+            file: f.file,
+            severity: "error",
+            message: `cannot derive a URL: ${f.reason}`,
+        });
+    }
+    reportSiteFindings(gates.sections ?? []);
+    for (const s of gates.staleManifests) {
+        emitDiagnostic({
+            file: cachedIndexPath(loadPackConfig(), s.package),
+            severity: "error",
+            message: `unusable content index: ${s.reason}`,
+        });
+    }
+    for (const f of gates.unaddressable) {
+        console.error(formatUnaddressable(f, loadPackConfig()));
+    }
+    if (gatesFailed(gates)) {
+        return false;
+    }
+
+    // Every note's findings are reported together: stopping at the first
+    // would make a single bad table hide every other problem in the tree.
+    // Each is `file:line:column: error: message`, path first — the shape
+    // the pack build reports the same findings in.
+    for (const e of result.tableErrors) {
+        emitDiagnostic({
+            file: e.source,
+            line: typeof e.line === "number" ? e.line + 1 : undefined,
+            column: e.column,
+            severity: "error",
+            message: e.reason,
+        });
+    }
+    for (const e of result.expressionErrors) {
+        emitDiagnostic(e);
+    }
+    for (const e of result.secretErrors) {
+        emitDiagnostic({ ...e, severity: "error" });
+    }
+    for (const e of result.captionErrors) {
+        emitDiagnostic({ ...e, severity: "error" });
+    }
+    for (const e of result.headingErrors) {
+        emitDiagnostic({ ...e, severity: "error" });
+    }
+    for (const e of result.footnoteErrors) {
+        emitDiagnostic({ ...e, severity: "error" });
+    }
+    for (const e of result.embedErrors) {
+        emitDiagnostic({ ...e, severity: "error" });
+    }
+    // Worded by the shared table the pack build words the same finding
+    // with, and located by searching the note for the link.
+    for (const e of result.wikiErrors) {
+        emitDiagnostic({
+            file: e.file,
+            ...positionOfLiteral(readRawNote(e.file), e.link, e.occurrence),
+            severity: "error",
+            // An embed's directive speaks the image vocabulary
+            // rather than the link one, and carries its own
+            // sentence; everything else is worded by the shared
+            // table.
+            message: e.message ?? linkFindingMessage(e),
+        });
+    }
+    // An image whose pathname the site cannot resolve, located the
+    // way a wikilink finding is: by searching the note for the
+    // literal the resolver was handed.
+    for (const e of result.imageErrors) {
+        emitDiagnostic({
+            file: e.file,
+            ...positionOfLiteral(readRawNote(e.file), e.src, e.occurrence),
+            severity: "error",
+            message: e.message,
+        });
+    }
+    if (siteBuildFailed(result)) return false;
+
+    // Relation warnings do not fail a site build.
+    for (const f of result.mapFindings) emitDiagnostic(f);
+    return true;
 }
 
 /**
- * `package-build site` — publish the content tree as a website.
+ * `package-build site` — the website commands.
  *
  * The sibling of `package compile`: the same tree, rendered as pages instead of
- * compiled into packs. Everything a consumer would otherwise write for itself —
- * the walk, the address derivation, the address index, table expansion,
- * wikilink resolution, code-fence protection and the foreign-manifest merge —
- * happens here, from configuration. So does the Hugo configuration: the whole
- * source tree Hugo reads lands under `build/hugo/`, and the consumer's script
- * runs Hugo over it. With `site.maps` on, every place
- * page with a border or a route carries the map from that place.
- *
- * **The Hugo configuration is generated before anything is written.** Its
- * sources — `package.json`'s `homepage`, the cached navigation, the installed
- * theme — are each a way the build can fail, and failing before the output
- * tree is cleared leaves the last good site in place to be looked at. Nothing
- * the walk reads changes it: a site renders its homepage and its pages, and
- * the kinds Hugo disables are the same on every site.
- *
- * **Each gate is reported and the run stops at the first that fires.** They are
- * ordered so the report names the cause rather than its symptoms: an unusable
- * manifest, reported after the links that failed because of it, reads as a pile
- * of broken notes.
+ * compiled into packs. `site build` renders the tree and `site serve` serves it
+ * with live rebuilds; a bare `site` names them.
  *
  * @returns {object} The yargs command module.
  */
@@ -1991,163 +2046,185 @@ function stageSiteFonts(config) {
 function siteCommand() {
     return {
         command: "site",
-        describe: "Build the Hugo source tree from the content tree",
-        builder: () => {},
-        handler: async () => {
+        describe: "Render the content tree as a website",
+        builder: (yargs) =>
+            yargs
+                .command(
+                    withIndexPreflight(
+                        withBodyPreflight(siteBuildCommand()),
+                        publishesContentPages,
+                    ),
+                )
+                .command(
+                    withIndexPreflight(
+                        withBodyPreflight(siteServeCommand()),
+                        publishesContentPages,
+                    ),
+                )
+                .demandCommand(1, "Name a site command: build or serve."),
+    };
+}
+
+/**
+ * Report what the layouts, or the build's section gate, found about a site.
+ *
+ * A finding about a site parameter is located at the configuration's
+ * `site.<param>` entry; one about a page, at the note the page was written
+ * from.
+ *
+ * @param {readonly object[]} findings - The findings.
+ */
+function reportSiteFindings(findings) {
+    const configFile = packConfigPath();
+    const configText = fs.existsSync(configFile) ? fs.readFileSync(configFile, "utf8") : "";
+    for (const finding of findings) {
+        if (finding.param) {
+            emitDiagnostic({
+                file: path.relative(process.cwd(), configFile),
+                ...positionOfYamlPath(configText, ["site", ...finding.param]),
+                severity: finding.severity,
+                message: finding.message,
+            });
+        } else {
+            emitDiagnostic({
+                file: finding.file ?? finding.page,
+                severity: finding.severity,
+                message: finding.message,
+            });
+        }
+    }
+}
+
+/**
+ * `package-build site build` — render the content tree as a website.
+ *
+ * Every page is drawn by the site theme from the shared renderer's HTML and
+ * written under `<out>/<package>/`, with `404.html`, `sitemap.xml`, the
+ * theme's stylesheets, scripts and fonts and the package's script fonts.
+ * `_headers` is then written beside it and the search index built inside it,
+ * as `package-build site-root` does. The site's settings and cached menu are
+ * read before the tree, so a site that cannot be described fails with the
+ * last good one still in place.
+ *
+ * @returns {object} The yargs command module.
+ */
+function siteBuildCommand() {
+    return {
+        command: "build",
+        describe: "Render the content tree as a website and index it for search",
+        builder: (yargs) =>
+            yargs.option("out", {
+                type: "string",
+                describe: `The directory that is deployed (default: ${DEPLOY_ROOT})`,
+            }),
+        handler: async (argv) => {
             try {
-                const config = loadPackConfig();
-                // Generated before the walk, to fail fast on a missing or
-                // mismatched source — `homepage`, the manifest title, the
-                // cached navigation, the installed theme — while the last
-                // good site is still in place to be looked at. Written only
-                // once the walk has succeeded.
-                const hugo = generateHugoConfig(config);
-                const result = buildSite({
-                    config,
-                    sqlTables: await prepareTreeSqlTables(config.paths.content, {
-                        skipDirectories: config.skipDirectories,
-                        config,
-                        audience: "public",
-                    }),
-                });
-                const { gates } = result;
-
-                // First, because it is decided before the tree is walked and
-                // before the output is cleared: a package with no front page,
-                // or two competing for it, has nothing to say about its pages
-                // yet.
-                for (const f of gates.homepages) emitDiagnostic(f);
-                for (const f of gates.frontmatterLinks) {
-                    emitDiagnostic({
-                        file: f.file,
-                        severity: "error",
-                        message:
-                            `wikilink ${f.link} authored in frontmatter at ` +
-                            `${f.path} — frontmatter is data, is copied to the ` +
-                            `page verbatim, and reaches the reader as brackets`,
-                    });
-                }
-                for (const f of gates.addressErrors) {
-                    emitDiagnostic({
-                        file: f.file,
-                        severity: "error",
-                        message: `cannot derive a URL: ${f.reason}`,
-                    });
-                }
-                for (const s of gates.staleManifests) {
-                    emitDiagnostic({
-                        file: cachedIndexPath(loadPackConfig(), s.package),
-                        severity: "error",
-                        message: `unusable content index: ${s.reason}`,
-                    });
-                }
-                for (const f of gates.unaddressable) {
-                    console.error(formatUnaddressable(f, loadPackConfig()));
-                }
-                if (gatesFailed(gates)) {
+                const config = argv[CONTENT_CONFIG] ?? loadPackConfig();
+                const root = path.resolve(config.rootDir, argv.out ?? DEPLOY_ROOT);
+                const out = siteDirectory(config, root);
+                const result = await buildPackageSite({ config, out });
+                // A note in error is written as its page shows it, and the
+                // build fails without indexing a site that is not to be
+                // deployed.
+                if (!reportSiteBuild(result.built) || !result.written) {
                     process.exitCode = 1;
                     return;
                 }
-
-                // Reported after the write rather than before it: both are
-                // failures of individual notes, and stopping the whole build
-                // before anything is emitted would make a single bad table
-                // hide every other problem in the tree.
-                // `file:line:column: error: message`, path first — the same
-                // shape the pack build and the wikilink findings below use. It
-                // was prose with a timestamp where a parser reads the path,
-                // which made one authored table produce a machine-readable
-                // diagnostic from one build and something ungreppable from the
-                // other.
-                for (const e of result.tableErrors) {
-                    emitDiagnostic({
-                        file: e.source,
-                        line: typeof e.line === "number" ? e.line + 1 : undefined,
-                        column: e.column,
-                        severity: "error",
-                        message: e.reason,
-                    });
-                }
-                for (const e of result.expressionErrors) {
-                    emitDiagnostic(e);
-                }
-                for (const e of result.secretErrors) {
-                    emitDiagnostic({ ...e, severity: "error" });
-                }
-                for (const e of result.captionErrors) {
-                    emitDiagnostic({ ...e, severity: "error" });
-                }
-                for (const e of result.headingErrors) {
-                    emitDiagnostic({ ...e, severity: "error" });
-                }
-                for (const e of result.footnoteErrors) {
-                    emitDiagnostic({ ...e, severity: "error" });
-                }
-                for (const e of result.embedErrors) {
-                    emitDiagnostic({ ...e, severity: "error" });
-                }
-                // Reported the way the pack build reports the very same
-                // finding: `file:line:column: error: message`, path first, and
-                // the message from the shared table, not a
-                // `log.error` whose timestamp prefix sat where a parser reads
-                // the path from, and whose text named a `reason` code rather
-                // than saying what to do — so one authored link produced a
-                // machine-readable diagnostic from one build and prose from
-                // another.
-                for (const e of result.wikiErrors) {
-                    emitDiagnostic({
-                        file: e.file,
-                        ...positionOfLiteral(readRawNote(e.file), e.link, e.occurrence),
-                        severity: "error",
-                        // An embed's directive speaks the image vocabulary
-                        // rather than the link one, and carries its own
-                        // sentence; everything else is worded by the shared
-                        // table.
-                        message: e.message ?? linkFindingMessage(e),
-                    });
-                }
-                // An image whose pathname the site cannot resolve, located the
-                // way a wikilink finding is: by searching the note for the
-                // literal the resolver was handed. The page is written either
-                // way — a missing picture is visible, and stopping before the
-                // write would hide every other finding in the tree behind one
-                // address.
-                for (const e of result.imageErrors) {
-                    emitDiagnostic({
-                        file: e.file,
-                        ...positionOfLiteral(readRawNote(e.file), e.src, e.occurrence),
-                        severity: "error",
-                        message: e.message,
-                    });
-                }
-                if (
-                    result.tableErrors.length ||
-                    result.expressionErrors.length ||
-                    result.secretErrors.length ||
-                    result.captionErrors.length ||
-                    result.headingErrors.length ||
-                    result.footnoteErrors.length ||
-                    result.wikiErrors.length ||
-                    result.imageErrors.length ||
-                    result.embedErrors.length
-                ) {
+                reportSiteFindings(result.written.findings);
+                for (const finding of result.fonts.findings) emitDiagnostic(finding);
+                if (result.fonts.findings.length) {
                     process.exitCode = 1;
                     return;
                 }
-
-                // Relation warnings do not fail a site build.
-                for (const f of result.mapFindings) emitDiagnostic(f);
-
-                const s = result.stats;
                 log.info(
-                    `wrote ${s.homepages ?? 0} homepage(s) + ` +
-                        `${s.content ?? 0} content page(s), ` +
-                        `${s.maps ?? 0} with a map, to ` +
-                        `${path.relative(process.cwd(), s.out)}`,
+                    `wrote ${result.written.pages.length} page(s) to ` +
+                        `${path.relative(process.cwd(), out)}`,
                 );
-                const { file } = writeHugoConfig(config, hugo);
-                log.info(`wrote ${path.relative(process.cwd(), file)}`);
-                stageSiteFonts(config);
+                if (result.fonts.count)
+                    log.info(
+                        `wrote ${result.fonts.count} script font file(s) to ` +
+                            `${path.relative(process.cwd(), result.fonts.dest)}`,
+                    );
+                const { search } = await writeSiteRoot({
+                    pkg: config.contentPackage,
+                    base: siteBase(config),
+                    out: root,
+                    search: config.site.search,
+                });
+                if (search) {
+                    log.info(
+                        `indexed ${search.pages} page(s) for search into ` +
+                            `${path.relative(process.cwd(), search.dir)}`,
+                    );
+                }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `package-build site serve` — serve the website, and keep it current.
+ *
+ * The site is built as `site build` builds it, served from the deployed root,
+ * and written again as the content tree or the theme changes; every open page
+ * reloads when it is. Runs until interrupted.
+ *
+ * @returns {object} The yargs command module.
+ */
+function siteServeCommand() {
+    return {
+        command: "serve",
+        describe: "Serve the website, and rebuild and reload it as its sources change",
+        builder: (yargs) =>
+            yargs
+                .option("port", {
+                    type: "number",
+                    default: 1313,
+                    describe: "The port to listen on",
+                })
+                .option("host", {
+                    type: "string",
+                    default: "127.0.0.1",
+                    describe: "The address to listen on",
+                })
+                .option("out", {
+                    type: "string",
+                    describe: `The directory the site is written to (default: ${DEPLOY_ROOT})`,
+                }),
+        handler: async (argv) => {
+            try {
+                const config = argv[CONTENT_CONFIG] ?? loadPackConfig();
+                const root = path.resolve(config.rootDir, argv.out ?? DEPLOY_ROOT);
+                const served = await serveSite({
+                    config,
+                    root,
+                    out: siteDirectory(config, root),
+                    host: argv.host,
+                    port: argv.port,
+                    report: (event) => {
+                        if (event.kind === "error") reportFailure(event.error);
+                        else if (event.kind === "failed") {
+                            if (event.built) reportSiteBuild(event.built);
+                            for (const finding of event.findings ?? []) emitDiagnostic(finding);
+                        } else {
+                            reportSiteFindings(event.findings ?? []);
+                            log.info(
+                                event.kind === "built" ? "built the site"
+                                : event.kind === "theme" ? "drew every page again"
+                                : `wrote ${event.files.map((f) => path.relative(process.cwd(), f)).join(", ")}`,
+                            );
+                        }
+                    },
+                });
+                log.info(`serving ${served.url} — interrupt to stop`);
+                await new Promise((resolve) => {
+                    process.once("SIGINT", resolve);
+                    process.once("SIGTERM", resolve);
+                });
+                await served.close();
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

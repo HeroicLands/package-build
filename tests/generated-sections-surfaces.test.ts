@@ -29,6 +29,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { readMatter } from "../engine/note-matter.mjs";
+import { builtPages } from "./helpers/built-pages";
 
 import { defineConfig } from "../index.mjs";
 import { resolveDanglingLabels } from "../engine/pdf-render.mjs";
@@ -371,13 +372,7 @@ beforeAll(async () => {
         }),
     });
     expect(gatesFailed(built.gates), JSON.stringify(built.gates)).toBe(false);
-    const content = path.join(root, "build/hugo/content");
-    site = Object.fromEntries(
-        fs
-            .readdirSync(content)
-            .filter((file) => file.endsWith(".md"))
-            .map((file) => [file, fs.readFileSync(path.join(content, file), "utf8")]),
-    );
+    site = builtPages(built);
 
     const packs = generatePacks(root);
     foundry = {

@@ -39,8 +39,8 @@ import { FONTS_MANIFEST, resolveScriptFonts } from "./script-fonts.mjs";
 export const STAGED_FONTS_DIR = "fonts/heroiclands";
 
 /**
- * Where the files land in the Hugo static tree, relative to `build/hugo/static`,
- * beneath a directory per version.
+ * Where the files land in the site's static tree, beneath a directory per
+ * version.
  *
  * @type {string}
  */
@@ -279,10 +279,10 @@ export function siteFontsParam(config) {
 }
 
 /**
- * The directory under the Hugo static tree that holds this version's fonts.
+ * The directory under the site's static tree that holds this version's fonts.
  *
  * @param {string} version - The fonts package's version.
- * @returns {string} The POSIX path, relative to `build/hugo/static`.
+ * @returns {string} The POSIX path, relative to the static tree.
  */
 export function siteFontsDestination(version) {
     return `${SITE_FONTS_DIR}/${version}`;

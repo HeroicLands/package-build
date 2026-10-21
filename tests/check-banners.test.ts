@@ -12,7 +12,7 @@ import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const inventory = parse(
-    readFileSync(new URL("../hugo-theme/data/banners.yaml", import.meta.url), "utf8"),
+    readFileSync(new URL("../site-theme/data/banners.yaml", import.meta.url), "utf8"),
 );
 const target = inventory.available[0];
 

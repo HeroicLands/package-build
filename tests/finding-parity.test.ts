@@ -92,6 +92,49 @@ function noteFile(body: string): string {
     ].join("\n");
 }
 
+/**
+ * A body whose first line is indented, carrying a footnote fault on that line
+ * and another two lines down. The parser trims the indentation off the body, so
+ * the first fault's column in the file is its column in the body plus the
+ * indentation, and the second's is its own.
+ */
+const INDENTED_FOOTNOTE_PROBLEMS = ["  A reference.[^z]", "", "And [^y] here."].join("\n");
+
+describe("the pack compiler locates a body fault at its own column", () => {
+    let spy: ReturnType<typeof vi.spyOn>;
+
+    afterEach(() => {
+        spy?.mockRestore();
+    });
+
+    it("reports a fault on the body's first line at its column, not the line's start", async () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-finding-column-"));
+        try {
+            const content = path.join(tmp, "content");
+            fs.mkdirSync(content, { recursive: true });
+            const file = path.join(content, "Probe.md");
+            fs.writeFileSync(file, noteFile(INDENTED_FOOTNOTE_PROBLEMS));
+            const out = path.join(tmp, "out");
+            fs.mkdirSync(out, { recursive: true });
+            const lines: string[] = [];
+            spy = vi.spyOn(console, "error").mockImplementation((line: unknown) => {
+                lines.push(String(line));
+            });
+            const pack = new Probe({ skipDirectories: [], contentBase: content, dest: out });
+            await pack.compile();
+            const at = (marker: string) =>
+                lines
+                    .filter((line) => line.includes(`footnote [^${marker}]`))
+                    .map((line) => line.slice(0, line.indexOf(": error:")));
+            // The body starts on file line 8, two columns in.
+            expect(at("z")).toEqual([`${file}:8:15`]);
+            expect(at("y")).toEqual([`${file}:10:5`]);
+        } finally {
+            fs.rmSync(tmp, { recursive: true, force: true });
+        }
+    });
+});
+
 describe("the pack compiler, the site build and the book agree on one note's findings", () => {
     let spy: ReturnType<typeof vi.spyOn>;
 

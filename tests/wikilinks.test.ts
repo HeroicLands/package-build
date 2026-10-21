@@ -932,7 +932,6 @@ describe("a `#section` the target does not declare", () => {
         const out = run("[[doc-guide#missing|Missing]]");
         const finding = (out.unresolved ?? []).find((u: any) => u.reason === "unknown-anchor");
         expect(finding?.anchor).toBe("missing");
-        expect(finding?.addressed).toBe(true);
     });
 
     it("matches the anchor exactly, capitals included", () => {

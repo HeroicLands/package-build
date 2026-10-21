@@ -49,7 +49,7 @@ describe("a .secret heading withholds the section it opens", () => {
 
     it("wraps the heading and its section in the spoiler on the web", () => {
         const web = renderWithheldSections(body);
-        expect(web).toContain('<details class="secret">');
+        expect(web).toContain('<details class="secret" data-pagefind-ignore>');
         expect(web).toContain('<summary class="secret">Secret</summary>');
         // The heading itself is inside the disclosure, with its attributes
         // intact for the page's own renderer to read.

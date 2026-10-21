@@ -1,0 +1,31 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+{{#if rows}}
+<dl class="info-profile-grid">
+  {{#each rows}}
+  <dt>{{label}}</dt>
+  <dd>{{> infobox-value}}</dd>
+  {{/each}}
+</dl>
+{{else if grid}}
+<div class="info-attrs-grid">
+  {{#each cells}}
+  <div class="info-attr">
+    <span class="attr-label">{{label}}</span>
+    <span class="attr-value">{{value}}</span>
+  </div>
+  {{/each}}
+</div>
+{{else if runin}}
+  {{#each groups}}
+<p class="info-skill-line">
+  {{#if label}}<span class="skill-cat">{{label}}:</span>{{/if}}
+  <span class="skill-entries">{{#each entries}}{{#unless @first}}, {{/unless}}{{> infobox-entry entry=this class="skill-entry"}}{{/each}}</span>
+</p>
+  {{/each}}
+{{else if list}}
+<ul class="info-mystical-list">
+  {{#each entries}}
+  <li class="info-mystical-item">{{> infobox-entry entry=this class="mystical-name"}}</li>
+  {{/each}}
+</ul>
+{{/if}}

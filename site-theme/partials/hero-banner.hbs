@@ -1,0 +1,11 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+<section class="hero hero-with-image"{{#if bannerUrl}} style="background-image: url('{{cssUrl bannerUrl}}');"{{/if}}>
+  <div class="hero-inner" data-pagefind-ignore>
+    {{#if title}}
+    <h1>{{title}}</h1>
+    {{/if}}
+    {{#if tagline}}
+    <p class="hero-tagline">{{tagline}}</p>
+    {{/if}}
+  </div>
+</section>

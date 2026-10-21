@@ -1,0 +1,24 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+<section class="related" aria-labelledby="related-heading" data-pagefind-ignore>
+  <h2 id="related-heading" class="related-heading">Related</h2>
+  {{#if seeAlso}}
+  <div class="related-group">
+    <h3 class="related-group-label">See also</h3>
+    <ul class="related-group-grid">
+      {{#each seeAlso}}
+      <li><a href="{{url}}">{{title}}</a>{{#if gloss}} — {{gloss}}{{/if}}</li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/if}}
+  {{#each groups}}
+  <div class="related-group">
+    <h3 class="related-group-label">{{label}}</h3>
+    <ul class="related-group-grid">
+      {{#each refs}}
+      <li><a href="{{url}}">{{title}}</a></li>
+      {{/each}}
+    </ul>
+  </div>
+  {{/each}}
+</section>

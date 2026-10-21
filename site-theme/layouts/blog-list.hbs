@@ -1,0 +1,30 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+{{#if hero}}
+{{> hero-banner hero}}
+{{/if}}
+<article class="single">
+  <div class="single-content">
+    {{#if body}}
+    <div class="single-body">
+      {{{body}}}
+    </div>
+    {{/if}}
+    {{#if posts}}
+    <ul class="blog-list">
+      {{#each posts}}
+      <li class="blog-list-item">
+        {{#if date}}
+        <time class="blog-list-date" datetime="{{date.iso}}">{{date.text}}</time>
+        {{/if}}
+        <a class="blog-list-title" href="{{url}}">{{title}}</a>
+        {{#if preview}}
+        <p class="blog-list-desc">{{preview}}</p>
+        {{/if}}
+      </li>
+      {{/each}}
+    </ul>
+    {{else}}
+    <p class="page-list-empty">No posts yet.</p>
+    {{/if}}
+  </div>
+</article>

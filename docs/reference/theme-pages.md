@@ -7,8 +7,9 @@ subType: reference
 
 # What the theme draws
 
-`package-build site` writes a page's front matter; the shared Hugo theme reads
-it and draws the page around it. This reference describes that second half —
+`package-build site build` settles a page's front matter and body; the shared
+site theme draws the page around them. This reference describes that second
+half —
 the infobox rail, the hero band, the generated sections, the related card,
 search, and the markup an image or a figure renders as — and names the
 classes a consumer styles against.
@@ -30,7 +31,7 @@ A place’s Government row links to its authored governing affiliation. Explicit
 The toolchain settles what each box holds and in what order — see
 [the infobox](format-details.md#the-infobox) for the field semantics, the
 three states a system box can say, and the four section layouts a box is
-built from. On the website, `partials/infobox.html` draws the whole list by
+built from. On the website, the `infobox` partial draws the whole list by
 switching on a section's `layout` and a value's `kind`, never on a note type
 or a field name:
 
@@ -121,13 +122,13 @@ A page whose front matter declares no `infoboxes:` renders no rail.
 
 ## The hero banner
 
-Nearly every page opens with a hero band, and `partials/hero-banner.html`
+Nearly every page opens with a hero band, and the `hero-banner` partial
 decides what sits behind it. A page arrives with its hero image stated in one
 of two ways, and the difference is who resolved it: a content page carries
 `data.banner`, which the build resolved from the asset Address the note
 declared into the address its asset host serves; a hand-authored page carries
 a top-level `banner:`, which the theme resolves against `params.cdnBaseURL`
-(see [`params.cdnBaseURL`](../configuration.md#the-generated-hugo-configuration)).
+(see [`params.cdnBaseURL`](../configuration.md#what-the-site-build-reads)).
 
 **Resolution order.**
 
@@ -143,13 +144,13 @@ a top-level `banner:`, which the theme resolves against `params.cdnBaseURL`
 4. `images/banners/default.webp` — when the page has no type, **and** whenever
    the name picked by 2 or 3 is not in the declared inventory.
 
-**Why step 4 is a declaration, not a test.** Hugo cannot ask a remote host
-whether a URL exists, so a banner that was never drawn would 404 in silence —
-the band renders with its title, palette and gradient intact behind a dead URL,
-and nothing fails: not the build, not Hugo, not the deploy guard.
-`data/banners.yaml` is the declaration that stands in for the test the
-template cannot make. A name listed in its `available` is asserted to exist; a
-resolved name that is absent falls back to `fallback`, and Hugo logs one
+**Why step 4 is a declaration, not a test.** The build cannot ask a remote
+host whether a URL exists, so a banner that was never drawn would 404 in
+silence — the band renders with its title, palette and gradient intact behind
+a dead URL, and nothing fails: not the build, not the deploy guard.
+`banners.yaml` is the declaration that stands in for the test the template
+cannot make. A name listed in its `available` is asserted to exist; a resolved
+name that is absent falls back to `fallback`, and the build reports one
 deduplicated warning naming the missing banner and the first page that wanted
 it. The fallback applies only to a relative path landing directly in the
 declared `dir` — an absolute URL, and a fragment pointing anywhere else under
@@ -158,7 +159,7 @@ either and must not second-guess an address it cannot know about. A step 1
 address is not checked for the same reason: the question has already been
 answered upstream.
 
-**The kind mapping.** `data/banner-kinds.yaml` declares, once, which banner a
+**The kind mapping.** `banner-kinds.yaml` declares, once, which banner a
 page of each note `type` opens with. A type maps to one banner name for all of
 its subTypes, or to a table that names a banner for every subType the note
 vocabulary declares for it:
@@ -178,20 +179,15 @@ kinds:
 warning. A type missing from the file resolves to its own name, so a kind with
 no declared art still produces the missing-banner warning. The lint check and
 the test suite fail on a mapped name that `banners.yaml` does not declare, and
-on a type or subType of the note vocabulary that the mapping omits. A consumer
-publishing its own artwork set ships its own `data/banner-kinds.yaml` beside
-its `data/banners.yaml`.
+on a type or subType of the note vocabulary that the mapping omits.
 
-**One resolver.** The order above lives in `partials/banner-url.html`, which
-returns a URL or an empty string; `hero-banner.html` calls it with the page's
-`type`, `subType` and `category`, for step 3.
+**One resolver.** The order above lives in one function of the engine, which
+returns a URL or an empty string; the `hero-banner` partial is given the
+result.
 
-**Keeping the inventory honest.** The lint check over `data/banners.yaml`
-fetches every declared name from the asset host and fails on any non-200
-response, so a name added optimistically is caught here rather than on a
-published page. A consumer publishing its own artwork set replaces the whole
-list by shipping its own `data/banners.yaml`, which Hugo reads in preference
-to the theme's bundled one, and can run the same check against it.
+**Keeping the inventory honest.** The lint check over `banners.yaml` fetches
+every declared name from the asset host and fails on any non-200 response, so
+a name added optimistically is caught here rather than on a published page.
 
 **Declining a hero image.** `banner: none` on a hand-authored page, and a
 blank `data.banner` on a note (which the build emits for `data.banner: none`),
@@ -246,7 +242,7 @@ is the way to choose different contents for one, or to turn one off.
 
 ## The related card
 
-`partials/related.html` renders a bordered "Related" card below the body,
+The `related` partial renders a bordered "Related" card below the body,
 listing the pages connected to this one. The build emits this front matter on
 every content page; what links to a page is a fact about every other page, so
 an authored `related:` is refused and dropped:
@@ -413,10 +409,10 @@ each theme, and the book prints its rubric in `#9c281b` on its paper.
 ## Search
 
 `params.search = true` renders a search box in the header; left unset (or
-`false`), `partials/search.html` renders nothing. The box, and everything it
+`false`), the `search` partial renders nothing. The box, and everything it
 opens, is the theme's own — the index it reads is not.
 
-**Where the index comes from.** `package-build site-root` writes a
+**Where the index comes from.** `package-build site build` writes a
 [Pagefind](https://pagefind.app) index at `pagefind/` beside the rendered
 pages, when `site.search` in `package-build.config.yaml` is left at its
 default of `true` (see [`site.search`](../configuration.md#site) and
@@ -427,26 +423,40 @@ Pagefind version. Turning `params.search` on without `site.search` indexing
 the site (or with it set `false`) shows an empty results box that never finds
 anything — the two settings are independent, and a consumer sets both.
 
-Both files are referenced the same way every other theme-bundled asset is —
-`relURL`, the same resolution `"css/style.css" | relURL` uses in
-`baseof.html` — so a package served under a prefix (`/thalorna/pagefind/…`)
-finds its own index rather than another package's, and the theme carries no
-address of its own.
+Both files are addressed relative to the site's base, so a package served
+under a prefix (`/thalorna/pagefind/…`) finds its own index rather than
+another package's, and the theme carries no address of its own.
 
 **Why a header box and not a `/search/` page.** A site is its homepage and
 its pages, with nothing generated between them — a results page would need a
-consumer content file at that address, which the theme has no way to
-conjure. Pagefind's own panel UI needs no page of its own: the header button
-opens it in place.
+note at that address. Pagefind's own panel UI needs no page of its own: the
+header button opens it in place.
 
-**What is indexed.** `data-pagefind-body` on `.single-body` scopes indexing to
-a page's prose; the theme's own chrome carries `data-pagefind-ignore` — the
-header, the footer, the infobox rail, the table of contents, the Related
-card, and the hero banner's title and tagline. `_default/single.html` also
-tags every page with `data-pagefind-filter="type"` and
-`data-pagefind-filter="package"`, read from the page's own `type` and
-`package` front matter, so a search can be narrowed to one catalog or one
-package without either value appearing in the page itself.
+**What is indexed.** `data-pagefind-body` on a page's prose scopes indexing to
+it; the theme's own chrome carries `data-pagefind-ignore` — the header, the
+footer, the infobox rail, the table of contents, the Related card, and the
+hero banner's title and tagline.
+
+**What a page tells the search.** Each page carries hidden metadata the
+search reads: its title, its filters, its aliases, its picture and, for a
+post, its date.
+
+| Filter      | Values                                       |
+| ----------- | -------------------------------------------- |
+| `package`   | the package that publishes the note          |
+| `type`      | the note's `type`                            |
+| `subtype`   | the note's `subType`                         |
+| `culture`   | the name of the culture `data.culture` names |
+| `continent` | the continent the note lies in               |
+| `region`    | the outermost region beneath that continent  |
+
+A post carries `author` and `tags` filters and sorts by its `date`. A note's
+name and its aliases count ten times a word of its body, so a search for a name
+opens that note first and a search for an alias finds it. A result shows the
+note's `data.icon`, or its hero banner where it has none. A note's tags and its
+draft state are not filters. Secret blocks, inline secrets and `.secret`
+sections are kept out of the index. [The site guide](../guides/site.md#search)
+says where a note lies and how a merged search reads other sites' indexes.
 
 **Classes added:** `.site-search`, `.search-toggle`, `.search-panel`,
 `.search-panel-inner`, and `.header-actions` (the header's nav/search/toggle
@@ -454,20 +464,20 @@ group). `.search-panel-inner` carries Pagefind's own `--pagefind-ui-*`
 theming variables, set from the theme's own tokens so results match the
 chrome around them.
 
-## What a page, a homepage and a section landing carry
+## What a page, a homepage and a listing carry
 
 ### A page
 
-`_default/single.html` renders every page that is not the homepage: the hero,
-the infobox rail, the body, any `related:` block, and prev/next links through
-the page's own catalog.
+The `page` layout draws every note that is not the homepage: the hero, the
+infobox rail, the body, any `related:` block, and prev/next links through the
+page's own catalog.
 
 **Emitted.** A note's page arrives with `title` (the note's name), `type`,
 `subType`, `description` and `tags` already set, and `data.banner` resolved.
-The form below is the hand-written one, which is what a blog post or a
-curated landing carries: `title`, `date` and a top-level `banner:` are keys
-the content build never writes, and a note's page therefore has no `date` and
-no meta-line date at all.
+The form below is the hand-written one, which is what a curated landing
+carries: `title`, `date` and a top-level `banner:` are keys the content build
+never writes, and a note's page therefore has no `date` and no meta-line date
+at all.
 
 ```yaml
 ---
@@ -483,13 +493,13 @@ tags: [archetype, mercantyl] # optional; shown in the page meta line
 
 - **`type`** is the page's catalog key, unless it is `doc` — prose rather than
   a catalog of its own — in which case the key is `subType` (what the build
-  compiles from a note's classification) or, failing that, `category` (what a
-  hand-mounted documentation tree carries). A page with no `type` has no
-  catalog.
+  compiles from a note's classification) or, failing that, `category`. A page
+  with no `type` has no catalog.
 - **`date`**, **`tags`** — each optional and shown only when present, in a
-  meta line above the body. A tag links to `tags/<tag>/`.
+  meta line above the body. A tag links to `tags/<tag>/` where the site writes
+  a page for each tag (`site.tags`), and is plain text otherwise.
 - **`subType`** — shown as a plain label for `type: being` pages. It does not
-  create a tag or taxonomy term.
+  create a tag.
 
 **The draft notice.** A page tagged `draft` states that its content is not
 settled, at the head of the article — above the infobox rail and above the
@@ -508,29 +518,34 @@ out of the meta line's tag row and said here instead.
   it states may change, and nothing in it is settled._
 - **`.draft-notice`**, **`.draft-notice-icon`**, **`.draft-notice-text`** and
   **`.draft-notice-label`** are the classes a consumer styles against.
-- The mark is Font Awesome, which `baseof.html` already loads; the sentence
+- The mark is Font Awesome, which the base layout already loads; the sentence
   reads on its own where it does not arrive.
 - The sentence is an `em`: the label is the page's own voice naming the
   state, and the sentence is the page speaking about itself.
 - A page carrying the notice also carries **`.single-with-notice`** on its
   article, which is what moves a two-column page's content and rail below it.
 
-**Prev/next.** `.PrevInSection` / `.NextInSection` walk every page under the
-site's content mount, since the build emits every note flat there rather than
-filing it into a directory named for its catalog. A mount holding more than
-one catalog narrows the walk to the pages sharing this page's catalog key, so
-reading through the afflictions does not surface a skill; a mount holding a
-single catalog is untouched, because `.PrevInSection` already walks exactly
-that catalog there.
+**Prev/next.** The links walk the pages of the site in the order a reader
+walks them. A site holding more than one catalog narrows the walk to the pages
+sharing this page's catalog key, so reading through the afflictions does not
+surface a skill; a site holding a single catalog is untouched.
+
+### A post
+
+A note of `type: doc` and `subType: post` is drawn by the `blog-post` layout:
+the post's title, its date and writer, its series where it states one, its
+tags, and its body. Posts are listed newest first on the page of the section
+`site.feed` names, and the site writes an Atom feed beside that page.
 
 ### The homepage
 
-A package's home page is `content/_index.md`, mounted at the package's own
-prefix. `layouts/index.html` selects between two shapes by what it carries.
+A package's home page is the `type: homepage` note, drawn by the `home`
+layout at the package root. The layout selects between two shapes by what the
+page carries.
 
 **`type: homepage`** renders the page through the same structure a note gets
-from `_default/single.html` — the hero from its `banner:`, then its body —
-sharing the markup through `partials/page-body.html` so a homepage and a page
+from the `page` layout — the hero from its `banner:`, then its body —
+sharing the markup through the `page-body` partial so a homepage and a page
 read as one family:
 
 ```yaml
@@ -540,11 +555,10 @@ title: Song of Heroic Lands # hero heading
 description: A classless, skill-based fantasy system … # hero standfirst
 
 # The hero image. The same `banner:` every other page in this theme uses,
-# resolved by `partials/hero-banner.html` in the documented order and through
-# `params.cdnBaseURL` — see "The hero banner" above. With none set, the
-# subtype default lands on `images/banners/homepage.webp`, since the subtype
-# default is keyed on the page's `type`. `banner: none` declines a hero image
-# entirely.
+# resolved in the documented order and through `params.cdnBaseURL` — see "The
+# hero banner" above. With none set, the subtype default lands on
+# `images/banners/homepage.webp`, since the subtype default is keyed on the
+# page's `type`. `banner: none` declines a hero image entirely.
 banner: brand/sohl-banner.webp
 ---
 Everything published for the system lives under this address …
@@ -554,39 +568,20 @@ The home page declares no `infoboxes:`, `related:`, `date:` or `tags:`, so
 those pieces of a page stay silent.
 
 **No `type` at all** — a site whose home page is a set of entry points into
-everything it publishes — renders the featured grid from `params.home`.
-A package-build configuration supplies those values through
-[`site.hugo`](../configuration.md#site).
+everything it publishes — renders the featured grid from `params.home`: a hero
+(`heroimage`, `herotitle`, `herotagline`), the section headings, and a card for
+each entry of `cards`, each with a title, an address, a line of text and an
+optional image.
 
-### A section landing
+### A listing
 
-**Hand-written.** `_default/list.html` renders whatever a consumer still
-gives Hugo's `section`, `taxonomy` or `term` kinds to render — a
-hand-curated landing at a real subdirectory, and Hugo's own tag pages. A
-`package-build` site disables all three (`disableKinds`), so this layout
-never runs for one; a site that keeps them enabled still needs a landing, and
-this is it.
-
-It opens with the hero and any authored body, then auto-lists the section's
-members (`.Pages`) as a gap-filler: a member the body already links,
-directly or transitively, is not repeated, and the rest appear under
-"Orphaned Pages" when the body links some of them, or plainly when it links
-none. A tag's term page lists the pages carrying it; the tag index itself
-lists every tag with its page count.
-
-```yaml
----
-# content/projects/_index.md — a hand-curated landing, no `type:` at all
-title: Projects
-description: Foundry VTT systems, modules, and reference content …
----
-Each section below has its own landing page.
-
-# [Song of Heroic Lands](/projects/song-of-heroic-lands/)
-…
-```
-
-A row is a linked title and, when the page carries one, its description.
+The `list` layout draws a page that lists other pages: a section a note
+stands for (`site.sections`), and the tag pages `site.tags` writes. It opens
+with the hero and any authored body, then lists the members the body does not
+already link, directly or transitively, under a heading when the body links
+some of them, or plainly when it links none. A tag's page lists the pages
+carrying it; the tag index lists every tag with its page count. A row is a
+linked title and, when the page carries one, its description.
 
 ## Alerts
 

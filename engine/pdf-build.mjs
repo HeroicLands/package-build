@@ -26,11 +26,12 @@
  * has found a bug in one of them, so the book does not get its own walk, its
  * own frontmatter reader or its own link resolver. It collects pages with
  * {@link module:engine/site-build.collectContentPages}, indexes them with
- * `siteGates`, expands tables with `expandContentTables` and resolves links
- * with `resolveWebWikilinks` — the same four calls, in the same order, that
- * `renderPages` makes. What differs is only the last step and the *selection*:
- * the site publishes every page, and the book publishes what its document tree
- * asked for.
+ * `siteGates`, and expands each body with
+ * {@link module:engine/content-expand.expandContent} for the `book` target —
+ * the same calls the site makes. What differs is how a link is written, the
+ * figure numbering, which runs across the whole book, the last step and the
+ * *selection*: the site publishes every page, and the book publishes what its
+ * document tree asked for.
  *
  * The book builds when the authored tree contains content pages. The same
  * {@link module:content-config.publishesContentPages} decision governs the
@@ -97,20 +98,9 @@ import {
 } from "./pdf-pages.mjs";
 import { cachedDependencies, openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
-import {
-    collectContentPages,
-    siteGates,
-    tableUniverse,
-    gatesFailed,
-    resolveSitePass,
-} from "./site-build.mjs";
-import {
-    figureIndexKeys,
-    resolveCrossNoteFigures,
-    resolveInfoboxRef,
-    wikiContext,
-} from "./site-index.mjs";
-import { resolveWebWikilinks } from "./web-wikilinks.mjs";
+import { collectContentPages, siteGates, gatesFailed, resolveSitePass } from "./site-build.mjs";
+import { figureIndexKeys, resolveInfoboxRef } from "./site-index.mjs";
+import { expandContent, expandTables } from "./content-expand.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
 import {
     positionOfFrontmatterPath,
@@ -120,14 +110,11 @@ import {
 } from "./diagnostics.mjs";
 import { artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
-import { expandContentTables } from "./content-tables.mjs";
 import { seeAlsoEntries, seeAlsoMarkdown, seeAlsoWebLink } from "./see-also.mjs";
-import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { eventNoteIndex } from "./event-fields.mjs";
 import { numberFigures, scanFigures } from "./content-figures.mjs";
-import { collectAnchors } from "./anchors.mjs";
-import { protectCode } from "./code-fences.mjs";
 import { imagesIn, parseImageDirective } from "./content-images.mjs";
+import { symbolImagesIn } from "./content-symbols.mjs";
 import {
     bookImageWidthIn,
     PDF_IMAGE_INCHES,
@@ -159,7 +146,7 @@ import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-r
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
 import { drawMapsFrom } from "./derived-sections.mjs";
-import { generatedDrawing, markGenerated, splitGenerated } from "./generated-sections.mjs";
+import { generatedDrawing } from "./generated-sections.mjs";
 import { resolveAssetReplacement } from "./asset-replacement.mjs";
 import { typstScriptFontPath } from "./script-font-delivery.mjs";
 
@@ -1041,7 +1028,6 @@ async function prepareWorld(resolved, { contentBase, findings, resolveReplacemen
     }
 
     const byFile = new Map(collected.pages.map((page) => [page.file, page]));
-    const universe = tableUniverse(collected.pages);
     // The address space an `![[…]]` embed resolves against — the same one the
     // site builds, so one authored picture reaches both surfaces or neither.
     const assets = assetAddressIndex(records, {
@@ -1070,7 +1056,6 @@ async function prepareWorld(resolved, { contentBase, findings, resolveReplacemen
         site,
         gates,
         byFile,
-        universe,
         sqlTables,
         assets,
         md,
@@ -1196,8 +1181,7 @@ async function buildBook(book, shared) {
         const staged = stagedImagePath(src, resolved, world.stagingOpts);
         return staged && { ...staged, to: inBook(staged.to) };
     };
-    const { records, site, gates, byFile, universe, sqlTables, assets, md, glyphs, stagingOpts } =
-        world;
+    const { records, site, gates, byFile, sqlTables, assets, md, glyphs, stagingOpts } = world;
 
     fs.mkdirSync(outDir, { recursive: true });
 
@@ -1244,7 +1228,14 @@ async function buildBook(book, shared) {
             }
             return positionOfLiteral(raw, src, occurrence);
         };
-        for (const image of imagesIn(body)) {
+        // A glyph or a cartouche is a picture the package ships, staged like
+        // any other and located in the note by its slug.
+        const symbols = symbolImagesIn(body).map(({ src, locate }) => ({
+            src,
+            locate,
+            directive: "",
+        }));
+        for (const image of [...imagesIn(body), ...symbols]) {
             const src = image.src;
             const occurrence = (seenHere.get(src) ?? 0) + 1;
             seenHere.set(src, occurrence);
@@ -1287,7 +1278,7 @@ async function buildBook(book, shared) {
             if (problem) {
                 findings.push({
                     file,
-                    ...where(src, occurrence),
+                    ...where(image.locate ?? src, occurrence),
                     severity: "error",
                     message: problem,
                 });
@@ -1299,7 +1290,7 @@ async function buildBook(book, shared) {
             } catch (err) {
                 findings.push({
                     file,
-                    ...where(src, occurrence),
+                    ...where(image.locate ?? src, occurrence),
                     severity: "error",
                     message: err.message,
                 });
@@ -1308,7 +1299,7 @@ async function buildBook(book, shared) {
             if (!staged) {
                 findings.push({
                     file,
-                    ...where(src, occurrence),
+                    ...where(image.locate ?? src, occurrence),
                     severity: "warning",
                     message:
                         `\`${src}\` names a file this package does not ship, so the book ` +
@@ -1324,7 +1315,7 @@ async function buildBook(book, shared) {
             } catch (err) {
                 findings.push({
                     file,
-                    ...where(src, occurrence),
+                    ...where(image.locate ?? src, occurrence),
                     severity: "warning",
                     message:
                         `\`${src}\` cannot be read from ` +
@@ -1389,12 +1380,12 @@ async function buildBook(book, shared) {
      * order, before any entry's expressions render — so a cross-note `ref`
      * finds the number its target carries in the finished book rather than a
      * page-local recount. Walked in the same order {@link bodies} fills
-     * below, so `figureCounts` lands on the same final tallies either way;
-     * the note's table expansion is cached here too, so the render loop does
-     * not redo it.
+     * below, so `figureCounts` lands on the same final tallies either way. A
+     * note's {@link module:engine/content-expand.expandTables} is kept here
+     * with its figures numbered, and the render loop expands the rest from it.
      *
-     * @type {Map<string, {markdown?: string, errors?: object[],
-     *   lineMap?: object[], numberedFigures: object[]}>}
+     * @type {Map<string, {staged?: import("./content-expand.mjs").ExpandedTables,
+     *   numberedFigures: object[]}>}
      */
     const prepared = new Map();
     // The map from each selected place given a From here section, drawn before
@@ -1424,25 +1415,18 @@ async function buildBook(book, shared) {
             const file = noteFile(contentBase, entry.record);
             const page = byFile.get(file);
             if (!page) continue; // reported as `missing` by the render loop below
-            const src = page.relPath ?? page.base;
-            const { markdown, errors, lineMap, generatedFrom } = expandContentTables(page.body, {
-                docs: universe.get(page.pkg) ?? [],
-                linkable: (d) => Boolean(d.fm.shortcode),
-                source: src,
-                sqlTables: sqlTables?.get(page.file),
-                pageLists: sqlTables?.pageLists?.get(page.file),
-                self: { fm: page.fm, path: page.relPath },
+            const staged = expandTables(page.body, {
+                source: page.relPath ?? page.base,
+                prepared: {
+                    sqlTables: sqlTables?.get(page.file),
+                    pageLists: sqlTables?.pageLists?.get(page.file),
+                },
+                resolveRole,
             });
-            const numberedFigures = numberFigures(
-                scanFigures(markdown, { resolveRole }).figures,
-                figureCounts,
-            );
+            const numberedFigures = numberFigures(staged.figures.figures, figureCounts);
             prepared.set(entry.anchor, {
-                markdown,
-                errors,
-                lineMap,
+                staged: { ...staged, figures: { ...staged.figures, figures: numberedFigures } },
                 numberedFigures,
-                generatedFrom,
             });
             const shortcode = page.fm.shortcode;
             if (typeof shortcode === "string" && shortcode) {
@@ -1482,15 +1466,36 @@ async function buildBook(book, shared) {
     }
 
     const renderPage = (page, headingOffset, anchorPrefix, columns) => {
-        const src = page.relPath ?? page.base;
-        const wikiErrors = [];
-        const { markdown, errors, lineMap, numberedFigures, generatedFrom } =
-            prepared.get(anchorPrefix);
+        const { staged, numberedFigures } = prepared.get(anchorPrefix);
+        // The book's own figure numbering, from `prepared`: the book numbers
+        // each kind across the whole book in reading order, so a reference
+        // reads the number the book gives the figure, not the number the note
+        // would give it alone.
+        const expanded = expandContent(page.body, {
+            target: "book",
+            index: gates.index,
+            note: {
+                fm: page.fm,
+                file: page.file,
+                source: page.relPath ?? page.base,
+                bodyLine: page.bodyLine,
+            },
+            prepared: { inline: sqlTables?.inline?.get(page.file) },
+            events,
+            figuresByAddress,
+            tables: staged,
+            links: {
+                foreign: gates.foreign.index,
+                assets,
+                beforeLinks: pass.beforeLinks ? (text) => pass.beforeLinks(text, page) : undefined,
+            },
+        });
+        const { lineMap, generatedFrom } = expanded;
         // A content-table finding states its `reason`, its 0-based line within
         // the body and its column, exactly as the site build reports them.
         // Reading it as `message` yields `[object Object]` and discards the
         // position, which is the one thing a reader needs to find the fence.
-        for (const err of errors) {
+        for (const err of expanded.findings.tables) {
             findings.push({
                 file: page.file,
                 ...(typeof err.line === "number" ?
@@ -1500,77 +1505,7 @@ async function buildBook(book, shared) {
                 message: err.reason ?? String(err.message ?? err),
             });
         }
-        const linkCtx = wikiContext(gates.index, {
-            src,
-            file: page.file,
-            type: page.fm.type ?? null,
-            errors: wikiErrors,
-            foreignIndex: gates.foreign.index,
-            assets,
-        });
-        linkCtx.captionLabels = new Map(
-            numberedFigures
-                .filter((figure) => figure.id)
-                .map((figure) => [figure.id, figure.label]),
-        );
-        // This page's own anchors, so a `[[#slug]]` self-link is checked
-        // against what the page actually declares, exactly as the site build
-        // checks it.
-        linkCtx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
-        linkCtx.output = "book";
-        // What the `ref` expression helper needs beyond the label — the
-        // caption text and whether one was authored — keyed as
-        // `engine/site-build.mjs` keys its own, but built from this note's
-        // *book-wide* numbering rather than its page-local count: the book
-        // numbers each kind across the whole book in reading order, so a
-        // reference has to read the number the book gives the figure, not the
-        // number the note would give it alone.
-        const figuresById = new Map(
-            numberedFigures
-                .filter((figure) => figure.id)
-                .map((figure) => [
-                    figure.id,
-                    { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
-                ]),
-        );
-        // Code fences are protected for the same reason every other pass
-        // protects them: a wikilink shown as an example is prose about a
-        // wikilink, and resolving it would make the example impossible to write.
-        // Where the generated sections begin is marked before any pass can move
-        // a line, and the body is split there once its links resolve: the
-        // sections are set by the rules for generated links — see
-        // `renderLink` in `engine/pdf-render.mjs`.
-        const expressions = renderMarkdownExpressions(markGenerated(markdown, generatedFrom), {
-            fm: page.fm,
-            dates: gates.index.dateContext,
-            sqlResults: sqlTables?.inline?.get(page.file),
-            file: page.file,
-            bodyLine: page.bodyLine,
-            events,
-            figures: {
-                get: (id) => figuresById.get(id),
-                // A cross-note `ref` resolves the written address exactly as
-                // a wikilink does, against every note's figures numbered
-                // before any entry's expressions render — see `prepared`
-                // above. The default link renders the target's own web
-                // address, which `renderLink` in `engine/pdf-render.mjs`
-                // resolves to the entry the book gave it, exactly as an
-                // ordinary cross-note wikilink does.
-                note: (target) =>
-                    resolveCrossNoteFigures(target, {
-                        contentTypes: gates.index.contentTypes,
-                        packages: gates.index.packages,
-                        noIndexPackages: gates.index.noIndexPackages,
-                        contentPackage: gates.index.contentPackage,
-                        siteIndexMap: gates.index.index,
-                        figuresByAddress,
-                    }),
-            },
-        });
-        findings.push(...expressions.findings);
-        const resolvedBody = protectCode(expressions.markdown, (text) =>
-            resolveWebWikilinks(pass.beforeLinks ? pass.beforeLinks(text, page) : text, linkCtx),
-        );
+        findings.push(...expanded.findings.expressions);
         // A link finding carries the authored link and which occurrence of it
         // this was, which is exactly what locates it: the position is implicit
         // in the literal the pass matched, so it is recovered by searching the
@@ -1594,7 +1529,7 @@ async function buildBook(book, shared) {
         // The source is written and the compiler still runs, so the finding is a
         // report on a book that was built, exactly as the site writes its pages
         // and refuses the run.
-        for (const err of wikiErrors) {
+        for (const err of expanded.findings.links) {
             findings.push({
                 file: page.file,
                 ...positionOfLiteral(noteSource(), err.link, err.occurrence),
@@ -1605,8 +1540,8 @@ async function buildBook(book, shared) {
                 message: err.message ?? (err.reason ? linkFindingMessage(err) : String(err)),
             });
         }
-        stageImages(resolvedBody, page.file, columns);
-        const { authored, generated } = splitGenerated(resolvedBody);
+        stageImages(expanded.markdown, page.file, columns);
+        const { authored, generated } = expanded;
         const typst = (text, options) =>
             markdownToTypst(text, {
                 md,

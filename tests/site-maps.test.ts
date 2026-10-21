@@ -27,6 +27,7 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { SITE_MAP_DIR, inlineSvg } from "../engine/site-maps.mjs";
 import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 
@@ -111,16 +112,17 @@ function config(site: Record<string, unknown> = {}) {
     });
 }
 
-const MOUNT = () => path.join(root, "build/hugo/content/kb");
+/** The pages the last build published, by file name. */
+let pages: Record<string, string> = {};
 
-/** The published front matter of one page under the content mount. */
+/** The published front matter of one page. */
 function published(rel: string): Record<string, unknown> {
-    return readMatter(fs.readFileSync(path.join(MOUNT(), rel), "utf8")).data;
+    return readMatter(pages[rel]).data;
 }
 
-/** The published body of one page under the content mount. */
+/** The published body of one page. */
 function body(rel: string): string {
-    return readMatter(fs.readFileSync(path.join(MOUNT(), rel), "utf8")).content;
+    return readMatter(pages[rel]).content;
 }
 
 /** Build the site, its generated sections prepared as the command prepares them. */
@@ -131,21 +133,14 @@ async function build(site: Record<string, unknown> = {}) {
         skipDirectories: resolved.skipDirectories,
         audience: "public",
     });
-    return buildSite({ config: resolved, sqlTables });
+    const built = buildSite({ config: resolved, sqlTables });
+    pages = builtPages(built);
+    return built;
 }
 
-/** Every emitted file below the mount, POSIX-separated and sorted. */
+/** Every published file, sorted. */
 function emitted(): string[] {
-    const out: string[] = [];
-    const walk = (d: string) => {
-        for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-            const full = path.join(d, e.name);
-            if (e.isDirectory()) walk(full);
-            else out.push(path.relative(MOUNT(), full).split(path.sep).join("/"));
-        }
-    };
-    walk(MOUNT());
-    return out.sort();
+    return Object.keys(pages).sort();
 }
 
 describe("`site.maps`", () => {

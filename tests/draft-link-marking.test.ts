@@ -29,8 +29,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildWikilinkIndex, convertWikilinks } from "../engine/wikilinks.mjs";
-import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
+import { buildWikilinkIndex, convertWikilinks, resolveWebWikilinks } from "../engine/wikilinks.mjs";
 import { buildSiteIndex, wikiContext } from "../engine/site-index.mjs";
 import { collectContentPages } from "../engine/site-build.mjs";
 import { DRAFT_TAG, isDraftNote } from "../engine/note-vocabulary.mjs";
@@ -349,9 +348,12 @@ describe("the two builds emit the same markup", () => {
         expect(wrapper(packed).close).toBe("</span>");
     });
 
-    it("defines `draftLink` byte-identically in both engine modules", () => {
-        const pack = functionSource(source("wikilinks.mjs"), "draftLink");
-        const web = functionSource(source("web-wikilinks.mjs"), "draftLink");
-        expect(pack).toBe(web);
+    it("defines `draftLink` once, in the resolver every target writes through", () => {
+        const defining = fs
+            .readdirSync(ENGINE)
+            .filter((file) => file.endsWith(".mjs"))
+            .filter((file) => /\bfunction draftLink\b/.test(source(file)));
+        expect(defining).toEqual(["wikilinks.mjs"]);
+        expect(functionSource(source("wikilinks.mjs"), "draftLink")).toContain("sohl-draft-link");
     });
 });

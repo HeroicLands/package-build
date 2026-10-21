@@ -32,6 +32,7 @@ import type { ContentBuildConfigInput } from "../content-config.mjs";
 import { checkHomepageCount, HOMEPAGE_TYPE } from "../engine/homepage.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { formatDiagnostic } from "../engine/diagnostics.mjs";
 
 /** A throwaway tree, described as `{ relPath: contents }`. */
@@ -277,38 +278,29 @@ describe("the site build enforces the homepage count", () => {
         const result = buildSite({ config: configFor(root) });
         expect(result.gates.homepages).toEqual([]);
         expect(gatesFailed(result.gates)).toBe(false);
-        // Written at its address, not at a destination of its own.
-        expect(fs.existsSync(path.join(root, "build/hugo/content/_index.md"))).toBe(true);
+        // Published at the package root.
+        expect(builtPages(result)).toHaveProperty(["_index.md"]);
     });
 
-    it("fails a homepage that declares no shortcode, before the wipe", () => {
+    it("fails a homepage that declares no shortcode, before rendering anything", () => {
         // The address rule applies even when a homepage is the only note.
         const root = sandbox({
             "homepage.md": ["---", `type: ${HOMEPAGE_TYPE}`, "---", "", "Prose.", ""].join("\n"),
             "Gear/Dagger.md": note(),
         });
-        const stale = path.join(root, "build/hugo/content/keep.md");
-        fs.mkdirSync(path.dirname(stale), { recursive: true });
-        fs.writeFileSync(stale, "the previous build\n");
-
         const result = buildSite({ config: configFor(root) });
         expect(gatesFailed(result.gates)).toBe(true);
         expect(result.gates.homepages).toHaveLength(1);
         expect(result.gates.homepages[0].message).toContain("shortcode");
         expect(result.stats).toBeNull();
-        expect(fs.existsSync(stale)).toBe(true);
+        expect(result.site).toBeUndefined();
     });
 
-    it("fails before it wipes the previous output", () => {
-        // `buildSite` clears the whole output tree on every run, so a gate that
-        // fired after that would destroy a good site to report a bad tree.
+    it("fails before rendering anything", () => {
         const root = sandbox({ "Gear/Dagger.md": note() });
-        const stale = path.join(root, "build/hugo/content/_index.md");
-        fs.mkdirSync(path.dirname(stale), { recursive: true });
-        fs.writeFileSync(stale, "the previous build\n");
 
         const result = buildSite({ config: configFor(root) });
         expect(gatesFailed(result.gates)).toBe(true);
-        expect(fs.readFileSync(stale, "utf8")).toBe("the previous build\n");
+        expect(result.site).toBeUndefined();
     });
 });

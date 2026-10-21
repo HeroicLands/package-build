@@ -18,6 +18,7 @@ import { scanVerse } from "./content-verse.mjs";
 import footnotePlugin from "markdown-it-footnote";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { inlineText } from "./name-markup.mjs";
+import { cartoucheProblems, glyphProblems } from "./content-glyphs.mjs";
 
 /** Add bracket spans after recognized Markdown links and footnotes.
  * @param {import("markdown-it")} md - Markdown parser to extend.
@@ -91,6 +92,8 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
             }
         }
         const problems = [...parsed.problems, ...refusedAttributes(parsed.values)];
+        if (parsed.classes.includes("glyph")) problems.push(...glyphProblems(parsed));
+        else if (parsed.classes.includes("cartouche")) problems.push(...cartoucheProblems(parsed));
         if (silent) {
             state.pos = finish;
             return true;
@@ -283,7 +286,7 @@ export function scanSpans(source) {
     };
 }
 
-/** Emit span tags while leaving their inline content as Markdown for Hugo.
+/** Emit span tags while leaving their inline content as Markdown.
  * @param {string} source - Authored Markdown.
  */
 export function renderSpans(source) {

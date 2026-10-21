@@ -20,8 +20,7 @@ import { buildContentLinkIndex } from "../engine/helpers.mjs";
 import { loadForeignIndexes } from "../engine/metadata-index.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
 import { buildSiteIndex, wikiContext } from "../engine/site-index.mjs";
-import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
-import { convertWikilinks } from "../engine/wikilinks.mjs";
+import { resolveWebWikilinks, convertWikilinks } from "../engine/wikilinks.mjs";
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 

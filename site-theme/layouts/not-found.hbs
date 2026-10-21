@@ -1,0 +1,31 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+<section class="hero hero-with-image" style="background-image: url('{{cssUrl heroUrl}}');">
+  <div class="hero-inner" data-pagefind-ignore>
+    <h1>Page not found</h1>
+    <p class="hero-tagline">{{tagline}} <code id="missing-path">the address you followed</code>.</p>
+  </div>
+</section>
+
+<article class="single">
+  <div class="single-content">
+    <div class="single-body">
+      <p>
+        The page may have been moved to another part of the
+        {{noun}}, or withdrawn along with the concept it described. Links
+        from older discussions, issues, and search results can outlive the
+        pages they point at.
+      </p>
+      {{#if links}}
+      <p>Start again from one of these:</p>
+      {{> page-list links}}
+      {{/if}}
+    </div>
+  </div>
+</article>
+
+<script>
+  (function () {
+    var el = document.getElementById("missing-path");
+    if (el) el.textContent = window.location.pathname;
+  })();
+</script>

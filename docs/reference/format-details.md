@@ -492,8 +492,7 @@ The event fell on {{dateformat "vrcal" "300.25"}}.
 The comparison helpers `gt`, `gte`, `lt`, and `lte` take two numbers; `eq`
 compares two values. `and`, `or`, and `not` combine Boolean results. Nested
 helpers use Handlebars parentheses. These expressions are replaced on web,
-Foundry, and book pages. Code spans and fences remain literal, as do Hugo
-shortcodes such as `{{< glyph slug="bes" >}}`. Prefix `\{{` to show an
+Foundry, and book pages. Code spans and fences remain literal. Prefix `\{{` to show an
 expression literally in prose. A missing property, unresolved
 calendar, or invalid date produces a located build error.
 
@@ -8189,11 +8188,14 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - howto: A task with an outcome, written as the steps that reach it.
 - concept: An explanation of how something works and why it is shaped that way, read to understand rather than to follow.
 - settingguide: A culture's guide to the setting, which names its culture in `data.culture`. It orients a reader to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
+- post: A blog post, which states the day it was published in `data.date` and may name its writer in `data.author`. A site whose `site.feed` names a section lists its posts there, newest first, and feeds them as Atom.
 
 | `data` property             | Values                                               | Description                                                                                                               |
 | --------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `culture`                   | `Address`                                            | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture`     |
 | `concepts`                  | list of `{ id, gloss, group }`                       | A core vocabulary's concept list, any subType. See [the core vocabulary](#the-core-vocabulary)                            |
+| `date`                      | `YYYY-MM-DD`                                         | `post` only, and required there: the day the post was published                                                           |
+| `author`                    | string                                               | `post` only: who wrote the post; a post naming none carries the site's byline, the first entry of `authors`               |
 | `concepts[].id`             | string                                               | Required: lowercase letters, digits and `-`, unique in the package                                                        |
 | `concepts[].gloss`          | string                                               | Required: what the concept means, in brief                                                                                |
 | `concepts[].group`          | string                                               | Required: the group the report lists the concept under                                                                    |
@@ -8268,8 +8270,7 @@ site is its homepage and its pages, and nothing is generated between them.
 
 There is no landing page and no section. A section appears in **no address**: a
 page publishes at `/<package>/<type>-<shortcode>/`, which names no directory. A
-section is what Hugo calls a content directory, and the note format does not
-carry one.
+section is a content directory, and the note format does not carry one.
 
 So a `doc`'s `subType` is a **genre** and nothing else, closed to the values
 above.

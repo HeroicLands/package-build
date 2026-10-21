@@ -199,9 +199,9 @@ desk:
 - **`npm run build`** runs `package-build ci`: the Build & Test workflow's
   `run:` steps in a `linux/amd64` container over a clean export of `HEAD`.
   `npm run build -- --native` runs them on the host in the working tree instead.
-  Off Linux, the Typst, GraphViz and Hugo steps install nothing; each uses the
+  Off Linux, the Typst and GraphViz steps install nothing; each uses the
   tool already on `PATH` and stops with `<tool> is not on PATH` when it is
-  missing, so a Mac running `--native` needs `typst`, `dot` and Hugo extended
+  missing, so a Mac running `--native` needs `typst` and `dot`
   installed first.
 - **`npm run deploy:npm`** runs `npm publish`. Provenance is attested only on a
   CI runner that can mint a Sigstore identity — GitHub Actions with an OIDC

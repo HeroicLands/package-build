@@ -1,0 +1,35 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+{{#if isHomepage}}
+  {{#if hero}}
+{{> hero-banner hero}}
+  {{/if}}
+  {{#if article}}
+{{> page-body article}}
+  {{/if}}
+{{else if grid}}
+  {{#if grid.hero}}
+{{> hero-banner grid.hero}}
+  {{/if}}
+  {{#if grid.hasItems}}
+<section class="home-sections">
+  <div class="home-featured">
+    {{#each grid.headings}}
+    <h2 class="home-section-title{{#if class}} home-section-title--{{class}}{{/if}}">{{title}}</h2>
+    {{/each}}
+    {{#each grid.cards}}
+
+    <div class="home-card{{#if key}} home-card--{{key}}{{/if}}">
+      {{#if imageUrl}}
+      <a href="{{url}}">
+        <img src="{{imageUrl}}" alt="{{alt}}" class="card-image">
+      </a>
+      {{/if}}
+      <h2><a href="{{url}}">{{title}}</a></h2>
+      <p>{{text}}</p>
+      <a href="{{url}}" class="card-button">More Info →</a>
+    </div>
+    {{/each}}
+  </div>
+</section>
+  {{/if}}
+{{/if}}

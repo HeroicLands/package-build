@@ -202,7 +202,7 @@ The optional `type` attribute overrides inference and accepts `figure`, `table`,
 
 Identifiers are optional and must be unique within the note. Classes are unrestricted; `.border` uses the shared border style, while other classes can be styled by the medium. On a captioned table or SQL fence, `.full-width` sets the table across the page in a PDF book instead of in one column (`: Regional trade routes {.full-width}`); the other surfaces ignore it. Named attributes use `key=value`, with quoted values for text containing spaces. Use `#id` and `.class` rather than `id=` and `class=`; event-handler attributes are refused.
 
-Each numbered type has its own counter. Websites and Foundry number within a note; books number across their reading order. Unnumbered captions neither display nor consume a number. A map image can retain its asset-derived **Map** classification when no type is specified.
+Each numbered type has its own counter. Websites and Foundry number within a note; books number across their reading order. Unnumbered captions neither display nor consume a number. A picture whose asset declares the `map` role counts as a **Map** when no type is specified, and a reference to it reads **Map 1** on every surface: in the note's own page, in a journal, and from another note's page. The editor preview knows the role when it has the package's content index; without one it numbers the picture a **Figure**.
 
 `{{ref "#trade"}}` displays the numbered label as a link. `form="full"` includes caption text and `form="title"` displays the caption alone. Use title form for an unnumbered caption. Cross-note references can name the note address before the anchor, such as `{{ref "place-harbor#trade"}}`; the displayed number belongs to the target on the surface rendering it. Links inside caption text contribute their visible text to references, so the reference does not contain a nested link.
 
@@ -1265,6 +1265,18 @@ plain words, not a checkbox — write what is done into the item itself:
 - the ferry crossing: owed
 ```
 
+## Fenced code
+
+A fence that names a language highlight.js knows is highlighted when the page is built, so a Foundry journal and the editor preview show a listing with its keywords, strings and comments coloured. The colours follow the light or dark scheme the page is in. A fence with no language, or a language highlight.js does not know, is shown as plain text.
+
+````markdown
+```js
+const lantern = "lit"; // the harbor light
+```
+````
+
+A fence named `sql`, `pagelist` or `verse` is not a listing: a query is replaced by its table, and verse is set as a poem.
+
 ## SQL generated tables
 
 A fence marked `sql` is replaced by a table built from the content index. The query reads the frontmatter of every indexed note, so a table is written once and stays true as notes are added.
@@ -2038,92 +2050,56 @@ A page list names this package's own pages. A **stub** — a note with neither a
 
 See [page-list details](../reference/format-details.md#page-lists) for the directive's full behaviour.
 
-## Theme shortcodes
+## Signs: glyphs and cartouches
 
-The Hugo theme that renders every site defines four shortcodes. An author writes one in a note body as `{{< name … >}}`, and only the website renders it. The shared note pipeline leaves a shortcode in the source untouched, so the compendium packs and the printed book carry the call as literal text. Use a shortcode only on a page whose purpose is the website. Where a construct must reach all three surfaces, use one of the constructs earlier on this page, which every surface resolves.
+A **glyph** is a small picture set in a line of text, such as the sign that writes a deity's name. A **cartouche** is a framed seal set among the words around it. Both are pictures the package ships, and both render on every surface: the Foundry journals, the website, the editor preview and the book.
 
-A shortcode takes either positional arguments or named ones, and a single call cannot mix the two. `{{< glyph "anubis" >}}` and `{{< glyph slug="anubis" frame="tablet" >}}` are both valid; `{{< glyph "anubis" frame="tablet" >}}` is refused by Hugo. A call to a shortcode that has a required argument and omits it fails the site build with the note's position.
-
-### `cartouche`
-
-Renders a named SVG seal as an ornamental accent, as a block figure or inline with text. The image is read from `img/cartouches/<slug>.svg` in the consuming site's static files.
-
-| Parameter | Value              | Default            | What it does                                                                                          |
-| --------- | ------------------ | ------------------ | ----------------------------------------------------------------------------------------------------- |
-| `slug`    | the SVG's basename | required           | Names the file. May be given as the first positional argument when no other parameter is used.        |
-| `size`    | `inline`           | block              | `inline` flows the image with the surrounding text. Any other value adds a `cartouche-<value>` class. |
-| `align`   | `left` or `right`  | centered           | Floats the figure so prose wraps around it.                                                           |
-| `height`  | a CSS length       | set by the theme   | Sets the image's height, for example `10rem` or `160px`. The width follows the image's aspect ratio.  |
-| `alt`     | text               | the humanized slug | The image's text alternative.                                                                         |
-| `caption` | text               | none               | A caption under the image. Block mode only; an inline cartouche ignores it.                           |
+Each is a bracket span: a glyph has the `.glyph` class and a cartouche has the `.cartouche` class.
 
 ```markdown
-{{< cartouche "takheperu" >}}
+The name [Ra]{.glyph slug=ra} is written with one sign.
 
-{{< cartouche slug="aukhelathu" height="10rem" align="right" >}}
+| God    | Sign                                              |
+| ------ | ------------------------------------------------- |
+| Anubis | [Anubis, jackal]{.glyph slug=anubis frame=tablet} |
 
-{{< cartouche slug="anubis" caption="Anpu" >}}
-
-The sign {{< cartouche slug="ra" size="inline" >}} stands for the sun.
+The seal [Au'Khelathu]{.cartouche slug=aukhelathu height=10rem align=right caption="Au'Khelathu"} is cut above the gate.
 ```
 
-The first call centers the `takheperu` seal as a block. The second floats the `aukhelathu` seal to the right at ten rem tall, with the following paragraph wrapping around it. The third adds a caption under the seal. The fourth sets the seal in the line of text.
-
-### `exturl`
-
-Renders a web address as a code-styled string followed by a button that copies it to the clipboard. It exists for an address a reader is meant to paste somewhere, such as a server address or a manifest URL, where a clickable link would be the wrong affordance. The address is the first positional argument and the shortcode takes no other.
-
-| Parameter          | Value                     | Default | What it does                                                           |
-| ------------------ | ------------------------- | ------- | ---------------------------------------------------------------------- |
-| first (positional) | the text to show and copy | none    | The string displayed in the code element and written to the clipboard. |
-
-```markdown
-Install from {{< exturl "https://example.org/module/manifest.json" >}} in the module browser.
-```
-
-The page shows the address in a code element with a copy icon beside it. Selecting the icon copies the address and briefly marks the button as copied. The text is not a link.
+Each picture is named by `slug` and is a file the package ships: a glyph is `assets/icons/<slug>.svg` and a cartouche is `assets/images/cartouches/<slug>.svg`. Each surface serves the file at the address it serves every other [image](#images-and-protected-content) at. Draw the SVG with `stroke="currentColor"` and `fill="none"` to take the colour of the surface it appears on.
 
 ### `glyph`
 
-Renders an icon-scale SVG, such as a deity-name cluster, a category icon or an ornamental mark, in the line of text or as a block. The image is `icons/<slug>.svg`, resolved against the consuming site's `params.cdnBaseURL`. This is an image drawn from the site's icon directory; it is a separate construct from the `:icon name:` font glyphs of the [icon guide](../guides/icons.md), which every surface renders from the package's declared `icons` registry.
+The label between the brackets is the picture's text alternative, read aloud by a screen reader and printed in the book when the package ships no file for the sign. An empty label takes the humanized slug.
 
-| Parameter | Value               | Default            | What it does                                                                                                  |
-| --------- | ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `slug`    | the SVG's basename  | required           | Names the file. May be given as the first positional argument when no other parameter is used.                |
-| `frame`   | `tablet`            | none               | Sets the glyph inside a limestone rectangular frame, so rows of different intrinsic width line up in a table. |
-| `size`    | `inline` or `block` | 1.8em tall         | `inline` is small and flows with the text. `block` centers the glyph as a standalone line.                    |
-| `alt`     | text                | the humanized slug | The image's text alternative.                                                                                 |
+| Attribute | Value               | Default    | What it does                                                                                                  |
+| --------- | ------------------- | ---------- | ------------------------------------------------------------------------------------------------------------- |
+| `slug`    | the SVG's basename  | required   | Names the file `icons/<slug>.svg`.                                                                            |
+| `frame`   | `tablet`            | none       | Sets the glyph inside a limestone rectangular frame, so rows of different intrinsic width line up in a table. |
+| `size`    | `inline` or `block` | 1.8em tall | `inline` is small and flows with the text. `block` centers the glyph as a standalone line.                    |
 
-```markdown
-| God    | Glyph                                      |
-| ------ | ------------------------------------------ |
-| Anubis | {{< glyph slug="anubis" frame="tablet" >}} |
+A glyph takes no `#id`, no other class and no other attribute. Write the alternative text as the label; an `alt=` attribute is refused, as is any attribute the glyph does not take. A glyph with a finding is drawn as an ordinary span, and the finding names the line and column of the span.
 
-The name {{< glyph "ra" >}} is written with one sign.
+This is a separate construct from the `:icon name:` font glyphs of the [icon guide](../guides/icons.md), which every surface renders from the package's declared `icons` registry.
 
-{{< glyph slug="ra" size="block" alt="Sun god Ra" >}}
-```
+### `cartouche`
 
-### `pagelist`
+The label between the brackets is the picture's text alternative, read aloud by a screen reader and printed in the book when the package ships no file for the seal. An empty label takes the humanized slug. The seal is drawn as a figure at the place the span stands in the sentence.
 
-Renders the pages carrying a tag as a list of links, ordered as asked. The group is expressed by intent: a page joins by being tagged and leaves by being untagged. The shortcode lists the site's own pages by the tags the site's taxonomy holds.
-
-The ` ```pagelist ` fence described under [Page lists](#page-lists) is a different construct with its own attributes. The fence is answered by the content pipeline and reaches Foundry and the book; the shortcode is the site's alone.
-
-| Parameter | Value                       | Default       | What it does                                                                                          |
-| --------- | --------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
-| `tag`     | a tag                       | required      | The taxonomy term to list, matched case-insensitively. May be given as the first positional argument. |
-| `section` | a top-level section name    | every section | Restricts the list to one section of the site, such as `rules`.                                       |
-| `sort`    | `title`, `weight` or `date` | `title`       | The order of the list. `date` puts the newest first.                                                  |
-| `desc`    | `true`                      | off           | Shows each page's description beneath its link. Any other value leaves descriptions out.              |
+| Attribute | Value              | Default          | What it does                                                                                                                           |
+| --------- | ------------------ | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `slug`    | the SVG's basename | required         | Names the file `images/cartouches/<slug>.svg`.                                                                                         |
+| `align`   | `left` or `right`  | centered         | Floats the figure on the website and in Foundry so prose wraps around it. The book sets it at that side of its own line.               |
+| `height`  | a length           | set by the theme | Sets the image's height, a number followed by `rem`, `em`, `px`, `pt`, `cm`, `mm` or `in`. The width follows the image's aspect ratio. |
+| `caption` | text               | none             | A caption under the image.                                                                                                             |
 
 ```markdown
-{{< pagelist tag="key-concept" >}}
+The seal [Ta Kheperu]{.cartouche slug=takheperu} is cut above the gate.
 
-{{< pagelist tag="key-concept" section="rules" sort="weight" desc="true" >}}
+The seal of [Anpu]{.cartouche slug=anubis caption="Anpu"} is cut below it.
 ```
 
-The first call lists every page tagged `key-concept` alphabetically by title. The second lists only those in the `rules` section, in weight order, each followed by its description. A tag that no page carries produces a build warning naming the tag and the note's position, and the list is left out.
+The first span centers the `takheperu` seal and takes its alternative text from the label. The second adds a caption under the `anubis` seal. A cartouche takes no `#id`, no other class and no other attribute; write the alternative text as the label, because an `alt=` attribute is refused, as is `size=`. A cartouche with a finding is drawn as an ordinary span, and the finding names the line and column of the span. A `:::cartouche` fence is not a cartouche: it is reported like any other unknown block and draws nothing.
 
 ## Expressions
 
@@ -2140,7 +2116,7 @@ There are {{words (sql "SELECT COUNT(*) FROM notes WHERE type = 'being'")}} bein
 - **An expression is one line.** It may not contain a line break or a brace.
 - **A failed expression leaves its own text in the page** and reports the line and column it is written on, so the page is readable and the fault is locatable.
 - **`\{{` writes an expression without evaluating it**, for an example in prose.
-- **`{{{…}}}`, `{{<…}}` and `{{%…}}` are left alone.** A Hugo shortcode is not an expression.
+- **`{{{…}}}` is left alone.**
 - **An expression inside a code fence is left alone.**
 - Helpers nest, with the inner call in parentheses: `{{words (sql "…")}}`.
 

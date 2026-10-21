@@ -44,8 +44,7 @@ import path from "node:path";
  *
  * A repository adds its own through `packageBuild.clean.extra`, but these four
  * are common to all of them because they come from the shared toolchain rather
- * than from any one package's layout. Everything the site build writes — the
- * Hugo source tree, Hugo's cache and the rendered site — is under `build/`.
+ * than from any one package's layout. Everything the site build writes is under `build/`.
  */
 export const BUILD_ARTIFACT_DIRS = Object.freeze(["build", ".vite", ".vitepress", ".rollup.cache"]);
 

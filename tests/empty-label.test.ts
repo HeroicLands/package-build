@@ -27,7 +27,7 @@
 import { describe, it, expect } from "vitest";
 
 import { authoredLabel, parseWikilink } from "../engine/wikilink-syntax.mjs";
-import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
+import { resolveWebWikilinks } from "../engine/wikilinks.mjs";
 
 const shock = { url: "/rules/sohl-shock/", name: "Shock" };
 

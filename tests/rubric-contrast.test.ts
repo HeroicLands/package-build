@@ -148,7 +148,7 @@ function foundryThemes(css: string): Theme[] {
     ];
 }
 
-const SITE_CSS = readFileSync(path.join(ROOT, "hugo-theme", "static", "css", "style.css"), "utf8");
+const SITE_CSS = readFileSync(path.join(ROOT, "site-theme", "static", "css", "style.css"), "utf8");
 const BASE_CSS = readFileSync(baseStylesheetSource(), "utf8");
 
 const THEMES = [siteTheme(SITE_CSS), bookTheme(bookTypstPreamble()), ...foundryThemes(BASE_CSS)];

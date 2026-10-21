@@ -293,7 +293,8 @@ describe("a macro note carries documentation like an item does", () => {
         const entryId = itemDocEntryId(NOTE_ID);
         const pages = buildPages(splitPages(body, "Automated Attack"), entryId, "Automated Attack");
         expect(pages.map((p) => p.name)).toEqual(["Automated Attack", "Script"]);
-        expect(pages[1].text.content).toContain("await go();");
+        // The code is highlighted, so its words sit in spans; read as text it is the script.
+        expect(pages[1].text.content.replace(/<[^>]*>/g, "")).toContain("await go();");
     });
 });
 

@@ -73,9 +73,10 @@ describe("package-build init", () => {
             const config = YAML.parse(
                 fs.readFileSync(path.join(named, "package-build.config.yaml"), "utf8"),
             );
-            expect(pkg.scripts["build:site"]).toContain("site-root");
-            expect(pkg.scripts["serve:site"]).toContain("serve:site-html");
-            expect(pkg.scripts["serve:site-html"]).toContain("hugo server");
+            expect(pkg.scripts["build:site"]).toContain("build:site-render");
+            expect(pkg.scripts["build:site-render"]).toBe("package-build site build");
+            expect(pkg.scripts["serve:site"]).toContain("serve:site-render");
+            expect(pkg.scripts["serve:site-render"]).toBe("package-build site serve");
             expect(pkg.scripts["build:book"]).toBe("package-build pdf");
             if (kind !== "documentation") {
                 expect(pkg.scripts["build:stage-reset"]).toBe("package-build stage reset");

@@ -47,7 +47,7 @@ pre-push hook. Run `npm test` and the other checks directly, or use
 
 ## Documentation
 
-The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md). This toolchain does not build its own site or book. A Hugo theme dependency would form a cycle because the theme uses package-build for releases.
+The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md). This toolchain does not build its own site or book.
 
 | Topic                                             | Guide                                                                     |
 | ------------------------------------------------- | ------------------------------------------------------------------------- |

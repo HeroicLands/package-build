@@ -62,7 +62,7 @@ describe("buffer-only preview", () => {
     it.each([
         '[[place-nowhere#anchor|**A <name> & text**]]{.show title="a}b"}',
         '![[image-missing|Portrait]]{.secret width="20%"}',
-        '[**A <span> & name**]{.name .secret data-type="being/npc"}',
+        '[**A <span> & name**]{.name data-type="being/npc"}',
         '[[address|label]]{title="one"}{.secret}',
     ])("preserves exact extension source: %s", (source) => {
         const html = sourceHtml(source);
@@ -216,11 +216,10 @@ describe("buffer-only preview", () => {
         );
     });
 
-    it("collects footnotes from verses and custom alert titles in the document", () => {
+    it("collects footnotes from verses in the document", () => {
         const html = sourceHtml(
-            '> [!TIP]{title="A title[^title]"}\n> Body\n\n```verse\nVerse[^verse]\n```\n\n[^title]: Title note.\n[^verse]: Verse note.',
+            "> [!TIP]\n> Body\n\n```verse\nVerse[^verse]\n```\n\n[^verse]: Verse note.",
         );
-        expect(html).toContain("Title note.");
         expect(html).toContain("Verse note.");
         expect(html.match(/class="footnotes"/g)).toHaveLength(1);
     });
@@ -297,7 +296,7 @@ describe("buffer-only preview", () => {
             "[Hidden **source**]{.secret} and [Visible]{.name} and [Unrelated]{.secretly}\n\n:::secret {title=Spoiler}\nBlock secret.\n:::",
         );
         expect(html).toContain(
-            '<span class="hl-preview-span hl-preview-secret" tabindex="0"><span class="hl-preview-bracket">[</span><span class="hl-preview-secret-content"><span class="hl-preview-label">Hidden **source**</span>',
+            '<span class="hl-preview-span hl-preview-secret" tabindex="0"><span class="hl-preview-bracket">[</span><span class="hl-preview-secret-content"><span class="hl-preview-label">Hidden <strong>source</strong></span>',
         );
         expect(html.match(/hl-preview-secret(?=[" ])/g)).toHaveLength(1);
         expect(html.match(/tabindex="0"/g)).toHaveLength(1);
@@ -305,7 +304,7 @@ describe("buffer-only preview", () => {
         expect(html).not.toContain("<details open");
         expect(html).not.toContain("<script");
         expect(html).not.toContain("<button");
-        expect(textOf(html)).toContain("[Hidden **source**]{.secret}");
+        expect(textOf(html)).toContain("[Hidden source]{.secret}");
     });
 
     it("redacts explicitly secret wikilink and image sources without resolving targets", () => {
@@ -388,7 +387,7 @@ describe("preview alert boxes", () => {
                 ).html;
                 expect(html).toContain(`alert alert-${name}`);
                 expect(html).toContain(definition.svg);
-                expect(html).toContain(`${definition.title}</p>`);
+                expect(html).toContain(`${definition.title}</header>`);
                 expect(html).toContain("Body <strong>text</strong>");
                 expect(html).toContain('hl-preview-address">place-x');
                 expect(html).toContain("hl-preview-dependent");

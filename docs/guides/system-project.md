@@ -40,6 +40,6 @@ npm run build:book
 npm run build:noci
 ```
 
-`build:db` writes the content index, stages assets, and compiles configured packs. `build:site` writes site content and renders it with Hugo Extended; `serve:site` starts a local Hugo preview. `build:book` uses Typst. `build:noci` runs lint, database, and manifest steps without reinstalling dependencies. Inspect `build/packs-json/` for compiled document data and `build/stage/` for what Foundry receives. Everything under `build/` is generated and can be deleted.
+`build:db` writes the content index, stages assets, and compiles configured packs. `build:site` renders the site; `serve:site` serves it locally. `build:book` uses Typst. `build:noci` runs lint, database, and manifest steps without reinstalling dependencies. Inspect `build/packs-json/` for compiled document data and `build/stage/` for what Foundry receives. Everything under `build/` is generated and can be deleted.
 
 The [testing guide](e2e.md) covers a disposable Foundry world. The [release guide](release-and-deploy.md) covers packaging and deployment. Site deployment needs its own hosting configuration; local builds do not.

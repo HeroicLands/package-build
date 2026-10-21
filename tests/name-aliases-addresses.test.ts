@@ -21,12 +21,11 @@ import { defineConfig } from "../index.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { indexRecordsFor } from "../engine/content-index.mjs";
 import { buildContentLinkIndex } from "../engine/helpers.mjs";
-import { convertWikilinks } from "../engine/wikilinks.mjs";
+import { convertWikilinks, resolveWebWikilinks } from "../engine/wikilinks.mjs";
 import { emitContentIndex } from "../engine/content-index.mjs";
 import { metadataFileName } from "../engine/metadata-index.mjs";
 import { collectContentPages, pageFrontmatter } from "../engine/site-build.mjs";
 import { buildSiteIndex, wikiContext } from "../engine/site-index.mjs";
-import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
 
 let root: string;
 

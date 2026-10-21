@@ -304,32 +304,29 @@ Every package publishes a website — at the least, its homepage — so every
 package carries this group:
 
 ```json
-"build:site": "run-s build:site-content build:site-html build:site-root",
-"build:site-content": "package-build site",
-"build:site-html": "hugo --source build/hugo --minify --gc --cleanDestinationDir",
-"build:site-root": "package-build site-root",
-"serve:site": "npm run build:site-content && hugo server --source build/hugo"
+"build:site": "run-s build:deps build:content-index build:site-render",
+"build:site-render": "package-build site build",
+"serve:site": "run-s build:deps build:content-index serve:site-render",
+"serve:site-render": "package-build site serve"
 ```
 
-`build:site-content` writes the whole Hugo source tree under `build/hugo/` —
-the generated `hugo.toml` and the content mount — with `package-build site`;
-`build:site-html` runs Hugo over it, rendering into `build/site/<contentPackage>/`;
-`build:site-root` writes the deployment's `_headers` beside that and indexes
-the rendered pages for search into `build/site/<contentPackage>/pagefind/`;
-and `serve:site` does the first and then `hugo server` for a live preview.
-The repository carries no Hugo configuration of its own: `hugo.toml` is
-generated on every run from `package.json`, `package-build.config.yaml`, the
+`build:site-render` renders the site into `build/site/<contentPackage>/` with
+`package-build site build`, then writes the deployment's `_headers` beside it
+and indexes the rendered pages for search into
+`build/site/<contentPackage>/pagefind/`. `serve:site-render` runs
+`package-build site serve`, which builds the same site and serves it for a live
+preview. The repository carries no site configuration of its own: the site is
+composed on every run from `package.json`, `package-build.config.yaml`, the
 shared theme that ships with `@heroiclands/package-build`, and the navigation
 `deps fetch` cached — a site declares this one package and needs nothing
-further added for its theme. Hugo itself is a separate install — the
-extended edition, on the developer's `PATH` and the runner's.
+further added for its theme, and nothing beyond Node to render it.
 
-The site build reads the cached navigation, so `build:site` in a package with
-no other dependency still runs `deps fetch` first:
+The site build reads the cached navigation, so `build:site` runs `deps fetch`
+first, and the content index it reads is built before it:
 
 ```json
-"build:site": "run-s build:deps build:site-content build:site-html build:site-root",
-"build:deps": "package-build deps fetch"
+"build:deps": "package-build deps fetch",
+"build:content-index": "package-build content-index"
 ```
 
 ### Deployment scripts
@@ -404,8 +401,9 @@ CHANGELOG.md
 
 Two more entries are common, and both are the same principle:
 
-- **A generated site tree.** Hugo layouts are Go templates in `.html` files,
-  which Prettier reflows as HTML — folding the template directives into prose.
+- **A tree of templates.** Handlebars layouts carry inline markup and line
+  breaks that are the page that ships, which Prettier's template formatter
+  reflows.
 - **Vendored files from another build.** A file copied verbatim from another
   repository is reformatted into a permanent diff against its source, which
   re-diffs on every re-vendor.

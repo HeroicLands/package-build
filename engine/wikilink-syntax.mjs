@@ -19,36 +19,23 @@ import { parseAddress, isAddressTuple, splitAnchor } from "./address.mjs";
 /**
  * What a `[[…]]` **is**, before anything decides where it points.
  *
- * One authored link compiles to two different addresses — a Foundry `@UUID`
- * enricher for the packs, a URL for the web — and those two destinations are the
- * *only* thing that legitimately differs. The syntax is the author's, and it is
- * the same syntax whichever build is reading it.
+ * One authored link is written three ways — a Foundry `@UUID` content link for
+ * the packs, a URL for the web, a cross-reference for the book — and those
+ * forms are the *only* thing that legitimately differs. The syntax is the
+ * author's, and it is the same syntax whichever build is reading it.
  *
- * It was written twice, and the two copies had already drifted:
+ * So the parse lives here, once, and two readers take it: the link checker
+ * (`content-links.mjs`) and the resolver (`wikilinks.mjs`). Each receives the
+ * parts and decides only what it is for: which document the address names.
  *
- * | Body | `foundry` side | `web` side |
- * | --- | --- | --- |
- * | `[[weapongear-bsw` ⏎ `]]` in a table cell | not a link | a link whose target ends in a newline |
- * | a stray `[[`, a real link two paragraphs later | finds the real link | swallows both paragraphs as one target |
- *
- * The web side's pattern omitted `\n` from the excluded set, so an unclosed
- * bracket consumed everything up to the next `]]` anywhere in the document —
- * the same shape of corruption a hand-rolled code-fence regex caused on the one
- * page whose subject is link syntax. It was also internally
- * inconsistent: its *frontmatter* scan excluded newlines while its body scan did
- * not.
- *
- * So the parse lives here, once. A resolver receives the parts and decides only
- * what it is actually for: which document the address names.
- *
- * The one rule about a link's *shape* that both resolvers share also lives here
- * — **a link carries a label** ({@link unlabelledLinkMessage}) — because the
- * two state it through one message and the author reads the same words
- * whichever ran first.
+ * The one rule about a link's *shape* also lives here — **a link carries a
+ * label** ({@link unlabelledLinkMessage}) — because every build states it
+ * through one message and the author reads the same words whichever ran
+ * first.
  *
  * For the same reason, so does the **vocabulary of link findings**
  * ({@link LINK_FINDING_REASONS}) and the message each one reports through
- * ({@link linkFindingMessage}). Three builds read one authored link; an author
+ * ({@link linkFindingMessage}). Every build reads one authored link; an author
  * meets whichever ran first, and a consumer switching on a `reason` should not
  * be switching on which build produced it.
  *
@@ -66,8 +53,8 @@ import { parseAddress, isAddressTuple, splitAnchor } from "./address.mjs";
  * **A leading `!` makes it an embed, not a link**, and the lookbehind is what
  * keeps every reader from seeing one as the other. Stated here rather than in
  * each reader for the reason the rest of this module exists: the checker, the
- * pack compilers and the web resolver all match on this pattern, and three
- * copies of the exclusion is three places for it to be forgotten. An embed's
+ * resolver and the embed reader all match on this pattern, and a copy of the
+ * exclusion in each is a place for it to be forgotten. An embed's
  * own grammar is {@link module:engine/content-embeds}.
  */
 export const WIKILINK = /(?<!!)\[\[([^\]\n]+)\]\](?:\{(?:[^{}"\n]|"(?:\\.|[^"\\\n])*")*\})?/g;
@@ -138,12 +125,8 @@ export function parseWikilink(rawInner, literal = "") {
  * `[[x|]]` is labelled and `[[x]]` is not, and only the first addresses
  * anything.
  *
- * Stated here because the two resolvers had already drawn the line in two
- * places and drawn it differently: the packs tested falsiness and were right,
- * the web tested `??` — which falls through on `null` only — and emitted
- * `[](/url/)`, a link with no clickable text, through every build. That
- * is the same drift this module exists to prevent, in the case its own
- * {@link ParsedWikilink} docstring calls out. One reading, one place.
+ * Read with `??`, which falls through on `null` only, an empty label would
+ * emit `[](/url/)`: a link with no clickable text. One reading, one place.
  *
  * @param {{display: string|null}} parsed - A parsed wikilink, or anything
  *   carrying its `display`.
@@ -156,7 +139,7 @@ export function authoredLabel({ display }) {
 /**
  * What an author writing an unlabelled link is told, in one place.
  *
- * Shared by the link checker, the pack compilers and the web resolver, because
+ * Shared by the link checker and the resolver, on every target, because
  * an author meets whichever runs first and they should read the same. It names
  * the form to write rather than a value to correct: there is no value that
  * makes an unlabelled link resolve.
@@ -180,14 +163,12 @@ export function unlabelledLinkMessage(target) {
 }
 
 /**
- * Every way a link can fail, named once for all three resolvers.
+ * Every way a link can fail, named once for every reader of a link.
  *
- * A link is read in three places — the checker (`content-links.mjs`), the pack
- * compilers (`wikilinks.mjs`) and the web resolver (`web-wikilinks.mjs`) — and
- * each would otherwise name the failures in its own words. `unknown` in one is
- * `unresolved` in another and `broken type/shortcode` in the third, so a
- * consumer switching on a `reason` was switching on which build had produced
- * it. The set is closed and lives here, beside the syntax the three share.
+ * A link is read by the checker (`content-links.mjs`) and by the resolver
+ * (`wikilinks.mjs`) for every target, and each names a failure by one of these
+ * reasons, so a consumer switching on a `reason` never switches on which build
+ * produced it. The set is closed and lives here, beside the syntax they share.
  *
  * - `unlabelled` — no `|`, so the link addresses nothing.
  * - `not-an-address` — labelled, but the target does not parse as an address.
@@ -256,7 +237,7 @@ export function isEventAnchor(hit, anchor) {
  *
  * An address naming no note is a typo or an omission: the intent of a
  * placeholder for a note nobody has written yet is spelled as a `draft`-tagged
- * note that exists, resolves and renders marked. Both want fixing, and all three builds say so.
+ * note that exists, resolves and renders marked. Both want fixing, and every build says so.
  *
  * @param {string} target - The address as authored, named in the message.
  * @returns {string} The message, unpunctuated at the end as a finding is.
@@ -322,9 +303,9 @@ export function ambiguousAddressMessage(target, packages = []) {
 /**
  * The message for one link finding, whichever resolver found it.
  *
- * The single table the checker, the pack compilers and the web resolver all
- * report through, so one authored link cannot get three different explanations
- * of the same mistake depending on which build the author ran first. Callers
+ * The single table the checker and the resolver report through, on every
+ * target, so one authored link cannot get different explanations of the same
+ * mistake depending on which build the author ran first. Callers
  * add their own context around it — the note's name, the file it sits in — and
  * never their own wording for the defect.
  *
@@ -423,8 +404,9 @@ export function linkFindingMessage({
 /**
  * Whether a parsed link addresses a section of the page it is written on.
  *
- * `[[#some-heading]]` — no target, only an anchor. Both resolvers special-case
- * it before consulting any index, because there is nothing to look up.
+ * `[[#some-heading]]` — no target, only an anchor. The resolver and the checker
+ * special-case it before consulting any index, because there is nothing to look
+ * up.
  *
  * @param {ParsedWikilink} parsed - A parsed wikilink.
  * @returns {boolean} True when the link is same-page.

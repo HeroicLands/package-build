@@ -130,7 +130,7 @@ Run the content lint and build the surfaces the package publishes:
 ```bash
 package-build lint
 package-build package compile
-package-build site
+package-build site build
 package-build pdf --no-compile
 ```
 

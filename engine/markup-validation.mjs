@@ -14,6 +14,26 @@
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
 import { scanRuns } from "./content-scripts.mjs";
+import { matchAllOutsideCode } from "./code-fences.mjs";
+
+/** The opening of a shortcode: `{{<` or `{{%`. */
+const SHORTCODE = /\{\{[<%]/g;
+
+/**
+ * Locate every shortcode outside code.
+ * @param {string} body - Markdown with its frontmatter masked.
+ * @returns {Array<{line: number, column: number, message: string}>} One error per shortcode.
+ */
+function shortcodeErrors(body) {
+    return matchAllOutsideCode(body, SHORTCODE).map((match) => {
+        const before = body.slice(0, match.index);
+        return {
+            line: before.split("\n").length,
+            column: match.index - before.lastIndexOf("\n"),
+            message: "A shortcode is not supported; write `[x]{.glyph}` or `[signs]{.cartouche}`",
+        };
+    });
+}
 
 /**
  * Validate authored block syntax with positions in the original file.
@@ -39,6 +59,7 @@ export function markupFindings(source, file, syntax, runs) {
         ...(scanned?.blocks ?? scanBlocks(body)).errors,
         ...(scanned?.alerts ?? scanAlerts(body)).errors,
         ...(marked?.errors ?? []),
+        ...shortcodeErrors(body),
     ].map((error) => ({
         file,
         ...error,

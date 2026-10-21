@@ -18,6 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import { readMatter } from "../engine/note-matter.mjs";
+import { builtPages } from "./helpers/built-pages";
 import os from "node:os";
 import path from "node:path";
 
@@ -26,7 +27,6 @@ import {
     buildSite,
     collectContentPages,
     gatesFailed,
-    pageDestination,
     pageFrontmatter,
     resolveSitePass,
     siteGates,
@@ -292,61 +292,20 @@ describe("what a page publishes with", () => {
 
     it("drops an authored `aliases`", () => {
         // The field is retired and refused at compile, so this is a
-        // guard rather than a live path: Hugo reads `aliases` as URL redirects,
-        // so passing one through would publish a redirect stub at each name.
+        // guard rather than a live path: this build emits no redirects, so an
+        // alias published as authored would point nowhere.
         const data = pageFrontmatter(page as never, {});
         expect(data.aliases).toBeUndefined();
         expect(data.custom).toBe(1);
     });
 
-    it("supplies the title Hugo needs, from the note's name", () => {
+    it("supplies the title, from the note's name", () => {
         expect(pageFrontmatter(page as never, {}).title).toBe("Dagger");
     });
 
-    it("names a content page by its whole address, flat under the mount", () => {
-        expect(pageDestination(page as never)).toBe("weapongear-dagger.md");
-        expect(path.dirname(pageDestination(page as never))).toBe(".");
-        // The URL is the address either way, and the file now agrees with it.
-        // Stated relative to the site root, because Hugo prefixes the site's
-        // own base — see `tests/page-url-root-relative.test.ts`.
+    it("states a content page's whole address, relative to the package root", () => {
+        // See `tests/page-url-root-relative.test.ts`.
         expect(pageFrontmatter(page as never, {}).url).toBe("/weapongear-dagger/");
-    });
-});
-
-describe("the output root is fixed, which is what makes wiping it safe", () => {
-    // The whole tree is a build artifact and is wiped on every run, so the
-    // resolution is the difference between clearing a build directory and
-    // clearing the repository. A configured output could be unset, or climb
-    // out of the tree; a fixed one under `build/` can do neither.
-    it("writes under build/hugo/content and touches nothing beside it", () => {
-        const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "cb-safe-"));
-        fs.writeFileSync(path.join(sandbox, "precious.txt"), "keep me");
-        fs.writeFileSync(
-            path.join(sandbox, "package.json"),
-            JSON.stringify({ name: "s", version: "1.0.0" }),
-        );
-        fs.mkdirSync(path.join(sandbox, "assets/content"), { recursive: true });
-        fs.writeFileSync(
-            path.join(sandbox, "assets/content/homepage.md"),
-            "---\ntype: homepage\nshortcode: root\n---\n\nFront.\n",
-        );
-        const config = defineConfig({
-            rootDir: sandbox,
-            contentPackage: "demo",
-            foundryPackage: "demo",
-            packageKind: "modules",
-            compatibility: { minimum: "14.359" },
-            stats: {
-                lastModifiedBy: "demobuilder0000",
-            },
-            packs: [{ name: "items", type: "Item" }],
-            publish: {},
-        });
-        const result = buildSite({ config });
-        expect(result.stats?.out).toBe(path.join(sandbox, "build/hugo/content"));
-        expect(fs.existsSync(path.join(sandbox, "build/hugo/content/_index.md"))).toBe(true);
-        expect(fs.existsSync(path.join(sandbox, "precious.txt"))).toBe(true);
-        fs.rmSync(sandbox, { recursive: true, force: true });
     });
 });
 
@@ -375,9 +334,7 @@ describe("buildSite end to end", () => {
         try {
             const result = buildSite({ config: configFor() });
             expect(gatesFailed(result.gates)).toBe(false);
-            expect(fs.existsSync(path.join(root, "build/hugo/content/kb/doc-secret.md"))).toBe(
-                false,
-            );
+            expect(builtPages(result)).not.toHaveProperty(["doc-secret.md"]);
         } finally {
             fs.rmSync(file);
         }
@@ -391,9 +348,7 @@ describe("buildSite end to end", () => {
         try {
             const result = buildSite({ config: configFor() });
             expect(gatesFailed(result.gates)).toBe(false);
-            const published = readMatter(
-                fs.readFileSync(path.join(root, "build/hugo/content/kb/being-njorven.md"), "utf8"),
-            );
+            const published = readMatter(builtPages(result)["being-njorven.md"]);
             expect(Object.hasOwn(published.data, "sohl")).toBe(false);
             expect(published.data.infoboxes).toEqual(expect.any(Array));
         } finally {
@@ -412,10 +367,7 @@ describe("buildSite end to end", () => {
         try {
             const result = buildSite({ config: configFor(), sqlTables: prepared });
             expect(result.expressionErrors).toEqual([]);
-            const page = fs.readFileSync(
-                path.join(root, "build/hugo/content/kb/doc-expressions.md"),
-                "utf8",
-            );
+            const page = builtPages(result)["doc-expressions.md"];
             expect(page).toContain("Expressions counts 7 things.");
         } finally {
             fs.rmSync(file);
@@ -436,10 +388,7 @@ describe("buildSite end to end", () => {
         try {
             const result = buildSite({ config: configFor() });
             expect(result.expressionErrors).toEqual([]);
-            const page = fs.readFileSync(
-                path.join(root, "build/hugo/content/kb/doc-citing.md"),
-                "utf8",
-            );
+            const page = builtPages(result)["doc-citing.md"];
             expect(page).toContain("[Code 1](/demo/doc-target/#thorn)");
             expect(page).toContain("[Code 1: The great beast.](/demo/doc-target/#thorn)");
         } finally {
@@ -474,15 +423,12 @@ describe("buildSite end to end", () => {
         );
         try {
             const result = buildSite({ config: configFor() });
-            const page = fs.readFileSync(
-                path.join(root, "build/hugo/content/kb/doc-secrets.md"),
-                "utf8",
-            );
+            const page = builtPages(result)["doc-secrets.md"];
             expect(result.secretErrors).toEqual([]);
             expect(page).toContain('<details class="secret" data-pagefind-ignore>');
             expect(page).toContain('<summary class="secret">Secret</summary>');
-            // Left as Markdown for Hugo's own render, not pre-rendered here —
-            // see `engine/content-blocks.mjs`.
+            // Left as Markdown for the renderer, not pre-rendered here — see
+            // `engine/content-blocks.mjs`.
             expect(page).toContain("A **hidden** clue.");
 
             fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("\n:::\n", "\n"));
@@ -528,40 +474,34 @@ describe("buildSite end to end", () => {
         try {
             const result = buildSite({ config: configFor() });
             expect(result.embedErrors).toEqual([]);
-            expect(fs.existsSync(path.join(root, "build/hugo/content/kb/doc-fencedimage.md"))).toBe(
-                true,
-            );
+            expect(builtPages(result)).toHaveProperty(["doc-fencedimage.md"]);
         } finally {
             fs.rmSync(file, { force: true });
         }
     });
 
-    it("writes the tree and reports its counts", () => {
+    it("collects the pages and reports its counts", () => {
         const result = buildSite({ config: configFor() });
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.stats).not.toBeNull();
-        const out = path.join(root, "build/hugo/content/kb");
-        expect(fs.existsSync(path.join(out, "weapongear-dagger.md"))).toBe(true);
-        // No page creates a directory, and nothing else does either.
-        expect(fs.existsSync(path.join(out, "rules"))).toBe(false);
+        const files = Object.keys(builtPages(result));
+        expect(files).toContain("weapongear-dagger.md");
+        // A page is named by its address, and no page is filed under a section.
+        expect(files.every((name) => !name.includes("/"))).toBe(true);
         expect(result.wikiErrors).toEqual([]);
     });
 
     it("resolves a wikilink to the page's published address", () => {
-        buildSite({ config: configFor() });
-        const page = fs.readFileSync(
-            path.join(root, "build/hugo/content/kb/weapongear-dagger.md"),
-            "utf8",
-        );
+        const page = builtPages(buildSite({ config: configFor() }))["weapongear-dagger.md"];
         // Both the resolved wikilink and the page's own stated address — two
         // quantities, and only the link carries the package base.
         expect(page).toContain("](/demo/weapongear-dagger/)");
         expect(page).toMatch(/^url: \/weapongear-dagger\/$/m);
     });
 
-    it("writes the derived package into a swept note's page", () => {
-        // End to end, because the defect is that the value the collect
-        // pass already resolved never reaches the file on disk.
+    it("sets the derived package on a swept note's page", () => {
+        // End to end, because the value the collect pass resolved has to
+        // reach the finished page.
         note(
             "Gear/Sling.md",
             `type: weapongear
@@ -572,17 +512,14 @@ name:
         try {
             const result = buildSite({ config: configFor() });
             expect(gatesFailed(result.gates)).toBe(false);
-            const page = fs.readFileSync(
-                path.join(root, "build/hugo/content/kb/weapongear-sling.md"),
-                "utf8",
-            );
+            const page = builtPages(result)["weapongear-sling.md"];
             expect(page).toMatch(/^package: demo$/m);
         } finally {
             fs.rmSync(path.join(root, "assets/content/Gear/Sling.md"));
         }
     });
 
-    it("stops before writing when a gate fires", () => {
+    it("stops before rendering when a gate fires", () => {
         note(
             "Gear/Dagger3.md",
             `type: weapongear
@@ -591,12 +528,10 @@ name:
     full: Dagger
 summary: "see [[weapongear-dagger]]"`,
         );
-        const out = path.join(root, "build/hugo/content");
-        fs.rmSync(out, { recursive: true, force: true });
         const result = buildSite({ config: configFor() });
         expect(gatesFailed(result.gates)).toBe(true);
         expect(result.stats).toBeNull();
-        expect(fs.existsSync(path.join(out, "kb"))).toBe(false);
+        expect(result.site).toBeUndefined();
         fs.rmSync(path.join(root, "assets/content/Gear/Dagger3.md"));
     });
 });
@@ -626,7 +561,7 @@ describe("text set in one of the faces", () => {
                 "---\ntype: doc\nsubType: rules\nshortcode: carved\nname:\n    full: Carved\n---\n\n" +
                     "Cut as [\u{F0239}]{font=semaron-kuriale}.\n",
             );
-            buildSite({
+            const result = buildSite({
                 config: defineConfig({
                     rootDir: site,
                     contentPackage: "demo",
@@ -637,10 +572,7 @@ describe("text set in one of the faces", () => {
                     packs: [{ name: "journals", type: "JournalEntry" }],
                 }),
             });
-            const page = fs.readFileSync(
-                path.join(site, "build/hugo/content/doc-carved.md"),
-                "utf8",
-            );
+            const page = builtPages(result)["doc-carved.md"];
             expect(page).toContain("hl-semaron-kuriale");
             expect(page).toContain("data-pagefind-ignore");
         } finally {

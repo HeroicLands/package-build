@@ -38,7 +38,7 @@
  * **A block's body is left as Markdown, not pre-rendered.** The wrapper is
  * written with a blank line after the opening tag and before the closing one,
  * which is what lets the surrounding renderer — Foundry's single parse of the
- * whole page, or Hugo's of the whole site page — read the body as part of its
+ * whole page, or the site renderer's of the whole page — read the body as part of its
  * own document rather than as an isolated fragment. A fragment rendered on its
  * own has no access to the note's footnote definitions, which live at the top
  * level outside every block, so a reference inside one would fall through as
@@ -163,8 +163,8 @@ export function scanBlocks(source) {
                 parsed.problems.push("block attributes need {…} braces");
             else parsed = parseExtensionAttributes(raw.trim().slice(1, -1));
         }
-        for (const message of [...parsed.problems, ...refusedAttributes(parsed.values)])
-            errors.push({ ...at, message });
+        const problems = [...parsed.problems, ...refusedAttributes(parsed.values)];
+        for (const message of problems) errors.push({ ...at, message });
         const attributes = { ...parsed.values };
         let title = BLOCK_NAMES[name] ?? "";
         if (name !== "div" && Object.hasOwn(attributes, "title")) {
@@ -178,7 +178,7 @@ export function scanBlocks(source) {
             id: parsed.id,
             classes: parsed.classes,
             attributes,
-            rejected: parsed.problems.length > 0 || refusedAttributes(parsed.values).length > 0,
+            rejected: problems.length > 0,
             indent: /^ */.exec(line)[0],
         });
     }
@@ -237,7 +237,8 @@ function attributeText(block, target, classes) {
  * Render named blocks for one publishing surface.
  *
  * `foundry` emits a `<section>` whose heading is its first line; `web` emits a
- * `<details>` the reader opens. Neither carries an inline `style`.
+ * `<details>` the reader opens, and `preview` the same without the search
+ * marker. None carries an inline `style`.
  *
  * The body is left as Markdown between the wrapper's tags, each separated from
  * its tag by a blank line — see the module docs for why that is what lets the
@@ -247,10 +248,13 @@ function attributeText(block, target, classes) {
  * A finding does not stop the well-formed blocks around it from rendering.
  *
  * @param {string} source - Markdown containing named blocks.
- * @param {"foundry"|"web"} target - Publishing surface.
+ * @param {"foundry"|"web"|"preview"} target - Publishing surface.
+ * @param {object} [options]
+ * @param {(markdown: string) => string} [options.renderInline] - How a title
+ *   is rendered; omitted, a title is plain inline Markdown.
  * @returns {{markdown: string, errors: Array<{line: number, column: number, message: string}>}}
  */
-export function renderBlocks(source, target) {
+export function renderBlocks(source, target, { renderInline } = {}) {
     const { errors } = scanBlocks(source);
     source = renderVerse(source).markdown;
     const renderedBlocks = scanBlocks(source).blocks;
@@ -268,14 +272,14 @@ export function renderBlocks(source, target) {
         // at every depth, never a rendered fragment.
         const held =
             BLOCK_CONTAINERS.includes(block.name) ?
-                renderBlocks(block.body, target).markdown
+                renderBlocks(block.body, target, { renderInline }).markdown
             :   block.body;
         if (block.name === "div") {
             output.push("", `<div ${attributes}>`, "", held, "", "</div>", "");
             cursor = block.end + 1;
             continue;
         }
-        const title = titleParser.renderInline(block.title);
+        const title = (renderInline ?? titleParser.renderInline.bind(titleParser))(block.title);
         if (target === "foundry") {
             output.push(
                 "",
@@ -285,6 +289,16 @@ export function renderBlocks(source, target) {
                 held,
                 "",
                 "</section>",
+                "",
+            );
+        } else if (target === "preview") {
+            output.push(
+                "",
+                `<details ${attributes}><summary>${title}</summary>`,
+                "",
+                held,
+                "",
+                "</details>",
                 "",
             );
         } else {
@@ -314,7 +328,8 @@ export function renderBlocks(source, target) {
  *
  * **A spoiler, not access control.** The section is in the published page, so a
  * reader who opens the element or reads the source reads it. Foundry is the one
- * surface that withholds anything.
+ * surface that withholds anything. The disclosure is kept out of the site's
+ * search index, as a `secret` block is, so no result quotes it.
  *
  * @param {string} source - A page's Markdown, headings intact.
  * @returns {string} The same Markdown, each withheld section inside a
@@ -335,7 +350,7 @@ export function renderWithheldSections(source) {
         ];
         output.push(
             "",
-            `<details class="${escapeAttribute(classes.join(" "))}">`,
+            `<details class="${escapeAttribute(classes.join(" "))}" data-pagefind-ignore>`,
             `<summary class="${escapeAttribute(WITHHELD_CLASS)}">${BLOCK_NAMES[WITHHELD_CLASS]}</summary>`,
             "",
             ...lines.slice(section.start, section.end),

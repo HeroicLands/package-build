@@ -32,7 +32,7 @@ import {
     withScriptFontStyle,
 } from "../engine/script-font-delivery.mjs";
 import { resolveScriptFonts } from "../engine/script-fonts.mjs";
-import { hugoConfig } from "../engine/site-config.mjs";
+import { siteSettings } from "../engine/site-config.mjs";
 import { headers, writeSiteRoot } from "../engine/site-root.mjs";
 import { buildManifest } from "../manifest.mjs";
 
@@ -252,17 +252,16 @@ describe("the site link", () => {
     const base = (extra: object) => ({
         homepage: "https://www.heroiclands.org/demo/",
         contentPackage: "demo",
-        site: { title: "Demo", description: "d", assets: "https://cdn.example/", hugo: {} },
+        site: { title: "Demo", description: "d", assets: "https://cdn.example/" },
         packageBuild: {},
         ...extra,
     });
-    const navigation = [{ name: "Home", url: "https://www.heroiclands.org/" }];
 
     it("names the stylesheet by its versioned address when the fonts are delivered", () => {
         const config = base({ rootDir: withFonts, paths: PATHS });
 
         expect(siteFontsParam(config)).toBe("fonts/heroiclands/0.0.0-fixture/fonts.css");
-        const generated = hugoConfig({ config: config as never, navigation, themesDir: "t" });
+        const generated = siteSettings({ config: config as never });
         expect(generated.params.scriptFonts).toBe("fonts/heroiclands/0.0.0-fixture/fonts.css");
     });
 
@@ -270,24 +269,24 @@ describe("the site link", () => {
         const config = base({ rootDir: without, paths: PATHS });
 
         expect(siteFontsParam(config)).toBeUndefined();
-        const generated = hugoConfig({ config: config as never, navigation, themesDir: "t" });
+        const generated = siteSettings({ config: config as never });
         expect("scriptFonts" in generated.params).toBe(false);
     });
 
     it("is absent when no note sets text in a face", () => {
         const config = base({ rootDir: withFonts, paths: GENERIC });
 
-        const generated = hugoConfig({ config: config as never, navigation, themesDir: "t" });
+        const generated = siteSettings({ config: config as never });
         expect("scriptFonts" in generated.params).toBe(false);
     });
 
-    it("is written into the theme's base template only behind that param", () => {
+    it("is linked by the base layout only behind that setting", () => {
         const template = fs.readFileSync(
-            path.join(HERE, "..", "hugo-theme", "layouts", "_default", "baseof.html"),
+            path.join(HERE, "..", "site-theme", "layouts", "base.hbs"),
             "utf8",
         );
 
-        expect(template).toMatch(/with \.Site\.Params\.scriptFonts[\s\S]*?relURL/);
+        expect(template).toMatch(/\{\{#if site\.urls\.scriptFonts\}\}[\s\S]*?stylesheet/);
         expect(template).not.toMatch(/heroiclands\//);
     });
 });

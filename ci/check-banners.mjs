@@ -12,15 +12,15 @@
  */
 
 /**
- * CI guard: every banner `data/banners.yaml` declares must actually be published.
+ * CI guard: every banner `site-theme/data/banners.yaml` declares must actually be published.
  *
- * `partials/hero-banner.html` needs to know which banner images exist, and Hugo
- * cannot ask a remote asset host that question at build time — so the answer is
- * declared in `data/banners.yaml` instead. This checks every declaration and
+ * The hero banner needs to know which banner images exist, and the build
+ * cannot ask a remote asset host that question — so the answer is
+ * declared in `site-theme/data/banners.yaml` instead. This checks every declaration and
  * accepts HTTP 200 or 206. HTTP 404 and 410 identify absent artwork; other HTTP
  * statuses and transport errors leave publication unverified and fail the check.
  *
- * It also refuses a name in `data/banner-kinds.yaml` that `banners.yaml` does
+ * It also refuses a name in `site-theme/data/banner-kinds.yaml` that `banners.yaml` does
  * not declare, before any request is made: a mapping to undrawn art is a dead
  * URL on every page of that kind.
  *
@@ -41,8 +41,8 @@ import { dirname, resolve } from "node:path";
 import { parse } from "yaml";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const DATA_FILE = resolve(HERE, "..", "hugo-theme", "data", "banners.yaml");
-const KINDS_FILE = resolve(HERE, "..", "hugo-theme", "data", "banner-kinds.yaml");
+const DATA_FILE = resolve(HERE, "..", "site-theme", "data", "banners.yaml");
+const KINDS_FILE = resolve(HERE, "..", "site-theme", "data", "banner-kinds.yaml");
 const DEFAULT_BASE = "https://cdn.heroiclands.org";
 
 function parseArgs(argv) {

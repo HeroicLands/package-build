@@ -1,0 +1,48 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+<article class="{{articleClass}}"{{#unless hasBody}} data-pagefind-body{{/unless}}>
+  {{#if isDraft}}
+  {{> draft-notice}}
+  {{/if}}
+  {{> search-meta search}}
+  {{#unless hasBody}}{{> search-names search}}{{/unless}}
+  {{#if hasSidebar}}
+  <aside class="info-rail">
+    {{> infobox}}
+    {{#if tocBeside}}
+    {{> toc}}
+    {{/if}}
+  </aside>
+  {{/if}}
+  {{#if hasMain}}
+  <div class="single-content">
+    {{#if meta}}
+    <div class="single-meta">
+      {{#if meta.date}}
+      <time class="single-date" datetime="{{meta.date.iso}}">{{meta.date.text}}</time>
+      {{/if}}
+      {{#if meta.subtype}}<span class="single-subtype">{{meta.subtype}}</span>{{/if}}
+      {{#if meta.tags}}
+      {{> tags meta.tags}}
+      {{/if}}
+    </div>
+    {{/if}}
+
+    {{#if hasBody}}
+    <div class="single-body" data-pagefind-body>
+      {{> search-names search}}
+      {{{content}}}
+    </div>
+    {{/if}}
+
+    {{#if related}}
+    {{> related related}}
+    {{/if}}
+    {{#if nav}}
+    {{> nav-links nav}}
+    {{/if}}
+  </div>
+  {{/if}}
+  {{#if tocBelow}}
+  {{> toc}}
+  {{/if}}
+</article>

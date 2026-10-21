@@ -6,7 +6,7 @@
  */
 
 /**
- * `hugo-theme/data/banners.yaml` declares the shared theme's banner inventory,
+ * `site-theme/data/banners.yaml` declares the shared theme's banner inventory,
  * and `partials/hero-banner.html` needs it well formed: a `dir` and `fallback`
  * to resolve against, and an `available` list the fallback itself belongs to —
  * its absence would turn one dead URL into every dead URL a resolved name
@@ -28,7 +28,7 @@ import { describe, it, expect } from "vitest";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
 
-const DATA_FILE = path.join(ROOT, "hugo-theme", "data", "banners.yaml");
+const DATA_FILE = path.join(ROOT, "site-theme", "data", "banners.yaml");
 
 describe("the theme's banner inventory", () => {
     const source = fs.readFileSync(DATA_FILE, "utf8");

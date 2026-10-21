@@ -131,12 +131,13 @@ function parentShortcode(parent) {
 }
 
 /**
- * A `parents` value as a list of shortcodes.
+ * A list of places — `parents`, a being's `homes`, a scenario's `locations` —
+ * as their shortcodes.
  *
  * @param {unknown} value - The authored value, a list or a lone entry.
  * @returns {string[]} Shortcodes, lower case, empties dropped.
  */
-function parentsOf(value) {
+export function placeShortcodes(value) {
     const list =
         Array.isArray(value) ? value
         : value ? [value]
@@ -198,7 +199,7 @@ export function placesFromRecords(records, { contentBase, base }) {
                 name,
                 type: "place",
                 subType: record.subType === undefined ? undefined : String(record.subType),
-                parents: parentsOf(data.parents),
+                parents: placeShortcodes(data.parents),
                 borders: relationList(data.borders),
                 routes: relationList(data.routes),
                 address: record.address?.canonical,
@@ -251,7 +252,7 @@ function addForeignPlaces(world, foreignIndex) {
             name: String(entry.name ?? shortcode),
             type: "place",
             subType: entry.subType === undefined ? undefined : String(entry.subType),
-            parents: parentsOf(entry.parents),
+            parents: placeShortcodes(entry.parents),
             borders: relationList(entry.borders),
             routes: relationList(entry.routes),
             address: canonical,

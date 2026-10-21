@@ -57,7 +57,7 @@ describe("dependency index preflight", () => {
     it.each([
         ["lint"],
         ["links"],
-        ["site"],
+        ["site", "build"],
         ["pdf"],
         ["map"],
         ["reachability", "Lore"],

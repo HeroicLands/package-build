@@ -1,0 +1,7 @@
+{
+    "name": "parity",
+    "version": "1.0.0",
+    "description": "The parity corpus package.",
+    "homepage": "https://www.heroiclands.org/parity/",
+    "author": "Ann Author <ann@example.org>"
+}

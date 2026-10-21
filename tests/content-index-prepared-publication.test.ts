@@ -27,10 +27,10 @@ import { loadForeignIndexes } from "../engine/metadata-index.mjs";
 import { foundryIdentities } from "../engine/foundry-entries.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
 import { buildSiteIndex, figureIndexKeys, wikiContext } from "../engine/site-index.mjs";
+import { createRenderer } from "../engine/content-render.mjs";
 import { renderSitePage } from "../engine/site-build.mjs";
 import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
-import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
-import { convertWikilinks } from "../engine/wikilinks.mjs";
+import { resolveWebWikilinks, convertWikilinks } from "../engine/wikilinks.mjs";
 import { subprocessTimeout } from "./subprocess-timeout.js";
 
 const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -510,7 +510,7 @@ describe("prepared content-index publication", () => {
                 filename === "Register.md" ? ["sql-stamp", "scalar-stamp"] : ["scalar-stamp"];
             for (const slug of slugs) {
                 expect(html).toContain(`id="${slug}"`);
-                expect(site.body).toContain(`id="${slug}"`);
+                expect(createRenderer("web").render(site.markdown)).toContain(`id="${slug}"`);
                 const containing = pages.find((page) =>
                     renderFoundryMarkdown(page.markdown).includes(`id="${slug}"`),
                 );
@@ -665,12 +665,12 @@ describe("prepared content-index publication", () => {
             figuresByAddress,
         });
         expect(rendered.expressionErrors).toEqual([]);
-        expect(rendered.body.match(/\[Code 1\]\(\/reference\/skill-craft\/#stamp\)/g)).toHaveLength(
-            3,
-        );
+        expect(
+            rendered.markdown.match(/\[Code 1\]\(\/reference\/skill-craft\/#stamp\)/g),
+        ).toHaveLength(3);
         const publication = await prepare(repo);
         expect(publication.expandedBodies.get(pages[1].file).markdown.trim()).toBe(
-            rendered.body.trim(),
+            rendered.markdown.trim(),
         );
     });
 

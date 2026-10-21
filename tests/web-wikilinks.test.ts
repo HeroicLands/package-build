@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { slugify, resolveWebWikilinks, frontmatterWikilinks } from "../engine/web-wikilinks.mjs";
+import { slugify, resolveWebWikilinks, frontmatterWikilinks } from "../engine/wikilinks.mjs";
 
 /**
  * A stand-in KB index. `index` holds the addresses — `section/slug`,

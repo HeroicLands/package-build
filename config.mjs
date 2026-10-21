@@ -160,7 +160,7 @@ const ARTIFACT_OF_KIND = Object.freeze({
  *
  * Exported so a sibling module composing a configuration value this module
  * does not itself validate — {@link module:engine/site-config}'s
- * `hugoConfig`, checking `site.assets` — reports through the one helper
+ * `siteSettings`, checking `site.assets` — reports through the one helper
  * rather than a second copy.
  *
  * @param {string} where - Dotted path of the offending key.
@@ -657,8 +657,7 @@ export function resolveAssetTransform(declared, rootDir) {
  *
  * A package's Foundry manifest already derives its own `url` from
  * `contentPackage` (`packageHomepage` in `manifest.mjs`); `homepage` states
- * the same address a second time, in `package.json`, for the generated Hugo
- * configuration to read a `baseURL` from without knowing where each
+ * the same address a second time, in `package.json`, for the site build to read a base URL from without knowing where each
  * repository keeps its own site configuration.
  *
  * Required unconditionally: every package publishes a site, so there is no
@@ -670,28 +669,44 @@ export function resolveAssetTransform(declared, rootDir) {
  * `packageHomepage(contentPackage)`, independent of it. The right caller is
  * whatever reads `homepage` to write a site's `baseURL`.
  *
+ * A site that states `site.base` is served at that path instead, and its
+ * `homepage` is that path on its origin: `/` makes it the origin's root.
+ *
  * @param {string|null} homepage - The resolved `package.json` `homepage`, or
  *   `null` when none is declared.
  * @param {string} contentPackage - The resolved `contentPackage`.
+ * @param {string} [base] - The resolved `site.base`; `""` or absent for a
+ *   package site, served at `/<contentPackage>/`.
  * @returns {void}
  */
-export function checkHomepage(homepage, contentPackage) {
+export function checkHomepage(homepage, contentPackage, base = "") {
     if (homepage === null) {
         fail(
             "homepage",
             "is not declared in `package.json`, and every package needs one " +
                 "to build its site's `baseURL` from. Add " +
-                `\`https://www.heroiclands.org/${contentPackage}/\``,
+                `\`https://www.heroiclands.org${base || `/${contentPackage}/`}\``,
         );
     }
 
-    const suffix = `/${contentPackage}/`;
     let pathname;
     try {
         pathname = new URL(homepage).pathname;
     } catch {
         fail("homepage", `is \`${homepage}\`, which is not an absolute URL`);
     }
+    if (base) {
+        if (pathname === base) return;
+        fail(
+            "homepage",
+            base === "/" ?
+                `is \`${homepage}\`, but \`site.base\` is \`/\`, so \`package.json\`'s ` +
+                    "`homepage` must be the root of its origin"
+            :   `is \`${homepage}\`, but \`site.base\` is \`${base}\`, so \`package.json\`'s ` +
+                    `\`homepage\` must be served at \`${base}\``,
+        );
+    }
+    const suffix = `/${contentPackage}/`;
     if (!pathname.endsWith(suffix)) {
         fail(
             "homepage",

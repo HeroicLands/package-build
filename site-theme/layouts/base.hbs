@@ -1,0 +1,31 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{head.title}}</title>
+  <meta name="description" content="{{head.description}}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{site.urls.style}}">
+  {{#if site.urls.scriptFonts}}
+  <link rel="stylesheet" href="{{site.urls.scriptFonts}}">
+  {{/if}}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="{{site.urls.icons}}">
+  <link rel="stylesheet" href="{{site.urls.code}}">
+  {{#if site.feed}}
+  <link rel="alternate" type="application/atom+xml" title="{{site.feed.title}}" href="{{site.feed.url}}">
+  {{/if}}
+</head>
+<body>
+  {{> header site}}
+  <main>
+    {{{body}}}
+  </main>
+  {{> footer site}}
+  {{> copy-buttons}}
+</body>
+</html>

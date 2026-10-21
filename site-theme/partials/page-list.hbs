@@ -1,0 +1,14 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+<ul class="page-list">
+  {{#each items}}
+  <li class="page-list-item">
+    <a class="page-list-title" href="{{url}}">{{title}}</a>
+    {{#if count}}
+    <span class="page-list-count">{{count}}</span>
+    {{/if}}
+    {{#if text}}
+    <span class="page-list-desc">{{text}}</span>
+    {{/if}}
+  </li>
+  {{/each}}
+</ul>

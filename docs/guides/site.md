@@ -7,10 +7,9 @@ subType: howto
 
 # Build a content website
 
-`package-build site` turns the package's content notes into a Hugo source
-tree. Hugo renders that tree with the shared theme. The build reads the same
-note addresses used by content indexes and links, so a page's URL follows the
-note it publishes.
+`package-build site build` renders the package's content notes as a website
+with the shared theme. The build reads the same note addresses used by content
+indexes and links, so a page's URL follows the note it publishes.
 
 The site has an authored homepage and one page for each other publishable note
 in the content tree. The [configuration reference](../configuration.md)
@@ -62,15 +61,13 @@ site:
   description: A guide to the setting and its people.
 ```
 
-The site title goes into Hugo's generated configuration. `site.description`
+The site title is the title of every page. `site.description`
 is plain text for the page's metadata. `site.assets` is an absolute HTTP or
 HTTPS host for imagery. `package.json` supplies the homepage URL; it must
 agree with the content package's address. The
 [configuration reference](../configuration.md#site) covers the other site
-keys, including `base`, `packages`, `notfound`, and `hugo`.
+keys, including `base`, `packages`, and `notfound`.
 
-`site.hugo` can add Hugo options the build does not derive. Keys the build
-owns, such as `baseURL`, `title`, and the generated menu, are refused there.
 The menu comes from the navigation fetched by `package-build deps fetch`.
 The site build reads that cached navigation and reports a missing cache.
 
@@ -107,10 +104,54 @@ record available. A SQL fence queries the content index; the
 [content format](../content-format.md) defines its result columns and fence
 options.
 
-The build writes no automatic section, type, tag, or listing pages between
-the homepage and the authored pages. Hugo's section, taxonomy, term, and RSS
-kinds are disabled for these sites. A package's navigation above individual
-notes is therefore a set of authored pages, each choosing its own contents.
+The build writes no automatic type or listing pages between the homepage and
+the authored pages: a package's navigation above individual notes is a set of
+authored pages, each choosing its own contents. A site writes tag pages only
+with `site.tags`, and section pages only for the sections `site.sections` and
+`site.feed` name.
+
+## Write a blog
+
+A blog is a section of posts. A post is a `doc` note of `subType: post`, which
+states the day it was published and may name who wrote it; its `tags` are the
+ones any note carries:
+
+```markdown
+---
+type: doc
+subType: post
+shortcode: welcome
+name: { full: Welcome to Heroic Lands }
+description: A first post, and a short note on what this blog is for.
+tags: [meta, announcements]
+data:
+  date: 2026-04-15
+  author: Tom Rodriguez
+---
+
+The first post.
+```
+
+A post that names no `data.author` carries the site's byline, the first entry
+of `authors`. `site.feed` names the section the posts are published in, and
+`site.sections` can give that section a page of its own, a `doc` note whose
+title and body introduce the list:
+
+```yaml
+site:
+  sections:
+    blog: doc-blog
+  feed: blog
+  tags: true
+```
+
+The section's page at `/blog/` lists every post newest first, and
+`/blog/atom.xml` feeds them. A post publishes at its own address,
+`/doc-welcome/`, like any note, and a link to `doc-blog` reaches `/blog/`. With
+`site.tags`, each tag a page carries links to a page listing every page that
+carries it. See [where a site is served, and what it
+lists](../configuration.md#where-a-site-is-served-and-what-it-lists) for every
+key.
 
 ## Use links, relations, and maps
 
@@ -142,7 +183,7 @@ format and link behavior in the [content format](../content-format.md).
 
 ## What an emitted page carries
 
-A theme reads the front matter `package-build site` writes: the note's own
+A page is drawn from its front matter: the note's own
 front matter, plus the values the build derives. Which is which matters,
 because an authored value under a derived key is discarded.
 
@@ -191,7 +232,7 @@ in `devDependencies`, as the
 describes. Nothing else is configured: the build reads which faces the notes use
 from their `font=` keys.
 
-`package-build site` copies the font stylesheet, the WOFF2 files and the
+`package-build site build` copies the font stylesheet, the WOFF2 files and the
 licence to a path that names the fonts package's version,
 `fonts/heroiclands/<version>/` beside the pages, and the theme links the
 stylesheet from every page. The copied stylesheet lists only the WOFF2
@@ -206,16 +247,64 @@ package.
 ```bash
 package-build deps fetch
 package-build content-index
-package-build site
-hugo --source build/hugo
+package-build site build
 ```
 
-`package-build site` writes `build/hugo/hugo.toml` and its content mount
-under `build/hugo/content/`. Hugo writes rendered pages under `build/site/`.
-`package-build site-root` adds the root headers and search index after Hugo
-runs. The output under `build/` is disposable; a site build replaces its
-content mount so a deleted note cannot leave a page behind.
+`package-build site build` renders every page and writes the site under
+`build/site/<contentPackage>/`: the pages, `404.html`, `sitemap.xml`, the
+theme's files and the script fonts, then `_headers` beside it and the search
+index inside it. Nothing else renders the pages: the body of each is the same
+HTML the Foundry journals and the editor preview read, drawn into the site
+theme's layouts and minified.
+
+```bash
+package-build site serve
+```
+
+`package-build site serve` builds the site the same way and serves it at
+`http://127.0.0.1:1313/<contentPackage>/`. Edit a note and its page is written
+again and the browser reloads; edit the theme and every page is drawn again.
+A change that moves, renames or adds a note builds the whole site again. See
+[`site serve`](../commands.md#package-build-site-serve) for the whole table.
 
 A package created by `package-build init` includes `npm run build:site` for
-this sequence and `npm run serve:site` for a local Hugo server. The site
-requires Hugo Extended and the shared theme in the project's dependencies.
+`site build` and `npm run serve:site` for `site serve`, each preceded by the
+dependency and content-index steps. Neither needs anything installed beyond
+the project's dependencies.
+
+## Search
+
+A site whose `site.search` is left on carries a search box in its header and a
+[Pagefind](https://pagefind.app) index beside its pages. A search can be
+narrowed by what each page tells it:
+
+| Filter      | Values                                       |
+| ----------- | -------------------------------------------- |
+| `package`   | the package that publishes the note          |
+| `type`      | the note's `type`                            |
+| `subtype`   | the note's `subType`                         |
+| `culture`   | the name of the culture `data.culture` names |
+| `continent` | the continent the note lies in               |
+| `region`    | the outermost region beneath that continent  |
+
+A place lies where its `parents` lead, a being where its `data.homes` are, and
+a scenario where its `data.locations` are. A continent is a `place/region`
+whose parent is the world, and the region a note is found under is the region
+directly beneath its continent, however deep the note sits: a settlement in a
+valley in a march is found under the march. A note that lies in more than one
+place carries every continent and region it reaches, so a being with a home in
+each of two regions is found under both.
+
+A note's name and its aliases count ten times a word of its body, so a search
+for a name opens that note first and a search for an alias finds it. A result
+shows the note's `data.icon`, or its hero banner where it has none. A note's
+tags and its draft state are not filters. Secret blocks, inline secrets and
+`.secret` sections are kept out of the index.
+
+A post carries `author` and `tags` filters and sorts by its `date`. A site's
+search can read other sites' indexes beside its own: given each package site in
+[`site.mergeIndexes`](../configuration.md#where-a-site-is-served-and-what-it-lists),
+the search box finds every site's pages from one box. Each index is read from
+`/<package>/pagefind/` on the site's own origin, so the merged search works
+where the sites share an origin and finds only the site's own pages under
+`package-build site serve`.

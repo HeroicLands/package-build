@@ -6,7 +6,7 @@
  */
 
 /**
- * `hugo-theme/data/banner-kinds.yaml` maps a page's note `type` and `subType` to
+ * `site-theme/data/banner-kinds.yaml` maps a page's note `type` and `subType` to
  * a banner name declared in `banners.yaml`. Two properties keep it honest: every
  * name it uses is declared, and every type and subType the note vocabulary
  * admits is mapped, so a new kind cannot reach a page without a decision about
@@ -23,7 +23,7 @@ import { describe, it, expect } from "vitest";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(HERE, "..", "hugo-theme", "data");
+const DATA_DIR = path.join(HERE, "..", "site-theme", "data");
 
 const banners = parse(fs.readFileSync(path.join(DATA_DIR, "banners.yaml"), "utf8")) as {
     available: string[];

@@ -13,6 +13,7 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { foreignHoldingsNodes, holdingsNode, holdingsPages } from "../engine/holdings.mjs";
 import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
@@ -155,10 +156,10 @@ const crown = entry("The Crown", "/demo/affiliation-crown/", "affiliation", "pol
 
 describe("the site build sets Within, Governed by and Governed places in the page body", () => {
     let root: string;
+    let pages: Record<string, string> = {};
 
-    /** One published page under the content mount. */
-    const published = (rel: string) =>
-        readMatter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8"));
+    /** One published page. */
+    const published = (rel: string) => readMatter(pages[rel.replace(/^kb\//, "")]);
 
     /** One generated section of a published page, heading to the next heading. */
     const section = (rel: string, slug: string): string => {
@@ -208,6 +209,7 @@ describe("the site build sets Within, Governed by and Governed places in the pag
             audience: "public",
         });
         const result = buildSite({ config, sqlTables });
+        pages = builtPages(result);
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.wikiErrors).toEqual([]);
     }, 60_000);

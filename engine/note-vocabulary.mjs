@@ -112,6 +112,12 @@ import { checkNoteEvents } from "./note-events.mjs";
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 import { EVENT_ENTRY } from "./note-event-terms.mjs";
 import { CULTURE_FIELD, checkCultureSubType } from "./culture-choice.mjs";
+import {
+    POST_AUTHOR_FIELD,
+    POST_DATE_FIELD,
+    POST_SUBTYPE,
+    checkPostFields,
+} from "./post-fields.mjs";
 import { checkCultureParents } from "./culture-parents.mjs";
 import {
     checkAppearanceProfile,
@@ -2297,15 +2303,20 @@ export const NOTE_VOCABULARY = Object.freeze({
             "howto",
             "concept",
             "settingguide",
+            POST_SUBTYPE,
         ]),
-        // A setting guide introduces one culture and names it; no other genre
-        // states one.
+        // A setting guide introduces one culture and names it, and a post
+        // states the day it was published and who wrote it; no other genre
+        // states either.
         check: (note, context) => [
             ...checkCitedPopulations(note, context),
             ...checkCultureSubType(note, context),
+            ...checkPostFields(note),
         ],
         data: Object.freeze([
             CONCEPTS_FIELD,
+            POST_DATE_FIELD,
+            POST_AUTHOR_FIELD,
             {
                 ...CULTURE_FIELD,
                 describe:

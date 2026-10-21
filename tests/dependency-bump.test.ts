@@ -124,13 +124,13 @@ describe("what a bump targets", () => {
         const manifest = {
             devDependencies: {
                 "@heroiclands/package-build": "^20.0.0",
-                "@heroiclands/hugo-theme": "^0.5.0",
+                "@heroiclands/fonts": "^0.5.0",
                 prettier: "^3.9.6",
             },
         };
         expect(firstPartyDependencies(manifest)).toEqual([
             "@heroiclands/package-build",
-            "@heroiclands/hugo-theme",
+            "@heroiclands/fonts",
         ]);
     });
 
@@ -165,11 +165,7 @@ describe("taking a newer version", () => {
 
     it("leaves a two-space consumer on two spaces", () => {
         // What is held is whatever was there, not four spaces.
-        consumer(
-            { "@heroiclands/hugo-theme": "^0.5.0" },
-            { "@heroiclands/hugo-theme": "0.5.0" },
-            "  ",
-        );
+        consumer({ "@heroiclands/fonts": "^0.5.0" }, { "@heroiclands/fonts": "0.5.0" }, "  ");
         bumpDependencies({ rootDir: root, run: npmThatBumpsTo("0.6.0") });
         expect(
             detectJsonIndent(fs.readFileSync(path.join(root, "package-lock.json"), "utf8")),
@@ -214,8 +210,8 @@ describe("taking a newer version", () => {
 
     it("passes each named package to npm at the requested tag", () => {
         consumer(
-            { "@heroiclands/package-build": "^20.0.0", "@heroiclands/hugo-theme": "^0.5.0" },
-            { "@heroiclands/package-build": "20.6.0", "@heroiclands/hugo-theme": "0.5.0" },
+            { "@heroiclands/package-build": "^20.0.0", "@heroiclands/fonts": "^0.5.0" },
+            { "@heroiclands/package-build": "20.6.0", "@heroiclands/fonts": "0.5.0" },
         );
         const seen: string[] = [];
         bumpDependencies({
@@ -227,7 +223,7 @@ describe("taking a newer version", () => {
             },
         });
         expect(seen[0]).toBe(
-            "npm install --package-lock-only @heroiclands/package-build@next @heroiclands/hugo-theme@next",
+            "npm install --package-lock-only @heroiclands/package-build@next @heroiclands/fonts@next",
         );
     });
 });

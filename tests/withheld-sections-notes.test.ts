@@ -20,6 +20,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { readMatter } from "../engine/note-matter.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { defineConfig } from "../index.mjs";
@@ -204,13 +205,7 @@ describe("a withheld section in a real note, on every surface", () => {
             }),
         });
         expect(gatesFailed(built.gates), JSON.stringify(built.gates)).toBe(false);
-        const content = path.join(root, "build/hugo/content");
-        site = Object.fromEntries(
-            fs
-                .readdirSync(content)
-                .filter((file) => file.endsWith(".md"))
-                .map((file) => [file, fs.readFileSync(path.join(content, file), "utf8")]),
-        );
+        site = builtPages(built);
         foundry = { ...compilePacks(root), journals: journals(root) };
         const pdf = run(root, [
             path.join(PKG_ROOT, "bin", "package-build.mjs"),
@@ -253,7 +248,7 @@ describe("a withheld section in a real note, on every surface", () => {
     it("wraps the heading and its section in the spoiler, on the website", () => {
         for (const file of ["place-inn.md", "lore-guide.md", "lore-reference.md"]) {
             const content = readMatter(site[file]).content;
-            const open = content.indexOf('<details class="secret">');
+            const open = content.indexOf('<details class="secret" data-pagefind-ignore>');
             expect(open, file).toBeGreaterThan(-1);
             const inside = content.slice(open, content.indexOf("</details>", open));
             expect(inside, file).toContain("The Cellar");

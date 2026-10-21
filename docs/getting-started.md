@@ -15,7 +15,7 @@ subType: userguide
 | A Foundry module, with or without source code | [Module project](guides/module-project.md) |
 | Notes in an existing package                  | [Your first note](authoring/first-note.md) |
 
-Node 24 or newer and npm are needed for the toolchain. The generated website build uses Hugo Extended; the book build uses Typst. A Foundry installation and deployment credentials are not needed to author or build content locally.
+Node 24 or newer and npm are needed for the toolchain. The book build uses Typst. A Foundry installation and deployment credentials are not needed to author or build content locally.
 
 ## Start a package
 

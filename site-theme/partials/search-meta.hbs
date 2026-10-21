@@ -1,0 +1,6 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+{{#if title}}<span data-pagefind-meta="title" hidden>{{title}}</span>{{/if}}
+{{#each filters}}{{#each values}}<span data-pagefind-filter="{{../name}}" hidden>{{this}}</span>{{/each}}{{/each}}
+{{#if aliases}}<span data-pagefind-meta="aliases" hidden>{{aliases}}</span>{{/if}}
+{{#if image}}<span data-pagefind-meta="image" hidden>{{image}}</span>{{/if}}
+{{#if date}}<span data-pagefind-sort="date" hidden>{{date}}</span>{{/if}}

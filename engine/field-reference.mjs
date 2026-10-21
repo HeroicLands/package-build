@@ -368,7 +368,7 @@ function deepMerge(base, overlay) {
  * The one question that decides whether `docs item-fields` writes a note
  * envelope: `assets/content/` walks every file under it for its `type:`, so a
  * generated page filed there needs one to publish at all, while a page filed
- * anywhere else — a repository's own `docs/` — is read by nobody but Hugo's
+ * anywhere else — a repository's own `docs/` — is read by nobody but the
  * `--check` guard and the reader following a link, neither of which wants
  * frontmatter.
  *

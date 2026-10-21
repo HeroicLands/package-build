@@ -1,0 +1,49 @@
+{
+    "title": "Features",
+    "baseURL": "https://www.heroiclands.org/",
+    "params": {
+        "description": "A site that uses everything.",
+        "cdnBaseURL": "https://cdn.example.org",
+        "search": true,
+        "draftNotice": "Unsettled.",
+        "brand": {
+            "logo": "images/brand/l.webp",
+            "licenseURL": "https://www.heroiclands.org/license/",
+            "discordURL": "https://discord.gg/x"
+        },
+        "home": {
+            "heroimage": "images/banners/home.webp",
+            "herotitle": "Features",
+            "herotagline": "Everything at once.",
+            "headings": [{ "title": "Play", "class": "play" }, { "title": "Read" }],
+            "cards": [
+                {
+                    "title": "Rules",
+                    "url": "/rules/",
+                    "text": "The rules.",
+                    "image": "images/cards/rules.webp",
+                    "alt": "A book",
+                    "key": "rules"
+                },
+                { "title": "Blog", "url": "/blog/", "text": "Posts." }
+            ]
+        },
+        "notfound": {
+            "heroimage": "images/banners/nf.webp",
+            "tagline": "Nothing at",
+            "sitenoun": "wiki",
+            "links": [
+                { "title": "Home", "url": "/", "text": "From the top." },
+                { "title": "Elsewhere", "url": "https://example.org/x" }
+            ]
+        }
+    },
+    "menu": [
+        { "name": "Home", "url": "/", "children": [] },
+        {
+            "name": "More",
+            "url": "/more/",
+            "children": [{ "name": "Blog", "url": "/blog/" }]
+        }
+    ]
+}

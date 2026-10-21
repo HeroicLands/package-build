@@ -330,7 +330,7 @@ lint`, `package-build lang check`, `package-build lang coverage`,
 and returns only the count whose `severity` is `error`, and the command sets
 `process.exitCode = 1` exactly when that count is nonzero. Commands whose
 findings are hand-assembled — `package-build links`, `package-build
-reachability`, `package-build site`, `package-build package compile` — apply
+reachability`, `package-build site build`, `package-build package compile` — apply
 the same rule by construction: everything they can report is a broken
 address, a dead link or a document Foundry would silently drop a field from,
 so every finding they emit is already `severity: "error"` and any finding at
@@ -368,7 +368,7 @@ over one would teach people to stop reading the report.
 | `package-build addresses diff --from <artifact>` | the corpus cannot be indexed (always); otherwise only with `--strict`, and only then are the address findings `error`-severity                                                                                                                                     |
 | `package-build format [paths..]`                 | a file it checked is not formatted (or, under `--write`, could not be brought to a fixpoint) — never on a shared-convention divergence, which is always advisory                                                                                                   |
 | `package-build markdown [paths..]`               | it reports any markdownlint finding                                                                                                                                                                                                                                |
-| `package-build site`                             | any gate finding (no homepage, a wikilink in frontmatter, an address that cannot be derived, an unusable or unaddressable foreign manifest, a conflicting address) or any table or wikilink error while writing pages — the run stops at the first gate that fires |
+| `package-build site build`                       | any gate finding (no homepage, a wikilink in frontmatter, an address that cannot be derived, an unusable or unaddressable foreign manifest, a conflicting address) or any table or wikilink error while writing pages — the run stops at the first gate that fires |
 | `package-build pdf`                              | it could not build the book for a reason other than a deliberate no-op — never on a reported finding by itself                                                                                                                                                     |
 | `package-build map`                              | `--tree` reports an `error`-severity finding (a place with no parent, a parent that does not resolve, a cycle), a named place is not one, the renderer fails, or the corpus cannot be indexed — never on a warning                                                 |
 | `package-build docs item-fields --check`         | the generated page differs from what is committed                                                                                                                                                                                                                  |

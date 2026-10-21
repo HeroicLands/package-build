@@ -367,6 +367,8 @@ types:
         data:
             - culture
             - concepts
+            - date
+            - author
             - map
             - metres
         subTypes:
@@ -376,6 +378,7 @@ types:
             - howto
             - concept
             - settingguide
+            - post
     macro:
         data: []
         subTypes: []

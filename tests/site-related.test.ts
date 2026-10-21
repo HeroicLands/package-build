@@ -23,6 +23,7 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { homepageLinkTargets, relatedPages } from "../engine/related-pages.mjs";
 
 let root: string;
@@ -135,9 +136,12 @@ function config() {
     });
 }
 
-/** The published front matter of one page under the content mount. */
+/** The pages the last build published, by file name. */
+let pages: Record<string, string> = {};
+
+/** The published front matter of one page. */
 function published(rel: string): Record<string, unknown> {
-    return readMatter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8")).data;
+    return readMatter(pages[rel.replace(/^kb\//, "")]).data;
 }
 
 const ash = { title: "Ash", url: "/demo/being-ash/", type: "being" };
@@ -149,6 +153,7 @@ const home = { title: "The Demo", url: "/demo/", type: "homepage" };
 describe("every page carries what links to it and what it links to", () => {
     beforeAll(() => {
         const result = buildSite({ config: config() });
+        pages = builtPages(result);
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.wikiErrors).toEqual([]);
     });

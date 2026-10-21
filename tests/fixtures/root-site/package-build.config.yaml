@@ -1,0 +1,19 @@
+# A root site: served at the origin's root, with a blog, tag pages, a
+# section of its own and the package sites under it. It is copied into a
+# scratch directory before any build runs; nothing here is built in place.
+contentPackage: rootdemo
+packageKind: documentation
+authors:
+    - name: Cy Editor
+site:
+    title: Heroic Demo
+    description: The root of a demonstration origin.
+    assets: https://cdn.example.org
+    base: /
+    sections:
+        blog: doc-blog
+        projects: doc-projects
+    feed: blog
+    tags: true
+    sitemaps: [searchdemo]
+    mergeIndexes: [searchdemo]

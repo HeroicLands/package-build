@@ -216,6 +216,18 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
 });
 
 /**
+ * The path a package's site is served at: `site.base` where it states one,
+ * `/<contentPackage>/` otherwise.
+ *
+ * @param {{contentPackage: string, site: {base: string}}} config - The resolved
+ *   configuration.
+ * @returns {string} The path, beginning and ending with `/`.
+ */
+export function siteBase(config) {
+    return config.site.base || `/${config.contentPackage}/`;
+}
+
+/**
  * Whether this package publishes the pages its content tree compiles to.
  *
  * Every package publishes an authored homepage. Other authored notes provide
@@ -347,7 +359,7 @@ export function publishesContentPages(config) {
  *                                       for *every* declared dependency, not
  *                                       only those supplying a catalogue.
  * @property {string} [navigationCache]  Where the site navigation is fetched
- *                                       to, for the generated Hugo menu.
+ *                                       to, for the site's menu.
  */
 
 /**
@@ -779,9 +791,13 @@ const SITE_KEYS = [
     "pass",
     "passOptions",
     "notfound",
-    "hugo",
     "search",
     "maps",
+    "sections",
+    "feed",
+    "tags",
+    "sitemaps",
+    "mergeIndexes",
 ];
 const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
 const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
@@ -1716,46 +1732,6 @@ function normalizeSiteDescription(value) {
 }
 
 /**
- * Hugo keys a repository may **not** declare under `site.hugo`, because the
- * site build generates them and would only overwrite what was written.
- *
- * The same rule `DERIVED_MANIFEST_KEYS` states for the manifest, for the same
- * reason: an authored `baseURL` would look authoritative, sit there unread,
- * and disagree with the site forever. Each key names where its value comes
- * from. A dotted key names a nested one, and covers everything beneath it —
- * `params.brand` refuses `params.brand.logo` too — so `site.hugo` reaches only
- * what the generator does not write.
- *
- * @type {Readonly<Record<string, string>>}
- */
-export const DERIVED_HUGO_KEYS = Object.freeze({
-    baseURL: "package.json `homepage`",
-    title: "`site.title` or `packageBuild.manifest.title`",
-    locale: "the organisation's locale, in `engine/site-config.mjs`",
-    publishDir: "`contentPackage`, under the deployment root `build/site`",
-    contentDir: "the fixed content mount, `build/hugo/content`",
-    themesDir: "where `@heroiclands/hugo-theme` is installed",
-    theme: "the installed `@heroiclands/hugo-theme`",
-    disableKinds:
-        "the toolchain, which renders a site as its homepage and its pages: " +
-        "`section`, `taxonomy`, `term` and `RSS` are disabled on every site",
-    taxonomies:
-        "the toolchain, which renders a site as its homepage and its pages: no " +
-        "taxonomy is declared, because `taxonomy` and `term` are disabled kinds",
-    outputs:
-        "the toolchain, which renders a site as its homepage and its pages: no " +
-        "output format is declared, because every listing kind is disabled",
-    "params.description": "`site.description`",
-    "params.author": "the first entry of `authors`",
-    "params.cdnBaseURL": "`site.assets`",
-    "params.brand": "the organisation's brand links, in `engine/site-config.mjs`",
-    "params.notfound": "`site.notfound`",
-    "markup.goldmark.renderer.unsafe": "the toolchain, whose pages carry raw HTML",
-    "markup.goldmark.extensions.taskList": "the toolchain, whose format has no checkbox",
-    menu: "the navigation `package-build deps fetch` caches from heroiclands.org",
-});
-
-/**
  * The `site.notfound` block — the wording of the "page not found" page.
  *
  * The theme renders the page for every site; what a repository supplies is
@@ -1799,67 +1775,177 @@ function normalizeSiteNotfound(value) {
 }
 
 /**
- * The `site.hugo` block — a mapping deep-merged over the generated Hugo
- * configuration, last.
+ * The top-level paths a site writes itself, which no section may claim: the
+ * tag pages, the theme's stylesheets, scripts, fonts and images, and the
+ * search index.
  *
- * The escape hatch for the key nobody anticipated. Every key the generator
- * writes is refused here by {@link DERIVED_HUGO_KEYS}, naming its source, so
- * the block cannot grow into a second configuration file.
+ * @type {readonly string[]}
+ */
+const SITE_WRITTEN_SEGMENTS = Object.freeze(["tags", "css", "js", "fonts", "img", "pagefind"]);
+
+/**
+ * A note's address as a section names its page: `<type>-<shortcode>`, the
+ * form a page is published at.
+ */
+const PAGE_ADDRESS = /^[a-z][a-z0-9]*-[a-z0-9]+$/;
+
+/**
+ * Where a site is served, as `site.base` states it: a path that begins and
+ * ends with `/`. `/` is the root of the origin.
+ *
+ * @param {unknown} value - The configured value, or `undefined`.
+ * @returns {string} The path; `""` when unset, which is `/<contentPackage>/`.
+ */
+function normalizeSiteBase(value) {
+    if (value === undefined) return "";
+    const base = requireNonEmptyString(value, "site.base");
+    if (!base.startsWith("/") || !base.endsWith("/")) {
+        fail(
+            "site.base",
+            `is \`${base}\`; it is the path the site is served at, which begins and ends with \`/\` ` +
+                "— `/` for the root of the origin",
+        );
+    }
+    return base;
+}
+
+/**
+ * One address segment naming a section, as `site.sections` keys it and
+ * `site.feed` names it.
+ *
+ * @param {string} name - The section's name.
+ * @param {string} field - Dotted path, for the error.
+ * @returns {string} The name.
+ */
+function sectionName(name, field) {
+    if (!isAddressSegment(name)) {
+        fail(
+            field,
+            `names the section \`${name}\`, which is published at \`/${name}/\` and so is one ` +
+                "address segment: lowercase letters and digits",
+        );
+    }
+    if (SITE_WRITTEN_SEGMENTS.includes(name)) {
+        fail(
+            field,
+            `names the section \`${name}\`, a path the site writes itself ` +
+                `(${SITE_WRITTEN_SEGMENTS.join(", ")})`,
+        );
+    }
+    return name;
+}
+
+/**
+ * The `site.sections` mapping: each section's name, and the address of the
+ * note that is its page.
  *
  * @param {unknown} value - The block, or `undefined`.
- * @returns {Readonly<Record<string, unknown>>} It, frozen; `{}` when absent.
+ * @returns {Readonly<Record<string, string>>} It, frozen; `{}` when absent.
  */
-function normalizeSiteHugo(value) {
+function normalizeSiteSections(value) {
     if (value === undefined) return Object.freeze({});
-    if (!isPlainObject(value)) fail("site.hugo", "must be a mapping");
-    const input = /** @type {Record<string, unknown>} */ (value);
-    for (const [dotted, source] of Object.entries(DERIVED_HUGO_KEYS)) {
-        /** @type {unknown} */
-        let at = input;
-        for (const part of dotted.split(".")) {
-            at = isPlainObject(at) ? /** @type {Record<string, unknown>} */ (at)[part] : undefined;
-            if (at === undefined) break;
-        }
-        if (at !== undefined) {
+    if (!isPlainObject(value)) {
+        fail(
+            "site.sections",
+            "must be a mapping of a section's name to the address of the note that is its page",
+        );
+    }
+    /** @type {Record<string, string>} */
+    const out = {};
+    /** @type {Map<string, string>} */
+    const claimed = new Map();
+    for (const [name, page] of Object.entries(/** @type {object} */ (value))) {
+        const field = `site.sections.${name}`;
+        sectionName(name, field);
+        if (typeof page !== "string" || !PAGE_ADDRESS.test(page)) {
             fail(
-                `site.hugo.${dotted}`,
-                `is derived from ${source} and must not be declared — it ` +
-                    `would be overwritten, and the two would disagree with ` +
-                    `nothing to say so`,
+                field,
+                `is \`${String(page)}\`; it is the address of the note that is the section's ` +
+                    "page, written `<type>-<shortcode>`, such as `doc-blog`",
             );
         }
+        if (page.startsWith("homepage-")) {
+            fail(
+                field,
+                `is \`${page}\`, and the homepage is the site's front page, not a section's`,
+            );
+        }
+        if (claimed.has(page)) {
+            fail(field, `is \`${page}\`, which is already the page of \`${claimed.get(page)}\``);
+        }
+        claimed.set(page, name);
+        out[name] = page;
     }
-    return Object.freeze(structuredClone(input));
+    return Object.freeze(out);
+}
+
+/**
+ * A list of package sites, by `contentPackage`, as `site.sitemaps` and
+ * `site.mergeIndexes` name them.
+ *
+ * @param {unknown} value - The list, or `undefined`.
+ * @param {string} field - Dotted path, for the error.
+ * @param {string} contentPackage - This site's own package, which no entry names.
+ * @returns {readonly string[]} The names, frozen; `[]` when absent.
+ */
+function packageSiteList(value, field, contentPackage) {
+    if (value === undefined) return Object.freeze([]);
+    if (!Array.isArray(value)) {
+        fail(field, "must be a list of package sites, each named by its `contentPackage`");
+    }
+    const seen = new Set();
+    return Object.freeze(
+        value.map((entry, i) => {
+            const where = `${field}[${i}]`;
+            if (!isAddressSegment(entry)) {
+                fail(
+                    where,
+                    `is \`${String(entry)}\`, which is not a package site: name one by its ` +
+                        "`contentPackage`, lowercase letters and digits",
+                );
+            }
+            if (entry === contentPackage) {
+                fail(where, `is \`${entry}\`, this site's own package`);
+            }
+            if (seen.has(entry)) fail(where, `names \`${entry}\` more than once`);
+            seen.add(entry);
+            return /** @type {string} */ (entry);
+        }),
+    );
 }
 
 /**
  * The `site` section — how this repository frames the website it publishes.
  *
  * Everything here is *framing*: which named pass bundle supplies the
- * repository's own body rewrites, and the residue of the generated Hugo
- * configuration that is genuinely this repository's own. Where the Hugo tree
- * is written is not a choice: `package-build site` writes it under
- * `build/hugo/`. How a page gets its
- * **address** is deliberately not here either — that is `publish.address`,
+ * repository's own body rewrites, and the residue of the site that is
+ * genuinely this repository's own. How a page gets its
+ * **address** is deliberately not here — that is `publish.address`,
  * shared with the link manifest so the two cannot disagree about where a
  * page is.
  *
  * Two switches sit here, both on by default. `search` is whether
  * `package-build site-root` writes a search index beside the rendered pages.
- * `maps` is whether `package-build site` draws the map from each place that
+ * `maps` is whether `package-build site build` draws the map from each place that
  * states a border or a route and writes it into that place's page — a site
  * carries both unless it says otherwise.
  *
- * **What the site publishes is the homepage and the content tree, and nothing
- * beside them.** A page of documentation is a note — `type: doc`, addressed
- * by its shortcode, compiling into no document where it says `pack: none` —
- * so there is no second mechanism for mounting a directory of markdown. An
- * index between the homepage and the pages is a `doc` note too.
+ * **A site is its homepage, its pages and the listings it asks for.** A page
+ * of documentation is a note — `type: doc`, addressed by its shortcode,
+ * compiling into no document where it says `pack: none` — so there is no
+ * second mechanism for mounting a directory of markdown. `sections` publishes
+ * a note at `/<section>/` as that section's page; `feed` names the section a
+ * site's posts are listed and fed in; `tags` writes a page for each tag.
+ * `base` is where the site is served, and a site at the root of its origin
+ * (`/`) may name the package sites beside it: `sitemaps` for its sitemap
+ * index and `robots.txt`, `mergeIndexes` for the search indexes its own
+ * search reads.
  *
  * @param {unknown} value - The `site` block, or `undefined`.
+ * @param {string} contentPackage - This repository's package.
  * @returns {Readonly<object>} It, frozen, with every default filled.
  */
-function normalizeSite(value) {
+function normalizeSite(value, contentPackage) {
     const empty = Object.freeze({
         base: "",
         title: "",
@@ -1869,9 +1955,13 @@ function normalizeSite(value) {
         pass: "",
         passOptions: Object.freeze({}),
         notfound: null,
-        hugo: Object.freeze({}),
         search: true,
         maps: true,
+        sections: Object.freeze({}),
+        feed: "",
+        tags: false,
+        sitemaps: Object.freeze([]),
+        mergeIndexes: Object.freeze([]),
     });
     if (value === undefined) return empty;
     if (!isPlainObject(value)) fail("site", "must be a mapping");
@@ -1886,8 +1976,28 @@ function normalizeSite(value) {
         packages = input.packages.map((p, i) => requireNonEmptyString(p, `site.packages[${i}]`));
     }
 
+    const base = normalizeSiteBase(input.base);
+    const search = optionalBoolean(input.search, "site.search", true);
+    const sitemaps = packageSiteList(input.sitemaps, "site.sitemaps", contentPackage);
+    if (sitemaps.length && base !== "/") {
+        fail(
+            "site.sitemaps",
+            "names the package sites a sitemap index lists, and a sitemap index and " +
+                "`robots.txt` belong at the root of an origin; this site is served at " +
+                `\`${base || `/${contentPackage}/`}\`, so declare \`site.base: /\` or drop the key`,
+        );
+    }
+    const mergeIndexes = packageSiteList(input.mergeIndexes, "site.mergeIndexes", contentPackage);
+    if (mergeIndexes.length && !search) {
+        fail(
+            "site.mergeIndexes",
+            "names the search indexes this site's search reads beside its own, and " +
+                "`site.search` is `false`, so there is no search to read them",
+        );
+    }
+
     return Object.freeze({
-        base: input.base === undefined ? "" : requireNonEmptyString(input.base, "site.base"),
+        base,
         title: input.title === undefined ? "" : requireNonEmptyString(input.title, "site.title"),
         assets: normalizeSiteAssets(input.assets),
         description: normalizeSiteDescription(input.description),
@@ -1898,9 +2008,16 @@ function normalizeSite(value) {
                 Object.freeze({})
             :   Object.freeze({ ...input.passOptions }),
         notfound: normalizeSiteNotfound(input.notfound),
-        hugo: normalizeSiteHugo(input.hugo),
-        search: optionalBoolean(input.search, "site.search", true),
+        search,
         maps: optionalBoolean(input.maps, "site.maps", true),
+        sections: normalizeSiteSections(input.sections),
+        feed:
+            input.feed === undefined ?
+                ""
+            :   sectionName(requireNonEmptyString(input.feed, "site.feed"), "site.feed"),
+        tags: optionalBoolean(input.tags, "site.tags", false),
+        sitemaps,
+        mergeIndexes,
     });
 }
 
@@ -3150,7 +3267,9 @@ export function defineConfig(config) {
         packs: Object.freeze(packs),
         packDirectories: Object.freeze(packDirectories),
         docs: normalizeDocs(input.docs),
-        site: normalizeSite(input.site),
+        // Validated above, in `contentPackage`: a site names the package sites
+        // beside it, and never itself.
+        site: normalizeSite(input.site, /** @type {string} */ (input.contentPackage)),
         // Validated above, in `contentPackage`: a book's default file stem is
         // `<contentPackage>-<id>`.
         pdf: normalizePdf(input.pdf, rootDir, /** @type {string} */ (input.contentPackage)),

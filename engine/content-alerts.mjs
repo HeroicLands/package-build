@@ -136,9 +136,13 @@ export function scanAlerts(source) {
 }
 /** Render alert wrappers while preserving ordinary Markdown and note footnotes.
  * @param {string} source - Authored Markdown.
- * @param {"web"|"foundry"} [target="web"] - Publishing surface.
+ * @param {"web"|"foundry"|"preview"} [target="web"] - Publishing surface: the
+ *   preview draws the icon as an inline drawing, since a buffer has no icon font.
+ * @param {object} [options]
+ * @param {(markdown: string) => string} [options.renderInline] - How a title
+ *   is rendered; omitted, a title is plain inline Markdown.
  */
-export function renderAlerts(source, target = "web") {
+export function renderAlerts(source, target = "web", { renderInline } = {}) {
     const { blocks, errors } = scanAlerts(source),
         lines = String(source ?? "").split("\n"),
         output = [];
@@ -163,9 +167,9 @@ export function renderAlerts(source, target = "web") {
         output.push(
             "",
             `<aside ${attrs.join(" ")}>`,
-            `<header class="alert-title">${definition.icon} ${titleParser.renderInline(block.title)}</header>`,
+            `<header class="alert-title">${target === "preview" ? definition.svg : definition.icon} ${(renderInline ?? titleParser.renderInline.bind(titleParser))(block.title)}</header>`,
             "",
-            renderAlerts(block.body, target).markdown,
+            renderAlerts(block.body, target, { renderInline }).markdown,
             "",
             "</aside>",
             "",

@@ -17,7 +17,8 @@
  *
  * It carries what every package's compiled content needs to read in Foundry as
  * it does in the preview and on the site: definition lists, verse, alerts,
- * inline spoilers, marked names, unresolved links and captioned blocks. Every
+ * inline spoilers, marked names, unresolved links, captioned blocks and
+ * highlighted code. Every
  * class the Foundry renderer emits is styled here or exempted by name in
  * `tests/base-styles.test.ts`. A package keeps its own stylesheet for its own
  * needs and overrides anything here from it.
@@ -118,6 +119,10 @@
         grid-column: 1 / -1;
     }
 }
+
+/* preview:shared — verse, marked text and generic families. The rules between
+ * the two markers are also the editor preview's stylesheet, with the content
+ * roots replaced by the preview's own. */
 
 /* Each verse line breaks in the markup; each paragraph is a stanza. */
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse {
@@ -320,6 +325,8 @@
     font-family: monospace;
 }
 
+/* /preview:shared */
+
 /*
  * Historical info/warn section classes remain available for styled prose.
  * New alerts use the separate alert classes below.
@@ -496,6 +503,9 @@
     }
 }
 
+/* preview:shared — inline spoilers, names, unresolved links, captioned blocks,
+ * pictures and highlighted code, to the end of the file. */
+
 /* Inline spoilers reveal on pointer hover or keyboard focus. Native secret
  * sections retain Foundry's separate GM reveal control. */
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
@@ -605,3 +615,115 @@
     border: 1px solid var(--pb-figure-border, currentcolor);
     border-radius: 4px;
 }
+
+/*
+ * Code a fence names a language for is highlighted when the page is built, and
+ * its token classes are coloured here. Each colour defers to a custom property
+ * so a package or a theme can replace it, and `light-dark()` follows the colour
+ * scheme Foundry sets.
+ */
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-keyword,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .hljs-variable.language_,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-doctag,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-selector-tag,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-template-tag,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-type {
+    color: var(--pb-code-keyword, light-dark(#cf222e, #ff7b72));
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-title,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-title.class_,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .hljs-title.class_.inherited__,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .hljs-title.function_,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .hljs-title.function_.invoke__,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-selector-id {
+    color: var(--pb-code-title, light-dark(#8250df, #d2a8ff));
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-attr,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-attribute,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-literal,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-meta,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-number,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-operator,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-variable,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-selector-attr,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .hljs-selector-class,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-property,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .hljs-variable.constant_,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .hljs-template-variable {
+    color: var(--pb-code-constant, light-dark(#0550ae, #79c0ff));
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-regexp,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-string,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .hljs-meta.hljs-string,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-char.escape_ {
+    color: var(--pb-code-string, light-dark(#0a3069, #a5d6ff));
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-built_in,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-symbol,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-meta.prompt_,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-bullet {
+    color: var(--pb-code-builtin, light-dark(#953800, #ffa657));
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-comment,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-code,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-formula {
+    color: var(--pb-code-comment, light-dark(#59636e, #9198a1));
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-name,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-quote,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .hljs-selector-pseudo,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-tag {
+    color: var(--pb-code-name, light-dark(#116329, #7ee787));
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-subst,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-params,
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-punctuation {
+    color: var(--pb-code-plain, inherit);
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-section {
+    color: var(--pb-code-constant, light-dark(#0550ae, #79c0ff));
+    font-weight: 700;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-emphasis {
+    font-style: italic;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-strong {
+    font-weight: 700;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-link {
+    color: var(--pb-code-constant, light-dark(#0550ae, #79c0ff));
+    text-decoration: underline;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-addition {
+    color: var(--pb-code-addition, light-dark(#116329, #aff5b4));
+    background-color: var(--pb-code-addition-fill, light-dark(#dafbe1, #033a16));
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .hljs-deletion {
+    color: var(--pb-code-deletion, light-dark(#82071e, #ffdcd7));
+    background-color: var(--pb-code-deletion-fill, light-dark(#ffebe9, #67060c));
+}
+
+/* /preview:shared */

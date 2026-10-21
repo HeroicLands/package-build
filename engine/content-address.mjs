@@ -140,7 +140,7 @@ export function addressSlug(fm) {
  * composing a URL prepends where the package is served (`/<package>/`); a
  * consumer composing a manifest entry measures against that same base. Nothing
  * else is prepended: `prefix` says where the content tree *mounts inside the
- * package* — the Hugo directory its pages are written under — and an address is
+ * package* — where its pages sit in the source tree — and an address is
  * `(type, shortcode)`, a package-wide identity that takes no mount, so `sohl`
  * publishes `/sohl/affliction-aconite/` from a file written under `kb/`. The
  * `type-` half is what keeps that flat namespace clear of the package's fixed

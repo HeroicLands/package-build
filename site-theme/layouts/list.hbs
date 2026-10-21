@@ -1,0 +1,20 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+{{#if hero}}
+{{> hero-banner hero}}
+{{/if}}
+{{#if hasBody}}
+<article class="single">
+  <div class="single-content">
+    <div class="single-body" data-pagefind-body>
+      {{{body}}}
+    </div>
+    {{> list-members}}
+  </div>
+</article>
+{{else if hasMembers}}
+<article class="single">
+  <div class="single-content">
+    {{> list-members}}
+  </div>
+</article>
+{{/if}}

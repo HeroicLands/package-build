@@ -121,10 +121,9 @@ export const HOMEPAGE_ORIGIN = "https://www.heroiclands.org";
  * to drift — and the one that drifts is this one, because nothing fetches `url`
  * the way Foundry fetches `manifest`, so a wrong value is never reported.
  *
- * The site's own `baseURL` says the same thing, and is deliberately not the
- * source: it sits at `site/hugo.toml` in most repositories and `kb/hugo.toml`
- * in the system, so reading it would mean the packaging half knowing where each
- * repository keeps its site configuration.
+ * `package.json`'s `homepage` says the same thing, and is deliberately not the
+ * source: reading it would mean the packaging half depending on the site's
+ * configuration.
  *
  * @param {string} contentPackage - The package's content-package name.
  * @returns {string} The homepage URL, with its trailing slash.

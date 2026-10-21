@@ -14,12 +14,17 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { renderBlocks } from "../engine/content-blocks.mjs";
+import { renderBlocks, renderWithheldSections } from "../engine/content-blocks.mjs";
 import { renderSpans } from "../engine/content-spans.mjs";
 
 describe("secrets on the web", () => {
     it("keeps a secret block out of the search index", () => {
         const html = renderBlocks(':::secret {title="For the GM"}\nGM text.\n:::', "web").markdown;
+        expect(html).toMatch(/<details [^>]*data-pagefind-ignore[^>]*>/);
+    });
+
+    it("keeps a withheld section out of the search index", () => {
+        const html = renderWithheldSections("# The Cellar {#cellar .secret}\n\nGM text.\n");
         expect(html).toMatch(/<details [^>]*data-pagefind-ignore[^>]*>/);
     });
 

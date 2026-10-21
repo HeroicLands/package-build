@@ -198,8 +198,8 @@ directory's basename and determines the content package id by removing hyphens.
 The package kind defaults to `modules`; the license template defaults to
 `original`. `systems` and `modules` receive a journal pack and Foundry
 manifest configuration. `documentation` receives no Foundry pack or manifest.
-Every kind includes site and book targets. Hugo Extended and Typst are needed
-to render them locally; deployment needs separate hosting configuration.
+Every kind includes site and book targets. Typst is needed to build the
+book locally; deployment needs separate hosting configuration.
 
 **OPTIONS**
 
@@ -589,7 +589,7 @@ manifest carries the title Foundry requires for installation.
 reads to install a package, and a documentation package is not one —
 emitting `module.json` for it would advertise an installable package with no
 packs, no compatibility range and no id. Its site is built by
-`package-build site`, and its book by `package-build pdf`.
+`package-build site build`, and its book by `package-build pdf`.
 
 **OPTIONS**
 
@@ -615,7 +615,7 @@ package-build: `packageKind: documentation` ships no Foundry package, so there i
 
 **SEE ALSO**
 
-`package-build site`, `package-build pdf`, `package-build bundle check`,
+`package-build site build`, `package-build pdf`, `package-build bundle check`,
 [Configuration](configuration.md).
 
 ### `package-build site-root`
@@ -633,12 +633,12 @@ package-build site-root [--out <dir>]
 
 **DESCRIPTION**
 
-Hugo renders into `<out>/<contentPackage>/`, because the deployment carries the
+The site is rendered into `<out>/<contentPackage>/`, because the deployment carries the
 `/<contentPackage>/` prefix physically and the routing layer is a
 path-preserving pass-through. The directory that is _uploaded_ is its parent,
 and Cloudflare Pages reads `_headers` and `_redirects` from there and nowhere
 else — a copy inside the prefix is published as a text file and never applied.
-Hugo owns everything under the prefix; this owns what sits beside it.
+The render owns everything under the prefix; this owns what sits beside it.
 
 One file is written, `_headers`, and it says one thing: indexing is
 suppressed on every address a deployment answers on but nobody advertises —
@@ -705,7 +705,7 @@ Search is off (`site.search: false`), so no index was written.
 
 **SEE ALSO**
 
-`package-build site`, [Configuration](configuration.md).
+`package-build site build`, [Configuration](configuration.md).
 
 `package-build lang <action>` asks three independent questions about this
 repository's localization, each blind to what the others see: `check`,
@@ -1653,7 +1653,7 @@ the staged LevelDB packs.
 `unpack` and `clean` alike. A package of that kind declares no packs by
 rule, so there is nothing to compile, unpack or clean; a run that exited 0
 having done nothing would be the quiet failure this toolchain refuses
-everywhere else. Its site is built by `package-build site`, and its book by
+everywhere else. Its site is built by `package-build site build`, and its book by
 `package-build pdf`.
 
 **OPTIONS**
@@ -1676,7 +1676,7 @@ step to report against. 1 on any other thrown error. Otherwise 0.
 
 ```
 $ package-build package compile   # packageKind: documentation
-[…] ERROR: `packageKind: documentation` compiles no compendium, so there is nothing to compile. Build its site with `package-build site` and its book with `package-build pdf`.
+[…] ERROR: `packageKind: documentation` compiles no compendium, so there is nothing to compile. Build its site with `package-build site build` and its book with `package-build pdf`.
 
 $ package-build package compile
 […] Content tree: 4 note(s) at /private/tmp/pb-docs-demo-410/assets/content
@@ -1696,7 +1696,7 @@ Wrote welcome.json
 
 **SEE ALSO**
 
-`package-build site`, `package-build pdf`, `package-build addresses diff`,
+`package-build site build`, `package-build pdf`, `package-build addresses diff`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
 ### `package-build deps fetch`
@@ -1773,7 +1773,7 @@ $ package-build deps fetch --from build/dist/module.zip
 
 **SEE ALSO**
 
-`package-build site`, `package-build addresses diff`, [Configuration](configuration.md).
+`package-build site build`, `package-build addresses diff`, [Configuration](configuration.md).
 
 ### `package-build types check`
 
@@ -2531,93 +2531,175 @@ $ package-build content-index
 
 **SEE ALSO**
 
-`package-build site`, `package-build pdf`, `package-build deps fetch`,
+`package-build site build`, `package-build pdf`, `package-build deps fetch`,
 [Configuration](configuration.md).
 
-### `package-build site`
+### `package-build site build`
 
 **NAME**
 
-Build the Hugo source tree from the content tree.
+`package-build site build` — render the content tree as a website, and index
+it for search.
 
 **SYNOPSIS**
 
 ```
-package-build site
+package-build site build [--out <dir>]
 ```
 
 **DESCRIPTION**
 
-Writes the whole Hugo source tree under `build/hugo/` — the sibling of
-`package compile`: the same tree, rendered as pages instead of compiled
-into packs. Everything a consumer would otherwise write for itself happens
-here: the walk, address derivation, the address index, table expansion,
-wikilink resolution, code-fence protection, the foreign-manifest merge, and
-the Hugo configuration itself. The consumer's script then runs Hugo over the
-tree — `hugo --source build/hugo` — and this command never does.
+Builds the site from the content tree: the sibling of `package compile`, the
+same tree rendered as pages instead of compiled into packs. Everything a
+consumer would otherwise write for itself happens here: the walk, address
+derivation, the address index, table expansion, wikilink resolution,
+code-fence protection and the foreign-manifest merge. Each note is expanded —
+links, tables, expressions, generated sections, maps — and rendered by the
+same renderer the Foundry journals and the editor preview use, then drawn by
+the site theme's layouts.
 
-**A site is its homepage and its pages.** The `type: homepage` note is
-written as the mount's `_index.md`, so Hugo renders it at
-`/<contentPackage>/`; every other note is one page at
-`/<contentPackage>/<type>-<shortcode>/`. Nothing is generated between them —
-no section directory, no listing, no tag page — and the generated
-configuration disables the `section`, `taxonomy`, `term` and `RSS` kinds on
-every site. An index of what the package publishes is a `doc` note carrying a
-content table, authored where every other page is.
+**A site is its homepage and its pages.** The `type: homepage` note is the
+package's front page at `/<contentPackage>/`; every other note is one page at
+`/<contentPackage>/<type>-<shortcode>/`. Nothing is generated between them
+beyond the listings `site.sections`, `site.feed` and `site.tags` ask for. An
+index of what the package publishes is a `doc` note carrying a content table,
+authored where every other page is.
+On the web, every heading carries an id the page's contents list links to,
+and straight quotes, `--`, `---` and `...` are set as typographic quotes,
+dashes and an ellipsis.
 
-Three things are written, and nothing outside `build/`:
+Written under `<out>/<contentPackage>/` — or under the path
+[`site.base`](configuration.md#where-a-site-is-served-and-what-it-lists)
+states, so a site served at `/` is written at `<out>/` itself — which is
+emptied first:
 
-- `build/hugo/hugo.toml`, generated on every run from `package.json`
-  (`homepage`, `description`), `package-build.config.yaml`
-  (`authors`, `packageBuild.manifest.title`, `site.assets`, `site.notfound`,
-  `site.hugo`), the organisation's constants, the shared theme's own
-  location, and the navigation `deps fetch` cached. Every value's source is
-  listed under
-  [the generated Hugo configuration](configuration.md#the-generated-hugo-configuration).
-- `build/hugo/content/`, the content mount — the homepage as its `_index.md`,
-  and the content tree's pages flat below `publish.address.prefix`. Wiped on
-  every run.
-- `publishDir` pointing Hugo at `build/site/<contentPackage>/`, the
-  deployment root `package-build site-root` writes beside. Nothing Hugo
-  reads lands in what is published.
+- one `index.html` per page — the homepage at the site's root, a note
+  `site.sections` names at its section, every other note at
+  `<type>-<shortcode>/` — each minified;
+- `404.html`, the page-not-found page `site.notfound` describes;
+- `sitemap.xml`, every page by its full address;
+- the theme's stylesheets, scripts, icon font and images, and `css/code.css`;
+- the script fonts the notes set text in, under
+  `fonts/heroiclands/<version>/`;
+- with `site.feed`, the section's page listing its posts newest first, and its
+  Atom feed at `<section>/atom.xml`;
+- with `site.tags`, a page for each tag at `tags/<tag>/` and the tag index at
+  `tags/`;
+- with `site.sitemaps`, `sitemap-index.xml` and `robots.txt`, naming this
+  site's sitemap and each package site's.
 
-The configuration's sources are read before the output tree is touched, so a
-missing `homepage` or a cold navigation cache fails with the previous site
-intact. Every gate is then checked and reported, and the run stops at the
-first that fires, ordered so the report names the cause rather than its
-symptoms — an unusable dependency manifest, reported after the links that
-failed because of it, would otherwise read as a pile of broken notes. Reads
-the content tree named by `paths.content`.
+Without `site.tags` a tag is a label and links nowhere. A link of
+`site.notfound.links` to a page the site does not publish is left off the
+page-not-found page and reported as a warning located at that entry of
+`package-build.config.yaml`. A section of `site.sections` whose note is not in
+the content tree is an error located at its entry, and writes nothing.
+
+Then, as `package-build site-root` does, `_headers` is written at `<out>/` and
+the pages are indexed for search into `pagefind/` inside the site's directory,
+unless `site.search` is `false`. With `site.mergeIndexes`, the search reads
+each package site's index beside its own. What a page tells the search is set
+out in the [site guide](guides/site.md#search).
+
+The site's address, title and menu are read before the tree is, so a missing
+`homepage` or a cold navigation cache fails with the last good site in place.
+Every gate is then checked and reported, and the run stops at the first that
+fires, ordered so the report names the cause rather than its symptoms — an
+unusable dependency manifest, reported after the links that failed because of
+it, would otherwise read as a pile of broken notes. A gate that fires writes
+nothing. A note in error — a dead link, a table that cannot
+expand — is written as its page shows it, the finding is reported, and the
+run fails before the search index is built.
 
 **OPTIONS**
 
-None.
+`--out <dir>` — the directory that is deployed. Defaults to `build/site`.
 
 **EXIT STATUS**
 
 1 if `package.json` declares no `homepage`, or one that does not end
-`/<contentPackage>/`; if `packageBuild.manifest.title` is undeclared; or if
-the navigation has not been fetched (`package-build deps fetch` fills the
-cache and is named in the message). 1 if any gate fires — no homepage or two
-competing for it, a frontmatter wikilink, an address that cannot be derived,
-a stale or unaddressable dependency manifest, an address published twice, a
-table that failed to expand, or a dead wikilink. Otherwise 0.
+`/<contentPackage>/`; if the site declares no title, description or `assets`
+host; or if the navigation has not been fetched (`package-build deps fetch`
+fills the cache and is named in the message). 1 if any gate fires — no
+homepage or two competing for it, a frontmatter wikilink, an address that
+cannot be derived, a stale or unaddressable dependency manifest, an address
+published twice, a table that failed to expand, or a dead wikilink. 1 on a
+script-font finding, and when the search index cannot be built. Otherwise 0,
+findings of severity `warning` included.
 
 **EXAMPLES**
 
 ```
-$ package-build site
-[…] wrote 1 homepage(s) + 1 content page(s) to build/hugo/content
-[…] wrote build/hugo/hugo.toml
-
-$ package-build site
-[…] ERROR: the site navigation has not been fetched. Run `package-build deps fetch` first.
+$ package-build site build
+package-build.config.yaml:38:24: warning: the page-not-found links to /thalorna/polity/, which the site does not publish, so the link is left out
+[…] wrote 4306 page(s) to build/site/thalorna
+[…] indexed 4307 page(s) for search into build/site/thalorna/pagefind
 ```
 
 **SEE ALSO**
 
-`package-build deps fetch`, `package-build site-root`, `package-build package <action> [pack] [entry]`, `package-build pdf`, `package-build content-index [root]`,
-[Diagnostics](diagnostics.md), [Configuration](configuration.md).
+`package-build site serve`, `package-build site-root`,
+`package-build deps fetch`, [the site guide](guides/site.md).
+
+### `package-build site serve`
+
+**NAME**
+
+`package-build site serve` — serve the website, and keep it current.
+
+**SYNOPSIS**
+
+```
+package-build site serve [--port <port>] [--host <address>] [--out <dir>]
+```
+
+**DESCRIPTION**
+
+Builds the site as `package-build site build` does, indexes it for search once,
+and serves the deployed directory over HTTP, so every page is at the address it
+is deployed at: `http://127.0.0.1:1313/<contentPackage>/`, or the path
+`site.base` states. An address the site does not publish is answered with its
+`404.html`. A search index `site.mergeIndexes` names is not served, since it is
+another site's; the site's own index is.
+
+The content tree and the theme are watched. A change to a note's body or
+frontmatter writes that note's page again; a note whose name, type or
+shortcode changed, a new or removed note, a note holding an `sql` table, and
+any other file in the content tree build the whole site again; a change to the
+theme draws every page again. Every open page then reloads: each HTML page is
+sent with a script that listens for the server's `reload` event at
+`/__package-build/reload`, added as it is sent and never written to the site.
+
+A page that changes only because another note changed — a table listing it,
+a link carrying its name — is written again by the next whole build. Findings
+are reported as `package-build site build` reports them, and the server keeps
+running. Interrupt it to stop.
+
+**OPTIONS**
+
+`--port` — the port to listen on, a number. Defaults to `1313`.
+
+`--host` — the address to listen on. Defaults to `127.0.0.1`.
+
+`--out <dir>` — the directory the site is written to. Defaults to
+`build/site`.
+
+**EXIT STATUS**
+
+1 when the site's settings or its cached menu cannot be read. Otherwise 0 once
+interrupted.
+
+**EXAMPLES**
+
+```
+$ package-build site serve
+[…] built the site
+[…] serving http://127.0.0.1:1313/thalorna/ — interrupt to stop
+[…] wrote build/site/thalorna/place-vedyara/index.html
+```
+
+**SEE ALSO**
+
+`package-build site build`, [the site guide](guides/site.md).
 
 ### `package-build pdf`
 
@@ -2724,7 +2806,7 @@ $ package-build pdf --book-version 1.4.0 --no-compile
 
 **SEE ALSO**
 
-`package-build site`, `package-build package <action> [pack] [entry]`,
+`package-build site build`, `package-build package <action> [pack] [entry]`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
 ### `package-build map`

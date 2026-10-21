@@ -9,7 +9,8 @@ subType: reference
 
 Preview renders only the supplied Markdown buffer. It works with ordinary
 Markdown, optional YAML frontmatter, and local Heroic Lands extensions, without
-configuration, a content tree, dependency caches, a content index or Pandoc.
+configuration, a content tree, dependency caches, a content index or Pandoc. A
+host that holds a content index can give it to the preview for a fuller view.
 
 ```sh
 package-build-preview < note.md > preview.html
@@ -24,6 +25,19 @@ is the default; `--dark` is explicit and independent of browser preferences.
 `--css` emits both scoped palettes and does not read stdin. `--help` lists the
 options. Unsupported arguments exit 1. Findings go to stderr; success exits 0,
 and render errors exit 1. A partial preview may accompany error findings.
+
+Preview renders through the same renderer as the packs and the websites, so an
+alert, a secret block, a verse, a captioned item, a footnote section and a
+picture's size and position read as they do on those surfaces. Fenced code that
+names a language is highlighted. A tag written in a note is shown as text.
+
+The default view needs no content index, so it shows what it cannot resolve as
+source. A host that holds the package's content index builds an index with
+`previewIndex` and passes it to `renderPreview` as `index`. Rendered that way, a
+wikilink is a link, a link to a concealed note is concealed, an embed draws its
+picture, marked text is mapped and set in its face, an icon is drawn, and a
+caption is numbered with its asset's role, so a map is a **Map**. A query, which
+a buffer cannot run, stays highlighted source in both views.
 
 Wikilinks, image and portrait links retain their complete source: blue brackets,
 purple addresses, bold foreground labels and grey attributes. Entire spans are bold, including their visible brackets and attributes.

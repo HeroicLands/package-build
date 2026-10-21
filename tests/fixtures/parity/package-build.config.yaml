@@ -1,0 +1,34 @@
+# The package the parity corpus is built as. It is copied into a scratch
+# directory before any build runs; nothing here is built in place.
+contentPackage: parity
+packageKind: modules
+compatibility:
+    minimum: "14.359"
+    verified: "14.359"
+stats:
+    lastModifiedBy: paritybuilder000
+packageBuild:
+    manifest:
+        title: The Parity Package
+packs:
+    - { name: journals, label: Journals, type: JournalEntry, default: true }
+languages:
+    vyl: { tag: art-x-vyl }
+    tar: { tag: art-x-tar, note: skill-tarvenlng }
+icons:
+    families:
+        fontawesome: { class: fa, styles: [solid, regular], describe: Font Awesome Free }
+    icons:
+        star: { style: solid, icon: star, label: star }
+site:
+    title: The Parity Package
+    description: One note holding every construct.
+    assets: https://cdn.example.org
+pdf:
+    unprinted: "type = 'homepage' OR type = 'doc'"
+    books:
+        - id: parity
+          title: The Parity Volume
+          document: book.yaml
+    fonts:
+        serif: Libertinus Serif

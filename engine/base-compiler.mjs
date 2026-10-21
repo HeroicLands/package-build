@@ -68,10 +68,10 @@ import { scanSpans } from "./content-spans.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanRuns } from "./content-scripts.mjs";
 import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
-import { scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
 import { checkImages } from "./content-images.mjs";
-import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
+import { embedRole } from "./content-embeds.mjs";
+import { expandContent } from "./content-expand.mjs";
 import { eventNoteIndex } from "./event-fields.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { cloneAddressState } from "./address-values.mjs";
@@ -84,8 +84,6 @@ import {
     makeFilename,
     resolveImg,
     resolveName,
-    convertNoteWikilinks,
-    expandNoteTables,
     statsForPack,
 } from "./helpers.mjs";
 // The record accessors only — see `engine/index-records.mjs` for why they live
@@ -130,25 +128,6 @@ import { annotateAssetReferences, assetReferenceLookup } from "./asset-reference
  *   `package:`, or one routed to a system pack whose system it says nothing
  *   about. Counted as errors, never as skips.
  */
-
-/**
- * A `ref` call's Foundry rendering: a same-page wikilink rather than a
- * Markdown link, so the wikilink pass that runs after expressions render
- * addresses it exactly as an authored `[[#anchor|Text]]` is — by the
- * JournalEntryPage the figure's own fence became, whether that page holds
- * only the figure or carries it alongside other prose. A Markdown link's
- * `#anchor` fragment resolves nowhere in Foundry, which addresses a page by
- * UUID and an anchor within a page by that page's own anchor; this is why the
- * two surfaces do not share a renderer.
- *
- * @param {{anchor: string}} target - The figure's own anchor.
- * @param {string} label - The link's text, which may itself carry Markdown.
- * @returns {string} `[[#anchor|label]]`, with a literal `|` in the label
- *   escaped so it cannot be read as the wikilink's own separator.
- */
-function foundryRefLink({ anchor }, label) {
-    return `[[#${anchor}|${label.replace(/\|/g, "\\|")}]]`;
-}
 
 /**
  * The shared walk → filter → expand → convert → build → write → count loop.
@@ -670,8 +649,9 @@ export class BasePackCompiler {
     /**
      * The body {@link BasePackCompiler#buildEntry} receives.
      *
-     * Generated tables expand before wikilinks are converted, so a cell a
-     * table emits is resolved along with the authored links.
+     * The body is expanded by {@link module:engine/content-expand.expandContent}
+     * for Foundry: generated tables expand before wikilinks are converted, so
+     * a cell a table emits is resolved along with the authored links.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} body - The note body, as authored.
@@ -686,6 +666,14 @@ export class BasePackCompiler {
         // it made — `errors` or `findings`, never just the first — so nothing
         // here re-scans; it only stops taking `[0]`.
         const findings = [];
+        const bodyLine = this.currentNote?.bodyLine ?? 1;
+        const bodyColumn = this.currentNote?.bodyColumn ?? 1;
+        // A finding's body position, in the file. The parser trims the body,
+        // so only its first line is offset by the column the body starts at.
+        const inFile = ({ line, column }) => ({
+            line: bodyLine + line - 1,
+            column: line === 1 && column !== undefined ? bodyColumn + column - 1 : column,
+        });
         const syntax = this.corpus?.syntax;
         const scanned = syntax?.(body);
         for (const secretError of [
@@ -695,41 +683,27 @@ export class BasePackCompiler {
             ...scanRuns(body, this.corpus?.runs, syntax).errors,
             ...markupAnchorFindings(body, syntax),
         ]) {
-            findings.push({
-                message: secretError.message,
-                line: (this.currentNote?.bodyLine ?? 1) + secretError.line - 1,
-                column:
-                    secretError.line === 1 ?
-                        (this.currentNote?.bodyColumn ?? 1)
-                    :   secretError.column,
-            });
+            findings.push({ message: secretError.message, ...inFile(secretError) });
         }
         // A heading's attribute block, and a `.secret` written where no surface
         // can honour it. Read off the body as authored, before the tables
         // expand, because a heading is a heading whatever a pass does with the
         // prose under it — so a pass that converts nothing reports these too.
         for (const headingError of [
-            ...scanHeadingAttributes(body, this.currentNote?.bodyLine ?? 1).errors,
-            ...withheldSections(body, this.currentNote?.bodyLine ?? 1).errors,
+            ...scanHeadingAttributes(body, bodyLine).errors,
+            ...withheldSections(body, bodyLine).errors,
         ]) {
             findings.push({
                 message: headingError.message,
                 line: headingError.line,
                 column:
-                    headingError.line === (this.currentNote?.bodyLine ?? 1) ?
-                        (this.currentNote?.bodyColumn ?? 1) + headingError.column - 1
+                    headingError.line === bodyLine ?
+                        bodyColumn + headingError.column - 1
                     :   headingError.column,
             });
         }
         for (const footnoteError of footnoteFindings(body)) {
-            findings.push({
-                message: footnoteError.message,
-                line: (this.currentNote?.bodyLine ?? 1) + footnoteError.line - 1,
-                column:
-                    footnoteError.line === 1 ?
-                        (this.currentNote?.bodyColumn ?? 1)
-                    :   footnoteError.column,
-            });
+            findings.push({ message: footnoteError.message, ...inFile(footnoteError) });
         }
         // An image sharing its paragraph with other text, a bad address or a
         // title with nowhere to draw it — the same findings `lint` reports,
@@ -737,10 +711,7 @@ export class BasePackCompiler {
         // already names rather than rendering the directive as though it were
         // absent. `checkImages` already resolves `bodyLine` and `bodyColumn`
         // internally, so its findings need no further adjustment.
-        for (const imageError of checkImages(body, "", {
-            bodyLine: this.currentNote?.bodyLine ?? 1,
-            bodyColumn: this.currentNote?.bodyColumn ?? 1,
-        })) {
+        for (const imageError of checkImages(body, "", { bodyLine, bodyColumn })) {
             findings.push({
                 message: imageError.message,
                 line: imageError.line,
@@ -752,69 +723,56 @@ export class BasePackCompiler {
             return body;
         }
         const name = resolveName(fm);
-        const { absPath, bodyLine, bodyColumn } = this.currentNote ?? {};
-        const { markdown: tabulated, lineMap } = expandNoteTables(body, {
-            name,
-            bodyLine,
-            sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
-            pageLists: absPath ? this.sqlTables?.pageLists?.get(absPath) : undefined,
+        // The note's own position, unset where the caller supplied none, so a
+        // link finding drops the field rather than guessing it.
+        const { absPath, bodyLine: noteLine, bodyColumn: noteColumn } = this.currentNote ?? {};
+        // A `ref`'s cross-note resolution is the web's alone: a journal
+        // addresses a page by UUID, which this pass has none of for another
+        // note.
+        const expanded = expandContent(body, {
+            target: "foundry",
+            index: this.linkIndex,
+            note: { fm, file: absPath, source: name, bodyLine: noteLine, bodyColumn: noteColumn },
+            prepared: {
+                sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
+                pageLists: absPath ? this.sqlTables?.pageLists?.get(absPath) : undefined,
+                inline: absPath ? this.sqlTables?.inline?.get(absPath) : undefined,
+            },
+            events: this.eventNotes(),
+            // A `ref` to a map reads the number the map's own page carries.
+            resolveRole: (address) => embedRole(this.linkIndex, address),
+            links: {
+                // A `[[#slug]]` self-link addresses the source note, which has
+                // no entry in the index — so where its own documents landed
+                // has to travel with it.
+                pack: this.router?.resolveOrNull(fm, packForType(fm.type).docType),
+                docPack: this.router?.resolveOrNull(fm, "JournalEntry"),
+            },
         });
-        const figureScan = scanFigures(tabulated);
-        for (const captionError of figureScan.errors) {
+        // A table the preparation could not answer fails the note on its own,
+        // at the table's line.
+        const { tables } = expanded.findings;
+        if (tables.length) {
+            const err = new Error(tables.map((e) => `content table — ${e.reason}`).join("; "));
+            if (noteLine !== undefined && tables[0].line !== undefined)
+                err.position = { line: noteLine + tables[0].line };
+            throw err;
+        }
+        const { lineMap } = expanded;
+        for (const captionError of expanded.findings.captions) {
+            const authored = lineMap[captionError.line - 1]?.line ?? captionError.line - 1;
             findings.push({
                 message: captionError.message,
-                line:
-                    (bodyLine ?? 1) +
-                    (lineMap[captionError.line - 1]?.line ?? captionError.line - 1),
-                column: captionError.column,
+                ...inFile({ line: authored + 1, column: captionError.column }),
             });
         }
-        // What the `ref` expression helper needs: this note's own figures, by
-        // id, and how a reference renders — a same-page wikilink rather than
-        // a Markdown link, so the wikilink pass below addresses it exactly as
-        // an authored `[[#anchor|Text]]` is, by the page the figure's own
-        // fence became. Cross-note resolution is omitted: a journal addresses
-        // a page by UUID, which this pass has none of for another note.
-        const figuresById = new Map(
-            figureScan.figures
-                .filter((figure) => figure.id)
-                .map((figure) => [
-                    figure.id,
-                    { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
-                ]),
-        );
-        const expressions = renderMarkdownExpressions(tabulated, {
-            fm,
-            dates: reckoningContext(this.linkIndex),
-            sqlResults: absPath ? this.sqlTables?.inline?.get(absPath) : undefined,
-            file: absPath,
-            bodyLine,
-            figures: { get: (id) => figuresById.get(id), link: foundryRefLink },
-            events: this.eventNotes(),
-        });
-        for (const finding of expressions.findings) {
+        for (const finding of expanded.findings.expressions) {
             findings.push({ message: finding.message, line: finding.line, column: finding.column });
         }
         this.reportConvertBodyFindings(findings);
-        const { markdown, unresolved } = convertNoteWikilinks(expressions.markdown, {
-            type: fm.type,
-            id: fm.id,
-            // Where this note is, so a link that resolves nowhere is reported
-            // at a position an author can open rather than by note name.
-            file: absPath,
-            bodyLine,
-            bodyColumn,
-            lineMap,
-            // A `[[#slug]]` self-link addresses the source note, which has no
-            // entry in the index — so where its own documents landed has to
-            // travel with it.
-            pack: this.router?.resolveOrNull(fm, packForType(fm.type).docType),
-            docPack: this.router?.resolveOrNull(fm, "JournalEntry"),
-            index: this.linkIndex,
-            name,
-        });
-        this.unresolvedLinks += unresolved.length;
-        return markdown;
+        if (expanded.linkError) throw expanded.linkError;
+        this.unresolvedLinks += expanded.unresolved.length;
+        return expanded.markdown;
     }
 
     /**

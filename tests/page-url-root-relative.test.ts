@@ -9,14 +9,10 @@
  * A page's stated `url:` is **site-root relative**; every href is **site
  * absolute**.
  *
- * The two are not one value. `site.base` is correctly where the package is
- * served — the prefix on every `href` this build writes into a page body, and
- * the base a link-manifest `path` is measured against — and it was also written
- * verbatim into each page's Hugo `url:` front matter. Hugo reads `url` as
- * relative to the site root, and for every consumer that exists the Hugo site's
- * root already *is* the package base, so the prefix was written twice and every
- * content page published one package segment too deep
- * (`/sohl/sohl/doc-rulesintro/`).
+ * The two are not one value. `site.base` is where the package is served — the
+ * prefix on every `href` this build writes into a page body, and the base a
+ * link-manifest `path` is measured against. A page's own `url:` is relative to
+ * the package's root, so it never states the base a second time.
  *
  * These cases pin the split, from both ends: what a page states about itself,
  * and what everything that points *at* a page composes.
@@ -29,6 +25,7 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite, collectContentPages, pageFrontmatter } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { homepageFrontmatter } from "../engine/homepage.mjs";
 import { buildSiteIndex } from "../engine/site-index.mjs";
 import { packageRelative } from "../engine/content-address.mjs";
@@ -102,15 +99,18 @@ const ctx = {
     scheme: { prefix: "kb/" },
 };
 
-/** The emitted page for an address, under the build's output mount. */
+/** The pages the last build published, by file name. */
+let pages: Record<string, string> = {};
+
+/** The published page for an address. */
 function page(slug: string) {
-    return fs.readFileSync(path.join(root, "build/hugo/content/kb", `${slug}.md`), "utf8");
+    return pages[`${slug}.md`];
 }
 
 describe("a page states its address relative to the site root", () => {
     it("writes `url: /<slug>/`, whatever base the package is served at", () => {
-        // The whole defect: as `page.url` this already carries
-        // the package base, and Hugo prefixes the base again.
+        // `page.url` already carries the package base, which the stated
+        // address leaves off.
         const data = pageFrontmatter(
             {
                 kind: "content",
@@ -124,14 +124,13 @@ describe("a page states its address relative to the site root", () => {
             {},
         );
         expect(data.url).toBe("/weapongear-dagger/");
-        // `slug` still rides alongside it — it is the last segment of the
-        // address and Hugo's own key for one.
+        // `slug` rides alongside it — it is the last segment of the address.
         expect(data.slug).toBe("weapongear-dagger");
     });
 
     it("states no address on the homepage, which is the root itself", () => {
-        // Hugo publishes the `home` kind at `baseURL`, whose path is already
-        // where the package is served, so there is nothing to state.
+        // The homepage publishes at the package root, so there is nothing to
+        // state.
         const data = homepageFrontmatter(
             { type: "homepage", shortcode: "root" },
             { contentPackage: "demo", title: "The Demo Module" },
@@ -177,6 +176,7 @@ describe("everything that points at a page keeps the package base", () => {
 describe("end to end, the two quantities are written to the same page", () => {
     it("states a root-relative address and links at a based one", () => {
         const result = buildSite({ config: configFor() });
+        pages = builtPages(result);
         expect(result.gates.addressErrors).toEqual([]);
         expect(result.wikiErrors).toEqual([]);
         const dagger = page("weapongear-dagger");
@@ -191,6 +191,7 @@ describe("end to end, the two quantities are written to the same page", () => {
         // A consumer that *is* mounted somewhere other than
         // `/<contentPackage>/` still says so, and it still reaches every href.
         const result = buildSite({ config: configFor({ base: "/served/" }) });
+        pages = builtPages(result);
         expect(result.wikiErrors).toEqual([]);
         expect(page("weapongear-dagger")).toMatch(/^url: \/weapongear-dagger\/$/m);
         expect(page("doc-combat")).toContain("](/served/weapongear-dagger/)");
@@ -202,16 +203,15 @@ describe("end to end, the two quantities are written to the same page", () => {
         // not double-correct into a *third* answer: the address is the same
         // one, and only the hrefs are short — the state those PRs already ship.
         const result = buildSite({ config: configFor({ base: "/" }) });
+        pages = builtPages(result);
         expect(result.wikiErrors).toEqual([]);
         expect(page("weapongear-dagger")).toMatch(/^url: \/weapongear-dagger\/$/m);
         expect(page("doc-combat")).toContain("](/weapongear-dagger/)");
     });
 
     it("writes the homepage as the package's site root, stating no address", () => {
-        buildSite({ config: configFor() });
-        // It is the root's `_index.md`, so it takes its address from where
-        // it is written — `baseURL` — and states none.
-        const home = fs.readFileSync(path.join(root, "build/hugo/content/_index.md"), "utf8");
+        // It takes its address from the package root and states none.
+        const home = builtPages(buildSite({ config: configFor() }))["_index.md"];
         expect(home).not.toMatch(/^url:/m);
         expect(home).toMatch(/^package: demo$/m);
     });

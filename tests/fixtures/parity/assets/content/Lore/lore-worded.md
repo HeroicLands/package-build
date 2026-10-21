@@ -1,0 +1,9 @@
+---
+type: lore
+subType: concept
+shortcode: worded
+name:
+    full: The Worded Note
+---
+
+The vow is cut as [thirun _sorima_]{lang=tar font=semaron-kuriale map=vyl-semaron} on the lintel.

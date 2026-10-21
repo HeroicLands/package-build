@@ -30,8 +30,12 @@ import { encodeAddresses } from "../engine/note-addresses.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { auditLinks, buildLinkIndex } from "../engine/content-links.mjs";
-import { buildWikilinkIndex, convertWikilinks, readQualifier } from "../engine/wikilinks.mjs";
-import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
+import {
+    buildWikilinkIndex,
+    convertWikilinks,
+    readQualifier,
+    resolveWebWikilinks,
+} from "../engine/wikilinks.mjs";
 import { readAssetAddress } from "../engine/art-fields.mjs";
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";

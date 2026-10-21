@@ -228,9 +228,9 @@ export const MARKDOWNLINT_CONFIG = Object.freeze({
     MD011: true,
 
     // MD034 — no bare URLs. Whether a bare URL becomes a link depends on the
-    // renderer, and this content is rendered by three of them (Hugo/goldmark
-    // for a knowledgebase, Foundry's own markdown for compendium journals, and
-    // GitHub for the repository pages). Writing the link explicitly is the only
+    // renderer, and this content is rendered by three of them (the site
+    // renderer for a knowledgebase, Foundry's own markdown for compendium
+    // journals, and GitHub for the repository pages). Writing the link explicitly is the only
     // form that renders the same everywhere.
     MD034: true,
 

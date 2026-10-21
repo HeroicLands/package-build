@@ -15,20 +15,20 @@
  * The files that belong to a deployment's **root** rather than to the rendered
  * site.
  *
- * Hugo renders into `<out>/<package>/`, because the deployment carries the
+ * `package-build site build` renders into `<out>/<package>/`, because the deployment carries the
  * `/<package>/` prefix physically and the routing layer is a path-preserving
  * pass-through. The directory that is *uploaded* is its parent, and Cloudflare
  * Pages reads `_headers` and `_redirects` from there and nowhere else — a copy
- * inside the prefix is published as a text file and never applied. Hugo owns
+ * inside the prefix is published as a text file and never applied. The render owns
  * everything under the prefix; this owns what sits beside it.
  *
  * **One file, `_headers`.** The prefix root is the homepage — the site build
- * writes it as the mount's `_index.md` — so nothing redirects, and no
+ * renders it at the package root — so nothing redirects, and no
  * `_redirects` is written. One left beside the site by an earlier build is
  * removed rather than left to send every reader somewhere nothing publishes.
  *
  * **And one directory inside the prefix, `pagefind/`.** Every package site
- * ends the same way — Hugo renders into the output directory, this
+ * ends the same way — the render fills the output directory, this
  * post-processes it there — so the search index is built in this step and
  * every site gets one without each repository adding a dependency and a
  * script. Pagefind indexes the rendered pages and writes `<package>/pagefind/`
@@ -120,15 +120,19 @@ export function noindexHeaders() {
  * that names their version, so a year's lifetime never serves a stale file.
  *
  * @param {object} [options] - Options.
- * @param {string} [options.pkg] - The content package, which is the prefix.
+ * @param {string} [options.pkg] - The content package, whose site is served at
+ *   `/<pkg>/` unless `base` says otherwise.
+ * @param {string} [options.base] - The path the site is served at, beginning
+ *   and ending with `/`.
  * @param {boolean} [options.fonts] - Whether the site carries the fonts.
  * @returns {string} The file's contents.
  */
-export function headers({ pkg, fonts = false } = {}) {
+export function headers({ pkg, base, fonts = false } = {}) {
     const lines = noindexHeaders();
-    if (fonts && pkg) {
+    const prefix = base ?? (pkg ? `/${pkg}/` : "");
+    if (fonts && prefix) {
         lines.push(
-            `/${pkg}/fonts/heroiclands/*`,
+            `${prefix}fonts/heroiclands/*`,
             "  Cache-Control: public, max-age=31536000, immutable",
             "",
         );
@@ -245,7 +249,10 @@ export async function indexSite({ site, output }) {
  *
  * @param {object} options - Options.
  * @param {string} options.pkg - The content package name, which is also the
- *   directory Hugo rendered into.
+ *   directory the site is rendered into unless `base` says otherwise.
+ * @param {string} [options.base] - The path the site is served at, beginning
+ *   and ending with `/`; the site is rendered into that path under `out`, so
+ *   a site served at `/` is rendered at `out` itself.
  * @param {string} options.out - The directory that is deployed.
  * @param {boolean} [options.search] - Whether to build the search index;
  *   `site.search` in the configuration. Default `true`.
@@ -259,18 +266,20 @@ export async function indexSite({ site, output }) {
  *   under the prefix; or, located at the rendered site, when the indexer
  *   fails.
  */
-export async function writeSiteRoot({ pkg, out, search = true, indexer = indexSite }) {
+export async function writeSiteRoot({ pkg, base, out, search = true, indexer = indexSite }) {
     const root = path.resolve(out);
-    const rendered = path.join(root, pkg);
+    const prefix = base ?? `/${pkg}/`;
+    const rendered = path.join(root, ...prefix.split("/").filter(Boolean));
     if (!fs.existsSync(path.join(rendered, "index.html"))) {
         throw new Error(
-            `${out}/${pkg}/ holds no rendered site — build the site before its root files`,
+            `${path.join(out, ...prefix.split("/").filter(Boolean))}/ holds no rendered site — ` +
+                "build the site before its root files",
         );
     }
 
     const file = path.join(root, "_headers");
     const fonts = fs.existsSync(path.join(rendered, "fonts", "heroiclands"));
-    fs.writeFileSync(file, headers({ pkg, fonts }));
+    fs.writeFileSync(file, headers({ pkg, base: prefix, fonts }));
     fs.rmSync(path.join(root, "_redirects"), { force: true });
 
     const dir = path.join(rendered, SEARCH_DIR);

@@ -1,18 +1,12 @@
-/*
- * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
- * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 
 /**
- * `docs/authoring/links-and-markup.md` documents every shortcode the Hugo
- * theme defines.
+ * `docs/authoring/links-and-markup.md` documents the two picture constructs
+ * `glyph` and `cartouche` are written as, and documents no shortcode call.
  *
- * The shortcode names are the files in `hugo-theme/layouts/shortcodes/`,
- * listed at run time, so a shortcode added to the theme is a shortcode the
- * reference must describe. Each needs a heading naming it in code and a worked
- * `{{< name … >}}` call.
+ * Each construct needs a heading naming it in code and a worked example in its
+ * own syntax. No example anywhere in the page uses `{{<` or `{{%`, because the
+ * lint refuses both.
  */
 
 import { describe, it, expect } from "vitest";
@@ -21,29 +15,27 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SHORTCODES_DIR = path.join(ROOT, "hugo-theme/layouts/shortcodes");
 const DOC = fs.readFileSync(path.join(ROOT, "docs/authoring/links-and-markup.md"), "utf8");
 
-const names = fs
-    .readdirSync(SHORTCODES_DIR)
-    .filter((f) => f.endsWith(".html"))
-    .map((f) => f.slice(0, -".html".length))
-    .sort();
+const SYNTAX: Record<string, RegExp> = {
+    glyph: /\]\{\.glyph [^}]*slug=/,
+    cartouche: /\]\{\.cartouche [^}]*slug=/,
+};
 
-describe("theme shortcodes are documented", () => {
-    it("finds the theme's shortcodes", () => {
-        expect(names.length).toBeGreaterThan(0);
-    });
-
-    for (const name of names) {
+describe("glyphs and cartouches are documented", () => {
+    for (const [name, example] of Object.entries(SYNTAX)) {
         it(`${name} has a heading`, () => {
-            const heading = new RegExp(`^#{2,4} .*\`${name}\``, "m");
-            expect(DOC, `no heading naming \`${name}\``).toMatch(heading);
+            expect(DOC, `no heading naming \`${name}\``).toMatch(
+                new RegExp(`^#{2,4} .*\`${name}\``, "m"),
+            );
         });
 
-        it(`${name} has a worked call`, () => {
-            const call = new RegExp(`\\{\\{< ${name}[ >]`);
-            expect(DOC, `no {{< ${name} … >}} example`).toMatch(call);
+        it(`${name} has a worked example`, () => {
+            expect(DOC, `no worked ${name} example`).toMatch(example);
         });
     }
+
+    it("shows no shortcode call", () => {
+        expect(DOC).not.toMatch(/\{\{[<%]/);
+    });
 });

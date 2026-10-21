@@ -258,7 +258,7 @@ describe("a refusal is located and fatal", () => {
     });
 });
 
-describe("the website is handed markup Hugo renders", () => {
+describe("the website is handed markup the renderer passes through", () => {
     it("turns a block image into a figure carrying the vocabulary's classes", () => {
         expect(renderImageFigures("![A map](images/m.webp){.full-width float=top-right}\n")).toBe(
             [

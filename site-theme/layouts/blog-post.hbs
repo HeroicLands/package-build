@@ -1,0 +1,40 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+{{#if hero}}
+{{> hero-banner hero}}
+{{/if}}
+{{#if article}}
+<article class="single">
+  {{> search-meta article.search}}
+  <div class="single-content">
+    {{#if article.meta}}
+    <div class="single-meta blog-meta">
+      {{#if article.meta.series}}
+      <div class="blog-series">
+        <span class="blog-series-label">Series</span>
+        <span class="blog-series-name">{{article.meta.series}}</span>
+      </div>
+      {{/if}}
+      {{#if article.meta.date}}
+      <time class="single-date" datetime="{{article.meta.date.iso}}">{{article.meta.date.text}}</time>
+      {{/if}}
+      {{#if article.meta.tags}}
+      {{> tags article.meta.tags}}
+      {{/if}}
+    </div>
+    {{/if}}
+
+    {{#if article.content}}
+    <div class="single-body" data-pagefind-body>
+      {{{article.content}}}
+    </div>
+    {{/if}}
+
+    {{#if article.related}}
+    {{> related article.related}}
+    {{/if}}
+    {{#if article.nav}}
+    {{> nav-links article.nav}}
+    {{/if}}
+  </div>
+</article>
+{{/if}}

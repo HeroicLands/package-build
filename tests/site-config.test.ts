@@ -6,50 +6,33 @@
  */
 
 /**
- * The generated Hugo configuration.
+ * What a site build reads from the configuration.
  *
- * `package-build site` writes the whole Hugo source tree under `build/hugo/`,
- * `hugo.toml` included. Every value in that file is either derived from a
- * source the repository already states, an organisation constant, or the
- * navigation `deps fetch` cached — so the cases here are weighted towards the
- * guards: that nothing the generator writes can also be authored, that a cold
- * cache is refused by name, and that the file Hugo reads holds what the
- * sources say.
+ * The site's address, title and parameters come from a source the repository
+ * already states, an organisation constant, or the navigation `deps fetch`
+ * cached — so the cases here are weighted towards the guards: that a missing
+ * source is refused by name, that a cold cache is refused by name, and that
+ * the settings hold what the sources say.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { parse as parseToml } from "smol-toml";
 
-import { defineConfig, DERIVED_HUGO_KEYS } from "../content-config.mjs";
-import { buildSite } from "../engine/site-build.mjs";
+import { defineConfig } from "../content-config.mjs";
 import {
     BRAND,
     DEPLOY_ROOT,
-    DISABLE_KINDS,
-    HUGO_CONTENT,
-    HUGO_SOURCE,
-    LOCALE,
     NAVIGATION_FILE,
     NAVIGATION_URL,
-    THEME,
     fetchNavigation,
-    generateHugoConfig,
-    hugoConfig,
-    hugoToml,
-    menuEntries,
     navigationCacheDir,
     readCachedNavigation,
-    resolveThemesDir,
-    writeHugoConfig,
+    siteSettings,
 } from "../engine/site-config.mjs";
 
 let root: string;
-
-/** The path from `build/hugo/` up to a scope installed in the fixture root. */
-const THEMES_DIR = ["..", "..", "node_modules", "@heroiclands", "package-build"].join("/");
 
 /** The navigation heroiclands-site publishes, in the shape `nav.json` states. */
 const NAVIGATION = [
@@ -88,7 +71,7 @@ function cacheNavigation(config: any, navigation: unknown = NAVIGATION) {
 }
 
 beforeAll(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-hugo-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-site-config-"));
     fs.writeFileSync(
         path.join(root, "package.json"),
         JSON.stringify({
@@ -129,140 +112,16 @@ function configFor(overrides: Record<string, unknown> = {}, site: Record<string,
     } as any);
 }
 
-/** The generated configuration for a fixture, as a plain object. */
-function generated(site: Record<string, unknown> = {}, overrides: Record<string, unknown> = {}) {
-    return hugoConfig({
-        config: configFor(overrides, site),
-        navigation: NAVIGATION,
-        themesDir: THEMES_DIR,
-    });
+/** The settings for a fixture. */
+function settings(site: Record<string, unknown> = {}, overrides: Record<string, unknown> = {}) {
+    return siteSettings({ config: configFor(overrides, site) });
 }
 
-/** Every leaf of a nested object as its dotted path. */
-function leafPaths(value: unknown, prefix = ""): string[] {
-    if (Array.isArray(value)) {
-        // An array is a leaf as far as authorship goes: the guard names the
-        // array's own key, never an element inside it.
-        return [prefix];
-    }
-    if (typeof value === "object" && value !== null) {
-        return Object.entries(value).flatMap(([key, inner]) =>
-            leafPaths(inner, prefix ? `${prefix}.${key}` : key),
-        );
-    }
-    return [prefix];
-}
-
-/** Whether a dotted path, or any ancestor of it, is a derived key. */
-function isDerived(dotted: string): boolean {
-    const parts = dotted.split(".");
-    return parts.some((_, i) => parts.slice(0, i + 1).join(".") in DERIVED_HUGO_KEYS);
-}
-
-describe("everything the generator writes is a key `site.hugo` may not author", () => {
-    it("names the keys the design derives, so the guard is not vacuous", () => {
-        for (const key of [
-            "baseURL",
-            "title",
-            "publishDir",
-            "contentDir",
-            "themesDir",
-            "theme",
-            "disableKinds",
-            "taxonomies",
-            "outputs",
-            "params.description",
-            "params.author",
-            "params.cdnBaseURL",
-            "params.brand",
-            "menu",
-        ]) {
-            expect(DERIVED_HUGO_KEYS, key).toHaveProperty(key);
-        }
-    });
-
-    it("every top-level and nested key in the generated TOML is under a derived key", () => {
-        // Read back out of the TOML rather than off the object, so the test
-        // covers what Hugo reads. A key the generator writes without a guard
-        // entry could otherwise be authored in `site.hugo` and silently
-        // overwritten — the drift `DERIVED_MANIFEST_KEYS` exists to prevent.
-        const parsed = parseToml(
-            hugoToml(
-                generated({
-                    notfound: { tagline: "No page at", sitenoun: "module" },
-                }),
-            ),
-        );
-        const paths = leafPaths(parsed);
-        expect(paths.length).toBeGreaterThan(10);
-        const unguarded = paths.filter((dotted) => !isDerived(dotted));
-        expect(unguarded).toEqual([]);
-    });
-
-    it("refuses `site.hugo.disableKinds`, `.taxonomies` and `.outputs`, naming the derivation", () => {
-        for (const key of ["disableKinds", "taxonomies", "outputs"]) {
-            expect(() => configFor({}, { hugo: { [key]: [] } })).toThrow(
-                new RegExp(
-                    `\`site\\.hugo\\.${key}\` is derived from the toolchain, which renders ` +
-                        "a site as its homepage and its pages: .* and must not be declared",
-                ),
-            );
-        }
-    });
-
-    it("refuses `site.hugo.baseURL`, naming `package.json` `homepage`", () => {
-        expect(() => configFor({}, { hugo: { baseURL: "https://example.org/" } })).toThrow(
-            /`site\.hugo\.baseURL` is derived from package\.json `homepage` and must not be declared/,
-        );
-    });
-
-    it("refuses a nested derived key, naming its source", () => {
-        expect(() => configFor({}, { hugo: { params: { brand: { logo: "x" } } } })).toThrow(
-            /`site\.hugo\.params\.brand` is derived from/,
-        );
-        expect(() =>
-            configFor({}, { hugo: { markup: { goldmark: { renderer: { unsafe: false } } } } }),
-        ).toThrow(/`site\.hugo\.markup\.goldmark\.renderer\.unsafe` is derived from/);
-    });
-
-    it("refuses `site.hugo.markup.goldmark.extensions.taskList`, naming the derivation", () => {
-        expect(() =>
-            configFor({}, { hugo: { markup: { goldmark: { extensions: { taskList: true } } } } }),
-        ).toThrow(/`site\.hugo\.markup\.goldmark\.extensions\.taskList` is derived from/);
-    });
-
-    it("accepts the key nobody anticipated, and merges it last", () => {
-        const config = configFor(
-            {},
-            { hugo: { markup: { goldmark: { extensions: { linkify: false } } } } },
-        );
-        expect(config.site.hugo).toEqual({
-            markup: { goldmark: { extensions: { linkify: false } } },
-        });
-        const out = generated({
-            hugo: { markup: { goldmark: { extensions: { linkify: false } } } },
-        });
-        // Deep-merged: the toolchain's own renderer and extension settings
-        // survive beside it.
-        expect(out.markup).toEqual({
-            goldmark: {
-                renderer: { unsafe: true },
-                extensions: { linkify: false, taskList: false },
-            },
-        });
-    });
-});
-
-describe("the generated configuration", () => {
-    it("derives every value from a source the repository already states", () => {
-        const out = generated();
+describe("the site settings", () => {
+    it("derive every value from a source the repository already states", () => {
+        const out = settings();
         expect(out.baseURL).toBe("https://www.heroiclands.org/demo/");
         expect(out.title).toBe("The Demo Module");
-        expect(out.locale).toBe(LOCALE);
-        expect(out.publishDir).toBe("../site/demo");
-        expect(out.themesDir).toBe(THEMES_DIR);
-        expect(out.theme).toBe(THEME);
-        expect(out.contentDir).toBe("content");
         expect(out.params.description).toBe("A demonstration module.");
         expect(out.params.author).toBe("Ann Author");
         expect(out.params.cdnBaseURL).toBe("https://cdn.example.org");
@@ -270,31 +129,8 @@ describe("the generated configuration", () => {
         expect(out.params).not.toHaveProperty("notfound");
     });
 
-    it("disables section, taxonomy, term and RSS on every site", () => {
-        expect(DISABLE_KINDS).toEqual(["section", "taxonomy", "term", "RSS"]);
-        expect(generated().disableKinds).toEqual([...DISABLE_KINDS]);
-        expect(generated({}, { publish: { address: { prefix: "kb/" } } }).disableKinds).toEqual([
-            ...DISABLE_KINDS,
-        ]);
-    });
-
-    it("passes the renderer the raw HTML the toolchain emits", () => {
-        // `<figure>` and `<span class="sohl-unresolved-link">` are written into
-        // pages by the toolchain itself, so this is its requirement, not a
-        // consumer's choice.
-        expect(generated().markup).toEqual({
-            goldmark: { renderer: { unsafe: true }, extensions: { taskList: false } },
-        });
-    });
-
-    it("emits neither `[taxonomies]` nor `[outputs]`", () => {
-        const out = generated();
-        expect(out).not.toHaveProperty("taxonomies");
-        expect(out).not.toHaveProperty("outputs");
-    });
-
-    it("writes `site.notfound` through", () => {
-        const out = generated({
+    it("write `site.notfound` through", () => {
+        const out = settings({
             notfound: {
                 tagline: "This module has one page, and it is not at",
                 sitenoun: "module",
@@ -310,120 +146,54 @@ describe("the generated configuration", () => {
         });
     });
 
-    it("leaves an absent optional value off rather than writing an empty one", () => {
+    it("leave an absent optional value off rather than writing an empty one", () => {
         // `assets` and `description` are required — see the guards below —
         // so the byline is the only value left that is genuinely optional.
-        const out = hugoConfig({
-            config: configFor({ authors: undefined }),
-            navigation: NAVIGATION,
-            themesDir: THEMES_DIR,
-        });
+        const out = settings({}, { authors: undefined });
         expect(out.params).not.toHaveProperty("author");
-        const toml = hugoToml(out);
-        expect(toml).not.toMatch(/author/);
     });
 
-    it("fails through `checkHomepage` before anything is written", () => {
-        expect(() =>
-            hugoConfig({
-                config: configFor({ homepage: undefined }),
-                navigation: NAVIGATION,
-                themesDir: "x",
-            }),
-        ).toThrow(/`homepage` is not declared in `package\.json`/);
-        expect(() =>
-            hugoConfig({
-                config: configFor({ homepage: "https://www.heroiclands.org/demo" }),
-                navigation: NAVIGATION,
-                themesDir: "x",
-            }),
-        ).toThrow(
+    it("fail through `checkHomepage` before anything is composed", () => {
+        expect(() => settings({}, { homepage: undefined })).toThrow(
+            /`homepage` is not declared in `package\.json`/,
+        );
+        expect(() => settings({}, { homepage: "https://www.heroiclands.org/demo" })).toThrow(
             /`homepage` is `https:\/\/www\.heroiclands\.org\/demo`, but `contentPackage` is `demo`/,
         );
     });
 
-    it("requires a site or manifest title", () => {
-        expect(() =>
-            hugoConfig({
-                config: configFor({ packageBuild: {} }),
-                navigation: NAVIGATION,
-                themesDir: "x",
-            }),
-        ).toThrow(/declare `site\.title` or `packageBuild\.manifest\.title`/);
+    it("require a site or manifest title", () => {
+        expect(() => settings({}, { packageBuild: {} })).toThrow(
+            /declare `site\.title` or `packageBuild\.manifest\.title`/,
+        );
     });
 
-    it("uses the site's own title for a documentation package", () => {
-        const out = generated({ title: "A Documentation Site" }, { packageBuild: {} });
-        expect(out.title).toBe("A Documentation Site");
+    it("use the site's own title for a documentation package", () => {
+        expect(settings({ title: "A Documentation Site" }, { packageBuild: {} }).title).toBe(
+            "A Documentation Site",
+        );
     });
 
     // `site.description` writes the site's `<meta name="description">` — every
     // site build needs one, the way it needs a title.
-    it("requires `site.description`, the site's own pitch", () => {
-        expect(() =>
-            hugoConfig({
-                config: configFor({}, { description: undefined }),
-                navigation: NAVIGATION,
-                themesDir: "x",
-            }),
-        ).toThrow(/`site\.description` is not declared/);
+    it("require `site.description`, the site's own pitch", () => {
+        expect(() => settings({ description: undefined })).toThrow(
+            /`site\.description` is not declared/,
+        );
     });
 
-    it("writes `params.description` from `site.description`, not `package.json`", () => {
-        const out = generated({ description: "A different pitch entirely." });
-        expect(out.params.description).toBe("A different pitch entirely.");
+    it("write `params.description` from `site.description`, not `package.json`", () => {
+        expect(settings({ description: "A different pitch entirely." }).params.description).toBe(
+            "A different pitch entirely.",
+        );
     });
 
-    it("requires `site.assets`, the host the theme resolves every relative asset against", () => {
-        expect(() =>
-            hugoConfig({
-                config: configFor({}, { assets: undefined }),
-                navigation: NAVIGATION,
-                themesDir: "x",
-            }),
-        ).toThrow(/`site\.assets` is not declared/);
-    });
-
-    it("serialises to TOML Hugo reads, with the menu as a table array", () => {
-        const toml = hugoToml(generated());
-        expect(toml).toMatch(/^baseURL = "https:\/\/www\.heroiclands\.org\/demo\/"$/m);
-        expect(toml).toMatch(/^\[\[menu\.main\]\]$/m);
-        expect(toml).toMatch(/^\[params\.brand\]$/m);
-        expect(parseToml(toml)).toEqual(generated());
+    it("require `site.assets`, the host the theme resolves every relative asset against", () => {
+        expect(() => settings({ assets: undefined })).toThrow(/`site\.assets` is not declared/);
     });
 });
 
-describe("the menu is whatever the cached navigation says", () => {
-    it("reproduces the navigation entry for entry, children as `parent` entries", () => {
-        const entries = menuEntries(NAVIGATION);
-        expect(entries).toEqual([
-            { name: "Home", url: "https://www.heroiclands.org/", weight: 1 },
-            { name: "Song of Heroic Lands", url: "https://www.heroiclands.org/sohl/", weight: 2 },
-            { name: "HârnMaster 3", url: "https://www.heroiclands.org/hm3/", weight: 3 },
-            { name: "Thalorna", url: "https://www.heroiclands.org/thalorna/", weight: 4 },
-            {
-                name: "Other Modules",
-                url: "https://www.heroiclands.org/projects/modules/",
-                weight: 5,
-                identifier: "other-modules",
-            },
-            {
-                name: "HârnMaster Kethira Basic",
-                url: "https://www.heroiclands.org/kethira/",
-                weight: 1,
-                parent: "other-modules",
-            },
-            {
-                name: "Thalorna Alternative Art",
-                url: "https://www.heroiclands.org/thalornaaltart/",
-                weight: 2,
-                parent: "other-modules",
-            },
-            { name: "License", url: "https://www.heroiclands.org/license/", weight: 6 },
-        ]);
-        expect(generated().menu).toEqual({ main: entries });
-    });
-
+describe("the navigation is whatever the cache says", () => {
     it("is the one address package-build carries for it", () => {
         expect(NAVIGATION_URL).toBe("https://www.heroiclands.org/nav.json");
     });
@@ -434,7 +204,6 @@ describe("the menu is whatever the cached navigation says", () => {
         expect(() => readCachedNavigation(config)).toThrow(
             /navigation has not been fetched\. Run `package-build deps fetch` first/,
         );
-        expect(() => generateHugoConfig(config)).toThrow(/Run `package-build deps fetch` first/);
     });
 
     it("treats a half-finished fetch as cold", () => {
@@ -486,87 +255,9 @@ describe("the menu is whatever the cached navigation says", () => {
     });
 });
 
-describe("the theme ships with this package", () => {
-    it("points `build/hugo/` at the directory holding the theme", () => {
-        const themesDir = resolveThemesDir(root);
-        const manifest = path.resolve(root, HUGO_SOURCE, themesDir, THEME, "theme.toml");
-        expect(fs.existsSync(manifest)).toBe(true);
-    });
-
-    it("names a directory Hugo can open as a theme", () => {
-        const themesDir = resolveThemesDir(root);
-        const layouts = path.resolve(root, HUGO_SOURCE, themesDir, THEME, "layouts");
-        expect(fs.existsSync(path.join(layouts, "_default", "baseof.html"))).toBe(true);
-    });
-
-    it("resolves with nothing installed in the consumer", () => {
-        // The whole point of shipping the theme here: a root with no
-        // `node_modules` of its own still names a real theme, because the
-        // path is this package's own location rather than a search.
-        const bare = fs.mkdtempSync(path.join(os.tmpdir(), "cb-notheme-"));
-        try {
-            const manifest = path.resolve(
-                bare,
-                HUGO_SOURCE,
-                resolveThemesDir(bare),
-                THEME,
-                "theme.toml",
-            );
-            expect(fs.existsSync(manifest)).toBe(true);
-        } finally {
-            fs.rmSync(bare, { recursive: true, force: true });
-        }
-    });
-
-    it("writes a POSIX path whatever the platform separates with", () => {
-        expect(resolveThemesDir(root)).not.toContain("\\");
-    });
-});
-
-describe("the Hugo source tree lands under build/", () => {
-    it("is a sibling of the deployment root, so nothing Hugo reads is published", () => {
-        expect(HUGO_SOURCE).toBe("build/hugo");
-        expect(HUGO_CONTENT).toBe(`${HUGO_SOURCE}/content`);
+describe("the deployment root", () => {
+    it("is under build/", () => {
         expect(DEPLOY_ROOT).toBe("build/site");
-        expect(path.dirname(HUGO_SOURCE)).toBe(path.dirname(DEPLOY_ROOT));
-    });
-
-    it("`buildSite` writes the mount at the fixed location", () => {
-        const config = configFor();
-        const result = buildSite({ config });
-        expect(result.stats?.out).toBe(path.join(root, HUGO_CONTENT));
-        expect(fs.existsSync(path.join(root, HUGO_CONTENT, "_index.md"))).toBe(true);
-    });
-
-    it("`writeHugoConfig` writes `build/hugo/hugo.toml` from the cached navigation", () => {
-        const config = configFor();
-        cacheNavigation(config);
-        const { file } = writeHugoConfig(config);
-        expect(file).toBe(path.join(root, HUGO_SOURCE, "hugo.toml"));
-        const parsed = parseToml(fs.readFileSync(file, "utf8")) as any;
-        expect(parsed.baseURL).toBe("https://www.heroiclands.org/demo/");
-        expect(parsed.params.description).toBe("A demonstration module.");
-        expect(parsed.params.author).toBe("Ann Author");
-        // Resolved rather than passed in, so the written value is the one Hugo
-        // follows from `build/hugo/` to the theme this package ships.
-        expect(parsed.themesDir).toBe(resolveThemesDir(root));
-        expect(
-            fs.existsSync(path.resolve(root, HUGO_SOURCE, parsed.themesDir, THEME, "theme.toml")),
-        ).toBe(true);
-        expect(parsed.menu.main.map((e: any) => e.name)).toEqual([
-            "Home",
-            "Song of Heroic Lands",
-            "HârnMaster 3",
-            "Thalorna",
-            "Other Modules",
-            "HârnMaster Kethira Basic",
-            "Thalorna Alternative Art",
-            "License",
-        ]);
-        expect(parsed.publishDir).toBe(`../site/demo`);
-        expect(path.resolve(root, HUGO_SOURCE, parsed.publishDir)).toBe(
-            path.join(root, DEPLOY_ROOT, "demo"),
-        );
     });
 });
 
@@ -603,9 +294,5 @@ describe("`site.notfound` is validated", () => {
             sitenoun: "y",
             links: [{ title: "t", url: "/", text: "why" }],
         });
-    });
-
-    it("`site.hugo` must be a mapping", () => {
-        expect(() => configFor({}, { hugo: "markup" })).toThrow(/`site\.hugo` must be a mapping/);
     });
 });

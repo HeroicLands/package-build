@@ -1,0 +1,2 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+{{#if isLink}}{{> infobox-entry entry=entry class="info-link"}}{{else if isLinks}}{{#each entries}}{{#unless @first}}, {{/unless}}{{> infobox-entry entry=this class="info-link"}}{{/each}}{{else}}{{text}}{{/if}}

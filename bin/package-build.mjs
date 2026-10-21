@@ -91,7 +91,7 @@ import { checkForeignAssetBindings } from "../engine/asset-bindings.mjs";
 import { emitDiagnostic, formatDiagnostic, positionOfYamlPath } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
-import { compilesFoundryDocuments } from "../content-config.mjs";
+import { compilesFoundryDocuments, siteBase } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, resetStage, stageAssets } from "../stage.mjs";
 import { rowsStagingPictureRoots, stagePackageAssets } from "../engine/asset-shipping.mjs";
@@ -889,7 +889,7 @@ function manifestCommand() {
  * `package-build site-root` — the deployment's root files, and the search
  * index.
  *
- * Hugo owns everything under the `/<package>/` prefix; this owns what sits
+ * The site render owns everything under the `/<package>/` prefix; this owns what sits
  * beside it, which is what Cloudflare Pages reads from the uploaded directory
  * and nowhere else: `_headers`, and no `_redirects`, since the prefix root is
  * the homepage. It then indexes the rendered pages for search into
@@ -913,6 +913,7 @@ function siteRootCommand() {
 
             const { files, search } = await writeSiteRoot({
                 pkg: shared.contentPackage,
+                base: siteBase(shared),
                 out,
                 search: shared.site.search,
             });

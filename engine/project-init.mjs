@@ -85,13 +85,10 @@ function projectScripts(answers) {
         "build:local": "npm install && npm run build:noci",
         "build:content-index": "package-build content-index",
         "build:deps": "package-build deps fetch",
-        "build:site-content": "package-build site",
-        "build:site-html": "hugo --source build/hugo --minify --gc --cleanDestinationDir",
-        "build:site-root": "package-build site-root",
-        "build:site":
-            "run-s build:deps build:content-index build:site-content build:site-html build:site-root",
-        "serve:site": "run-s build:deps build:content-index build:site-content serve:site-html",
-        "serve:site-html": "hugo server --source build/hugo",
+        "build:site-render": "package-build site build",
+        "build:site": "run-s build:deps build:content-index build:site-render",
+        "serve:site-render": "package-build site serve",
+        "serve:site": "run-s build:deps build:content-index serve:site-render",
         "build:book": "package-build pdf",
         lint: "run-s lint:format lint:markdown lint:addresses lint:content-links",
         "lint:format": "package-build format",
@@ -199,7 +196,6 @@ function projectManifest(answers) {
         scripts: projectScripts(answers),
         devDependencies: {
             "@changesets/cli": "^3.0.0",
-            "@heroiclands/hugo-theme": "^0.9.0",
             "@heroiclands/package-build": `^${answers.version}`,
             "npm-run-all": "^4.1.5",
         },
@@ -268,7 +264,7 @@ function projectText(answers) {
         "prettier.config.js":
             '/* SPDX-License-Identifier: GPL-3.0-or-later */\nexport { default } from "@heroiclands/package-build/prettier";\n',
         ".prettierignore": "CHANGELOG.md\n",
-        "README.md": `# ${answers.title}\n\n${answers.description}\n\nRun \`npm install\`, then \`npm run lint\`. Build the website with \`npm run build:site\`, serve it with \`npm run serve:site\`, and build the book with \`npm run build:book\`. The site requires Hugo Extended and the book requires Typst on your PATH. Site deployment needs its own hosting configuration.\n`,
+        "README.md": `# ${answers.title}\n\n${answers.description}\n\nRun \`npm install\`, then \`npm run lint\`. Build the website with \`npm run build:site\`, serve it with \`npm run serve:site\`, and build the book with \`npm run build:book\`. The book requires Typst on your PATH. Site deployment needs its own hosting configuration.\n`,
         "LICENSE.md": license,
         "lang/en.json": JSON.stringify({
             [answers.contentPackage.toUpperCase()]: { Title: answers.title },
@@ -443,9 +439,6 @@ export function checkProject(rootDir) {
         }
         if (!manifest.devDependencies?.["@heroiclands/package-build"]) {
             add("package.json", "the package-build development dependency is required");
-        }
-        if (!manifest.devDependencies?.["@heroiclands/hugo-theme"]) {
-            add("package.json", "the Hugo theme development dependency is required");
         }
         if (!nonempty(manifest.homepage))
             add("package.json", "homepage is required for the website");

@@ -21,8 +21,8 @@
  * | resolver | module | what it produces |
  * | --- | --- | --- |
  * | the checker | `content-links.mjs` | `package-build links` findings |
- * | the pack build | `wikilinks.mjs` + `helpers.mjs` | a Foundry `@UUID` |
- * | the site build | `web-wikilinks.mjs` | a page URL |
+ * | the pack build | `wikilinks.mjs` (`convertWikilinks`) + `helpers.mjs` | a Foundry `@UUID` |
+ * | the site build | `wikilinks.mjs` (`resolveWebWikilinks`) | a page URL |
  *
  * They used to disagree twice over. The site build failed an unresolved address
  * only once every linkable package had vendored a manifest, so the same
@@ -48,8 +48,7 @@ import {
     unlabelledLinkMessage,
     unresolvedAddressMessage,
 } from "../engine/wikilink-syntax.mjs";
-import { buildWikilinkIndex, convertWikilinks } from "../engine/wikilinks.mjs";
-import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
+import { buildWikilinkIndex, convertWikilinks, resolveWebWikilinks } from "../engine/wikilinks.mjs";
 import { convertNoteWikilinks } from "../engine/helpers.mjs";
 
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";

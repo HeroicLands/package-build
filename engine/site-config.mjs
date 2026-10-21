@@ -12,115 +12,49 @@
  */
 
 /**
- * The Hugo configuration a site build generates.
+ * What a site build reads from the configuration: the site's address, title
+ * and parameters, and the organisation's navigation.
  *
- * `package-build site` writes the whole Hugo source tree under `build/hugo/`
- * — `hugo.toml`, the content mount, Hugo's own cache — as a sibling of the
- * deployment root `build/site/`, so nothing Hugo reads lands in what is
- * published. The consumer's script runs Hugo over it; the toolchain never
- * does.
- *
- * Every value in the generated file has one source. The package's identity
- * (`baseURL`, `title`, `params.description`, `params.author`) is read from
- * `package.json` and `package-build.config.yaml`, where it is already stated.
- * The organisation's constants — the brand links, the locale — are stated once
- * here, because they are the same on every site and a copy per repository is
- * a copy that drifts. The navigation is neither: it is the list of packages
- * the organisation publishes, which lives in one place, heroiclands-site's
- * roster, and reaches every site as the `nav.json` that site publishes.
- * package-build carries no package list; `deps fetch` caches the navigation
- * and the site build writes `[menu.main]` from the cache.
+ * Every value has one source. The package's identity (`baseURL`, `title`,
+ * `params.description`, `params.author`) is read from `package.json` and
+ * `package-build.config.yaml`, where it is already stated. The organisation's
+ * constants — the brand links — are stated once here, because they are the
+ * same on every site and a copy per repository is a copy that drifts. The
+ * navigation is neither: it is the list of packages the organisation
+ * publishes, which lives in one place, heroiclands-site's roster, and reaches
+ * every site as the `nav.json` that site publishes. package-build carries no
+ * package list; `deps fetch` caches the navigation and the site build reads
+ * the cache.
  *
  * What a repository still says for itself is the residue that is genuinely
- * its own — the wording of its "page not found" page — and, through
- * `site.hugo`, the one key nobody anticipated.
- * {@link module:content-config.DERIVED_HUGO_KEYS} refuses everything the
- * generator writes from being authored there too.
+ * its own, such as the wording of its "page not found" page.
  *
  * @module
  */
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { stringify as stringifyToml } from "smol-toml";
 
 import { checkHomepage, fail } from "../config.mjs";
-import { slugify } from "./content-slug.mjs";
 import { siteFontsParam } from "./script-font-delivery.mjs";
-
-/** The Hugo source directory, relative to the repository root. */
-export const HUGO_SOURCE = "build/hugo";
-
-/** The content mount `package-build site` writes, relative to the repository root. */
-export const HUGO_CONTENT = `${HUGO_SOURCE}/content`;
 
 /**
  * The directory that is deployed, relative to the repository root.
  *
- * Hugo renders into `<DEPLOY_ROOT>/<contentPackage>/`; `package-build
- * site-root` writes `_headers` beside it and the search index inside it.
+ * `package-build site build` renders into `<DEPLOY_ROOT>/<contentPackage>/`
+ * and writes `_headers` beside it and the search index inside it.
  */
 export const DEPLOY_ROOT = "build/site";
 
 /**
- * This package's own root, which is the directory Hugo reads themes from.
- *
- * The theme ships inside this package, so the directory holding it is found
- * from this module's own location rather than searched for.
- */
-const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-
-/** The theme's directory name under `themesDir`. */
-export const THEME = "hugo-theme";
-
-/** The locale every site renders in. */
-export const LOCALE = "en-us";
-
-/**
  * The brand chrome's own links, the same on every site.
  *
- * `logo` is resolved through the theme's `cdn-url.html`, so it is a path on
- * the asset host rather than an address.
+ * `logo` is a path on the asset host rather than an address.
  */
 export const BRAND = Object.freeze({
     logo: "images/brand/sohl-icon-white.webp",
     licenseURL: "https://www.heroiclands.org/license/",
     discordURL: "https://discord.gg/EwMfkNd3az",
-});
-
-/**
- * The kinds no site renders.
- *
- * A site is its homepage and its pages: `home` and `page` are the only kinds,
- * for every package and whatever its notes carry. A `section` is a listing
- * Hugo would generate from a content directory; `taxonomy` and `term` are
- * listings it would generate from `tags:`; `RSS` is a feed. Every structure
- * between the homepage and the pages is authored instead, as a `doc` note
- * carrying a content table — a tag is a field such a table filters on, not a
- * page of its own.
- */
-export const DISABLE_KINDS = Object.freeze(["section", "taxonomy", "term", "RSS"]);
-
-/**
- * The markup settings the toolchain's own output requires.
- *
- * Pages are written with raw HTML in them — a `<figure>` for every image, a
- * `<span>` marking an unresolved link — and Goldmark drops raw HTML unless
- * told otherwise. A theme cannot supply this: Hugo does not merge a theme's
- * `markup` block.
- *
- * `extensions.taskList` is off because the format has no checkbox: Goldmark
- * enables it by default, which is the only reason a list item opened with
- * `[ ]` renders a `<input type="checkbox">` here and the same two characters as
- * plain text in the pack and the book. Off, a list item's text begins right
- * after its marker on every surface.
- */
-export const MARKUP = Object.freeze({
-    goldmark: Object.freeze({
-        renderer: Object.freeze({ unsafe: true }),
-        extensions: Object.freeze({ taskList: false }),
-    }),
 });
 
 /** Where the navigation is published. */
@@ -142,17 +76,6 @@ const STAMP = ".complete";
  * @property {string} name - The entry's label.
  * @property {string} url - Where it links, absolute.
  * @property {NavigationEntry[]} [children] - A dropdown's entries.
- */
-
-/**
- * A Hugo menu entry, as `[[menu.main]]` states one.
- *
- * @typedef {object} MenuEntry
- * @property {string} name
- * @property {string} url
- * @property {number} weight
- * @property {string} [identifier] - Set on an entry that has children.
- * @property {string} [parent] - Set on a child, naming its parent's identifier.
  */
 
 /**
@@ -180,7 +103,7 @@ function requireNonEmptyString(value, where) {
  *
  * `[{name, url, children?: [{name, url}]}]`, every `url` absolute. Checked
  * on fetch and again on read: a file that is not a navigation would otherwise
- * reach the generated menu as `undefined` labels and links.
+ * reach the menu as `undefined` labels and links.
  *
  * @param {unknown} value - The parsed document.
  * @param {string} where - What is being checked, for the error.
@@ -212,35 +135,6 @@ export function checkNavigation(value, where = "the navigation") {
         };
     };
     return value.map((entry, i) => check(entry, `${where}[${i}]`, false));
-}
-
-/**
- * The `[[menu.main]]` entries a navigation renders as.
- *
- * Entry for entry, in order; a dropdown is an entry with an `identifier` and
- * its children are entries naming it as `parent`, which is how the theme's
- * header partial draws one. Weights count from one within each level, so the
- * order is the navigation's and not Hugo's alphabetical fallback.
- *
- * @param {readonly NavigationEntry[]} navigation - The navigation.
- * @returns {MenuEntry[]} The menu entries.
- */
-export function menuEntries(navigation) {
-    /** @type {MenuEntry[]} */
-    const out = [];
-    navigation.forEach((entry, index) => {
-        const children = entry.children ?? [];
-        if (!children.length) {
-            out.push({ name: entry.name, url: entry.url, weight: index + 1 });
-            return;
-        }
-        const identifier = slugify(entry.name);
-        out.push({ name: entry.name, url: entry.url, weight: index + 1, identifier });
-        children.forEach((child, i) => {
-            out.push({ name: child.name, url: child.url, weight: i + 1, parent: identifier });
-        });
-    });
-    return out;
 }
 
 /**
@@ -314,66 +208,23 @@ export async function fetchNavigation(
 }
 
 /**
- * The `themesDir` for a repository, as the path from `build/hugo/` to the
- * directory holding the theme.
- *
- * The theme ships inside this package at `hugo-theme/`, so the directory Hugo
- * reads themes from is {@link PACKAGE_ROOT}. `theme` stays {@link THEME}, so
- * Hugo opens `<themesDir>/hugo-theme/layouts`.
- *
- * Written as a path rather than assumed: `build/hugo/` and the installed
- * package sit at whatever distance the install put them, and a worktree
- * resolving its parent's install says so in the generated file.
- *
- * @param {string} rootDir - The repository root.
- * @returns {string} The relative path, POSIX-separated.
- */
-export function resolveThemesDir(rootDir) {
-    const from = path.resolve(rootDir, HUGO_SOURCE);
-    return path.relative(from, PACKAGE_ROOT).split(path.sep).join("/");
-}
-
-/**
- * Deep-merge `overrides` over `base`, arrays replaced whole.
- *
- * @param {Record<string, unknown>} base - The generated configuration.
- * @param {Record<string, unknown>} overrides - What `site.hugo` declares.
- * @returns {Record<string, unknown>} A new object.
- */
-function deepMerge(base, overrides) {
-    /** @type {Record<string, unknown>} */
-    const out = { ...base };
-    for (const [key, value] of Object.entries(overrides)) {
-        const current = out[key];
-        out[key] =
-            isPlainObject(current) && isPlainObject(value) ?
-                deepMerge(current, value)
-            :   structuredClone(value);
-    }
-    return out;
-}
-
-/**
- * The Hugo configuration, as an object.
- *
- * Pure: every input is handed in, so a test can describe the generated shape
- * without a repository on disk. {@link generateHugoConfig} is the same function
- * with the reading put back.
+ * What a site is, read from the configuration: its address, its title and the
+ * parameters its layouts read.
  *
  * `checkHomepage` runs first, before any value is composed — a missing or
  * mismatched `package.json` `homepage` is a finding on every site build.
  *
  * @param {object} options - The sources.
  * @param {object} options.config - The resolved build configuration.
- * @param {readonly NavigationEntry[]} options.navigation - The navigation.
- * @param {string} options.themesDir - From {@link resolveThemesDir}.
- * @returns {Record<string, any>} The configuration Hugo reads.
+ * @returns {{baseURL: string, title: string, params: Record<string, unknown>}}
+ *   The site. `params` holds `description`, `author`, `cdnBaseURL`, `brand`,
+ *   `notfound` and `scriptFonts`, each where the configuration states it.
  * @throws {TypeError} When `homepage` fails `checkHomepage`, or the
  *   configuration declares no `site.title` or `packageBuild.manifest.title`, no
  *   `site.description`, or no `site.assets`.
  */
-export function hugoConfig({ config, navigation, themesDir }) {
-    checkHomepage(config.homepage, config.contentPackage);
+export function siteSettings({ config }) {
+    checkHomepage(config.homepage, config.contentPackage, config.site.base);
 
     const title = config.site.title || config.packageBuild?.manifest?.title;
     if (typeof title !== "string" || !title.trim()) {
@@ -407,68 +258,5 @@ export function hugoConfig({ config, navigation, themesDir }) {
     // it does not ship.
     const scriptFonts = siteFontsParam(config);
     if (scriptFonts) params.scriptFonts = scriptFonts;
-
-    const generated = {
-        baseURL: config.homepage,
-        title,
-        locale: LOCALE,
-        publishDir: path.posix.relative(HUGO_SOURCE, `${DEPLOY_ROOT}/${config.contentPackage}`),
-        themesDir,
-        theme: THEME,
-        contentDir: path.posix.relative(HUGO_SOURCE, HUGO_CONTENT),
-        disableKinds: [...DISABLE_KINDS],
-        params,
-        markup: structuredClone(MARKUP),
-        menu: { main: menuEntries(navigation) },
-    };
-    return deepMerge(generated, config.site.hugo);
-}
-
-/**
- * The configuration as the TOML Hugo reads.
- *
- * @param {Record<string, unknown>} generated - From {@link hugoConfig}.
- * @returns {string} The file's contents.
- */
-export function hugoToml(generated) {
-    return (
-        "# Generated by `package-build site` from package.json and " +
-        "package-build.config.yaml.\n# Every value here has a source there; edit " +
-        "the source, not this file.\n\n" +
-        `${stringifyToml(generated)}\n`
-    );
-}
-
-/**
- * The Hugo configuration, every source read from the repository.
- *
- * Reads the cached navigation and the installed theme's location, and
- * composes them with {@link hugoConfig}. Nothing is written, so a caller can
- * run this before touching the output tree and fail with it intact.
- *
- * @param {object} config - The resolved build configuration.
- * @returns {Record<string, any>} The configuration Hugo reads.
- * @throws {Error} When any source is missing or wrong.
- */
-export function generateHugoConfig(config) {
-    return hugoConfig({
-        config,
-        navigation: readCachedNavigation(config),
-        themesDir: resolveThemesDir(config.rootDir),
-    });
-}
-
-/**
- * Write `build/hugo/hugo.toml`.
- *
- * @param {object} config - The resolved build configuration.
- * @param {Record<string, unknown>} [generated] - The configuration to write,
- *   when the caller already generated it. Generated here otherwise.
- * @returns {{file: string}} The file written.
- */
-export function writeHugoConfig(config, generated = generateHugoConfig(config)) {
-    const file = path.join(config.rootDir, HUGO_SOURCE, "hugo.toml");
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, hugoToml(generated));
-    return { file };
+    return { baseURL: config.homepage, title, params };
 }

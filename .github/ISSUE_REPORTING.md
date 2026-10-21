@@ -184,14 +184,13 @@ against a real content tree.
 
 File where the diff will land, not where the symptom shows.
 
-| The change is to…                                                      | File it in                         |
-| ---------------------------------------------------------------------- | ---------------------------------- |
-| The note format, a compiler pass, a diagnostic, a CLI, the e2e harness | **here**                           |
-| A content note — wrong data, a dead link, a stale query                | the repository that ships the note |
-| System code, sheets, rules automation                                  | `Song-of-Heroic-Lands-FoundryVTT`  |
-| A page's layout or styling on the sites                                | `heroiclands-hugo-theme`           |
-| An Emacs command, the authoring mode, the manual                       | `heroiclands-emacs`                |
-| A shared GitHub Action — labels, no-attribution, todos                 | `HeroicLands/.github`              |
+| The change is to…                                                                                               | File it in                         |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| The note format, a compiler pass, a diagnostic, a CLI, the e2e harness, a page's layout or styling on the sites | **here**                           |
+| A content note — wrong data, a dead link, a stale query                                                         | the repository that ships the note |
+| System code, sheets, rules automation                                                                           | `Song-of-Heroic-Lands-FoundryVTT`  |
+| An Emacs command, the authoring mode, the manual                                                                | `heroiclands-emacs`                |
+| A shared GitHub Action — labels, no-attribution, todos                                                          | `HeroicLands/.github`              |
 
 The discriminator is the one in §4: **if only one consuming tree is wrong, it is
 usually that tree's**; if every tree is wrong the same way, it is usually ours.

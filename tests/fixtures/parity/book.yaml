@@ -1,0 +1,4 @@
+contents:
+    - sectionName: Everything
+      contents:
+          - filter: "type <> 'homepage' AND type <> 'doc'"

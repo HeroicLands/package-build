@@ -45,7 +45,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
 
 /** The stylesheet holding the table. */
-const SHEET = path.join(ROOT, "hugo-theme", "static", "css", "style.css");
+const SHEET = path.join(ROOT, "site-theme", "static", "css", "style.css");
 
 /** The custom property a role's slot is stated as, and read from. */
 const SLOT = "--note-image-slot";

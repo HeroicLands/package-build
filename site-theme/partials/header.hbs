@@ -1,0 +1,44 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+<header class="site-header" data-pagefind-ignore>
+  <div class="header-inner">
+    <a href="{{homeUrl}}" class="site-title">
+      {{#if brand.logoUrl}}
+      <img src="{{brand.logoUrl}}" alt="Heroic Lands" class="site-logo">
+      {{/if}}
+      <span class="title-main">Heroic Lands</span>
+    </a>
+    {{#if hasActions}}
+    <div class="header-actions">
+      {{#if hasMenu}}
+      <nav class="site-nav">
+        {{#each menu}}
+          {{#if hasChildren}}
+        <div class="nav-dropdown">
+          <a href="{{url}}" class="nav-link{{#if active}} active{{/if}}">
+            {{name}}
+            <svg class="dropdown-arrow" width="10" height="6" viewBox="0 0 10 6" fill="currentColor"><path d="M1 1l4 4 4-4"/></svg>
+          </a>
+          <div class="dropdown-menu">
+            {{#each children}}
+            <a href="{{url}}" class="dropdown-item">{{name}}</a>
+            {{/each}}
+          </div>
+        </div>
+          {{else}}
+        <a href="{{url}}" class="nav-link{{#if active}} active{{/if}}">{{name}}</a>
+          {{/if}}
+        {{/each}}
+      </nav>
+      {{/if}}
+      {{#if search}}
+        {{> search}}
+      {{/if}}
+      {{#if hasMenu}}
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      {{/if}}
+    </div>
+    {{/if}}
+  </div>
+</header>

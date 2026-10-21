@@ -16,8 +16,8 @@
  * exactly as the content index does ({@link splitFrontmatter} and `yaml`), so a
  * value reads the same on the site and in the preview as in a compendium pack.
  * Writing serializes with `js-yaml`, which quotes every string a YAML 1.1
- * reader would take for a boolean, a number or a timestamp, so Hugo reads each
- * value back as the string or number it was.
+ * reader would take for a boolean, a number or a timestamp, so each
+ * value reads back as the string or number it was.
  *
  * @module
  */

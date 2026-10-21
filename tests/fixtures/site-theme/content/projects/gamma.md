@@ -1,0 +1,5 @@
+---
+title: Gamma
+---
+
+Gamma body.

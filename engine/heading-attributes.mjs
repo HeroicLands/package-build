@@ -217,6 +217,95 @@ export function headingAttributesPlugin(md) {
 }
 
 /**
+ * The id a heading's text gives it on the web: GitHub's form, lower case, each
+ * space or hyphen a hyphen, every character that is not a letter, a digit or
+ * an underscore dropped.
+ *
+ * @param {string} text - The heading's text, without its markup.
+ * @returns {string} The id, or `heading` when nothing is left of the text.
+ */
+export function headingId(text) {
+    let id = "";
+    for (const char of String(text ?? "").trim()) {
+        if (char === " " || char === "-") id += "-";
+        else if (char === "_" || /[\p{L}\p{Nd}]/u.test(char)) id += char.toLowerCase();
+    }
+    return id || "heading";
+}
+
+/** The tokens whose content is a heading's text. */
+const TEXT_TOKENS = new Set(["text", "code_inline", "typographic"]);
+
+/**
+ * The text a heading's id is made from.
+ *
+ * Its words, code and punctuation; a line break as a newline; no markup. An
+ * element inside the heading — emphasis, a link, an image — gives only its
+ * first piece of text, which ends at the first punctuation the page sets
+ * typographically, so `[Nkaru'thar](…)` gives `Nkaru`.
+ *
+ * @param {object[]} children - The heading's inline tokens.
+ * @returns {string} The text.
+ */
+function headingText(children) {
+    const list = children ?? [];
+    /** The first piece of text inside the element opening at `index`. */
+    const first = (index) => {
+        const token = list[index];
+        if (!token || token.nesting === -1) return "";
+        if (TEXT_TOKENS.has(token.type)) return token.content;
+        if (token.type === "image") return headingText(token.children?.slice(0, 1));
+        if (token.nesting === 1) return first(index + 1);
+        return "";
+    };
+    let text = "";
+    for (let i = 0; i < list.length; i++) {
+        const token = list[i];
+        if (TEXT_TOKENS.has(token.type)) text += token.content;
+        else if (token.type === "softbreak" || token.type === "hardbreak") text += "\n";
+        else if (token.type === "image") text += headingText(token.children?.slice(0, 1));
+        else if (token.nesting === 1) {
+            text += first(i + 1);
+            for (let depth = 1; depth > 0 && i + 1 < list.length;) {
+                i++;
+                depth += list[i].nesting;
+            }
+        }
+    }
+    return text;
+}
+
+/**
+ * Give every heading an id, so a page's contents list and a reader's link can
+ * name any section.
+ *
+ * An authored `{#id}` is kept, and every other heading takes {@link headingId}
+ * of its text. A repeated id takes `-1`, `-2` and so on, counted over every id
+ * on the page that came before it.
+ *
+ * @param {import("markdown-it")} md - Markdown parser to extend.
+ */
+export function headingIdsPlugin(md) {
+    md.core.ruler.push("heading_ids", (state) => {
+        const taken = new Set();
+        const tokens = state.tokens;
+        for (let i = 0; i < tokens.length; i++) {
+            if (tokens[i].type !== "heading_open") continue;
+            const authored = tokens[i].attrGet("id");
+            if (authored) {
+                taken.add(authored);
+                continue;
+            }
+            const base = headingId(headingText(tokens[i + 1]?.children));
+            let id = base;
+            for (let n = 1; taken.has(id); n++) id = `${base}-${n}`;
+            taken.add(id);
+            tokens[i].attrSet("id", id);
+        }
+    });
+}
+
+/**
  * Parse one line as a heading, and say whether it starts a journal page.
  *
  * The single reading of that rule. {@link module:engine/journals.splitPages}

@@ -64,7 +64,7 @@ describe("empty bodies fail author commands", () => {
         ["content-index"],
         ["content-index", ""],
         ["package", "compile"],
-        ["site"],
+        ["site", "build"],
         ["pdf"],
     ])(
         "%s refuses an empty described note before publication",

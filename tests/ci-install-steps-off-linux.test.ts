@@ -27,7 +27,7 @@ const WORKFLOW = path.join(ROOT, ".gitea", "workflows", "build.yml");
 const BASH = ["/bin/bash", "/usr/bin/bash"].find((p) => fs.existsSync(p)) ?? "bash";
 
 /** The tool each install step provides, keyed by what its `--version` probe calls. */
-const TOOLS = ["typst", "hugo", "dot"];
+const TOOLS = ["typst", "dot"];
 
 const installSteps = stepsIn(WORKFLOW).run.filter((step: { run: string }) =>
     /\/usr\/local\/bin|apt-get/.test(step.run),
@@ -71,7 +71,7 @@ afterEach(() => {
 
 describe("Build & Test install steps off Linux", () => {
     it("are found at all, so the cases below are not vacuous", () => {
-        expect(installSteps.length).toBeGreaterThanOrEqual(3);
+        expect(installSteps.length).toBeGreaterThanOrEqual(2);
     });
 
     it.each(installSteps.map((step: { name: string; run: string }) => [step.name, step.run]))(

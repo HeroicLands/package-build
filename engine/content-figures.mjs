@@ -374,18 +374,24 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
  * @param {string} source - A note body with expanded tables.
  * @param {(markdown: string) => string} [renderMarkdown] - How to render a
  *   figure's own contents.
- * @param {Array<{id: string, label: string}>} [numbers] - Labels assigned by a
- *   surface that counts across documents, matched by id.
+ * @param {Array<{id: string, kind: string, label: string}>} [numbers] - The
+ *   figures as {@link scanFigures} numbered them, with roles, where the
+ *   surface counted them: across a note's pages, or in expansion, where a
+ *   `ref` reads the same label. They are matched in order when they are as many
+ *   as the text holds, by id otherwise, and the caption takes its number, kind
+ *   and label from them. Omitted, the text is numbered as it stands.
  * @param {object} [options] - Options.
  * @param {(address: string) => string|undefined} [options.resolveRole] - See
  *   {@link scanFigures}.
+ * @param {(markdown: string) => string} [options.renderInline] - How a caption
+ *   is rendered; omitted, a caption is plain inline Markdown.
  * @returns {{markdown: string, errors: Array<{line: number, column: number, message: string}>}}
  */
 export function renderFigureBlocks(
     source,
     renderMarkdown = parser.render.bind(parser),
     numbers,
-    { resolveRole } = {},
+    { resolveRole, renderInline = parser.renderInline.bind(parser) } = {},
 ) {
     const { figures, errors } = scanFigures(source, { resolveRole });
     if (errors.length) return { markdown: source, errors };
@@ -393,12 +399,13 @@ export function renderFigureBlocks(
         numbers ?
             new Map(numbers.filter((entry) => entry.id).map((entry) => [entry.id, entry]))
         :   new Map();
+    const inOrder = numbers?.length === figures.length ? numbers : undefined;
     const lines = String(source ?? "").split("\n");
     const output = [];
     let cursor = 0;
-    for (const figure of figures) {
+    for (const [at, figure] of figures.entries()) {
         output.push(...lines.slice(cursor, figure.line - 1));
-        const numbered = (figure.id ? byId.get(figure.id) : null) ?? figure;
+        const numbered = inOrder?.[at] ?? (figure.id ? byId.get(figure.id) : null) ?? figure;
         const contents = lines.slice(figure.bodyStart, figure.bodyEnd).join("\n");
         const classes = ["content-figure", `content-figure-${numbered.kind}`, ...figure.classes];
         const id = figure.slug ? ` id="${escapeHtml(figure.slug)}"` : "";
@@ -416,7 +423,7 @@ export function renderFigureBlocks(
         output.push(
             `<p class="content-figure-label">${
                 figure.hasCaption ?
-                    `${label ? `${label}: ` : ""}${parser.renderInline(figure.caption)}`
+                    `${label ? `${label}: ` : ""}${renderInline(figure.caption)}`
                 :   label
             }</p>`,
             "</div>",

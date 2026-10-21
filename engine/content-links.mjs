@@ -89,7 +89,7 @@ import {
     readCanonicalKey,
 } from "./content-address.mjs";
 import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
-import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
+import { frontmatterWikilinks, slugify } from "./wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
 import { isEventAnchor, parseWikilink, WIKILINK } from "./wikilink-syntax.mjs";
 import { readQualifier } from "./wikilinks.mjs";
@@ -677,7 +677,7 @@ export function buildLinkIndex(
         linksOf,
         embedsOf,
         /**
-         * Resolve a link target the way both builds do, or `undefined`. Every
+         * Resolve a link target the way every build does, or `undefined`. Every
          * link is an address, so this is {@link resolveAddress} under the name
          * the walkers use.
          */
@@ -955,7 +955,7 @@ export function auditHomepageLinks(index) {
  *   `"unresolved"`, never `"ambiguous"`: every target here expands to one
  *   canonical address before anything is looked up, so there is no candidate
  *   set for two packages to claim — and every reason is an **error**: the
- *   three resolvers agree on severity for every class.
+ *   checker and the resolver agree on severity for every class.
  */
 export function auditLinks(index) {
     const { notes, anchors, linksOf, embedsOf, resolve, manifestHit, isAddress } = index;

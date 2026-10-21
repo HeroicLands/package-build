@@ -7,7 +7,7 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ROOT = join(import.meta.dirname, "..");
-const DIRS = ["engine", "sohl", "hm3", "bin", "hugo-theme", "docs"];
+const DIRS = ["engine", "sohl", "hm3", "bin", "site-theme", "docs"];
 const EXTENSIONS = /\.(mjs|js|md|css|yaml|yml|html|json)$/;
 const WORDING = /retired|renamed|no longer|formerly|legacy|\bused to\b|previously/i;
 

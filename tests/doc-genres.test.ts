@@ -44,6 +44,7 @@ describe("a `doc` declares page genres", () => {
             "howto",
             "concept",
             "settingguide",
+            "post",
         ]);
     });
 
@@ -98,7 +99,7 @@ describe("a `doc` declares page genres", () => {
         expect(findings).toHaveLength(1);
         expect(findings[0]).toMatchObject({ severity: "error" });
         expect(messages(findings)).toContain(
-            "is not one of the subtypes doc declares (rules, userguide, reference, howto, concept, settingguide)",
+            "is not one of the subtypes doc declares (rules, userguide, reference, howto, concept, settingguide, post)",
         );
     });
 });

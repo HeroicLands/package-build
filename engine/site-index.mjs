@@ -82,12 +82,15 @@ import { isGmNote, isDraftNote } from "./note-vocabulary.mjs";
  *                           through unindexed.
  * @property {object} fm     The note's frontmatter.
  * @property {string} name   Display name.
- * @property {string} slug   URL segment.
- * @property {string} base   Source file's basename, e.g. `Climbing.md`.
+ * @property {string} [slug]  URL segment.
+ * @property {string} [base] Source file's basename, e.g. `Climbing.md`.
  * @property {string} url    The page's published address.
  * @property {string} [body] The note's markdown body, for its anchors. A
  *                           content entry always carries one; absent, the
  *                           page is indexed as declaring none.
+ * @property {object[]} [anchors] The anchors the body declares, when the
+ *                           caller holds them already — a content-index
+ *                           record's — in place of reading `body`.
  */
 
 /**
@@ -163,7 +166,9 @@ function mergeForeign(index, foreignIndex) {
  * Build the address index a site's wikilink resolver reads.
  *
  * @param {readonly SiteEntry[]} entries - Every page the site will publish,
- *   each already knowing its own `url`.
+ *   each already knowing its own `url`. An entry may carry the `anchors` its
+ *   body declares, from a content-index record, in place of the body they are
+ *   read from.
  * @param {object} [options] - Cross-package inputs.
  * @param {string} [options.package] - The builder's own content package.
  * @param {string} [options.currentDate="720.1"] - Setting-wide neutral date for recurring events.
@@ -254,7 +259,7 @@ export function buildSiteIndex(
         // `subType` is: a being states a rank as a number, and what that
         // number is called is declared on the body.
         const standings = standingsDigest(e.fm);
-        const noteAnchors = collectAnchors(e.body ?? "", 1, undefined, syntax);
+        const noteAnchors = e.anchors ?? collectAnchors(e.body ?? "", 1, undefined, syntax);
         const value = {
             url: e.url,
             name: e.name,

@@ -12,7 +12,7 @@
  * a blank, which the theme reads as "no hero image, and no warning"; any other
  * `data.banner` address that matches no image is a located finding; and `""`
  * stays an error. Proved on a homepage and on a content page, because the two
- * reach Hugo by different routes.
+ * reach the theme by different routes.
  */
 
 import { describe, it, expect, afterAll } from "vitest";
@@ -23,6 +23,7 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
@@ -80,15 +81,14 @@ function configFor(root: string) {
     });
 }
 
-/** The `data.banner` Hugo is handed for the homepage and for the doc page. */
+/** The `data.banner` the theme is handed for the homepage and for the doc page. */
 function emitted(banners: { home?: string; page?: string }) {
     const root = sandbox(banners);
-    buildSite({ config: configFor(root) });
-    const read = (rel: string) =>
-        readMatter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8")).data;
+    const pages = builtPages(buildSite({ config: configFor(root) }));
+    const read = (rel: string) => readMatter(pages[rel]).data;
     return {
         home: read("_index.md"),
-        page: read("kb/doc-combat.md"),
+        page: read("doc-combat.md"),
     };
 }
 

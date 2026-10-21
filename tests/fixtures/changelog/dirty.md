@@ -515,23 +515,23 @@
   nothing published it, so the page existed and had no address. Four things close
   the gap, and three of them are one file each.
 
-  **`@heroiclands/hugo-theme` 0.2.0** carries the landing layout every package
+  **`@heroiclands/theme` 0.2.0** carries the landing layout every package
   homepage renders through — hero band, lead, install block, notices — so six
   package landings look like siblings instead of six hand-built pages. It also
   carries the "page not found" template. It arrives through `npm ci`, not a
   submodule.
 
-  **`site/hugo.toml`** roots the site at `site/` and publishes into
+  **`site/site.toml`** roots the site at `site/` and publishes into
   `build/site/hm3/`. The deployed tree therefore carries its own path prefix
   physically, which is what lets the router proxy `/hm3/…` straight through
   without rewriting it, and lets the same deployment behave identically at the
   hosting project's own address. `disableKinds` turns off the section, taxonomy,
-  term, RSS and sitemap kinds: this package publishes one page, and Hugo would
+  term, RSS and sitemap kinds: this package publishes one page, and the generator would
   otherwise add a taxonomy root and a feed to a site with no terms and nothing to
   syndicate.
 
   **`build:site` renders as well as compiles** — `build:site-content`
-  (`package-build site`) then `build:site-html` (Hugo). It stays out of
+  (`package-build site`) then `build:site-html` (HTML). It stays out of
   `build:noci`, deliberately: the homepage is not part of what Foundry loads, and
   the packaging build must keep producing exactly what it produced before. It
   does — `build/stage` still holds 540 files, 538 of them byte-identical to the

@@ -25,7 +25,7 @@ npm run lint
 The generated project includes a homepage, an introduction, a website build,
 and a book build. Run `npm run build:site` to produce the site,
 `npm run serve:site` to view it locally, or `npm run build:book` for a PDF.
-Those commands require Hugo Extended and Typst respectively. Run
+The book build requires Typst. Run
 `package-build init --check` to inspect the project without changing it. See
 [`init`](../commands.md#package-build-init-directory) for the package kinds,
 interactive prompts, and collision rules.
@@ -891,11 +891,8 @@ address to `package.json` as `homepage`, with a `description` beside it, list
 the package's people in `authors` in `package-build.config.yaml`, and add a
 `packageBuild.manifest.title`. The theme the site renders
 through ships with this package, so nothing else is installed. Then `package-build deps fetch` caches the
-organisation's navigation, and `package-build site` writes the whole Hugo
-source tree under `build/hugo/` — the configuration generated from those
-values, and the content mount — for `hugo --source build/hugo` to render
-into `build/site/<contentPackage>/`. There is no Hugo configuration to
-write: the file is generated on every run, and what is genuinely the
+organisation's navigation, and `package-build site build` renders the site
+into `build/site/<contentPackage>/` from those values. What is genuinely the
 package's own — the wording of its "page not found" page — goes in the
 `site:` block as `site.notfound`. The same command publishes the content tree's
 every page beside the homepage — one
@@ -935,7 +932,7 @@ Everything in steps 4 and 8 that exists to describe a Foundry package is
 tree supplies its site pages and book entries.
 
 So a documentation package's configuration is steps 1 through 6 with a different
-`packageKind`, plus a `site:` block, and then `package-build site` in place of
+`packageKind`, plus a `site:` block, and then `package-build site build` in place of
 steps 7 through 11. [`configuration.md`](../configuration.md) carries the refusal
 message for every key; [`commands.md`](../commands.md) covers the two commands such
-a package lives on, `package-build site` and `package-build pdf`.
+a package lives on, `package-build site build` and `package-build pdf`.

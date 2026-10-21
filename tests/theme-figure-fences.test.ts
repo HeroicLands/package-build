@@ -37,7 +37,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
 
 /** The stylesheet. */
-const SHEET = path.join(ROOT, "hugo-theme", "static", "css", "style.css");
+const SHEET = path.join(ROOT, "site-theme", "static", "css", "style.css");
 
 /** The class every fence carries. */
 const FENCE = "content-figure";

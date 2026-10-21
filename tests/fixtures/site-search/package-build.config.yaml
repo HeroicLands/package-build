@@ -1,0 +1,18 @@
+# The package the search filters are proved on. It is copied into a scratch
+# directory before any build runs; nothing here is built in place.
+contentPackage: searchdemo
+packageKind: modules
+compatibility:
+    minimum: "14.359"
+    verified: "14.359"
+stats:
+    lastModifiedBy: searchbuilder000
+packageBuild:
+    manifest:
+        title: The Search Demo
+packs:
+    - { name: journals, label: Journals, type: JournalEntry, default: true }
+site:
+    title: The Search Demo
+    description: A small world, searched.
+    assets: https://cdn.example.org

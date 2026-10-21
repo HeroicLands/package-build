@@ -13,528 +13,23 @@
 
 /** Buffer-only HTML preview shared by editors and external renderers. @module */
 
-import MarkdownIt from "markdown-it";
-import footnotePlugin from "markdown-it-footnote";
-import deflistPlugin from "markdown-it-deflist";
-import { dictionaryListPlugin } from "./definition-list.mjs";
-import Handlebars from "handlebars";
+import { sharedContentRules } from "./content-styles.mjs";
 import { readMatter } from "./note-matter.mjs";
-import { ALERT_TYPES, alertMarkdownPlugin, scanAlerts } from "./content-alerts.mjs";
-import { spanMarkdownPlugin } from "./content-spans.mjs";
-import { scanVerse, verseStanzas } from "./content-verse.mjs";
 import { scanFigures } from "./content-figures.mjs";
-import { scanBlocks } from "./content-blocks.mjs";
-import { splitHeadingAttributes } from "./heading-attributes.mjs";
-import { EXPRESSION, renderMarkdownExpressions } from "./markdown-expressions.mjs";
-import { WIKILINK, parseWikilink } from "./wikilink-syntax.mjs";
+import { createRenderer, inertHtml } from "./content-render.mjs";
+import { PREVIEW_HELPERS, colored, wikiSource } from "./preview-source.mjs";
 import { dataFields } from "./note-vocabulary.mjs";
 import { applyComputedBeingAge } from "./being-age.mjs";
 import { DEFAULT_CURRENT_DATE, normalizeCurrentDate } from "./current-date.mjs";
 
-/** Explicit dependency policy: a new registered helper requires a preview decision. */
-export const PREVIEW_HELPERS = Object.freeze({
-    eq: "local",
-    gt: "local",
-    gte: "local",
-    lt: "local",
-    lte: "local",
-    not: "local",
-    and: "local",
-    or: "local",
-    words: "local",
-    digits: "local",
-    sql: "dependent",
-    dateformat: "dependent",
-    ref: "reference",
-});
+export { PREVIEW_HELPERS };
 
-const escapeHtml = new MarkdownIt().utils.escapeHtml;
-const escape = (value) => escapeHtml(String(value ?? ""));
-const colored = (role, source) => `<span class="hl-preview-${role}">${escape(source)}</span>`;
-
-/** Highlight without interpreting any Markdown or HTML inside the source. */
-function wikiSource(raw) {
-    const open = raw.startsWith("!") ? "![[" : "[[";
-    const close = raw.indexOf("]]", open.length);
-    const end = close < 0 ? raw.length : close;
-    const inner = raw.slice(open.length, end);
-    const pipe = inner.indexOf("|");
-    const secret = close >= 0 && parseWikilink(inner, raw).attributes?.classes.includes("secret");
-    const label =
-        colored("address", pipe < 0 ? inner : inner.slice(0, pipe)) +
-        (pipe < 0 ? "" : colored("bracket", "|") + colored("label", inner.slice(pipe + 1)));
-    const html =
-        colored("bracket", open) +
-        (secret ? `<span class="hl-preview-secret-content">${label}</span>` : label) +
-        (close < 0 ? "" : colored("bracket", "]]") + colored("attribute", raw.slice(close + 2)));
-    return secret ? `<span class="hl-preview-secret" tabindex="0">${html}</span>` : html;
-}
-
-/** Read a dependent call anywhere in the Handlebars AST, including hash values. */
-function dependentExpression(source, fm) {
-    const authoredValue = (node) => {
-        if (node?.type === "StringLiteral") return node.value;
-        if (node?.type !== "PathExpression" || node.depth || node.data || !node.parts?.length)
-            return undefined;
-        let value = fm;
-        for (const part of node.parts) {
-            if (!value || typeof value !== "object" || !Object.hasOwn(value, part))
-                return undefined;
-            value = value[part];
-        }
-        return value;
-    };
-    const visit = (node) => {
-        if (!node || typeof node !== "object") return false;
-        if (["MustacheStatement", "SubExpression"].includes(node.type)) {
-            const name = node.path?.original;
-            const policy = PREVIEW_HELPERS[name];
-            if (policy === "dependent") return true;
-            if (policy === "reference") {
-                const target = authoredValue(node.params?.[0]);
-                if (typeof target !== "string" || !target.startsWith("#")) return true;
-                // Date-valued event fields need calendar context even on this note.
-                if (
-                    node.hash?.pairs?.some(
-                        (pair) =>
-                            pair.key === "field" &&
-                            !["kind", "summary", "name"].includes(pair.value?.value),
-                    )
-                )
-                    return true;
-            }
-            if ((node.params?.length || node.hash?.pairs?.length) && !policy) return true;
-        }
-        return Object.values(node).some((value) =>
-            Array.isArray(value) ? value.some(visit) : visit(value),
-        );
-    };
-    try {
-        return visit(Handlebars.parse(source));
-    } catch {
-        return true;
-    }
-}
-
-function parserFor(fm, findings, file) {
-    const md = new MarkdownIt({ html: false, linkify: false })
-        .use(footnotePlugin)
-        .use(deflistPlugin)
-        .use(dictionaryListPlugin)
-        .use(alertMarkdownPlugin)
-        .use(spanMarkdownPlugin, { source: true });
-    const figures = new Map();
-    const inline = (text, env = {}) => {
-        const tokens = [];
-        md.inline.parse(text, md, env, tokens);
-        return md.renderer.renderInline(tokens, md.options, env);
-    };
-    md.renderer.rules.hl_preview_source = (tokens, idx) => tokens[idx].meta.html;
-    // Run before ordinary links and text so protected source becomes one opaque token.
-    md.inline.ruler.before("link", "hl_preview_source", (state, silent) => {
-        const rest = state.src.slice(state.pos);
-        let raw, html;
-        if (rest.startsWith("[[") || rest.startsWith("![[")) {
-            const match = new RegExp(`^(?:!)?${WIKILINK.source.replace("(?<!!)", "")}`).exec(rest);
-            raw = match?.[0] ?? rest.split("\n")[0];
-            // Preserve a partially entered trailing attribute too.
-            if (rest[raw.length] === "{") {
-                let quoted = false,
-                    escaped = false,
-                    end = raw.length + 1;
-                for (; end < rest.length && rest[end] !== "\n"; end++) {
-                    const char = rest[end];
-                    if (escaped) {
-                        escaped = false;
-                        continue;
-                    }
-                    if (char === "\\") {
-                        escaped = true;
-                        continue;
-                    }
-                    if (char === '"') quoted = !quoted;
-                    if (char === "}" && !quoted) {
-                        end++;
-                        break;
-                    }
-                }
-                raw = rest.slice(0, end);
-            }
-            html = wikiSource(raw);
-        } else if (rest.startsWith("{{")) {
-            const match = new RegExp(`^${EXPRESSION.source.replace("(?<![\\\\{])", "")}`).exec(
-                rest,
-            );
-            raw = match?.[0] ?? rest.split("\n")[0];
-            if (!dependentExpression(raw, fm) && match) {
-                const entries =
-                    Array.isArray(fm.data?.events) ?
-                        fm.data.events.filter((entry) => entry && typeof entry === "object")
-                    :   [];
-                const own = {
-                    events: entries.map((entry) => ({ id: entry.id, entry })),
-                    anchors: entries
-                        .filter((entry) => entry.id)
-                        .map((entry) => ({ slug: entry.id, kind: "event" })),
-                };
-                const events = { note: () => undefined, own: () => own };
-                const result = renderMarkdownExpressions(raw, { fm, figures, events, file });
-                if (!result.findings.length)
-                    html = /^{{\s*ref\b/.test(raw) ? inline(result.markdown) : result.markdown;
-            }
-            html ??= colored("dependent", raw);
-        } else return false;
-        if (!silent) {
-            const token = state.push("hl_preview_source", "", 0);
-            token.meta = { html };
-        }
-        state.pos += raw.length;
-        return true;
-    });
-    md.renderer.rules.span_source = (tokens, idx) => {
-        const token = tokens[idx];
-        const end = token.meta.labelEnd;
-        const secret = Boolean(token.meta.secret);
-        const classes = `hl-preview-span${secret ? " hl-preview-secret" : ""}`;
-        const focus = secret ? ' tabindex="0"' : "";
-        const label = colored("label", token.content.slice(1, end));
-        return `<span class="${classes}"${focus}>${
-            colored("bracket", "[") +
-            (secret ? `<span class="hl-preview-secret-content">${label}</span>` : label) +
-            colored("bracket", "]") +
-            colored("attribute", token.content.slice(end + 1))
-        }</span>`;
-    };
-    // Keep extension pipes inside their cell. Markdown's table splitter only
-    // understands escaped pipes, before inline rules have a chance to see them.
-    md.block.ruler.before(
-        "table",
-        "hl_preview_table",
-        (state, start, end, silent) => {
-            const lineAt = (line) =>
-                state.src.slice(state.bMarks[line] + state.tShift[line], state.eMarks[line]);
-            const cells = (line) => {
-                const result = [];
-                let cell = "",
-                    wiki = false,
-                    code = "",
-                    quote = false,
-                    braces = 0;
-                for (let at = 0; at < line.length; at++) {
-                    const char = line[at];
-                    if (char === "\\" && at + 1 < line.length) {
-                        cell += char + line[++at];
-                        continue;
-                    }
-                    if (char === "`" && !wiki) {
-                        const marks = /^`+/.exec(line.slice(at))[0];
-                        if (!code) code = marks;
-                        else if (code === marks) code = "";
-                        cell += marks;
-                        at += marks.length - 1;
-                        continue;
-                    }
-                    if (!code) {
-                        if (line.slice(at, at + 2) === "[[") wiki = true;
-                        if (line.slice(at - 1, at + 1) === "]]") wiki = false;
-                        if (char === '"' && braces) quote = !quote;
-                        if (!quote && char === "{") braces++;
-                        if (!quote && char === "}" && braces) braces--;
-                    }
-                    if (char === "|" && !wiki && !code && !braces) {
-                        result.push(cell.trim());
-                        cell = "";
-                    } else cell += char;
-                }
-                result.push(cell.trim());
-                if (!result[0]) result.shift();
-                if (!result.at(-1)) result.pop();
-                return result;
-            };
-            if (start + 1 >= end || state.sCount[start] - state.blkIndent >= 4) return false;
-            const header = cells(lineAt(start)),
-                separators = cells(lineAt(start + 1));
-            if (
-                !lineAt(start).includes("|") ||
-                !header.length ||
-                separators.length !== header.length ||
-                !separators.every((cell) => /^:?-+:?$/.test(cell))
-            )
-                return false;
-            if (silent) return true;
-            const row = (values, tag) => {
-                state.push("tr_open", "tr", 1);
-                for (let col = 0; col < header.length; col++) {
-                    const cell = state.push(`${tag}_open`, tag, 1);
-                    const alignment =
-                        separators[col].startsWith(":") ?
-                            separators[col].endsWith(":") ?
-                                "center"
-                            :   "left"
-                        : separators[col].endsWith(":") ? "right"
-                        : "";
-                    if (alignment) cell.attrSet("class", `hl-preview-align-${alignment}`);
-                    const token = state.push("inline", "", 0);
-                    token.content = values[col] ?? "";
-                    token.children = [];
-                    state.push(`${tag}_close`, tag, -1);
-                }
-                state.push("tr_close", "tr", -1);
-            };
-            const open = state.push("table_open", "table", 1);
-            open.map = [start, start + 2];
-            state.push("thead_open", "thead", 1);
-            row(header, "th");
-            state.push("thead_close", "thead", -1);
-            state.push("tbody_open", "tbody", 1);
-            let line = start + 2;
-            for (; line < end && lineAt(line).trim() && lineAt(line).includes("|"); line++)
-                row(cells(lineAt(line)), "td");
-            state.push("tbody_close", "tbody", -1);
-            state.push("table_close", "table", -1);
-            open.map[1] = line;
-            state.line = line;
-            return true;
-        },
-        { alt: ["paragraph", "reference"] },
-    );
-    const quoteOpen = md.renderer.rules.blockquote_open;
-    md.renderer.rules.blockquote_open = (tokens, idx, options, env, self) => {
-        const block = tokens[idx].meta?.alert;
-        if (!block)
-            return quoteOpen ? quoteOpen(tokens, idx, options, env, self) : "<blockquote>\n";
-        const id = block.id ? ` id="${escape(block.id)}"` : "";
-        return `<blockquote class="alert alert-${block.type}"${id}>\n`;
-    };
-    md.renderer.rules.hl_preview_alert_title_open = (tokens, idx) =>
-        `<p class="alert-title">${ALERT_TYPES[tokens[idx].meta.type].svg}`;
-    const fence = md.renderer.rules.fence;
-    md.renderer.rules.fence = (tokens, idx, options, env, self) => {
-        const token = tokens[idx];
-        const name = token.info.trim().split(/\s/)[0];
-        if (["sql", "pagelist", "map"].includes(name)) {
-            const raw =
-                token.meta?.source ??
-                `${token.markup}${token.info}\n${token.content}${token.markup}`;
-            return `<pre class="hl-preview-${name === "map" ? "dependent" : "fence"}"><code>${escape(raw)}</code></pre>\n`;
-        }
-        return fence(tokens, idx, options, env, self);
-    };
-    // Capture fences from their original source lines, retaining all delimiters.
-    md.core.ruler.before("inline", "hl_preview_structure", (state) => {
-        const lines = state.src.split("\n");
-        const alertErrors = scanAlerts(state.src).errors;
-        for (let i = state.tokens.length - 1; i >= 0; i--) {
-            const token = state.tokens[i],
-                alert = token.meta?.alert;
-            if (
-                !alert ||
-                !alertErrors.some(
-                    (error) => error.line >= alert.start + 1 && error.line <= alert.end + 1,
-                )
-            )
-                continue;
-            let depth = 1,
-                end = i + 1;
-            for (; end < state.tokens.length; end++) {
-                if (state.tokens[end].type === "blockquote_open") depth++;
-                if (state.tokens[end].type === "blockquote_close" && --depth === 0) break;
-            }
-            token.type = "hl_preview_source";
-            token.nesting = 0;
-            token.meta = {
-                html: `<pre>${escape(lines.slice(alert.start, alert.end + 1).join("\n"))}</pre>`,
-            };
-            state.tokens.splice(i + 1, end - i);
-        }
-        for (let i = state.tokens.length - 1; i >= 0; i--) {
-            const block = state.tokens[i].meta?.alert;
-            if (!block) continue;
-            const open = new state.Token("hl_preview_alert_title_open", "p", 1);
-            open.meta = block;
-            const title = new state.Token("inline", "", 0);
-            title.content = block.title;
-            title.children = [];
-            const close = new state.Token("paragraph_close", "p", -1);
-            state.tokens.splice(i + 1, 0, open, title, close);
-        }
-        const verse = scanVerse(state.src).blocks;
-        const localFigures = scanFigures(state.src).figures;
-        for (const fig of localFigures) if (fig.id) figures.set(fig.id, fig);
-        for (const token of state.tokens) {
-            if (token.type === "fence")
-                token.meta = {
-                    ...token.meta,
-                    source: lines.slice(token.map[0], token.map[1]).join("\n"),
-                    poem: verse.find((poem) => poem.start === token.map[0]),
-                };
-        }
-        // Verse must become inline tokens before footnote collection, so a
-        // definition outside the fence remains visible to a verse reference.
-        for (let i = state.tokens.length - 1; i >= 0; i--) {
-            const token = state.tokens[i];
-            const poem = token.meta?.poem;
-            if (!poem) continue;
-            const replacement = [];
-            const push = (type, tag, nesting, attrs) => {
-                const part = new state.Token(type, tag, nesting);
-                if (attrs) part.attrs = attrs;
-                replacement.push(part);
-                return part;
-            };
-            push("hl_preview_verse_open", "div", 1, [["class", "verse"]]).map = token.map;
-            for (const stanza of verseStanzas(poem.body)) {
-                push("paragraph_open", "p", 1);
-                stanza.forEach(({ text, level }, row) => {
-                    if (row) push("hardbreak", "br", 0);
-                    push("hl_preview_verse_line_open", "span", 1, [
-                        ["class", `verse-line i${level}`],
-                    ]);
-                    const line = push("inline", "", 0);
-                    line.content = text;
-                    line.children = [];
-                    push("hl_preview_verse_line_close", "span", -1);
-                });
-                push("paragraph_close", "p", -1);
-            }
-            push("hl_preview_verse_close", "div", -1);
-            state.tokens.splice(i, 1, ...replacement);
-        }
-        // Work backwards so figure ranges and heading removals retain source maps.
-        for (let i = state.tokens.length - 1; i >= 0; i--) {
-            const token = state.tokens[i];
-            if (token.type !== "heading_open") continue;
-            const content = state.tokens[i + 1];
-            const parsed = splitHeadingAttributes(content.content);
-            if (/^(?:see also|related pages)$/i.test(parsed.text)) {
-                const level = Number(token.tag.slice(1));
-                let end = i + 3;
-                while (
-                    end < state.tokens.length &&
-                    !(
-                        state.tokens[end].type === "heading_open" &&
-                        Number(state.tokens[end].tag.slice(1)) <= level
-                    )
-                )
-                    end++;
-                state.tokens.splice(i, end - i);
-            } else if (!parsed.problems.length) {
-                content.content = parsed.text;
-                if (parsed.id) token.attrSet("id", parsed.id);
-                token.meta = { ...token.meta, secret: parsed.classes.includes("secret") };
-            }
-        }
-        for (const fig of localFigures.reverse()) {
-            const first = state.tokens.findIndex(
-                (token) => token.type === "paragraph_open" && token.map?.[0] === fig.captionStart,
-            );
-            if (first < 0) continue;
-            let after = first + 3;
-            while (
-                after < state.tokens.length &&
-                (state.tokens[after].map?.[0] ?? -1) < fig.bodyEnd
-            )
-                after++;
-            // Match closing tokens of the last block as well.
-            while (
-                after < state.tokens.length &&
-                !state.tokens[after].map &&
-                state.tokens[after].nesting < 0
-            )
-                after++;
-            const open = new state.Token("hl_preview_figure_open", "div", 1);
-            open.meta = fig;
-            const caption = new state.Token("inline", "", 0);
-            caption.content = `${fig.label}${fig.label && fig.hasCaption ? ": " : ""}${fig.caption}`;
-            caption.children = [];
-            const titleOpen = new state.Token("paragraph_open", "p", 1);
-            titleOpen.attrSet("class", "content-figure-label");
-            const titleClose = new state.Token("paragraph_close", "p", -1);
-            const close = new state.Token("hl_preview_figure_close", "div", -1);
-            state.tokens.splice(after, 0, titleOpen, caption, titleClose, close);
-            state.tokens.splice(first, 3, open);
-        }
-        // Use parsed heading tokens so fenced examples are never section boundaries.
-        // Keep all inline tokens in this document for shared footnote collection.
-        const output = [],
-            sections = [];
-        const closeSection = () => {
-            output.push(new state.Token("details_close", "details", -1));
-            sections.pop();
-        };
-        for (const token of state.tokens) {
-            const level = token.type === "heading_open" ? Number(token.tag.slice(1)) : null;
-            while (
-                sections.length &&
-                ((token.nesting === -1 && token.level < sections.at(-1).scope) ||
-                    (level !== null &&
-                        token.level <= sections.at(-1).scope &&
-                        level <= sections.at(-1).level))
-            )
-                closeSection();
-            if (token.type === "heading_open" && token.meta?.secret) {
-                const open = new state.Token("details_open", "details", 1);
-                open.attrSet("class", "secret");
-                output.push(open, new state.Token("summary_open", "summary", 1));
-                const title = new state.Token("inline", "", 0);
-                title.content = "Secret";
-                title.children = [];
-                output.push(title, new state.Token("summary_close", "summary", -1));
-                sections.push({ level, scope: token.level });
-            }
-            output.push(token);
-        }
-        while (sections.length) closeSection();
-        state.tokens = output;
-    });
-    md.renderer.rules.hl_preview_figure_open = (tokens, idx) => {
-        const fig = tokens[idx].meta;
-        return `<div class="content-figure content-figure-${escape(fig.kind)}"${fig.slug ? ` id="${escape(fig.slug)}"` : ""}>\n`;
-    };
-    md.renderer.rules.hl_preview_figure_close = () => "</div>\n";
-    // Shared container parser determines complete nested ranges; tokenizing each
-    // body within the same state keeps document footnotes in scope.
-    md.block.ruler.before(
-        "fence",
-        "hl_preview_container",
-        (state, start, end, silent) => {
-            if (!state.src.slice(state.bMarks[start] + state.tShift[start]).startsWith(":::"))
-                return false;
-            const block = scanBlocks(state.src).blocks.find((block) => block.start === start);
-            if (!block || block.end >= end) return false;
-            if (silent) return true;
-            const open = state.push(
-                "hl_preview_container_open",
-                block.name === "secret" ? "details" : "div",
-                1,
-            );
-            open.meta = block;
-            if (block.name === "secret") {
-                state.push("summary_open", "summary", 1);
-                const title = state.push("inline", "", 0);
-                title.content = block.title;
-                title.children = [];
-                state.push("summary_close", "summary", -1);
-            }
-            const oldMax = state.lineMax;
-            state.lineMax = block.end;
-            state.md.block.tokenize(state, start + 1, block.end);
-            state.lineMax = oldMax;
-            const close = state.push("hl_preview_container_close", open.tag, -1);
-            close.meta = block;
-            state.line = block.end + 1;
-            return true;
-        },
-        { alt: ["paragraph", "reference", "blockquote", "list"] },
-    );
-    md.renderer.rules.hl_preview_container_open = (tokens, idx, _options, env) => {
-        const block = tokens[idx].meta;
-        const attrs = `${block.id ? ` id="${escape(block.id)}"` : ""} class="${escape([block.name, ...block.classes].join(" "))}"`;
-        return block.name === "secret" ? `<details${attrs}>` : `<div${attrs}>\n`;
-    };
-    md.renderer.rules.hl_preview_container_close = (tokens, idx) => `</${tokens[idx].tag}>\n`;
-    return md;
-}
+const escape = (value) =>
+    String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
 
 /** A small profile from authored fields; references never acquire resolved data. */
 function localInfobox(fm, md) {
@@ -569,14 +64,23 @@ function localInfobox(fm, md) {
 }
 
 /**
- * Render one complete buffer with no configuration, index, filesystem or database.
+ * Render one complete buffer.
+ *
+ * Without `index` the buffer is rendered with no configuration, content index,
+ * filesystem or database: wikilinks, spans and expressions show as highlighted
+ * authored source. With `index` the buffer is expanded as the website expands
+ * a page and rendered as every target renders it, so links, embeds, marked
+ * text, icons and figure numbers read as they will on the page; only what a
+ * buffer cannot answer, such as a query, stays highlighted source.
+ *
  * @param {string} text - Markdown, optionally beginning with YAML frontmatter.
- * @param {{dark?: boolean, infobox?: boolean, file?: string, currentDate?: string}} [options] - Explicit palette, profile visibility, diagnostic filename and neutral current date (default "720.1").
+ * @param {{dark?: boolean, infobox?: boolean, file?: string, currentDate?: string,
+ *   index?: import("./preview-index.mjs").PreviewIndex}} [options] - Explicit palette, profile visibility, diagnostic filename, neutral current date (default "720.1") and the content index, from {@link module:engine/preview-index.previewIndex}.
  * @returns {{ok: boolean, html: string, frontmatter: object, findings: object[]}} HTML and metadata with locally calculable ages; unavailable ages remain absent or null.
  */
 export function renderPreview(
     text,
-    { dark = false, infobox = true, file = "", currentDate = DEFAULT_CURRENT_DATE } = {},
+    { dark = false, infobox = true, file = "", currentDate = DEFAULT_CURRENT_DATE, index } = {},
 ) {
     const date = normalizeCurrentDate(currentDate);
     const findings = [];
@@ -602,9 +106,33 @@ export function renderPreview(
         )
             frontmatter.data.age = null;
     }
-    const md = parserFor(frontmatter, findings, file);
-    const content = md.render(body);
-    const profile = infobox ? localInfobox(frontmatter, md) : "";
+    // A tag the author wrote reads as text; the stages below write the only HTML.
+    const authored = inertHtml(body);
+    const indexed = Boolean(index);
+    const scan = scanFigures(authored);
+    const renderer = createRenderer("preview", {
+        source: !indexed,
+        sourceContext: {
+            fm: frontmatter,
+            file,
+            figures: new Map(scan.figures.filter((f) => f.id).map((f) => [f.id, f])),
+        },
+        icons: index?.icons,
+        images: index && { lookupAsset: index.lookupAsset },
+    });
+    let markdown = authored;
+    let figures = scan.figures;
+    if (indexed) {
+        const expanded = index.expand(authored, { fm: frontmatter, file });
+        markdown = expanded.markdown;
+        figures = expanded.figures;
+    }
+    const content = renderer.render(markdown, {
+        runs: index?.runs,
+        figures,
+        resolveSrc: index?.resolveSrc,
+    });
+    const profile = infobox ? localInfobox(frontmatter, renderer.md) : "";
     return {
         ok: true,
         html: `<div class="hl-preview hl-preview-${dark ? "dark" : "light"}">${profile}<main class="hl-preview-main">${content}</main></div>`,
@@ -665,7 +193,6 @@ export function previewStyles() {
 .hl-preview .alert-warning { --hl-accent:var(--hl-warning); --hl-alert-bg:var(--hl-warning-bg); }
 .hl-preview .alert .alert-title { color:var(--hl-accent); font-weight:700; opacity:1; }
 .hl-preview .alert .alert-icon { width:1em; height:1em; margin-right:.5em; vertical-align:-.1em; color:var(--hl-accent); fill:currentColor; }
-.hl-preview .verse-line { white-space:pre-wrap; }
-${Array.from({ length: 9 }, (_, n) => `.hl-preview .verse-line.i${n} { padding-left:${n * 2}em; }`).join("\n")}
+${sharedContentRules(".hl-preview")}
 `;
 }

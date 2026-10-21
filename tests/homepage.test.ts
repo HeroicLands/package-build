@@ -20,7 +20,6 @@ import type { ContentBuildConfigInput } from "../content-config.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import * as homepageModule from "../engine/homepage.mjs";
 import {
-    HOMEPAGE_DESTINATION,
     HOMEPAGE_SHORTCODE,
     HOMEPAGE_TYPE,
     homepageTitle,
@@ -29,6 +28,7 @@ import {
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { buildSite, collectContentPages } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { entryContext } from "../engine/foundry-entries.mjs";
 import { indexRecordsFor } from "../engine/content-index.mjs";
 
@@ -43,21 +43,6 @@ function write(rel: string, text: string) {
 
 function note(rel: string, frontmatter: string, body = "Prose.\n") {
     return write(path.join("assets/content", rel), `---\n${frontmatter.trim()}\n---\n\n${body}`);
-}
-
-/** Every emitted file below a directory, POSIX-separated and sorted. */
-function emitted(dir: string): string[] {
-    const out: string[] = [];
-    const walk = (d: string) => {
-        if (!fs.existsSync(d)) return;
-        for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-            const full = path.join(d, e.name);
-            if (e.isDirectory()) walk(full);
-            else out.push(path.relative(dir, full).split(path.sep).join("/"));
-        }
-    };
-    walk(dir);
-    return out.sort();
 }
 
 beforeAll(() => {
@@ -152,6 +137,20 @@ describe("`type: homepage` is note format, so it lives in the engine", () => {
         );
     });
 
+    it("defaults its title to the site's where the package has no manifest", () => {
+        // A documentation package has no Foundry manifest, and its site's
+        // title is the name it is known by.
+        const config = {
+            contentPackage: "heroiclands",
+            packageBuild: {},
+            site: { title: "Heroic Lands" },
+        };
+        expect(homepageTitle({ type: HOMEPAGE_TYPE }, config)).toBe("Heroic Lands");
+        expect(homepageTitle({ type: HOMEPAGE_TYPE }, { ...config, site: { title: "" } })).toBe(
+            "heroiclands",
+        );
+    });
+
     it("takes no title from a key the note format refuses", () => {
         // A page's heading is its `name.full`. The manifest answers for a
         // homepage that states no name, so a note writing anything else is
@@ -175,19 +174,15 @@ describe("`type: homepage` is note format, so it lives in the engine", () => {
         expect(pages.every((p) => p.kind === "content")).toBe(true);
     });
 
-    it("publishes at the package root, as the mount's `_index.md`", () => {
+    it("publishes at the package root", () => {
         const config = configFor();
-        buildSite({ config });
-        // `/demo/` — written at the root of the content tree, one level above
-        // the `kb/` content mount, where Hugo renders it as the `home` kind.
-        expect(HOMEPAGE_DESTINATION).toBe("_index.md");
+        // `/demo/` — one level above the `kb/` content mount.
         expect(homepageModule).not.toHaveProperty("homepageDestination");
-        const dest = path.join(root, "build/hugo/content", HOMEPAGE_DESTINATION);
-        expect(fs.existsSync(dest)).toBe(true);
-        const page = fs.readFileSync(dest, "utf8");
+        expect(homepageModule).not.toHaveProperty("HOMEPAGE_DESTINATION");
+        const page = builtPages(buildSite({ config }))["_index.md"];
         expect(page).toMatch(/^title: The Demo Module$/m);
         expect(page).toMatch(/^package: demo$/m);
-        // The home kind publishes at `baseURL`, so the page states no address.
+        // The homepage publishes at the package root, so the page states no address.
         expect(page).not.toMatch(/^url:/m);
         expect(page).not.toMatch(/^slug:/m);
         expect(page).toContain("The module, in the author's own words.");
@@ -209,10 +204,7 @@ name:
         const config = configFor();
         const result = buildSite({ config });
         expect(result.wikiErrors).toEqual([]);
-        const page = fs.readFileSync(
-            path.join(root, "build/hugo/content/kb/doc-welcome.md"),
-            "utf8",
-        );
+        const page = builtPages(result)["doc-welcome.md"];
         expect(page).toContain("(/demo/)");
         expect(page).not.toContain("homepage-root/");
         expect(page).toContain("the module's front page");
@@ -287,11 +279,10 @@ describe("site output follows the authored tree", () => {
     it("publishes every content page in a tree with sections", () => {
         const config = configFor();
         const result = buildSite({ config });
-        const files = emitted(path.join(root, "build/hugo/content"));
-        expect(files).toContain(HOMEPAGE_DESTINATION);
-        // Written flat under the mount and published at its address,
-        // `/demo/weapongear-dagger/`.
-        expect(files).toContain("kb/weapongear-dagger.md");
+        const files = Object.keys(builtPages(result));
+        expect(files).toContain("_index.md");
+        // Published at its address, `/demo/weapongear-dagger/`.
+        expect(files).toContain("weapongear-dagger.md");
         expect(result.stats?.homepages).toBe(1);
     });
 
@@ -327,11 +318,9 @@ describe("site output follows the authored tree", () => {
         expect(publishesContentPages(config)).toBe(false);
         expect(entryContext(config).web).toBe(false);
         const result = buildSite({ config });
-        expect(emitted(path.join(solo, "build/hugo/content"))).toEqual([HOMEPAGE_DESTINATION]);
+        expect(Object.keys(builtPages(result))).toEqual(["_index.md"]);
         expect(result.stats?.homepages).toBe(1);
-        expect(
-            fs.readFileSync(path.join(solo, "build/hugo/content", HOMEPAGE_DESTINATION), "utf8"),
-        ).toMatch(/^title: HârnMaster 3$/m);
+        expect(builtPages(result)["_index.md"]).toMatch(/^title: HârnMaster 3$/m);
         fs.rmSync(solo, { recursive: true, force: true });
     });
 });

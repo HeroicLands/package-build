@@ -160,8 +160,8 @@ which applies before either loader form gets a chance to derive anything.
 
 #### `homepage`
 
-The address a package's site is served at — read by the generated Hugo
-configuration for `baseURL`, independently of the Foundry manifest's own
+The address a package's site is served at — read by the site build for the
+site's base URL, independently of the Foundry manifest's own
 `url`, which derives from `contentPackage` instead (see
 [`packageBuild.manifest`](#packagebuildmanifest)). `null` when the package
 declares none.
@@ -179,13 +179,17 @@ declares none.
 `homepage` is not itself checked against `contentPackage` by `defineConfig`.
 `checkHomepage` in `config.mjs` is the check: `homepage` is required
 unconditionally — every package publishes a site — and must be an absolute
-URL whose path ends `/<contentPackage>/`. `package-build site` makes it
-before the generated `baseURL` is written, so a missing or mismatched
+URL whose path ends `/<contentPackage>/` — or, for a site that states
+[`site.base`](#site), whose path is that base, so a site served at `/` has
+the root of its origin as its `homepage`. `package-build site build` makes
+it before the site's settings are composed, so a missing or mismatched
 `homepage` is a finding on every site build:
 
 > ``package-build config: `homepage` is not declared in `package.json`, and every package needs one to build its site's `baseURL` from. Add `https://www.heroiclands.org/<contentPackage>/`.``
 
 > ``package-build config: `homepage` is `https://www.heroiclands.org/harn-ensemble`, but `contentPackage` is `harnensemble` — a package's site is served at `https://www.heroiclands.org/harnensemble/`, so `package.json`'s `homepage` must end `/harnensemble/`.``
+
+> ``package-build config: `homepage` is `https://www.heroiclands.org/heroiclands/`, but `site.base` is `/`, so `package.json`'s `homepage` must be the root of its origin.``
 
 #### `author`
 
@@ -604,7 +608,7 @@ HeroicLands layout, resolved against `rootDir`:
 | `paths.unpack`          | `build/tmp/packs`        | Where `unpack` extracts JSON back to.                                                                                              |
 | `paths.foreignCache`    | `build/cache/foreign`    | Where a dependency declaring `itemCatalog: true` or `assetArchive: true` is unpacked.                                              |
 | `paths.metadataCache`   | `build/cache/metadata`   | Where a published content index is fetched to, for every declared dependency and every relationship declaring `itemCatalog: true`. |
-| `paths.navigationCache` | `build/cache/navigation` | Where the site navigation heroiclands.org publishes is fetched to, for the generated Hugo menu.                                    |
+| `paths.navigationCache` | `build/cache/navigation` | Where the site navigation heroiclands.org publishes is fetched to, for the site's menu.                                            |
 
 Every configured path must be **relative** — an absolute one would escape
 the repository the config anchors:
@@ -949,25 +953,29 @@ Any other key under `docs.itemFields` is refused:
 
 **Type:** object · **Optional** · every key defaults to nothing published:
 
-| Key                | Type     | Default                                      |
-| ------------------ | -------- | -------------------------------------------- |
-| `site.base`        | string   | `""`                                         |
-| `site.title`       | string   | `""`, required when no manifest title exists |
-| `site.assets`      | string   | `""`, but required for `package-build site`  |
-| `site.description` | string   | `""`, but required for `package-build site`  |
-| `site.packages`    | string[] | `[]`                                         |
-| `site.pass`        | string   | `""`                                         |
-| `site.passOptions` | object   | `{}`                                         |
-| `site.notfound`    | object   | `null`                                       |
-| `site.hugo`        | object   | `{}`                                         |
-| `site.search`      | boolean  | `true`                                       |
-| `site.maps`        | boolean  | `true`                                       |
+| Key                 | Type     | Default                                      |
+| ------------------- | -------- | -------------------------------------------- |
+| `site.base`         | string   | `""`                                         |
+| `site.title`        | string   | `""`, required when no manifest title exists |
+| `site.assets`       | string   | `""`, but required for `site build`          |
+| `site.description`  | string   | `""`, but required for `site build`          |
+| `site.packages`     | string[] | `[]`                                         |
+| `site.pass`         | string   | `""`                                         |
+| `site.passOptions`  | object   | `{}`                                         |
+| `site.notfound`     | object   | `null`                                       |
+| `site.search`       | boolean  | `true`                                       |
+| `site.maps`         | boolean  | `true`                                       |
+| `site.sections`     | object   | `{}`                                         |
+| `site.feed`         | string   | `""`                                         |
+| `site.tags`         | boolean  | `false`                                      |
+| `site.sitemaps`     | string[] | `[]`, and only at the root of an origin      |
+| `site.mergeIndexes` | string[] | `[]`                                         |
 
 The authored content tree determines which pages reach the web. `site` is
 framing: which named pass bundle
 supplies the repository's own body rewrites, and the residue of the
-[generated Hugo configuration](#the-generated-hugo-configuration) that is
-genuinely this repository's own.
+[site settings](#what-the-site-build-reads) that is genuinely this
+repository's own.
 
 **A site is its homepage and its pages.** The `type: homepage` note is the
 package's front page at `/<contentPackage>/`, and every other note is one page
@@ -981,15 +989,13 @@ So a page of documentation is a note — `type: doc`, addressed by its
 shortcode, and `pack: none` where it compiles into no Foundry document — and
 there is no second mechanism for mounting a directory of markdown.
 
-Where the Hugo tree is written is not a choice. `package-build site` writes
-the whole Hugo source tree under `build/hugo/` — the generated `hugo.toml`,
-the content mount at `build/hugo/content/`, Hugo's own cache — as a sibling
-of the deployment root `build/site/`, so nothing Hugo reads lands in what is
-published.
+Where the site is written is not a choice. `package-build site build`
+renders it under the deployment root `build/site/`, at
+`build/site/<contentPackage>/` (or under the path `site.base` states).
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, title, assets, description, packages, pass, passOptions, notfound, hugo, search, maps).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, title, assets, description, packages, pass, passOptions, notfound, search, maps, sections, feed, tags, sitemaps, mergeIndexes).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -1002,8 +1008,8 @@ Absolute, and the trailing slash is trimmed:
 
 > ``package-build config: `site.assets` must be an absolute `http://` or `https://` address — it is the host every package's imagery is served from, and a relative value resolves against whichever page happens to carry the image.``
 
-`package-build site` refuses to generate a configuration with no
-`site.assets` at all — there is no defensible default, because the theme
+`package-build site build` refuses a configuration with no `site.assets` at
+all — there is no defensible default, because the theme
 resolves every relative asset against it:
 
 > ``package-build config: `site.assets` is not declared, and a site build needs one — it is the host every package's imagery is served from, and the theme resolves every relative asset against it.``
@@ -1014,7 +1020,7 @@ host, at `<site.assets>/<contentPackage>/icons/<basename>` and
 bucket behind the CDN is served at `site.assets`, so an object's key is its
 path below this value.
 
-The generated Hugo configuration carries the same host as
+The site settings carry the same host as
 `params.cdnBaseURL`, which the theme resolves a relative asset path against.
 The two are one value read by two readers: the toolchain emits it into a
 page, and the theme joins it onto anything the toolchain left relative.
@@ -1026,7 +1032,7 @@ absent.
 `site.description` is the site's `<meta name="description">` — one plain
 sentence, distinct from the Foundry package browser's pitch
 ([`packageBuild.manifest.descriptionHtml`](#packagebuildmanifest), which
-allows HTML). Required for `package-build site`, the way its title is:
+allows HTML). Required for `package-build site build`, the way its title is:
 
 > ``package-build config: `site.description` is not declared, and the site's `<meta name="description">` reads from it.``
 
@@ -1047,8 +1053,8 @@ names a registry):
 `site.passOptions` has no further shape of its own — it is passed to the
 resolved `site.pass` bundle unchanged.
 
-`site.notfound` is the wording of the "page not found" page, written into
-the generated Hugo configuration as `params.notfound`. The theme renders
+`site.notfound` is the wording of the "page not found" page, carried in the
+site settings as `params.notfound`. The theme renders
 the page for every site; what a repository supplies is the tagline, the
 noun the body prose calls the site, and the routes back. `tagline` and
 `sitenoun` are required once the block is present — a block declaring only
@@ -1089,31 +1095,8 @@ site:
 
 > ``package-build config: `site.notfound.links[<index>].<key>` is not a recognized option (expected one of: title, url, text).``
 
-`site.hugo` is a mapping deep-merged over the generated Hugo configuration,
-last — the escape hatch for the one key nobody anticipated. A repository
-whose homepage reproduces a notice whose bare URLs must stand unedited turns
-Goldmark's autolinker off:
-
-```yaml
-site:
-  hugo:
-    markup:
-      goldmark:
-        extensions:
-          linkify: false
-```
-
-Objects merge; an array or a scalar replaces what the generator wrote. Every
-key the generator writes is refused here, naming its source — see
-[the generated Hugo configuration](#the-generated-hugo-configuration) — so
-the block cannot grow into a second configuration file:
-
-> ``package-build config: `site.hugo` must be a mapping.``
-
-> ``package-build config: `site.hugo.baseURL` is derived from package.json `homepage` and must not be declared — it would be overwritten, and the two would disagree with nothing to say so.``
-
 `site.search` is whether the rendered site carries a search index. On by
-default: `package-build site-root` runs Pagefind over the rendered pages after
+default: `package-build site build` runs Pagefind over the rendered pages after
 it writes `_headers`, and the index lands beside them as
 `build/site/<contentPackage>/pagefind/`, served at `/<contentPackage>/pagefind/`
 with the rest of the site. The theme loads it relative to the site's base URL
@@ -1147,30 +1130,157 @@ site:
 
 > ``package-build config: `site.maps` must be a boolean.``
 
-### The generated Hugo configuration
+#### Where a site is served, and what it lists
 
-`package-build site` writes `build/hugo/hugo.toml` on every run. Every value
-in it has one source, and that source is where it is edited:
+`site.base` is the path the site is served at. Unset, a package's site is
+served at `/<contentPackage>/`; a value begins and ends with `/`, and `/`
+serves the site at the root of its origin, as heroiclands.org's own site is.
+`package.json`'s `homepage` is then that path on the origin (see
+[`homepage`](#homepage)), and `package-build site build` writes the site at
+that path under the deployed root — at `build/site/` itself for `/`:
 
-| Key                               | Derived from                                                                                                                                            |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `baseURL`                         | `package.json` `homepage`, checked by `checkHomepage` — an absolute URL ending `/<contentPackage>/`                                                     |
-| `title`                           | `site.title` when declared, otherwise `packageBuild.manifest.title`                                                                                     |
-| `locale`                          | the organisation's locale, `en-us`, in `engine/site-config.mjs`                                                                                         |
-| `publishDir`                      | `contentPackage`, under the deployment root `build/site` — written relative to `build/hugo/`, so `../site/<contentPackage>`                             |
-| `contentDir`                      | the fixed content mount, `build/hugo/content` — written as `content`                                                                                    |
-| `themesDir`                       | this package's own root, which holds the theme it ships, written relative to `build/hugo/`                                                              |
-| `theme`                           | the theme's directory inside this package, `hugo-theme`                                                                                                 |
-| `disableKinds`                    | the toolchain, which renders a site as its homepage and its pages: `["section", "taxonomy", "term", "RSS"]` on every site, whatever its notes carry     |
-| `taxonomies`                      | the toolchain — never written, because `taxonomy` and `term` are disabled kinds                                                                         |
-| `outputs`                         | the toolchain — never written, because every listing kind is disabled                                                                                   |
-| `params.description`              | `site.description`, which is required                                                                                                                   |
-| `params.author`                   | the first entry of `authors`, its `name`; absent when `authors` is empty                                                                                |
-| `params.cdnBaseURL`               | `site.assets`, which is required                                                                                                                        |
-| `params.brand`                    | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                       |
-| `params.notfound`                 | `site.notfound`; absent when undeclared                                                                                                                 |
-| `markup.goldmark.renderer.unsafe` | the toolchain, whose pages carry raw HTML — a `<figure>` for every image, a `<span>` marking an unresolved link                                         |
-| `menu`                            | the navigation `package-build deps fetch` caches from `https://www.heroiclands.org/nav.json`, entry for entry, a dropdown's entries as `parent` entries |
+> ``package-build config: `site.base` is `blog/`; it is the path the site is served at, which begins and ends with `/` — `/` for the root of the origin.``
+
+`site.sections` publishes a note as a section's page. Each key is a section's
+name, published at `/<name>/`, and each value is the address of the note that
+is its page, written `<type>-<shortcode>`. The note keeps its title, its
+description and its body, and is published at the section rather than at its
+own address, so every link to it reaches `/<name>/`. A section's page lists
+the pages of its section that its body does not already link.
+
+```yaml
+site:
+  sections:
+    blog: doc-blog
+    projects: doc-projects
+```
+
+A name is one address segment, and no section claims a path the site writes
+itself — `tags`, `css`, `js`, `fonts`, `img` or `pagefind`. A value is a note's
+address, never the homepage's, and no note is the page of two sections. A
+section whose note is missing from the content tree fails the build, located
+at its value:
+
+> ``package-build config: `site.sections` must be a mapping of a section's name to the address of the note that is its page.``
+
+> ``package-build config: `site.sections.the-blog` names the section `the-blog`, which is published at `/the-blog/` and so is one address segment: lowercase letters and digits.``
+
+> ``package-build config: `site.sections.tags` names the section `tags`, a path the site writes itself (tags, css, js, fonts, img, pagefind).``
+
+> ``package-build config: `site.sections.blog` is `Blog`; it is the address of the note that is the section's page, written `<type>-<shortcode>`, such as `doc-blog`.``
+
+> ``package-build config: `site.sections.blog` is `homepage-root`, and the homepage is the site's front page, not a section's.``
+
+> ``package-build config: `site.sections.news` is `doc-blog`, which is already the page of `blog`.``
+
+> `` `site.sections.projects` is `doc-plans`, and no note in the content tree has that address, so the section has no page to publish at `/projects/`. ``
+
+`site.feed` names the section the site's posts are published in. A post is a
+`doc` of `subType: post` (see the
+[`doc` reference](reference/note-types.md#doc)); with `site.feed` set, every
+post is a page of that section, which lists them newest first by their
+`data.date`, and the section's posts are written as an Atom feed at
+`/<section>/atom.xml`, newest first, which every page links in its head. Each
+entry names the post's `data.author`, or the site's byline where the post
+names none. The section may be one `site.sections` gives a page; one it does
+not is titled by its name. Without `site.feed` a post is a page in no section,
+and the site has no feed:
+
+```yaml
+site:
+  sections:
+    blog: doc-blog
+  feed: blog
+```
+
+> ``package-build config: `site.feed` names the section `blog/atom.xml`, which is published at `/blog/atom.xml/` and so is one address segment: lowercase letters and digits.``
+
+`site.tags` writes a page for each tag the site's pages carry, at
+`/tags/<tag>/`, listing the pages that carry it, and an index of every tag
+with how many pages carry it at `/tags/`. A page's tags then link to their
+pages. Off by default, when a page's tags are shown and link nowhere:
+
+> ``package-build config: `site.tags` must be a boolean.``
+
+`site.sitemaps` names the package sites, by `contentPackage`, whose sitemaps
+the site's sitemap index lists. It belongs to a site served at the root of an
+origin: the build writes `sitemap-index.xml`, naming the site's own
+`sitemap.xml` and `/<package>/sitemap.xml` on the same origin for each one
+named, and `robots.txt`, naming the index and every sitemap in it. Every site
+writes its own `sitemap.xml` whether or not it states this key.
+
+```yaml
+site:
+  base: /
+  sitemaps: [sohl, hm3, thalorna, kethira, thalornaaltart, harnensemble, harnadventures]
+```
+
+`site.mergeIndexes` names the package sites, by `contentPackage`, whose search
+indexes the site's own search reads beside its own, so one search box finds
+the pages of every site named. Each is read from `/<package>/pagefind/` on the
+site's own origin, which is where that package's site publishes its index, so
+the merge resolves where the sites share an origin — at heroiclands.org,
+through its routing Worker — and not on a site served alone, such as by
+`site serve`. Name only a package site whose `site.search` is on; one that
+publishes no index leaves the search with an index it cannot load.
+
+```yaml
+site:
+  mergeIndexes: [sohl, thalorna, kethira, harnensemble]
+```
+
+An entry of either list is a package's `contentPackage`, named once, and
+never the site's own:
+
+> ``package-build config: `site.sitemaps` must be a list of package sites, each named by its `contentPackage`.``
+
+> ``package-build config: `site.sitemaps[1]` is `harn-adventures`, which is not a package site: name one by its `contentPackage`, lowercase letters and digits.``
+
+> ``package-build config: `site.mergeIndexes[2]` names `sohl` more than once.``
+
+> ``package-build config: `site.sitemaps[0]` is `heroiclands`, this site's own package.``
+
+Each is refused where it cannot mean anything — a sitemap index on a site not
+at the root of its origin, and a merged search on a site with no search:
+
+> ``package-build config: `site.sitemaps` names the package sites a sitemap index lists, and a sitemap index and `robots.txt` belong at the root of an origin; this site is served at `/thalorna/`, so declare `site.base: /` or drop the key.``
+
+> ``package-build config: `site.mergeIndexes` names the search indexes this site's search reads beside its own, and `site.search` is `false`, so there is no search to read them.``
+
+heroiclands.org's own site states them all:
+
+```yaml
+contentPackage: heroiclands
+packageKind: documentation
+site:
+  base: /
+  sections:
+    blog: doc-blog
+    projects: doc-projects
+  feed: blog
+  tags: true
+  sitemaps: [sohl, hm3, thalorna, kethira, thalornaaltart, harnensemble, harnadventures]
+  mergeIndexes: [sohl, thalorna, kethira, harnensemble]
+```
+
+### What the site build reads
+
+`package-build site build` composes the site's settings from sources the
+repository already states, a few constants of the organisation, and the
+navigation `deps fetch` cached. Every value has one source, and that source is
+where it is edited:
+
+| Setting              | Derived from                                                                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| base URL             | `package.json` `homepage`, checked by `checkHomepage` — an absolute URL ending `/<contentPackage>/`                                                   |
+| title                | `site.title` when declared, otherwise `packageBuild.manifest.title`                                                                                   |
+| `params.description` | `site.description`, which is required                                                                                                                 |
+| `params.author`      | the first entry of `authors`, its `name`; absent when `authors` is empty                                                                              |
+| `params.cdnBaseURL`  | `site.assets`, which is required                                                                                                                      |
+| `params.brand`       | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                     |
+| `params.notfound`    | `site.notfound`; absent when undeclared                                                                                                               |
+| `params.scriptFonts` | the installed script fonts' stylesheet, present only when the package delivers fonts                                                                  |
+| menu                 | the navigation `package-build deps fetch` caches from `https://www.heroiclands.org/nav.json`, entry for entry, a dropdown's entries as its `children` |
 
 The site build reads the navigation from the cache only. A cold cache is an
 error naming the command that fills it:
@@ -1192,13 +1302,10 @@ build the same way:
 
 > ``package-build config: `site.assets` is not declared, and a site build needs one — it is the host every package's imagery is served from, and the theme resolves every relative asset against it.``
 
-Nothing else is emitted. `home` and `page` are the only kinds a site
-renders: the homepage is the mount's `_index.md`, every note is a page, and
-`section`, `taxonomy`, `term` and `RSS` are disabled on every site — so no
-`[taxonomies]` or `[outputs]` is written, Hugo's default taxonomy pair never
-applies, and a note's `tags:` reach the page's front matter and nothing
-else. A tag is a field a content table filters on, not a page of its own.
-Every other key is `site.hugo`'s to add.
+Nothing else is configurable. A site is its homepage and its pages: the
+homepage is the package root and every note is a page. A tag is a field a
+content table filters on; a note's `tags:` reach its page and nothing else
+unless `site.tags` writes a page for each.
 
 ### `pdf`
 
@@ -1748,7 +1855,7 @@ end in a slash when set (a missing one would silently fuse the prefix to
 the first section) and must not begin with one (which would make the
 recorded address package-absolute):
 
-The site build uses this prefix for its Hugo source mount. Published note
+The site build mounts the content tree at this prefix. Published note
 addresses and content-index paths stay relative to the package root; the
 manifest's package homepage also stays at that root. A page staged under
 `kb/` can therefore publish at `/<contentPackage>/<type>-<shortcode>/`.
@@ -2256,16 +2363,15 @@ the source directory:
 
 ## Every forbidden key, in one place
 
-| Key                                                                                                                                                                                                                                                                                         | Why                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `rootDir`                                                                                                                                                                                                                                                                                   | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
-| `foundryPackage`                                                                                                                                                                                                                                                                            | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
-| `homepage`                                                                                                                                                                                                                                                                                  | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage`.                                                               |
-| `author`                                                                                                                                                                                                                                                                                    | Refused as an unknown key — the byline is the first entry of [`authors`](#authors).                                                                    |
-| `packageBuild.manifest.authors`                                                                                                                                                                                                                                                             | Forbidden — derived from [`authors`](#authors), without each entry's `role`.                                                                           |
-| `stats.systemId`                                                                                                                                                                                                                                                                            | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
-| `stats.systemVersion`                                                                                                                                                                                                                                                                       | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
-| `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs`                                                                                                                                             | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
-| `site.hugo.baseURL`, `.title`, `.locale`, `.publishDir`, `.contentDir`, `.themesDir`, `.theme`, `.disableKinds`, `.taxonomies`, `.outputs`, `.params.description`, `.params.author`, `.params.cdnBaseURL`, `.params.brand`, `.params.notfound`, `.markup.goldmark.renderer.unsafe`, `.menu` | Forbidden — each is written by the site build from a source it names; see [the generated Hugo configuration](#the-generated-hugo-configuration).       |
-| `publish.site` (any value)                                                                                                                                                                                                                                                                  | Refused — publication follows the authored content tree.                                                                                               |
-| `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                                                                                                                                                                   | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |
+| Key                                                                                                                                             | Why                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `rootDir`                                                                                                                                       | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
+| `foundryPackage`                                                                                                                                | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
+| `homepage`                                                                                                                                      | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage`.                                                               |
+| `author`                                                                                                                                        | Refused as an unknown key — the byline is the first entry of [`authors`](#authors).                                                                    |
+| `packageBuild.manifest.authors`                                                                                                                 | Forbidden — derived from [`authors`](#authors), without each entry's `role`.                                                                           |
+| `stats.systemId`                                                                                                                                | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
+| `stats.systemVersion`                                                                                                                           | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
+| `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs` | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
+| `publish.site` (any value)                                                                                                                      | Refused — publication follows the authored content tree.                                                                                               |
+| `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                       | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |

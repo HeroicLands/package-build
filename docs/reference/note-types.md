@@ -991,11 +991,13 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 ### doc
 
-**Subtypes:** `rules`, `userguide`, `reference`, `howto`, `concept`, `settingguide`.
+**Subtypes:** `rules`, `userguide`, `reference`, `howto`, `concept`, `settingguide`, `post`.
 
 | Field           | Shape                                                  | Meaning                                                                                                                                                                    |
 | --------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `data.concepts` | list of `{ id, gloss, group }`                         | The concepts of a core vocabulary, in the order the report lists them. See [the core vocabulary](format-details.md#the-core-vocabulary).                                   |
+| `data.date`     | string                                                 | The day a post was published, as `YYYY-MM-DD`. Required on a `post`; no other subType states it. Posts are listed and fed newest first by it.                              |
+| `data.author`   | string                                                 | Who wrote a post, as the byline prints them. A post that names none carries the site's byline, the first entry of `authors`; no other subType states it.                   |
 | `data.culture`  | an Address                                             | The culture a setting guide introduces, as a culture lore note. Required on `settingguide`; no other subType states it.                                                    |
 | `data.map`      | a map — `{ name, logographic?, vowels?, fonts, rows }` | A mapping, which text marked `map=` with its `name` is rewritten by before it is set. See [mapping notes](format-details.md#mapping-notes).                                |
 | `data.metres`   | list of `{ name, beats, kind }`                        | The metres a verse fence's `scan=` names. A fence that states one is warned at each line that cannot have its beats. See [metres](../authoring/links-and-markup.md#metre). |

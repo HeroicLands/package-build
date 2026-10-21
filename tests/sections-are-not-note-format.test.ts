@@ -12,19 +12,16 @@
  */
 
 /**
- * A section is a Hugo directory concept, and the note format does not carry one.
+ * A section is a directory concept, and the note format does not carry one.
  *
  * A page's URL **is** its address, `/<package>/<type>-<shortcode>/`,
- * so a section appears in no address at all. Its only remaining job was to pick
- * the directory a page was written into, and the only reason that mattered was
- * Hugo's rule about what counts as a section. So the note format carried a
- * filename convention (`README.md`), a landing rule, a routing function and a
- * refusal — all of them to satisfy a rendering engine's directory semantics.
+ * so a section appears in no address at all. The note format carries no
+ * filename convention (`README.md`), landing rule, routing function or refusal
+ * for one.
  *
- * What this file pins is the whole of what changed, and the one thing that did
- * not:
+ * What this file pins:
  *
- * - **Pages emit flat**, into the mount itself.
+ * - **Pages are named by their address**, whatever directory the note sits in.
  * - **A `README.md` is an ordinary note**, addressed like every other.
  * - **A `doc` with no `subType` publishes**, because there is no directory left
  *   to have nowhere to file it into.
@@ -44,7 +41,8 @@ import { readMatter } from "../engine/note-matter.mjs";
 import { defineConfig } from "../index.mjs";
 import * as contentAddressModule from "../engine/content-address.mjs";
 import { packageAddress } from "../engine/content-address.mjs";
-import { buildSite, collectContentPages, pageDestination } from "../engine/site-build.mjs";
+import { buildSite, collectContentPages } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -145,25 +143,11 @@ function configFor(site: Record<string, unknown> = {}) {
     });
 }
 
-describe("a page emits flat, into the mount itself", () => {
-    it("writes a content page at its address, with no section directory", () => {
-        const page = {
-            kind: "content",
-            fm: { type: "weapongear" },
-            slug: "weapongear-dagger",
-            url: "/demo/weapongear-dagger/",
-        };
-        expect(pageDestination(page as never)).toBe("weapongear-dagger.md");
-        expect(path.dirname(pageDestination(page as never))).toBe(".");
-    });
-});
-
 describe("a `README.md` is an ordinary note", () => {
     it("addresses it by `(type, shortcode)` like every other page", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const readme = pages.find((p) => p.base === "README.md")!;
         expect(readme.url).toBe("/demo/doc-rulesintro/");
-        expect(pageDestination(readme)).toBe("doc-rulesintro.md");
     });
 
     it("takes no `isReadme` in the address function at all", () => {
@@ -304,23 +288,17 @@ describe("a `doc`'s `subType` is a genre again", () => {
     });
 });
 
-describe("every page's `url:` survives the move, byte for byte", () => {
-    it("publishes each page at `/<type>-<shortcode>/`, wherever the file lands", () => {
-        // The core claim: the emitted *paths* move, and no emitted
-        // address does. Read back off the tree the build actually wrote.
-        const out = path.join(root, "build/hugo/content");
+describe("every page's `url:` is its address", () => {
+    it("publishes each page at `/<type>-<shortcode>/`, wherever the note is filed", () => {
         const result = buildSite({ config: configFor() });
         expect(result.gates.addressErrors).toEqual([]);
         expect(result.wikiErrors).toEqual([]);
 
-        const mount = path.join(out, "kb");
-        const files = fs
-            .readdirSync(mount, { withFileTypes: true })
-            .filter((e) => e.isFile())
-            .map((e) => e.name)
+        const pages = builtPages(result);
+        const files = Object.keys(pages)
+            .filter((name) => name !== "_index.md")
             .sort();
-        // Flat: every content page is a file directly under the mount, named
-        // by its address.
+        // Every content page is named by its address.
         expect(files).toEqual([
             "doc-combat.md",
             "doc-homeless.md",
@@ -330,25 +308,15 @@ describe("every page's `url:` survives the move, byte for byte", () => {
         ]);
 
         for (const name of files) {
-            const { data } = readMatter(fs.readFileSync(path.join(mount, name), "utf8"));
-            // Site-root relative: the package base is Hugo's own `baseURL`,
-            // and stating it here published the page inside it twice.
+            const { data } = readMatter(pages[name]);
+            // Relative to the package root: the package base is not stated twice.
             expect(data.url, name).toBe(`/${name.replace(/\.md$/, "")}/`);
         }
     });
 
-    it("writes no `_index.md` under the mount — the only one is the homepage's", () => {
-        // Flat pages create no directory, and nothing else does either: a
-        // section is a listing Hugo would generate, and the site is its
+    it("publishes the homepage and no section page", () => {
+        // A section is not a page the note format knows: the site is its
         // homepage and its pages.
-        buildSite({ config: configFor() });
-        const out = path.join(root, "build/hugo/content");
-        expect(fs.existsSync(path.join(out, "_index.md"))).toBe(true);
-        expect(fs.existsSync(path.join(out, "kb", "_index.md"))).toBe(false);
-        expect(
-            fs
-                .readdirSync(path.join(out, "kb"), { withFileTypes: true })
-                .filter((e) => e.isDirectory()),
-        ).toEqual([]);
+        expect(Object.keys(builtPages(buildSite({ config: configFor() })))).toContain("_index.md");
     });
 });

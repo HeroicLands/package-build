@@ -30,12 +30,7 @@ import { defineConfig } from "../index.mjs";
 import { CONFIG_BASENAME, configFromData } from "../engine/pack-config.mjs";
 import { resolveImg } from "../engine/helpers.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
-import {
-    HUGO_CONTENT,
-    HUGO_SOURCE,
-    NAVIGATION_FILE,
-    navigationCacheDir,
-} from "../engine/site-config.mjs";
+import { DEPLOY_ROOT, NAVIGATION_FILE, navigationCacheDir } from "../engine/site-config.mjs";
 import type { ContentBuildConfigInput } from "../content-config.mjs";
 
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
@@ -350,22 +345,17 @@ describe("what the pipeline does with one", () => {
         "builds the site, and no Foundry document with it",
         () => {
             const dir = documentationRepo();
-            const { out, status } = run(dir, "package-build", "site");
+            const { out, status } = run(dir, "package-build", "site", "build");
 
             expect(out).not.toMatch(/error:/);
             expect(status).toBe(0);
-            const guide = path.join(dir, HUGO_CONTENT, "guide");
-            expect(fs.existsSync(path.join(guide, "doc-commands.md"))).toBe(true);
-            // The homepage is the package's own root, one level above the
-            // content mount.
-            expect(fs.existsSync(path.join(dir, HUGO_CONTENT, "_index.md"))).toBe(true);
-            // The Hugo configuration lands beside the mount, generated from the
-            // sources the repository already states.
-            const toml = fs.readFileSync(path.join(dir, HUGO_SOURCE, "hugo.toml"), "utf8");
-            expect(toml).toMatch(/^baseURL = "https:\/\/www\.heroiclands\.org\/toolkit\/"$/m);
-            expect(toml).toMatch(/^title = "The Toolkit"$/m);
-            expect(toml).toMatch(/^description = "The toolkit, documented\."$/m);
-            expect(toml).toMatch(/^publishDir = "\.\.\/site\/toolkit"$/m);
+            const site = path.join(dir, DEPLOY_ROOT, "toolkit");
+            expect(fs.existsSync(path.join(site, "doc-commands", "index.html"))).toBe(true);
+            // The homepage is the package's own root.
+            const home = fs.readFileSync(path.join(site, "index.html"), "utf8");
+            // The page is drawn from the sources the repository already states.
+            expect(home).toContain("<title>The Toolkit</title>");
+            expect(home).toContain('content="The toolkit, documented."');
             // Nothing anywhere is a compiled pack.
             expect(fs.existsSync(path.join(dir, "build", "packs"))).toBe(false);
         },
@@ -377,7 +367,7 @@ describe("what the pipeline does with one", () => {
         () => {
             const dir = documentationRepo();
             fs.rmSync(navigationCacheDir(defineConfig(minimal(dir))), { recursive: true });
-            const { out, status } = run(dir, "package-build", "site");
+            const { out, status } = run(dir, "package-build", "site", "build");
 
             expect(status).not.toBe(0);
             expect(out).toMatch(
@@ -385,7 +375,7 @@ describe("what the pipeline does with one", () => {
             );
             // Nothing was written: the sources are read before the output tree is
             // touched, so the previous site is intact to look at.
-            expect(fs.existsSync(path.join(dir, HUGO_SOURCE))).toBe(false);
+            expect(fs.existsSync(path.join(dir, DEPLOY_ROOT))).toBe(false);
         },
         SUBPROCESS_TEST_TIMEOUT,
     );

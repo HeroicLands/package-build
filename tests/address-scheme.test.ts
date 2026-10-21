@@ -76,7 +76,7 @@ describe("a key the configuration does not declare is an unrecognized option", (
         expect(err.field).toBe("publish.address.landing");
     });
 
-    it.each(["trees", "readmeSections", "out", "sections", "landing", "backfillSections", "list"])(
+    it.each(["trees", "readmeSections", "out", "landing", "backfillSections", "list"])(
         "refuses `site.%s` at its field",
         (key) => {
             const err = refusal({ ...minimal(), site: { [key]: [] } });

@@ -27,8 +27,7 @@ import path from "node:path";
 
 import { auditLinks, buildLinkIndex } from "../engine/content-links.mjs";
 import { unlabelledLinkMessage } from "../engine/wikilink-syntax.mjs";
-import { buildWikilinkIndex, convertWikilinks } from "../engine/wikilinks.mjs";
-import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
+import { buildWikilinkIndex, convertWikilinks, resolveWebWikilinks } from "../engine/wikilinks.mjs";
 import { convertNoteWikilinks } from "../engine/helpers.mjs";
 
 /** A throwaway content tree, described as `{ relPath: contents }`. */

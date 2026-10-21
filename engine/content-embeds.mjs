@@ -35,7 +35,7 @@
  *
  * **That is why the rewrite is a source-text pass rather than a markdown-it
  * inline rule.** Two of the four readers have no render pass to put a token in:
- * the website is handed *markdown* for Hugo to render, and the link checker
+ * the website's renderer is handed *markdown*, and the link checker
  * parses nothing at all. A third, the book, reads its staging list out of the
  * source text before it tokenises. A token would therefore serve one reader and
  * leave the other three needing the grammar a second time, which is the drift

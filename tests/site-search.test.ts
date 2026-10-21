@@ -9,7 +9,7 @@
  * The rendered site carries a search index, written by `package-build
  * site-root` after `_headers`.
  *
- * Every package site ends the same way — Hugo renders into the mount's output
+ * Every package site ends the same way — the site render fills the output
  * directory, then `site-root` post-processes it there — so the index is built
  * in that step and lands beside the pages as `<out>/<package>/pagefind/`,
  * served at `/<package>/pagefind/`. `site.search: false` turns it off, and
@@ -66,7 +66,7 @@ function minimal(overrides: Record<string, unknown> = {}) {
     };
 }
 
-/** One rendered page, the shape Hugo writes: a directory holding `index.html`. */
+/** One rendered page, as the site build writes it: a directory holding `index.html`. */
 function page(site: string, slug: string, title: string, body: string): void {
     const dir = slug ? path.join(site, slug) : site;
     fs.mkdirSync(dir, { recursive: true });
@@ -78,8 +78,8 @@ function page(site: string, slug: string, title: string, body: string): void {
 }
 
 /**
- * A deployment directory holding a rendered site of two pages, the way Hugo
- * leaves it for `site-root`.
+ * A deployment directory holding a rendered site of two pages, the way the
+ * site build leaves it for `site-root`.
  *
  * @returns The deployment root and the rendered site inside it.
  */

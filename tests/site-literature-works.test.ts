@@ -13,6 +13,7 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 import { loadForeignIndexes } from "../engine/metadata-index.mjs";
 import { foreignWorksNodes, worksNode, worksPages } from "../engine/literature-works.mjs";
 import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
@@ -68,8 +69,8 @@ const FIXTURE: Record<string, string> = {
 
 describe("the site build sets In song and story on each subject's page", () => {
     let root: string;
-    const published = (rel: string) =>
-        readMatter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8"));
+    let pages: Record<string, string> = {};
+    const published = (rel: string) => readMatter(pages[rel.replace(/^kb\//, "")]);
 
     /** A page's In song and story section, heading to the next heading. */
     const section = (rel: string): string => {
@@ -113,6 +114,7 @@ describe("the site build sets In song and story on each subject's page", () => {
             audience: "public",
         });
         const result = buildSite({ config, sqlTables });
+        pages = builtPages(result);
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.wikiErrors).toEqual([]);
     }, 60_000);

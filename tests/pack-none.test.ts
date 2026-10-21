@@ -34,6 +34,7 @@ import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { emitContentIndex, indexRecordsFor } from "../engine/content-index.mjs";
 import { auditLinks, buildLinkIndex } from "../engine/content-links.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
+import { builtPages } from "./helpers/built-pages";
 
 /* ---------------------------------------------------------------------- */
 /*  Fixtures                                                               */
@@ -529,9 +530,9 @@ describe("a wikilink to a `pack: none` note resolves", () => {
         const result = buildSite({ config });
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.wikiErrors).toEqual([]);
-        const out = path.join(root, "build/hugo/content/kb");
-        expect(fs.existsSync(path.join(out, "doc-architecture.md"))).toBe(true);
-        const combat = fs.readFileSync(path.join(out, "doc-combat.md"), "utf8");
+        const pages = builtPages(result);
+        expect(pages).toHaveProperty(["doc-architecture.md"]);
+        const combat = pages["doc-combat.md"];
         expect(combat).toContain("[Architecture](/sohl/doc-architecture/)");
     });
 });

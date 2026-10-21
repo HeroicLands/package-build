@@ -1,3 +1,0 @@
-{{- warnidf (printf "hero-banner-missing-%s" .name)
-    "hero-banner: no banner named %q in the shared artwork set; falling back to %s/%s. Draw it and add %q to data/banners.yaml, or name a hero image with `data.banner`. Write `data.banner: none` to decline a hero image. First seen on %s."
-    .name .dir .fallback .name .context -}}

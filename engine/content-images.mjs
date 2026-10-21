@@ -344,7 +344,7 @@ export function escapeHtml(text) {
  *
  * **The role class and the `width`/`height` attributes are what a stylesheet
  * elsewhere keys a role's size on.** This module states none — the measure a
- * `portrait` fills on a page is a Hugo theme's or a Foundry system's own
+ * `portrait` fills on a page is a site theme's or a Foundry system's own
  * decision — and emits only what the resolved asset record states: a role
  * class when the picture declares one, and the attributes whenever the
  * picture resolved to an asset record at all, blank for a vector. The
@@ -684,12 +684,11 @@ export function lintContentImages(contentBase, { skipDirectories = [], config, s
 /**
  * Rewrite every block image in a body into the figure the website publishes.
  *
- * **Hugo is handed markdown, not a rendered page.** The site emitter writes a
- * note's body through verbatim, so a `{…}` directive left in it reaches the
- * page as its own literal braces: Goldmark's block-attribute parser is off, and
- * turning it on would accept `style` and `id` alongside the closed vocabularies,
- * which is the injection surface this rule exists to avoid. So the directive is
- * resolved here, into markup Goldmark passes through.
+ * **The directive is resolved before the markdown is parsed.** A `{…}`
+ * directive left in the body would reach the page as its own literal braces: a
+ * block-attribute parser would accept `style` and `id` alongside the closed
+ * vocabularies, which is the injection surface this rule exists to avoid. So
+ * the directive is resolved here, into markup the renderer passes through.
  *
  * An image whose directive does not parse is left exactly as written, so the
  * page shows the braces and the lint says why — the same visible degradation an

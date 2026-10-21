@@ -89,6 +89,22 @@ A line.
   Indented line.
 \`\`\`
 
+\`\`\`verse {numstep=1 lang=en col1=en col2=en/x:en}
+[A verse line]{lang=en}
+
+***
+
+[Another]{lang=en}
+\`\`\`
+
+:@ A picture {#picture .border}
+
+![A picture](images/a.png){size=small float=top-right}
+
+\`\`\`js
+const lantern = "lit"; // a note
+\`\`\`
+
 :::secret
 A **secret** with a footnote.[^one]
 :::

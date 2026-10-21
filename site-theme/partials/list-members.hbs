@@ -1,0 +1,9 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+{{#if listing}}
+  {{#if heading}}
+<h2 class="page-list-heading">{{heading}}</h2>
+  {{/if}}
+{{> page-list listing}}
+{{else if empty}}
+<p class="page-list-empty">Nothing here yet.</p>
+{{/if}}

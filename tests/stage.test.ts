@@ -213,7 +213,7 @@ describe("cleanBuildArtifacts", () => {
         expect(fs.existsSync(path.join(root, "src/keep.ts"))).toBe(true);
     });
 
-    // `sohl-thalorna` also clears the Hugo output beneath `site/`.
+    // `sohl-thalorna` also clears the site output beneath `site/`.
     it("removes the repository's own extra directories", () => {
         const root = tree({ "site/public/index.html": "x", "build/a": "y" });
         expect(cleanBuildArtifacts(root, { extra: ["site/public"] })).toEqual([

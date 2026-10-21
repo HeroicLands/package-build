@@ -43,7 +43,7 @@
  *
  * **There is deliberately no third rule** requiring every note to repeat its
  * own `type-shortcode` address in a top-level `aliases:` list. It would serve
- * no build reader: both resolvers parse the hyphen
+ * no build reader: the resolver and the checker parse the hyphen
  * qualifier themselves.
  *
  * **What is deliberately absent.** Corpus reachability — "every Rules document

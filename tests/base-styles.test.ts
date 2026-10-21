@@ -245,7 +245,7 @@ describe("the generated manifest", () => {
 });
 
 describe("alert presentation on both surfaces", () => {
-    const styles = [baseStylesheetSource(), path.join(ROOT, "hugo-theme/static/css/style.css")];
+    const styles = [baseStylesheetSource(), path.join(ROOT, "site-theme/static/css/style.css")];
     for (const file of styles) {
         it(`styles all four alert types with distinct accents in ${path.relative(ROOT, file)}`, () => {
             const css = readFileSync(file, "utf8");
@@ -292,6 +292,15 @@ describe("what the Foundry renderer emits", () => {
         "```verse {numstep=1 lang=en col1=en col2=en/x:en}\n[A verse line]{lang=en}\n\n***\n\n[Another]{lang=en}\n```",
         ":@ A passage\n\nA paragraph.",
         "| Left | Right |\n| :--- | ---: |\n| a | b |",
+        "```js\nclass A extends B {\n  static run(x) {\n    return `a${x}` + /re/.test(x) ? 1 : null; // note\n  }\n}\nfunction f(a) {}\nf('two');\n```",
+        "```yaml\nkey: value\nlist:\n  - item # note\n```",
+        "```css\n.a > #b[type] a:hover { color: red; }\n```",
+        '```html\n<p class="x">text &amp; <!-- note --></p>\n```',
+        "```diff\n+ added\n- removed\n```",
+        "```markdown\n# Title\n- bullet\n> quote\n*emphasis* **strong** [link](url) `code`\n```",
+        "```python\n@dec\nclass X(Y):\n    def f(self): return self\n```",
+        "```sql\nSELECT a, COUNT(*) FROM t WHERE x = 1\n```",
+        "```bash\necho $HOME | grep -x 'a' # note\n```",
         "[^1]: A footnote.",
     ].join("\n\n");
     const unresolved = convertWikilinks("See [[place-nowhere|Nowhere]].", {
@@ -317,6 +326,8 @@ describe("what the Foundry renderer emits", () => {
     // Font Awesome classes are Foundry's own; figure kinds are styled alike
     // through `.content-figure`, so a kind added later needs no rule.
     const isIcon = (name: string) => /^fa(-|$)/.test(name);
+    // The language a fence names is a hook for a package's own sheet.
+    const isLanguage = (name: string) => /^language-/.test(name);
     const isFigureKind = (name: string) =>
         /^content-figure-/.test(name) && name !== "content-figure-label";
 
@@ -330,6 +341,10 @@ describe("what the Foundry renderer emits", () => {
             "verse-secondary",
             "dictionary",
             "content-figure",
+            "hljs-keyword",
+            "hljs-string",
+            "hljs-comment",
+            "hljs-title",
         ])
             expect(emitted).toContain(name);
         expect(emitted).toContain("sohl-unresolved-link");
@@ -340,7 +355,11 @@ describe("what the Foundry renderer emits", () => {
         const styled = new Set([...css.matchAll(/\.([A-Za-z][\w-]*)/g)].map((match) => match[1]));
         const missing = [...emitted].filter(
             (name) =>
-                !styled.has(name) && !(name in NO_RULE) && !isIcon(name) && !isFigureKind(name),
+                !styled.has(name) &&
+                !(name in NO_RULE) &&
+                !isIcon(name) &&
+                !isFigureKind(name) &&
+                !isLanguage(name),
         );
         expect(missing).toEqual([]);
     });

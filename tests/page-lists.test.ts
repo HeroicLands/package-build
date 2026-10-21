@@ -40,7 +40,7 @@ import {
 } from "../engine/page-lists.mjs";
 import { SQL_FENCE_ATTRIBUTES } from "../engine/sql-tables.mjs";
 import { expandContentTables } from "../engine/content-tables.mjs";
-import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
+import { resolveWebWikilinks } from "../engine/wikilinks.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

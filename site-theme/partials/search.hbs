@@ -1,0 +1,52 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+<div class="site-search" data-pagefind-ignore>
+  <button
+    type="button"
+    class="search-toggle"
+    aria-label="Search"
+    aria-expanded="false"
+    aria-controls="site-search-panel"
+  ><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+  <div id="site-search-panel" class="search-panel" hidden>
+    <div class="search-panel-inner" id="search"></div>
+  </div>
+</div>
+<link rel="stylesheet" href="{{urls.pagefindCss}}">
+<script src="{{urls.pagefindJs}}" defer></script>
+<script>
+(function () {
+  var toggle = document.querySelector(".search-toggle");
+  var panel = document.getElementById("site-search-panel");
+  if (!toggle || !panel) return;
+  var ui = null;
+
+  function open() {
+    panel.hidden = false;
+    toggle.setAttribute("aria-expanded", "true");
+    if (!ui && typeof PagefindUI !== "undefined") {
+      ui = new PagefindUI({{{json searchOptions}}});
+    }
+    var input = panel.querySelector("input");
+    if (input) input.focus();
+  }
+
+  function close() {
+    panel.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+  }
+
+  toggle.addEventListener("click", function () {
+    if (panel.hidden) { open(); } else { close(); }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !panel.hidden) close();
+  });
+
+  document.addEventListener("click", function (e) {
+    if (panel.hidden) return;
+    if (panel.contains(e.target) || toggle.contains(e.target)) return;
+    close();
+  });
+})();
+</script>

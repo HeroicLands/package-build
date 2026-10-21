@@ -21,5 +21,8 @@
         // This published changelog is frozen and ships unchanged. Its existing
         // headings and URL are outside the current prose rules.
         "CHANGELOG-content-build.md",
+
+        // Holds a block fence the format refuses, to prove that it draws nothing.
+        "tests/fixtures/parity/assets/content/Lore/lore-fenced.md",
     ],
 }

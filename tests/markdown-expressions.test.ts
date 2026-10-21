@@ -127,7 +127,7 @@ describe("Markdown expressions", () => {
         expect(numberDigits(1200.5)).toBe("1,200.5");
     });
 
-    it("leaves escaped expressions, Hugo shortcodes, and code examples literal", () => {
+    it("leaves escaped expressions, shortcodes, and code examples literal", () => {
         const source = "\\{{words 12}} {{< photo >}} `{{words 12}}` {{words 12}}";
         expect(renderMarkdownExpressions(source)).toEqual({
             markdown: "\\{{words 12}} {{< photo >}} `{{words 12}}` twelve",
@@ -201,7 +201,7 @@ describe("Markdown expressions", () => {
         ]);
     });
 
-    it("preserves code and Hugo shortcodes and locates invalid expressions", () => {
+    it("preserves code and shortcodes and locates invalid expressions", () => {
         const source =
             '`{{name.full}}` {{< glyph slug="bes" >}}\n{{dateformat "missing" "300.25"}}';
         const result = renderMarkdownExpressions(source, {

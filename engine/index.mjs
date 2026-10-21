@@ -216,6 +216,12 @@ export * as siteBuild from "./site-build.mjs";
 /** In-memory page rendering for an editor preview. */
 export * as sitePreview from "./site-preview.mjs";
 
+/** What an editor with a content index gives the preview, so it renders as the site does. */
+export * as previewIndex from "./preview-index.mjs";
+
+/** The one markdown-it configuration every target renders through. */
+export * as contentRender from "./content-render.mjs";
+
 /** Address rules every content tree is linted against: shape, uniqueness, alias. */
 export * as contentLint from "./content-lint.mjs";
 
@@ -244,9 +250,6 @@ export * as pathnames from "./pathnames.mjs";
 /** Resolving every link in a tree, and the ones that land nowhere. */
 export * as contentLinks from "./content-links.mjs";
 
-/** Wikilinks resolved to a **web URL** — the site half of the pair below. */
-export * as webWikilinks from "./web-wikilinks.mjs";
-
 /** Prepared SQL content tables, expanded into Markdown at compile time. */
 export * as contentTables from "./content-tables.mjs";
 
@@ -262,10 +265,10 @@ export * as documentSubtypes from "./document-subtypes.mjs";
 /** Which types carry documentation of their own, and where it is addressed. */
 export * as itemDocs from "./item-docs.mjs";
 
-/** Wikilinks resolved to a **Foundry UUID**: qualifiers, the index, rewriting. */
+/** The link resolver: the pack index, the views, and each target's link form. */
 export * as wikilinks from "./wikilinks.mjs";
 
-/** What a `[[…]]` is, before either resolver decides where it points. */
+/** What a `[[…]]` is, before the resolver decides where it points. */
 export * as wikilinkSyntax from "./wikilink-syntax.mjs";
 
 /** The address index a site build resolves its wikilinks against. */

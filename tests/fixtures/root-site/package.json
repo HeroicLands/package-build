@@ -1,0 +1,7 @@
+{
+    "name": "rootdemo",
+    "version": "1.0.0",
+    "description": "A root site whose build proves its blog, its sections and its sitemap index.",
+    "homepage": "https://www.example.org/",
+    "author": "Ann Author <ann@example.org>"
+}

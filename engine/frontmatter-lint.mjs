@@ -813,7 +813,7 @@ function checkKeyedMap(note, { field, segments, entries, raw, packs }) {
  * lands at — would mean checking the value against the sections that could
  * exist (every content type, plus whatever a repository configured) rather
  * than against the genres its type declares. Two vocabularies in one field is
- * the cause, and it is removed rather than the symptom: a section is a Hugo
+ * the cause, and it is removed rather than the symptom: a section is a
  * directory the note format does not
  * carry, and a page introducing a type is an ordinary note addressed
  * `doc-<type>`. So the closed list answers for every note, whatever it is

@@ -1,0 +1,18 @@
+{{!-- SPDX-License-Identifier: GPL-3.0-or-later --}}
+{{#each boxes}}
+<details class="info-sidebar info-box{{#if id}} info-box-{{id}}{{/if}}" open data-pagefind-ignore>
+  <summary class="info-sidebar-title"><h2>{{title}}</h2></summary>
+  {{#if statement}}
+  <p class="info-statement">{{statement}}</p>
+  {{else}}
+    {{#each sections}}
+  <section class="info-section{{#if id}} info-section-{{id}}{{/if}}">
+    {{#if label}}
+    <h3 class="info-section-title">{{label}}</h3>
+    {{/if}}
+    {{> infobox-section}}
+  </section>
+    {{/each}}
+  {{/if}}
+</details>
+{{/each}}

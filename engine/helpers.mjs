@@ -25,8 +25,7 @@
  * journals.mjs, actors.mjs).
  */
 
-import { renderAlerts } from "./content-alerts.mjs";
-import { renderRuns } from "./content-scripts.mjs";
+import { createRenderer } from "./content-render.mjs";
 import { buildReferenceTargets } from "./reference-targets.mjs";
 import { standingsDigest } from "./standings.mjs";
 
@@ -39,12 +38,7 @@ import crypto from "crypto";
 import path from "path";
 import yaml from "yaml";
 import unidecode from "unidecode";
-import markdownit from "markdown-it";
-import footnotePlugin from "markdown-it-footnote";
-import deflistPlugin from "markdown-it-deflist";
-import { dictionaryListPlugin } from "./definition-list.mjs";
-import { iconPlugin } from "./content-icons.mjs";
-import { imagePlugin, imagesIn } from "./content-images.mjs";
+import { imagesIn } from "./content-images.mjs";
 import { embedRole, resolveEmbeds } from "./content-embeds.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { assetImageInfoByPathname } from "./art-fields.mjs";
@@ -67,19 +61,15 @@ import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs
 // a record needs none of that.
 import { authoredFrontmatter, isAssetRecord, isNoteRecord, noteFile } from "./index-records.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
-// One vocabulary of link findings, and one message per class, so the three
-// resolvers cannot word the same defect differently.
+// One vocabulary of link findings, and one message per class, so no two
+// builds word the same defect differently.
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
 // The declared tag vocabulary, which is where `draft` is stated. Read
 // from there rather than respelt, so the tag and its one reader cannot drift.
 import { isGmNote, isDraftNote } from "./note-vocabulary.mjs";
 import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { spanMarkdownPlugin } from "./content-spans.mjs";
-import { dictionaryEntryPlugin } from "./dictionary-layout.mjs";
-import { renderBlocks } from "./content-blocks.mjs";
-import { headingAttributesPlugin } from "./heading-attributes.mjs";
-import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
+import { scanFigures } from "./content-figures.mjs";
 import { positionInBody, splitFrontmatter } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
 // registry can import them without reaching back through this one.
@@ -100,72 +90,68 @@ export {
 let localAssetImageInfoCache;
 
 /**
- * The markdown renderer every surface shares.
+ * The Foundry renderer: the shared configuration of
+ * {@link module:engine/content-render.createRenderer} for the `foundry`
+ * target.
  *
  * `html: true` is long-standing and load-bearing — notes carry raw blocks — and
  * it is also why {@link module:engine/content-icons} exists rather than an
  * instruction to write `<i class="fa-solid …">` by hand: that would render on
  * the two HTML surfaces and be silently dropped by the third.
+ *
+ * The icon registry and the image resolvers are read per render, not at import:
+ * this constant is built before any configuration is read, and a package's own
+ * icons live in the configuration. A tree with none — or a caller with no
+ * configuration to find — falls back to the shipped table and to the authored
+ * pathname.
  */
-export const md = markdownit({ html: true })
-    .use(footnotePlugin)
-    .use(deflistPlugin)
-    .use(dictionaryListPlugin)
-    .use(spanMarkdownPlugin, { spoilers: true })
-    .use(dictionaryEntryPlugin)
-    // A heading's attribute block, written onto the heading element rather than
-    // typeset into it — the reading the website's renderer does for itself.
-    .use(headingAttributesPlugin)
-    .use(
-        // Resolved per render, not at import: this constant is built before any
-        // configuration is read, and a package's own icons live in the
-        // configuration. A tree with none — or a caller with no configuration to
-        // find — falls back to the shipped table.
-        iconPlugin(() => {
-            try {
-                return loadPackConfig().icons;
-            } catch {
-                return undefined;
-            }
-        }),
-    )
+const renderer = createRenderer("foundry", {
+    icons: () => {
+        try {
+            return loadPackConfig().icons;
+        } catch {
+            return undefined;
+        }
+    },
     // The width and position an image states, honoured as a figure. The
     // vocabularies are closed and need no configuration; the address does, and
     // is resolved per render for the reason the icon registry is — Foundry
     // serves a file from inside the install, so a body image's address is
     // translated by the same rule `img:` follows.
-    .use(
-        imagePlugin(
-            (src) => {
-                // **Reported upstream, never here.** A renderer has no channel to
-                // report through, and this one runs inside the very passes whose
-                // job is to collect findings — a throw would take the whole lint
-                // down and lose every other finding in the tree. So nothing reaches
-                // this point unreported: {@link convertNoteWikilinks} refuses a body
-                // image with no address inside the install before a compiler renders
-                // one, and the address passes report the same pathname with a line
-                // and a column. What is left here is a fallback for a caller with no
-                // configuration to resolve against, where the authored pathname is
-                // the most honest thing to emit.
-                try {
-                    return resolveImg(src, loadPackConfig()) ?? src;
-                } catch {
-                    return src;
-                }
-            },
-            (src) => {
-                // A body image is free to write the bare, own-package form,
-                // so the address is normalized to the pathname the cache
-                // below keys by before it is looked up.
-                try {
-                    const key = assetPathnameKey(src, loadPackConfig());
-                    return key ? localAssetImageInfo().get(key) : undefined;
-                } catch {
-                    return undefined;
-                }
-            },
-        ),
-    );
+    images: {
+        resolveSrc: (src) => {
+            // **Reported upstream, never here.** A renderer has no channel to
+            // report through, and this one runs inside the very passes whose
+            // job is to collect findings — a throw would take the whole lint
+            // down and lose every other finding in the tree. So nothing reaches
+            // this point unreported: {@link convertNoteWikilinks} refuses a body
+            // image with no address inside the install before a compiler renders
+            // one, and the address passes report the same pathname with a line
+            // and a column. What is left here is a fallback for a caller with no
+            // configuration to resolve against, where the authored pathname is
+            // the most honest thing to emit.
+            try {
+                return resolveImg(src, loadPackConfig()) ?? src;
+            } catch {
+                return src;
+            }
+        },
+        lookupAsset: (src) => {
+            // A body image is free to write the bare, own-package form,
+            // so the address is normalized to the pathname the cache
+            // below keys by before it is looked up.
+            try {
+                const key = assetPathnameKey(src, loadPackConfig());
+                return key ? localAssetImageInfo().get(key) : undefined;
+            } catch {
+                return undefined;
+            }
+        },
+    },
+});
+
+/** The Foundry renderer's parser, for callers that parse or render a fragment. */
+export const md = renderer.md;
 
 /**
  * The pictures this package's own tree ships, by the pathname their address
@@ -194,25 +180,6 @@ function localAssetImageInfo() {
     return localAssetImageInfoCache;
 }
 
-md.renderer.rules.footnote_block_open = () =>
-    '<section class="footnotes"><h2>Footnotes</h2><ol class="footnotes-list">\n';
-md.renderer.rules.footnote_caption = (tokens, idx, _options, env) => {
-    const meta = tokens[idx].meta;
-    const number = env.footnoteNumbers?.get(meta.label) ?? meta.id + 1;
-    return `[${number}${meta.subId > 0 ? `:${meta.subId}` : ""}]`;
-};
-md.renderer.rules.footnote_anchor_name = (tokens, idx, _options, env) => {
-    const meta = tokens[idx].meta;
-    const number = env.footnoteNumbers?.get(meta.label) ?? meta.id + 1;
-    return `${env.docId ? `-${env.docId}-` : ""}${number}`;
-};
-md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
-    const meta = tokens[idx].meta;
-    const number = env.footnoteNumbers?.get(meta.label) ?? meta.id + 1;
-    const id = renderer.rules.footnote_anchor_name(tokens, idx, options, env, renderer);
-    return `<li id="fn${id}" class="footnote-item" value="${number}">`;
-};
-
 /**
  * Render a note body with Foundry's named-block markup.
  *
@@ -232,12 +199,7 @@ md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
  * @returns {string} The rendered HTML.
  */
 export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, resolveRole, runs) {
-    const marked = runs ? renderRuns(body, runs, undefined, { target: "foundry" }).markdown : body;
-    const figured = renderFigureBlocks(marked, (block) => md.render(block), figures, {
-        resolveRole,
-    });
-    const blocks = renderBlocks(figured.markdown, "foundry");
-    return md.render(renderAlerts(blocks.markdown, "foundry").markdown, { footnoteNumbers, docId });
+    return renderer.render(body, { runs, figures, resolveRole, footnoteNumbers, docId });
 }
 
 /**
@@ -983,7 +945,7 @@ export function buildContentLinkIndex(
  * @param {number} [ctx.bodyLine] - 1-based file line of the body's first line.
  * @param {number} [ctx.bodyColumn] - 1-based file column of the same character.
  * @param {Array<{line: number, generated: boolean}>} [ctx.lineMap] - Which
- *   authored line each body line came from, from {@link expandNoteTables}.
+ *   authored line each body line came from, from {@link module:engine/content-tables.expandContentTables}.
  * @returns {{markdown: string, unresolved: Array<object>}}
  * @throws {Error} On any link that does not resolve — an unlabelled one, a
  *   target that is not an address, or an address nothing publishes — and on a
@@ -1086,11 +1048,9 @@ export function convertNoteWikilinks(
     }
 
     for (const u of result.unresolved) {
-        // Every class fails, and every class is worded by the shared table.
-        // The three resolvers read one authored link, so an author who
-        // ran the pack build first and the link checker second must not be told
-        // two different things about the same mistake — and a class the pack
-        // build alone knew how to describe is how they came apart before.
+        // Every class fails, and every class is worded by the shared table,
+        // so an author who ran the pack build first and the link checker second
+        // is told one thing about one mistake.
         //
         // The note's name is appended rather than woven in: the message is the
         // defect, the name is the context this build can add.

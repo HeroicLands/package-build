@@ -36,7 +36,7 @@
  * ## Links, and the one rule that decides them
  *
  * A wikilink is already resolved to a URL before this module sees it — by the
- * same {@link module:engine/web-wikilinks} pass the site uses, so the two
+ * same {@link module:engine/wikilinks} resolver the site uses, so the two
  * surfaces cannot disagree about where a link points. What differs is what a
  * *book* does with the answer:
  *
@@ -61,19 +61,10 @@
  * @module
  */
 
-import MarkdownIt from "markdown-it";
-import footnotePlugin from "markdown-it-footnote";
-import deflistPlugin from "markdown-it-deflist";
-
+import { createRenderer } from "./content-render.mjs";
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
-import { iconPlugin, ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
-import {
-    IMAGE_CLASSES,
-    IMAGE_FLOATS,
-    IMAGE_PATTERN,
-    checkImages,
-    imagePlugin,
-} from "./content-images.mjs";
+import { ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
+import { IMAGE_CLASSES, IMAGE_FLOATS, IMAGE_PATTERN, checkImages } from "./content-images.mjs";
 import { bookImageWidthIn } from "./pdf-images.mjs";
 import { CHRONOLOGY_SLUG } from "./generated-sections.mjs";
 
@@ -89,15 +80,14 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
 import { markupAnchorFindings } from "./anchors.mjs";
 import { indexChapter, indexMarker, indexPreamble } from "./pdf-index.mjs";
 import { slugify } from "./content-slug.mjs";
-import { alertMarkdownPlugin, scanAlerts, ALERT_TYPES } from "./content-alerts.mjs";
-import { spanMarkdownPlugin, scanSpans } from "./content-spans.mjs";
+import { scanAlerts, ALERT_TYPES } from "./content-alerts.mjs";
+import { scanSpans } from "./content-spans.mjs";
 import { GENERIC_FONTS, renderRuns, scanRuns } from "./content-scripts.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
 import {
     COLUMNS_CLASS,
     STANZA_BREAK,
-    inlineVerse,
     lineNumber,
     rightToLeft,
     scanVerse,
@@ -107,6 +97,8 @@ import {
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { HTML_TAG, htmlMessage } from "./content-html.mjs";
 import { EXPRESSION } from "./markdown-expressions.mjs";
+import { inlineText } from "./name-markup.mjs";
+import { cartouchePathname, glyphPathname, humanizeSlug, typstLength } from "./content-glyphs.mjs";
 import { WIKILINK } from "./wikilink-syntax.mjs";
 import { EMBED_PATTERN } from "./content-embeds.mjs";
 import { positionInBody } from "./diagnostics.mjs";
@@ -196,46 +188,10 @@ export function labelFor(anchor) {
     );
 }
 
-/** The tag {@link module:engine/content-scripts.renderRuns} writes for emphasis in a script. */
-const SCRIPT_EMPHASIS_OPEN = /^<(em|strong) class="emph-(rubric|overline)">/;
-
 /**
- * Read the emphasis a script run's convention sets: an `<em>` or a `<strong>`
- * carrying `emph-rubric` or `emph-overline`, which
- * {@link module:engine/content-scripts.renderRuns} writes, and the closing tag
- * that matches one. Nothing else that looks like HTML is read.
- *
- * @param {import("markdown-it")} md - The parser.
- */
-function scriptEmphasisPlugin(md) {
-    md.inline.ruler.before("text", "script_emphasis", (state, silent) => {
-        if (state.src.charCodeAt(state.pos) !== 0x3c) return false;
-        const rest = state.src.slice(state.pos);
-        const open = SCRIPT_EMPHASIS_OPEN.exec(rest);
-        if (open) {
-            if (!silent) {
-                const token = state.push("script_emphasis_open", open[1], 1);
-                token.meta = { convention: open[2] };
-            }
-            state.pos += open[0].length;
-            return true;
-        }
-        const close = /^<\/(em|strong)>/.exec(rest);
-        if (!close) return false;
-        let depth = 0;
-        for (const token of state.tokens) {
-            if (token.type === "script_emphasis_open" && token.tag === close[1]) depth++;
-            else if (token.type === "script_emphasis_close" && token.tag === close[1]) depth--;
-        }
-        if (depth <= 0) return false;
-        if (!silent) state.push("script_emphasis_close", close[1], -1);
-        state.pos += close[0].length;
-        return true;
-    });
-}
-
-/**
- * A markdown-it configured to parse, not to render.
+ * The shared parser configured for the book: the `book` target of
+ * {@link module:engine/content-render.createRenderer}, which parses and leaves
+ * the output to this module's Typst stage.
  *
  * `html: false` is the load-bearing setting: raw HTML in a note has no route to
  * Typst at all, which is why {@link module:engine/content-html} reports it. With
@@ -248,33 +204,7 @@ function scriptEmphasisPlugin(md) {
  * @returns {object} A markdown-it instance.
  */
 export function createParser(registry) {
-    const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
-    md.use(footnotePlugin);
-    md.use(alertMarkdownPlugin);
-    md.use(spanMarkdownPlugin);
-    // Verse is held inside a literal fence. Parse its inline content before
-    // footnote_tail collects definitions, using the surrounding note's env.
-    md.core.ruler.after("inline", "verse_inline", (state) => {
-        for (const token of state.tokens) {
-            if (token.type !== "fence" || !/^verse(?:\s|$)/.test(token.info?.trim() || ""))
-                continue;
-            token.meta ??= {};
-            token.meta.verseStanzas = verseStanzas(token.content).map((stanza) =>
-                stanza.map(({ text, level }) => {
-                    const children = [];
-                    state.md.inline.parse(inlineVerse(text), state.md, state.env, children);
-                    return { children, level };
-                }),
-            );
-        }
-    });
-    md.use(scriptEmphasisPlugin);
-    md.use(deflistPlugin);
-    md.use(iconPlugin(registry));
-    // The same plugin the HTML surfaces use, so one directive is read once and
-    // three renderers read the same `meta` off the same token.
-    md.use(imagePlugin());
-    return md;
+    return createRenderer("book", { icons: registry }).md;
 }
 
 /**
@@ -1426,6 +1356,12 @@ function renderInline(token, ctx) {
                 out.push(inlineRaw(child.content));
                 break;
             case "span_open": {
+                const sign = renderGlyph(children, i, ctx) ?? renderCartouche(children, i, ctx);
+                if (sign) {
+                    out.push(sign.typst);
+                    i = sign.close;
+                    break;
+                }
                 // Inline secrecy has no print presentation; other classes and ids survive.
                 const classes = (child.attrGet?.("class") ?? "")
                     .split(/\s+/)
@@ -1522,6 +1458,74 @@ function renderInline(token, ctx) {
         }
     }
     return out.join("");
+}
+
+/**
+ * A glyph span as the picture the book carries, or as its label when the
+ * package ships no file for it.
+ *
+ * @param {object[]} children - Inline children.
+ * @param {number} i - The index of a `span_open`.
+ * @param {object} ctx - Render context.
+ * @returns {{typst: string, close: number}|undefined} The Typst and the index
+ *   of the closing token; `undefined` when the span is not a well-formed glyph.
+ */
+function renderGlyph(children, i, ctx) {
+    const open = children[i];
+    const classes = (open.attrGet?.("class") ?? "").split(/\s+/);
+    const slug = open.attrGet?.("slug");
+    if (!classes.includes("glyph") || !slug || open.meta?.problems?.length) return undefined;
+    const close = childMatching(children, i, "span_open", "span_close");
+    const label = inlineText(children.slice(i + 1, close)).trim() || humanizeSlug(slug);
+    const staged = ctx.images.get(glyphPathname(slug));
+    if (!staged) return { typst: escapeTypst(label), close };
+    const picture = `image("${escapeTypstString(staged)}", height: 1.8em)`;
+    const frame = open.attrGet?.("frame");
+    const typst =
+        frame === "tablet" ?
+            `#box(fill: rgb("#ece1c8"), inset: (x: 0.3em, y: 0.15em), radius: 0.2em, baseline: 25%, ${picture})`
+        : open.attrGet?.("size") === "block" ? `#align(center, ${picture})`
+        : `#box(baseline: 25%, ${picture})`;
+    return { typst, close };
+}
+
+/**
+ * A cartouche span as the figure the book prints. Print cannot wrap text
+ * around it, so `align` places the figure between the lines of its sentence.
+ *
+ * @param {object[]} children - Inline children.
+ * @param {number} i - The index of a `span_open`.
+ * @param {object} ctx - Render context.
+ * @returns {{typst: string, close: number}|undefined} The Typst and the index
+ *   of the closing token; `undefined` when the span is not a well-formed
+ *   cartouche.
+ */
+function renderCartouche(children, i, ctx) {
+    const open = children[i];
+    const classes = (open.attrGet?.("class") ?? "").split(/\s+/);
+    const slug = open.attrGet?.("slug");
+    if (!classes.includes("cartouche") || !slug || open.meta?.problems?.length) return undefined;
+    const close = childMatching(children, i, "span_open", "span_close");
+    const align = open.attrGet?.("align");
+    const height = open.attrGet?.("height");
+    const caption = open.attrGet?.("caption");
+    const alt = inlineText(children.slice(i + 1, close)).trim();
+    const staged = ctx.images.get(cartouchePathname(slug));
+    const label = caption ? escapeTypst(caption) : "";
+    const text = (content) => `#text(size: 7.6pt, style: "italic", fill: luma(45%))[${content}]`;
+    if (!staged) {
+        const shown = label || escapeTypst(alt || humanizeSlug(slug));
+        return { typst: `\n#align(center, ${text(shown)})\n`, close };
+    }
+    const size =
+        height ? typstLength(height)
+        : align ? "7em"
+        : "10em";
+    const picture = `image("${escapeTypstString(staged)}", height: ${size})`;
+    return {
+        typst: `\n#align(${align ?? "center"}, block(breakable: false)[#${picture}${label ? ` \\ ${text(label)}` : ""}])\n`,
+        close,
+    };
 }
 
 /**
