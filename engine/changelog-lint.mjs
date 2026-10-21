@@ -553,7 +553,7 @@ function checkTooManyBullets(bullets) {
             severity: "error",
             message:
                 `changelog-check/too-many-bullets ${bullets.length} top-level bullets is an ` +
-                `itemized log, not a release note — one to six, so a reader sees the shape ` +
+                `itemized log, not a release note — at most ${MAX_TOP_BULLETS}, so a reader sees the shape ` +
                 "of the release at a glance",
         },
     ];
