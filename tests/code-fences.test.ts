@@ -152,8 +152,8 @@ describe("matchAllOutsideCode", () => {
 
 describe("verse inline content", () => {
     it("rewrites verse links while protecting inline code and fence attributes", () => {
-        expect(rewrite('```verse {meter="[[literal]]"}\n  [[verse]] `[[code]]`\n```')).toBe(
-            '```verse {meter="[[literal]]"}\n  X `[[code]]`\n```',
+        expect(rewrite('```verse {form="[[literal]]"}\n  [[verse]] `[[code]]`\n```')).toBe(
+            '```verse {form="[[literal]]"}\n  X `[[code]]`\n```',
         );
     });
     it("protects verse inside an outer code example", () => {

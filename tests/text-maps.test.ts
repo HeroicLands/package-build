@@ -358,7 +358,7 @@ describe("the lint of `data.map`", () => {
 
     it("reports a key the map does not declare, and a missing one", () => {
         expect(lint({ map: { name: "m", row: [] } })).toEqual([
-            '10:5: "row" is not a key of `data.map`; it takes only `name`, `vowels`, `rows`, `fonts`. Did you mean "rows"?',
+            '10:5: "row" is not a key of `data.map`; it takes only `name`, `logographic`, `vowels`, `rows`, `fonts`. Did you mean "rows"?',
             "8:3: `data.map` must state `rows` — list of `[from, to]` or `{ from, to, before?, at? }`",
         ]);
     });

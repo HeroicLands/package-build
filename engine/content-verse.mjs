@@ -164,9 +164,7 @@ export const COLUMNS_CLASS = "verse-columns";
  */
 export const VERSE_KEYS = Object.freeze([
     "form",
-    "meter",
-    "rhyme",
-    "syllables",
+    "scan",
     "lang",
     "font",
     "map",
@@ -222,15 +220,6 @@ export function scanVerse(source) {
                         columned ?
                             verseGroups(block, lines).filter((group) => !group.stanzaBreak).length
                         :   verseLines(body).length;
-                    if (
-                        opening.attributes.syllables &&
-                        opening.attributes.syllables.split(",").length !== count
-                    )
-                        errors.push({
-                            line: opening.start + 1,
-                            column: 1,
-                            message: `verse syllables= gives ${opening.attributes.syllables.split(",").length} counts for ${count} verse lines`,
-                        });
                     if (columned) errors.push(...columnFindings(block, lines));
                     blocks.push(block);
                 }
@@ -270,17 +259,16 @@ export function scanVerse(source) {
                     message: `\`${key}=\` is not a column: a verse has at most two, \`col1=\` and \`col2=\``,
                 });
             else if (!VERSE_KEYS.includes(key))
-                errors.push({ ...at, message: `${key}= is not a verse attribute` });
+                errors.push({
+                    line: i + 1,
+                    column: keyColumn(lines[i], key),
+                    message: `${key}= is not a verse attribute`,
+                });
             else if (key === "numstep" && !/^\d+$/.test(value))
                 errors.push({
                     line: i + 1,
                     column: keyColumn(lines[i], key),
                     message: "verse numstep= numbers every Nth line: a whole number, 0 for none",
-                });
-            else if (key === "syllables" && !/^[1-9]\d*(?:,[1-9]\d*)*$/.test(value))
-                errors.push({
-                    ...at,
-                    message: "verse syllables= needs positive comma-separated counts",
                 });
         }
     }

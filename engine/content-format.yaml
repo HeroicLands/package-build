@@ -207,6 +207,7 @@ types:
             - names
             - family
             - abbreviation
+            - core
             - classModifiers
             - fields
             - words
@@ -365,7 +366,9 @@ types:
     doc:
         data:
             - culture
+            - concepts
             - map
+            - metres
         subTypes:
             - rules
             - userguide

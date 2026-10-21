@@ -2055,12 +2055,13 @@ data:
       - { from: y, to: "\U000F0246", before: consonant }
 ```
 
-| Key      | Shape                                                | Meaning                                                                         |
-| -------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `name`   | string, required                                     | What `map=` names it by: lowercase letters, digits and `-`, unique in the index |
-| `vowels` | string                                               | The characters `before: vowel` reads as vowels                                  |
-| `fonts`  | list of `{ font, rows? }`, required, at least one    | The faces the map is drawn in, by slug, each with any rows of its own           |
-| `rows`   | list of `[from, to]` or `{ from, to, before?, at? }` | The shared rewrites, in authored order                                          |
+| Key           | Shape                                                | Meaning                                                                         |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `name`        | string, required                                     | What `map=` names it by: lowercase letters, digits and `-`, unique in the index |
+| `logographic` | `true`                                               | The script writes meanings; see [a logographic map](#a-logographic-map)         |
+| `vowels`      | string                                               | The characters `before: vowel` reads as vowels                                  |
+| `fonts`       | list of `{ font, rows? }`, required, at least one    | The faces the map is drawn in, by slug, each with any rows of its own           |
+| `rows`        | list of `[from, to]` or `{ from, to, before?, at? }` | The shared rewrites, in authored order                                          |
 
 **A face's own rows come first.** A run in a face tries that face's `rows`,
 the longest match among them, and only where none matches the shared `rows`; a
@@ -2116,6 +2117,8 @@ The map's own check reports the rest, each at its key:
 > `` `data.map.fonts` is empty; a map lists each face it is drawn in ``
 
 > `` `data.map.fonts[0].font` is `mono`, a generic family; a map lists the faces it is drawn in ``
+
+> `` `data.map.rows[2]` matches `z`, a letter, and the rows of a logographic map write only the text between words ``
 
 The lint checks the listed faces against the installed `@heroiclands/fonts`,
 each at the entry or the row at fault. Every listed face draws every code point
@@ -2231,6 +2234,135 @@ every word with its native form, through the same code as the build: see
 [`transliterate`](../commands.md#package-build-transliterate-map-text) and
 [`lexicon`](../commands.md#package-build-lexicon-language).
 
+#### Metres
+
+A verse fence that states `scan=` is counted against a metre declared in a
+`doc` note's `data.metres`, each entry `{ name, beats, kind }`. `name` is
+lowercase letters, digits and `-`, unique in the package, and a name declared
+twice is an error at the second. `beats` is a whole number above zero. `kind` is
+`accentual`: a beat falls on a stressed syllable, and no syllable's length is
+counted.
+
+The fence states `lang=` with a language whose `note` names a language note
+stating `data.sounds.stress` (see [a language's register, sounds and
+history](#a-languages-register-sounds-and-history)). A word has one beat on its
+stressed syllable when it has two or more syllables; a one-syllable word has a
+beat when the `class` base of its lexicon entry is `n`, `v`, `adj`, `num` or
+`name`, and none when it is any other base; a one-syllable word the lexicon
+does not hold is counted as a content word; a word whose entries differ in
+class is a beat that may be left out; and a word of four or more syllables
+whose stress is not on its first may take a second beat there. A line scans when
+its count can be the metre's.
+
+| Finding                                                                                         | Severity |
+| ----------------------------------------------------------------------------------------------- | -------- |
+| A line whose beats cannot be the metre's, at the line                                           | warning  |
+| A `scan=` no `data.metres` entry names, at the value                                            | error    |
+| A `scan=` on a fence with no `lang=`, at the key                                                | error    |
+| A `scan=` on a fence whose language states no stress rule or names no language note, at `lang=` | error    |
+| A `scan=` on a verse in columns, at the key                                                     | error    |
+
+> ``this line has 4 beats (5 with secondary beats); the metre `hexameter` has 6``
+
+The count is an author-side check. The rendered fence carries `data-scan` with
+the metre's name and nothing a reader sees.
+
+#### A logographic map
+
+A map stating `logographic: true` writes meanings, so its rows spell no word.
+Every word of a run under it is written from the run language's lexicon, and
+the rows write only the text between words: whitespace, points and any other
+text holding no letter. A word holds at least one letter; a run of digits is
+text between words. A word is matched case folded, NFC, with `’` read as `'`,
+and written by the first of these that gives a writing:
+
+1. **The entries of its form.** Each entry whose `form`, folded, is the word,
+   and failing that each whose folded `form` with its joining hyphens taken
+   off is the word (`Gar-` for `gar`). An entry is written by its own `native`
+   for the map, the one for the run's face where it states one, else the one
+   for no face; else by its `built` pieces' writings joined in order.
+2. **A derived form.** A noun's plural (its own `plural`, else the
+   `data.grammar.plural` rule) and a verb's present form for one person of
+   `data.grammar.verbs.persons` are written by the stem's entry's writing,
+   followed by the `text` of the `data.grammar.native` entry for that ending.
+   Other derived forms (a replacing suffix, an agreeing form, a participle)
+   have no writing of their own here; they are coined as words, or written in
+   signs.
+3. **Its hyphenated parts.** A word holding a hyphen or an en dash that the
+   steps above do not write is written by each part in turn, each by steps 1
+   and 2; the hyphen writes nothing.
+
+A `built` piece is a word of the lexicon written exactly as the piece, else an
+affix of `data.affixes` whose `form` or `front` is the piece, else either one
+with joining hyphens taken off; a word piece is written by its own `native` or
+its own pieces, recursively, and an affix by its own `native`. A piece that
+reaches a word already being resolved has no writing.
+
+**Ambiguity.** Where a step matches more than one entry and their writings are
+not all one text, or one has a writing and another none, the word has no
+writing and is an error naming every entry's gloss. A part matched that way
+makes the word ambiguous the same way, naming the part.
+
+| Key                            | Shape                                                   | Meaning                                                 |
+| ------------------------------ | ------------------------------------------------------- | ------------------------------------------------------- |
+| `data.affixes[].native`        | list of `{ map, font?, text }`                          | The affix's writing, for a `built` piece naming it      |
+| `data.grammar.native`          | list of `{ ending, map, font?, text }`                  | The signs a derived form takes after its stem's writing |
+| `data.grammar.native[].ending` | `plural`, `I`, `you`, `heShe`, `we`, `youAll` or `they` | The ending written                                      |
+| `data.grammar.native[].text`   | string, required, may be empty                          | The ending's signs; empty writes the stem alone         |
+
+```yaml
+affixes:
+  - form: "-unet"
+    gloss: "a thing made of"
+    native:
+      - { map: zethu, text: "\U0001EBC7" }
+grammar:
+  plural:
+    - { ending: "", becomes: "im" }
+  verbs:
+    persons: { I: en, you: et, heShe: "", we: enu, youAll: etu, they: ar }
+  native:
+    - { ending: plural, map: zethu, text: "\U0001EBE1" }
+    - { ending: I, map: zethu, text: "\U0001EBDF" }
+```
+
+A word with no writing, an ambiguous word, and a word in a run with no lexicon
+to write it from are each an error at the word, once per run:
+
+> `` `zamlu` has no `zethu` writing in the `khel` lexicon, and its parts do not give one; state one, or write the word directly in signs ``
+
+> `` `nelgir` stands for 2 words of the `khel` lexicon that the map `zethu` writes differently, “a god” and “god”; write the word directly in signs, choosing by its sense in `package-build lexicon khel --map zethu` ``
+
+> `` `Gar-nelgir` is written from its part `nelgir`, which stands for 2 words of the `khel` lexicon that the map `zethu` writes differently, “a god” and “god”; write the word directly in signs, choosing by its sense in `package-build lexicon khel --map zethu` ``
+
+> `` `halzi` has no `zethu` writing: the map `zethu` is logographic, and the run names no `lang=` whose lexicon writes it; mark the run with its language, or write the word directly in signs ``
+
+> `` `halzi` has no `zethu` writing: the map `zethu` is logographic, and `tant` has no lexicon (`languages.tant.note`) to write it from; write the word directly in signs ``
+
+Signs typed in the run hold no letter, so they are no word and pass through as
+typed. The face-coverage check reads the writings as it reads native forms; a
+word with no writing is reported by its own finding alone. The lexicon check
+and the register check apply to the run as to any mapped run.
+
+Under a logographic map a word's `native` is its writing and is not compared
+with the rows. An affix's `native` and `data.grammar.native` are read only by
+a logographic map, so an entry naming any other map is an error, as is an
+ending of a person where the pattern states no `persons`. The checks of a
+word's `native` (an unknown map, a face the map is not for, a second entry, an
+undrawn code point) apply to both, a second entry being one for the same
+ending, map and face:
+
+> `` `data.affixes[0].native[0]` names the map `roman`, which is not logographic; an affix is written by a native form only under a logographic map ``
+
+> `` `data.grammar.native[0]` names the map `roman`, which is not logographic; an ending is written by a native form only under a logographic map ``
+
+> `` `data.grammar.native[2]` states a second native form of the ending `plural` for the map `zethu`; the first is `data.grammar.native[1]` ``
+
+> `` `data.grammar.native[3]` writes the ending `they`, and `data.grammar.verbs` states no `persons` ``
+
+Affix and ending writings are not rows of the `natives` relation, which holds
+the words' native forms; `package-build lexicon` resolves them.
+
 #### Script notes and emphasis
 
 A `skill` note of `subType: script` states the faces its script is written in
@@ -2247,7 +2379,7 @@ data:
 - **`fonts`** lists installed faces by the slug `font=` names them by, at least
   one. A face belongs to one script.
 - **`emphasis`** is `rubric` or `overline`, and sets both `*…*` and `**…**`
-  inside a run in one of the faces.
+  (or `_…_` and `__…__`) inside a run in one of the faces.
 - **`strongEmphasis`**, optional, is `rubric` or `overline`, and sets `**…**`
   alone.
 
@@ -2255,6 +2387,10 @@ A `skill` note of `subType: language` may state `data.emphasis`: `words`,
 `rubric` or `overline`. It overrides the script's convention in every run of the
 language. `words` means the language marks emphasis with a word, so `*…*` or
 `**…**` in a run of the language is an error at the emphasis.
+
+Inside a run in a face, `_…_` is emphasis equal to `*…*`, and `__…__` equal to
+`**…**`; Markdown reads them as the same emphasis, and a formatter writes the
+underscore form. A strikethrough is an error.
 
 A run's convention is its `lang=` language's `data.emphasis`, read through
 [`languages.<name>.note`](../configuration.md#languages); else the
@@ -2291,7 +2427,7 @@ Each of these is an error at the key or the entry at fault:
 
 In a run:
 
-> ``text marked `lang=prv font=semaron-kuriale map=semaron` takes emphasis only as `*…*` or `**…**` ``
+> ``text marked `lang=prv font=semaron-kuriale map=semaron` takes emphasis only as `*…*`, `_…_`, `**…**` or `__…__` ``
 
 > `` `vyl` marks emphasis with a word, not a mark; write the word ``
 
@@ -3414,7 +3550,7 @@ for the keys.
 | `letters`        | `data.sounds.letters`           | `letters` (a list), `kind`, `like`, `place`, `tongue` (a list, `NULL` for every tongue)                                                                                                                                                                                                                                                                                    |
 | `edges`          | `data.sounds.edges`             | `edge`, `sounds` (a list: `[any]` for every sound, empty for none)                                                                                                                                                                                                                                                                                                         |
 | `clusters`       | `data.sounds.clusters`          | No `position`: `max`, one row per language stating it                                                                                                                                                                                                                                                                                                                      |
-| `stress`         | `data.sounds.stress`            | No `position`: `stress`, one row per language stating it                                                                                                                                                                                                                                                                                                                   |
+| `stress`         | `data.sounds.stress`            | No `position`: `two`, `longer` and `mark` (`NULL` where unstated), one row per language stating it                                                                                                                                                                                                                                                                         |
 | `finals`         | `data.sounds.finals`            | `final`, `like`                                                                                                                                                                                                                                                                                                                                                            |
 | `syllables`      | `data.sounds.syllables`         | No `position`, one row per language stating it: `onsets`, `codas`, `finals`, `doubled`, `vowelPairs`, `neverInitial` and `signature` (lists, `any` a list of one), `initialVowel` and `finalVowel` (`true` or `false`), and the harmony as `harmony_back`, `harmony_front`, `harmony_neutral`, `harmony_neutralAs` and `harmony_partners` (a list of `{ vowel, partner }`) |
 | `joining`        | `data.sounds.joining`           | `first` and `second` (lists), `written`, `example`                                                                                                                                                                                                                                                                                                                         |
@@ -5958,6 +6094,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `names.<name>`                             | `string[]`                                                                                                                     | A list the placeholder of the same name draws from                                                                                                                                             |
 | `family`                                   | `Address`                                                                                                                      | `language` only: the parent language, naming a skill note with `subType: language`; this language reads the parent's words as its own — see [a language's words](#a-languages-words)           |
 | `abbreviation`                             | `string`                                                                                                                       | `language` only: the tag a dictionary prints for it, as `Prov.`; its full name where unstated — see [dictionaries and glossaries](#dictionaries-and-glossaries)                                |
+| `core`                                     | `boolean`                                                                                                                      | `language` only: `true` where the language must cover the [core vocabulary](#the-core-vocabulary)                                                                                              |
 | `grammar`                                  | `{ plural?, verbs?, agreement?, participles? }`                                                                                | Optional noun plurals, one verb pattern, agreement and participles; supplied shapes only are checked                                                                                           |
 | `grammar.plural`                           | `{ ending, becomes }[]`                                                                                                        | Literal suffix replacements in authored order; the first match wins                                                                                                                            |
 | `grammar.plural[].ending`                  | `string`, required, may be empty                                                                                               | Bare suffix to replace; empty matches every noun                                                                                                                                               |
@@ -5984,12 +6121,13 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `fields[].holds`                           | `string`, required                                                                                                             | What the field holds                                                                                                                                                                           |
 | `words`                                    | `{ form, class, field, gloss, … }[]`                                                                                           | `language` only: its words in authored order; its automatic dictionary sorts them alphabetically — see [a language's words](#a-languages-words)                                                |
 | `words[].form`                             | `string`, required                                                                                                             | The word as cited, bare: no backticks                                                                                                                                                          |
-| `words[].variants`                         | `string[]`                                                                                                                     | Its other forms, as a short form beside a long one; a marked use of one cites the word                                                                                                         |
+| `words[].variants`                         | `string[]`                                                                                                                     | Its other forms, as a short form beside a long one; a marked use of one cites the word, and a mapped run accepts it                                                                            |
 | `words[].name_sort`                        | `string`                                                                                                                       | Its sort key; the form when unstated                                                                                                                                                           |
 | `words[].class`                            | `string`, required                                                                                                             | A class from the master word classes, base first: `n I f`                                                                                                                                      |
 | `words[].plural`                           | `string`                                                                                                                       | Optional explicit noun plural; the dictionary uses it before the language rule                                                                                                                 |
 | `words[].field`                            | `string`, required                                                                                                             | One of the note's `fields` names                                                                                                                                                               |
 | `words[].gloss`                            | `string` or `string[]`, required                                                                                               | The meaning, in brief; a list states one sense per entry, which a dictionary numbers                                                                                                           |
+| `words[].concept`                          | `string` or `string[]`                                                                                                         | The core concepts the word serves, each an `id` of a [`data.concepts`](#the-core-vocabulary) list; one id, or a list for a word that serves several                                            |
 | `words[].source`                           | `{ kind, language?, form? }`                                                                                                   | Where the word comes from                                                                                                                                                                      |
 | `words[].source.kind`                      | `inherited`, `borrowed`, `kept`, `worn`, `coined`, `substrate` or `island`, required                                           | How the word came into the language                                                                                                                                                            |
 | `words[].source.language`                  | `Address`                                                                                                                      | The language a `borrowed` word came from, naming a skill note with `subType: language`; required for `borrowed`                                                                                |
@@ -6059,7 +6197,10 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `sounds.clusters.groups[].what`            | `string`, required                                                                                                             | What the group's clusters are made of, as `a nasal and a fricative`                                                                                                                            |
 | `sounds.clusters.groups[].clusters`        | `string[]`, required                                                                                                           | The clusters, as written; no cluster stands in two groups                                                                                                                                      |
 | `sounds.clusters.groups[].use`             | `common` or `sparing`, required                                                                                                | How often the group's clusters stand inside a word                                                                                                                                             |
-| `sounds.stress`                            | `first syllable`, `penultimate or final`, `by weight` or `as marked`                                                           | Where a word's stress falls                                                                                                                                                                    |
+| `sounds.stress`                            | `{ two, longer, mark? }`                                                                                                       | Where a word's stress falls, as a rule a program reads                                                                                                                                         |
+| `sounds.stress.two`                        | `first` or `last`, required                                                                                                    | The stressed syllable of a word of two syllables                                                                                                                                               |
+| `sounds.stress.longer`                     | `antepenultimate`, `penultimate` or `final`, required                                                                          | The stressed syllable of a word of three or more, counted from its end                                                                                                                         |
+| `sounds.stress.mark`                       | `acute`, `grave` or `circumflex`                                                                                               | The diacritic that marks a stress the rule would not choose; it moves the stress to the syllable it sits on                                                                                    |
 | `sounds.finals`                            | `{ final, like }[]`                                                                                                            | The syllable finals, for a language whose syllables are parsed by them                                                                                                                         |
 | `sounds.finals[].final`                    | `string`, required                                                                                                             | The final, as `ang`                                                                                                                                                                            |
 | `sounds.finals[].like`                     | `string`, required                                                                                                             | What it sounds like                                                                                                                                                                            |
@@ -6182,6 +6323,15 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `naming.nearName.examples`                 | `{ near, given }[]`                                                                                                            | Worked near names                                                                                                                                                                              |
 | `naming.nearName.examples[].near`          | `string`, required                                                                                                             | The near name                                                                                                                                                                                  |
 | `naming.nearName.examples[].given`         | `string`, required                                                                                                             | The given name it is the near name of                                                                                                                                                          |
+| `grammar.native`                           | `{ ending, map, font?, text }[]`                                                                                               | Under a logographic map, the signs a derived form takes after its stem's writing — see [a logographic map](#a-logographic-map)                                                                 |
+| `grammar.native[].ending`                  | `plural`, `I`, `you`, `heShe`, `we`, `youAll` or `they`, required                                                              | The ending written; a person only where `verbs.persons` is stated                                                                                                                              |
+| `grammar.native[].map`                     | `string`, required                                                                                                             | The `data.map.name` of a logographic map                                                                                                                                                       |
+| `grammar.native[].font`                    | `string`                                                                                                                       | The one face the writing is for, one the map lists; unstated, every face it lists                                                                                                              |
+| `grammar.native[].text`                    | `string`, required, may be empty                                                                                               | The ending's signs; empty writes the stem alone                                                                                                                                                |
+| `affixes[].native`                         | `{ map, font?, text }[]`                                                                                                       | The affix's writing under a logographic map, for a `built` piece naming it                                                                                                                     |
+| `affixes[].native[].map`                   | `string`, required                                                                                                             | The `data.map.name` of a logographic map                                                                                                                                                       |
+| `affixes[].native[].font`                  | `string`                                                                                                                       | The one face the writing is for, one the map lists; unstated, every face it lists                                                                                                              |
+| `affixes[].native[].text`                  | `string`, required                                                                                                             | The affix as the script writes it                                                                                                                                                              |
 | `emphasis`                                 | `words`, `rubric` or `overline`                                                                                                | `language` only: how the language marks a stressed word, over its script's; `words` makes `*…*` and `**…**` in its runs an error — see [script notes and emphasis](#script-notes-and-emphasis) |
 | `script`                                   | `{ fonts, emphasis, strongEmphasis? }`                                                                                         | `script` only: the faces the script is written in and how it marks emphasis — see [script notes and emphasis](#script-notes-and-emphasis)                                                      |
 | `script.fonts`                             | `string[]`, required                                                                                                           | Installed faces by the slug `font=` names them by; a face belongs to one script                                                                                                                |
@@ -6461,6 +6611,51 @@ ORDER BY position
 ```
 ````
 
+#### The core vocabulary
+
+A setting can state the concepts every one of its languages has a word for, and
+measure each language against them from data. Three keys carry it:
+
+| Key                    | On              | Meaning                                                                                |
+| ---------------------- | --------------- | -------------------------------------------------------------------------------------- |
+| `data.concepts`        | a `doc` note    | The concept list: `{ id, gloss, group }` entries, in the order the report lists them   |
+| `data.core`            | a language note | `true` where the language must cover the list; the report lists these languages        |
+| `data.words[].concept` | a word          | The id of the concept the word serves, or a list of ids for a word that serves several |
+
+```yaml
+---
+shortcode: coreconcepts
+name: { full: Core concepts }
+type: doc
+subType: reference
+data:
+  concepts:
+    - { id: see-verb, gloss: to see, group: senses }
+    - { id: smell-noun, gloss: "a smell; a scent", group: senses }
+    - { id: knee, gloss: the knee, group: body }
+---
+```
+
+The lint holds each to what it means, each finding located at the key at fault:
+
+- a concept's `id` is lowercase letters, digits and `-`, stated once in its list
+  and by one note of the package;
+- a concept's `gloss` and `group` are not blank;
+- `data.core` is stated on a language note only;
+- a word's `concept` names entries of a concept list, each once. An id no list
+  declares is an error at the id, with the nearest declared id offered when one
+  is near: `` `smel-noun` is not a core concept; did you mean `smell-noun`? ``.
+  Where no note states `data.concepts`, every id is unknown, and the message
+  says so.
+
+A language reads the words of its `data.family` chain as its own, so a parent's
+tagged word covers the daughter's concept. `data.core` is not inherited: each
+language that must cover the list states it.
+
+`package-build core` is the report. A concept no word serves is never a lint
+finding; the report lists it so the language can be filled in. See
+[`package-build core`](../commands.md#package-build-core).
+
 #### A language's register, sounds and history
 
 A language note states in frontmatter every fact a check reads about its
@@ -6501,7 +6696,7 @@ data:
       - { edge: closeCluster, sounds: [nd, rd] }
       - { edge: vowelPair, sounds: [ai, au, ei] }
     clusters: { max: 2 }
-    stress: penultimate or final
+    stress: { two: first, longer: penultimate, mark: acute }
     syllables:
       onsets: single
       codas: [b, d, k, sh]
@@ -6650,8 +6845,14 @@ rules hold it, each with what it is read as, or nothing.
 The rest of `sounds` states what a language's own rules read, each from a
 closed list where its values are words:
 
-- `stress`: `first syllable`, `penultimate or final`, `by weight` or
-  `as marked`.
+- `stress`: the rule a program reads, `{ two, longer, mark? }`. `two` is the
+  stressed syllable of a word of two syllables, `first` or `last`; `longer` is
+  the stressed syllable of a word of three or more, counted from its end,
+  `antepenultimate`, `penultimate` or `final`; `mark` is the diacritic, `acute`,
+  `grave` or `circumflex`, that marks a stress the rule would not choose and
+  moves it to the syllable it sits on. Syllables are vowel groups, a pair listed
+  in `syllables.vowelPairs` counting as one. A verse fence's `scan=` counts
+  beats by this rule; see [metres](#metres).
 - `finals`: the syllable finals, each with what it sounds like, for a language
   whose syllables are parsed by them.
 - `syllables`: what a syllable opens on (`single`, a single consonant), the
@@ -6762,44 +6963,44 @@ that keeps vowel harmony gives an affix's form after front vowels in `front`.
 
 Each finding is located at the key at fault:
 
-| Finding                                                                                                                                                                                                                                                                                                                                                                  | Severity |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| Any of these keys on a skill of another subType, at the key                                                                                                                                                                                                                                                                                                              | error    |
-| An unknown, missing or wrongly shaped key in an entry                                                                                                                                                                                                                                                                                                                    | error    |
-| A value outside its closed list — an `edge`, an element `position` or `kind`, a register `kind`, `stress`, a join's `meeting` or `rule`, a mark's `kind` or `limit`, `onsets`, `neutralAs`, a closing's `usual`, a cluster group's `use`, an affix's `kind` or `given`, a naming class `of`, a draw's `kind` or `elements`, a held-from `takes` or `clip` — at the value | error    |
-| A `sounds` word other than `any`, at the value                                                                                                                                                                                                                                                                                                                           | error    |
-| A tongue tag that is not lowercase letters and digits, at the tag                                                                                                                                                                                                                                                                                                        | error    |
-| A tongue tag stated twice, at the second                                                                                                                                                                                                                                                                                                                                 | error    |
-| A register or letter tongue `tongues` does not declare, at the tag                                                                                                                                                                                                                                                                                                       | error    |
-| An edge stated twice, at the second                                                                                                                                                                                                                                                                                                                                      | error    |
-| A sound stated twice in one mutation, at the second                                                                                                                                                                                                                                                                                                                      | error    |
-| A cluster stated in two groups, at the second                                                                                                                                                                                                                                                                                                                            | error    |
-| An `innerCluster` edge beside `clusters.groups`, at the edge                                                                                                                                                                                                                                                                                                             | error    |
-| A vowel partner keyed by no vowel of the harmony, at the key, or naming no `front` vowel, at the value                                                                                                                                                                                                                                                                   | error    |
-| A form stated twice in `older`, at the second                                                                                                                                                                                                                                                                                                                            | error    |
-| A negation `mutation` that `sounds.mutations` does not name, at the value                                                                                                                                                                                                                                                                                                | error    |
-| A negation `particle` or an element `word` that is no word of the language or an ancestor, at the value                                                                                                                                                                                                                                                                  | error    |
-| An affix's `given` where its `kind` is not `name`, at the key                                                                                                                                                                                                                                                                                                            | error    |
-| An affix with `zero: true` beside a `form`, at `zero`, or with neither, at the entry                                                                                                                                                                                                                                                                                     | error    |
-| A naming shape stated twice for one class of name, at the second                                                                                                                                                                                                                                                                                                         | error    |
-| A naming shape with neither `syllables` nor `perVowel`, at the entry                                                                                                                                                                                                                                                                                                     | error    |
-| A naming range whose `min` is above its `max`, at the range                                                                                                                                                                                                                                                                                                              | error    |
-| A naming edge stated twice for one class of name, at the second                                                                                                                                                                                                                                                                                                          | error    |
-| A kind of name whose draws are stated twice, at the second                                                                                                                                                                                                                                                                                                               | error    |
-| A held-from row that takes an `element` and names no `elements`, at the row                                                                                                                                                                                                                                                                                              | error    |
-| `elements` on a held-from row that takes no element, or `clip` or `joining` on one that takes no name, at the key                                                                                                                                                                                                                                                        | error    |
-| A `scope` Address that does not resolve, or a type that is no note type                                                                                                                                                                                                                                                                                                  | error    |
-| A tongue `language` or a cognate form's language that is no language note                                                                                                                                                                                                                                                                                                | error    |
-| A register row with neither a `tongue` nor a `kind`, at the row                                                                                                                                                                                                                                                                                                          | error    |
-| A register row tagged `other:<tongue>` or `exonym:<tongue>` whose tongue no `data.tongues` entry links to one language note, at the tongue                                                                                                                                                                                                                               | error    |
-| A register row tagged `other:<tongue>` or `exonym:<tongue>` whose name the tongue's own register does not list under that tongue, at the name                                                                                                                                                                                                                            | error    |
-| A sound-change set's name stated twice, at the second                                                                                                                                                                                                                                                                                                                    | error    |
-| A step label stated twice in one set, at the second                                                                                                                                                                                                                                                                                                                      | error    |
-| A set's `from` or `to` that is no language note, at the value                                                                                                                                                                                                                                                                                                            | error    |
-| A frame class that is no word class base, at the class                                                                                                                                                                                                                                                                                                                   | error    |
-| An affix's `attachesTo` that names no class, at the key, or a class that is no word class base or one named twice, at the class                                                                                                                                                                                                                                          | error    |
-| An affix stating both `replaces` and `lengthens: true`, at `lengthens`                                                                                                                                                                                                                                                                                                   | error    |
-| A calling-name closing with both or neither of `form` and `doubled`                                                                                                                                                                                                                                                                                                      | error    |
+| Finding                                                                                                                                                                                                                                                                                                                                                                                                   | Severity |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Any of these keys on a skill of another subType, at the key                                                                                                                                                                                                                                                                                                                                               | error    |
+| An unknown, missing or wrongly shaped key in an entry                                                                                                                                                                                                                                                                                                                                                     | error    |
+| A value outside its closed list — an `edge`, an element `position` or `kind`, a register `kind`, a stress rule's `two`, `longer` or `mark`, a join's `meeting` or `rule`, a mark's `kind` or `limit`, `onsets`, `neutralAs`, a closing's `usual`, a cluster group's `use`, an affix's `kind` or `given`, a naming class `of`, a draw's `kind` or `elements`, a held-from `takes` or `clip` — at the value | error    |
+| A `sounds` word other than `any`, at the value                                                                                                                                                                                                                                                                                                                                                            | error    |
+| A tongue tag that is not lowercase letters and digits, at the tag                                                                                                                                                                                                                                                                                                                                         | error    |
+| A tongue tag stated twice, at the second                                                                                                                                                                                                                                                                                                                                                                  | error    |
+| A register or letter tongue `tongues` does not declare, at the tag                                                                                                                                                                                                                                                                                                                                        | error    |
+| An edge stated twice, at the second                                                                                                                                                                                                                                                                                                                                                                       | error    |
+| A sound stated twice in one mutation, at the second                                                                                                                                                                                                                                                                                                                                                       | error    |
+| A cluster stated in two groups, at the second                                                                                                                                                                                                                                                                                                                                                             | error    |
+| An `innerCluster` edge beside `clusters.groups`, at the edge                                                                                                                                                                                                                                                                                                                                              | error    |
+| A vowel partner keyed by no vowel of the harmony, at the key, or naming no `front` vowel, at the value                                                                                                                                                                                                                                                                                                    | error    |
+| A form stated twice in `older`, at the second                                                                                                                                                                                                                                                                                                                                                             | error    |
+| A negation `mutation` that `sounds.mutations` does not name, at the value                                                                                                                                                                                                                                                                                                                                 | error    |
+| A negation `particle` or an element `word` that is no word of the language or an ancestor, at the value                                                                                                                                                                                                                                                                                                   | error    |
+| An affix's `given` where its `kind` is not `name`, at the key                                                                                                                                                                                                                                                                                                                                             | error    |
+| An affix with `zero: true` beside a `form`, at `zero`, or with neither, at the entry                                                                                                                                                                                                                                                                                                                      | error    |
+| A naming shape stated twice for one class of name, at the second                                                                                                                                                                                                                                                                                                                                          | error    |
+| A naming shape with neither `syllables` nor `perVowel`, at the entry                                                                                                                                                                                                                                                                                                                                      | error    |
+| A naming range whose `min` is above its `max`, at the range                                                                                                                                                                                                                                                                                                                                               | error    |
+| A naming edge stated twice for one class of name, at the second                                                                                                                                                                                                                                                                                                                                           | error    |
+| A kind of name whose draws are stated twice, at the second                                                                                                                                                                                                                                                                                                                                                | error    |
+| A held-from row that takes an `element` and names no `elements`, at the row                                                                                                                                                                                                                                                                                                                               | error    |
+| `elements` on a held-from row that takes no element, or `clip` or `joining` on one that takes no name, at the key                                                                                                                                                                                                                                                                                         | error    |
+| A `scope` Address that does not resolve, or a type that is no note type                                                                                                                                                                                                                                                                                                                                   | error    |
+| A tongue `language` or a cognate form's language that is no language note                                                                                                                                                                                                                                                                                                                                 | error    |
+| A register row with neither a `tongue` nor a `kind`, at the row                                                                                                                                                                                                                                                                                                                                           | error    |
+| A register row tagged `other:<tongue>` or `exonym:<tongue>` whose tongue no `data.tongues` entry links to one language note, at the tongue                                                                                                                                                                                                                                                                | error    |
+| A register row tagged `other:<tongue>` or `exonym:<tongue>` whose name the tongue's own register does not list under that tongue, at the name                                                                                                                                                                                                                                                             | error    |
+| A sound-change set's name stated twice, at the second                                                                                                                                                                                                                                                                                                                                                     | error    |
+| A step label stated twice in one set, at the second                                                                                                                                                                                                                                                                                                                                                       | error    |
+| A set's `from` or `to` that is no language note, at the value                                                                                                                                                                                                                                                                                                                                             | error    |
+| A frame class that is no word class base, at the class                                                                                                                                                                                                                                                                                                                                                    | error    |
+| An affix's `attachesTo` that names no class, at the key, or a class that is no word class base or one named twice, at the class                                                                                                                                                                                                                                                                           | error    |
+| An affix stating both `replaces` and `lengthens: true`, at `lengthens`                                                                                                                                                                                                                                                                                                                                    | error    |
+| A calling-name closing with both or neither of `form` and `doubled`                                                                                                                                                                                                                                                                                                                                       | error    |
 
 A fence sets each table back from its relation:
 
@@ -7989,24 +8190,33 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - concept: An explanation of how something works and why it is shaped that way, read to understand rather than to follow.
 - settingguide: A culture's guide to the setting, which names its culture in `data.culture`. It orients a reader to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
 
-| `data` property             | Values                                               | Description                                                                                                           |
-| --------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `culture`                   | `Address`                                            | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture` |
-| `map`                       | `{ name, vowels?, fonts, rows }`                     | A mapping, which text marked `map=` with its `name` is rewritten by; any subType. See [mapping notes](#mapping-notes) |
-| `map.name`                  | string                                               | Required: what `map=` names it by, lowercase letters, digits and `-`, unique in the index                             |
-| `map.vowels`                | string                                               | The characters `before: vowel` reads as vowels                                                                        |
-| `map.rows`                  | list of `[from, to]` or `{ from, to, before?, at? }` | Required: the rewrites, in authored order                                                                             |
-| `map.rows[].from`           | string of one or more characters                     | Required in a map row: the characters it matches                                                                      |
-| `map.rows[].to`             | string, which may be empty                           | Required in a map row: what it writes in their place                                                                  |
-| `map.rows[].before`         | `vowel \| consonant`                                 | What must follow the match                                                                                            |
-| `map.rows[].at`             | `start \| end`                                       | Where the match must sit                                                                                              |
-| `map.fonts`                 | list of `{ font, rows? }`                            | Required, at least one: the faces the map is drawn in                                                                 |
-| `map.fonts[].font`          | an installed face's slug                             | Required: the face, as `font=` names it; not `mono`, `serif` or `sans`                                                |
-| `map.fonts[].rows`          | list of `[from, to]` or `{ from, to, before?, at? }` | Rows for this face alone, tried before the shared `rows`                                                              |
-| `map.fonts[].rows[].from`   | string of one or more characters                     | Required in a map row: the characters it matches                                                                      |
-| `map.fonts[].rows[].to`     | string, which may be empty                           | Required in a map row: what it writes in their place                                                                  |
-| `map.fonts[].rows[].before` | `vowel \| consonant`                                 | What must follow the match                                                                                            |
-| `map.fonts[].rows[].at`     | `start \| end`                                       | Where the match must sit                                                                                              |
+| `data` property             | Values                                               | Description                                                                                                               |
+| --------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `culture`                   | `Address`                                            | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture`     |
+| `concepts`                  | list of `{ id, gloss, group }`                       | A core vocabulary's concept list, any subType. See [the core vocabulary](#the-core-vocabulary)                            |
+| `concepts[].id`             | string                                               | Required: lowercase letters, digits and `-`, unique in the package                                                        |
+| `concepts[].gloss`          | string                                               | Required: what the concept means, in brief                                                                                |
+| `concepts[].group`          | string                                               | Required: the group the report lists the concept under                                                                    |
+| `map`                       | `{ name, vowels?, fonts, rows }`                     | A mapping, which text marked `map=` with its `name` is rewritten by; any subType. See [mapping notes](#mapping-notes)     |
+| `map.name`                  | string                                               | Required: what `map=` names it by, lowercase letters, digits and `-`, unique in the index                                 |
+| `map.vowels`                | string                                               | The characters `before: vowel` reads as vowels                                                                            |
+| `map.rows`                  | list of `[from, to]` or `{ from, to, before?, at? }` | Required: the rewrites, in authored order                                                                                 |
+| `map.rows[].from`           | string of one or more characters                     | Required in a map row: the characters it matches                                                                          |
+| `map.rows[].to`             | string, which may be empty                           | Required in a map row: what it writes in their place                                                                      |
+| `map.rows[].before`         | `vowel \| consonant`                                 | What must follow the match                                                                                                |
+| `map.rows[].at`             | `start \| end`                                       | Where the match must sit                                                                                                  |
+| `map.fonts`                 | list of `{ font, rows? }`                            | Required, at least one: the faces the map is drawn in                                                                     |
+| `map.fonts[].font`          | an installed face's slug                             | Required: the face, as `font=` names it; not `mono`, `serif` or `sans`                                                    |
+| `map.fonts[].rows`          | list of `[from, to]` or `{ from, to, before?, at? }` | Rows for this face alone, tried before the shared `rows`                                                                  |
+| `map.fonts[].rows[].from`   | string of one or more characters                     | Required in a map row: the characters it matches                                                                          |
+| `map.fonts[].rows[].to`     | string, which may be empty                           | Required in a map row: what it writes in their place                                                                      |
+| `map.fonts[].rows[].before` | `vowel \| consonant`                                 | What must follow the match                                                                                                |
+| `map.fonts[].rows[].at`     | `start \| end`                                       | Where the match must sit                                                                                                  |
+| `metres`                    | `{ name, beats, kind }[]`                            | The metres a verse fence's `scan=` names; any subType. See [metres](#metres)                                              |
+| `metres[].name`             | string                                               | Required: what `scan=` names it by, lowercase letters, digits and `-`, unique in the package                              |
+| `metres[].beats`            | `integer`, required                                  | The beats of one line, above zero                                                                                         |
+| `metres[].kind`             | `accentual`                                          | Required: how the beats are counted                                                                                       |
+| `map.logographic`           | `true`                                               | The script writes meanings: a run's words are written by the lexicon alone, and the rows write only the text between them |
 
 A setting guide introduces one culture's view of the setting, so it names that
 culture, and a `doc` of any other `subType` has no culture of its own to name.

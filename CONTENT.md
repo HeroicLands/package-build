@@ -99,6 +99,9 @@ language whose `languages.<name>.note` names its language note, a word whose
 entry states a `native` form for the map is written by it, and the rows spell
 every other word. Every word of such a run is a lexicon form, a word of a name
 the language's own register lists, or a regular form of a lexicon word, and any other word is a
-located error, as is a character a face does not draw after the map. See
+located error, as is a character a face does not draw after the map. A map
+stating `logographic: true` spells no word by its rows: each word is written by
+its own `native` entry or its parts' writings, and a word with neither, or
+whose form stands for entries written differently, is a located error. See
 [marking language, font and mapping](docs/authoring/links-and-markup.md#marking-language-font-and-mapping)
 and [mapping notes](docs/reference/format-details.md#mapping-notes).

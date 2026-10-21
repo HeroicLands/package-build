@@ -217,6 +217,9 @@ describe("emphasis in a script run is accepted", () => {
         ["a div", [`::: {${SEMARON}}`, "thrima *sorima*", "", "**thrima**", ":::"].join("\n")],
         ["a verse", ["```verse {" + QALEZU + "}", "gar *nal*", "  **gar**", "```"].join("\n")],
         ["a face whose script states no convention", `[*sorima*]{${THURAVARK}}`],
+        ["emphasis written with underscores", `[thrima _sorima_]{${SEMARON}}`],
+        ["strong emphasis written with underscores", `[thrima __sorima__]{${SEMARON}}`],
+        ["a mix of stars and underscores", `[_thrima_ **sorima**]{${SEMARON}}`],
         ["a face with no map", `[*${THRIMA}*]{font=semaron-kuriale}`],
     ])("in %s", (_, source) => {
         expect(errors(source)).toEqual([]);
@@ -225,6 +228,12 @@ describe("emphasis in a script run is accepted", () => {
     it("reads an unpaired or escaped star as a character the map spells", () => {
         expect(errors(`[thrima \\*sorima*]{${SEMARON}}`)).toEqual([
             "1:10: `*` (U+002A) is not drawn by the font `semaron-kuriale`, and the map `vyl-semaron` has no row for it",
+        ]);
+    });
+
+    it("reads an escaped or unpaired underscore as a character the map spells", () => {
+        expect(errors(`[thrima \\_sorima_]{${SEMARON}}`)).toEqual([
+            "1:10: `_` (U+005F) is not drawn by the font `semaron-kuriale`, and the map `vyl-semaron` has no row for it",
         ]);
     });
 
@@ -238,14 +247,11 @@ describe("emphasis in a script run is accepted", () => {
 describe("emphasis that is still a finding", () => {
     it.each([
         [
-            "underscores in a face",
-            `[a _b_ c]{${SEMARON}}`,
-            [`1:4: text marked \`${SEMARON}\` takes emphasis only as \`*…*\` or \`**…**\``],
-        ],
-        [
             "a strikethrough in a face",
             `[a ~~b~~ c]{${SEMARON}}`,
-            [`1:4: text marked \`${SEMARON}\` takes emphasis only as \`*…*\` or \`**…**\``],
+            [
+                `1:4: text marked \`${SEMARON}\` takes emphasis only as \`*…*\`, \`_…_\`, \`**…**\` or \`__…__\``,
+            ],
         ],
         [
             "emphasis in a declared language with no face",
@@ -287,6 +293,20 @@ describe("a language's own convention", () => {
         );
         expect(render(`[thrima *sorima*]{${SEMARON}}`)).toBe(
             `[${THRIMA} <em class="emph-rubric">${SORIMA}</em>]{lang=art-x-prv .script .hl-semaron-kuriale}`,
+        );
+    });
+
+    it("sets underscore emphasis exactly as the star forms", () => {
+        const render = (source: string) =>
+            renderRuns(source, ctx, undefined, { target: "foundry" }).markdown;
+        expect(render(`[thrima _sorima_]{${SEMARON}}`)).toBe(
+            render(`[thrima *sorima*]{${SEMARON}}`),
+        );
+        expect(render(`[thrima __sorima__]{${SEMARON}}`)).toBe(
+            render(`[thrima **sorima**]{${SEMARON}}`),
+        );
+        expect(render(`[thrima __sorima__]{${SEMARON}}`)).toContain(
+            `<strong class="emph-rubric">${SORIMA}</strong>`,
         );
     });
 

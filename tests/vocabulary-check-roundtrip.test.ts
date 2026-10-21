@@ -225,12 +225,12 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     "skill:daughter": {
-        covers: ["family", "abbreviation"],
+        covers: ["family", "abbreviation", "core"],
         fm: () => ({
             type: "skill",
             subType: "language",
             shortcode: "daughterlng",
-            data: { family: "languageone", abbreviation: "Dau." },
+            data: { family: "languageone", abbreviation: "Dau.", core: true },
         }),
     },
     "skill:script": {
@@ -260,6 +260,15 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             data: { culture: "cultureone" },
         }),
     },
+    "doc:concepts": {
+        covers: ["concepts"],
+        fm: () => ({
+            type: "doc",
+            subType: "reference",
+            shortcode: "coreconcepts",
+            data: { concepts: [{ id: "see-verb", gloss: "to see", group: "senses" }] },
+        }),
+    },
     "doc:map": {
         covers: ["map"],
         fm: () => ({
@@ -273,6 +282,15 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     rows: [["a", "\u{F0230}"], { from: "y", to: "\u{F0237}", before: "consonant" }],
                 },
             },
+        }),
+    },
+    "doc:metres": {
+        covers: ["metres"],
+        fm: () => ({
+            type: "doc",
+            subType: "reference",
+            shortcode: "metres",
+            data: { metres: [{ name: "hexameter", beats: 6, kind: "accentual" }] },
         }),
     },
 };

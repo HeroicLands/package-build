@@ -126,13 +126,21 @@ export const HELD_CLIPS = Object.freeze(["first"]);
 /** How often a group of clusters stands inside a word. */
 export const CLUSTER_USES = Object.freeze(["common", "sparing"]);
 
-/** Where a language's stress falls. */
-export const STRESS_RULES = Object.freeze([
-    "first syllable",
-    "penultimate or final",
-    "by weight",
-    "as marked",
-]);
+/** The syllable a word of two stresses. */
+export const STRESS_TWO = Object.freeze(["first", "last"]);
+
+/** The syllable a word of three or more stresses, counted from its end. */
+export const STRESS_LONGER = Object.freeze(["antepenultimate", "penultimate", "final"]);
+
+/**
+ * The diacritics that mark a stress the rule would not choose, with the
+ * combining character each is written with.
+ */
+export const STRESS_MARKS = Object.freeze({
+    acute: "\u0301",
+    grave: "\u0300",
+    circumflex: "\u0302",
+});
 
 /** Which sounds meet where two parts of a word join. */
 export const JOIN_MEETINGS = Object.freeze(["C+C", "V+C", "V+V"]);
@@ -691,6 +699,39 @@ export const HARMONY_FIELDS = Object.freeze([
 ]);
 
 /**
+ * The keys of a language's `data.sounds.stress`.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const STRESS_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "two",
+        kind: "string",
+        required: true,
+        allowed: STRESS_TWO,
+        shape: `one of ${STRESS_TWO.join(", ")}`,
+        describe: "The stressed syllable of a word of two syllables.",
+    }),
+    Object.freeze({
+        name: "longer",
+        kind: "string",
+        required: true,
+        allowed: STRESS_LONGER,
+        shape: `one of ${STRESS_LONGER.join(", ")}`,
+        describe: "The stressed syllable of a word of three or more, counted from its end.",
+    }),
+    Object.freeze({
+        name: "mark",
+        kind: "string",
+        allowed: Object.freeze(Object.keys(STRESS_MARKS)),
+        shape: `one of ${Object.keys(STRESS_MARKS).join(", ")}`,
+        describe:
+            "The diacritic that marks a stress the rule would not choose; it moves the stress to " +
+            "the syllable it sits on.",
+    }),
+]);
+
+/**
  * The keys of a language's `data.sounds.syllables`: what a syllable may open
  * and close on, and what a word may.
  *
@@ -901,10 +942,10 @@ export const SOUND_FIELDS = Object.freeze([
     }),
     Object.freeze({
         name: "stress",
-        kind: "string",
-        allowed: STRESS_RULES,
-        shape: `one of ${STRESS_RULES.join(", ")}`,
-        describe: "Where a word's stress falls.",
+        kind: "map",
+        shape: "a map — `{ two, longer, mark? }`",
+        fields: STRESS_FIELDS,
+        describe: "Where a word's stress falls, as a rule a program reads.",
     }),
     Object.freeze({
         name: "finals",
@@ -1623,6 +1664,52 @@ export const VERB_PERSON_FIELDS = Object.freeze(
     ),
 );
 
+/**
+ * The endings `data.grammar.native` writes under a logographic map: the noun
+ * plural, then the six persons of the verb pattern.
+ */
+export const WRITTEN_ENDINGS = Object.freeze([
+    "plural",
+    ...VERB_PERSON_FIELDS.map((person) => person.name),
+]);
+
+/** The keys of one `data.grammar.native` entry. */
+const GRAMMAR_NATIVE_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "ending",
+        kind: "string",
+        required: true,
+        allowed: WRITTEN_ENDINGS,
+        shape: `one of ${WRITTEN_ENDINGS.join(", ")}`,
+        describe:
+            "The ending written: `plural` for a noun's plural, or a person of `verbs.persons` " +
+            "for a verb's present form.",
+    }),
+    Object.freeze({
+        name: "map",
+        kind: "string",
+        required: true,
+        shape: "a logographic mapping note's `data.map.name`",
+        describe: "The logographic map the ending is written for.",
+    }),
+    Object.freeze({
+        name: "font",
+        kind: "string",
+        shape: "a face the map lists",
+        describe:
+            "The one face the writing is for; unstated, it is for every face the map lists, " +
+            "and a writing stated for a face wins over it there.",
+    }),
+    Object.freeze({
+        name: "text",
+        kind: "string",
+        required: true,
+        allowEmpty: true,
+        shape: "the ending in the script, as the map's characters; empty writes the stem alone",
+        describe: "The signs written after the stem's writing.",
+    }),
+]);
+
 /** The two alternatives of a supplied optional verb pattern. */
 const VERB_PATTERN_FIELDS = Object.freeze([
     Object.freeze({
@@ -1749,6 +1836,19 @@ const GRAMMAR_FIELDS = Object.freeze([
             "named suffix attaches to what is left; a participle closing on an `agreement` " +
             "ending agrees. Read by the mapped-run word check.",
     }),
+    Object.freeze({
+        name: "native",
+        kind: "list",
+        shape: "a list of `{ ending, map, font?, text }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ ending, map, font?, text }`",
+            fields: GRAMMAR_NATIVE_FIELDS,
+        }),
+        describe:
+            "Under a logographic map, the signs a noun's plural or a verb's present form is " +
+            "written with after its stem's writing, one entry per ending, map and face.",
+    }),
 ]);
 
 /**
@@ -1762,11 +1862,12 @@ export const LANGUAGE_DATA_FIELDS = Object.freeze([
     Object.freeze({
         name: "grammar",
         kind: "map",
-        shape: "a map — `{ plural?, verbs?, agreement?, participles? }`",
+        shape: "a map — `{ plural?, verbs?, agreement?, participles?, native? }`",
         fields: GRAMMAR_FIELDS,
         describe:
-            "Optional noun plurals, one verb pattern, agreement and participles, for dictionary " +
-            "presentation and the mapped-run word check. Only the shape of supplied keys is " +
+            "Optional noun plurals, one verb pattern, agreement, participles and the endings' " +
+            "logographic writings, for dictionary presentation, the mapped-run word check and " +
+            "logographic maps. Only the shape of supplied keys is " +
             "checked; no word must follow or state a rule. A language skill note only.",
     }),
     listOfMaps(

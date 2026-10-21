@@ -103,7 +103,7 @@ const DUNHARI = [
     "      - {edge: openCluster, sounds: []}",
     "      - {edge: syllabic, sounds: any}",
     "    clusters: {max: 2}",
-    "    stress: penultimate or final",
+    "    stress: {two: first, longer: penultimate, mark: acute}",
     "    finals:",
     '      - {final: ang, like: "the a of father, then ng"}',
     "    syllables:",
@@ -597,9 +597,57 @@ describe("sound-change sets", () => {
 describe("the sound rules beside the letters", () => {
     it("refuse a stress rule outside the closed list, at the value", () => {
         one(
-            edit("stress: penultimate or final", "stress: last syllable"),
-            /`data\.sounds\.stress` should be `first syllable` or `penultimate or final` or `by weight` or `as marked`/,
-            "last syllable",
+            edit("longer: penultimate", "longer: last"),
+            /`data\.sounds\.stress\.longer` should be `antepenultimate` or `penultimate` or `final`/,
+            "last",
+        );
+    });
+
+    it("refuse a stress rule written as a sentence, at the value", () => {
+        one(
+            edit(
+                "stress: {two: first, longer: penultimate, mark: acute}",
+                "stress: penultimate or final",
+            ),
+            /`data\.sounds\.stress` .*a map/,
+            "penultimate or final",
+        );
+    });
+
+    it("refuse a stress rule with no `two` or no `longer`, at the rule", () => {
+        one(
+            edit(
+                "stress: {two: first, longer: penultimate, mark: acute}",
+                "stress: {longer: penultimate}",
+            ),
+            /`data\.sounds\.stress` must state `two`/,
+            "stress:",
+        );
+        one(
+            edit("stress: {two: first, longer: penultimate, mark: acute}", "stress: {two: first}"),
+            /`data\.sounds\.stress` must state `longer`/,
+            "stress:",
+        );
+    });
+
+    it("refuse a stress rule's two-syllable position or mark outside the closed lists, at the value", () => {
+        one(
+            edit("two: first", "two: middle"),
+            /`data\.sounds\.stress\.two` should be `first` or `last`/,
+            "middle",
+        );
+        one(
+            edit("mark: acute", "mark: tilde"),
+            /`data\.sounds\.stress\.mark` should be `acute` or `grave` or `circumflex`/,
+            "tilde",
+        );
+    });
+
+    it("refuse a key a stress rule does not take, at the key", () => {
+        one(
+            edit("mark: acute}", "mark: acute, weight: heavy}"),
+            /"weight" is not a key of `data\.sounds\.stress`/,
+            "weight",
         );
     });
 

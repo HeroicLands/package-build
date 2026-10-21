@@ -37,6 +37,9 @@
  *   over one with none.
  * - **Derived forms take the rows**: a plural or a verb ending of an exception
  *   word is spelled by the rows, and only the word as cited is looked up.
+ * - **A logographic map** spells no word by its rows: every word is written
+ *   from the lexicon, by its own writing or its parts' (see
+ *   {@link module:engine/logographic}), and a word with neither is a finding.
  *
  * {@link mappingFor} is the one path from a map, a face and a language to the
  * function that rewrites text: the build's runs, `package-build transliterate`
@@ -51,6 +54,8 @@ import { parseAddress, renderAddress } from "./address.mjs";
 import { positionOfFrontmatterPath, positionOfYamlPath } from "./diagnostics.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { nearest } from "./near-miss.mjs";
+import { WRITTEN_ENDINGS } from "./language-terms.mjs";
+import { writingsOf } from "./logographic.mjs";
 import { FONTS_PACKAGE } from "./script-fonts.mjs";
 import { GENERIC_FAMILIES, applyMap } from "./text-maps.mjs";
 import { isLanguageRecord, noteAddressOf } from "./word-rows.mjs";
@@ -107,6 +112,8 @@ function said(names) {
  * @property {ReadonlyArray<{form: string, from: LexiconWord}>} derived - The
  *   forms the language's rules derive from its words, folded, as the mapped-run
  *   word check accepts them (see {@link module:engine/word-forms.derivedForms}).
+ * @property {Record<string, any>} data - The language note's `data`, which a
+ *   logographic map writes words from.
  */
 
 /**
@@ -161,6 +168,7 @@ function lexiconOf(language, data) {
         words: Object.freeze(words),
         byForm,
         derived: Object.freeze(derived),
+        data: isMap(data) ? data : {},
     });
 }
 
@@ -330,7 +338,10 @@ export function nativeLookup(lexicon, map, font) {
  * @property {import("./text-maps.mjs").TextMap} map - The map.
  * @property {string|undefined} font - The face, whose own rows come first.
  * @property {((word: string) => string|undefined)|undefined} native - The
- *   language's native forms under the map in the face.
+ *   language's native forms under the map in the face, for a map that spells
+ *   by its rows.
+ * @property {((word: string) => import("./logographic.mjs").Writing)|undefined} writing -
+ *   Each word's writing, for a logographic map.
  */
 
 /**
@@ -346,7 +357,20 @@ export function mappingFor(ctx, { map, font, lang }) {
     const textMap = ctx?.maps?.get(map);
     if (!textMap) return undefined;
     const lexicon = lang === undefined ? undefined : ctx.lexicons?.get(lang);
-    return { map: textMap, font, native: nativeLookup(lexicon, textMap.name, font) };
+    if (!textMap.logographic)
+        return {
+            map: textMap,
+            font,
+            native: nativeLookup(lexicon, textMap.name, font),
+            writing: undefined,
+        };
+    const writings = lexicon ? writingsOf(lexicon.data, textMap.name, font) : undefined;
+    return {
+        map: textMap,
+        font,
+        native: undefined,
+        writing: writings ? writings.word : () => ({ missing: true, noLexicon: true }),
+    };
 }
 
 /**
@@ -425,6 +449,52 @@ export function uncapitalisedMessage(word, lower, lang, map) {
 }
 
 /**
+ * What is wrong with a word a logographic map gives no writing.
+ *
+ * @param {string} word - The word as written.
+ * @param {object} unwritten - Why it has none, as
+ *   {@link module:engine/logographic.writingsOf} says.
+ * @param {string|undefined} lang - The run's language.
+ * @param {string} map - The map's name.
+ * @returns {string} The message.
+ */
+export function unwrittenMessage(word, unwritten, lang, map) {
+    const why = /** @type {{noLexicon?: true, ambiguous?: {form: string, glosses: string[]}}} */ (
+        unwritten
+    );
+    if (why.noLexicon)
+        return lang === undefined ?
+                `\`${word}\` has no \`${map}\` writing: the map \`${map}\` is logographic, and the run ` +
+                    "names no `lang=` whose lexicon writes it; mark the run with its language, or " +
+                    "write the word directly in signs"
+            :   `\`${word}\` has no \`${map}\` writing: the map \`${map}\` is logographic, and \`${lang}\` ` +
+                    `has no lexicon (\`languages.${lang}.note\`) to write it from; write the word ` +
+                    "directly in signs";
+    if (why.ambiguous) {
+        const { form, glosses } = why.ambiguous;
+        const quoted = glosses.map((gloss) => `“${gloss}”`);
+        const listed =
+            quoted.length < 2 ?
+                quoted.join("")
+            :   `${quoted.slice(0, -1).join(", ")} and ${quoted.at(-1)}`;
+        const stands =
+            `stands for ${glosses.length} words of the \`${lang}\` lexicon that the map ` +
+            `\`${map}\` writes differently, ${listed}`;
+        return (
+            (form === word ?
+                `\`${word}\` ${stands}`
+            :   `\`${word}\` is written from its part \`${form}\`, which ${stands}`) +
+            "; write the word directly in signs, choosing by its sense in " +
+            `\`package-build lexicon ${lang} --map ${map}\``
+        );
+    }
+    return (
+        `\`${word}\` has no \`${map}\` writing in the \`${lang}\` lexicon, and its parts do not ` +
+        "give one; state one, or write the word directly in signs"
+    );
+}
+
+/**
  * Map a passage exactly as the build maps a run with the same keys.
  *
  * @param {object} ctx - The run context.
@@ -436,8 +506,14 @@ export function uncapitalisedMessage(word, lower, lang, map) {
 export function transliterate(ctx, keys, text) {
     const found = commandMapping(ctx, keys);
     if ("problem" in found) return { problem: found.problem, about: found.about };
-    const { map, font, native } = found.mapping;
-    const mapped = applyMap(map, text, { font, native });
+    const { map, font, native, writing } = found.mapping;
+    const mapped = applyMap(map, text, { font, native, writing });
+    const unwritten = mapped.pieces.find((one) => one.unwritten !== undefined);
+    if (unwritten)
+        return {
+            about: "word",
+            problem: unwrittenMessage(unwritten.from, unwritten.unwritten, keys.lang, map.name),
+        };
     const piece = mapped.pieces.find((one) => one.uncapitalised !== undefined);
     if (piece)
         return {
@@ -459,10 +535,17 @@ export function transliterate(ctx, keys, text) {
  * each case folded and naming the word it comes from in `from`, so the list
  * is what the mapped-run word check accepts of the lexicon.
  *
+ * Under a logographic map an entry carries `source` in place of `exception`:
+ * `own` for a writing it states, `parts` for one its parts give, and `none`,
+ * with an empty `native`, where it has none. A word whose form a run cannot
+ * write, because the form stands for entries written differently, or a part
+ * does, also carries `ambiguous: true`; its `native` is still its own
+ * writing, the signs a run writes directly for that sense.
+ *
  * @param {object} ctx - The run context.
  * @param {{lang: string, map: string, font?: string, derived?: boolean}} keys -
  *   The language, the map, the face, and whether to list derived forms.
- * @returns {{entries: Array<{form: string, native: string, exception: boolean, class: string|null, gloss: string|null, from?: string}>}|{problem: string, about: string}}
+ * @returns {{entries: Array<{form: string, native: string, exception?: boolean, source?: "own"|"parts"|"none", ambiguous?: true, class: string|null, gloss: string|null, from?: string}>}|{problem: string, about: string}}
  *   The words in `data.words` order, then any derived forms, or the problem.
  */
 export function lexiconEntries(ctx, { lang, map, font, derived = false }) {
@@ -477,6 +560,7 @@ export function lexiconEntries(ctx, { lang, map, font, derived = false }) {
                 "in its `note`",
         };
     const { map: textMap, font: face, native } = found.mapping;
+    if (textMap.logographic) return { entries: writtenEntries(lexicon, textMap, face, derived) };
     const listed = [
         ...lexicon.words.map((word) => ({ word, form: word.form, from: undefined })),
         ...(derived ?
@@ -507,6 +591,51 @@ export function lexiconEntries(ctx, { lang, map, font, derived = false }) {
             ...(from === undefined ? {} : { from }),
         })),
     };
+}
+
+/**
+ * Every word of a lexicon with its writing under a logographic map, as
+ * {@link lexiconEntries} lists them.
+ *
+ * @param {Lexicon} lexicon - The lexicon.
+ * @param {import("./text-maps.mjs").TextMap} map - The map.
+ * @param {string|undefined} font - The face.
+ * @param {boolean} derived - Whether to list derived forms.
+ * @returns {Array<Record<string, any>>} The entries.
+ */
+function writtenEntries(lexicon, map, font, derived) {
+    const writings = writingsOf(lexicon.data, map.name, font);
+    // The `data.words` index of each lexicon word, which reads the same entries.
+    const indexes = [];
+    listOf(lexicon.data.words).forEach((word, index) => {
+        if (isMap(word) && typeof word.form === "string") indexes.push(index);
+    });
+    const shaped = (form, writing, word, from) => {
+        // Whether a run of the form, written as the build writes it, meets an
+        // ambiguity: another entry of the form, or of a part, written otherwise.
+        const run = applyMap(map, form, { font, writing: writings.word }).pieces.some(
+            (piece) => piece.unwritten?.ambiguous !== undefined,
+        );
+        return {
+            form,
+            native: "text" in writing ? writing.text : "",
+            source:
+                "text" in writing ? writing.source
+                : "ambiguous" in writing ? "parts"
+                : "none",
+            ...("ambiguous" in writing || run ? { ambiguous: true } : {}),
+            class: word.class,
+            gloss: word.gloss,
+            ...(from === undefined ? {} : { from }),
+        };
+    };
+    const entries = lexicon.words.map((word, at) =>
+        shaped(word.form, writings.entry(indexes[at]), word, undefined),
+    );
+    if (derived)
+        for (const one of lexicon.derived)
+            entries.push(shaped(one.form, writings.word(one.form), one.from, one.from.form));
+    return entries;
 }
 
 /**
@@ -607,10 +736,16 @@ export function checkMapFonts(note, ctx) {
 }
 
 /**
- * Check a language note's native forms against the maps and faces: an unknown
- * map, a face the map is not for, a second form for one map and face, a form
- * that states what the rows already give, and a code point a face it applies
- * in does not draw. The shape of each entry is the data-key check's.
+ * Check a language note's native forms against the maps and faces: a word's
+ * `native`, an affix's, and the endings' in `data.grammar.native`. Each is
+ * checked for an unknown map, a face the map is not for, a second form for one
+ * map and face (and one ending), and a code point a face it applies in does
+ * not draw. A word's form under a map that spells by its rows is also checked
+ * for stating what the rows already give; under a logographic map the rows
+ * spell no word, so that check does not apply. An affix's and an ending's
+ * writings mean something only under a logographic map, and an ending of a
+ * person is written only where `data.grammar.verbs` states `persons`. The
+ * shape of each entry is the data-key check's.
  *
  * @param {{file: string, raw?: string, fm?: Record<string, any>}} note - The note.
  * @param {{faces?: ReadonlyMap<string, import("./script-fonts.mjs").Face>, maps?: ReadonlyMap<string, import("./text-maps.mjs").TextMap>}} ctx -
@@ -623,35 +758,47 @@ export function checkLexiconNatives(note, ctx) {
     const raw = note.raw ?? "";
     const finding = (keyPath, message, key = false) => ({
         file: note.file,
-        ...positionOfFrontmatterPath(raw, ["data", "words", ...keyPath], { key }),
+        ...positionOfFrontmatterPath(raw, ["data", ...keyPath], { key }),
         severity: "error",
         message,
     });
     const maps = ctx?.maps ?? new Map();
     const faces = ctx?.faces ?? new Map();
     const findings = [];
-    listOf(fm.data.words).forEach((word, i) => {
-        if (!isMap(word) || !Array.isArray(word.native)) return;
-        const form = typeof word.form === "string" ? word.form : "";
+
+    /**
+     * Check one `native` list.
+     *
+     * @param {unknown[]} list - The list as authored.
+     * @param {Array<string|number>} keyPath - Its path under `data`.
+     * @param {object} as - What it belongs to.
+     * @param {"word"|"affix"|"ending"} as.kind - A word's, an affix's or the
+     *   endings' list.
+     * @param {string} [as.form] - The word's form, for the rows' check.
+     */
+    const checkList = (list, keyPath, { kind, form = "" }) => {
+        const base = `data.${keyPath.join(".").replace(/\.(\d+)/g, "[$1]")}`;
         const stated = new Map();
-        const entries = word.native.map((entry) =>
+        const entries = list.map((entry) =>
             isMap(entry) && typeof entry.map === "string" && typeof entry.text === "string" ?
                 {
                     map: entry.map,
                     font: typeof entry.font === "string" ? entry.font : undefined,
                     text: entry.text,
+                    ending: typeof entry.ending === "string" ? entry.ending : undefined,
                 }
             :   undefined,
         );
+        const persons = isMap(fm.data.grammar?.verbs?.persons);
         entries.forEach((entry, j) => {
             if (!entry) return;
-            const label = `data.words[${i}].native[${j}]`;
+            const label = `${base}[${j}]`;
             const map = maps.get(entry.map);
             if (!map) {
                 const near = nearest(entry.map, [...maps.keys()]);
                 findings.push(
                     finding(
-                        [i, "native", j, "map"],
+                        [...keyPath, j, "map"],
                         `\`${label}.map\` is \`${entry.map}\`, which is not a map: a native form names ` +
                             "the `data.map.name` of a mapping note" +
                             (near ? `; did you mean \`${near}\`?` : ""),
@@ -659,24 +806,51 @@ export function checkLexiconNatives(note, ctx) {
                 );
                 return;
             }
+            if (kind !== "word" && !map.logographic) {
+                findings.push(
+                    finding(
+                        [...keyPath, j],
+                        `\`${label}\` names the map \`${map.name}\`, which is not logographic; ` +
+                            `${kind === "affix" ? "an affix" : "an ending"} is written by a native ` +
+                            "form only under a logographic map",
+                    ),
+                );
+                return;
+            }
             if (entry.font !== undefined && map.fonts.size && !map.fonts.has(entry.font)) {
                 findings.push(
                     finding(
-                        [i, "native", j, "font"],
+                        [...keyPath, j, "font"],
                         `\`${label}.font\` is \`${entry.font}\`, which is not a font of the map ` +
                             `\`${map.name}\`; it is for ${said([...map.fonts.keys()])}`,
                     ),
                 );
                 return;
             }
-            const slot = `${entry.map}\u0000${entry.font ?? ""}`;
+            if (
+                kind === "ending" &&
+                entry.ending !== undefined &&
+                entry.ending !== WRITTEN_ENDINGS[0] &&
+                WRITTEN_ENDINGS.includes(entry.ending) &&
+                !persons
+            )
+                findings.push(
+                    finding(
+                        [...keyPath, j],
+                        `\`${label}\` writes the ending \`${entry.ending}\`, and \`data.grammar.verbs\` ` +
+                            "states no `persons`",
+                    ),
+                );
+            const slot = `${entry.ending ?? ""}\u0000${entry.map}\u0000${entry.font ?? ""}`;
             if (stated.has(slot))
                 findings.push(
                     finding(
-                        [i, "native", j],
-                        `\`${label}\` states a second native form for the map \`${map.name}\`` +
+                        [...keyPath, j],
+                        `\`${label}\` states a second native form` +
+                            (kind === "ending" ? ` of the ending \`${entry.ending}\`` : "") +
+                            ` for the map \`${map.name}\`` +
                             (entry.font === undefined ? "" : ` in the font \`${entry.font}\``) +
-                            `; the first is \`data.words[${i}].native[${stated.get(slot)}]\``,
+                            `; the first is \`${base}[${stated.get(slot)}]\``,
                     ),
                 );
             else stated.set(slot, j);
@@ -684,10 +858,14 @@ export function checkLexiconNatives(note, ctx) {
                 entry.font !== undefined ? [entry.font]
                 : map.fonts.size ? [...map.fonts.keys()]
                 : [undefined];
-            if (fonts.every((font) => applyMap(map, form, { font }).text === entry.text))
+            if (
+                kind === "word" &&
+                !map.logographic &&
+                fonts.every((font) => applyMap(map, form, { font }).text === entry.text)
+            )
                 findings.push(
                     finding(
-                        [i, "native", j],
+                        [...keyPath, j],
                         `\`${label}\` states what the rows already give: the map \`${map.name}\` ` +
                             `spells \`${form}\` so ` +
                             (entry.font !== undefined ? `in the font \`${entry.font}\``
@@ -705,7 +883,11 @@ export function checkLexiconNatives(note, ctx) {
                 :   [...map.fonts.keys()].filter(
                         (font) =>
                             !entries.some(
-                                (other) => other && other.map === entry.map && other.font === font,
+                                (other) =>
+                                    other &&
+                                    other.map === entry.map &&
+                                    other.ending === entry.ending &&
+                                    other.font === font,
                             ),
                     );
             for (const slug of applies) {
@@ -718,7 +900,7 @@ export function checkLexiconNatives(note, ctx) {
                     seen.add(point);
                     findings.push(
                         finding(
-                            [i, "native", j],
+                            [...keyPath, j],
                             `\`${label}\` holds ${codeName(point)}, which the font \`${slug}\`, ` +
                                 `listed in the map \`${map.name}\`, does not draw`,
                         ),
@@ -726,7 +908,21 @@ export function checkLexiconNatives(note, ctx) {
                 }
             }
         });
+    };
+
+    listOf(fm.data.words).forEach((word, i) => {
+        if (!isMap(word) || !Array.isArray(word.native)) return;
+        checkList(word.native, ["words", i, "native"], {
+            kind: "word",
+            form: typeof word.form === "string" ? word.form : "",
+        });
     });
+    listOf(fm.data.affixes).forEach((affix, i) => {
+        if (isMap(affix) && Array.isArray(affix.native))
+            checkList(affix.native, ["affixes", i, "native"], { kind: "affix" });
+    });
+    if (isMap(fm.data.grammar) && Array.isArray(fm.data.grammar.native))
+        checkList(fm.data.grammar.native, ["grammar", "native"], { kind: "ending" });
     return findings;
 }
 

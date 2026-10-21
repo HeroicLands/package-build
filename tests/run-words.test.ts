@@ -204,3 +204,46 @@ describe("a mapped run's words", () => {
         expect(findings("[qux]{map=m} [qux]{lang=vyl map=m}")).toEqual([`1:15: ${unknown("qux")}`]);
     });
 });
+
+describe("a word's declared variants", () => {
+    const variantSpeech = {
+        ...vylari,
+        data: {
+            ...vylari.data,
+            words: [
+                { form: "zenothatora", class: "n", gloss: "a bell", variants: ["zenothazor"] },
+                { form: "thelmar", class: "v", gloss: "to keep", variants: ["thelm"] },
+            ],
+        },
+    };
+    const variantCtx = runContext(config, [variantSpeech, dunhari, mapping]);
+    const variantFindings = (source: string) =>
+        scanRuns(source, variantCtx).errors.map(
+            (error: { line: number; column: number; message: string }) =>
+                `${error.line}:${error.column}: ${error.message}`,
+        );
+
+    it("accepts a variant as written", () => {
+        expect(variantFindings("[zenothatora zenothazor]{lang=vyl map=m}")).toEqual([]);
+    });
+
+    it("still refuses a near miss of a variant", () => {
+        expect(variantFindings("[zenothazir]{lang=vyl map=m}")).toEqual([
+            `1:2: ${unknown("zenothazir")}`,
+        ]);
+    });
+
+    it("gives a variant the forms its word's class takes", () => {
+        expect(variantFindings("[zenothazors thelmo thelmant]{lang=vyl map=m}")).toEqual([]);
+    });
+
+    it("lists a variant and its derived forms beside its word", async () => {
+        const { derivedForms } = await import("../engine/word-forms.mjs");
+        const forms = derivedForms(variantSpeech.data).map(
+            (one: { form: string; word: { form: string } }) => [one.form, one.word.form],
+        );
+        expect(forms).toContainEqual(["zenothazor", "zenothatora"]);
+        expect(forms).toContainEqual(["zenothazors", "zenothatora"]);
+        expect(forms).toContainEqual(["thelmo", "thelmar"]);
+    });
+});

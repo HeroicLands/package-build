@@ -161,6 +161,7 @@ describe("a language note's words", () => {
             "plural",
             "field",
             "gloss",
+            "concept",
             "source",
             "built",
             "note",

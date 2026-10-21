@@ -276,11 +276,6 @@ const BAD: Array<[string, string, string[]]> = [
         ["1:4: text marked `lang=vyl` is plain text and holds no emphasis"],
     ],
     [
-        "strong emphasis in a face, written with underscores",
-        `[a __b__ c]{${SEMARON}}`,
-        [`1:4: text marked \`${SEMARON}\` takes emphasis only as \`*…*\` or \`**…**\``],
-    ],
-    [
         "a link in a face",
         `[a [b](https://example.org) c]{${SEMARON}}`,
         [`1:4: text marked \`${SEMARON}\` is plain text and holds no link`],
@@ -359,7 +354,7 @@ const BAD: Array<[string, string, string[]]> = [
             `2:1: a div marked \`${SEMARON}\` holds paragraphs and line breaks only, not a heading`,
             `4:1: a div marked \`${SEMARON}\` holds paragraphs and line breaks only, not a list`,
             `6:1: a div marked \`${SEMARON}\` holds paragraphs and line breaks only, not a block quote`,
-            `8:18: text marked \`${SEMARON}\` takes emphasis only as \`*…*\` or \`**…**\``,
+            `8:18: text marked \`${SEMARON}\` takes emphasis only as \`*…*\`, \`_…_\`, \`**…**\` or \`__…__\``,
         ],
     ],
     [

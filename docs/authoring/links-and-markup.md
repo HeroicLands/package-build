@@ -373,7 +373,7 @@ fence is indented inside a list item. Verse is upright by default; use normal
 Markdown emphasis when italics are part of the poem.
 
 ````markdown
-```verse {form=ballad meter="common meter" rhyme=ABCB syllables="8,6,8,6" lang=en}
+```verse {form=ballad lang=en}
 The lantern burns beside the gate,
 The harbor sleeps below.
 
@@ -382,16 +382,75 @@ And keeps a light aglow.
 ```
 ````
 
-The optional `form`, `meter` and `rhyme` attributes record the author's intent;
-the build does not infer stress, rhyme or pronunciation. `syllables` gives a
-positive count for each verse line in order, separated by commas, with blank
-stanza lines omitted. The build checks the number of counts, not the syllables
-spoken. `numstep` numbers the lines, and `col1` and `col2` set the poem in
-columns; see below. `lang` names the poem's language, `font` the font it is set in and
-`map` the mapping its text is rewritten by; see
+The optional `form` attribute records the author's intent; the build does not
+infer stress, rhyme or pronunciation. `numstep` numbers the lines, and `col1` and
+`col2` set the poem in columns; see below. `lang` names the poem's language,
+`font` the font it is set in and `map` the mapping its text is rewritten by; see
 [marking language, font and mapping](#marking-language-font-and-mapping). An optional `#id`
 addresses the poem itself. There are no `title` or `lines` attributes, and no
-special punctuation for stress, pauses or refrains.
+special punctuation for stress, pauses or refrains. A poem's metre, rhyme or
+syllable pattern is described in the note's prose. `scan` names a metre the
+package declares, and the build counts the poem's beats against it, as the next
+section describes.
+
+#### Metre
+
+`scan=` names a metre declared once in the package, as an entry of a `doc`
+note's `data.metres`:
+
+```yaml
+data:
+  metres:
+    - { name: hexameter, beats: 6, kind: accentual }
+```
+
+`name` is lowercase letters, digits and `-`, unique in the package. `beats` is
+the beats of one line, a whole number above zero. `kind` is `accentual`, the
+only kind: a beat falls on a stressed syllable, and the length of a syllable
+is not counted.
+
+A verse fence that states `scan=` with the declared name, and `lang=` with a
+language whose `note` names a language note stating
+[`data.sounds.stress`](../reference/format-details.md#a-languages-register-sounds-and-history),
+is counted line by line. A line that cannot have the metre's beats is a warning
+at that line:
+
+````markdown
+```verse {form=epic scan=hexameter lang=vyl}
+Thiruthriman sorimamen, ul alathas kedis alatha valmazor,
+```
+````
+
+> ``this line has 4 beats (5 with secondary beats); the metre `hexameter` has 6``
+
+Beats are counted this way:
+
+- **Syllables** are vowel groups. A vowel is a letter whose base is `a`, `e`,
+  `i`, `o` or `u`, and a pair the language lists in
+  `data.sounds.syllables.vowelPairs` is one syllable.
+- **Every word of two or more syllables has one beat**, on its stressed
+  syllable. The language's stress rule places it: `two` for a word of two
+  syllables, `longer` for a word of three or more, and a vowel carrying the
+  rule's `mark` is stressed wherever it sits.
+- **A one-syllable noun, verb, adjective, numeral or name has a beat.** A
+  one-syllable particle, preposition, conjunction, adverb or pronoun has none.
+  The `class` of the lexicon entry decides, so the language's lexicon is read
+  through `lang=` as it is for the word check, and a form the language's rules
+  derive takes its word's class. A word whose entries differ in class is a
+  beat that may be left out.
+- **A one-syllable word the lexicon does not hold is a content word** and has a
+  beat. The word check reports the word separately.
+- **A word of four or more syllables may take a second, lighter beat on its
+  first syllable** where the line needs it, unless its stress is already
+  there. A line scans when its count can be the metre's, choosing second beats
+  as needed; the warning gives the count without them and, in brackets, with
+  all of them.
+- The caesura is not written.
+
+`scan=` is refused where it cannot mean anything: a name no `data.metres`
+declares, a fence with no `lang=`, a language without a stress rule, and a verse
+in columns. A fence with no `scan=` is not counted. Readers see nothing of the
+count; the fence carries `data-scan` with the metre's name.
 
 To number and caption a poem, put a leading numbered caption before the verse fence:
 
@@ -656,7 +715,8 @@ vyl zaron` converts a passage, both through the build's own code; see
 the language's [`note`](../configuration.md#languages) names its language note.
 Each word, case folded, is one of:
 
-1. **a lexicon word**: a `data.words[].form` of the language;
+1. **a lexicon word**: a `data.words[].form` of the language, or one of its
+   `variants`, which takes every rule below as its word does;
 2. **a word of a registered name**: a word of a `name` in the language note's
    own `data.register`, under any `tongue` but `translation`. A name of several
    words is checked word by word, so `Revothar Baremzator` admits `Revothar`
@@ -763,6 +823,94 @@ A run with `lang=` and no `map=`, a run with `map=` and no
 `lang=`, a bare BCP 47 tag and a declared language with no `note` are not
 checked.
 
+### Logographic maps
+
+**A script that writes meanings is written from the dictionary, never by
+sound.** Its mapping note states `logographic: true`, and every word of a run
+under it is written from the language's lexicon. The map's rows write only the
+text between words: the spaces, the points, and anything else with no letter
+in it. A word never falls through to the rows, so a word the lexicon gives no
+writing is an error rather than a guess.
+
+A word of the run is written by the first of these that gives a writing:
+
+1. **The word's own `native` entry** for the map, the one for the run's face
+   where an entry names one, else the one for no face. A word written its own
+   way, such as a set compound, states this even where its parts would give
+   another writing.
+2. **Its parts.**
+   - **A word stating `built`** is written by its pieces' writings joined in
+     order. A piece is a word of the lexicon, matched exactly and then with its
+     joining hyphens taken off, or an affix of `data.affixes` with a `native`
+     entry of its own. A word piece is written by this same rule, so a compound
+     of compounds resolves all the way down.
+   - **A noun's plural and a verb's present forms** are written by the stem's
+     writing followed by the ending's, which `data.grammar.native` states once
+     per ending: `plural`, or one of the persons `I`, `you`, `heShe`, `we`,
+     `youAll` and `they`. The forms themselves are the ones the language's
+     rules give, as for the lexicon check.
+   - **A hyphenated word no entry states** is written by each of its parts in
+     turn, so `Gar-halzunet` is `Gar-`'s writing followed by `halzunet`'s.
+3. **Otherwise the word is an error** at the word. Coin the word or give it a
+   writing, or write the signs directly.
+
+A word is matched case folded, because the script has no capitals: `Halzi` and
+`halzi` both find the entries `Halzi` and `halzi`. **Where one roman form
+stands for entries written differently**, or where one has a writing and
+another has none, the run cannot tell which sense is meant, and the word is an
+error naming every entry's gloss. Write that word directly in signs, picking
+the sense by its gloss from `package-build lexicon khel --map zethu`. Signs typed
+in the run are no word, and pass through as typed. Entries that share a form
+and are written alike are written so.
+
+Khelathi in Zethu, with its roots, an affix and the plural written once:
+
+```yaml
+affixes:
+  - form: "-unet"
+    gloss: "a thing made of"
+    native:
+      - { map: zethu, text: "\U0001EBC7" }
+grammar:
+  plural:
+    - { ending: "", becomes: "im" }
+  native:
+    - { ending: plural, map: zethu, text: "\U0001EBE1" }
+words:
+  - form: halzi
+    class: n
+    field: "The body"
+    gloss: heart
+    native:
+      - { map: zethu, text: "\U0001EABB" }
+  - form: halzunet
+    class: n
+    field: "Counting-house and water-works"
+    gloss: the account
+    built: [halzi, -unet]
+```
+
+`[halzi halzunet halziim]{lang=khel font=khelathi-zethu-glyphs map=zethu}` is
+written U+1EABB, then U+1EABB U+1EBC7, then U+1EABB U+1EBE1, with the spaces
+the rows write between them. A word of the run that resolves to nothing is
+reported once per run:
+
+> `` `zamlu` has no `zethu` writing in the `khel` lexicon, and its parts do not give one; state one, or write the word directly in signs ``
+
+The lexicon check still applies: every word of the run is a word of its
+language, a registered name or a regular form of one. A registered name is
+written like any other word, so a name with no writing is an error; a foreign
+name is written deliberately, in signs or through a map that rewrites a
+sign-by-sign notation.
+
+An affix's `native` and `data.grammar.native` are read only under a logographic
+map, so either one naming any other map is an error at the entry, and an ending
+of a person is an error where `data.grammar.verbs` states no `persons`. A
+word's `native` under a logographic map is not held to what the rows give,
+because the rows spell no word. `package-build lexicon khel --map zethu` lists
+every word with its writing and where it comes from, and marks the words that
+have none.
+
 ### Mapping notes
 
 A mapping note is a `doc` note whose `data.map` lists the rewrites:
@@ -812,6 +960,10 @@ How Vylari's roman spelling is written in the Semaron chancery hand.
   reaches only code points up to U+FFFF. A row matches and writes whole code
   points.
 - **`vowels`** lists the characters `before: vowel` reads as vowels.
+- **`logographic: true`** marks a script that writes meanings: every word of
+  a run is written from the lexicon, and the rows write only the text between
+  words; see [logographic maps](#logographic-maps). A row whose `from` holds a
+  letter could never apply on such a map, and is an error at the row.
 
 How a map reads text:
 
@@ -933,8 +1085,9 @@ is then an error at the emphasis, and the remedy is the word the language
 stresses with. A language may also state `rubric` or `overline`, which it takes
 in every script it is written in.
 
-Underscores, `_…_` and `__…__`, and a strikethrough are still errors in a face;
-an escaped `\*`, or a star that pairs with none, is a character the map and the
+`_…_` is emphasis equal to `*…*`, and `__…__` equal to `**…**`, so a note keeps
+its meaning when a formatter rewrites one pair to the other. A strikethrough is
+an error in a face; an escaped `\*`, or a star that pairs with none, is a character the map and the
 face are checked for. A stressed word is best enclosed whole: a star inside a
 word splits it, so a map's row or a lexicon word that crosses the star is not
 matched.
@@ -956,11 +1109,14 @@ that `lint` reports and that fails nothing:
 | `` `ch` maps to U+F0299 in the map `semaron`, which the font `semaron-kuriale` does not draw ``                                                                                                                                                                | Correct the row's `to`.                                                                                                   |
 | `` `zaron` is written U+F0299 by the lexicon of `vyl` for the map `semaron`, which the font `semaron-kuriale` does not draw ``                                                                                                                                 | Correct the word's `native` text.                                                                                         |
 | `` `Orlan` is capitalised, and the native form the lexicon of `vyl` states for `orlan` under the map `semaron` does not begin as the rows spell its first letter, so the rows cannot capitalise it; state `Orlan` as a word of its own with its native form `` | State the capitalised word as a lexicon word of its own with its native form.                                             |
+| `` `zamlu` has no `zethu` writing in the `khel` lexicon, and its parts do not give one; state one, or write the word directly in signs ``                                                                                                                      | Give the word, or its pieces and endings, a writing for the map, or write its signs directly.                             |
+| `` `nelgir` stands for 2 words of the `khel` lexicon that the map `zethu` writes differently, “a god” and “god”; write the word directly in signs, choosing by its sense in `package-build lexicon khel --map zethu` ``                                        | Write the signs of the sense meant, from the lexicon listing.                                                             |
+| `` `halzi` has no `zethu` writing: the map `zethu` is logographic, and the run names no `lang=` whose lexicon writes it; mark the run with its language, or write the word directly in signs ``                                                                | Mark the run with `lang=`, or write its signs directly.                                                                   |
 | `` `thiruthrimar` is not a word of the `vyl` lexicon, a registered name, or a regular form of one; coin it in the lexicon (or register the name) first ``                                                                                                      | Coin the word in the language note's `data.words`, register the name in its own `data.register`, or correct the spelling. |
 | `` `thuravark-carved` is not a font of the map `semaron`; it is for `semaron-kuriale` ``                                                                                                                                                                       | Set the run in a face the map lists, or list the face in `data.map.fonts`.                                                |
 | ``text marked `lang=vyl` is plain text and holds no emphasis``                                                                                                                                                                                                 | Remove the markup, or escape the character with a backslash.                                                              |
-| ``text marked `lang=prv font=semaron-kuriale map=semaron` takes emphasis only as `*…*` or `**…**` ``                                                                                                                                                           | Write the emphasis with stars.                                                                                            |
-| `` `vyl` marks emphasis with a word, not a mark; write the word ``                                                                                                                                                                                             | Remove the stars and write the word the language stresses with.                                                           |
+| ``text marked `lang=prv font=semaron-kuriale map=semaron` takes emphasis only as `*…*`, `_…_`, `**…**` or `__…__` ``                                                                                                                                           | Write the emphasis with stars or underscores.                                                                             |
+| `` `vyl` marks emphasis with a word, not a mark; write the word ``                                                                                                                                                                                             | Remove the emphasis marks and write the word the language stresses with.                                                  |
 | ``a div marked `lang=vyl font=semaron-kuriale map=semaron` holds paragraphs and line breaks only, not a list``                                                                                                                                                 | Move the list out of the div.                                                                                             |
 | `` `font=` is read on a span, a div or a verse fence, not on a secret block ``                                                                                                                                                                                 | Put a marked div inside the secret block.                                                                                 |
 | `` `vly` is read as a BCP 47 tag; did you mean the declared language `vyl`? `` (a warning)                                                                                                                                                                     | Write the declared name, or ignore it when the tag is meant.                                                              |
@@ -983,6 +1139,48 @@ Its columns are `owner`, `kind` (`span`, `block` or `verse`), `lang` as written,
 the `tag` it resolves to (`NULL` when it resolves to none), `font`, `map`, `line`
 and `column`. A run inside a div or a fence records the keys it inherits. See
 [the `runs` relation](../reference/format-details.md#content-tables).
+
+### Tying words to the core vocabulary
+
+A setting can name the concepts every language of it has a word for, and measure
+each language against them without reading a gloss. Three things state it:
+
+1. **A concept list** in the `data.concepts` of a `doc` note: each concept has
+   an `id` (lowercase letters, digits and `-`, unique in the package), a short
+   `gloss` and a `group` the report lists it under.
+2. **`core: true`** in the `data` of each language note that must cover the list.
+3. **`concept`** on each word that serves a concept: one id, or a list of ids
+   for a word that serves several.
+
+```yaml
+# Docs/Core_Concepts.md
+type: doc
+subType: reference
+data:
+  concepts:
+    - { id: see-verb, gloss: to see, group: senses }
+    - { id: smell-noun, gloss: "a smell; a scent", group: senses }
+    - { id: knee, gloss: the knee, group: body }
+
+# Skills/Vylari.md
+type: skill
+subType: language
+data:
+  core: true
+  words:
+    - { form: veda, class: n, field: Senses, gloss: a sight, concept: see-verb }
+```
+
+A `concept` that names no entry of the list is an error at the id, with the
+nearest id offered: `` `smel-noun` is not a core concept; did you mean
+`smell-noun`? ``. A language reads the words of its `data.family` chain as its
+own, so a parent's tagged word covers the daughter's concept.
+
+`package-build core` lists, for each language that states `core: true`, the
+concepts it has no word for, by group with counts. A missing concept is never an
+error: the report is the work list, and `--language <name> --json` serves an
+agent working through one language. See
+[the command reference](../commands.md#package-build-core).
 
 ## Footnotes and definition lists
 
@@ -1105,7 +1303,7 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 | `edges`            | One row per entry of a language note's `data.sounds.edges`: the `edge` and its `sounds` as a list.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `clusters`         | One row per language note stating `data.sounds.clusters`, with its `max`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `cluster_groups`   | One row per group of a language note's `data.sounds.clusters.groups`: `what`, `clusters` as a list, and `use`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `stress`           | One row per language note stating `data.sounds.stress`, with its `stress`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `stress`           | One row per language note stating `data.sounds.stress`, with its `two`, `longer` and `mark` (`NULL` where unstated).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `finals`           | One row per entry of a language note's `data.sounds.finals`: `final` and `like`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `syllables`        | One row per language note stating `data.sounds.syllables`: each rule a column, the harmony as `harmony_back`, `harmony_front`, `harmony_neutral`, `harmony_neutralAs` and `harmony_partners`, a list of `{ vowel, partner }`.                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `joining`          | One row per entry of a language note's `data.sounds.joining`: `first`, `second`, `written` and `example`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -1421,7 +1619,7 @@ The stress rule, the syllable rules and the finals. A rule of `syllables` is a c
 
 ````markdown
 ```sql
-SELECT 'Stress falls on' AS "Rule", stress AS "Value"
+SELECT 'Stress falls on' AS "Rule", two || ' of two syllables, ' || longer || ' of more' AS "Value"
 FROM stress WHERE language = 'thalorna-note-skill-vylarilng'
 ```
 

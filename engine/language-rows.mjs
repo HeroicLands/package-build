@@ -130,7 +130,7 @@ export const NEAR_NAME_COLUMNS = Object.freeze([...IDENTITY, "near", "given", "m
 /** Every column of the `negation` relation, in order: one row per language. */
 export const NEGATION_COLUMNS = Object.freeze(["language", "particle", "mutation"]);
 /** Every column of the `stress` relation, in order. */
-export const STRESS_COLUMNS = Object.freeze(["language", "stress"]);
+export const STRESS_COLUMNS = Object.freeze(["language", "two", "longer", "mark"]);
 /** Every column of the `finals` relation, in order. */
 export const FINAL_COLUMNS = Object.freeze([...IDENTITY, ...FINAL_KEYS]);
 /** Every column of the `syllables` relation, in order: one row per language. */
@@ -789,7 +789,13 @@ export function stressRows(records) {
     const rows = [];
     for (const [language, record] of languagesOf(records)) {
         const stress = soundsOf(isMap(record.data) ? record.data : {}).stress;
-        if (typeof stress === "string") rows.push({ language, stress });
+        if (isMap(stress))
+            rows.push({
+                language,
+                two: stress.two ?? null,
+                longer: stress.longer ?? null,
+                mark: stress.mark ?? null,
+            });
     }
     return rows;
 }

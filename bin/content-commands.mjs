@@ -118,6 +118,7 @@ import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { markupFindings } from "../engine/markup-validation.mjs";
 import { runContext } from "../engine/content-scripts.mjs";
+import { coreReport, coreReportText } from "../engine/core-report.mjs";
 import { checkScriptNoteFonts } from "../engine/script-emphasis.mjs";
 import {
     checkLexiconNatives,
@@ -326,6 +327,7 @@ export function registerContentCommands(cli) {
         .command(withIndexPreflight(reachabilityCommand()))
         .command(transliterateCommand())
         .command(lexiconCommand())
+        .command(coreCommand())
         .command(addressesCommand())
         .command(withIndexPreflight(npcCommand()));
 }
@@ -2442,7 +2444,9 @@ function transliterateCommand() {
  * `package-build lexicon <language> --map <map>` — every word of a language's
  * lexicon with its native form under a map, as the build writes it; with
  * `--derived`, the forms its rules derive follow, each naming its word in a
- * sixth column.
+ * sixth column. Under a logographic map the third column says where a
+ * word's writing comes from, `own` or `parts`, or marks it `none` or
+ * `ambiguous`.
  *
  * @returns {object} The yargs command module.
  */
@@ -2501,12 +2505,75 @@ function lexiconCommand() {
                             [
                                 entry.form,
                                 entry.native,
-                                entry.exception ? "exception" : "rows",
+                                entry.source === undefined ?
+                                    entry.exception ?
+                                        "exception"
+                                    :   "rows"
+                                : entry.ambiguous ? "ambiguous"
+                                : entry.source,
                                 entry.class ?? "",
                                 entry.gloss ?? "",
                                 ...(argv.derived ? [entry.from ?? ""] : []),
                             ].join("\t"),
                         );
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `package-build core [--language <name>] [--json]` — the concepts of the core
+ * vocabulary each covering language has no word for, by group.
+ *
+ * @returns {object} The yargs command module.
+ */
+// eslint-disable-next-line
+function coreCommand() {
+    return {
+        command: "core",
+        describe: "List the core concepts each covering language has no word for",
+        builder: (yargs) =>
+            yargs
+                .option("language", {
+                    type: "string",
+                    describe:
+                        "Report this language alone, by its name, shortcode or reference, whether or not it states `data.core`",
+                })
+                .option("json", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Print the report as JSON",
+                }),
+        handler: (argv) => {
+            try {
+                const config = loadPackConfig();
+                const problems = [];
+                const records = indexRecordsFor({
+                    contentBase: config.paths.content,
+                    config,
+                    skipDirectories: config.skipDirectories,
+                    problems,
+                });
+                for (const problem of problems) emitDiagnostic(problem);
+                if (problems.length) {
+                    process.exitCode = 1;
+                    return;
+                }
+                const report = coreReport(records, { language: argv.language });
+                if ("problem" in report) {
+                    emitDiagnostic({
+                        file: config.paths.content,
+                        severity: "error",
+                        message: report.problem,
+                    });
+                    process.exitCode = 1;
+                    return;
+                }
+                if (argv.json) console.log(JSON.stringify(report, null, 2));
+                else process.stdout.write(coreReportText(report));
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

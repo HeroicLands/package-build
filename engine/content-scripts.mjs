@@ -18,13 +18,13 @@
  *
  * ```markdown
  * [Daimela, helthos.]{lang=vyl}
- * [Zaron tholmeza]{lang=vyl font=semaron-kuriale map=vyl-semaron}
+ * [Zaron tholmeza]{lang=vyl font=semaron-kuriale map=semaron}
  *
- * ::: {lang=vyl font=semaron-kuriale map=vyl-semaron}
+ * ::: {lang=vyl font=semaron-kuriale map=semaron}
  * Zaron tholmeza.
  * :::
  *
- * ```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}
+ * ```verse {form=epic lang=vyl font=semaron-kuriale map=semaron}
  * ```
  *
  * - **`lang=`** gives the language tag and changes nothing else. It is a name
@@ -39,6 +39,10 @@
  * - **`lang=` with `map=` reads the language's lexicon first**: a word whose
  *   entry states a native form for the map is written by it, and the rows
  *   spell every other word; see {@link module:engine/map-lexicon}.
+ * - **A logographic map writes every word from the lexicon**: by the word's
+ *   own writing or its parts', and a word with neither, or whose form stands
+ *   for entries written differently, is a finding at the word, once per run;
+ *   see {@link module:engine/logographic}.
  * - **Every word of a run with `lang=` and `map=` is a word of its language**
  *   where the language's `note` names its language note: a lexicon form, a
  *   word of a name its own register lists, or a regular form of a lexicon
@@ -72,7 +76,14 @@
 import MarkdownIt from "markdown-it";
 
 import { scanBlocks, BLOCK_CONTAINERS } from "./content-blocks.mjs";
-import { expandVerse, expandVerseOrigins, scanVerse, sourcePosition } from "./content-verse.mjs";
+import {
+    COLUMN_KEYS,
+    COLUMNS_CLASS,
+    expandVerse,
+    expandVerseOrigins,
+    scanVerse,
+    sourcePosition,
+} from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { isLanguageTag } from "./language-tag.mjs";
 import { distance, nearest } from "./near-miss.mjs";
@@ -85,8 +96,10 @@ import {
     lexiconsFromRecords,
     mappingFor,
     uncapitalisedMessage,
+    unwrittenMessage,
 } from "./map-lexicon.mjs";
 import { unknownWordMessage, unknownWords, wordBooksFromRecords } from "./run-words.mjs";
+import { metreBooksFromRecords, metreFindings, metresFromRecords } from "./verse-metre.mjs";
 import { applyMap, mapsFromRecords } from "./text-maps.mjs";
 
 /** The keys this module reads, which no construct passes through as written. */
@@ -120,6 +133,11 @@ const CONFIG = "package-build.config.yaml";
  * @property {ReadonlyMap<string, import("./run-words.mjs").WordBook>} [wordBooks] -
  *   What each configured language's mapped runs are checked against, from
  *   {@link module:engine/run-words.wordBooksFromRecords}.
+ * @property {ReadonlyMap<string, import("./metre-declaration.mjs").Metre>} [metres] -
+ *   The metres the `doc` notes declare, by name.
+ * @property {ReadonlyMap<string, import("./verse-metre.mjs").MetreBook>} [metreBooks] -
+ *   What each configured language's verse is counted by, from
+ *   {@link module:engine/verse-metre.metreBooksFromRecords}.
  * @property {ReadonlyMap<string, import("./script-emphasis.mjs").Emphasis>} [emphases] -
  *   Each face's emphasis conventions, from the script notes, by
  *   {@link module:engine/script-emphasis.emphasesFromRecords}.
@@ -194,6 +212,8 @@ export function runContext(config, records) {
         maps: mapsFromRecords(records),
         lexicons: lexiconsFromRecords(records, config),
         wordBooks: wordBooksFromRecords(records, config),
+        metres: metresFromRecords(records),
+        metreBooks: metreBooksFromRecords(records, config),
         emphases: emphasesFromRecords(records),
         languageEmphases: languageEmphasesOf(languageRecordsByName(records, config)),
     });
@@ -313,8 +333,8 @@ function closing(text, open) {
  * @param {ReadonlyMap<number, number>} [holes] - Marked spans inside the
  *   text, each its offset of `[` to the offset past its attributes. They are
  *   runs of their own and checked as such.
- * @param {boolean} [stars] - Whether `*…*` and `**…**` are emphasis the text
- *   may hold, as in a run in a script face; `_` and `~~` still are not.
+ * @param {boolean} [stars] - Whether `*…*`, `_…_`, `**…**` and `__…__` are
+ *   emphasis the text may hold, as in a run in a script face; `~~` is not.
  * @returns {Array<{offset: number, what: string}>} Each fault, in order.
  */
 function inlineMarkup(text, footnotes, holes = new Map(), stars = false) {
@@ -401,7 +421,7 @@ function inlineMarkup(text, footnotes, holes = new Map(), stars = false) {
         if (char === "*" || char === "_" || (char === "~" && text[i + 1] === "~")) {
             let j = i;
             while (text[j] === char) j++;
-            if (stars && char === "*") {
+            if (stars && char !== "~") {
                 i = j - 1;
                 continue;
             }
@@ -422,7 +442,7 @@ function inlineMarkup(text, footnotes, holes = new Map(), stars = false) {
             i = j - 1;
         }
     }
-    let outside = stars ? text.replace(/\*/g, " ") : text;
+    let outside = stars ? text.replace(/[*_]/g, " ") : text;
     for (const [from, to] of holes)
         outside = outside.slice(0, from) + " ".repeat(to - from) + outside.slice(to);
     if (runs.length && holdsEmphasis(outside)) {
@@ -450,19 +470,19 @@ const starParser = new MarkdownIt({ html: false, linkify: false, typographer: fa
 const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/;
 
 /**
- * One `*` or `**` that Markdown reads as opening or closing emphasis.
+ * One `*`, `_`, `**` or `__` that Markdown reads as opening or closing emphasis.
  *
  * @typedef {object} Delimiter
- * @property {number} offset - Its first star's offset.
- * @property {number} length - 1 for `*`, 2 for `**`.
+ * @property {number} offset - Its first character's offset.
+ * @property {number} length - 1 for `*` or `_`, 2 for `**` or `__`.
  * @property {"em"|"strong"} tag - Which level it opens or closes.
  * @property {boolean} open - Whether it opens.
  */
 
 /**
- * The stars Markdown reads as emphasis in a run's text, as CommonMark pairs
- * them. Every other character is read as itself: an escaped star, or one that
- * pairs with none, is a character of the text. A marked span inside the text
+ * The stars and underscores Markdown reads as emphasis in a run's text, as
+ * CommonMark pairs them. Every other character is read as itself: an escaped
+ * delimiter, or one that pairs with none, is a character of the text. A marked span inside the text
  * reads as one letter, so emphasis may enclose it.
  *
  * @param {string} text - Inline text, as written.
@@ -481,10 +501,10 @@ function emphasisDelimiters(text, holes = new Map()) {
         }
         const char = text[i];
         if (char === "\\" && ASCII_PUNCTUATION.test(text[i + 1] ?? "")) {
-            masked += text[i + 1] === "*" ? "\\!" : `\\${text[i + 1]}`;
+            masked += text[i + 1] === "*" || text[i + 1] === "_" ? "\\!" : `\\${text[i + 1]}`;
             i++;
-        } else if (char === "*") {
-            masked += "*";
+        } else if (char === "*" || char === "_") {
+            masked += char;
             stars.push(i);
         } else masked += ASCII_PUNCTUATION.test(char) ? `\\${char}` : char;
     }
@@ -492,7 +512,7 @@ function emphasisDelimiters(text, holes = new Map()) {
     const delimiters = [];
     let at = 0;
     for (const token of starParser.parseInline(masked, {})[0]?.children ?? []) {
-        if (token.type === "text") at += (token.content.match(/\*/g) ?? []).length;
+        if (token.type === "text") at += (token.content.match(/[*_]/g) ?? []).length;
         else if (/^(?:em|strong)_(?:open|close)$/.test(token.type)) {
             delimiters.push({
                 offset: stars[at],
@@ -580,7 +600,7 @@ function unescapeRoman(core) {
  * @param {import("./map-lexicon.mjs").Mapping|undefined} mapping - The run's
  *   map, face and lexicon.
  * @param {boolean} lineStart - Whether `raw` starts its line.
- * @returns {{text: string, pieces: Array<{offset: number, from: string, to: string, row: boolean, native?: boolean, uncapitalised?: string}>}}
+ * @returns {{text: string, pieces: Array<{offset: number, from: string, to: string, row: boolean, native?: boolean, uncapitalised?: string, unwritten?: object}>}}
  *   The set text, and each piece of it with the offset in `raw` it came from.
  */
 function setText(raw, mapping, lineStart) {
@@ -597,6 +617,7 @@ function setText(raw, mapping, lineStart) {
             const mapped = applyMap(mapping?.map, plain.text, {
                 font: mapping?.font,
                 native: mapping?.native,
+                writing: mapping?.writing,
             });
             for (const piece of mapped.pieces)
                 pieces.push({
@@ -608,6 +629,7 @@ function setText(raw, mapping, lineStart) {
                     ...(piece.uncapitalised === undefined ?
                         {}
                     :   { uncapitalised: piece.uncapitalised }),
+                    ...(piece.unwritten === undefined ? {} : { unwritten: piece.unwritten }),
                 });
             out.push(
                 lead +
@@ -955,7 +977,7 @@ function analyseRuns(source, ctx, syntax) {
                 fault.what !== "emphasis" || !stars ?
                     `text marked \`${marking}\` is plain text and holds no ${fault.what}`
                 : words ? wordsMessage(/** @type {string} */ (lang))
-                : `text marked \`${marking}\` takes emphasis only as \`*…*\` or \`**…**\``,
+                : `text marked \`${marking}\` takes emphasis only as \`*…*\`, \`_…_\`, \`**…**\` or \`__…__\``,
             );
         if (!stars) return;
         for (const delimiter of emphasisDelimiters(inline, relative)) {
@@ -983,6 +1005,8 @@ function analyseRuns(source, ctx, syntax) {
         for (const [from, to] of parts) {
             const lineStart = from === 0 || text[from - 1] === "\n";
             for (const piece of setText(text.slice(from, to), mapping, lineStart).pieces) {
+                // A word with no writing is its own finding, not a face's.
+                if (piece.unwritten) continue;
                 for (const char of piece.to) {
                     const point = /** @type {number} */ (char.codePointAt(0));
                     if (/\s/u.test(char) || face.draws.has(point)) continue;
@@ -1039,6 +1063,35 @@ function analyseRuns(source, ctx, syntax) {
                             mapping.map.name,
                         ),
                     );
+        }
+    };
+
+    /**
+     * Report each word a logographic map gives no writing, once per run, at
+     * the word.
+     *
+     * @param {Array<[number, number]>} parts - The text to check, as offsets.
+     * @param {RunDetail} detail - The run.
+     */
+    const writings = (parts, detail) => {
+        const { mapping } = detail;
+        if (!mapping?.map.logographic) return;
+        const said = new Set();
+        for (const [from, to] of parts) {
+            const lineStart = from === 0 || text[from - 1] === "\n";
+            for (const piece of setText(text.slice(from, to), mapping, lineStart).pieces) {
+                if (piece.unwritten === undefined || said.has(piece.from)) continue;
+                said.add(piece.from);
+                report(
+                    positionOf(starts, from + piece.offset),
+                    unwrittenMessage(
+                        piece.from,
+                        piece.unwritten,
+                        detail.run.lang,
+                        mapping.map.name,
+                    ),
+                );
+            }
         }
     };
 
@@ -1146,6 +1199,7 @@ function analyseRuns(source, ctx, syntax) {
                 );
                 lexical(parts, detail);
                 capitals(parts, detail);
+                writings(parts, detail);
                 covered(parts, detail);
             }
             continue;
@@ -1202,6 +1256,7 @@ function analyseRuns(source, ctx, syntax) {
             const parts = outsideDelimiters(outsideHoles(from, to, detail.holes), detail.emphasis);
             lexical(parts, detail);
             capitals(parts, detail);
+            writings(parts, detail);
             covered(parts, detail);
         }
     }
@@ -1234,7 +1289,25 @@ export function scanRuns(source, ctx = {}, syntax) {
     const text = String(source ?? "");
     const { markdown, origins } = expandVerseOrigins(text);
     const authored = analyseRuns(text, ctx, syntax);
-    if (markdown === text) return authored;
+    const metre = metreFindings(scanVerse(text).blocks, text.split("\n"), {
+        metres: ctx.metres,
+        metreBooks: ctx.metreBooks,
+        lexicons: ctx.lexicons,
+        columnsClass: COLUMNS_CLASS,
+        columnKeys: COLUMN_KEYS,
+        attributeColumns,
+    });
+    /** @param {object[]} found @param {object[]} extra */
+    const merged = (found, extra) =>
+        extra.length ?
+            [...found, ...extra].sort((a, b) => a.line - b.line || a.column - b.column)
+        :   found;
+    if (markdown === text)
+        return {
+            ...authored,
+            errors: merged(authored.errors, metre.errors),
+            warnings: merged(authored.warnings, metre.warnings),
+        };
     // A verse in columns is checked as the spans each entry sets, which are
     // written only in the expansion; every finding is placed back where the
     // note wrote the text or the entry it comes from, once.
@@ -1254,8 +1327,8 @@ export function scanRuns(source, ctx = {}, syntax) {
     };
     return {
         runs: authored.runs,
-        errors: placed(checked.errors),
-        warnings: placed(checked.warnings),
+        errors: merged(placed(checked.errors), metre.errors),
+        warnings: merged(placed(checked.warnings), metre.warnings),
     };
 }
 

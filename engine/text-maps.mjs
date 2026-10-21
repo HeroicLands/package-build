@@ -51,6 +51,14 @@
  *   `uncapitalised`, which a run reports; the capitalised word is then stated
  *   as a lexicon word of its own.
  *
+ * - **A logographic map** (`logographic: true`) writes every word, a word
+ *   being a match of the word pattern that holds a letter, by the writing a
+ *   lookup gives it (see {@link module:engine/logographic}), and its rows
+ *   write only the text between words: spaces, points, and anything else
+ *   with no letter. A word the lookup gives no writing is written as typed
+ *   and marked `unwritten`, which a run reports. A row of such a map whose
+ *   `from` holds a letter could never apply, and is refused.
+ *
  * `rows` is a list, never a keyed map, so `A` and `a` are two rows: the index
  * carries them as rows of the `maps` relation, never as struct keys.
  *
@@ -97,6 +105,8 @@ const BOUNDARY = /[\s\p{P}\p{S}]/u;
  *
  * @typedef {object} TextMap
  * @property {string} name - Its name.
+ * @property {boolean} logographic - Whether it writes words from the lexicon
+ *   alone, its rows only between them.
  * @property {ReadonlySet<string>} vowels - The characters `before: vowel` reads.
  * @property {readonly MapRow[]} rows - Its well-formed shared rows, in authored order.
  * @property {ReadonlyMap<string, readonly MapRow[]>} byFirst - Its shared rows
@@ -113,6 +123,8 @@ const BOUNDARY = /[\s\p{P}\p{S}]/u;
  *   tried first.
  * @property {(word: string) => string|undefined} [native] - A word's native
  *   form, for the word exactly as given, or `undefined` where it states none.
+ * @property {(word: string) => import("./logographic.mjs").Writing} [writing] -
+ *   A word's writing under a logographic map; without one, no word has one.
  */
 
 /**
@@ -236,6 +248,7 @@ export function compileMap(value) {
     }
     return Object.freeze({
         name: map.name,
+        logographic: map.logographic === true,
         vowels,
         rows,
         byFirst: indexRows(rows),
@@ -300,9 +313,9 @@ function rowAt(map, font, text, at, limit) {
  * @param {TextMap|undefined} map - The map.
  * @param {string} text - The text.
  * @param {string|undefined} font - The face.
- * @param {ReadonlyMap<number, {end: number, to: string, uncapitalised?: string}>} words -
- *   Words written by their native form, by offset.
- * @returns {{text: string, pieces: Array<{at: number, from: string, to: string, row: boolean, native?: boolean, uncapitalised?: string}>}}
+ * @param {ReadonlyMap<number, {end: number, to: string, uncapitalised?: string, unwritten?: object}>} words -
+ *   Words written whole, by offset.
+ * @returns {{text: string, pieces: Array<{at: number, from: string, to: string, row: boolean, native?: boolean, uncapitalised?: string, unwritten?: object}>}}
  *   As {@link applyMap}.
  */
 function applyRows(map, text, font, words) {
@@ -317,8 +330,9 @@ function applyRows(map, text, font, words) {
                 at,
                 from: text.slice(at, word.end),
                 to: word.to,
-                row: true,
-                native: true,
+                ...(word.unwritten === undefined ?
+                    { row: true, native: true }
+                :   { row: false, unwritten: word.unwritten }),
                 ...(word.uncapitalised === undefined ? {} : { uncapitalised: word.uncapitalised }),
             });
             out += word.to;
@@ -371,15 +385,31 @@ export function capitalNative(map, font, word, native) {
  *   as it is.
  * @param {string} text - The text, with no escapes in it.
  * @param {MapOptions} [options] - The face, and the native forms of words.
- * @returns {{text: string, pieces: Array<{at: number, from: string, to: string, row: boolean, native?: boolean}>}}
+ * @returns {{text: string, pieces: Array<{at: number, from: string, to: string, row: boolean, native?: boolean, unwritten?: object}>}}
  *   The rewritten text, and each piece of it with the UTF-16 offset in `text`
  *   it came from: a matched row's `from` and what it wrote, a word and its
  *   native form (`native: true`), or one character that passed through. A
  *   capitalised word whose native form the rows cannot capitalise is written
  *   as stated and carries `uncapitalised`, the lowercase form it was found by.
+ *   Under a logographic map, a word with no writing is written as typed and
+ *   carries `unwritten`, why it has none.
  */
-export function applyMap(map, text, { font, native } = {}) {
+export function applyMap(map, text, { font, native, writing } = {}) {
     const words = new Map();
+    if (map?.logographic) {
+        for (const match of text.matchAll(WORD)) {
+            const word = match[0];
+            if (!LETTER.test(word)) continue;
+            const found = writing ? writing(word) : { missing: true, noLexicon: true };
+            words.set(
+                match.index,
+                "text" in found ?
+                    { end: match.index + word.length, to: found.text }
+                :   { end: match.index + word.length, to: word, unwritten: found },
+            );
+        }
+        return applyRows(map, text, font, words);
+    }
     if (map && native)
         for (const match of text.matchAll(WORD)) {
             const word = match[0];
@@ -502,7 +532,8 @@ function namesIn(index) {
 /**
  * Check a note's `data.map`: its name, that no other note declares it, each
  * row written as a list, a `before` condition on a map with no `vowels`, an
- * empty `fonts`, and a generic family in it. The data-key check owns every
+ * empty `fonts`, a generic family in it, and a row of a logographic map that
+ * matches a letter. The data-key check owns every
  * key, its kind and the words a condition takes; whether a listed face is
  * installed, and draws what the map writes, is
  * {@link module:engine/map-lexicon.checkMapFonts}'s.
@@ -527,7 +558,9 @@ export function checkMapField(note, { index } = {}) {
         message,
     });
     const findings = [];
-    const { name, vowels, rows, fonts } = /** @type {Record<string, unknown>} */ (value);
+    const { name, vowels, rows, fonts, logographic } = /** @type {Record<string, unknown>} */ (
+        value
+    );
     if (typeof name === "string" && !MAP_NAME.test(name))
         findings.push(
             finding(
@@ -565,12 +598,26 @@ export function checkMapField(note, { index } = {}) {
     }
     // A row's keys, their kinds and the words a condition takes are the
     // data-key check's; what it cannot say is a list row's arity, an empty
-    // `from` in one, and a condition the map has no vowels for.
+    // `from` in one, a condition the map has no vowels for, and a letter a
+    // logographic map's row could never meet.
     const hasVowels = typeof vowels === "string" && vowels !== "";
     const rowFindings = (list, keyPath) => {
         if (!Array.isArray(list)) return;
         const label = `data.map.${keyPath.join(".").replace(/\.(\d+)/g, "[$1]")}`;
         list.forEach((row, at) => {
+            const from =
+                Array.isArray(row) ? row[0]
+                : isMap(row) ? row.from
+                : undefined;
+            const letter = typeof from === "string" ? from.match(LETTER)?.[0] : undefined;
+            if (logographic === true && letter !== undefined)
+                findings.push(
+                    finding(
+                        [...keyPath, at],
+                        `\`${label}[${at}]\` matches \`${letter}\`, a letter, and the rows of a ` +
+                            "logographic map write only the text between words",
+                    ),
+                );
             if (Array.isArray(row)) {
                 if (row.length !== 2)
                     findings.push(

@@ -69,8 +69,18 @@ export const WORD_COLUMNS = Object.freeze([
 /** Every column of the `glossary` relation, in order. */
 export const GLOSSARY_COLUMNS = Object.freeze(["note", "position", ...GLOSSARY_ENTRY_KEYS]);
 
+/**
+ * The affix's own keys an affix row carries: all but `native`, its writings
+ * under a logographic map, which `package-build lexicon` resolves.
+ */
+const AFFIX_ROW_KEYS = Object.freeze(AFFIX_KEYS.filter((key) => key !== "native"));
+
 /** Every column of the `affixes` relation, in order. */
-export const AFFIX_COLUMNS = Object.freeze([...WORD_IDENTITY_COLUMNS, ...AFFIX_KEYS, "written"]);
+export const AFFIX_COLUMNS = Object.freeze([
+    ...WORD_IDENTITY_COLUMNS,
+    ...AFFIX_ROW_KEYS,
+    "written",
+]);
 
 /** Every column of the `fields` relation, in order. */
 export const FIELD_COLUMNS = Object.freeze([...WORD_IDENTITY_COLUMNS, ...FIELD_KEYS]);
@@ -322,7 +332,7 @@ function languageListRows(records, list, keys) {
  * @returns {object[]} One row per affix, in record then entry order.
  */
 export function affixRows(records) {
-    return languageListRows(records, "affixes", AFFIX_KEYS).map((row) => ({
+    return languageListRows(records, "affixes", AFFIX_ROW_KEYS).map((row) => ({
         ...row,
         written: row.zero === true ? ZERO_AFFIX : row.form,
     }));

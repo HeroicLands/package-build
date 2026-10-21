@@ -220,7 +220,14 @@ describe("the `affixes` and `fields` relations", () => {
             db,
             "SELECT * FROM affixes WHERE language = 'demo-note-skill-osketlng'",
         );
-        expect(result.columns).toEqual(["language", "position", ...AFFIX_KEYS, "written"]);
+        // An affix's `native` is its writing under a logographic map, which
+        // `package-build lexicon` resolves; it is no column.
+        expect(result.columns).toEqual([
+            "language",
+            "position",
+            ...AFFIX_KEYS.filter((key: string) => key !== "native"),
+            "written",
+        ]);
         expect(result.rows).toHaveLength(1);
         const [row] = result.rows;
         expect(Number(row.position)).toBe(0);

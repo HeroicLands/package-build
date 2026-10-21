@@ -3004,6 +3004,9 @@ with. With `--lang`, each word the language's lexicon states a native form for
 is written by it and every other word is spelled by the rows; without it, the
 rows alone apply. See
 [a map reads the dictionary first](reference/format-details.md#a-map-reads-the-dictionary-first).
+Under a [logographic map](reference/format-details.md#a-logographic-map) every
+word is written from the language's lexicon, by its own writing or its parts',
+and the rows write only the text between words.
 The text is the words given, joined by single spaces; `-` or no text reads it
 from standard input, less one trailing newline. Writes nothing.
 
@@ -3026,7 +3029,9 @@ from standard input, less one trailing newline. Writes nothing.
 language or the face names nothing, each reported as a finding: an unknown
 language at `languages` in the configuration, an unknown map or face at the
 content tree. 1, with the build's own message, if a capitalised word of the
-passage has a native form the rows cannot capitalise. Otherwise 0.
+passage has a native form the rows cannot capitalise, or, under a logographic
+map, a word has no writing or stands for entries written differently.
+Otherwise 0.
 
 **EXAMPLES**
 
@@ -3044,6 +3049,17 @@ assets/content: error: `semoran` is not a map: a map is named by the `data.map.n
 
 The first run writes `zaron` by its exception; the second, with no `--lang`,
 spells it by the rows.
+
+Under the logographic `zethu`, with Khelathi's `lekhunet` built from `lekhau`
+and the affix `-unet`, the plural written by its own sign, and `zamlu` given no
+writing:
+
+```
+$ package-build transliterate zethu --lang khel --hex lekhunet halziim.
+U+1EA93 U+1EBC7 U+0020 U+1EABB U+1EBE1 U+1EBED
+$ package-build transliterate zethu --lang khel zamlu
+error: `zamlu` has no `zethu` writing in the `khel` lexicon, and its parts do not give one; state one, or write the word directly in signs
+```
 
 **SEE ALSO**
 
@@ -3071,8 +3087,18 @@ word has one, else the rows' spelling, each exactly as
 by tabs, the word's `form`, its native form, `exception` or `rows`, its `class`
 and its `gloss`. Writes nothing.
 
+Under a [logographic map](reference/format-details.md#a-logographic-map) the
+native form is the word's writing, and the third column says where it comes
+from: `own` for a writing the word states, `parts` for one its `built` pieces
+give, or `none`, with an empty second column, for a word with no writing. A
+word whose form a run cannot write, because the form stands for entries
+written differently or one of its parts does, is marked `ambiguous`, and its
+second column is still that entry's own writing: the signs to write directly
+for that sense. Every word listed with a writing and not `ambiguous` is written
+so by the build and by `package-build transliterate`.
+
 With `--derived`, the forms the language's own rules derive from those words
-follow them: plurals, verb forms, replacing suffixes, agreeing forms and
+follow them: each word's declared `variants`, then plurals, verb forms, replacing suffixes, agreeing forms and
 participles, exactly the regular forms
 [the mapped-run word check](authoring/links-and-markup.md#a-mapped-runs-words)
 accepts. Each is listed once, case folded as the check compares it, and spelled
@@ -3086,12 +3112,12 @@ the lexicon's own words. A derived line carries its word's `class` and `gloss`.
 | ---------- | ------ | ------- | --------------------------------------------------- |
 | `language` | string | —       | A declared language whose `note` names its lexicon. |
 
-| Option      | Type    | Default                    | Description                                                                                            |
-| ----------- | ------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `--map`     | string  | —                          | Required: the `data.map.name` of a mapping note.                                                       |
-| `--font`    | string  | the map's one face, if one | The face; required when the map lists more than one.                                                   |
-| `--derived` | boolean | `false`                    | Also list the forms the language's rules derive, each with the word it comes from.                     |
-| `--json`    | boolean | `false`                    | Print a JSON array of `{ form, native, exception, class, gloss }` instead; a derived form adds `from`. |
+| Option      | Type    | Default                    | Description                                                                                                                                                                                                                                      |
+| ----------- | ------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--map`     | string  | —                          | Required: the `data.map.name` of a mapping note.                                                                                                                                                                                                 |
+| `--font`    | string  | the map's one face, if one | The face; required when the map lists more than one.                                                                                                                                                                                             |
+| `--derived` | boolean | `false`                    | Also list the forms the language's rules derive, each with the word it comes from.                                                                                                                                                               |
+| `--json`    | boolean | `false`                    | Print a JSON array of `{ form, native, exception, class, gloss }` instead; a derived form adds `from`. Under a logographic map `source` (`own`, `parts` or `none`) takes the place of `exception`, and an ambiguous word adds `ambiguous: true`. |
 
 **EXIT STATUS**
 
@@ -3112,12 +3138,70 @@ alatha	<native form>	rows	pron	he, that one	alathos
 alathon	<native form>	rows	pron	he, that one	alathos
 alathoi	<native form>	rows	pron	he, that one	alathos
 alathai	<native form>	rows	pron	he, that one	alathos
+$ package-build lexicon khel --map zethu | grep -P '\t(none|ambiguous)\t'
+nelgir	<writing>	ambiguous	n	a god
+Nelgir	<writing>	ambiguous	stem	god
+zamlu		none	n	music
 ```
 
 **SEE ALSO**
 
 `package-build transliterate <map> [text..]`,
 [A language's words](reference/format-details.md#a-languages-words).
+
+### `package-build core`
+
+**NAME**
+
+List the core concepts each covering language has no word for.
+
+**SYNOPSIS**
+
+```
+package-build core [--language <name>] [--json]
+```
+
+**DESCRIPTION**
+
+Reads the content index and reports, for each language note that states
+`data.core: true`, the concepts of the package's
+[`data.concepts`](reference/format-details.md#the-core-vocabulary) list that no
+word of it serves. A word serves the concepts its `concept` names, and a language
+reads the words of its `data.family` chain as its own. The languages are listed
+by name; each block gives the number missing, then the missing concepts under
+their groups in list order, each group with its count, each concept as its `id`
+and `gloss` separated by a tab. A language with no concept missing is reported as
+covering them all. Writes nothing.
+
+A missing concept is a fact to work through, never a finding, so the report does
+not change the exit status.
+
+**OPTIONS**
+
+| Option       | Type    | Default | Description                                                                                                                                                            |
+| ------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--language` | string  | —       | Report this language alone, by its name, its shortcode or its reference, whether or not it states `data.core`.                                                         |
+| `--json`     | boolean | `false` | Print `{ concepts, languages }` instead, each language `{ name, language, core, total, covered, missing }` and each missing group `{ group, count, total, concepts }`. |
+
+**EXIT STATUS**
+
+1 if the content index could not be built for any note, no note states
+`data.concepts`, or `--language` names no language note, each reported as a
+finding. Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build core --language vylarilng
+Vylari Language (skill-vylarilng): 1 of 4 core concepts have no word
+  senses: 1 of 1
+    see-verb	to see
+```
+
+**SEE ALSO**
+
+[The core vocabulary](reference/format-details.md#the-core-vocabulary),
+[Tying words to the core vocabulary](authoring/links-and-markup.md#tying-words-to-the-core-vocabulary).
 
 ### `package-build addresses diff`
 

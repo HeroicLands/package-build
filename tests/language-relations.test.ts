@@ -78,7 +78,7 @@ beforeAll(async () => {
                 "      - {edge: syllabic, sounds: any}",
                 "      - {edge: openCluster, sounds: []}",
                 "    clusters: {max: 2}",
-                "    stress: by weight",
+                "    stress: {two: last, longer: final}",
                 "    finals:",
                 "      - {final: ang, like: father then ng}",
                 "    syllables:",
@@ -445,8 +445,8 @@ describe("the sound relations", () => {
     });
 
     it("hold the stress rule and the finals", async () => {
-        expect(await rows("SELECT language, stress FROM stress")).toEqual([
-            { language: DUNHARI, stress: "by weight" },
+        expect(await rows("SELECT language, two, longer, mark FROM stress")).toEqual([
+            { language: DUNHARI, two: "last", longer: "final", mark: null },
         ]);
         expect(await rows('SELECT final, "like" FROM finals')).toEqual([
             { final: "ang", like: "father then ng" },

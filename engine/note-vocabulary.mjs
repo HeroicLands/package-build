@@ -154,6 +154,8 @@ import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkSettlementTables } from "./settlement-tables.mjs";
 import { checkMapField } from "./text-maps.mjs";
+import { checkConceptList, checkCoreFlag } from "./core-vocabulary.mjs";
+import { METRE_KINDS, checkMetresField } from "./metre-declaration.mjs";
 import { checkLanguageEmphasis, checkScriptField } from "./script-emphasis.mjs";
 import { EMPHASIS_CONVENTIONS, LANGUAGE_EMPHASES } from "./script-emphasis-terms.mjs";
 
@@ -655,6 +657,67 @@ const ABBREVIATION_FIELD = Object.freeze({
         "The tag a dictionary prints for the language, beside an entry's class and in an " +
         "etymology, as `Prov.`; the language's full name where unstated. A language skill " +
         "note only. See [a language's words](format-details.md#a-languages-words).",
+});
+
+/**
+ * A language's `data.core`: whether it must cover the core vocabulary.
+ * {@link checkCoreFlag} checks where it sits.
+ *
+ * @type {DataFieldSpec}
+ */
+const CORE_FIELD = Object.freeze({
+    name: "core",
+    kind: "boolean",
+    shape: "`true` or `false`",
+    check: checkCoreFlag,
+    describe:
+        "Whether the language must cover the core vocabulary: `true` lists it in the " +
+        "`package-build core` report. A language skill note only. See " +
+        "[the core vocabulary](format-details.md#the-core-vocabulary).",
+});
+
+/**
+ * A `doc` note's `data.concepts`: the core vocabulary's concept list.
+ * {@link checkConceptList} checks what an entry means.
+ *
+ * @type {DataFieldSpec}
+ */
+const CONCEPTS_FIELD = Object.freeze({
+    name: "concepts",
+    kind: "list",
+    shape: "list of `{ id, gloss, group }`",
+    check: checkConceptList,
+    entries: Object.freeze({
+        kind: "map",
+        shape: "a map — `{ id, gloss, group }`",
+        fields: Object.freeze([
+            Object.freeze({
+                name: "id",
+                kind: "string",
+                required: true,
+                shape: "lowercase letters, digits and `-`",
+                describe:
+                    "The concept's id, which a word's `concept` names. Unique in the package.",
+            }),
+            Object.freeze({
+                name: "gloss",
+                kind: "string",
+                required: true,
+                shape: "a short gloss, such as `a smell; a scent`",
+                describe: "What the concept means, in brief.",
+            }),
+            Object.freeze({
+                name: "group",
+                kind: "string",
+                required: true,
+                shape: "a group name, such as `senses`",
+                describe: "The group the report lists the concept under.",
+            }),
+        ]),
+    }),
+    describe:
+        "The concepts of a core vocabulary, in the order the report lists them. See " +
+        "[the core vocabulary](format-details.md#the-core-vocabulary).",
 });
 
 /**
@@ -2098,6 +2161,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             NAMES_FIELD,
             FAMILY_FIELD,
             ABBREVIATION_FIELD,
+            CORE_FIELD,
             ...WORD_DATA_FIELDS,
             ...LANGUAGE_DATA_FIELDS,
             {
@@ -2241,6 +2305,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             ...checkCultureSubType(note, context),
         ],
         data: Object.freeze([
+            CONCEPTS_FIELD,
             {
                 ...CULTURE_FIELD,
                 describe:
@@ -2250,7 +2315,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "map",
                 kind: "map",
-                shape: "a map — `{ name, vowels?, fonts, rows }`",
+                shape: "a map — `{ name, logographic?, vowels?, fonts, rows }`",
                 check: checkMapField,
                 fields: Object.freeze([
                     {
@@ -2260,6 +2325,15 @@ export const NOTE_VOCABULARY = Object.freeze({
                         describe:
                             "What `map=` names the map by: lowercase letters, digits and `-`, " +
                             "unique in the package.",
+                    },
+                    {
+                        name: "logographic",
+                        kind: "boolean",
+                        shape: "`true`",
+                        describe:
+                            "The script writes meanings: a mapped run's words are written by " +
+                            "the language's lexicon alone, and the rows write only the text " +
+                            "between them.",
                     },
                     {
                         name: "vowels",
@@ -2317,6 +2391,48 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "A mapping, which text marked `map=` with its `name` is rewritten by " +
                     "before it is set. See " +
                     "[mapping notes](format-details.md#mapping-notes).",
+            },
+            {
+                name: "metres",
+                kind: "list",
+                shape: "list of `{ name, beats, kind }`",
+                check: checkMetresField,
+                entries: Object.freeze({
+                    kind: "map",
+                    shape: "a map — `{ name, beats, kind }`",
+                    fields: Object.freeze([
+                        {
+                            name: "name",
+                            ...TEXT,
+                            required: true,
+                            describe:
+                                "What a verse fence's `scan=` names the metre by: lowercase " +
+                                "letters, digits and `-`, unique in the package.",
+                        },
+                        {
+                            name: "beats",
+                            kind: "integer",
+                            shape: "a whole number above zero",
+                            required: true,
+                            describe: "The beats of one line.",
+                        },
+                        {
+                            name: "kind",
+                            kind: "string",
+                            allowed: METRE_KINDS,
+                            shape: `one of ${METRE_KINDS.join(", ")}`,
+                            required: true,
+                            describe:
+                                "How the beats are counted: `accentual`, one beat for each " +
+                                "stressed syllable the language's stress rule and the beat " +
+                                "convention give.",
+                        },
+                    ]),
+                }),
+                describe:
+                    "The metres a verse fence's `scan=` names. A fence that states one is " +
+                    "warned at each line that cannot have its beats. See " +
+                    "[metres](../authoring/links-and-markup.md#metre).",
             },
         ]),
     }),

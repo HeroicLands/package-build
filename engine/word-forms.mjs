@@ -38,6 +38,11 @@
  *   the root as its `replaces` says, or whole where it states none. A
  *   participle closing on an agreement ending agrees.
  *
+ * A word's `variants` are known forms as written, and each takes the rules
+ * its word takes: the plural rule, the verb pattern, the suffixes, agreement
+ * and participles. A word's own stated `plural` belongs to its citation form
+ * alone.
+ *
  * The mapped-run word check ({@link module:engine/run-words}) and
  * `package-build lexicon --derived` both read {@link derivedForms}, so what
  * the command lists is what the check accepts.
@@ -279,8 +284,9 @@ function participleForms(citation, participles) {
  */
 
 /**
- * Every form the language's rules derive from its lexicon words, in
- * `data.words` order, each once, leaving out a form that is a lexicon word.
+ * Every form the language's rules derive from its lexicon words, and each
+ * declared variant of a word, in `data.words` order, each once, leaving out a
+ * form that is a lexicon word.
  *
  * @param {Record<string, any>|undefined} data - The language note's `data`.
  * @returns {DerivedForm[]} The forms.
@@ -304,30 +310,39 @@ export function derivedForms(data) {
             seen.add(folded);
             out.push({ form: folded, word });
         };
-        const folded = foldWord(word.form);
         const base = parseWordClass(word.class).base;
-        const plural = pluralOf(word, grammar);
-        if (plural) add(plural);
-        if (verbs && base === "v")
-            for (const { ending } of verbs.endings)
-                add(verbForm(folded, foldWord(ending), replaces));
-        const attaching = suffixes.filter(
-            ({ classes }) => classes === undefined || (base !== undefined && classes.has(base)),
+        const variants = listOf(word.variants).filter(
+            (variant) => typeof variant === "string" && variant.trim() !== "",
         );
-        if (attaching.length)
-            for (const [stem] of word.form.matchAll(WORD)) {
-                const one = foldWord(stem);
-                for (const { suffix, replaces: closing } of attaching)
-                    add(attach(one, suffix, closing));
-            }
-        if (agreement && base !== undefined && agreement.classes.has(base))
-            for (const form of agreeingForms(folded, agreement, grammar)) add(form);
-        if (participles && base === "v")
-            for (const participle of participleForms(folded, participles)) {
-                add(participle);
-                if (agreement)
-                    for (const form of agreeingForms(participle, agreement, grammar)) add(form);
-            }
+        for (const [at, written] of [word.form, ...variants].entries()) {
+            const folded = foldWord(written);
+            if (at > 0) add(written);
+            const plural =
+                at === 0 ? pluralOf(word, grammar)
+                : base === "n" ? pluralByRule(written, grammar)
+                : null;
+            if (plural) add(plural);
+            if (verbs && base === "v")
+                for (const { ending } of verbs.endings)
+                    add(verbForm(folded, foldWord(ending), replaces));
+            const attaching = suffixes.filter(
+                ({ classes }) => classes === undefined || (base !== undefined && classes.has(base)),
+            );
+            if (attaching.length)
+                for (const [stem] of written.matchAll(WORD)) {
+                    const one = foldWord(stem);
+                    for (const { suffix, replaces: closing } of attaching)
+                        add(attach(one, suffix, closing));
+                }
+            if (agreement && base !== undefined && agreement.classes.has(base))
+                for (const form of agreeingForms(folded, agreement, grammar)) add(form);
+            if (participles && base === "v")
+                for (const participle of participleForms(folded, participles)) {
+                    add(participle);
+                    if (agreement)
+                        for (const form of agreeingForms(participle, agreement, grammar)) add(form);
+                }
+        }
     }
     return out;
 }

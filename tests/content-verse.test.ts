@@ -7,7 +7,7 @@ import { renderFoundryMarkdown, md } from "../engine/helpers.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 
 const poem = [
-    '```verse {form=ballad meter="common meter" rhyme=ABCB syllables="8,6,8,6" lang=en}',
+    "```verse {form=ballad lang=en}",
     "The lantern burns beside the gate,",
     "The harbor sleeps below.",
     "",
@@ -76,10 +76,20 @@ describe("verse blocks", () => {
         expect(html).toContain("```</span></p>");
     });
 
-    it("reports invalid attributes and a syllable pattern of the wrong length", () => {
-        expect(scanBlocks(poem.replace("8,6,8,6", "8,6")).errors[0].message).toContain(
-            "2 counts for 4 verse lines",
-        );
+    it("refuses the descriptive keys as unknown verse attributes", () => {
+        for (const [key, value] of [
+            ["meter", '"common meter"'],
+            ["rhyme", "ABCB"],
+            ["syllables", '"8,6,8,6"'],
+        ])
+            expect(
+                scanBlocks(poem.replace("form=ballad", `${key}=${value}`)).errors.map(
+                    (error: { message: string }) => error.message,
+                ),
+            ).toEqual([`${key}= is not a verse attribute`]);
+    });
+
+    it("reports invalid attributes", () => {
         expect(scanBlocks(poem.replace("form=ballad", "title=Song")).errors[0].message).toContain(
             "title= is not a verse attribute",
         );

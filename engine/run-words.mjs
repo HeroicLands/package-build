@@ -17,13 +17,14 @@
  * each word (see {@link module:engine/word-pattern.WORD}) is accepted when,
  * case folded, it is:
  *
- * - a `data.words[].form` of the language, or a word of one;
+ * - a `data.words[].form` of the language, or a word of one, or a declared
+ *   `variants` entry of a word;
  * - a word of a name in the language note's own `data.register` whose `tongue`
  *   is not `translation`, so a foreign name the run uses is listed there first,
  *   as `other:<tongue>` or under another tag the note declares;
  * - a form one rule the language states derives from a lexicon form: a noun
  *   plural, a verb's present form, a replacing suffix, an agreeing form or a
- *   participle (see {@link module:engine/word-forms.derivedForms}).
+ *   participle, of a lexicon form or of one of its variants (see {@link module:engine/word-forms.derivedForms}).
  *
  * A word not accepted whole is split at its hyphens and en dashes, and each
  * part is checked. An apostrophe joins a word, so `k'aralzon` is one word, and

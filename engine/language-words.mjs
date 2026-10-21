@@ -24,6 +24,7 @@
  *   each declared in `data.classModifiers`, and a declared modifier no word
  *   uses is a warning;
  * - a word's `field` is one of `data.fields`;
+ * - a word's `concept` names entries of the concept list, each once;
  * - a `borrowed` source names its `language`;
  * - no form stands twice in one language;
  * - a word's `gloss` states at least one sense;
@@ -61,6 +62,7 @@ import {
     pronunciationProblem,
 } from "./word-terms.mjs";
 import { WORD_CLASS_MODIFIERS, parseWordClass } from "./word-classes.mjs";
+import { conceptIdsIn, conceptProblems } from "./core-vocabulary.mjs";
 import { lineageChain, pieceGlosses } from "./word-rows.mjs";
 
 const MODIFIER_TOKENS = new Set(WORD_CLASS_MODIFIERS.map((item) => item.token));
@@ -192,6 +194,7 @@ export function checkLanguageWords(note, { index } = {}) {
     }
     const used = new Set();
     const forms = new Map();
+    const concepts = conceptIdsIn(index);
     listOf(data.words).forEach((word, i) => {
         if (!isMap(word)) return;
         const at = (key) => ["data", "words", i, key];
@@ -223,6 +226,15 @@ export function checkLanguageWords(note, { index } = {}) {
                     at("field"),
                     "error",
                     `the field \`${word.field}\` is not one of this language's \`data.fields\``,
+                ),
+            );
+
+        for (const problem of conceptProblems(word.concept, concepts))
+            findings.push(
+                finding(
+                    problem.entry === null ? at("concept") : [...at("concept"), problem.entry],
+                    "error",
+                    problem.message,
                 ),
             );
 

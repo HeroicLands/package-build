@@ -126,7 +126,8 @@ export const WORD_NATIVE_FIELDS = Object.freeze([
         required: true,
         shape: "the word in the script, as the map's characters",
         describe:
-            "The word as the script writes it, where the map's rows would write it otherwise.",
+            "The word as the script writes it, where the map's rows would write it otherwise, " +
+            "or as a logographic map writes it.",
     }),
 ]);
 
@@ -150,7 +151,7 @@ export const WORD_FIELDS = Object.freeze([
         entries: Object.freeze({ kind: "string", shape: "a form, bare" }),
         describe:
             "The word's other forms, such as a long form beside a short one; a marked use of " +
-            "one cites the word.",
+            "one cites the word, and a mapped run accepts it and the forms the language's rules derive from it.",
     }),
     Object.freeze({
         name: "name_sort",
@@ -190,6 +191,15 @@ export const WORD_FIELDS = Object.freeze([
         entries: Object.freeze({ kind: "string", shape: "a sense" }),
         describe:
             "The meaning, in brief; a list states one sense per entry, which a dictionary numbers.",
+    }),
+    Object.freeze({
+        name: "concept",
+        kind: "string-or-list",
+        shape: "a core concept's id, or a list of them",
+        entries: Object.freeze({ kind: "string", shape: "a core concept's id" }),
+        describe:
+            "The core concepts the word serves, each an `id` of a `data.concepts` list. The " +
+            "core report counts the word toward them.",
     }),
     Object.freeze({
         name: "source",
@@ -250,8 +260,10 @@ export const WORD_FIELDS = Object.freeze([
             fields: WORD_NATIVE_FIELDS,
         }),
         describe:
-            "The word's native form under a map, stated only where the map's rows spell it " +
-            "differently. Its derived forms are spelled by the rows.",
+            "The word's native form under a map. Under a map that spells by its rows it is " +
+            "stated only where the rows spell the word differently, and the word's derived " +
+            "forms are spelled by the rows; under a logographic map it is the word's writing, " +
+            "which its derived forms and the words built on it are written from.",
     }),
 ]);
 
@@ -410,6 +422,19 @@ export const AFFIX_FIELDS = Object.freeze([
         kind: "string",
         shape: "a tone pattern, such as `L`",
         describe: "The tone pattern the affix carries, written as a word's `tones` is.",
+    }),
+    Object.freeze({
+        name: "native",
+        kind: "list",
+        shape: "a list of `{ map, font?, text }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ map, font?, text }`",
+            fields: WORD_NATIVE_FIELDS,
+        }),
+        describe:
+            "The affix's writing under a logographic map, which a word whose `built` names the " +
+            "affix is written with.",
     }),
 ]);
 
