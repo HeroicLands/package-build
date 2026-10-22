@@ -55,6 +55,7 @@ import { positionOfFrontmatterPath, positionOfYamlPath } from "./diagnostics.mjs
 import { isNoteRecord } from "./index-records.mjs";
 import { nearest } from "./near-miss.mjs";
 import { WRITTEN_ENDINGS } from "./language-terms.mjs";
+import { fromWrittenIn } from "./written-in.mjs";
 import { writingsOf } from "./logographic.mjs";
 import { FONTS_PACKAGE } from "./script-fonts.mjs";
 import { GENERIC_FAMILIES, applyMap } from "./text-maps.mjs";
@@ -386,14 +387,37 @@ export function fontProblem(map, font) {
 }
 
 /**
- * The mapping a command uses, or what is wrong with what it was given. A map
- * listing one face defaults to it; one listing more needs `font`.
+ * The mapping a command uses, or what is wrong with what it was given. The
+ * language's `data.writtenIn` fills the map and the face it leaves out, as it
+ * fills a run's; after that, a map listing one face defaults to it, and one
+ * listing more needs `font`.
  *
  * @param {object} ctx - The run context.
- * @param {{map: string, font?: string, lang?: string}} keys - What was asked for.
+ * @param {{map?: string, font?: string, lang?: string}} keys - What was asked for.
  * @returns {{mapping: Mapping}|{problem: string, about: "map"|"lang"|"font"}} The mapping or the problem.
  */
-function commandMapping(ctx, { map, font, lang }) {
+function commandMapping(ctx, keys) {
+    const { lang } = keys;
+    const filled = fromWrittenIn(keys, ctx?.writtenIn, ctx?.maps);
+    const map = keys.map ?? filled.map;
+    const font = keys.font ?? filled.font;
+    if (map === undefined) {
+        if (lang !== undefined && !Object.hasOwn(ctx?.languages ?? {}, lang)) {
+            const near = nearest(lang, Object.keys(ctx?.languages ?? {}));
+            return {
+                about: "lang",
+                problem:
+                    `\`${lang}\` is not a declared language (\`languages\` in ${CONFIG})` +
+                    (near ? `; did you mean \`${near}\`?` : ""),
+            };
+        }
+        return {
+            about: "map",
+            problem:
+                `\`${lang}\` names no script: its note states no \`data.writtenIn\`, so name a ` +
+                "map with `--map`",
+        };
+    }
     const textMap = ctx?.maps?.get(map);
     if (!textMap) {
         const names = [...(ctx?.maps?.keys() ?? [])];
@@ -543,8 +567,9 @@ export function transliterate(ctx, keys, text) {
  * writing, the signs a run writes directly for that sense.
  *
  * @param {object} ctx - The run context.
- * @param {{lang: string, map: string, font?: string, derived?: boolean}} keys -
- *   The language, the map, the face, and whether to list derived forms.
+ * @param {{lang: string, map?: string, font?: string, derived?: boolean}} keys -
+ *   The language, the map, the face, and whether to list derived forms. A map
+ *   or a face left out is the one the language's `data.writtenIn` names.
  * @returns {{entries: Array<{form: string, native: string, exception?: boolean, source?: "own"|"parts"|"none", ambiguous?: true, class: string|null, gloss: string|null, from?: string}>}|{problem: string, about: string}}
  *   The words in `data.words` order, then any derived forms, or the problem.
  */

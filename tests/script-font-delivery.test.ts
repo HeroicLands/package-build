@@ -43,6 +43,8 @@ const FIXTURE = path.join(HERE, "fixtures", "script-fonts", "fonts");
 const PATHS = { content: "content" };
 /** A content tree whose note sets text only in a generic family. */
 const GENERIC = { content: "generic" };
+/** A content tree whose language note names its script, and whose note marks only the language. */
+const WRITTEN = { content: "written" };
 
 const note = (root: string, dir: string, body: string) => {
     fs.mkdirSync(path.join(root, dir, "Lore"), { recursive: true });
@@ -80,6 +82,13 @@ beforeAll(() => {
         fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "demo" }));
         note(root, "content", "Cut as [\u{F0239}\u{F0230}]{font=semaron-kuriale}.");
         note(root, "generic", "Typed as [ka]{font=mono}, and `[x]{font=qalezu-hand}` is code.");
+        note(root, "written", "Cut as [ka]{lang=vyl}.");
+        fs.mkdirSync(path.join(root, "written", "Skills"), { recursive: true });
+        fs.writeFileSync(
+            path.join(root, "written", "Skills", "Vylari.md"),
+            "---\ntype: skill\nsubType: language\nshortcode: vylarilng\ndata:\n" +
+                "    writtenIn: { map: semaron, font: teng-chou }\n---\n\nVylari.\n",
+        );
     }
     install(withFonts);
     // A file the package ships that no target uses.
@@ -136,6 +145,18 @@ describe("what is delivered", () => {
             "semaron-kuriale",
         ]);
         expect([...facesUsed({ rootDir: withFonts, paths: GENERIC }, installed)]).toEqual([]);
+    });
+
+    it("counts the face a language note names as its script, with no font= anywhere", () => {
+        const installed = resolveScriptFonts(withFonts)!;
+        expect([...facesUsed({ rootDir: withFonts, paths: WRITTEN }, installed)]).toEqual([
+            "teng-chou",
+        ]);
+        expect(scriptFontFiles({ rootDir: withFonts, paths: WRITTEN }, ["woff2"])?.files).toEqual([
+            "LICENSE",
+            "fonts.css",
+            ...WOFF2,
+        ]);
     });
 });
 

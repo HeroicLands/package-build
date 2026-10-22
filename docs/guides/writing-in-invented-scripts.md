@@ -142,6 +142,29 @@ address of the language's `skill` note of `subType: language`, whose
 Without `note`, `lang=` only tags: there is no dictionary and no lexicon check.
 `package-build lint` checks at the key that `note` names a language note.
 
+**A language names its script.** Most tongues are written in one script, so the
+language note says which, as one map and one face:
+
+```yaml
+data:
+  writtenIn: { map: semaron, font: semaron-kuriale }
+```
+
+A run marked with the language alone then takes both: `[Zaron lonak]{lang=vyl}`
+is mapped through Semaron and checked against Vylari exactly as
+`[Zaron lonak]{lang=vyl font=semaron-kuriale map=semaron}` is, and so is a div,
+a verse fence or a `scroll` fence marked `lang=vyl`. A run that states one of
+the two keys keeps it, and takes the other from the language only where the
+two agree: `font=` alone takes the language's map where that map is drawn in
+the face, and `map=` alone takes the language's face where the map is drawn in
+it. So a tongue written in several scripts states its usual one, and a run in
+another names that script's keys. A language whose note states no `writtenIn`
+only tags, as above. The checks are at the key:
+
+> `` `data.writtenIn.map` is `semoran`, which no mapping note's `data.map.name` declares; did you mean `semaron`? ``
+
+> `` `data.writtenIn.font` is `teng-chou`, which the map `semaron` is not drawn in; it is drawn in `semaron-kuriale` ``
+
 **A run inherits from its passage and overrides it.** A span inside a marked
 div or fence takes the passage's keys, and its own keys win. A Khelathi phrase
 inside a Vylari poem is checked against Khelathi's lexicon and tagged Khelathi
@@ -805,8 +828,8 @@ Lokamen lonak zaron.
 
 **The stress rule** is `data.sounds.stress`, `{ two, longer, mark }`. `two`
 (`first` or `last`) places the stress in a word of two syllables; `longer`
-(`antepenultimate`, `penultimate` or `final`) places it in a word of three or
-more, counted from its end; `mark` (`acute`, `grave` or `circumflex`) is a
+(`first`, `antepenultimate`, `penultimate` or `final`) places it in a word of
+three or more, on its first syllable or counted from its end; `mark` (`acute`, `grave` or `circumflex`) is a
 diacritic that moves the stress to the syllable it sits on. Syllables are vowel
 groups: a vowel is a letter whose base is `a`, `e`, `i`, `o` or `u`, and a pair
 that the language lists in `data.sounds.syllables.vowelPairs` is one syllable.
@@ -876,6 +899,9 @@ gen chei chou tsuen
 ```
 ````
 
+Where the Tantsou note states `writtenIn: { map: tengchou, font: teng-chou }`,
+` ```scroll {rows=25 cols=12 lang=tsu} ` is enough.
+
 The site, the preview and Foundry set it in columns, in a panel that scrolls
 sideways from the right. The book draws it as panel images from the face's
 outlines, each with its roman text as alt text. A span in the same script stays
@@ -941,8 +967,9 @@ whose notes set no text in a face, ships none of it.
 `package-build transliterate <map> [--lang <language>] [--font <slug>] [--hex] [text..]`
 maps a passage exactly as the build maps a run marked `map=<map> lang=<language>
 font=<slug>`. The text is the words given; `-` or none reads standard input.
-`--font` is required when the mapping lists more than one face, and `--hex`
-prints `U+XXXX` code points separated by spaces.
+`--font` defaults to the language's `writtenIn` face where the mapping is drawn
+in it, and is otherwise required when the mapping lists more than one face.
+`--hex` prints `U+XXXX` code points separated by spaces.
 
 ```console
 $ package-build transliterate semaron --lang vyl --hex zaron lonak
@@ -954,8 +981,9 @@ U+F0246 U+F0230 U+F023F U+F023D U+F023C
 The first run writes `zaron` by its exception, and the second, with no
 `--lang`, spells it by the rows.
 
-`package-build lexicon <language> --map <map> [--font <slug>] [--derived] [--json]`
-lists every word of the language with its native form, tab-separated: the form,
+`package-build lexicon <language> [--map <map>] [--font <slug>] [--derived] [--json]`
+lists every word of the language with its native form under the map, or under
+the language's `writtenIn` script when `--map` is left out, tab-separated: the form,
 the native form, `exception` or `rows`, the class and the gloss. `--derived`
 adds the forms the language's rules derive, each with the word it comes from,
 `--json` prints an array instead, and under a logographic map the third column

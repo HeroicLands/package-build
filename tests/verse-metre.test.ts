@@ -131,6 +131,8 @@ describe("the stress rule", () => {
         expect(place("alathas", { ...RULE, longer: "final" })).toBe(2);
         expect(place("ulthalonar", { ...RULE, longer: "antepenultimate" })).toBe(1);
         expect(place("ulthalonar", { ...RULE, longer: "penultimate" })).toBe(2);
+        expect(place("alathas", { ...RULE, longer: "first" })).toBe(0);
+        expect(place("ulthalonar", { ...RULE, longer: "first" })).toBe(0);
     });
 
     it("stresses the only syllable of a word of one", () => {

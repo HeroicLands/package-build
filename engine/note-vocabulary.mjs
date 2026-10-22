@@ -139,8 +139,8 @@ import {
     checkLanguageWords,
 } from "./language-words.mjs";
 import { checkGlossary } from "./glossary-entries.mjs";
-import { LANGUAGE_DATA_FIELDS } from "./language-terms.mjs";
-import { checkLanguageData } from "./language-data.mjs";
+import { GUIDE_SOUND_FIELDS, LANGUAGE_DATA_FIELDS } from "./language-terms.mjs";
+import { checkGuideSounds, checkLanguageData } from "./language-data.mjs";
 import { checkAffiliationReach } from "./culture-reach.mjs";
 import { checkLanguageNames, requiredGivenGenders } from "./language-names.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
@@ -163,6 +163,7 @@ import { checkMapField } from "./text-maps.mjs";
 import { checkConceptList, checkCoreFlag } from "./core-vocabulary.mjs";
 import { METRE_KINDS, checkMetresField } from "./metre-declaration.mjs";
 import { checkLanguageEmphasis, checkScriptField } from "./script-emphasis.mjs";
+import { WRITTEN_IN_KEY, checkWrittenIn } from "./written-in.mjs";
 import {
     EMPHASIS_CONVENTIONS,
     LANGUAGE_EMPHASES,
@@ -2187,6 +2188,32 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "`subType: language` states it.",
             },
             {
+                name: WRITTEN_IN_KEY,
+                kind: "map",
+                shape: "a map — `{ map, font }`",
+                check: checkWrittenIn,
+                fields: Object.freeze([
+                    {
+                        name: "map",
+                        kind: "string",
+                        shape: "a mapping note's `data.map.name`",
+                        required: true,
+                        describe: "The map the language's text is written by.",
+                    },
+                    {
+                        name: "font",
+                        kind: "string",
+                        shape: "an installed face's slug",
+                        required: true,
+                        describe: "The face the text is set in, one the map is drawn in.",
+                    },
+                ]),
+                describe:
+                    "The script the language is written in, as the map and the face a run marked " +
+                    "with its name alone takes; a run's own `map=` or `font=` overrides it. Only a " +
+                    "skill of `subType: language` states it.",
+            },
+            {
                 name: "script",
                 kind: "map",
                 shape: "a map — `{ fonts, emphasis, strongEmphasis?, direction? }`",
@@ -2336,6 +2363,17 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe:
                     "The culture a setting guide introduces, as a culture lore note. " +
                     "Required on `settingguide`; no other subType states it.",
+            },
+            {
+                name: "sounds",
+                kind: "map",
+                shape: "a map — `{ letters?, marks? }`",
+                fields: GUIDE_SOUND_FIELDS,
+                check: checkGuideSounds,
+                describe:
+                    "A spelling guide's letters and the marks written on them, for every " +
+                    "tongue of the setting: each letter row's `tongue` names the language notes " +
+                    "that write it.",
             },
             {
                 name: "map",

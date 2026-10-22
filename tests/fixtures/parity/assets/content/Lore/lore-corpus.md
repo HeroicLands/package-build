@@ -214,6 +214,16 @@ tan tsou dou rou
 
 The seal reads [chen teng]{lang=tsu font=teng-chou map=tengchou} across the line.
 
+The south gate is cut as [thirun sorima]{lang=prv}, and its ledger as [thirun sorima]{lang=prv font=serif}.
+
+::: {lang=prv}
+sorima thirun.
+:::
+
+```scroll {rows=3 cols=3 lang=tsu}
+tan tsou
+```
+
 # Icons and raw markup {#icons}
 
 A star :icon star:{size=lg} marks the entry.

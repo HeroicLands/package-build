@@ -190,7 +190,7 @@ describe("the face and the script", () => {
 
     it("refuses a fence that names no face, at the fence", () => {
         expect(located(scanRuns("```scroll {rows=3}\nchen\n```\n", ctx).errors)).toEqual([
-            "1:1: a `scroll` fence names the face it is set in, with `font=`, or a map drawn in one face, with `map=`",
+            "1:1: a `scroll` fence names the face it is set in, with `font=`, a map drawn in one face, with `map=`, or a language whose note names its script in `data.writtenIn`, with `lang=`",
         ]);
     });
 

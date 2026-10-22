@@ -309,11 +309,14 @@ function languagesOf(records) {
  * @param {string} [options.prefix] - The prefix of a key sharing an identity
  *   column's name.
  * @param {readonly string[]} [options.lists] - The keys always set as lists.
+ * @param {(records: Iterable<Record<string, any>>) => Array<[string, Record<string, any>]>} [options.sources] -
+ *   The records stating the list, with their Addresses; the language records
+ *   where unstated.
  * @returns {object[]} One row per entry, in record then entry order.
  */
-function listRows(records, read, keys, { prefix = "", lists = [] } = {}) {
+function listRows(records, read, keys, { prefix = "", lists = [], sources = languagesOf } = {}) {
     const rows = [];
-    for (const [language, record] of languagesOf(records)) {
+    for (const [language, record] of sources(records)) {
         const entries = read(isMap(record.data) ? record.data : {});
         if (!Array.isArray(entries)) continue;
         entries.forEach((entry, position) => {
@@ -326,6 +329,24 @@ function listRows(records, read, keys, { prefix = "", lists = [] } = {}) {
         });
     }
     return rows;
+}
+
+/**
+ * Each record stating letters and marks, with its Address: every language
+ * record, and every `doc` record whose `data.sounds` is a spelling guide's.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {Array<[string, Record<string, any>]>}
+ */
+function soundSourcesOf(records) {
+    const list = [...records];
+    const out = languagesOf(list);
+    for (const record of list) {
+        if (record?.type !== "doc" || record.documents || !isMap(record.data?.sounds)) continue;
+        const address = noteAddressOf(record);
+        if (address) out.push([address, record]);
+    }
+    return out;
 }
 
 /** A language's `data.sounds`, or an empty map. */
@@ -494,8 +515,8 @@ export function scopeRows(records) {
 }
 
 /**
- * The `letters` rows: one per `data.sounds.letters` entry, `letters` and
- * `tongue` lists.
+ * The `letters` rows: one per `data.sounds.letters` entry of a language note
+ * or a spelling guide, `letters` and `tongue` lists.
  *
  * @param {Iterable<Record<string, any>>} records - Index records.
  * @returns {object[]}
@@ -503,6 +524,7 @@ export function scopeRows(records) {
 export function letterRows(records) {
     return listRows(records, (data) => soundsOf(data).letters, LETTER_KEYS, {
         lists: ["letters", "tongue"],
+        sources: soundSourcesOf,
     });
 }
 
@@ -875,13 +897,17 @@ export function joinRows(records) {
 }
 
 /**
- * The `marks` rows: one per `data.sounds.marks` entry.
+ * The `marks` rows: one per `data.sounds.marks` entry of a language note or a
+ * spelling guide.
  *
  * @param {Iterable<Record<string, any>>} records - Index records.
  * @returns {object[]}
  */
 export function markRows(records) {
-    return listRows(records, (data) => soundsOf(data).marks, MARK_KEYS, { lists: ["letters"] });
+    return listRows(records, (data) => soundsOf(data).marks, MARK_KEYS, {
+        lists: ["letters"],
+        sources: soundSourcesOf,
+    });
 }
 
 /**

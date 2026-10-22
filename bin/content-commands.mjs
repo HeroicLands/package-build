@@ -31,7 +31,7 @@
  *   npx package-build map [--tree] [--from <shortcode>] [--chart <shortcode>] [--travel] [--out <dir>]
  *   npx package-build reachability <dir> [file] [--index <shortcode>]
  *   npx package-build transliterate <map> [--lang <language>] [--font <slug>] [--hex] [text..]
- *   npx package-build lexicon <language> --map <map> [--font <slug>] [--derived] [--json]
+ *   npx package-build lexicon <language> [--map <map>] [--font <slug>] [--derived] [--json]
  *   npx package-build addresses diff --from <zip|dir> [--strict]
  *   npx package-build npc new (--spec <json> | --specfile <path>) [--seed <text>] [--out <path>]
  *
@@ -2472,7 +2472,8 @@ function transliterateCommand() {
                 })
                 .option("font", {
                     type: "string",
-                    describe: "The face; required when the map lists more than one",
+                    describe:
+                        "The face; the language's `data.writtenIn` face where the map is drawn in it, and required when neither it nor the map gives one",
                 })
                 .option("hex", {
                     type: "boolean",
@@ -2518,7 +2519,7 @@ function transliterateCommand() {
 }
 
 /**
- * `package-build lexicon <language> --map <map>` — every word of a language's
+ * `package-build lexicon <language> [--map <map>]` — every word of a language's
  * lexicon with its native form under a map, as the build writes it; with
  * `--derived`, the forms its rules derive follow, each naming its word in a
  * sixth column. Under a logographic map the third column says where a
@@ -2540,12 +2541,13 @@ function lexiconCommand() {
                 })
                 .option("map", {
                     type: "string",
-                    demandOption: true,
-                    describe: "The `data.map.name` of a mapping note",
+                    describe:
+                        "The `data.map.name` of a mapping note; the language's `data.writtenIn` map where left out",
                 })
                 .option("font", {
                     type: "string",
-                    describe: "The face; required when the map lists more than one",
+                    describe:
+                        "The face; the language's `data.writtenIn` face where the map is drawn in it, and required when neither it nor the map gives one",
                 })
                 .option("derived", {
                     type: "boolean",
@@ -2567,7 +2569,7 @@ function lexiconCommand() {
                 }
                 const listed = lexiconEntries(read.ctx, {
                     lang: String(argv.language),
-                    map: String(argv.map),
+                    map: argv.map === undefined ? undefined : String(argv.map),
                     font: argv.font,
                     derived: Boolean(argv.derived),
                 });

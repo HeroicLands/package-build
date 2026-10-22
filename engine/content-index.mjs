@@ -106,7 +106,7 @@ import { AddressLink } from "./address-values.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { rebaseNameSpans } from "./name-markup.mjs";
 import { analyzeNameSpans } from "./names.mjs";
-import { recordRuns } from "./run-rows.mjs";
+import { fillWrittenIn, recordRuns } from "./run-rows.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -1249,6 +1249,10 @@ export function collectContentIndex(
     // The words each note's prose cites, read once every language's words
     // are recorded; the index keeps the citing Addresses and no text.
     attachCitations(records, bodies);
+
+    // A run marked with a language alone takes its language's script, which
+    // is read once every language note is recorded.
+    fillWrittenIn(records, { languages, contentPackage });
 
     // Every note record exists and every Address in it is a tuple, so a parent
     // is found by its canonical address. Before the sort, which reads nothing

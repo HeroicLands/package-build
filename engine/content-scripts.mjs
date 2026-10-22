@@ -27,9 +27,11 @@
  * ```verse {form=epic lang=vyl font=semaron-kuriale map=semaron}
  * ```
  *
- * - **`lang=`** gives the language tag and changes nothing else. It is a name
- *   declared in the package's `languages`, which gives its tag, or otherwise a
- *   well-formed BCP 47 tag, checked by form alone.
+ * - **`lang=`** gives the language tag. It is a name declared in the
+ *   package's `languages`, which gives its tag, or otherwise a well-formed BCP
+ *   47 tag, checked by form alone. A declared language whose note names its
+ *   script in `data.writtenIn` gives a run the map and face it leaves
+ *   unstated; see {@link module:engine/written-in}.
  * - **`font=`** is one of the installed faces, by its class without `hl-`
  *   (`semaron-kuriale`), or `mono`, `serif` or `sans`.
  * - **`map=`** names a mapping note's `data.map`, which rewrites the text
@@ -50,7 +52,7 @@
  *   word is a finding at its first character, once per run; see
  *   {@link module:engine/run-words}.
  * - **A run inside a div or a verse fence inherits its keys**, and its own
- *   keys override them.
+ *   keys override them. The language's script fills what is still unstated.
  * - **Text with a font, a map or a declared language is plain.** A span or a
  *   verse holds no emphasis, link, image, footnote, wikilink, code or HTML,
  *   and no span but a marked one; a div holds paragraphs and line breaks only.
@@ -66,9 +68,9 @@
  *   source character it came from. `mono`, `serif` and `sans` are not checked.
  *
  * - **A scroll fence is set in a face whose script note states
- *   `direction: vertical-rl`.** One that names no `font=` takes the face of a
- *   map drawn in one; one that names no face, or whose script is written in
- *   lines, is a finding. See {@link module:engine/content-scroll}.
+ *   `direction: vertical-rl`.** One that names no `font=` takes its
+ *   language's script, else the face of a map drawn in one; one that names no
+ *   face, or whose script is written in lines, is a finding. See {@link module:engine/content-scroll}.
  *
  * {@link scanRuns} reads the markup through {@link module:engine/content-spans.scanSpans},
  * {@link module:engine/content-blocks.scanBlocks},
@@ -109,6 +111,7 @@ import {
 import { unknownWordMessage, unknownWords, wordBooksFromRecords } from "./run-words.mjs";
 import { metreBooksFromRecords, metreFindings, metresFromRecords } from "./verse-metre.mjs";
 import { applyMap, mapsFromRecords } from "./text-maps.mjs";
+import { fromWrittenIn, writtenInOf } from "./written-in.mjs";
 
 /** The keys this module reads, which no construct passes through as written. */
 export const RUN_KEYS = Object.freeze(["lang", "font", "map"]);
@@ -135,6 +138,9 @@ const CONFIG = "package-build.config.yaml";
  * @property {ReadonlyMap<string, import("./text-maps.mjs").TextMap>} [maps] -
  *   The mapping notes' maps by name, from
  *   {@link module:engine/text-maps.mapsFromRecords}.
+ * @property {ReadonlyMap<string, import("./written-in.mjs").WrittenIn>} [writtenIn] -
+ *   The script each configured language's note names, by language name, from
+ *   {@link module:engine/written-in.writtenInOf}.
  * @property {ReadonlyMap<string, import("./map-lexicon.mjs").Lexicon>} [lexicons] -
  *   Each configured language's lexicon by name, from
  *   {@link module:engine/map-lexicon.lexiconsFromRecords}.
@@ -160,8 +166,9 @@ const CONFIG = "package-build.config.yaml";
 /**
  * One span, div, verse fence or scroll fence carrying `lang=`, `font=` or
  * `map=`. Its `lang`, `font` and `map` are the ones it is set with: its own,
- * else the innermost div or fence around it that states one. A scroll fence
- * that names no face takes the face of its map where the map is drawn in one.
+ * else the innermost div or fence around it that states one, else its
+ * language's script. A scroll fence that still names no face takes the face of
+ * its map where the map is drawn in one.
  *
  * @typedef {object} Run
  * @property {"span"|"block"|"verse"|"scroll"} kind - Which construct.
@@ -219,15 +226,18 @@ export function runContext(config, records) {
     if (!byRecords) withMaps.set(config, (byRecords = new WeakMap()));
     const known = byRecords.get(records);
     if (known) return known;
+    const maps = mapsFromRecords(records);
+    const languageRecords = languageRecordsByName(records, config);
     const context = Object.freeze({
         ...base,
-        maps: mapsFromRecords(records),
+        maps,
+        writtenIn: writtenInOf(languageRecords, maps),
         lexicons: lexiconsFromRecords(records, config),
         wordBooks: wordBooksFromRecords(records, config),
         metres: metresFromRecords(records),
         metreBooks: metreBooksFromRecords(records, config),
         emphases: emphasesFromRecords(records),
-        languageEmphases: languageEmphasesOf(languageRecordsByName(records, config)),
+        languageEmphases: languageEmphasesOf(languageRecords),
         directions: directionsFromRecords(records),
     });
     byRecords.set(records, context);
@@ -1231,7 +1241,9 @@ function analyseRuns(source, ctx, syntax) {
             } else if (keys.map === undefined) {
                 report(
                     construct.where,
-                    "a `scroll` fence names the face it is set in, with `font=`, or a map drawn in one face, with `map=`",
+                    "a `scroll` fence names the face it is set in, with `font=`, a map drawn in one " +
+                        "face, with `map=`, or a language whose note names its script in " +
+                        "`data.writtenIn`, with `lang=`",
                 );
                 return;
             } else return;
@@ -1240,7 +1252,10 @@ function analyseRuns(source, ctx, syntax) {
             return;
         if (ctx.directions.get(keys.font) === "vertical-rl") return;
         report(
-            construct.at(construct.keys.font === undefined ? "map" : "font", "value"),
+            construct.keys.font !== undefined ? construct.at("font", "value")
+            : construct.keys.map !== undefined ? construct.at("map", "value")
+            : construct.keys.lang !== undefined ? construct.at("lang", "value")
+            : construct.where,
             `a \`scroll\` fence sets a script written in columns, and the script of \`${keys.font}\` ` +
                 "is written in lines; set it in a face whose script note states `direction: vertical-rl`, or use a div",
         );
@@ -1255,6 +1270,9 @@ function analyseRuns(source, ctx, syntax) {
         // is not then checked against a face or a language it cannot reach.
         let named = errors.length === unchecked;
         const keys = Object.assign({}, ...around(construct).map((c) => c.keys), construct.keys);
+        // The language's script fills what the run leaves unstated, once its
+        // own keys are known to name something.
+        if (named) Object.assign(keys, fromWrittenIn(keys, ctx.writtenIn, maps));
         if (construct.kind === "scroll" && named) {
             scrollFace(construct, keys);
             named = errors.length === unchecked;

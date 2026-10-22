@@ -767,6 +767,11 @@ spells every other word by the map's rows; see
 Every word of such a run is a word of the lexicon, of a name the language note's
 own register lists, or a regular form of a lexicon word, and any other word is an error; see
 [a mapped run's words](authoring/links-and-markup.md#a-mapped-runs-words).
+The language note may also name the script the language is written in, as
+`data.writtenIn: { map, font }`, and a run marked with the language alone is
+then mapped and set in it; see
+[a language's script](authoring/links-and-markup.md#a-languages-script). The
+script belongs to the language note, and the configuration never states it.
 A language with no `note` tags its text and has no lexicon. Whether the note
 resolves is checked by `package-build lint`, at the key:
 

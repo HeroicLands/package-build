@@ -6,6 +6,7 @@ name:
     full: Tantsou
 data:
     pack: none
+    writtenIn: { map: tengchou, font: teng-chou }
     words:
         - { form: chen, class: n, field: "The court", gloss: emperor, native: [{ map: tengchou, text: "\U000F101F" }] }
         - { form: teng, class: n, field: "The sky", gloss: heaven, native: [{ map: tengchou, text: "\U000F1013" }] }
@@ -17,4 +18,4 @@ data:
         - { form: rou, class: v, field: "Travel", gloss: to go, native: [{ map: tengchou, text: "\U000F10AA" }] }
 ---
 
-Tantsou writes one character to each morpheme.
+Tantsou writes one character to each morpheme, in Teng Chou.

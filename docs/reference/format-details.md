@@ -1993,7 +1993,7 @@ errors.
 
 - **`lang=`** is a name declared in [`languages`](../configuration.md#languages),
   and otherwise a BCP 47 tag checked for its form alone. It gives the language
-  tag and changes nothing else.
+  tag, and the language's script where its note names one.
 - **`font=`** is a face of the installed `@heroiclands/fonts`, named by its
   `fonts.json` class without `hl-`, or `mono`, `serif` or `sans`.
 - **`map=`** is the `data.map.name` of a [mapping note](#mapping-notes). The
@@ -2003,6 +2003,14 @@ errors.
 - **`lang=` with `map=`** reads the language's lexicon first, when
   [`languages.<name>.note`](../configuration.md#languages) names its language
   note: see [a map reads the dictionary first](#a-map-reads-the-dictionary-first).
+- **`lang=` without `map=` or `font=`** takes the map and the face its
+  language note names in `data.writtenIn`, where the note states one. A run
+  that states `font=` alone takes the language's map only where the map is
+  drawn in that face, and one that states `map=` alone takes the language's
+  face only where that map is drawn in it. A run stating both takes nothing.
+  The default is read after a div or fence has given the run its keys, and is
+  its own language's. See
+  [a language's script](../authoring/links-and-markup.md#a-languages-script).
 
 **A face draws the code points its `fonts.json` entry lists in `codepoints`,
 and whitespace.** After the map, any other character in a run set in a face is
@@ -2024,8 +2032,8 @@ with a real language's tag alone keeps its Markdown. See
 Each own-note metadata record carries `runs` in source order, an empty array
 when the body marks nothing. Every entry has exactly `kind` (`span`, `block`, `scroll` or
 `verse`), `lang`, `tag`, `font`, `map`, `line` and `column`: `lang`, `font` and
-`map` as written, its own or inherited (a scroll fence that names no face
-takes its map's), `tag` the BCP 47 tag `lang` resolves
+`map` as written, its own or inherited, else its language's `data.writtenIn`
+(a scroll fence that names no face takes its map's), `tag` the BCP 47 tag `lang` resolves
 to, each `null` when absent, and the position of the span's `[`, the div's
 `:::` or the fence's opening. Every value is a string or a number and none is a
 key, so tags that differ only in case are separate values. This is derived
@@ -2389,6 +2397,20 @@ data:
   such a script, and is an error in any other. A script that states no
   direction is written in lines.
 
+A `skill` note of `subType: language` may state `data.writtenIn`, the script
+the language is written in: `map`, the `data.map.name` of a mapping note, and
+`font`, one of the faces that map lists, both required.
+
+```yaml
+data:
+  writtenIn: { map: semaron, font: semaron-kuriale }
+```
+
+A run marked with the language alone is mapped by `map` and set in `font`, as
+[text marked with a language, a font or a map](#text-marked-with-a-language-a-font-or-a-map)
+describes. A face a language's `writtenIn` names counts as used, so the
+package's fonts are delivered for it.
+
 A `skill` note of `subType: language` may state `data.emphasis`: `words`,
 `rubric` or `overline`. It overrides the script's convention in every run of the
 language. `words` means the language marks emphasis with a word, so `*…*` or
@@ -2422,6 +2444,12 @@ Each of these is an error at the key or the entry at fault:
 > `` `data.script` states a script's faces and emphasis, and this note's `subType` is not `script` ``
 
 > `` `data.emphasis` states how a language marks emphasis, and this note's `subType` is not `language` ``
+
+> `` `data.writtenIn` names the script a language is written in, and this note's `subType` is not `language` ``
+
+> `` `data.writtenIn.map` is `semoran`, which no mapping note's `data.map.name` declares; did you mean `semaron`? ``
+
+> `` `data.writtenIn.font` is `teng-chou`, which the map `semaron` is not drawn in; it is drawn in `semaron-kuriale` ``
 
 > `` `data.script.fonts` is empty; a script lists each face it is written in ``
 
@@ -3555,15 +3583,15 @@ for the keys.
 | `tongues`        | `data.tongues`                  | `tag`, `meaning`, and `tongue_language`, the tongue's `language`                                                                                                                                                                                                                                                                                                           |
 | `retired`        | `data.retired`                  | `form`, `instead` (always a list, `NULL` where nothing is written instead), `why`                                                                                                                                                                                                                                                                                          |
 | `scope`          | `data.scope`                    | No `position`: `kind`, the key the value is under (`folders`, `cultures`, `lore`, `parents`, `addresses`, `paths`, `types` or `skip`), and `value`, an Address in its canonical form or a path or a type                                                                                                                                                                   |
-| `letters`        | `data.sounds.letters`           | `letters` (a list), `kind`, `like`, `place`, `tongue` (a list, `NULL` for every tongue)                                                                                                                                                                                                                                                                                    |
+| `letters`        | `data.sounds.letters`           | `letters` (a list), `kind`, `like`, `place`, `ipa`, `tongue` (a list, `NULL` for every tongue); a [spelling guide's](#a-spelling-guides-sounds) rows too, keyed by the guide                                                                                                                                                                                               |
 | `edges`          | `data.sounds.edges`             | `edge`, `sounds` (a list: `[any]` for every sound, empty for none)                                                                                                                                                                                                                                                                                                         |
 | `clusters`       | `data.sounds.clusters`          | No `position`: `max`, one row per language stating it                                                                                                                                                                                                                                                                                                                      |
 | `stress`         | `data.sounds.stress`            | No `position`: `two`, `longer` and `mark` (`NULL` where unstated), one row per language stating it                                                                                                                                                                                                                                                                         |
-| `finals`         | `data.sounds.finals`            | `final`, `like`                                                                                                                                                                                                                                                                                                                                                            |
+| `finals`         | `data.sounds.finals`            | `final`, `like`, `ipa`                                                                                                                                                                                                                                                                                                                                                     |
 | `syllables`      | `data.sounds.syllables`         | No `position`, one row per language stating it: `onsets`, `codas`, `finals`, `doubled`, `vowelPairs`, `neverInitial` and `signature` (lists, `any` a list of one), `initialVowel` and `finalVowel` (`true` or `false`), and the harmony as `harmony_back`, `harmony_front`, `harmony_neutral`, `harmony_neutralAs` and `harmony_partners` (a list of `{ vowel, partner }`) |
 | `joining`        | `data.sounds.joining`           | `first` and `second` (lists), `written`, `example`                                                                                                                                                                                                                                                                                                                         |
 | `joins`          | `data.sounds.joins`             | `meeting`, `rule`, `letters` (a list), `where`                                                                                                                                                                                                                                                                                                                             |
-| `marks`          | `data.sounds.marks`             | `mark`, `letters` (a list), `kind`, `limit`                                                                                                                                                                                                                                                                                                                                |
+| `marks`          | `data.sounds.marks`             | `mark`, `letters` (a list), `kind`, `limit`; a spelling guide's rows too, keyed by the guide                                                                                                                                                                                                                                                                               |
 | `skeleton`       | `data.sounds.skeleton`          | `second` (a list, `[any]` for every other), `between`                                                                                                                                                                                                                                                                                                                      |
 | `frames`         | `data.sounds.frames`            | `frame`, `shape`, `class` (a list), `makes`, `examples` (a list of `{ root, form }`)                                                                                                                                                                                                                                                                                       |
 | `read_past`      | `data.sounds.readPast`          | `written`, `readAs`, `what`                                                                                                                                                                                                                                                                                                                                                |
@@ -6190,12 +6218,13 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `scope.types`                              | `string[]`                                                                                                                     | The note types covered; a note of another type is out of scope whatever else catches it                                                                                                        |
 | `scope.skip`                               | `Address[]`                                                                                                                    | Notes out of scope whatever else catches them                                                                                                                                                  |
 | `sounds`                                   | `{ letters?, edges?, clusters?, stress?, finals?, syllables?, joining?, joins?, marks?, skeleton?, frames?, readPast? }`       | `language` only: the letters it writes and the rules its words keep                                                                                                                            |
-| `sounds.letters`                           | `{ letters, kind, like?, place?, tongue? }[]`                                                                                  | The letters and the sounds they stand for                                                                                                                                                      |
+| `sounds.letters`                           | `{ letters, kind, like?, place?, ipa?, tongue? }[]`                                                                            | The letters and the sounds they stand for                                                                                                                                                      |
 | `sounds.letters[].letters`                 | `string[]`, required                                                                                                           | The letters or digraphs the row describes                                                                                                                                                      |
 | `sounds.letters[].kind`                    | `string`, required                                                                                                             | What kind of sound they write, as `consonant` or `long vowel`                                                                                                                                  |
 | `sounds.letters[].like`                    | `string`                                                                                                                       | What they sound like; absent where the row states only their kind and place                                                                                                                    |
 | `sounds.letters[].place`                   | `string`                                                                                                                       | Where in the mouth they are made, as `lips` or `tongue-tip`                                                                                                                                    |
-| `sounds.letters[].tongue`                  | `string` or `string[]`                                                                                                         | The tongues that write them, as tags `tongues` declares; every one where absent                                                                                                                |
+| `sounds.letters[].ipa`                     | `string`                                                                                                                       | The sounds they write, in the International Phonetic Alphabet, as `ʃ`                                                                                                                          |
+| `sounds.letters[].tongue`                  | `string` or `string[]`                                                                                                         | The tongues that write them, each a tag `tongues` declares or a language note's Address; every one where absent                                                                                |
 | `sounds.edges`                             | `{ edge, sounds }[]`                                                                                                           | The sounds that may stand at each edge of a word, one entry per edge                                                                                                                           |
 | `sounds.edges[].edge`                      | `openConsonant`, `openCluster`, `closeConsonant`, `closeCluster`, `innerCluster`, `vowelPair`, `glide` or `syllabic`, required | Which edge the sounds stand at                                                                                                                                                                 |
 | `sounds.edges[].sounds`                    | `string[]` or `any`, required                                                                                                  | The sounds; `any` for every one, an empty list for none                                                                                                                                        |
@@ -6207,11 +6236,12 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `sounds.clusters.groups[].use`             | `common` or `sparing`, required                                                                                                | How often the group's clusters stand inside a word                                                                                                                                             |
 | `sounds.stress`                            | `{ two, longer, mark? }`                                                                                                       | Where a word's stress falls, as a rule a program reads                                                                                                                                         |
 | `sounds.stress.two`                        | `first` or `last`, required                                                                                                    | The stressed syllable of a word of two syllables                                                                                                                                               |
-| `sounds.stress.longer`                     | `antepenultimate`, `penultimate` or `final`, required                                                                          | The stressed syllable of a word of three or more, counted from its end                                                                                                                         |
+| `sounds.stress.longer`                     | `first`, `antepenultimate`, `penultimate` or `final`, required                                                                 | The stressed syllable of a word of three or more: the first, or counted from its end                                                                                                           |
 | `sounds.stress.mark`                       | `acute`, `grave` or `circumflex`                                                                                               | The diacritic that marks a stress the rule would not choose; it moves the stress to the syllable it sits on                                                                                    |
-| `sounds.finals`                            | `{ final, like }[]`                                                                                                            | The syllable finals, for a language whose syllables are parsed by them                                                                                                                         |
+| `sounds.finals`                            | `{ final, like, ipa? }[]`                                                                                                      | The syllable finals, for a language whose syllables are parsed by them                                                                                                                         |
 | `sounds.finals[].final`                    | `string`, required                                                                                                             | The final, as `ang`                                                                                                                                                                            |
 | `sounds.finals[].like`                     | `string`, required                                                                                                             | What it sounds like                                                                                                                                                                            |
+| `sounds.finals[].ipa`                      | `string`                                                                                                                       | Its sound, in the International Phonetic Alphabet                                                                                                                                              |
 | `sounds.syllables`                         | map of syllable rules                                                                                                          | What a syllable and a word may open and close on                                                                                                                                               |
 | `sounds.syllables.onsets`                  | `single`                                                                                                                       | What a syllable opens on: a single consonant                                                                                                                                                   |
 | `sounds.syllables.codas`                   | `string[]` or `any`                                                                                                            | The consonants that may close a syllable                                                                                                                                                       |
@@ -6341,6 +6371,9 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `affixes[].native[].font`                  | `string`                                                                                                                       | The one face the writing is for, one the map lists; unstated, every face it lists                                                                                                              |
 | `affixes[].native[].text`                  | `string`, required                                                                                                             | The affix as the script writes it                                                                                                                                                              |
 | `emphasis`                                 | `words`, `rubric` or `overline`                                                                                                | `language` only: how the language marks a stressed word, over its script's; `words` makes `*…*` and `**…**` in its runs an error — see [script notes and emphasis](#script-notes-and-emphasis) |
+| `writtenIn`                                | `{ map, font }`                                                                                                                | `language` only: the script the language is written in, which a run marked with the language alone takes — see [script notes and emphasis](#script-notes-and-emphasis)                         |
+| `writtenIn.map`                            | `string`, required                                                                                                             | The `data.map.name` of a mapping note                                                                                                                                                          |
+| `writtenIn.font`                           | `string`, required                                                                                                             | A face the map lists                                                                                                                                                                           |
 | `script`                                   | `{ fonts, emphasis, strongEmphasis?, direction? }`                                                                             | `script` only: the faces the script is written in, how it marks emphasis and its direction — see [script notes and emphasis](#script-notes-and-emphasis)                                       |
 | `script.fonts`                             | `string[]`, required                                                                                                           | Installed faces by the slug `font=` names them by; a face belongs to one script                                                                                                                |
 | `script.emphasis`                          | `rubric` or `overline`, required                                                                                               | Sets `*…*` and `**…**` in a run in one of its faces                                                                                                                                            |
@@ -6825,8 +6858,11 @@ unless `types` is stated and leaves its type out, or `skip` names it.
 
 **`sounds` states the letters and the rules a word keeps.** `letters` gives
 each letter or group of letters, the kind of sound it writes, what it sounds
-like, where in the mouth it is made and, in a language whose tongues write
-differently, the tongues that write it. A row that states only a kind and a
+like, where in the mouth it is made, its sound in the International Phonetic
+Alphabet as `ipa` and, in a language whose tongues write differently, the
+tongues that write it. Each `tongue` is a tag `tongues` declares, or else the
+Address of a language note, so a row can name another language's note
+directly. A row that states only a kind and a
 place — one cell of a grid of consonants by manner and place — states no
 `like`. `edges` gives the sounds that may stand at each edge of a word, one
 entry per edge, the edge from a closed list:
@@ -6856,14 +6892,15 @@ closed list where its values are words:
 
 - `stress`: the rule a program reads, `{ two, longer, mark? }`. `two` is the
   stressed syllable of a word of two syllables, `first` or `last`; `longer` is
-  the stressed syllable of a word of three or more, counted from its end,
-  `antepenultimate`, `penultimate` or `final`; `mark` is the diacritic, `acute`,
+  the stressed syllable of a word of three or more, `first`, or counted from its
+  end, `antepenultimate`, `penultimate` or `final`; `mark` is the diacritic, `acute`,
   `grave` or `circumflex`, that marks a stress the rule would not choose and
   moves it to the syllable it sits on. Syllables are vowel groups, a pair listed
   in `syllables.vowelPairs` counting as one. A verse fence's `scan=` counts
   beats by this rule; see [metres](#metres).
-- `finals`: the syllable finals, each with what it sounds like, for a language
-  whose syllables are parsed by them.
+- `finals`: the syllable finals, each with what it sounds like and, as `ipa`,
+  its sound in the International Phonetic Alphabet, for a language whose
+  syllables are parsed by them.
 - `syllables`: what a syllable opens on (`single`, a single consonant), the
   `codas` that close a syllable and the `finals` that close a word (a list, or
   `any`), the `doubled` consonants and `vowelPairs` a word may hold (none where
@@ -7049,6 +7086,40 @@ FROM edges WHERE language = 'thalorna-note-skill-dunharlng' ORDER BY position
 `name_shapes`, `name_edges`, `name_draws`, `held_from`, `near_names` and
 `cognates` read the same way; [content tables](#content-tables) gives every
 relation's columns.
+
+#### A spelling guide's sounds
+
+One spelling guide can state the letters every tongue of a setting is written
+by. A `doc` note of any subType may state `data.sounds` with `letters` and
+`marks` alone, each row with a language note's keys, `ipa` included:
+
+```yaml
+type: doc
+subType: reference
+data:
+  sounds:
+    letters:
+      - { letters: [sh], kind: consonant, like: ship, ipa: ʃ }
+      - {
+          letters: [ui],
+          kind: vowel pair,
+          like: gooey,
+          ipa: ui,
+          tongue: [skill-tantsoulng, skill-jurthatlng],
+        }
+    marks:
+      - { mark: diaeresis, letters: [ë], kind: length, limit: any }
+```
+
+A guide declares no tags, so a letter row's `tongue` names language notes by
+their Addresses, and each must resolve to a `skill` of `subType: language`. Any
+other key of `sounds` is an error at the key, since the rules of a word belong
+to its language. The rows are rows of the `letters` and `marks` relations, with
+the guide's Address as `language`. Each of these is an error at the value:
+
+> `` `data.sounds.letters[1].tongue` names `vylari`, which is no language note's Address; a spelling guide names each tongue by its language note ``
+
+> `` `data.sounds.letters[1].tongue[1]` names thalorna-note-skill-riding, which is not a skill whose subType is language ``
 
 if a `sohl` property is present, a SoHL item of type "skill" is created.
 
@@ -8200,35 +8271,48 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - settingguide: A culture's guide to the setting, which names its culture in `data.culture`. It orients a reader to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
 - post: A blog post, which states the day it was published in `data.date` and may name its writer in `data.author`. A site whose `site.feed` names a section lists its posts there, newest first, and feeds them as Atom.
 
-| `data` property             | Values                                               | Description                                                                                                               |
-| --------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `culture`                   | `Address`                                            | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture`     |
-| `concepts`                  | list of `{ id, gloss, group }`                       | A core vocabulary's concept list, any subType. See [the core vocabulary](#the-core-vocabulary)                            |
-| `date`                      | `YYYY-MM-DD`                                         | `post` only, and required there: the day the post was published                                                           |
-| `author`                    | string                                               | `post` only: who wrote the post; a post naming none carries the site's byline, the first entry of `authors`               |
-| `concepts[].id`             | string                                               | Required: lowercase letters, digits and `-`, unique in the package                                                        |
-| `concepts[].gloss`          | string                                               | Required: what the concept means, in brief                                                                                |
-| `concepts[].group`          | string                                               | Required: the group the report lists the concept under                                                                    |
-| `map`                       | `{ name, vowels?, fonts, rows }`                     | A mapping, which text marked `map=` with its `name` is rewritten by; any subType. See [mapping notes](#mapping-notes)     |
-| `map.name`                  | string                                               | Required: what `map=` names it by, lowercase letters, digits and `-`, unique in the index                                 |
-| `map.vowels`                | string                                               | The characters `before: vowel` reads as vowels                                                                            |
-| `map.rows`                  | list of `[from, to]` or `{ from, to, before?, at? }` | Required: the rewrites, in authored order                                                                                 |
-| `map.rows[].from`           | string of one or more characters                     | Required in a map row: the characters it matches                                                                          |
-| `map.rows[].to`             | string, which may be empty                           | Required in a map row: what it writes in their place                                                                      |
-| `map.rows[].before`         | `vowel \| consonant`                                 | What must follow the match                                                                                                |
-| `map.rows[].at`             | `start \| end`                                       | Where the match must sit                                                                                                  |
-| `map.fonts`                 | list of `{ font, rows? }`                            | Required, at least one: the faces the map is drawn in                                                                     |
-| `map.fonts[].font`          | an installed face's slug                             | Required: the face, as `font=` names it; not `mono`, `serif` or `sans`                                                    |
-| `map.fonts[].rows`          | list of `[from, to]` or `{ from, to, before?, at? }` | Rows for this face alone, tried before the shared `rows`                                                                  |
-| `map.fonts[].rows[].from`   | string of one or more characters                     | Required in a map row: the characters it matches                                                                          |
-| `map.fonts[].rows[].to`     | string, which may be empty                           | Required in a map row: what it writes in their place                                                                      |
-| `map.fonts[].rows[].before` | `vowel \| consonant`                                 | What must follow the match                                                                                                |
-| `map.fonts[].rows[].at`     | `start \| end`                                       | Where the match must sit                                                                                                  |
-| `metres`                    | `{ name, beats, kind }[]`                            | The metres a verse fence's `scan=` names; any subType. See [metres](#metres)                                              |
-| `metres[].name`             | string                                               | Required: what `scan=` names it by, lowercase letters, digits and `-`, unique in the package                              |
-| `metres[].beats`            | `integer`, required                                  | The beats of one line, above zero                                                                                         |
-| `metres[].kind`             | `accentual`                                          | Required: how the beats are counted                                                                                       |
-| `map.logographic`           | `true`                                               | The script writes meanings: a run's words are written by the lexicon alone, and the rows write only the text between them |
+| `data` property             | Values                                               | Description                                                                                                                                    |
+| --------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `culture`                   | `Address`                                            | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture`                          |
+| `concepts`                  | list of `{ id, gloss, group }`                       | A core vocabulary's concept list, any subType. See [the core vocabulary](#the-core-vocabulary)                                                 |
+| `date`                      | `YYYY-MM-DD`                                         | `post` only, and required there: the day the post was published                                                                                |
+| `author`                    | string                                               | `post` only: who wrote the post; a post naming none carries the site's byline, the first entry of `authors`                                    |
+| `concepts[].id`             | string                                               | Required: lowercase letters, digits and `-`, unique in the package                                                                             |
+| `concepts[].gloss`          | string                                               | Required: what the concept means, in brief                                                                                                     |
+| `concepts[].group`          | string                                               | Required: the group the report lists the concept under                                                                                         |
+| `map`                       | `{ name, vowels?, fonts, rows }`                     | A mapping, which text marked `map=` with its `name` is rewritten by; any subType. See [mapping notes](#mapping-notes)                          |
+| `map.name`                  | string                                               | Required: what `map=` names it by, lowercase letters, digits and `-`, unique in the index                                                      |
+| `map.vowels`                | string                                               | The characters `before: vowel` reads as vowels                                                                                                 |
+| `map.rows`                  | list of `[from, to]` or `{ from, to, before?, at? }` | Required: the rewrites, in authored order                                                                                                      |
+| `map.rows[].from`           | string of one or more characters                     | Required in a map row: the characters it matches                                                                                               |
+| `map.rows[].to`             | string, which may be empty                           | Required in a map row: what it writes in their place                                                                                           |
+| `map.rows[].before`         | `vowel \| consonant`                                 | What must follow the match                                                                                                                     |
+| `map.rows[].at`             | `start \| end`                                       | Where the match must sit                                                                                                                       |
+| `map.fonts`                 | list of `{ font, rows? }`                            | Required, at least one: the faces the map is drawn in                                                                                          |
+| `map.fonts[].font`          | an installed face's slug                             | Required: the face, as `font=` names it; not `mono`, `serif` or `sans`                                                                         |
+| `map.fonts[].rows`          | list of `[from, to]` or `{ from, to, before?, at? }` | Rows for this face alone, tried before the shared `rows`                                                                                       |
+| `map.fonts[].rows[].from`   | string of one or more characters                     | Required in a map row: the characters it matches                                                                                               |
+| `map.fonts[].rows[].to`     | string, which may be empty                           | Required in a map row: what it writes in their place                                                                                           |
+| `map.fonts[].rows[].before` | `vowel \| consonant`                                 | What must follow the match                                                                                                                     |
+| `map.fonts[].rows[].at`     | `start \| end`                                       | Where the match must sit                                                                                                                       |
+| `metres`                    | `{ name, beats, kind }[]`                            | The metres a verse fence's `scan=` names; any subType. See [metres](#metres)                                                                   |
+| `metres[].name`             | string                                               | Required: what `scan=` names it by, lowercase letters, digits and `-`, unique in the package                                                   |
+| `metres[].beats`            | `integer`, required                                  | The beats of one line, above zero                                                                                                              |
+| `metres[].kind`             | `accentual`                                          | Required: how the beats are counted                                                                                                            |
+| `map.logographic`           | `true`                                               | The script writes meanings: a run's words are written by the lexicon alone, and the rows write only the text between them                      |
+| `sounds`                    | `{ letters?, marks? }`                               | A spelling guide's letters and marks, for every tongue of the setting; any subType. See [a spelling guide's sounds](#a-spelling-guides-sounds) |
+| `sounds.letters`            | `{ letters, kind, like?, place?, ipa?, tongue? }[]`  | The letters, each row's keys as a language note's `sounds.letters`                                                                             |
+| `sounds.letters[].letters`  | `string[]`, required                                 | The letters or digraphs the row describes                                                                                                      |
+| `sounds.letters[].kind`     | `string`, required                                   | What kind of sound they write, as `consonant` or `vowel pair`                                                                                  |
+| `sounds.letters[].like`     | `string`                                             | What they sound like                                                                                                                           |
+| `sounds.letters[].place`    | `string`                                             | Where in the mouth they are made                                                                                                               |
+| `sounds.letters[].ipa`      | `string`                                             | The sounds they write, in the International Phonetic Alphabet                                                                                  |
+| `sounds.letters[].tongue`   | an Address, or a list of them                        | The language notes that write the letters; every tongue where absent                                                                           |
+| `sounds.marks`              | `{ mark, letters, kind, limit }[]`                   | The marks written on the letters, each row's keys as a language note's `sounds.marks`                                                          |
+| `sounds.marks[].mark`       | `string`, required                                   | The mark's name, as `acute`                                                                                                                    |
+| `sounds.marks[].letters`    | `string[]`, required                                 | The letters that carry it                                                                                                                      |
+| `sounds.marks[].kind`       | `stress` or `length`, required                       | What it says of its letter                                                                                                                     |
+| `sounds.marks[].limit`      | `one` or `any`, required                             | How many a word may carry                                                                                                                      |
 
 A setting guide introduces one culture's view of the setting, so it names that
 culture, and a `doc` of any other `subType` has no culture of its own to name.

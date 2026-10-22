@@ -17,6 +17,10 @@
  * column value and none is a key, so two notes writing one tag in different
  * case are two rows. Documentation records and assets contribute no rows.
  *
+ * A run's `font` and `map` are the ones it is set with: its own, else those of
+ * the div or fence around it, else those its language's note names in
+ * `data.writtenIn`, filled by {@link fillWrittenIn} once every record exists.
+ *
  * @module
  */
 
@@ -24,6 +28,9 @@ import { canonicalKey, readCanonicalKey } from "./address.mjs";
 import { encodeAddresses } from "./address-values.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { scanRuns } from "./content-scripts.mjs";
+import { languageRecordsByName } from "./map-lexicon.mjs";
+import { mapsFromRecords } from "./text-maps.mjs";
+import { fromWrittenIn, writtenInOf } from "./written-in.mjs";
 
 /** Every column of the `runs` relation, in order. */
 export const RUN_COLUMNS = Object.freeze([
@@ -45,8 +52,10 @@ export const RUN_COLUMNS = Object.freeze([
  * @property {string|null} lang - The language it is set in, as written: its
  *   own `lang=`, else the one the div or fence around it states.
  * @property {string|null} tag - The BCP 47 tag it resolves to, or null.
- * @property {string|null} font - Its font, as written and inherited the same way.
- * @property {string|null} map - Its map, as written and inherited the same way.
+ * @property {string|null} font - Its font, as written and inherited the same
+ *   way, else its language's script's.
+ * @property {string|null} map - Its map, as written and inherited the same way,
+ *   else its language's script's.
  * @property {number} line - 1-based file line of its opening.
  * @property {number} column - 1-based UTF-16 file column of its opening.
  */
@@ -78,6 +87,39 @@ export function recordRuns(body, { context, bodyLine = 1, bodyColumn = 1, syntax
         line: bodyLine + run.line - 1,
         column: run.column + (run.line === 1 ? bodyColumn - 1 : 0),
     }));
+}
+
+/**
+ * Give every recorded run the map and face its language's note names in
+ * `data.writtenIn`, where the run leaves them unstated, as a run is set. Read
+ * once every record exists, since a run's language note may be recorded after
+ * the note that marks it.
+ *
+ * @param {Record<string, any>[]} records - The package's index records; each
+ *   note record's `runs` is updated in place.
+ * @param {{languages?: Readonly<Record<string, {tag: string, note?: string}>>, contentPackage?: string}} config -
+ *   The configured languages, whose `note` names each language note.
+ */
+export function fillWrittenIn(records, config) {
+    const maps = mapsFromRecords(records);
+    const scripts = writtenInOf(languageRecordsByName(records, config), maps);
+    if (!scripts.size) return;
+    for (const record of records) {
+        if (!record || !isNoteRecord(record) || !Array.isArray(record.runs)) continue;
+        for (const run of record.runs) {
+            const filled = fromWrittenIn(
+                {
+                    lang: run.lang ?? undefined,
+                    map: run.map ?? undefined,
+                    font: run.font ?? undefined,
+                },
+                scripts,
+                maps,
+            );
+            if (filled.map !== undefined) run.map = filled.map;
+            if (filled.font !== undefined) run.font = filled.font;
+        }
+    }
 }
 
 /**

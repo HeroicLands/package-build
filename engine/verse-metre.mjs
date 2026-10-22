@@ -129,6 +129,7 @@ export function stressIndex(word, rule, pairs) {
     const count = nuclei.length;
     if (count <= 1) return 0;
     if (count === 2) return rule.two === "last" ? 1 : 0;
+    if (rule.longer === "first") return 0;
     if (rule.longer === "antepenultimate") return count - 3;
     if (rule.longer === "final") return count - 1;
     return count - 2;

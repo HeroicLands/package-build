@@ -130,7 +130,7 @@ export const CLUSTER_USES = Object.freeze(["common", "sparing"]);
 export const STRESS_TWO = Object.freeze(["first", "last"]);
 
 /** The syllable a word of three or more stresses, counted from its end. */
-export const STRESS_LONGER = Object.freeze(["antepenultimate", "penultimate", "final"]);
+export const STRESS_LONGER = Object.freeze(["first", "antepenultimate", "penultimate", "final"]);
 
 /**
  * The diacritics that mark a stress the rule would not choose, with the
@@ -378,12 +378,19 @@ export const LETTER_FIELDS = Object.freeze([
         describe: "Where in the mouth they are made.",
     }),
     Object.freeze({
+        name: "ipa",
+        kind: "string",
+        shape: "a string in the International Phonetic Alphabet, such as `ʃ`",
+        describe: "The sounds they write, in the International Phonetic Alphabet.",
+    }),
+    Object.freeze({
         name: "tongue",
         kind: "string-or-list",
-        shape: "a tag, or a list of them",
+        shape: "a tag or a language note's Address, or a list of them",
         entries: STRINGS,
         describe:
-            "The tongues that write them, as tags `data.tongues` declares; every one where absent.",
+            "The tongues that write them, each a tag `data.tongues` declares or the Address of a " +
+            "language note; every one where absent. A `doc` note's rows name language notes only.",
     }),
 ]);
 
@@ -528,6 +535,12 @@ export const FINAL_FIELDS = Object.freeze([
         required: true,
         shape: "a string",
         describe: "What it sounds like.",
+    }),
+    Object.freeze({
+        name: "ipa",
+        kind: "string",
+        shape: "a string in the International Phonetic Alphabet, such as `ʃ`",
+        describe: "Its sound, in the International Phonetic Alphabet.",
     }),
 ]);
 
@@ -718,7 +731,8 @@ export const STRESS_FIELDS = Object.freeze([
         required: true,
         allowed: STRESS_LONGER,
         shape: `one of ${STRESS_LONGER.join(", ")}`,
-        describe: "The stressed syllable of a word of three or more, counted from its end.",
+        describe:
+            "The stressed syllable of a word of three or more: `first`, or counted from its end.",
     }),
     Object.freeze({
         name: "mark",
@@ -914,10 +928,10 @@ export const SOUND_FIELDS = Object.freeze([
     Object.freeze({
         name: "letters",
         kind: "list",
-        shape: "list of `{ letters, kind, like, tongue? }`",
+        shape: "list of `{ letters, kind, like?, place?, ipa?, tongue? }`",
         entries: Object.freeze({
             kind: "map",
-            shape: "a map — `{ letters, kind, like, tongue? }`",
+            shape: "a map — `{ letters, kind, like?, place?, ipa?, tongue? }`",
             fields: LETTER_FIELDS,
         }),
         describe: "The letters the language writes, and the sounds they stand for.",
@@ -950,10 +964,10 @@ export const SOUND_FIELDS = Object.freeze([
     Object.freeze({
         name: "finals",
         kind: "list",
-        shape: "list of `{ final, like }`",
+        shape: "list of `{ final, like, ipa? }`",
         entries: Object.freeze({
             kind: "map",
-            shape: "a map — `{ final, like }`",
+            shape: "a map — `{ final, like, ipa? }`",
             fields: FINAL_FIELDS,
         }),
         describe: "The syllable finals, for a language whose syllables are parsed by them.",
@@ -1046,6 +1060,16 @@ export const SOUND_FIELDS = Object.freeze([
             "as a stop worn to a fricative or a consonant voiced inside a compound.",
     }),
 ]);
+
+/**
+ * The keys of a spelling guide's `data.sounds`: a `doc` note stating the
+ * letters and marks every tongue of a setting is written by.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const GUIDE_SOUND_FIELDS = Object.freeze(
+    SOUND_FIELDS.filter((field) => field.name === "letters" || field.name === "marks"),
+);
 
 /**
  * The keys of one `data.soundChanges` entry.

@@ -598,7 +598,7 @@ describe("the sound rules beside the letters", () => {
     it("refuse a stress rule outside the closed list, at the value", () => {
         one(
             edit("longer: penultimate", "longer: last"),
-            /`data\.sounds\.stress\.longer` should be `antepenultimate` or `penultimate` or `final`/,
+            /`data\.sounds\.stress\.longer` should be `first` or `antepenultimate` or `penultimate` or `final`/,
             "last",
         );
     });
@@ -748,5 +748,119 @@ describe("calling names", () => {
             /`data\.callingNames` must state `minSyllables`/,
             "callingNames",
         );
+    });
+});
+
+describe("first-syllable stress", () => {
+    it("is a rule a language note states", () => {
+        expect(
+            dunhari(edit("longer: penultimate", "longer: first")).filter((finding: any) =>
+                /stress/.test(finding.message),
+            ),
+        ).toEqual([]);
+    });
+});
+
+describe("letters and finals in the International Phonetic Alphabet", () => {
+    it("are stated beside a letter row and a final", () => {
+        expect(
+            dunhari(
+                edit(
+                    "{letters: [p, b, t, d], kind: consonant, like: the plain stops}",
+                    "{letters: [p, b, t, d], kind: consonant, like: the plain stops, ipa: p b t d}",
+                ),
+            ),
+        ).toEqual([]);
+    });
+});
+
+describe("a letter row's tongue named by a language note", () => {
+    it("accepts the Address of a language note in place of a declared tag", () => {
+        expect(
+            dunhari(edit("tongue: [dunhari, sovidur]}", "tongue: [dunhari, skill-sovidurlng]}")),
+        ).toEqual([]);
+    });
+
+    it("refuses an Address of a note that is not a language, at the value", () => {
+        one(
+            edit("tongue: [dunhari, sovidur]}", "tongue: [dunhari, skill-riding]}"),
+            /`data\.sounds\.letters\[2\]\.tongue\[1\]` names .*skill-riding, which is not a skill whose subType is language/,
+            "skill-riding",
+        );
+    });
+
+    it("refuses a value that is neither a declared tag nor a note, at the value", () => {
+        one(
+            edit("tongue: [dunhari, sovidur]}", "tongue: [dunhari, nosuchtongue]}"),
+            /the tongue `nosuchtongue` is not declared in `data\.tongues` and names no language note/,
+            "nosuchtongue",
+        );
+    });
+});
+
+/** A spelling guide: a reference `doc` note stating the letters every tongue is written by. */
+const GUIDE = (rows: string[]) =>
+    [
+        "---",
+        "shortcode: pronouncing",
+        "name: {full: Pronouncing}",
+        "type: doc",
+        "subType: reference",
+        "data:",
+        "  sounds:",
+        ...rows,
+        "---",
+        "",
+        "One spelling for every tongue.",
+        "",
+    ].join("\n");
+
+const guide = (text: string) => lint({ "Lore/Pronouncing.md": text });
+
+describe("a spelling guide's sounds", () => {
+    it("states letters with their IPA and the languages that write them, and marks", () => {
+        expect(
+            guide(
+                GUIDE([
+                    "    letters:",
+                    "      - {letters: [sh], kind: consonant, like: ship, ipa: ʃ}",
+                    "      - {letters: [ui], kind: vowel pair, like: gooey, ipa: ui, tongue: [skill-vylarilng, sovidurlng]}",
+                    "      - {letters: [ea], kind: vowel pair, like: eh-ah, tongue: skill-vylarilng}",
+                    "    marks:",
+                    "      - {mark: diaeresis, letters: [ë], kind: length, limit: any}",
+                ]),
+            ),
+        ).toEqual([]);
+    });
+
+    it("names its tongues by language notes, so a tag is refused at the value", () => {
+        const text = GUIDE([
+            "    letters:",
+            "      - {letters: [ui], kind: vowel pair, like: gooey, tongue: vylari}",
+        ]);
+        const findings = guide(text);
+        expect(findings, JSON.stringify(findings)).toHaveLength(1);
+        expect(findings[0].message).toMatch(
+            /`data\.sounds\.letters\[0\]\.tongue` names .*vylari.*/,
+        );
+        expect(at(text, findings[0]).startsWith("vylari")).toBe(true);
+    });
+
+    it("refuses a tongue naming a note that is not a language, at the value", () => {
+        const text = GUIDE([
+            "    letters:",
+            "      - {letters: [ui], kind: vowel pair, like: gooey, tongue: [skill-vylarilng, skill-riding]}",
+        ]);
+        const findings = guide(text);
+        expect(findings, JSON.stringify(findings)).toHaveLength(1);
+        expect(findings[0].message).toMatch(/which is not a skill whose subType is language/);
+        expect(at(text, findings[0]).startsWith("skill-riding")).toBe(true);
+    });
+
+    it("states only letters and marks, so any other sound rule is refused at the key", () => {
+        const text = GUIDE(["    stress: {two: first, longer: first}"]);
+        const findings = guide(text);
+        expect(findings, JSON.stringify(findings)).toHaveLength(1);
+        expect(findings[0].message).toMatch(/"stress" is not a key of `data\.sounds`/);
     });
 });

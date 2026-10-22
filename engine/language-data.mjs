@@ -21,9 +21,11 @@
  * - no skill of another subType states these keys;
  * - a tongue tag is lowercase letters and digits, optionally closing on
  *   `:<tongue>`, and stands once; a tongue's `language` names a language note;
- * - every tag a register row or a letter row names is declared in
- *   `data.tongues`, `translation` apart: `exonym:vylari` is declared by
- *   `exonym:<tongue>`;
+ * - every tag a register row names is declared in `data.tongues`,
+ *   `translation` apart: `exonym:vylari` is declared by `exonym:<tongue>`;
+ * - every tongue a letter row names is such a tag or the Address of a
+ *   language note, and a spelling guide's, on a `doc` note, an Address (see
+ *   {@link checkGuideSounds});
  * - an edge stands once in `data.sounds.edges`;
  * - a sound stands once in each mutation of `data.sounds.mutations`;
  * - a cluster stands in one group of `data.sounds.clusters.groups`, and a
@@ -433,6 +435,153 @@ function checkParticiples(participles, affixes, finding) {
 }
 
 /**
+ * The Address checks a note's data reads through, each finding located by
+ * `finding`.
+ *
+ * @param {object|undefined} index - The index; without `addressHit`, nothing
+ *   resolves and nothing is reported.
+ * @param {(path: Array<string|number>, severity: string, message: string, key?: boolean) => object} finding -
+ *   A finding at a path of the note's frontmatter.
+ * @returns {{resolve: Function, language: Function}} The checks.
+ */
+function resolvers(index, finding) {
+    /**
+     * The note an Address names, or a finding where it names none.
+     *
+     * @param {unknown} value - The Address as the note holds it.
+     * @param {Array<string|number>} path - Where it sits.
+     * @param {string|undefined} type - The type a bare shortcode defaults to.
+     * @param {boolean} [key] - Whether the Address is a map key.
+     * @returns {{target?: object, key?: string, finding?: object}}
+     */
+    function resolve(value, path, type, key = false) {
+        if (!index?.addressHit || value === undefined || value === null) return {};
+        const canonical = addressKeyOf(value, index, type);
+        if (!canonical)
+            return {
+                finding: finding(
+                    path,
+                    "error",
+                    `\`${label(path)}\` is not an Address: ${JSON.stringify(
+                        isAddressTuple(value) ? renderAddress(value) : value,
+                    )}`,
+                    key,
+                ),
+            };
+        const target = index.addressHit(canonical);
+        if (!target)
+            return {
+                finding: finding(
+                    path,
+                    "error",
+                    `\`${label(path)}\` names ${canonical}, which does not resolve in this ` +
+                        "package or its declared dependencies",
+                    key,
+                ),
+            };
+        return { target, key: canonical };
+    }
+
+    /** As {@link resolve}, and the target must be a language note. */
+    function language(value, path, key = false) {
+        const result = resolve(value, path, "skill", key);
+        if (result.finding) return [result.finding];
+        if (!result.target) return [];
+        const target = result.target.fm ?? result.target;
+        if (target.type === "skill" && target.subType === LANGUAGE_SUBTYPE) return [];
+        return [
+            finding(
+                path,
+                "error",
+                `\`${label(path)}\` names ${result.key}, which is not a skill whose subType is ` +
+                    "language",
+                key,
+            ),
+        ];
+    }
+
+    return { resolve, language };
+}
+
+/**
+ * The findings on each `tongue` of a note's `data.sounds.letters` rows. A value
+ * is a tag the note's `data.tongues` declares, or else the Address of a
+ * language note; a `doc` note declares no tags, so its rows name language
+ * notes only. Without an index no Address resolves: a language note's value
+ * that is not a declared tag is then a finding, and a guide's is not checked.
+ *
+ * @param {unknown} letters - The rows.
+ * @param {object} context
+ * @param {Set<string>|undefined} context.declared - The tags `data.tongues`
+ *   declares; `undefined` on a note that declares none.
+ * @param {object|undefined} context.index - The index Addresses resolve in.
+ * @param {(path: Array<string|number>, severity: string, message: string, key?: boolean) => object} context.finding -
+ *   A finding at a path of the note's frontmatter.
+ * @returns {object[]} The findings, each at its value.
+ */
+function letterTongueFindings(letters, { declared, index, finding }) {
+    const { resolve, language } = resolvers(index, finding);
+    const out = [];
+    listOf(letters).forEach((row, i) => {
+        if (!isMap(row) || row.tongue === undefined || row.tongue === null) return;
+        const at = ["data", "sounds", "letters", i, "tongue"];
+        const values = Array.isArray(row.tongue) ? row.tongue : [row.tongue];
+        values.forEach((value, j) => {
+            if (typeof value !== "string") return;
+            if (declared && tongueDeclared(value, declared)) return;
+            const path = Array.isArray(row.tongue) ? [...at, j] : at;
+            const resolved = resolve(value, path, "skill");
+            if (resolved.target) {
+                out.push(...language(value, path));
+                return;
+            }
+            if (declared)
+                out.push(
+                    finding(
+                        path,
+                        "error",
+                        `the tongue \`${value}\` is not declared in \`data.tongues\`` +
+                            (index?.addressHit ? " and names no language note" : ""),
+                    ),
+                );
+            else if (resolved.finding)
+                out.push(
+                    finding(
+                        path,
+                        "error",
+                        `\`${label(path)}\` names \`${value}\`, which is no language note's ` +
+                            "Address; a spelling guide names each tongue by its language note",
+                    ),
+                );
+        });
+    });
+    return out;
+}
+
+/**
+ * Check a `doc` note's `data.sounds`, a spelling guide's letters and marks:
+ * each letter row's `tongue` names language notes. The data-key check owns
+ * the keys, so a sound rule a guide does not state is refused there.
+ *
+ * @param {object} note - A `doc` note: `file`, `raw` and parsed `fm`.
+ * @param {object} [context]
+ * @param {object} [context.index] - The index, for whether an Address resolves.
+ * @returns {object[]} The findings.
+ */
+export function checkGuideSounds(note, { index } = {}) {
+    const sounds = note?.fm?.data?.sounds;
+    if (!isMap(sounds)) return [];
+    const raw = note.raw ?? "";
+    const finding = (path, severity, message, key = false) => ({
+        file: note.file,
+        ...positionOfFrontmatterPath(raw, path, { key }),
+        severity,
+        message,
+    });
+    return letterTongueFindings(sounds.letters, { declared: undefined, index, finding });
+}
+
+/**
  * Check a `skill` note's language data against what it means.
  *
  * @param {object} note - A `skill` note: `file`, `raw` and parsed `fm`.
@@ -542,60 +691,7 @@ export function checkLanguageData(note, { index, types } = {}) {
         ...checkAffixClasses(data.affixes, finding),
     );
 
-    /**
-     * The note an Address names, or a finding where it names none.
-     *
-     * @param {unknown} value - The Address as the note holds it.
-     * @param {Array<string|number>} path - Where it sits.
-     * @param {string|undefined} type - The type a bare shortcode defaults to.
-     * @param {boolean} [key] - Whether the Address is a map key.
-     * @returns {{target?: object, key?: string, finding?: object}}
-     */
-    function resolve(value, path, type, key = false) {
-        if (!index?.addressHit || value === undefined || value === null) return {};
-        const canonical = addressKeyOf(value, index, type);
-        if (!canonical)
-            return {
-                finding: finding(
-                    path,
-                    "error",
-                    `\`${label(path)}\` is not an Address: ${JSON.stringify(
-                        isAddressTuple(value) ? renderAddress(value) : value,
-                    )}`,
-                    key,
-                ),
-            };
-        const target = index.addressHit(canonical);
-        if (!target)
-            return {
-                finding: finding(
-                    path,
-                    "error",
-                    `\`${label(path)}\` names ${canonical}, which does not resolve in this ` +
-                        "package or its declared dependencies",
-                    key,
-                ),
-            };
-        return { target, key: canonical };
-    }
-
-    /** As {@link resolve}, and the target must be a language note. */
-    function language(value, path, key = false) {
-        const result = resolve(value, path, "skill", key);
-        if (result.finding) return [result.finding];
-        if (!result.target) return [];
-        const target = result.target.fm ?? result.target;
-        if (target.type === "skill" && target.subType === LANGUAGE_SUBTYPE) return [];
-        return [
-            finding(
-                path,
-                "error",
-                `\`${label(path)}\` names ${result.key}, which is not a skill whose subType is ` +
-                    "language",
-                key,
-            ),
-        ];
-    }
+    const { resolve, language } = resolvers(index, finding);
 
     // ── Tongues ──────────────────────────────────────────────────────────────
     const declared = new Set();
@@ -668,12 +764,7 @@ export function checkLanguageData(note, { index, types } = {}) {
 
     // ── Sounds ───────────────────────────────────────────────────────────────
     const sounds = isMap(data.sounds) ? data.sounds : {};
-    listOf(sounds.letters).forEach((row, i) => {
-        if (!isMap(row) || row.tongue === undefined || row.tongue === null) return;
-        const path = ["data", "sounds", "letters", i, "tongue"];
-        if (Array.isArray(row.tongue)) undeclared(row.tongue, (j) => [...path, j]);
-        else undeclared([row.tongue], () => path);
-    });
+    findings.push(...letterTongueFindings(sounds.letters, { declared, index, finding }));
     const edgeAt = new Map();
     listOf(sounds.edges).forEach((row, i) => {
         if (!isMap(row) || typeof row.edge !== "string") return;

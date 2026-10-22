@@ -45,6 +45,7 @@ const HITS: Record<string, unknown> = {
     "thalorna-note-lore-cultureone": { subType: "culture" },
     "thalorna-note-lore-calendarone": { subType: "calendar" },
     "thalorna-note-skill-languageone": { subType: "language" },
+    "thalorna-note-skill-languagetwo": { type: "skill", subType: "language" },
     "thalorna-note-being-ally": true,
     "thalorna-note-place-korrath": { type: "place", borders: [{ to: "vylar", bearing: "S" }] },
     "thalorna-note-place-tolvern": {
@@ -251,6 +252,15 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             data: { emphasis: "words" },
         }),
     },
+    "skill:writtenIn": {
+        covers: ["writtenIn"],
+        fm: () => ({
+            type: "skill",
+            subType: "language",
+            shortcode: "vylarilng",
+            data: { writtenIn: { map: "vyl-semaron", font: "semaron-kuriale" } },
+        }),
+    },
     doc: {
         covers: ["culture"],
         fm: () => ({
@@ -280,6 +290,23 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     name: "vyl-semaron",
                     vowels: "aeiou",
                     rows: [["a", "\u{F0230}"], { from: "y", to: "\u{F0237}", before: "consonant" }],
+                },
+            },
+        }),
+    },
+    "doc:sounds": {
+        covers: ["sounds"],
+        fm: () => ({
+            type: "doc",
+            subType: "reference",
+            shortcode: "pronouncing",
+            data: {
+                sounds: {
+                    letters: [
+                        { letters: ["sh"], kind: "consonant", like: "ship", ipa: "ʃ" },
+                        { letters: ["ui"], kind: "vowel pair", tongue: ["skill-languagetwo"] },
+                    ],
+                    marks: [{ mark: "acute", letters: ["á"], kind: "stress", limit: "one" }],
                 },
             },
         }),
@@ -317,6 +344,9 @@ for (const type of Object.keys(NOTE_VOCABULARY)) {
         fm: () => ({ type, shortcode: "subject", data: { calendar: "calendarone" } }),
     };
 }
+
+// The mapping note a language's `writtenIn` names, as the lint index holds it.
+index.notes.push({ file: "doc.md", fm: FIXTURES["doc:map"].fm() });
 
 /** The fixture that covers one field of a type. */
 function fixtureFor(type: string, name: string) {

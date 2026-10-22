@@ -72,7 +72,7 @@ beforeAll(async () => {
                 "  sounds:",
                 "    letters:",
                 "      - {letters: [kh, gh], kind: consonant, like: a rasp, tongue: dunhari}",
-                "      - {letters: [â], kind: long vowel, like: father}",
+                "      - {letters: [â], kind: long vowel, like: father, ipa: aː}",
                 "    edges:",
                 "      - {edge: closeConsonant, sounds: [n, r]}",
                 "      - {edge: syllabic, sounds: any}",
@@ -80,7 +80,7 @@ beforeAll(async () => {
                 "    clusters: {max: 2}",
                 "    stress: {two: last, longer: final}",
                 "    finals:",
-                "      - {final: ang, like: father then ng}",
+                "      - {final: ang, like: father then ng, ipa: aŋ}",
                 "    syllables:",
                 "      onsets: single",
                 "      codas: [b, d]",
@@ -223,6 +223,23 @@ beforeAll(async () => {
             "type: place",
             "subType: site",
             "tags: [gm]",
+        ]),
+    );
+    write(
+        own,
+        "Lore/Pronouncing.md",
+        note([
+            "shortcode: pronouncing",
+            "name: {full: Pronouncing}",
+            "type: doc",
+            "subType: reference",
+            "data:",
+            "  sounds:",
+            "    letters:",
+            "      - {letters: [sh], kind: consonant, like: ship, ipa: ʃ}",
+            "      - {letters: [ui], kind: vowel pair, like: gooey, ipa: ui, tongue: [skill-dunharlng, sovidurlng]}",
+            "    marks:",
+            "      - {mark: circumflex, letters: [â], kind: length, limit: any}",
         ]),
     );
     const records = collectContentIndex(own, { contentPackage: "demo", skipDirectories: [] });
@@ -374,11 +391,34 @@ describe("the lists beside the register", () => {
 describe("the sound relations", () => {
     it("hold letters, `letters` and `tongue` lists", async () => {
         expect(
-            await rows('SELECT letters, kind, "like", tongue FROM letters ORDER BY position'),
+            await rows(
+                `SELECT letters, kind, "like", ipa, tongue FROM letters WHERE language = '${DUNHARI}' ORDER BY position`,
+            ),
         ).toEqual([
-            { letters: ["kh", "gh"], kind: "consonant", like: "a rasp", tongue: ["dunhari"] },
-            { letters: ["â"], kind: "long vowel", like: "father", tongue: null },
+            {
+                letters: ["kh", "gh"],
+                kind: "consonant",
+                like: "a rasp",
+                ipa: null,
+                tongue: ["dunhari"],
+            },
+            { letters: ["â"], kind: "long vowel", like: "father", ipa: "aː", tongue: null },
         ]);
+    });
+
+    it("hold a spelling guide's letters and marks, keyed by the guide", async () => {
+        const GUIDE = "demo-note-doc-pronouncing";
+        expect(
+            await rows(
+                `SELECT letters, ipa, tongue FROM letters WHERE language = '${GUIDE}' ORDER BY position`,
+            ),
+        ).toEqual([
+            { letters: ["sh"], ipa: "ʃ", tongue: null },
+            { letters: ["ui"], ipa: "ui", tongue: ["skill-dunharlng", "sovidurlng"] },
+        ]);
+        expect(
+            await rows(`SELECT mark, letters, kind FROM marks WHERE language = '${GUIDE}'`),
+        ).toEqual([{ mark: "circumflex", letters: ["â"], kind: "length" }]);
     });
 
     it("hold edges, `any` a list of one and none an empty list", async () => {
@@ -448,8 +488,8 @@ describe("the sound relations", () => {
         expect(await rows("SELECT language, two, longer, mark FROM stress")).toEqual([
             { language: DUNHARI, two: "last", longer: "final", mark: null },
         ]);
-        expect(await rows('SELECT final, "like" FROM finals')).toEqual([
-            { final: "ang", like: "father then ng" },
+        expect(await rows('SELECT final, "like", ipa FROM finals')).toEqual([
+            { final: "ang", like: "father then ng", ipa: "aŋ" },
         ]);
     });
 
@@ -481,9 +521,11 @@ describe("the sound relations", () => {
         expect(await rows('SELECT meeting, rule, letters, "where" FROM joins')).toEqual([
             { meeting: "V+C", rule: "double", letters: ["p", "t"], where: "between stems" },
         ]);
-        expect(await rows('SELECT mark, letters, kind, "limit" FROM marks')).toEqual([
-            { mark: "acute", letters: ["á", "é"], kind: "stress", limit: "one" },
-        ]);
+        expect(
+            await rows(
+                `SELECT mark, letters, kind, "limit" FROM marks WHERE language = '${DUNHARI}'`,
+            ),
+        ).toEqual([{ mark: "acute", letters: ["á", "é"], kind: "stress", limit: "one" }]);
     });
 
     it("hold the skeleton vowel and the frames, a frame's examples by root", async () => {

@@ -226,6 +226,7 @@ types:
             - negation
             - naming
             - emphasis
+            - writtenIn
             - script
         subTypes:
             - social
@@ -369,6 +370,7 @@ types:
             - concepts
             - date
             - author
+            - sounds
             - map
             - metres
         subTypes:

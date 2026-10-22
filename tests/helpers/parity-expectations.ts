@@ -1250,6 +1250,112 @@ export const CONSTRUCTS: Record<string, Construct> = {
             ],
         },
     },
+    "run-lang-default": {
+        summary:
+            "Text marked with only a language whose note names its script is mapped and set in that script's face.",
+        probe: "[thirun sorima]{lang=prv}",
+        foundry: {
+            sees: [
+                /The south gate is cut as <span class="script hl-semaron-kuriale" lang="art-x-prv">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} \u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/span>,/u,
+            ],
+        },
+        web: {
+            sees: [
+                /The south gate is cut as <span class="script hl-semaron-kuriale" lang="art-x-prv" data-pagefind-ignore="true">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} \u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/span>,/u,
+            ],
+        },
+        preview: {
+            sees: [/hl-preview-label">thirun sorima<\/span>[\s\S]*?\{lang=prv\}/],
+            differs: SOURCE_ONLY,
+            bufferOnly: true,
+        },
+        book: {
+            sees: [
+                /The south gate is cut as #book-span\(classes: \("script", "hl-semaron-kuriale"\)\)\[\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} \u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}\],/u,
+            ],
+        },
+    },
+    "run-lang-default-override": {
+        summary:
+            "A font= on a run overrides its language's script: the text is set in that font, and the language's map, which is not drawn in it, is not applied.",
+        probe: "[thirun sorima]{lang=prv font=serif}",
+        foundry: {
+            sees: [
+                /its ledger as <span class="font-serif" lang="art-x-prv">thirun sorima<\/span>\./,
+            ],
+        },
+        web: {
+            sees: [
+                /its ledger as <span class="font-serif" lang="art-x-prv">thirun sorima<\/span>\./,
+            ],
+        },
+        preview: {
+            sees: [/hl-preview-label">thirun sorima<\/span>[\s\S]*?\{lang=prv font=serif\}/],
+            differs: SOURCE_ONLY,
+            bufferOnly: true,
+        },
+        book: {
+            sees: [/its ledger as #book-span\(classes: \("font-serif",\)\)\[thirun sorima\]\./],
+        },
+    },
+    "run-block-default": {
+        summary:
+            "A div marked with only a language whose note names its script sets its paragraphs in that script's face.",
+        probe: "::: {lang=prv}",
+        foundry: {
+            sees: [
+                /<div class="script script-block hl-semaron-kuriale" lang="art-x-prv">\s*<p>\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230} \u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C}\u{F0268}<\/p>/u,
+            ],
+        },
+        web: {
+            sees: [
+                /<div class="script script-block hl-semaron-kuriale" lang="art-x-prv" data-pagefind-ignore="true">\s*<p>\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230} \u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C}\u{F0268}<\/p>/u,
+            ],
+        },
+        preview: {
+            sees: [/<div class="" lang="prv">\s*<p>sorima thirun\.<\/p>/],
+            differs:
+                "The buffer-only preview has no language notes: it sets the div's roman text unmapped and in no face.",
+            bufferOnly: true,
+        },
+        book: {
+            sees: [
+                /#block\(width: 100%\)\[#book-script-text\(classes: \("script", "script-block", "hl-semaron-kuriale"\)\)\[\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230} \u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C}\u{F0268}/u,
+            ],
+        },
+    },
+    "run-scroll-default": {
+        summary:
+            "A scroll fence marked with only a language whose note names its script is set in columns in that script's face.",
+        probe: "```scroll {rows=3 cols=3 lang=tsu}",
+        foundry: {
+            sees: [
+                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F1014}\u{F102A}<\/p>\s*<\/div>/u,
+            ],
+            absent: [/<p>tan tsou<\/p>/],
+        },
+        web: {
+            sees: [
+                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" data-pagefind-ignore="true" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F1014}\u{F102A}<\/p>\s*<\/div>/u,
+            ],
+            absent: [/<p>tan tsou<\/p>/],
+        },
+        preview: {
+            sees: [
+                /<div class="scroll" lang="tsu" data-rows="3" data-cols="3" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>tan tsou<\/p>\s*<\/div>/,
+            ],
+            differs:
+                "The buffer-only preview has no language notes: it sets the scroll's roman text in columns, unmapped and in no face.",
+            bufferOnly: true,
+        },
+        book: {
+            sees: [
+                /#box\(image\(bytes\("<svg [^\n]*?"\), format: "svg", height: 3em, alt: "tan tsou"\)\)/,
+            ],
+            differs:
+                "Typst has no vertical writing, so the book draws the column from the face's outlines as a panel image, with its roman text as alt text.",
+        },
+    },
     "scroll-rows-invalid": {
         summary:
             "A scroll fence whose rows= is not a whole number above zero is an error at the value, and draws no scroll.",
@@ -1646,6 +1752,10 @@ for (const id of [
     "run-verse",
     "run-scroll",
     "run-scroll-span",
+    "run-lang-default",
+    "run-lang-default-override",
+    "run-block-default",
+    "run-scroll-default",
     "icon",
 ]) {
     const { sees, absent } = CONSTRUCTS[id].foundry;

@@ -3101,11 +3101,11 @@ from standard input, less one trailing newline. Writes nothing.
 | `map`      | string           | —       | The `data.map.name` of a mapping note. |
 | `text`     | string, variadic | stdin   | The passage; `-` reads it from stdin.  |
 
-| Option   | Type    | Default                    | Description                                                                     |
-| -------- | ------- | -------------------------- | ------------------------------------------------------------------------------- |
-| `--lang` | string  | —                          | A language declared in `languages`, whose lexicon is read first.                |
-| `--font` | string  | the map's one face, if one | The face, whose own rows come first; required when the map lists more than one. |
-| `--hex`  | boolean | `false`                    | Print the code points, as `U+XXXX` separated by spaces.                         |
+| Option   | Type    | Default                                                                           | Description                                                                                           |
+| -------- | ------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `--lang` | string  | —                                                                                 | A language declared in `languages`, whose lexicon is read first.                                      |
+| `--font` | string  | the language's face where the map is drawn in it, else the map's one face, if one | The face, whose own rows come first; required when neither gives one and the map lists more than one. |
+| `--hex`  | boolean | `false`                                                                           | Print the code points, as `U+XXXX` separated by spaces.                                               |
 
 **EXIT STATUS**
 
@@ -3158,14 +3158,15 @@ List a language's words with their native forms under a map.
 **SYNOPSIS**
 
 ```
-package-build lexicon <language> --map <map> [--font <slug>] [--derived] [--json]
+package-build lexicon <language> [--map <map>] [--font <slug>] [--derived] [--json]
 ```
 
 **DESCRIPTION**
 
 Reads the content index and lists every word of the language note
 [`languages.<language>.note`](configuration.md#languages) names, in `data.words`
-order, each with its native form under `<map>`: the stated exception where the
+order, each with its native form under `<map>`, or under the script the
+language note names in `data.writtenIn` when `--map` is left out: the stated exception where the
 word has one, else the rows' spelling, each exactly as
 `package-build transliterate` and the build give it. Each line holds, separated
 by tabs, the word's `form`, its native form, `exception` or `rows`, its `class`
@@ -3196,17 +3197,18 @@ the lexicon's own words. A derived line carries its word's `class` and `gloss`.
 | ---------- | ------ | ------- | --------------------------------------------------- |
 | `language` | string | —       | A declared language whose `note` names its lexicon. |
 
-| Option      | Type    | Default                    | Description                                                                                                                                                                                                                                      |
-| ----------- | ------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--map`     | string  | —                          | Required: the `data.map.name` of a mapping note.                                                                                                                                                                                                 |
-| `--font`    | string  | the map's one face, if one | The face; required when the map lists more than one.                                                                                                                                                                                             |
-| `--derived` | boolean | `false`                    | Also list the forms the language's rules derive, each with the word it comes from.                                                                                                                                                               |
-| `--json`    | boolean | `false`                    | Print a JSON array of `{ form, native, exception, class, gloss }` instead; a derived form adds `from`. Under a logographic map `source` (`own`, `parts` or `none`) takes the place of `exception`, and an ambiguous word adds `ambiguous: true`. |
+| Option      | Type    | Default                                                                           | Description                                                                                                                                                                                                                                      |
+| ----------- | ------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--map`     | string  | the language's `data.writtenIn` map                                               | The `data.map.name` of a mapping note; required when the language note states no `data.writtenIn`.                                                                                                                                               |
+| `--font`    | string  | the language's face where the map is drawn in it, else the map's one face, if one | The face; required when neither gives one and the map lists more than one.                                                                                                                                                                       |
+| `--derived` | boolean | `false`                                                                           | Also list the forms the language's rules derive, each with the word it comes from.                                                                                                                                                               |
+| `--json`    | boolean | `false`                                                                           | Print a JSON array of `{ form, native, exception, class, gloss }` instead; a derived form adds `from`. Under a logographic map `source` (`own`, `parts` or `none`) takes the place of `exception`, and an ambiguous word adds `ambiguous: true`. |
 
 **EXIT STATUS**
 
 1 if the content index could not be built for any note, or the language, the
-map or the face names nothing, the language states no `note`, or a capitalised
+map or the face names nothing, no map is named and the language note states no
+`data.writtenIn`, the language states no `note`, or a capitalised
 word has a native form the rows cannot capitalise, each reported as a finding.
 Otherwise 0.
 

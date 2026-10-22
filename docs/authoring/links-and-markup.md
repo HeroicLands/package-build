@@ -577,7 +577,10 @@ A scroll fence is a real code fence, so Markdown never reformats its body.
   characters, one to a morpheme. The map's rows decide what is written
   between words, and a map for a script that runs its characters together
   writes a space as nothing. If the fence names no `font=`, it takes the face
-  of its map, provided the map is drawn in exactly one face.
+  of its map, provided the map is drawn in exactly one face. A fence marked
+  only with a language whose note names its script, such as
+  ` ```scroll {rows=25 cols=12 lang=tsu} `, takes that script's map and face;
+  see [a language's script](#a-languages-script).
 - **The direction comes from the script.** The face's script note states
   `direction: vertical-rl` in its `data.script`; see
   [script notes and emphasis](../reference/format-details.md#script-notes-and-emphasis).
@@ -626,7 +629,7 @@ In the book, a space that a map leaves in the text takes up a whole cell.
 | `` `rows=0` is not a number of characters: `rows=` is a whole number above zero ``                                                                                                               | Write a whole number above zero, or leave the key out.     |
 | `` `cols=two` is not a number of columns: `cols=` is a whole number above zero ``                                                                                                                | Write a whole number above zero, or leave the key out.     |
 | `` `width=` is not a scroll attribute; a scroll takes `rows=`, `cols=`, `lang=`, `font=` and `map=` ``                                                                                           | Remove the key.                                            |
-| ``a `scroll` fence names the face it is set in, with `font=`, or a map drawn in one face, with `map=` ``                                                                                         | Name the face or the map.                                  |
+| ``a `scroll` fence names the face it is set in, with `font=`, a map drawn in one face, with `map=`, or a language whose note names its script in `data.writtenIn`, with `lang=` ``               | Name the face, the map, or a language with a script.       |
 | ``the map `x` is drawn in more than one face; a `scroll` fence names its face with `font=` ``                                                                                                    | Add `font=`.                                               |
 | ``a `scroll` fence sets a script written in columns, and the script of `semaron-kuriale` is written in lines; set it in a face whose script note states `direction: vertical-rl`, or use a div`` | Set the text in a script written in columns, or use a div. |
 | `scroll fence is empty`, `scroll fence needs a closing code fence`, `` a scroll fence takes no `#id` ``                                                                                          | Write the text, close the fence, or remove the id.         |
@@ -640,7 +643,8 @@ Three keys go in the attribute block a span, a fenced div, a verse fence or a
 [scroll fence](#scrolls) already takes. Each is optional, and each does one thing:
 
 - **`lang=`** names the language of the text. It becomes the element's
-  language tag and changes nothing else.
+  language tag, and where the language's note names
+  [its script](#a-languages-script), the run takes that script's map and face.
 - **`font=`** names the font the text is set in: one of the faces of
   `@heroiclands/fonts`, or `mono`, `serif` or `sans`.
 - **`map=`** names a [mapping note](#mapping-notes), which rewrites the text
@@ -694,6 +698,60 @@ Zaron tholmeza, [an oath, a vow]{lang=en font=serif}.
 :::
 ```
 
+### A language's script
+
+A language note can name the script its language is written in, as one map and
+one face, in `data.writtenIn`:
+
+```yaml
+data:
+  writtenIn: { map: semaron, font: semaron-kuriale }
+```
+
+A run marked with that language alone is then mapped and set as though it named
+both. With Vylari's note stating the default above, these two spans are set
+identically:
+
+```markdown
+The lintel is cut with [Zaron tholmeza]{lang=vyl}.
+The lintel is cut with [Zaron tholmeza]{lang=vyl font=semaron-kuriale map=semaron}.
+```
+
+The same holds for a div, a verse fence and a [scroll fence](#scrolls). A run
+fills in what it leaves unstated, and an explicit key overrides its half of the
+default:
+
+| The run states             | It takes from the language                                     |
+| -------------------------- | -------------------------------------------------------------- |
+| neither `map=` nor `font=` | the map and the face                                           |
+| `font=` alone              | the map, where the map is drawn in that face; otherwise no map |
+| `map=` alone               | the face, where that map is drawn in it; otherwise no face     |
+| both                       | nothing                                                        |
+
+So a language written in more than one script names its usual one in
+`data.writtenIn` and marks a run in another with that script's keys:
+`[Gar-Anlagh]{lang=khel font=qalezu-hand map=qalezu}`. `[Zaron]{lang=vyl
+font=serif}` sets Vylari in the page's serif, unmapped, since Semaron's map is
+not drawn in it.
+
+The default is the run's own language's, read after a div or fence around the
+run gives it its keys. Inside `::: {lang=vyl}`, a gloss marked
+`[an oath]{lang=en}` takes no face from Vylari. A language whose note states no
+`data.writtenIn` marks its runs with its tag alone.
+
+`lint` checks the key on the language note: `map` must be the `data.map.name`
+of a mapping note in the package, and `font` one of the faces that map lists.
+Each is an error at its value, and the default then fills no run:
+
+> `` `data.writtenIn.map` is `semoran`, which no mapping note's `data.map.name` declares; did you mean `semaron`? ``
+>
+> `` `data.writtenIn.font` is `teng-chou`, which the map `semaron` is not drawn in; it is drawn in `semaron-kuriale` ``
+>
+> `` `data.writtenIn` names the script a language is written in, and this note's `subType` is not `language` ``
+
+The face a language's script names is delivered with the package's fonts, as a
+face named by `font=` is.
+
 ### What `lang=` takes
 
 `lang=` is read in this order:
@@ -710,7 +768,8 @@ still a well-formed tag, such as `vly` for `vyl`, is read as the tag of a real
 language. When such a value is within one edit of a declared name (a letter
 added, dropped or changed, two neighbours swapped, or a different case), `lint`
 warns and names the declared language. Text marked with `lang=` alone is not
-checked against any lexicon; a run with `lang=` and `map=` is, as
+checked against any lexicon unless its language names
+[its script](#a-languages-script); a run with `lang=` and a map is, as
 [a mapped run's words](#a-mapped-runs-words) describes.
 
 ### What `font=` takes
@@ -1386,7 +1445,7 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 | `entries`          | Every note, stubs included.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `events`           | One row per event a `lore`, `place` or `affiliation` note writes in `data.events`, with `whenSort` to order them by date.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `names`            | Each authored `.name` span, with its containing NOTE Address, visible text, optional type/subtype and source line/column.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `runs`             | Each span, div and verse fence marked with `lang=`, `font=` or `map=`, with its containing NOTE Address, its `kind`, `lang` as written, the `tag` it resolves to, `font`, `map`, and source line/column. See [marking language, font and mapping](#marking-language-font-and-mapping).                                                                                                                                                                                                                                                                                                                                                 |
+| `runs`             | Each span, div and verse fence marked with `lang=`, `font=` or `map=`, with its containing NOTE Address, its `kind`, `lang` as written, the `tag` it resolves to, the `font` and `map` it is set with (its own, inherited, or its language's [script](#a-languages-script)), and source line/column. See [marking language, font and mapping](#marking-language-font-and-mapping).                                                                                                                                                                                                                                                     |
 | `maps`             | One row per row of a mapping note's `data.map`, with its containing NOTE Address, the map's `name`, the `font` whose own row it is (`NULL` for a shared row), the row's 1-based place as `"row"`, and its `"from"`, `"to"`, `before` and `"at"`. See [mapping notes](#mapping-notes).                                                                                                                                                                                                                                                                                                                                                  |
 | `natives`          | One row per native form a language note's word states in `native`, with that note as its `language`, the word's place as `word`, its `form`, the entry's place as `native`, and its `map`, `font` and `"text"`. See [what `map=` takes](#what-map-takes).                                                                                                                                                                                                                                                                                                                                                                              |
 | `words`            | One row per word a language note writes in `data.words`, with that note as its `language`, its `position` and what it is built from.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -1400,16 +1459,16 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 | `tongues`          | One row per tag a language note writes in `data.tongues`: `tag`, `meaning` and `tongue_language`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `retired`          | One row per form a language note writes in `data.retired`: `form`, `instead` as a list, and `why`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `scope`            | One row per value of a language note's `data.scope`: the `kind` it is under and the `value`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `letters`          | One row per entry of a language note's `data.sounds.letters`: `letters` as a list, `kind`, `like`, `place` and `tongue`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `letters`          | One row per entry of a language note's or a spelling guide's `data.sounds.letters`: `letters` as a list, `kind`, `like`, `place`, `ipa` and `tongue`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `edges`            | One row per entry of a language note's `data.sounds.edges`: the `edge` and its `sounds` as a list.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `clusters`         | One row per language note stating `data.sounds.clusters`, with its `max`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `cluster_groups`   | One row per group of a language note's `data.sounds.clusters.groups`: `what`, `clusters` as a list, and `use`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `stress`           | One row per language note stating `data.sounds.stress`, with its `two`, `longer` and `mark` (`NULL` where unstated).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `finals`           | One row per entry of a language note's `data.sounds.finals`: `final` and `like`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `finals`           | One row per entry of a language note's `data.sounds.finals`: `final`, `like` and `ipa`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `syllables`        | One row per language note stating `data.sounds.syllables`: each rule a column, the harmony as `harmony_back`, `harmony_front`, `harmony_neutral`, `harmony_neutralAs` and `harmony_partners`, a list of `{ vowel, partner }`.                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `joining`          | One row per entry of a language note's `data.sounds.joining`: `first`, `second`, `written` and `example`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `joins`            | One row per entry of a language note's `data.sounds.joins`: `meeting`, `rule`, `letters` and `"where"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `marks`            | One row per entry of a language note's `data.sounds.marks`: `mark`, `letters`, `kind` and `"limit"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `marks`            | One row per entry of a language note's or a spelling guide's `data.sounds.marks`: `mark`, `letters`, `kind` and `"limit"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `skeleton`         | One row per entry of a language note's `data.sounds.skeleton`: `second` and `between`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `frames`           | One row per frame of a language note's `data.sounds.frames`: `frame`, `shape`, `class`, `makes` and `examples` as `{ root, form }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `read_past`        | One row per entry of a language note's `data.sounds.readPast`: `written`, `readAs` and `what`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
