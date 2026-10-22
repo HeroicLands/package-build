@@ -133,7 +133,9 @@ describe("glossary sense labels on their owner's page", () => {
         });
         expect(result.errors).toEqual([]);
         const automatic = result.markdown.slice(result.markdown.indexOf("## Glossary"));
-        expect(automatic).toContain("|solmère]]** _n._ The ache for a time that is gone.");
+        expect(automatic).toContain(
+            "|solmère]]{.lexical-ref}** _n._ The ache for a time that is gone.",
+        );
         expect(automatic).toContain("**blood-field** Ground torn by a battle.");
         expect(automatic).not.toContain("(_Provenzia_)");
         expect(automatic).toContain("**High Warden** (_Duchy of Aubrac_) Leads the order.");

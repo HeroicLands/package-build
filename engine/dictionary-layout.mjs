@@ -69,6 +69,19 @@ export const COMMON_MARK = "•";
 export const DICTIONARY_ENTRY_CLASS = "dictionary-entry";
 
 /**
+ * The class on every link an entry writes to another note, so a site can set
+ * the link as plain text where its target is not a page a reader can reach.
+ */
+export const LEXICAL_LINK_CLASS = "lexical-ref";
+
+/** Wikilinks in a gloss, marked with {@link LEXICAL_LINK_CLASS}. */
+const markLinks = (text) =>
+    String(text ?? "").replace(
+        /\[\[[^\]]*\]\](?!\{)/g,
+        (link) => `${link}{.${LEXICAL_LINK_CLASS}}`,
+    );
+
+/**
  * Render a dictionary entry's marked headword as an inline native heading in
  * Foundry. Its paragraph becomes a div, so the heading has a valid container.
  * The shared Markdown keeps its span and its containing journal page.
@@ -327,7 +340,7 @@ function render(
         const text = label(address);
         const ref = parseAddress(address, addressContext ?? {}, { declared: true });
         if (ref.reason || !linkable(ref)) return text;
-        return `[[${renderAddress(ref)}|${String(text).replace(/\|/g, "/")}]]`;
+        return `[[${renderAddress(ref)}|${String(text).replace(/\|/g, "/")}]]{.${LEXICAL_LINK_CLASS}}`;
     };
     const tag = (language, text) => {
         if (!text) return "";
@@ -367,7 +380,7 @@ function render(
             const { address, anchor } = splitAnchor(row.word);
             const ref = readCanonicalKey(address);
             if (ref && anchor && linkable(ref))
-                headword = `**[[${renderAddress(ref)}#${anchor}|${String(row.name).replace(/\|/g, "/")}]]**`;
+                headword = `**[[${renderAddress(ref)}#${anchor}|${String(row.name).replace(/\|/g, "/")}]]{.${LEXICAL_LINK_CLASS}}**`;
         }
         parts.push(headword);
         if (row.pronunciation) parts.push(`/${row.pronunciation}/`);
@@ -401,7 +414,7 @@ function render(
             const bodies = Array.isArray(sense?.bodies) ? sense.bodies : [];
             const by =
                 bodies.length && !sense.omitBody ? `(_${bodies.map(label).join(", ")}_) ` : "";
-            return `${by}${sentence(sense?.text)}`;
+            return `${by}${markLinks(sentence(sense?.text))}`;
         };
         if (senses.length === 1) parts.push(senseText(senses[0]));
         else senses.forEach((sense, i) => parts.push(`**${i + 1}** ${senseText(sense)}`));

@@ -211,3 +211,26 @@ export function pruneGenerated(html, outside) {
     });
     return kept.join("");
 }
+
+/**
+ * Entries' links set as plain text where they lead outside a set of pages.
+ * Each link is the only child of a span carrying the class.
+ *
+ * @param {string} html - A page body.
+ * @param {(href: string) => boolean} outside - Whether an `href` names a page
+ *   of the site that is not to be linked.
+ * @param {string} className - The class the entries' links carry.
+ * @returns {string} The body with each such `<a>` replaced by its content.
+ */
+export function unlinkEntries(html, outside, className) {
+    const marked = new RegExp(
+        `<span\\b[^>]*?\\sclass=(?:"[^"]*\\b${className}\\b[^"]*"|'[^']*\\b${className}\\b[^']*')[^>]*>(<a\\b[^>]*>[\\s\\S]*?</a>)</span>`,
+        "gi",
+    );
+    return String(html ?? "").replace(marked, (span, anchor) => {
+        const match = new RegExp(ANCHOR.source, "i").exec(anchor);
+        const href = match ? (match[1] ?? match[2] ?? match[3] ?? "").replace(/&amp;/g, "&") : "";
+        if (href === "" || !outside(href)) return span;
+        return anchor.replace(/^<a\b[^>]*>/, "").replace(/<\/a>$/, "");
+    });
+}

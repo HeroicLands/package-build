@@ -1670,16 +1670,16 @@ An **`Address` field** takes the address with no brackets:
 ```yaml
 data:
   parents:
-    - hexhodai
+    - zemorhodhis
   seat: tashal
 ```
 
-not `[[hexhodai]]`. The field is declared as an `Address`, so the schema knows
+not `[[zemorhodhis]]`. The field is declared as an `Address`, so the schema knows
 what the value is and reads it as one; brackets are a wikilink's punctuation,
 which the reader would have to strip before it could do anything.
 
 A frontmatter value is parsed by the address grammar above, so a single-segment
-value such as `hexhodai` names the target by its shortcode alone, with every
+value such as `zemorhodhis` names the target by its shortcode alone, with every
 other segment supplied by the position. Frontmatter is structure rather than
 prose: a field value is a reference something else will compile against, and it
 should say exactly what it points at.

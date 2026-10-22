@@ -69,6 +69,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { LEXICAL_LINK_CLASS } from "./dictionary-layout.mjs";
 import { createRenderer } from "./content-render.mjs";
 import { resolvePathname } from "./pathnames.mjs";
 import { minifyHtml } from "./html-minify.mjs";
@@ -82,7 +83,13 @@ import {
 import { buildSite, gatesFailed } from "./site-build.mjs";
 import { readCachedNavigation, siteSettings } from "./site-config.mjs";
 import { atomFeed, robotsTxt, sitemapIndexXml, sitemapXml } from "./site-files.mjs";
-import { pageAddress, pruneGenerated, reachablePages, splitContent } from "./site-reach.mjs";
+import {
+    pageAddress,
+    pruneGenerated,
+    reachablePages,
+    splitContent,
+    unlinkEntries,
+} from "./site-reach.mjs";
 import { prepareTreeSqlTables } from "./sql-tables.mjs";
 import { placeGeography, searchMetadata } from "./site-search.mjs";
 import {
@@ -369,7 +376,12 @@ export function writeSite({ site, pages, out, report, staticDir = SITE_STATIC_DI
             },
             report: sink,
         });
-    const authoredOf = (page) => splitContent(page.content).authored;
+    const authoredOf = (page) =>
+        unlinkEntries(
+            splitContent(page.content).authored,
+            (url) => pageOfUrl(url) !== undefined,
+            LEXICAL_LINK_CLASS,
+        );
     const first = makeTheme({
         visible: (url) => pageOfUrl(url) === undefined,
         contentOf: authoredOf,
@@ -405,7 +417,10 @@ export function writeSite({ site, pages, out, report, staticDir = SITE_STATIC_DI
     const contentOf = (page) => {
         if (page.content === undefined) return page.content;
         const { authored, generated } = splitContent(page.content);
-        return authored + pruneGenerated(generated, outside);
+        return (
+            unlinkEntries(authored, outside, LEXICAL_LINK_CLASS) +
+            pruneGenerated(generated, outside)
+        );
     };
     const theme = makeTheme({ visible: (url) => !outside(url), contentOf, report });
 

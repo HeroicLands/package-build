@@ -2624,14 +2624,15 @@ occupies one line and the file ends with a newline.
 `@heroiclands/package-build/engine/dictionary-layout` renders SQL results as
 Markdown for the dictionary or glossary on its owner's note:
 
-| Export                    | Signature                            | Returns                    | Use it when                                                                         |
-| ------------------------- | ------------------------------------ | -------------------------- | ----------------------------------------------------------------------------------- |
-| `LAYOUT_REQUIRED_COLUMNS` | `const LAYOUT_REQUIRED_COLUMNS`      | Required columns by layout | Checking the columns a dictionary or glossary query must select.                    |
-| `COMMON_MARK`             | `const COMMON_MARK`                  | `string`                   | Reading the mark a common glossary entry opens with.                                |
-| `DICTIONARY_ENTRY_CLASS`  | `const DICTIONARY_ENTRY_CLASS`       | `string`                   | Identifying generated headword spans that are native dictionary targets in Foundry. |
-| `dictionaryEntryPlugin`   | `dictionaryEntryPlugin(md)`          | `void`                     | Registering native dictionary headword rendering on the Foundry Markdown parser.    |
-| `renderDictionary`        | `renderDictionary(result, options?)` | `string`                   | Rendering a language's words with classes, etymology, senses and citations.         |
-| `renderGlossary`          | `renderGlossary(result, options?)`   | `string`                   | Rendering an owner's glossary entries, ranks and offices.                           |
+| Export                    | Signature                            | Returns                    | Use it when                                                                                                  |
+| ------------------------- | ------------------------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `LAYOUT_REQUIRED_COLUMNS` | `const LAYOUT_REQUIRED_COLUMNS`      | Required columns by layout | Checking the columns a dictionary or glossary query must select.                                             |
+| `COMMON_MARK`             | `const COMMON_MARK`                  | `string`                   | Reading the mark a common glossary entry opens with.                                                         |
+| `DICTIONARY_ENTRY_CLASS`  | `const DICTIONARY_ENTRY_CLASS`       | `string`                   | Identifying generated headword spans that are native dictionary targets in Foundry.                          |
+| `LEXICAL_LINK_CLASS`      | `const LEXICAL_LINK_CLASS`           | `string`                   | Identifying the links an entry writes, which a site sets as text where they lead nowhere a reader can reach. |
+| `dictionaryEntryPlugin`   | `dictionaryEntryPlugin(md)`          | `void`                     | Registering native dictionary headword rendering on the Foundry Markdown parser.                             |
+| `renderDictionary`        | `renderDictionary(result, options?)` | `string`                   | Rendering a language's words with classes, etymology, senses and citations.                                  |
+| `renderGlossary`          | `renderGlossary(result, options?)`   | `string`                   | Rendering an owner's glossary entries, ranks and offices.                                                    |
 
 `result` is `{ columns: string[], rows: object[] }`. Both layouts require
 `name`, `senses` and `usage`; a missing column throws an error naming it.
@@ -2676,6 +2677,11 @@ keeps the containing journal page. Site and book rendering retain the
 headword's span and paragraph. `anchorsOf` maps this dictionary target to
 its containing page's UUID with the word fragment; generic authored spans
 keep their containing-page behavior.
+
+`LEXICAL_LINK_CLASS` is `"lexical-ref"`. Every link an entry writes to
+another note, a citation, a headword's link to its dictionary word or a
+wikilink in a gloss, carries it as an attribute. A site build sets such a link
+as its text when the target is a page a reader cannot reach.
 
 ## Automatic dictionary and glossary sections
 

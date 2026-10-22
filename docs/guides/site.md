@@ -247,7 +247,9 @@ generated after a note's text (Within, Governed by, Governed places,
 Chronology, Events, Accounts, What followed, In song and story). Each is drawn
 without a link to a page outside the reachable set, and a section left with
 nothing under it is not drawn. An infobox value that names an unreachable page
-is set as plain text. A link written in prose or produced by a query is kept
+is set as plain text. So is a link in a dictionary or glossary entry, whether
+it names a word's entry, cites a note or sits in a gloss; it does not make its
+target reachable. A link written in prose or produced by a query is kept
 wherever it points, and it is what makes its target reachable.
 
 A page that is not reachable is the way to preview a page in place. Write the
