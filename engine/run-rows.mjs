@@ -41,7 +41,7 @@ export const RUN_COLUMNS = Object.freeze([
  * One run as an index record carries it.
  *
  * @typedef {object} RecordRun
- * @property {"span"|"block"|"verse"} kind - The construct.
+ * @property {"span"|"block"|"verse"|"scroll"} kind - The construct.
  * @property {string|null} lang - The language it is set in, as written: its
  *   own `lang=`, else the one the div or fence around it states.
  * @property {string|null} tag - The BCP 47 tag it resolves to, or null.

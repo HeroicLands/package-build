@@ -533,7 +533,7 @@ describe("`data.script` in the note lint", () => {
         expect(
             lint(skill("script", { fonts: ["semaron-kuriale"], emphasis: "rubric", colour: "x" })),
         ).toEqual([
-            '12:5: "colour" is not a key of `data.script`; it takes only `fonts`, `emphasis`, `strongEmphasis`',
+            '12:5: "colour" is not a key of `data.script`; it takes only `fonts`, `emphasis`, `strongEmphasis`, `direction`',
         ]);
         expect(lint(skill("script", { emphasis: "rubric" }))).toEqual([
             "8:3: `data.script` must state `fonts` — list of installed faces' slugs",

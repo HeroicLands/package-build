@@ -772,6 +772,17 @@ resolves is checked by `package-build lint`, at the key:
 
 > ``package-build.config.yaml:5:5: error: `languages.vyl.note` is `skill-vylarilg`, which names no language note in thalorna; it names a skill note whose subType is language``
 
+**The direction text is written in** belongs to the script, not to the
+language, and the configuration never states it. Where the script note listing
+a face states `direction: vertical-rl` in its `data.script`, text in that face
+is written in columns, top to bottom, with the columns read from the right. A
+passage of it goes in a
+[`scroll` fence](authoring/links-and-markup.md#scrolls). On the site, in the
+preview and in Foundry, the fence is set with `writing-mode: vertical-rl` in a
+panel that scrolls sideways from the right. In the book, its panels are images
+drawn from the face's TrueType file, which the installed fonts package lists
+under `files.ttf`. A span in the same face stays horizontal.
+
 The shape is checked when the configuration loads, and each fault is a
 configuration error at its key:
 

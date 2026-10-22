@@ -27,7 +27,7 @@ options. Unsupported arguments exit 1. Findings go to stderr; success exits 0,
 and render errors exit 1. A partial preview may accompany error findings.
 
 Preview renders through the same renderer as the packs and the websites, so an
-alert, a secret block, a verse, a captioned item, a footnote section and a
+alert, a secret block, a verse, a scroll, a captioned item, a footnote section and a
 picture's size and position read as they do on those surfaces. Fenced code that
 names a language is highlighted. A tag written in a note is shown as text.
 
@@ -170,7 +170,7 @@ go run check-sanitizer.go /path/to/gitea.ini < preview.html > sanitized.html
 ```
 
 Check both light and dark fixtures containing all four alert types, a custom
-title, nesting, wikilinks and attributes, SQL/pagelist fences, infoboxes, verse
+title, nesting, wikilinks and attributes, SQL/pagelist fences, infoboxes, verse, a scroll
 and footnotes. All wrapper/token classes and icon shapes should remain, while
 injected scripts and event-handler attributes should disappear. This replay
 checks the sanitizer primitives; also inspect the result in the actual Gitea

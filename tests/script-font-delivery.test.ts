@@ -102,6 +102,7 @@ const WOFF2 = [
     "PirzathHand-Regular.woff2",
     "QalezuHand-Regular.woff2",
     "SemaronKuriale-Regular.woff2",
+    "TengChou-Regular.woff2",
     "ThuravarkCarved-Regular.woff2",
 ].map((name) => `fonts/${name}`);
 const TTF = WOFF2.map((name) => name.replace(/\.woff2$/, ".ttf"));
@@ -144,7 +145,7 @@ describe("the copy", () => {
         const written = copyScriptFonts({ rootDir: withFonts, paths: PATHS }, dest, ["woff2"]);
 
         expect(tree(dest)).toEqual(["LICENSE", "fonts.css", ...WOFF2]);
-        expect(written).toBe(6);
+        expect(written).toBe(7);
     });
 
     it("writes nothing for a package that is absent", () => {
@@ -175,6 +176,7 @@ describe("the staged stylesheet", () => {
         expect(urls).toEqual([
             "fonts/PirzathHand-Regular.woff2",
             "fonts/SemaronKuriale-Regular.woff2",
+            "fonts/TengChou-Regular.woff2",
         ]);
         for (const url of urls) expect(fs.existsSync(path.join(dest, url))).toBe(true);
         expect(css).not.toContain("truetype");

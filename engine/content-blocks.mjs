@@ -54,6 +54,7 @@ import { slugify } from "./content-slug.mjs";
 import MarkdownIt from "markdown-it";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { scanVerse, renderVerse } from "./content-verse.mjs";
+import { renderScroll, scanScrolls } from "./content-scroll.mjs";
 import { WITHHELD_CLASS, parseHeadingLine, withheldSections } from "./heading-attributes.mjs";
 
 /**
@@ -200,7 +201,10 @@ export function scanBlocks(source) {
                 });
         }
     }
-    return { blocks, errors: [...errors, ...scanVerse(source).errors] };
+    return {
+        blocks,
+        errors: [...errors, ...scanVerse(source).errors, ...scanScrolls(source).errors],
+    };
 }
 
 /**
@@ -256,7 +260,7 @@ function attributeText(block, target, classes) {
  */
 export function renderBlocks(source, target, { renderInline } = {}) {
     const { errors } = scanBlocks(source);
-    source = renderVerse(source).markdown;
+    source = renderScroll(renderVerse(source).markdown).markdown;
     const renderedBlocks = scanBlocks(source).blocks;
     if (!renderedBlocks.length) return { markdown: String(source ?? ""), errors };
     const lines = String(source ?? "").split("\n");

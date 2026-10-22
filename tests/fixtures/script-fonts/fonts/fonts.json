@@ -1427,6 +1427,67 @@
                     "kind": "catchbefore"
                 }
             ]
+        },
+        {
+            "name": "Teng Chou",
+            "family": "Teng Chou",
+            "class": "hl-teng-chou",
+            "files": {
+                "woff2": "fonts/TengChou-Regular.woff2",
+                "ttf": "fonts/TengChou-Regular.ttf"
+            },
+            "direction": "ltr",
+            "features": [],
+            "codepoints": [
+                {
+                    "codepoint": "U+F1013",
+                    "name": "TENG CHOU CHARACTER TENG",
+                    "glyph": "tc.teng",
+                    "kind": "character"
+                },
+                {
+                    "codepoint": "U+F1014",
+                    "name": "TENG CHOU CHARACTER TAN",
+                    "glyph": "tc.tan",
+                    "kind": "character"
+                },
+                {
+                    "codepoint": "U+F101F",
+                    "name": "TENG CHOU CHARACTER CHEN",
+                    "glyph": "tc.chen",
+                    "kind": "character"
+                },
+                {
+                    "codepoint": "U+F102A",
+                    "name": "TENG CHOU CHARACTER TSOU",
+                    "glyph": "tc.tsou",
+                    "kind": "character"
+                },
+                {
+                    "codepoint": "U+F1036",
+                    "name": "TENG CHOU CHARACTER DOU",
+                    "glyph": "tc.dou",
+                    "kind": "character"
+                },
+                {
+                    "codepoint": "U+F103E",
+                    "name": "TENG CHOU CHARACTER CHOU",
+                    "glyph": "tc.chou",
+                    "kind": "character"
+                },
+                {
+                    "codepoint": "U+F1057",
+                    "name": "TENG CHOU CHARACTER HING",
+                    "glyph": "tc.hing",
+                    "kind": "character"
+                },
+                {
+                    "codepoint": "U+F10AA",
+                    "name": "TENG CHOU CHARACTER ROU",
+                    "glyph": "tc.rou",
+                    "kind": "character"
+                }
+            ]
         }
     ]
 }

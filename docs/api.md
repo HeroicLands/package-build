@@ -1735,11 +1735,12 @@ A note's markdown, and a document plan, rendered as Typst source. **This module 
 
 Which glyph an icon name resolves to, read from the font that carries it. {@link module:engine/content-icons} states an icon's family and its name and **deliberately holds no codepoints**: writing them out by hand would be a second copy of a table the font already owns, wrong the first time the icon set renumbers anything, and wrong silently. So the renderer resolves a name against the file it is going to embed, which is this module.
 
-| Export              | Signature                                        | Returns                                                             | Use it when                                                          |
-| ------------------- | ------------------------------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `glyphTable`        | `function glyphTable(file)`                      | {Map<string, number>} Name → codepoint.                             | Every glyph name a font carries, with the codepoint that reaches it. |
-| `familyName`        | `function familyName(file)`                      | {string} The family name, or "" when the table cannot be read.      | The family name a font file announces, for Typst's `text(font: …)`.  |
-| `resolveIconGlyphs` | `function resolveIconGlyphs(registry, iconFonts` | {Map<string, {font: string, codepoint: number}>} Icon name → glyph. | Resolve every icon in a registry against the fonts a consumer named. |
+| Export              | Signature                                        | Returns                                                              | Use it when                                                          |
+| ------------------- | ------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `glyphTable`        | `function glyphTable(file)`                      | {Map<string, number>} Name → codepoint.                              | Every glyph name a font carries, with the codepoint that reaches it. |
+| `familyName`        | `function familyName(file)`                      | {string} The family name, or "" when the table cannot be read.       | The family name a font file announces, for Typst's `text(font: …)`.  |
+| `resolveIconGlyphs` | `function resolveIconGlyphs(registry, iconFonts` | {Map<string, {font: string, codepoint: number}>} Icon name → glyph.  | Resolve every icon in a registry against the fonts a consumer named. |
+| `tableDirectory`    | `function tableDirectory(buf)`                   | {Map<string, {offset: number, length: number}>} Its table directory. | The tables an sfnt file holds, by tag.                               |
 
 ### `engine.pdfBuild`
 

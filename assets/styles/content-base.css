@@ -286,6 +286,39 @@
 }
 
 /*
+ * A scroll: a script written in columns, top to bottom, read from the right,
+ * as a handscroll unrolls. Each paragraph starts a fresh column, flush at the
+ * top. The line height sets the column pitch: one em for the character and
+ * half an em between columns. `--scroll-rows` sets a column's length in
+ * characters; without it a column runs as long as its paragraph.
+ * `--scroll-cols` sets the panel's width in columns; without it the panel is
+ * as wide as its text. A panel wider than its container scrolls sideways,
+ * starting at the right.
+ */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .scroll {
+    writing-mode: vertical-rl;
+    line-height: 1.5;
+    inline-size: max-content;
+    max-block-size: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin: 1rem 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .scroll[data-rows] {
+    inline-size: calc(var(--scroll-rows) * 1em);
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .scroll[data-cols] {
+    block-size: calc(var(--scroll-cols) * 1.5em);
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .scroll p {
+    margin: 0;
+    text-indent: 0;
+}
+
+/*
  * Emphasis in a script follows the script's convention, never a weight or a
  * slant the face does not have: the element keeps the face's Regular, and its
  * class sets the convention. The rubric is carried by colour alone, so each

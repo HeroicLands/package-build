@@ -546,10 +546,98 @@ as a grid with a row per verse line.
 Each finding is an error at the text that is wrong; see
 [a verse in columns](../diagnostics.md#a-worked-case-a-verse-in-columns).
 
+### Scrolls
+
+Some scripts are written in vertical columns, top to bottom, with the columns
+read from the right, as on a handscroll. A `scroll` fence sets a passage in one
+of these scripts:
+
+````markdown
+```scroll {rows=25 cols=12 lang=tsu map=tengchou}
+chen teng chou hing
+tan tsou dou rou
+
+gen chei chou tsuen
+```
+````
+
+A scroll fence is a real code fence, so Markdown never reformats its body.
+
+- **Paragraphs.** The lines of a paragraph are joined into one text. Where
+  the source breaks a line makes no difference to where a column breaks. A
+  blank line starts a new paragraph, flush at the top of a fresh column, with
+  no indent and no mark between paragraphs. This follows classical practice.
+- **`rows=`** is the number of characters in a column, and **`cols=`** the
+  number of columns in a panel. Each is a whole number above zero, and either
+  may be left out.
+- **`lang=`, `font=` and `map=`** work as they do on a verse fence. See
+  [marking language, font and mapping](#marking-language-font-and-mapping).
+  The text is mapped before it is laid out, so under a
+  [logographic map](#logographic-maps) each word is written by its
+  characters, one to a morpheme. The map's rows decide what is written
+  between words, and a map for a script that runs its characters together
+  writes a space as nothing. If the fence names no `font=`, it takes the face
+  of its map, provided the map is drawn in exactly one face.
+- **The direction comes from the script.** The face's script note states
+  `direction: vertical-rl` in its `data.script`; see
+  [script notes and emphasis](../reference/format-details.md#script-notes-and-emphasis).
+  A script that states no direction is written in lines, and a scroll fence
+  set in it is an error. Markup never states a direction itself.
+- **Spans stay horizontal.** A `[…]{lang=… font=… map=…}` span in the same
+  script sets its characters left to right, inline, so a short phrase can sit
+  in a line of prose.
+
+**On the site, in the preview and in Foundry**, a scroll is a `<div
+class="scroll">` with one `<p>` for each paragraph. The stylesheet sets it
+with `writing-mode: vertical-rl`. A column is one em wide, with half an em
+between columns, so the column pitch is 1.5em.
+
+| Attribute | Stated                                                                      | Left out                                                    |
+| --------- | --------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `rows=N`  | Each column is N ems tall: `inline-size: calc(var(--scroll-rows) * 1em)`    | Each paragraph is a single column, as long as the paragraph |
+| `cols=M`  | The panel is M columns wide: `block-size: calc(var(--scroll-cols) * 1.5em)` | The panel is as wide as its text                            |
+
+The sizes are carried as `data-rows` and `data-cols`, and as the custom
+properties `--scroll-rows` and `--scroll-cols` in the element's `style`. A
+panel wider than its page, or than `cols` columns, scrolls sideways. It opens
+at the right, where the text begins, and unrolls to the left like a
+handscroll.
+
+**In the book**, Typst has no vertical writing, so the build draws each panel
+as an image from the face's own TrueType outlines. Each panel is an SVG of at
+most `rows` × `cols` characters, with its columns read from the right. Its alt
+text is the roman text it was written from. Panels follow one another from
+right to left and wrap down the page. Emphasis follows the script's convention:
+rubric characters are drawn in the book's red, and an overline is a rule to the
+right of the column.
+
+| Attribute | Stated                           | Left out                                                                                     |
+| --------- | -------------------------------- | -------------------------------------------------------------------------------------------- |
+| `rows=N`  | Each column holds N characters   | Each column holds as many characters as the longest paragraph, up to 40                      |
+| `cols=M`  | Each panel holds up to M columns | Each column is a panel of its own, so as many columns sit side by side as the measure allows |
+
+In the book, a space that a map leaves in the text takes up a whole cell.
+
+**Errors.** Each of these is an error at its line and column, reported by
+`lint`, the site build, the Foundry compile and the book:
+
+| Message                                                                                                                                                                                          | Fix                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `` `rows=0` is not a number of characters: `rows=` is a whole number above zero ``                                                                                                               | Write a whole number above zero, or leave the key out.     |
+| `` `cols=two` is not a number of columns: `cols=` is a whole number above zero ``                                                                                                                | Write a whole number above zero, or leave the key out.     |
+| `` `width=` is not a scroll attribute; a scroll takes `rows=`, `cols=`, `lang=`, `font=` and `map=` ``                                                                                           | Remove the key.                                            |
+| ``a `scroll` fence names the face it is set in, with `font=`, or a map drawn in one face, with `map=` ``                                                                                         | Name the face or the map.                                  |
+| ``the map `x` is drawn in more than one face; a `scroll` fence names its face with `font=` ``                                                                                                    | Add `font=`.                                               |
+| ``a `scroll` fence sets a script written in columns, and the script of `semaron-kuriale` is written in lines; set it in a face whose script note states `direction: vertical-rl`, or use a div`` | Set the text in a script written in columns, or use a div. |
+| `scroll fence is empty`, `scroll fence needs a closing code fence`, `` a scroll fence takes no `#id` ``                                                                                          | Write the text, close the fence, or remove the id.         |
+
+A fence with an error in its opening line is shown as code. A fence whose text
+has an error is set exactly as written.
+
 ## Marking language, font and mapping
 
-Three keys go in the attribute block a span, a fenced div or a verse fence
-already takes. Each is optional, and each does one thing:
+Three keys go in the attribute block a span, a fenced div, a verse fence or a
+[scroll fence](#scrolls) already takes. Each is optional, and each does one thing:
 
 - **`lang=`** names the language of the text. It becomes the element's
   language tag and changes nothing else.
@@ -993,13 +1081,14 @@ finding the lint reports in `data.map`.
 Every target rewrites marked text first, so a page, a Foundry journal and a
 book all show the same thing.
 
-| Marking                                | The text                           | The element                                                              |
-| -------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
-| `lang=` alone                          | As written                         | Tagged with the language's tag, `lang="art-x-vyl"`                       |
-| `map=`                                 | Rewritten by the map, line by line | As below                                                                 |
-| `font=` a face                         | As written, or as the map wrote it | The tag, `script` and the face's class; not indexed by the site's search |
-| `font=mono`, `serif`, `sans`           | As written, or as the map wrote it | The tag and `font-mono`, `font-serif` or `font-sans`                     |
-| A div or fence in a right-to-left face | As above                           | Also `dir="rtl"`; a div also carries `script-block`                      |
+| Marking                                | The text                           | The element                                                               |
+| -------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------- |
+| `lang=` alone                          | As written                         | Tagged with the language's tag, `lang="art-x-vyl"`                        |
+| `map=`                                 | Rewritten by the map, line by line | As below                                                                  |
+| `font=` a face                         | As written, or as the map wrote it | The tag, `script` and the face's class; not indexed by the site's search  |
+| `font=mono`, `serif`, `sans`           | As written, or as the map wrote it | The tag and `font-mono`, `font-serif` or `font-sans`                      |
+| A div or fence in a right-to-left face | As above                           | Also `dir="rtl"`; a div also carries `script-block`                       |
+| A scroll fence                         | Each paragraph on one line         | `scroll`, the tag, `script` and the face's class; see [scrolls](#scrolls) |
 
 No target writes `<bdo>`, `<bdi>` or a Unicode direction control character: a
 right-to-left face's code points carry their own direction. Text with an error
@@ -1135,7 +1224,7 @@ SELECT owner, kind, tag, font, line FROM runs WHERE lang = 'vyl' ORDER BY owner,
 ```
 ````
 
-Its columns are `owner`, `kind` (`span`, `block` or `verse`), `lang` as written,
+Its columns are `owner`, `kind` (`span`, `block`, `verse` or `scroll`), `lang` as written,
 the `tag` it resolves to (`NULL` when it resolves to none), `font`, `map`, `line`
 and `column`. A run inside a div or a fence records the keys it inherits. See
 [the `runs` relation](../reference/format-details.md#content-tables).

@@ -24,5 +24,9 @@
 
         // Holds a block fence the format refuses, to prove that it draws nothing.
         "tests/fixtures/parity/assets/content/Lore/lore-fenced.md",
+
+        // Holds two scroll fences the format refuses, to prove what each target
+        // shows for them.
+        "tests/fixtures/parity/assets/content/Lore/lore-unrolled.md",
     ],
 }

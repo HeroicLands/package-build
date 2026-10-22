@@ -46,7 +46,8 @@
  * 2. **Captioned items** — each figure's wrapper and label. Its number, kind
  *    and role come from the figure scan expansion made, so a figure is
  *    numbered once; see {@link module:engine/content-figures.renderFigureBlocks}.
- * 3. **Named blocks and verse** — `:::` blocks and verse fences.
+ * 3. **Named blocks, verse and scrolls** — `:::` blocks, verse fences and
+ *    `scroll` fences.
  * 4. **Alerts.**
  * 5. **Spans and withheld sections** — written here on the `web` target; the
  *    other targets read spans and headings as tokens.

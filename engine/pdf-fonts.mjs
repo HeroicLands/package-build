@@ -55,7 +55,7 @@ import { familyOf } from "./content-icons.mjs";
  * @param {Buffer} buf - The font file.
  * @returns {Map<string, {offset: number, length: number}>} Its table directory.
  */
-function tableDirectory(buf) {
+export function tableDirectory(buf) {
     const tables = new Map();
     if (buf.length < 12) return tables;
     // A TrueType collection points at its first font; a bare font starts at 0.

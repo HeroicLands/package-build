@@ -163,7 +163,11 @@ import { checkMapField } from "./text-maps.mjs";
 import { checkConceptList, checkCoreFlag } from "./core-vocabulary.mjs";
 import { METRE_KINDS, checkMetresField } from "./metre-declaration.mjs";
 import { checkLanguageEmphasis, checkScriptField } from "./script-emphasis.mjs";
-import { EMPHASIS_CONVENTIONS, LANGUAGE_EMPHASES } from "./script-emphasis-terms.mjs";
+import {
+    EMPHASIS_CONVENTIONS,
+    LANGUAGE_EMPHASES,
+    SCRIPT_DIRECTIONS,
+} from "./script-emphasis-terms.mjs";
 
 /**
  * One `data:` key a note type may carry.
@@ -2185,7 +2189,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "script",
                 kind: "map",
-                shape: "a map — `{ fonts, emphasis, strongEmphasis? }`",
+                shape: "a map — `{ fonts, emphasis, strongEmphasis?, direction? }`",
                 check: checkScriptField,
                 fields: Object.freeze([
                     {
@@ -2220,10 +2224,20 @@ export const NOTE_VOCABULARY = Object.freeze({
                         allowed: EMPHASIS_CONVENTIONS,
                         describe: "The convention `**…**` takes instead of `emphasis`'s.",
                     },
+                    {
+                        name: "direction",
+                        kind: "string",
+                        shape: "`vertical-rl`",
+                        allowed: SCRIPT_DIRECTIONS,
+                        describe:
+                            "How the script is written: `vertical-rl` is columns, top to bottom, " +
+                            "read from the right, which a `scroll` fence sets. A script stating " +
+                            "none is written in lines.",
+                    },
                 ]),
                 describe:
-                    "A script note's faces and how it marks emphasis. Only a skill of " +
-                    "`subType: script` states it.",
+                    "A script note's faces, how it marks emphasis and the direction it is " +
+                    "written in. Only a skill of `subType: script` states it.",
             },
         ]),
     }),

@@ -850,6 +850,40 @@ A repeated metre name is an error too:
 
 > `` `data.metres[1].name` is `trimeter`, which this note declares twice; a metre's name is unique ``
 
+## Scripts written in columns
+
+A script written in vertical columns, read from the right, states it on its
+script note:
+
+```yaml
+data:
+  script:
+    fonts: [teng-chou]
+    emphasis: rubric
+    direction: vertical-rl
+```
+
+A passage in that script goes in a `scroll` fence. Its lines are joined into
+paragraphs, and each paragraph starts at the top of a fresh column. `rows=`
+sets the characters in a column and `cols=` the columns in a panel:
+
+````markdown
+```scroll {rows=25 cols=12 lang=tsu map=tengchou}
+chen teng chou hing
+tan tsou dou rou
+
+gen chei chou tsuen
+```
+````
+
+The site, the preview and Foundry set it in columns, in a panel that scrolls
+sideways from the right. The book draws it as panel images from the face's
+outlines, each with its roman text as alt text. A span in the same script stays
+horizontal, inline in its line. A `scroll` fence in a script that states no
+direction is an error. See
+[scrolls](../authoring/links-and-markup.md#scrolls) for every attribute, the
+defaults on each target and the errors.
+
 ## The core vocabulary
 
 A setting can name the concepts every one of its languages has a word for, and

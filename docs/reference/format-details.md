@@ -2022,9 +2022,10 @@ with a real language's tag alone keeps its Markdown. See
 [marking language, font and mapping](../authoring/links-and-markup.md#marking-language-font-and-mapping).
 
 Each own-note metadata record carries `runs` in source order, an empty array
-when the body marks nothing. Every entry has exactly `kind` (`span`, `block` or
+when the body marks nothing. Every entry has exactly `kind` (`span`, `block`, `scroll` or
 `verse`), `lang`, `tag`, `font`, `map`, `line` and `column`: `lang`, `font` and
-`map` as written, its own or inherited, `tag` the BCP 47 tag `lang` resolves
+`map` as written, its own or inherited (a scroll fence that names no face
+takes its map's), `tag` the BCP 47 tag `lang` resolves
 to, each `null` when absent, and the position of the span's `[`, the div's
 `:::` or the fence's opening. Every value is a string or a number and none is a
 key, so tags that differ only in case are separate values. This is derived
@@ -2364,8 +2365,9 @@ the words' native forms; `package-build lexicon` resolves them.
 
 #### Script notes and emphasis
 
-A `skill` note of `subType: script` states the faces its script is written in
-and how the script marks a stressed word, in `data.script`:
+A `skill` note of `subType: script` states the faces its script is written in,
+how the script marks a stressed word, and the direction it is written in, in
+`data.script`:
 
 ```yaml
 data:
@@ -2381,6 +2383,11 @@ data:
   (or `_…_` and `__…__`) inside a run in one of the faces.
 - **`strongEmphasis`**, optional, is `rubric` or `overline`, and sets `**…**`
   alone.
+- **`direction`**, optional, is `vertical-rl` for a script written in columns,
+  top to bottom, with the columns read from the right. A
+  [`scroll` fence](../authoring/links-and-markup.md#scrolls) sets text in
+  such a script, and is an error in any other. A script that states no
+  direction is written in lines.
 
 A `skill` note of `subType: language` may state `data.emphasis`: `words`,
 `rubric` or `overline`. It overrides the script's convention in every run of the
@@ -2409,6 +2416,8 @@ colour are described in [the theme](theme-pages.md#emphasis-in-a-script).
 Each of these is an error at the key or the entry at fault:
 
 > `` `data.script.emphasis` should be `rubric` or `overline`, but reads "rubrik". Did you mean "rubric"? ``
+
+> `` `data.script.direction` should be `vertical-rl`, but reads "vertical" ``
 
 > `` `data.script` states a script's faces and emphasis, and this note's `subType` is not `script` ``
 
@@ -3616,7 +3625,7 @@ including on an empty relation:
 | Column   | SQL type  | Meaning                                                                                      |
 | -------- | --------- | -------------------------------------------------------------------------------------------- |
 | `owner`  | `VARCHAR` | Containing authored page's canonical NOTE Address, or `NULL` when the record has no Address. |
-| `kind`   | `VARCHAR` | `span`, `block` or `verse`.                                                                  |
+| `kind`   | `VARCHAR` | `span`, `block`, `verse` or `scroll`.                                                        |
 | `lang`   | `VARCHAR` | The language as written, its own or inherited, or `NULL`.                                    |
 | `tag`    | `VARCHAR` | The BCP 47 tag `lang` resolves to, or `NULL` when it resolves to none.                       |
 | `font`   | `VARCHAR` | The font as written, its own or inherited, or `NULL`.                                        |
@@ -6332,10 +6341,11 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `affixes[].native[].font`                  | `string`                                                                                                                       | The one face the writing is for, one the map lists; unstated, every face it lists                                                                                                              |
 | `affixes[].native[].text`                  | `string`, required                                                                                                             | The affix as the script writes it                                                                                                                                                              |
 | `emphasis`                                 | `words`, `rubric` or `overline`                                                                                                | `language` only: how the language marks a stressed word, over its script's; `words` makes `*…*` and `**…**` in its runs an error — see [script notes and emphasis](#script-notes-and-emphasis) |
-| `script`                                   | `{ fonts, emphasis, strongEmphasis? }`                                                                                         | `script` only: the faces the script is written in and how it marks emphasis — see [script notes and emphasis](#script-notes-and-emphasis)                                                      |
+| `script`                                   | `{ fonts, emphasis, strongEmphasis?, direction? }`                                                                             | `script` only: the faces the script is written in, how it marks emphasis and its direction — see [script notes and emphasis](#script-notes-and-emphasis)                                       |
 | `script.fonts`                             | `string[]`, required                                                                                                           | Installed faces by the slug `font=` names them by; a face belongs to one script                                                                                                                |
 | `script.emphasis`                          | `rubric` or `overline`, required                                                                                               | Sets `*…*` and `**…**` in a run in one of its faces                                                                                                                                            |
 | `script.strongEmphasis`                    | `rubric` or `overline`                                                                                                         | Sets `**…**` instead of `emphasis`                                                                                                                                                             |
+| `script.direction`                         | `vertical-rl`                                                                                                                  | Written in columns, top to bottom, read from the right, which a [`scroll` fence](../authoring/links-and-markup.md#scrolls) sets                                                                |
 
 #### A language's words
 

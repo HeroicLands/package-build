@@ -68,6 +68,9 @@ export const FONTS_MANIFEST = "fonts.json";
  * @property {string} direction - `ltr` or `rtl`.
  * @property {string[]} features - OpenType features it turns on.
  * @property {ReadonlySet<number>} draws - Every code point it draws.
+ * @property {string|undefined} file - The absolute path of its TrueType file,
+ *   which the book draws a `scroll` fence's outlines from; `undefined` when the
+ *   manifest lists none.
  */
 
 /**
@@ -164,6 +167,10 @@ export function resolveScriptFonts(rootDir) {
                 direction: entry.direction === "rtl" ? "rtl" : "ltr",
                 features: Object.freeze([...(entry.features ?? [])]),
                 draws,
+                file:
+                    typeof entry.files?.ttf === "string" ?
+                        path.join(root, entry.files.ttf)
+                    :   undefined,
             }),
         );
     }

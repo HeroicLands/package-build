@@ -4,10 +4,12 @@
  * The parity corpus, built once for every rendering target.
  *
  * `tests/fixtures/parity/` is a small package: one note holding every
- * construct the renderers handle, the notes its links reach, a mapping note,
- * a script note and a language note, and two pictures. Two more notes each
- * hold one construct the build refuses: a link no package publishes, and
- * emphasis in a language that marks it with a word. {@link buildParity} copies it to a scratch directory and
+ * construct the renderers handle, the notes its links reach, mapping notes,
+ * script notes and language notes, and two pictures. Four more notes each
+ * hold what the build refuses: a link no package publishes, emphasis in a
+ * language that marks it with a word, a cartouche written as a block, and two
+ * `scroll` fences, one with no characters to a column and one in a script
+ * written in lines. {@link buildParity} copies it to a scratch directory and
  * renders the corpus the way each target renders a note.
  *
  * | Target | Route |
@@ -57,6 +59,9 @@ export const LOST_NOTE = "Lore/lore-lost.md";
 export const WORDED_NOTE = "Lore/lore-worded.md";
 export const FENCED_NOTE = "Lore/lore-fenced.md";
 
+/** The note whose only content is two `scroll` fences the build refuses. */
+export const UNROLLED_NOTE = "Lore/lore-unrolled.md";
+
 /** One note, rendered by one target. */
 export interface Rendered {
     /** What the target produced for the corpus note. */
@@ -66,6 +71,8 @@ export interface Rendered {
     /** What the target produced for the note holding emphasis a language refuses. */
     worded: string;
     fenced: string;
+    /** What the target produced for the note holding the refused scroll fences. */
+    unrolled: string;
 }
 
 /** Everything the four targets produced. */
@@ -80,6 +87,8 @@ export interface Built {
     /** The note holding the refused emphasis, exactly as authored. */
     wordedSource: string;
     fencedSource: string;
+    /** The note holding the refused scroll fences, exactly as authored. */
+    unrolledSource: string;
     foundry: Rendered & { findings: string };
     web: Rendered;
     book: Rendered & { findings: string };
@@ -198,6 +207,7 @@ function buildFoundry(root: string): Rendered & { findings: string } {
         lost: [named("The_Lost_Note_"), ...about(findings, LOST_NOTE)].join("\n"),
         worded: [named("The_Worded_Note_"), ...about(findings, WORDED_NOTE)].join("\n"),
         fenced: [named("The_Fenced_Note_"), ...about(findings, FENCED_NOTE)].join("\n"),
+        unrolled: [named("The_Unrolled_Note_"), ...about(findings, UNROLLED_NOTE)].join("\n"),
         findings,
     };
 }
@@ -217,6 +227,9 @@ function buildBook(root: string): Rendered & { findings: string } {
         lost: [bookEntry(source, "The Lost Note"), ...about(findings, LOST_NOTE)].join("\n"),
         worded: [bookEntry(source, "The Worded Note"), ...about(findings, WORDED_NOTE)].join("\n"),
         fenced: [bookEntry(source, "The Fenced Note"), ...about(findings, FENCED_NOTE)].join("\n"),
+        unrolled: [bookEntry(source, "The Unrolled Note"), ...about(findings, UNROLLED_NOTE)].join(
+            "\n",
+        ),
         findings,
     };
 }
@@ -262,6 +275,7 @@ async function buildWeb(root: string): Promise<Rendered> {
         lost: page("lore-lost"),
         worded: page("lore-worded"),
         fenced: page("lore-fenced"),
+        unrolled: page("lore-unrolled"),
     };
 }
 
@@ -275,6 +289,7 @@ function buildPreview(root: string): Rendered {
         lost: html(LOST_NOTE),
         worded: html(WORDED_NOTE),
         fenced: html(FENCED_NOTE),
+        unrolled: html(UNROLLED_NOTE),
     };
 }
 
@@ -305,6 +320,7 @@ function buildIndexed(root: string): Rendered {
         lost: html(LOST_NOTE),
         worded: html(WORDED_NOTE),
         fenced: html(FENCED_NOTE),
+        unrolled: html(UNROLLED_NOTE),
     };
 }
 
@@ -328,6 +344,10 @@ export async function buildParity(): Promise<Built> {
         lostSource: fs.readFileSync(path.join(root, "assets", "content", LOST_NOTE), "utf8"),
         wordedSource: fs.readFileSync(path.join(root, "assets", "content", WORDED_NOTE), "utf8"),
         fencedSource: fs.readFileSync(path.join(root, "assets", "content", FENCED_NOTE), "utf8"),
+        unrolledSource: fs.readFileSync(
+            path.join(root, "assets", "content", UNROLLED_NOTE),
+            "utf8",
+        ),
         foundry,
         web,
         book,

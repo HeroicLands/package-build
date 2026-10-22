@@ -12,9 +12,10 @@
  */
 
 /**
- * **The words a script note and a language note state emphasis by.** Read by
- * the vocabulary as it is declared, so this module imports nothing; the
- * checks and the conventions' use are in {@link module:engine/script-emphasis}.
+ * **The words a script note and a language note state emphasis and direction
+ * by.** Read by the vocabulary as it is declared, so this module imports
+ * nothing; the checks and the conventions' use are in
+ * {@link module:engine/script-emphasis} and {@link module:engine/script-direction}.
  *
  * @module
  */
@@ -33,6 +34,13 @@ export const EMPHASIS_CLASSES = Object.freeze({
  * `words` marks emphasis with a word, so a mark in its text is a finding.
  */
 export const LANGUAGE_EMPHASES = Object.freeze(["words", ...EMPHASIS_CONVENTIONS]);
+
+/**
+ * The directions a script states it is written in. `vertical-rl` is columns,
+ * top to bottom, read from the right; a script stating none is written in
+ * lines.
+ */
+export const SCRIPT_DIRECTIONS = Object.freeze(["vertical-rl"]);
 
 /** The `subType` of a script note. */
 export const SCRIPT_SUBTYPE = "script";

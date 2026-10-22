@@ -1,0 +1,7 @@
+# TengChou-Regular.ttf and .woff2 are a subset of Teng Chou from HeroicLands/fonts
+# (commit 3a8f4ba), holding the space and eight characters, with the face's
+# vertical metrics kept: hb-subset --unicodes=U+0020,U+F1013,U+F1014,U+F101F,U+F102A,U+F1036,U+F103E,U+F1057,U+F10AA,
+# then woff2_compress.
+attribution: Tom Rodriguez
+license: OFL-1.1
+ai: false

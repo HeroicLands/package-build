@@ -15,6 +15,7 @@ packs:
 languages:
     vyl: { tag: art-x-vyl }
     tar: { tag: art-x-tar, note: skill-tarvenlng }
+    tsu: { tag: art-x-tsu, note: skill-tantsoulng }
 icons:
     families:
         fontawesome: { class: fa, styles: [solid, regular], describe: Font Awesome Free }

@@ -14,10 +14,11 @@
 /**
  * A note's markdown, and a document plan, rendered as Typst source.
  *
- * **This module emits text and reads nothing.** It takes markdown and a plan and
- * returns a `.typ` document; the filesystem, the note bodies and the compiler
- * that turns the result into a PDF all live in
- * {@link module:engine/pdf-build}. That split is what lets the outline, the
+ * **This module emits text and reads nothing but a face's outlines.** It takes
+ * markdown and a plan and returns a `.typ` document; the filesystem, the note
+ * bodies and the compiler that turns the result into a PDF all live in
+ * {@link module:engine/pdf-build}. The one file it reads is the TrueType face a
+ * `scroll` fence is drawn from, through {@link module:engine/font-outlines}. That split is what lets the outline, the
  * table of contents, every anchor and every link destination be asserted in a
  * unit test with no renderer installed — which is most of what a book has to
  * get right, and all of what a test can check without eyes.
@@ -95,6 +96,8 @@ import {
     verseStanzas,
 } from "./content-verse.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
+import { panelRoman, scanScrolls, scrollPanels, scrollParagraphs } from "./content-scroll.mjs";
+import { BOOK_INK, BOOK_RUBRIC, fontOutlines, scrollPanelSvg } from "./font-outlines.mjs";
 import { HTML_TAG, htmlMessage } from "./content-html.mjs";
 import { EXPRESSION } from "./markdown-expressions.mjs";
 import { inlineText } from "./name-markup.mjs";
@@ -498,11 +501,12 @@ export function markdownToTypst(markdown, opts = {}) {
     // is an offset into *this* string, and the renderer below walks slices of it.
     if (!opts.nested) reportUnrenderable(authored, definitions, opts, given);
     // Text marked with a language, a font or a map is rewritten once, ahead of
-    // every other pass, line for line; the nested calls below read the result.
-    const source =
-        opts.nested ? authored : (
-            renderRuns(authored, opts.runs, undefined, { target: "book" }).markdown
-        );
+    // every other pass, line for line; the nested calls below read the result,
+    // and the scroll fences' layouts the rewrite returns.
+    const marked =
+        opts.nested ? undefined : renderRuns(authored, opts.runs, undefined, { target: "book" });
+    const source = marked ? marked.markdown : authored;
+    if (marked) sharedOptions.scrolls = marked.scrolls;
     // One map for the whole body, not one per block: a heading inside a
     // blockquote or a list item shares the entry's anchor namespace with every
     // other heading in the same body, because `sectionLabel` scopes by entry
@@ -522,6 +526,7 @@ export function markdownToTypst(markdown, opts = {}) {
         seen: new Map(),
         footnoteState,
         footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
+        scrolls: marked?.scrolls ?? opts.scrolls ?? new Map(),
     };
     // A withheld section is set in the box a `:::secret` is set in, and its
     // heading is set inside it: a printed page honours no reader permission, so
@@ -752,6 +757,10 @@ function renderBlock(tokens, i, out, ctx) {
         }
         case "fence":
         case "code_block": {
+            if (token.type === "fence" && /^scroll(?:\s|$)/.test(token.info?.trim() || "")) {
+                out.push(scrollBlock(token, ctx));
+                return 1;
+            }
             if (token.type === "fence" && /^verse(?:\s|$)/.test(token.info?.trim() || "")) {
                 const opening = `${token.markup}${token.info}`;
                 const poem = scanVerse(`${opening}\n${token.content}${token.markup}`).blocks[0];
@@ -1197,6 +1206,38 @@ function padCells(cells, columns) {
     const padded = [...cells];
     while (padded.length < columns) padded.push("");
     return padded.map((c) => `[${c}]`).join(", ");
+}
+
+/**
+ * A `scroll` fence as the book sets it: Typst has no vertical writing, so each
+ * panel of at most `rows` × `cols` characters is an image drawn from the
+ * face's outlines, its roman text as alt text. The panels sit in a paragraph
+ * set right to left, so they are read from the right and wrap to the next
+ * line where the measure ends; without `cols`, each column is a panel, and as
+ * many columns sit side by side as fit. A fence the rewrite of marked text did
+ * not set, or whose face has no TrueType file, is set as code.
+ *
+ * @param {object} token - The fence token.
+ * @param {object} ctx - Render context, holding the scroll layouts.
+ * @returns {string} Typst markup.
+ */
+function scrollBlock(token, ctx) {
+    const scroll = scanScrolls(`${token.markup}${token.info}\n${token.content}${token.markup}`)
+        .blocks[0];
+    const layout = ctx.scrolls?.get(scrollParagraphs(token.content.split("\n")).join("\n\n"));
+    if (!scroll || scroll.invalid || !layout?.face?.file)
+        return rawBlock(token.content, token.info?.trim() || "");
+    const outlines = fontOutlines(layout.face.file);
+    const { rows, panels } = scrollPanels(layout.paragraphs, scroll);
+    const boxes = panels.map(
+        (panel) =>
+            `#box(image(bytes("${escapeTypstString(scrollPanelSvg(panel, rows, outlines))}"), ` +
+            `format: "svg", height: ${rows}em, alt: "${escapeTypstString(panelRoman(panel, layout.paragraphs))}"))`,
+    );
+    // A zero-width space lets a line break between two columns and adds no
+    // width; panels of several columns are kept a column gap apart.
+    const between = scroll.cols === undefined ? "\u200B" : "#h(1em, weak: true) ";
+    return `\n#block(width: 100%)[#set text(dir: rtl)\n${boxes.join(between)}\n]\n\n`;
 }
 
 /**
@@ -1944,10 +1985,10 @@ export function bookTypstPreamble(runs = {}, families = {}) {
         // The title sets short of the measure, so a plate's last line does not
         // run to the trimmed edge of the paper.
         "#let book-title-measure = book-text-width - 2.5cm",
-        '#let book-ink = rgb("#241f1a")',
+        `#let book-ink = rgb("${BOOK_INK}")`,
         // A rubric script's emphasis: a vermilion that holds 4.5:1 on the paper
         // and stays apart from the ink in lightness.
-        '#let book-rubric = rgb("#9c281b")',
+        `#let book-rubric = rgb("${BOOK_RUBRIC}")`,
         '#let book-paper = rgb("#f4efe4")',
         '#let book-accent = rgb("#7c3b1e")',
         '#let book-head = rgb("#5e2b14")',

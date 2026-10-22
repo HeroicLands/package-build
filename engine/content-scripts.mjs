@@ -13,8 +13,8 @@
 
 /**
  * **Text marked with a language, a font and a mapping.** Three keys on the
- * attribute grammar spans, divs and verse fences already share, each optional
- * and independent of the others:
+ * attribute grammar spans, divs, verse fences and scroll fences already share,
+ * each optional and independent of the others:
  *
  * ```markdown
  * [Daimela, helthos.]{lang=vyl}
@@ -65,9 +65,15 @@
  *   neither whitespace nor in the face's `codepoints` is a finding, at the
  *   source character it came from. `mono`, `serif` and `sans` are not checked.
  *
+ * - **A scroll fence is set in a face whose script note states
+ *   `direction: vertical-rl`.** One that names no `font=` takes the face of a
+ *   map drawn in one; one that names no face, or whose script is written in
+ *   lines, is a finding. See {@link module:engine/content-scroll}.
+ *
  * {@link scanRuns} reads the markup through {@link module:engine/content-spans.scanSpans},
- * {@link module:engine/content-blocks.scanBlocks} and
- * {@link module:engine/content-verse.scanVerse}, so what counts as a span, a
+ * {@link module:engine/content-blocks.scanBlocks},
+ * {@link module:engine/content-verse.scanVerse} and
+ * {@link module:engine/content-scroll.scanScrolls}, so what counts as a span, a
  * div or a fence is theirs to say.
  *
  * @module
@@ -85,6 +91,8 @@ import {
     sourcePosition,
 } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
+import { scanScrolls, scrollParagraphs } from "./content-scroll.mjs";
+import { directionsFromRecords } from "./script-direction.mjs";
 import { isLanguageTag } from "./language-tag.mjs";
 import { distance, nearest } from "./near-miss.mjs";
 import { emphasesFromRecords, languageEmphasesOf } from "./script-emphasis.mjs";
@@ -144,15 +152,19 @@ const CONFIG = "package-build.config.yaml";
  * @property {ReadonlyMap<string, import("./script-emphasis.mjs").LanguageEmphasis>} [languageEmphases] -
  *   The convention each configured language's note states, by language name,
  *   from {@link module:engine/script-emphasis.languageEmphasesOf}.
+ * @property {ReadonlyMap<string, "vertical-rl">} [directions] - Each face whose
+ *   script is written in columns, from the script notes, by
+ *   {@link module:engine/script-direction.directionsFromRecords}.
  */
 
 /**
- * One span, div or verse fence carrying `lang=`, `font=` or `map=`. Its
- * `lang`, `font` and `map` are the ones it is set with: its own, else the
- * innermost div or fence around it that states one.
+ * One span, div, verse fence or scroll fence carrying `lang=`, `font=` or
+ * `map=`. Its `lang`, `font` and `map` are the ones it is set with: its own,
+ * else the innermost div or fence around it that states one. A scroll fence
+ * that names no face takes the face of its map where the map is drawn in one.
  *
  * @typedef {object} Run
- * @property {"span"|"block"|"verse"} kind - Which construct.
+ * @property {"span"|"block"|"verse"|"scroll"} kind - Which construct.
  * @property {string|undefined} lang - The language as written.
  * @property {string|undefined} tag - The BCP 47 tag it resolves to; `undefined`
  *   when it resolves to none.
@@ -216,6 +228,7 @@ export function runContext(config, records) {
         metreBooks: metreBooksFromRecords(records, config),
         emphases: emphasesFromRecords(records),
         languageEmphases: languageEmphasesOf(languageRecordsByName(records, config)),
+        directions: directionsFromRecords(records),
     });
     byRecords.set(records, context);
     return context;
@@ -644,6 +657,26 @@ function setText(raw, mapping, lineStart) {
 }
 
 /**
+ * Set a stretch of a scroll fence's text: the author's escapes removed and the
+ * map applied to all of it, its spaces included, and nothing escaped, since
+ * the fence's body is raw.
+ *
+ * @param {string} raw - The text, on one line.
+ * @param {import("./map-lexicon.mjs").Mapping|undefined} mapping - The run's
+ *   map, face and lexicon.
+ * @returns {{text: string, pieces: Array<{from: string, to: string}>}} The set
+ *   text, and each piece of it.
+ */
+function setScrollText(raw, mapping) {
+    const plain = unescapeRoman(raw);
+    return applyMap(mapping?.map, plain.text, {
+        font: mapping?.font,
+        native: mapping?.native,
+        writing: mapping?.writing,
+    });
+}
+
+/**
  * The parts of a range of text that no hole covers.
  *
  * @param {number} from - The range's first offset.
@@ -662,6 +695,29 @@ function outsideHoles(from, to, holes) {
     }
     if (at < to) parts.push([at, to]);
     return parts;
+}
+
+/**
+ * The paragraphs of a fence's body: each run of nonblank lines.
+ *
+ * @param {string[]} lines - The source, by line.
+ * @param {number} first - The body's first line, 0-based.
+ * @param {number} last - The line past it: the closing fence.
+ * @returns {Array<[number, number]>} Each paragraph's first line and the line
+ *   past its last.
+ */
+function paragraphRanges(lines, first, last) {
+    const ranges = [];
+    let top;
+    for (let line = first; line <= last; line++) {
+        const blank = line === last || !lines[line].trim();
+        if (!blank && top === undefined) top = line;
+        else if (blank && top !== undefined) {
+            ranges.push([top, line]);
+            top = undefined;
+        }
+    }
+    return ranges;
 }
 
 /** `U+XXXX` for a code point. */
@@ -708,6 +764,8 @@ const BLOCK_WHAT = Object.freeze({
  *   What its emphasis is set by: its language's convention, else its face's
  *   script's; `undefined` sets it plain.
  * @property {Delimiter[]} emphasis - The emphasis it holds, by absolute offset.
+ * @property {boolean} [unrolled] - A scroll fence whose opening has a finding,
+ *   which is left as written.
  */
 
 /**
@@ -865,6 +923,36 @@ function analyseRuns(source, ctx, syntax) {
                 id: poem.id ?? "",
                 classes: poem.classes ?? [],
                 values: Object.entries(poem.attributes ?? {}).filter(
+                    ([key]) => !RUN_KEYS.includes(key),
+                ),
+            },
+        });
+    }
+
+    // Every scroll fence is a construct, keys or none: its text is set in a
+    // face, so one that names none is a finding.
+    for (const scroll of scanScrolls(text).blocks) {
+        const opening = lines[scroll.start];
+        constructs.push({
+            kind: "scroll",
+            keys: runKeys(scroll.attributes),
+            node: scroll,
+            line0: scroll.start,
+            last: scroll.end,
+            at: (key, part) => ({
+                line: scroll.start + 1,
+                column: attributeColumns(opening, key)[part],
+            }),
+            where: {
+                line: scroll.start + 1,
+                column: scroll.indent.length + 1,
+                start: scroll.start,
+                end: scroll.end,
+            },
+            own: {
+                id: "",
+                classes: scroll.classes ?? [],
+                values: Object.entries(scroll.attributes ?? {}).filter(
                     ([key]) => !RUN_KEYS.includes(key),
                 ),
             },
@@ -1122,6 +1210,42 @@ function analyseRuns(source, ctx, syntax) {
         }
     };
 
+    /**
+     * Give a scroll fence the face it is set in, and report a fence that names
+     * none or whose script is written in lines. A fence that names no face
+     * takes its map's, where the map is drawn in one.
+     *
+     * @param {object} construct - The scroll fence.
+     * @param {Record<string, string>} keys - Its run keys, given the face.
+     */
+    const scrollFace = (construct, keys) => {
+        const textMap = keys.map === undefined ? undefined : maps.get(keys.map);
+        if (keys.font === undefined) {
+            if (textMap && textMap.fonts.size === 1) keys.font = [...textMap.fonts.keys()][0];
+            else if (textMap && textMap.fonts.size > 1) {
+                report(
+                    construct.at("map", "value"),
+                    `the map \`${keys.map}\` is drawn in more than one face; a \`scroll\` fence names its face with \`font=\``,
+                );
+                return;
+            } else if (keys.map === undefined) {
+                report(
+                    construct.where,
+                    "a `scroll` fence names the face it is set in, with `font=`, or a map drawn in one face, with `map=`",
+                );
+                return;
+            } else return;
+        }
+        if (!ctx.directions || !(faces.has(keys.font) || Object.hasOwn(GENERIC_FONTS, keys.font)))
+            return;
+        if (ctx.directions.get(keys.font) === "vertical-rl") return;
+        report(
+            construct.at(construct.keys.font === undefined ? "map" : "font", "value"),
+            `a \`scroll\` fence sets a script written in columns, and the script of \`${keys.font}\` ` +
+                "is written in lines; set it in a face whose script note states `direction: vertical-rl`, or use a div",
+        );
+    };
+
     const runs = [];
     const details = [];
     for (const construct of constructs) {
@@ -1129,8 +1253,12 @@ function analyseRuns(source, ctx, syntax) {
         checkOwn(construct);
         // A key that names nothing is the finding; the text it would have set
         // is not then checked against a face or a language it cannot reach.
-        const named = errors.length === unchecked;
+        let named = errors.length === unchecked;
         const keys = Object.assign({}, ...around(construct).map((c) => c.keys), construct.keys);
+        if (construct.kind === "scroll" && named) {
+            scrollFace(construct, keys);
+            named = errors.length === unchecked;
+        }
         const { lang, font, map } = keys;
         // A face the run's map is not for, once the face and the map are each
         // known, at the construct that states either.
@@ -1177,6 +1305,7 @@ function analyseRuns(source, ctx, syntax) {
             languageEmphasis: lang === undefined ? undefined : ctx.languageEmphases?.get(lang),
             conventions: undefined,
             emphasis: [],
+            ...(construct.kind === "scroll" && construct.node.invalid ? { unrolled: true } : {}),
         };
         detail.conventions = conventionsOf(detail, ctx);
         details.push(detail);
@@ -1248,6 +1377,16 @@ function analyseRuns(source, ctx, syntax) {
                     );
                 else if (Object.hasOwn(BLOCK_WHAT, token.type)) said(top, BLOCK_WHAT[token.type]);
             }
+        } else if (construct.kind === "scroll") {
+            // A paragraph is reflowed as one text, so its emphasis may cross
+            // the lines it is written on.
+            for (const [top, past] of paragraphRanges(lines, first, last))
+                plainInline(
+                    text.slice(starts[top], starts[past - 1] + lines[past - 1].length),
+                    starts[top],
+                    marking,
+                    detail,
+                );
         } else {
             for (let line = first; line < last; line++)
                 plainInline(lines[line], starts[line], marking, detail, detail.holes);
@@ -1382,7 +1521,8 @@ function rewrittenAttributes(detail, search) {
     const changes =
         run.font !== undefined ||
         run.map !== undefined ||
-        (run.tag !== undefined && (keys.lang !== run.tag || run.kind === "verse"));
+        (run.tag !== undefined &&
+            (keys.lang !== run.tag || run.kind === "verse" || run.kind === "scroll"));
     if (!changes) return undefined;
     const classes = [...own.classes];
     const values = [...own.values];
@@ -1469,6 +1609,10 @@ function setRange(text, from, to, detail, lineStart, book) {
  * - **A div or fence in a right-to-left face** carries `dir=rtl`. No direction
  *   mark, `<bdo>` or `<bdi>` is ever written: the code points carry their own
  *   direction.
+ * - **A scroll fence's body** is rewritten to one line per paragraph, its
+ *   lines joined by what the map writes for a space, and left unescaped,
+ *   since the body is raw. Its layout, each character with the source text it
+ *   was written from, is returned for the book, which draws it.
  *
  * A run with a finding is left as written; {@link scanRuns} reports it.
  *
@@ -1478,8 +1622,9 @@ function setRange(text, from, to, detail, lineStart, book) {
  *   scanner projections.
  * @param {{target?: "site"|"foundry"|"book"}} [options] - The target the
  *   Markdown is rendered for; only `site` writes the search marker.
- * @returns {{markdown: string, errors: Array<{line: number, column: number, message: string}>}}
- *   The rewritten Markdown, and the findings of {@link scanRuns}.
+ * @returns {{markdown: string, errors: Array<{line: number, column: number, message: string}>, scrolls: Map<string, import("./content-scroll.mjs").ScrollLayout>}}
+ *   The rewritten Markdown, the findings of {@link scanRuns}, and each
+ *   rewritten scroll fence's layout, by its rewritten body.
  */
 export function renderRuns(source, ctx = {}, syntax, options = {}) {
     const search = options.target === "site";
@@ -1487,9 +1632,11 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
     const authored = String(source ?? "");
     const text = expandVerse(authored);
     if (text !== authored) syntax = undefined;
-    if (!/\b(?:lang|font|map)=/.test(text)) return { markdown: text, errors: [] };
+    /** @type {Map<string, import("./content-scroll.mjs").ScrollLayout>} */
+    const scrolls = new Map();
+    if (!/\b(?:lang|font|map)=/.test(text)) return { markdown: text, errors: [], scrolls };
     const { details, errors } = analyseRuns(text, ctx, syntax);
-    if (!details.length) return { markdown: text, errors };
+    if (!details.length) return { markdown: text, errors, scrolls };
     const lines = text.split("\n");
     const starts = lineStarts(text);
 
@@ -1506,6 +1653,72 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
 
     /** @type {Array<{from: number, to: number, text: string}>} */
     const edits = [];
+
+    /**
+     * A scroll fence's body set as one line per paragraph, and its layout.
+     *
+     * @param {RunDetail} detail - The scroll fence.
+     * @returns {{text: string, layout: import("./content-scroll.mjs").ScrollLayout}}
+     *   The body and the layout.
+     */
+    const setScroll = (detail) => {
+        const join = setScrollText(" ", detail.mapping);
+        const texts = [];
+        const paragraphs = [];
+        for (const [top, past] of paragraphRanges(lines, detail.run.start + 1, detail.run.end)) {
+            let out = "";
+            /** @type {import("./content-scroll.mjs").ScrollCell[]} */
+            const cells = [];
+            const conventions = [];
+            let pending = "";
+            const emit = (pieces) => {
+                for (const piece of pieces) {
+                    const chars = [...piece.to];
+                    if (!chars.length) {
+                        pending += piece.from;
+                        continue;
+                    }
+                    const emphasis = conventions.at(-1);
+                    chars.forEach((char, at) =>
+                        cells.push({
+                            text: char,
+                            roman: at ? "" : pending + piece.from,
+                            ...(emphasis ? { emphasis } : {}),
+                        }),
+                    );
+                    pending = "";
+                }
+            };
+            const set = (from, to) => {
+                const result = setScrollText(text.slice(from, to), detail.mapping);
+                out += result.text;
+                emit(result.pieces);
+            };
+            for (let line = top; line < past; line++) {
+                if (line > top) {
+                    out += join.text;
+                    emit(join.pieces);
+                }
+                const written = lines[line];
+                const from = starts[line] + written.length - written.trimStart().length;
+                const to = starts[line] + written.trimEnd().length;
+                let at = from;
+                for (const delimiter of detail.emphasis) {
+                    if (delimiter.offset < from || delimiter.offset >= to) continue;
+                    if (delimiter.offset > at) set(at, delimiter.offset);
+                    out += emphasisTag(delimiter, detail.conventions, book);
+                    if (delimiter.open) conventions.push(detail.conventions?.[delimiter.tag]);
+                    else conventions.pop();
+                    at = delimiter.offset + delimiter.length;
+                }
+                if (at < to) set(at, to);
+            }
+            if (pending && cells.length) cells[cells.length - 1].roman += pending;
+            texts.push(out);
+            paragraphs.push(cells);
+        }
+        return { text: texts.join("\n\n"), layout: { face: detail.face, paragraphs } };
+    };
 
     for (const detail of details) {
         const { run } = detail;
@@ -1528,6 +1741,22 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
             edits.push({ from: run.start, to: run.end, text: `[${inner}]{${braces}}` });
             continue;
         }
+        if (run.kind === "scroll" && attributes !== undefined && !detail.unrolled) {
+            const open = lines[run.start].indexOf("{");
+            const close = lines[run.start].lastIndexOf("}");
+            edits.push({
+                from: starts[run.start] + open + 1,
+                to: starts[run.start] + close,
+                text: attributes,
+            });
+            if (detail.plain && detail.body) {
+                const { text: body, layout } = setScroll(detail);
+                edits.push({ from: detail.body[0], to: detail.body[1], text: body });
+                scrolls.set(scrollParagraphs(body.split("\n")).join("\n\n"), layout);
+            }
+            continue;
+        }
+        if (run.kind === "scroll") continue;
         if (attributes !== undefined) {
             const open = lines[run.start].indexOf("{");
             const close = lines[run.start].lastIndexOf("}");
@@ -1548,5 +1777,5 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
     let markdown = text;
     for (const edit of edits.sort((a, b) => b.from - a.from))
         markdown = markdown.slice(0, edit.from) + edit.text + markdown.slice(edit.to);
-    return { markdown, errors };
+    return { markdown, errors, scrolls };
 }

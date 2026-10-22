@@ -362,6 +362,7 @@ describe("Typst", () => {
                 '"hl-pirzath-hand-lifted": (family: "Pirzath Hand", features: ()), ' +
                 '"hl-thuravark-carved": (family: "Thuravark Carved", features: ("ss01", "liga")), ' +
                 '"hl-qalezu-hand": (family: "Qalezu Hand", features: ()), ' +
+                '"hl-teng-chou": (family: "Teng Chou", features: ()), ' +
                 '"font-mono": (family: "DejaVu Sans Mono", features: ()), ' +
                 '"font-serif": (family: "Libertinus Serif", features: ()), ' +
                 '"font-sans": (family: "Libertinus Sans", features: ()))',

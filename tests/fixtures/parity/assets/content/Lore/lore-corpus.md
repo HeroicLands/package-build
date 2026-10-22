@@ -205,6 +205,15 @@ thirun sorima
   mamu anthrasos.
 ```
 
+```scroll {rows=3 cols=3 lang=tsu font=teng-chou map=tengchou}
+chen teng
+chou _hing_
+
+tan tsou dou rou
+```
+
+The seal reads [chen teng]{lang=tsu font=teng-chou map=tengchou} across the line.
+
 # Icons and raw markup {#icons}
 
 A star :icon star:{size=lg} marks the entry.

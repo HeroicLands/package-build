@@ -88,7 +88,7 @@ index. See
 [glossary terms](docs/reference/format-details.md#glossary-terms) and
 [dictionaries and glossaries](docs/reference/format-details.md#dictionaries-and-glossaries).
 
-A span, a div or a verse fence marks its text with `lang=`, `font=` and
+A span, a div, a verse fence or a scroll fence marks its text with `lang=`, `font=` and
 `map=`, each optional: `lang=` gives the language tag, `font=` sets the text in
 a face of the installed `@heroiclands/fonts` or in `mono`, `serif` or `sans`,
 and `map=` rewrites the text by a mapping note first. A mapping note is a `doc`

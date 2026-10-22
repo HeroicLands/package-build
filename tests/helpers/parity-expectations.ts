@@ -37,7 +37,7 @@ export type Rendering = Target | "indexed";
 export const RENDERINGS: readonly Rendering[] = [...TARGETS, "indexed"];
 
 /** Which rendering of the corpus an expectation reads. */
-export type Subject = "corpus" | "lost" | "worded" | "fenced";
+export type Subject = "corpus" | "lost" | "worded" | "fenced" | "unrolled";
 
 /** What one target must show for one construct. */
 export interface Expectation {
@@ -1190,6 +1190,153 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
     },
 
+    "run-scroll": {
+        summary:
+            "A scroll fence in a script written in columns sets its paragraphs as columns read from the right, each paragraph at the top of a fresh column, in a panel that scrolls sideways; the book sets it as panel images.",
+        probe: "```scroll {rows=3 cols=3 lang=tsu font=teng-chou map=tengchou}",
+        foundry: {
+            sees: [
+                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F101F}\u{F1013}\u{F103E}<em class="emph-rubric">\u{F1057}<\/em><\/p>\s*<p>\u{F1014}\u{F102A}\u{F1036}\u{F10AA}<\/p>\s*<\/div>/u,
+            ],
+            absent: [/language-scroll/, /chen teng/],
+        },
+        web: {
+            sees: [
+                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" data-pagefind-ignore="true" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F101F}\u{F1013}\u{F103E}<em class="emph-rubric">\u{F1057}<\/em><\/p>\s*<p>\u{F1014}\u{F102A}\u{F1036}\u{F10AA}<\/p>\s*<\/div>/u,
+            ],
+            absent: [/language-scroll/, /chen teng/],
+        },
+        preview: {
+            sees: [
+                /<div class="scroll" lang="tsu" data-rows="3" data-cols="3" data-font="teng-chou" data-map="tengchou" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>chen teng chou _hing_<\/p>\s*<p>tan tsou dou rou<\/p>\s*<\/div>/,
+            ],
+            differs:
+                "The buffer-only preview has no script notes: it sets the scroll's roman text in columns, unmapped and in no face.",
+            bufferOnly: true,
+        },
+        book: {
+            sees: [
+                /#block\(width: 100%\)\[#set text\(dir: rtl\)\n#box\(image\(bytes\("<svg [^\n]*?"\), format: "svg", height: 3em, alt: "chen teng chou hing tan tsou dou"\)\)#h\(1em, weak: true\) #box\(image\(bytes\("<svg [^\n]*?"\), format: "svg", height: 3em, alt: "rou"\)\)\n\]/,
+                /fill=\\"#9c281b\\"/,
+            ],
+            absent: [/chen teng\nchou/],
+            differs:
+                "Typst has no vertical writing, so the book draws the columns from the face's outlines as panel images of at most rows by cols characters, read from the right, each with its roman text as alt text.",
+        },
+    },
+    "run-scroll-span": {
+        summary: "A span in a script written in columns stays horizontal, inline in its line.",
+        probe: "[chen teng]{lang=tsu font=teng-chou map=tengchou}",
+        foundry: {
+            sees: [
+                /The seal reads <span class="script hl-teng-chou" lang="art-x-tsu">\u{F101F}\u{F1013}<\/span> across the line\./u,
+            ],
+        },
+        web: {
+            sees: [
+                /The seal reads <span class="script hl-teng-chou" lang="art-x-tsu" data-pagefind-ignore="true">\u{F101F}\u{F1013}<\/span> across the line\./u,
+            ],
+        },
+        preview: {
+            sees: [
+                /hl-preview-label">chen teng<\/span>[\s\S]*?\{lang=tsu font=teng-chou map=tengchou\}/,
+            ],
+            differs: SOURCE_ONLY,
+            bufferOnly: true,
+        },
+        book: {
+            sees: [
+                /The seal reads #book-span\(classes: \("script", "hl-teng-chou"\)\)\[\u{F101F}\u{F1013}\] across the line\./u,
+            ],
+        },
+    },
+    "scroll-rows-invalid": {
+        summary:
+            "A scroll fence whose rows= is not a whole number above zero is an error at the value, and draws no scroll.",
+        probe: "```scroll {rows=0 cols=2 lang=tsu map=tengchou}",
+        probeIn: "unrolled",
+        foundry: {
+            sees: [
+                /lore-unrolled\.md:11:17: error: `rows=0` is not a number of characters: `rows=` is a whole number above zero/,
+            ],
+            absent: [/<!-- page/],
+            of: "unrolled",
+            differs:
+                "Foundry refuses the whole note: it compiles no journal and reports the value as an error.",
+        },
+        web: {
+            sees: [/<pre><code class="language-scroll">chen teng\n<\/code><\/pre>/],
+            absent: [/data-rows="0"/],
+            of: "unrolled",
+            differs:
+                "The site keeps the note and shows the fence as code; the build reports it as an error.",
+        },
+        preview: {
+            sees: [/<pre><code class="language-scroll">chen teng\n<\/code><\/pre>/],
+            absent: [/data-rows="0"/],
+            of: "unrolled",
+            differs: "The preview shows the fence as code.",
+        },
+        book: {
+            sees: [
+                /```\nchen teng\n```/,
+                /lore-unrolled\.md:11:17: error: `rows=0` is not a number of characters: `rows=` is a whole number above zero/,
+            ],
+            of: "unrolled",
+            differs:
+                "The book keeps the note and sets the fence as code; the build reports it as an error.",
+        },
+    },
+    "scroll-horizontal": {
+        summary:
+            "A scroll fence set in a script written in lines is an error at the face, and its text is left as written.",
+        probe: "```scroll {rows=3 lang=vyl font=semaron-kuriale map=vyl-semaron}",
+        probeIn: "unrolled",
+        foundry: {
+            sees: [
+                /lore-unrolled\.md:17:33: error: a `scroll` fence sets a script written in columns, and the script of `semaron-kuriale` is written in lines; set it in a face whose script note states `direction: vertical-rl`, or use a div/,
+            ],
+            absent: [/<!-- page/],
+            of: "unrolled",
+            differs:
+                "Foundry refuses the whole note: it compiles no journal and reports the face as an error.",
+        },
+        web: {
+            sees: [
+                /<div class="scroll" lang="vyl" data-rows="3" data-font="semaron-kuriale" data-map="vyl-semaron" style="--scroll-rows: 3">\s*<p>thirun sorima<\/p>\s*<\/div>/,
+            ],
+            absent: [/\u{F0250}/u],
+            of: "unrolled",
+            differs:
+                "The site keeps the note and leaves the text as written: roman letters, in no face; the build reports it as an error.",
+        },
+        preview: {
+            sees: [
+                /<div class="scroll" lang="vyl" data-rows="3" data-font="semaron-kuriale" data-map="vyl-semaron" style="--scroll-rows: 3">\s*<p>thirun sorima<\/p>\s*<\/div>/,
+            ],
+            of: "unrolled",
+            differs:
+                "The buffer-only preview has no script notes, so it cannot know the script's direction, and sets the roman text in columns.",
+            bufferOnly: true,
+        },
+        indexed: {
+            sees: [
+                /<div class="scroll" lang="vyl" data-rows="3" data-font="semaron-kuriale" data-map="vyl-semaron" style="--scroll-rows: 3">\s*<p>thirun sorima<\/p>\s*<\/div>/,
+            ],
+            absent: [/\u{F0250}/u],
+            of: "unrolled",
+        },
+        book: {
+            sees: [
+                /```\nthirun sorima\n```/,
+                /lore-unrolled\.md:17:33: error: a `scroll` fence sets a script written in columns/,
+            ],
+            of: "unrolled",
+            differs:
+                "The book keeps the note and sets the fence as code, in roman letters; the build reports it as an error.",
+        },
+    },
+
     icon: {
         summary: "An icon token draws the registry's glyph.",
         probe: ":icon star:{size=lg}",
@@ -1497,6 +1644,8 @@ for (const id of [
     "run-emphasis-script",
     "run-block",
     "run-verse",
+    "run-scroll",
+    "run-scroll-span",
     "icon",
 ]) {
     const { sees, absent } = CONSTRUCTS[id].foundry;

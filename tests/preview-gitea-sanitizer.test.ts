@@ -97,6 +97,12 @@ A line.
 [Another]{lang=en}
 \`\`\`
 
+\`\`\`scroll {rows=3 cols=2 lang=tsu map=tengchou}
+chen teng chou
+
+hing
+\`\`\`
+
 :@ A picture {#picture .border}
 
 ![A picture](images/a.png){size=small float=top-right}

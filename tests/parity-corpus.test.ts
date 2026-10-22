@@ -51,6 +51,7 @@ import {
 import { scanSpans } from "../engine/content-spans.mjs";
 import { GENERIC_FONTS, RUN_KEYS, runContext, scanRuns } from "../engine/content-scripts.mjs";
 import { COLUMN_KEYS, VERSE_KEYS, scanVerse } from "../engine/content-verse.mjs";
+import { SCROLL_KEYS, scanScrolls } from "../engine/content-scroll.mjs";
 import { EXPRESSION_HELPERS } from "../engine/markdown-expressions.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
 import { createParser, markdownToTypst } from "../engine/pdf-render.mjs";
@@ -147,6 +148,7 @@ describe("the corpus holds every construct", () => {
             lost: built.lostSource,
             worded: built.wordedSource,
             fenced: built.fencedSource,
+            unrolled: built.unrolledSource,
         }[CONSTRUCTS[id].probeIn ?? "corpus"];
         expect(note, `${id}: probe missing from the corpus`).toContain(CONSTRUCTS[id].probe);
     });
@@ -256,6 +258,16 @@ describe("the corpus exercises every vocabulary the renderers read", () => {
         for (const key of COLUMN_KEYS) expect(used.has(key), `no verse column ${key}=`).toBe(true);
     });
 
+    it("states every attribute a scroll fence takes", () => {
+        // `data-pagefind-ignore` is written by the rewrite of a fence set in a
+        // face, not authored.
+        const used = new Set(
+            scanScrolls(body()).blocks.flatMap((scroll: any) => Object.keys(scroll.attributes)),
+        );
+        for (const key of SCROLL_KEYS.filter((key: string) => key !== "data-pagefind-ignore"))
+            expect(used.has(key), `no scroll fence states ${key}=`).toBe(true);
+    });
+
     it("marks text with every run key and every generic font", () => {
         const { runs } = scanRuns(body(), { languages: { vyl: { tag: "art-x-vyl" } } });
         for (const key of RUN_KEYS)
@@ -273,7 +285,7 @@ describe("the corpus exercises every vocabulary the renderers read", () => {
                 `no construct run-font-${family}`,
             ).toBeTruthy();
         }
-        for (const kind of ["span", "block", "verse"])
+        for (const kind of ["span", "block", "verse", "scroll"])
             expect(
                 runs.some((run: any) => run.kind === kind),
                 `no marked ${kind}`,

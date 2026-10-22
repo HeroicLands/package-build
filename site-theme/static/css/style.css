@@ -3114,6 +3114,13 @@ summary.info-sidebar-title::after {
    and `mono` set the site's own serif and mono, and the reader's sans. */
 .script-block { margin:1rem 0; line-height:1.7; }
 .script-block[dir="rtl"], .verse[dir="rtl"] { text-align:start; }
+/* A scroll: columns top to bottom, read from the right; the line height is the
+   column pitch, one em and half an em between columns. A panel wider than the
+   page scrolls sideways from the right. */
+.single-content .scroll { writing-mode:vertical-rl; line-height:1.5; inline-size:max-content; max-block-size:100%; overflow-x:auto; overflow-y:hidden; margin:1rem 0; }
+.single-content .scroll[data-rows] { inline-size:calc(var(--scroll-rows) * 1em); }
+.single-content .scroll[data-cols] { block-size:calc(var(--scroll-cols) * 1.5em); }
+.single-content .scroll p { margin:0; text-indent:0; }
 .font-serif { font-family:var(--font-body); }
 .font-sans { font-family:sans-serif; }
 .font-mono { font-family:var(--font-mono); }

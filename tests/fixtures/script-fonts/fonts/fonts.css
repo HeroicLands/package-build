@@ -17,3 +17,15 @@
 .hl-semaron-kuriale {
     font-family: "Semaron Kuriale";
 }
+
+@font-face {
+    font-family: "Teng Chou";
+    src:
+        url("fonts/TengChou-Regular.woff2") format("woff2"),
+        url("fonts/TengChou-Regular.ttf") format("truetype");
+    font-display: swap;
+}
+
+.hl-teng-chou {
+    font-family: "Teng Chou";
+}
