@@ -172,6 +172,7 @@ const SCRIPT_BLOCKS = Object.freeze([
     [0xf0000, 0xf2fff], // plane 15: Pirzath, Thuravark, Semaron, the reserved alphabets, Teng Chou
     [0x1e960, 0x1ec6f], // Zethu overflow, Qalezu, Zethu
     [0x1ecc0, 0x1ecff], // Qalezu catch-before forms
+    [0x1ed50, 0x1ed7f], // Veldikko
     [0x13430, 0x1345f], // the Egyptian format controls Zethu uses
 ]);
 

@@ -332,3 +332,35 @@ describe("the HeroicLands script blocks", () => {
         expect(checkText("x ⚔\n", "a.md")[0].message.startsWith("`⚔` U+2694")).toBe(true);
     });
 });
+
+describe("the script fonts", () => {
+    it("admits Veldikko text", () => {
+        expect(isAllowedCodePoint(0x1ed50)).toBe(true);
+        expect(checkText("\u{1ed50}\u{1ed7c}\n", "a.md")).toEqual([]);
+    });
+
+    it("admits every code point of every face in the shipped fonts manifest", () => {
+        const manifest = JSON.parse(
+            fs.readFileSync(
+                path.join(
+                    import.meta.dirname,
+                    "..",
+                    "node_modules",
+                    "@heroiclands",
+                    "fonts",
+                    "fonts.json",
+                ),
+                "utf8",
+            ),
+        );
+        const refused: string[] = [];
+        for (const family of manifest.families) {
+            for (const { codepoint } of family.codepoints) {
+                if (!isAllowedCodePoint(parseInt(codepoint.slice(2), 16))) {
+                    refused.push(`${family.name} ${codepoint}`);
+                }
+            }
+        }
+        expect(refused).toEqual([]);
+    });
+});
