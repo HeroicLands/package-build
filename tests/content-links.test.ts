@@ -290,13 +290,13 @@ describe("auditLinks", () => {
 });
 
 describe("a wikilink into a package declared `contentIndex: false`", () => {
-    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // A module that `requires` thalorna so Foundry installs the base module,
     // and its content tree links nowhere. There is no cache directory for
     // such a relationship — `metadataRelationships` excludes it — so building
     // the index must not demand one.
     const config = (over: Record<string, unknown> = {}) =>
         ({
-            contentPackage: "thalornaaltart",
+            contentPackage: "modpkg",
             paths: { metadataCache: "/does/not/exist" },
             relationships: {
                 requires: [

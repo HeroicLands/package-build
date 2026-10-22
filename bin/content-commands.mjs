@@ -2815,18 +2815,16 @@ async function fetchFromLocalArtifact(config, argv) {
 
 /**
  * `deps fetch` — fill the caches this build resolves other packages through:
- * the **content index** of every declared dependency, the **item catalogue
- * or asset archive** of those additionally declaring `itemCatalog: true` or
- * `assetArchive: true`, and the **site navigation** heroiclands.org
+ * the **content index** of every declared dependency, the **item catalogue**
+ * of those additionally declaring `itemCatalog: true`, and the **site navigation** heroiclands.org
  * publishes, which the site build writes its menu from.
  *
  * The dependency sets differ deliberately. Citing another package's
- * *addresses*, embedding its *items*, and staging its *asset bytes* are
- * separate edges, and a package may declare any of them without the others —
+ * *addresses* and embedding its *items* are separate edges, and a package may
+ * declare either without the other —
  * `harn-ensemble` cites no foreign address and embeds 324,016 item
  * references. The navigation is fetched for every package, because every
- * package publishes a site. A relationship declaring both `itemCatalog: true`
- * and `assetArchive: true` is fetched once.
+ * package publishes a site.
  *
  * Its own command rather than a step of `package compile` or `site`, so that
  * neither reaches the network. A build that downloads silently is not
@@ -2887,7 +2885,7 @@ function depsCommand() {
                 const indexes = await fetchAllMetadata(config);
                 if (indexes) log.info(`Fetched ${indexes} dependency content index(es).`);
                 const count = await fetchAllCatalogs(config);
-                if (count) log.info(`Fetched ${count} dependency catalogue(s) or archive(s).`);
+                if (count) log.info(`Fetched ${count} dependency catalogue(s).`);
                 if (!indexes && !count) {
                     // Distinguished from a package declaring nothing at all: a
                     // relationship may still be declared, just narrowed to the
@@ -2899,8 +2897,8 @@ function depsCommand() {
                     );
                     log.info(
                         declared ?
-                            "No declared dependency needs a fetched content index, item " +
-                                "catalogue, or asset archive."
+                            "No declared dependency needs a fetched content index or item " +
+                                "catalogue."
                         :   "This package declares no dependencies.",
                     );
                 }

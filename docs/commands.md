@@ -1718,13 +1718,11 @@ package-build deps fetch [--from <zip|dir>] [--id <id>]
 The only action is `fetch`, which fills three caches under `build/cache/`:
 the **content index** of every declared dependency and of every
 `recommends` or `conflicts` relationship that declares `itemCatalog: true`,
-the **item catalogue or
-asset archive** of those that additionally declare `itemCatalog: true` or
-`assetArchive: true`, and the **site navigation** —
+the **item catalogue** of those that additionally declare `itemCatalog: true`,
+and the **site navigation** —
 `https://www.heroiclands.org/nav.json`, the header menu every package site
 renders, fetched for every package because every package publishes a site.
-A relationship declaring both `itemCatalog: true` and `assetArchive: true`
-is fetched once. Its own command rather than a step of `package compile` or
+Its own command rather than a step of `package compile` or
 `site`, so neither reaches the network — a build that downloads silently is
 not reproducible and hides a dependency's version change behind a passing
 run. Each cache is stamped complete only once its fetch finishes, so a
@@ -1766,7 +1764,7 @@ including when the repository declares no dependencies at all.
 ```
 $ package-build deps fetch
 […] Fetched the site navigation to build/cache/navigation/nav.json.
-[…] No relationship declares `itemCatalog: true` or `assetArchive: true`; nothing to fetch.
+[…] No relationship declares `itemCatalog: true`; nothing to fetch.
 […] This package declares no dependencies.
 
 $ package-build deps fetch --from build/dist/module.zip

@@ -588,7 +588,7 @@ describe("the three resolvers agree on severity", () => {
 
 describe("a package declared `contentIndex: false`, in all three", () => {
     /*
-     * thalornaaltart `requires` thalorna so Foundry installs the base module,
+     * A module that `requires` thalorna so Foundry installs the base module,
      * and its content tree links nowhere. There is no cache for such a
      * relationship — `deps fetch` never fetches one — so all three resolvers
      * must fail the link naming `no-content-index` from nothing more than the

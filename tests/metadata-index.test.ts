@@ -91,7 +91,7 @@ describe("which dependencies an index is fetched for", () => {
         expect(metadataRelationships({} as never)).toEqual([]);
     });
 
-    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // A module that `requires` thalorna so Foundry installs the base module,
     // and its content tree links nowhere — the dependency is for the Foundry
     // manifest only, and there is nothing here for `deps fetch` to fill.
     it("excludes a relationship declared `contentIndex: false`", () => {

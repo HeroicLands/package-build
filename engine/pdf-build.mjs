@@ -124,15 +124,7 @@ import {
     pdfTextWidth,
     resamplePdfImages,
 } from "./pdf-images.mjs";
-import {
-    ASSETS_SEGMENT,
-    assetPathnameKey,
-    pathnameProblem,
-    resolvePathname,
-} from "./pathnames.mjs";
-import { ASSET_SYSTEM, assetTypeOfRoot, isAssetShortcode } from "./asset-types.mjs";
-import { canonicalKey } from "./address.mjs";
-import { isComplete as isForeignCacheComplete, newestVersionDir } from "./metadata-index.mjs";
+import { assetPathnameKey, pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import {
     createParser,
     labelFor,
@@ -147,7 +139,6 @@ import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
 import { drawMapsFrom } from "./derived-sections.mjs";
 import { generatedDrawing } from "./generated-sections.mjs";
-import { resolveAssetReplacement } from "./asset-replacement.mjs";
 import { typstScriptFontPath } from "./script-font-delivery.mjs";
 
 /**
@@ -166,39 +157,18 @@ import { typstScriptFontPath } from "./script-font-delivery.mjs";
  * a build from touching a path outside its own output.
  *
  * A file **this** package ships stages directly. A pathname naming another
- * package's file stages instead from a declared replacement's cached archive,
- * when `opts.resolveReplacement` — the pure function
- * {@link module:engine/asset-replacement.resolveAssetReplacement} —
- * answers it; `opts.foreignIndex` is the merged index that answer is read
- * against. A pathname naming a package no replacement carries it for, or a
- * URL, names something no build here can open — a build reaches no network —
- * and the caller reports it as a picture the book will not carry.
+ * package's file, or a URL, names something no build here can open — a build
+ * reaches no network — and the caller reports it as a picture the book will
+ * not carry.
  *
  * @param {string} src - The pathname, as authored.
  * @param {object} config - The resolved configuration.
- * @param {object} [opts]
- * @param {Map<string, object>} [opts.foreignIndex] - Every fetched
- *   dependency's own records, keyed by canonical address — the index a
- *   replacement's record is read out of.
- * @param {Function} [opts.resolveReplacement] - {@link
- *   module:engine/asset-replacement.resolveAssetReplacement}, or an
- *   equivalent a caller injects for a test. Omitted, a foreign pathname this
- *   package does not own stays declined exactly as it always has.
  * @returns {{from: string, to: string}|null} The file, and where under the
  *   output directory it is staged.
- * @throws {Error} When a declared replacement answers the address but its
- *   archive was never fetched.
  */
-export function stagedImagePath(src, config, opts = {}) {
+export function stagedImagePath(src, config) {
     const forms = resolvePathname(src, config);
     if (!forms || forms.state !== "package") return null;
-    // A declared replacement answers before the package's own file does, which
-    // is the whole of what declaring one buys: the address a note writes is
-    // this package's own, and the picture staged for it is the replacement's.
-    // A miss falls through, so a package declaring none stages exactly what it
-    // ships.
-    const replaced = opts.resolveReplacement ? stagedReplacementPath(forms, config, opts) : null;
-    if (replaced) return replaced;
     if (forms.own) {
         return {
             from: path.resolve(config.rootDir, forms.local),
@@ -206,126 +176,6 @@ export function stagedImagePath(src, config, opts = {}) {
         };
     }
     return null;
-}
-
-/**
- * Every declared relationship that opted a dependency in as this package's
- * asset replacement, in declaration order.
- *
- * The same shape {@link module:engine/foreign-catalog.itemCatalogRelationships}
- * returns, read directly rather than through that module: this file stays a
- * leaf over the configuration it is handed, and the flag is as small to read
- * back as it was to validate.
- *
- * @param {object} config - The resolved build configuration.
- * @returns {Array<{id: string, package: string}>} The relationships, each
- *   with the package segment its own content index publishes under.
- */
-function assetReplacementRelationships(config) {
-    const out = [];
-    for (const entries of Object.values(config.relationships ?? {})) {
-        for (const rel of entries ?? []) {
-            if (rel.assetReplacement) {
-                out.push({ id: rel.id, package: rel.contentPackage ?? rel.id });
-            }
-        }
-    }
-    return out;
-}
-
-/**
- * The address a pathname this package does not own is read back as, for
- * asking whether a declared replacement answers it instead of the package
- * the pathname names.
- *
- * {@link module:engine/asset-replacement.resolveAssetReplacement} only ever
- * matches an address whose package segment is the compiling package's own,
- * so the pathname's own package is set aside and its suffix — the one piece
- * every surface derives from, and the piece a replacement publishes under
- * its own package instead — is read back as this package's type and
- * shortcode.
- *
- * @param {import("./pathnames.mjs").PathnameForms} forms - The pathname,
- *   resolved.
- * @param {object} config - The resolved build configuration.
- * @returns {string|null} The canonical address, or `null` when the suffix is
- *   not shaped like an asset's.
- */
-function localAssetAddress(forms, config) {
-    const segments = String(forms.suffix ?? "").split("/");
-    const assetType = assetTypeOfRoot(segments[0]);
-    if (!assetType) return null;
-    const base = segments[segments.length - 1];
-    const ext = path.extname(base);
-    const shortcode = (ext ? base.slice(0, -ext.length) : base).toLowerCase();
-    if (!isAssetShortcode(shortcode)) return null;
-    return canonicalKey(config.contentPackage, ASSET_SYSTEM, assetType.type, shortcode);
-}
-
-/**
- * The cache directory one relationship's archive was fetched into, found the
- * way {@link module:engine/foreign-catalog.foreignItemCatalogDirs} finds an
- * item catalogue's: the newest `.complete`-stamped `<id>@<version>`
- * directory under `config.paths.foreignCache`.
- *
- * @param {object} config - The resolved build configuration.
- * @param {string} id - The relationship's dependency id.
- * @returns {string|null} The directory, or `null` when nothing is cached.
- */
-function cachedReplacementDir(config, id) {
-    const root = config.paths.foreignCache;
-    if (!fs.existsSync(root)) return null;
-    const cached = fs
-        .readdirSync(root)
-        .filter((name) => name.startsWith(`${id}@`))
-        .map((name) => path.join(root, name))
-        .filter(isForeignCacheComplete);
-    return cached.length ? newestVersionDir(cached) : null;
-}
-
-/**
- * The file a declared replacement stages in place of a pathname this package
- * does not own, or `null` when no replacement answers it.
- *
- * @param {import("./pathnames.mjs").PathnameForms} forms - The pathname,
- *   resolved, with `forms.own` already `false`.
- * @param {object} config - The resolved build configuration.
- * @param {object} opts
- * @param {Map<string, object>} [opts.foreignIndex] - Every fetched
- *   dependency's own records, keyed by canonical address.
- * @param {Function} opts.resolveReplacement - {@link
- *   module:engine/asset-replacement.resolveAssetReplacement}.
- * @returns {{from: string, to: string}|null} The file, staged at the same
- *   `pdf`-relative path this address would have taken had this package
- *   shipped it.
- * @throws {Error} When the replacement that answers the address has not
- *   been fetched.
- */
-function stagedReplacementPath(forms, config, { foreignIndex = new Map(), resolveReplacement }) {
-    const address = localAssetAddress(forms, config);
-    if (!address) return null;
-    const relationships = assetReplacementRelationships(config);
-    if (!relationships.length) return null;
-    const hit = resolveReplacement(address, {
-        localPackage: config.contentPackage,
-        replacements: relationships.map((rel) => rel.package),
-        index: foreignIndex,
-    });
-    if (!hit) return null;
-    const assetPath = hit.record?.asset?.path;
-    if (!assetPath) return null;
-    const rel = relationships.find((entry) => entry.package === hit.package);
-    const dir = cachedReplacementDir(config, rel?.id ?? hit.package);
-    if (!dir) {
-        throw new Error(
-            `\`${hit.package}\` declares \`assetReplacement: true\` and carries \`${address}\`, ` +
-                "but its archive has not been fetched. Run `package-build deps fetch` first.",
-        );
-    }
-    return {
-        from: path.join(dir, ASSETS_SEGMENT, assetPath),
-        to: forms.pdf,
-    };
 }
 
 /**
@@ -553,10 +403,6 @@ function configFileFor(config, rootDir) {
  *   {@link module:engine/pdf-pages}.
  * @param {Function} [opts.readPages] - {@link
  *   module:engine/pdf-pages.readEntryPages}, for tests.
- * @param {Function} [opts.resolveReplacement] - {@link
- *   module:engine/asset-replacement.resolveAssetReplacement}, for tests.
- *   Loaded from that module otherwise, and only when a relationship declares
- *   `assetReplacement: true` — a build with none never imports it.
  * @returns {Promise<{built: boolean, reason: string|null, findings: object[],
  *   imageReports: object[], books: Array<{id: string, title: string,
  *   built: boolean, typ: string, pdf: string|null, stats: object}>,
@@ -576,7 +422,6 @@ export async function buildPdf({
     version = "",
     compile = true,
     readPages = readEntryPages,
-    resolveReplacement,
 } = {}) {
     const resolved = config ?? loadPackConfig();
     const findings = [];
@@ -642,7 +487,7 @@ export async function buildPdf({
         out || resolved.pdf.out || path.join("build", "dist"),
     );
 
-    const world = await prepareWorld(resolved, { contentBase, findings, resolveReplacement });
+    const world = await prepareWorld(resolved, { contentBase, findings });
     if (!world) return none(null);
 
     const books = [];
@@ -944,11 +789,10 @@ function locateType(contentBase, record) {
  * @param {object} shared - Options.
  * @param {string} shared.contentBase - The content tree.
  * @param {object[]} shared.findings - Collected here rather than thrown.
- * @param {Function} [shared.resolveReplacement] - As {@link buildPdf}.
  * @returns {Promise<object|null>} The world, or null when a site gate fired
  *   and the findings say why.
  */
-async function prepareWorld(resolved, { contentBase, findings, resolveReplacement }) {
+async function prepareWorld(resolved, { contentBase, findings }) {
     // The corpus, once — the same records the index, the site and the SQL
     // tables read, so the book cannot select a note the other surfaces do not
     // have.
@@ -1038,17 +882,6 @@ async function prepareWorld(resolved, { contentBase, findings, resolveReplacemen
     const md = createParser(resolved.icons);
     const glyphs = resolveIconGlyphs(resolved.icons, resolved.pdf.iconFonts, findings);
 
-    // Asked only where a relationship declares `assetReplacement: true`: with
-    // none declared the resolver is never consulted, and staging gives the
-    // answer it gives a package that declares no replacement. A caller may
-    // supply its own, which is how the staging tests drive it.
-    const stagingOpts = {
-        foreignIndex: gates.foreign.index,
-        resolveReplacement:
-            resolveReplacement ??
-            (assetReplacementRelationships(resolved).length ? resolveAssetReplacement : null),
-    };
-
     return {
         records,
         db,
@@ -1060,7 +893,6 @@ async function prepareWorld(resolved, { contentBase, findings, resolveReplacemen
         assets,
         md,
         glyphs,
-        stagingOpts,
     };
 }
 
@@ -1150,7 +982,6 @@ async function selectBook(book, index, { world, configFile, configText, findings
  * @param {{get: Function}} [shared.elsewhere] - From
  *   {@link module:engine/pdf-pages.elsewhereFor}: the notes another book is
  *   home to, which this book names by book and page rather than links.
- * @param {Function} [shared.resolveReplacement] - As {@link buildPdf}.
  * @param {object[]} shared.findings - Collected here rather than thrown.
  * @returns {Promise<{built: boolean, typ: string|null, pdf: string|null,
  *   stats: object|null, imageReports?: object[]}>} What was written: the
@@ -1178,10 +1009,10 @@ async function buildBook(book, shared) {
      * @returns {{from: string, to: string}|null} As {@link stagedImagePath}.
      */
     const stage = (src) => {
-        const staged = stagedImagePath(src, resolved, world.stagingOpts);
+        const staged = stagedImagePath(src, resolved);
         return staged && { ...staged, to: inBook(staged.to) };
     };
-    const { records, site, gates, byFile, sqlTables, assets, md, glyphs, stagingOpts } = world;
+    const { records, site, gates, byFile, sqlTables, assets, md, glyphs } = world;
 
     fs.mkdirSync(outDir, { recursive: true });
 

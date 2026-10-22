@@ -140,8 +140,8 @@ describe("declaring a relationship as a Foundry dependency only", () => {
     const withRelationships = (relationships: unknown) =>
         defineConfig({
             rootDir: "/repo",
-            contentPackage: "thalornaaltart",
-            foundryPackage: "thalornaaltart",
+            contentPackage: "modpkg",
+            foundryPackage: "modpkg",
             packageKind: "modules",
             stats: {
                 lastModifiedBy: "sohlbuilder00000",
@@ -151,7 +151,7 @@ describe("declaring a relationship as a Foundry dependency only", () => {
             relationships,
         } as never);
 
-    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // A module that `requires` thalorna so Foundry installs the base module,
     // and its content tree links nowhere — there is nothing for `deps fetch`
     // to fetch and no index to resolve a wikilink against.
     it("accepts `contentIndex: false` on its own", () => {

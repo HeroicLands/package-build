@@ -560,7 +560,7 @@ describe("a `#section` the target does not declare", () => {
 });
 
 describe("a package declared `contentIndex: false`", () => {
-    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // A module that `requires` thalorna so Foundry installs the base module,
     // and its content tree links nowhere — there is no fetched index for the
     // site build to resolve a wikilink into it against.
     it("fails a qualified link into it, naming `no-content-index`", () => {

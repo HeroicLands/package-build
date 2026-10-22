@@ -350,8 +350,7 @@ export function publishesContentPages(config) {
  * @property {string} [stage]            Compiled LevelDB packs.
  * @property {string} [unpack]           Where `unpack` extracts JSON back to.
  * @property {string} [foreignCache]     Where a dependency declaring
- *                                       `itemCatalog: true` or
- *                                       `assetArchive: true` is unpacked.
+ *                                       `itemCatalog: true` is unpacked.
  *                                       Inbound, and fetched rather than
  *                                       committed.
  * @property {string} [metadataCache]    Where a dependency's published content
@@ -474,10 +473,6 @@ export function publishesContentPages(config) {
  *                                   its Item packs, so the actors pass can
  *                                   resolve embedded items this repository
  *                                   does not hold. Needs a `manifest`.
- * @property {boolean} [assetArchive]  Whether `deps fetch` unpacks this
- *                                   dependency's release archive for its
- *                                   asset bytes alone, building no item
- *                                   catalogue from it. Needs a `manifest`.
  * @property {boolean} [contentIndex]  Whether `deps fetch` fetches this
  *                                   dependency's content index. Default
  *                                   `true`. `false` declares the dependency
@@ -486,13 +481,6 @@ export function publishesContentPages(config) {
  *                                   `itemCatalog: true` on the same entry,
  *                                   since a catalogue is fetched from the same
  *                                   index.
- * @property {boolean} [assetReplacement]  Whether this dependency's asset
- *                                   tree answers this package's own asset
- *                                   addresses ahead of its local record.
- *                                   Default `false`. Refuses `contentIndex:
- *                                   false` on the same entry, since a
- *                                   replacement with no fetched index to
- *                                   check against resolves nothing.
  */
 
 /**
@@ -859,9 +847,7 @@ export const RELATIONSHIP_KEYS = [
     "manifest",
     "compatibility",
     "itemCatalog",
-    "assetArchive",
     "contentIndex",
-    "assetReplacement",
 ];
 const AUTHOR_KEYS = ["name", "email", "url", "discord", "role"];
 /**
@@ -2611,23 +2597,6 @@ function normalizeRelationships(value) {
                     }
                     spec.itemCatalog = rel.itemCatalog;
                 }
-                // Opt-in, sibling to `itemCatalog`: unpack this dependency's
-                // release archive for its asset bytes alone, building no item
-                // catalogue from it. Buys the archive for a package with no
-                // items of its own to extract — an asset-replacement source
-                // ships no Item packs and has no use for `itemCatalog: true`.
-                if (rel.assetArchive !== undefined) {
-                    if (typeof rel.assetArchive !== "boolean") {
-                        fail(`${at}.assetArchive`, "must be true or false");
-                    }
-                    if (rel.assetArchive && spec.manifest === undefined) {
-                        fail(
-                            `${at}.assetArchive`,
-                            "needs a `manifest` naming the package to fetch",
-                        );
-                    }
-                    spec.assetArchive = rel.assetArchive;
-                }
                 // Opt-out: declares the dependency for the Foundry manifest
                 // only, so `deps fetch` fetches no content index for it and a
                 // wikilink into it is refused rather than silently dead. A
@@ -2645,26 +2614,6 @@ function normalizeRelationships(value) {
                         );
                     }
                     spec.contentIndex = rel.contentIndex;
-                }
-                // Opt-in: this dependency's asset tree answers this
-                // package's own asset addresses ahead of its local record —
-                // the "rewrite table" `engine/asset-replacement.mjs` reads.
-                // A replacement with no fetched index to check against
-                // resolves nothing, so it cannot pair with
-                // `contentIndex: false`.
-                if (rel.assetReplacement !== undefined) {
-                    if (typeof rel.assetReplacement !== "boolean") {
-                        fail(`${at}.assetReplacement`, "must be true or false");
-                    }
-                    if (rel.assetReplacement && rel.contentIndex === false) {
-                        fail(
-                            `${at}.assetReplacement`,
-                            "cannot be true together with `contentIndex: false` — a " +
-                                "replacement with no fetched index to check against resolves " +
-                                "nothing",
-                        );
-                    }
-                    spec.assetReplacement = rel.assetReplacement;
                 }
                 return Object.freeze(spec);
             }),

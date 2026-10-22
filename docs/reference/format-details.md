@@ -1026,12 +1026,12 @@ ships as the Foundry module `harn-ensemble`) writing `images/map.webp`:
 And for the same note writing `sohl/assets/icons/noun/shieldnn.svg`, a file the
 system ships and this repository does not hold:
 
-| Surface     | Address                                                       |
-| ----------- | ------------------------------------------------------------- |
-| **Foundry** | `systems/sohl/icons/shieldnn.svg`                             |
-| **Local**   | `assets/icons/noun/shieldnn.svg`, in the `sohl` repository    |
-| **Web**     | `https://cdn.heroiclands.org/sohl/icons/shieldnn.svg`         |
-| **Book**    | not carried, unless a declared replacement carries it instead |
+| Surface     | Address                                                    |
+| ----------- | ---------------------------------------------------------- |
+| **Foundry** | `systems/sohl/icons/shieldnn.svg`                          |
+| **Local**   | `assets/icons/noun/shieldnn.svg`, in the `sohl` repository |
+| **Web**     | `https://cdn.heroiclands.org/sohl/icons/shieldnn.svg`      |
+| **Book**    | not carried                                                |
 
 **The content package name and Foundry id are separate values.**
 `harnensemble` is what the content is called, what a note writes, and what the
@@ -1049,36 +1049,13 @@ does not know still resolves on the website and in the book — those need only
 the name and the suffix — and has no Foundry address, which is refused rather
 than guessed.
 
-An art package that replaces another package's images can declare
+A package whose image files belong to another package's notes can declare
 `packageBuild.assets[].bindsTo` on the relevant asset copy. Each file's basename
 then acts as a shortcode for the declared package and type. The related
 `relationships.requires[].contentIndex` supplies the address index; with that
 index enabled, an asset with no matching note is a located build error. See
 [asset bindings](../configuration.md#packagebuildstagedir-and-packagebuildassets)
 for the configuration and cache requirements.
-
-**A package declared as a replacement is carried into the book, from its
-fetched archive, when it answers the address; every other foreign package
-stays not carried.** A relationship declaring `assetReplacement: true` names a
-dependency whose asset tree answers this package's own addresses first — see
-[`relationships`](../configuration.md#relationships) — and the book is the one
-surface that otherwise refuses a foreign file outright, so it is the one
-surface this changes. A `thalorna` note embedding
-`![[thalornaaltart-none-icon-anvil|An anvil]]` names `thalornaaltart`'s own
-address, exactly as a note citing `sohl`'s shared bestiary art would; when
-`thalornaaltart` is declared with `assetReplacement: true` and its fetched
-archive carries `icon-anvil` under its own package, the book stages that file
-from the archive instead of printing the caption with no picture. A note
-citing a different package's own address this way — `sohl`'s bestiary art,
-say — stays refused exactly as the row above states, because `sohl` was never
-declared as a replacement: a package answers in place of another only when it
-opted in, never because its archive happens to carry a file at the same type
-and shortcode.
-
-A relationship declaring `assetReplacement: true` whose archive was never
-fetched is a configuration mistake, not an ordinary unresolved address: the
-book reports a located error naming the relationship and instructing
-`package-build deps fetch`, rather than printing a caption with no picture.
 
 **The host is configuration.** `site.assets` in `package-build.config.yaml` is
 the root the web form is joined onto, and a package-owned image on a page with
@@ -2821,37 +2798,6 @@ under `icons/` or `images/` named `missing`, human-made and licensed to ship —
 and keeps the excluded picture's address in its flag or `data-asset`. A
 package that leaves out a picture a note references and ships no stand-in of
 that type fails the build with an error at the referencing note.
-
-##### A declared replacement resolves first
-
-A package may declare, on a `relationships.<kind>[]` entry, that a
-dependency's asset tree answers this package's own asset addresses ahead of
-its local record — `assetReplacement: true` in `package-build.config.yaml`.
-Once declared, an asset address resolves in this order:
-
-1. **Every declared replacement, in declaration order.** The package segment
-   of each relationship declaring `assetReplacement: true` is tried in the
-   order those relationships are written, and the first one carrying the
-   address wins.
-2. **Falling through to the package's own record** when no declared
-   replacement carries the address — the resolution this package already
-   performs with no `assetReplacement` declared at all.
-
-**This reaches asset types only.** A being, an item or a lore note is never
-replaced this way, whatever a relationship declares: the rule tests the
-address's type, not the relationship. A replacement answers only `icon`,
-`image` and `audio` addresses whose package segment is this package's own; an
-address naming any other type, or naming a different package, is untouched.
-
-**A replacement's own output address is never itself looked up against
-another replacement.** Resolving `thalornaaltart-none-image-thorn` never asks
-whether something replaces `thalornaaltart` — resolution is a single pass over
-the declared list, not a chain, which forecloses a cycle by construction.
-
-This is distinct from a `foreign` lookup, which serves a declared dependency's
-own content for an address this package's local index does not carry. A
-replacement is consulted **before** the local address; a foreign lookup only
-**after** it misses locally.
 
 #### A font is not an asset
 

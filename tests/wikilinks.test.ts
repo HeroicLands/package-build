@@ -780,7 +780,7 @@ describe("readQualifier — the strict address grammar", () => {
     });
 
     // A relationship declared `contentIndex: false` is a Foundry dependency
-    // only — thalornaaltart `requires` thalorna and links nowhere — so a
+    // only — a module that `requires` thalorna and links nowhere — so a
     // fully qualified target naming it fails at the qualifier, before its type
     // is even considered: there is no fetched index to resolve the rest
     // against.
@@ -949,7 +949,7 @@ describe("a `#section` the target does not declare", () => {
 });
 
 describe("convertWikilinks — a package declared `contentIndex: false`", () => {
-    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // A module that `requires` thalorna so Foundry installs the base module,
     // and its content tree links nowhere: `deps fetch` never fetches an index
     // for it, and a wikilink naming it must fail at compile time rather than
     // silently reading as prose or resolving against nothing.

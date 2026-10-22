@@ -233,7 +233,7 @@ describe("the resolver context", () => {
         const bare = buildSiteIndex([entry()]);
         expect(wikiContext(bare, { src: "x", errors: [] }).noIndexPackages).toEqual(new Set());
 
-        // thalornaaltart `requires` thalorna so Foundry installs the base
+        // A module that `requires` thalorna so Foundry installs the base
         // module, and its content tree links nowhere — there is no fetched
         // index for the site build to resolve a wikilink into it against.
         const built = buildSiteIndex([entry()], { noIndexPackages: new Set(["thalorna"]) });

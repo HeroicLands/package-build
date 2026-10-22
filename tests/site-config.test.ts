@@ -45,10 +45,6 @@ const NAVIGATION = [
         url: "https://www.heroiclands.org/projects/modules/",
         children: [
             { name: "HârnMaster Kethira Basic", url: "https://www.heroiclands.org/kethira/" },
-            {
-                name: "Thalorna Alternative Art",
-                url: "https://www.heroiclands.org/thalornaaltart/",
-            },
         ],
     },
     { name: "License", url: "https://www.heroiclands.org/license/" },
