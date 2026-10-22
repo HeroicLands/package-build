@@ -1,5 +1,19 @@
 # @heroiclands/package-build
 
+## 24.0.2
+
+### Patch Changes
+
+**Languages**
+
+- A language whose stress always falls on the first syllable says so with `stress: { two: first, longer: first }`, and its verse is scanned that way.
+- A reference note can state a setting's spelling guide as data: its letters and marks, with an `ipa` sound for each letter and final, and the languages that write each letter.
+
+**Scripts**
+
+- A `scroll` fence sets text in a script written in columns as a handscroll: columns read right to left, scrolling sideways on screen and continuing on panels in the book.
+- A language note names the script it is written in with `data.writtenIn: { map, font }`, so text marked with the language alone is set in that script; a run's own `map=` or `font=` still chooses another.
+
 ## 24.0.1
 
 ### Patch Changes
