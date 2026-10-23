@@ -53,7 +53,8 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
             /@[A-Za-z]+$/.test(state.src.slice(0, start)) ||
             state.src[start + 1] === "^" ||
             state.src[start + 1] === "!" ||
-            ["!", "[", "]"].includes(state.src[start - 1])
+            ["!", "]"].includes(state.src[start - 1]) ||
+            (state.src[start - 1] === "[" && state.linkLevel === 0)
         )
             return false;
         const end = state.md.helpers.parseLinkLabel(state, start, false);
@@ -91,6 +92,17 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
                 finish = close + 1;
             }
         }
+        // A generated book link may put its language/script span directly
+        // inside the label. Preserve the literal class-only bracket spelling
+        // there for ordinary spans, including names used by the first-use audit.
+        if (
+            state.src[start - 1] === "[" &&
+            !["lang", "font", "map"].some((key) => Object.hasOwn(parsed.values, key)) &&
+            !parsed.classes.some(
+                (name) => name === "script" || /^font-(?:mono|serif|sans)$/.test(name),
+            )
+        )
+            return false;
         const problems = [...parsed.problems, ...refusedAttributes(parsed.values)];
         if (parsed.classes.includes("glyph")) problems.push(...glyphProblems(parsed));
         else if (parsed.classes.includes("cartouche")) problems.push(...cartoucheProblems(parsed));

@@ -56,8 +56,10 @@
  *   that language's script defaults and its own explicit font and map. A span
  *   in the same language keeps the surrounding script choices.
  * - **Text with a font, a map or a declared non-English language is plain.** A span or a
- *   verse holds no emphasis, link, image, footnote, wikilink, code or HTML,
- *   and no span but a marked one; a div holds paragraphs and line breaks only.
+ *   verse holds no emphasis, image, footnote, wikilink, code or HTML, and no
+ *   span but a marked one. A standalone resolved reference sets only its
+ *   label; links embedded in longer native prose remain forbidden. A div
+ *   holds paragraphs and line breaks only.
  * - **A non-English span holds no bold or italic markup**, including in a
  *   script face. English tags and configured names resolving to English
  *   retain their emphasis under the font's rules. Escaped delimiters are text.
@@ -352,6 +354,38 @@ function closing(text, open) {
         else if (text[i] === right && --depth === 0) return i;
     }
     return -1;
+}
+
+/**
+ * The label of exactly one resolved reference, as offsets within its span.
+ * Targets and the resolver's draft decoration are presentation, not words of
+ * the label's language. No surrounding prose belongs to this atom.
+ *
+ * @param {string} text - A span's entire content after wikilink resolution.
+ * @returns {[number, number]|undefined} The visible label's bounds.
+ */
+function referenceLabel(text) {
+    let offset = 0;
+    const draft =
+        /^<span class="sohl-draft-link" title="Draft — not yet written">([\s\S]*)<\/span>$/.exec(
+            text,
+        );
+    if (draft) {
+        offset = text.indexOf(">") + 1;
+        text = draft[1];
+    } else if (text.endsWith(" (draft)")) {
+        text = text.slice(0, -8);
+    }
+    const uuid = /^@UUID\[[^\]\r\n]+\]\{([^{}\r\n]*)\}$/.exec(text);
+    if (uuid) {
+        const start = text.indexOf("]{") + 2;
+        return [offset + start, offset + text.length - 1];
+    }
+    if (!text.startsWith("[")) return undefined;
+    const end = closing(text, 0);
+    if (end < 0 || text[end + 1] !== "(") return undefined;
+    if (closing(text, end + 1) !== text.length - 1) return undefined;
+    return [offset + 1, offset + end];
 }
 
 /**
@@ -778,6 +812,8 @@ const BLOCK_WHAT = Object.freeze({
  * @property {[number, number]|undefined} body - A div's or fence's body, as
  *   offsets: the first body line's start to the end of the last.
  * @property {number|undefined} contentEnd - A span's offset of its closing `]`.
+ * @property {[number, number]|undefined} reference - A resolved reference's
+ *   visible label bounds, by absolute offset; its target stays untouched.
  * @property {import("./script-emphasis.mjs").LanguageEmphasis|undefined} languageEmphasis -
  *   The convention its language's note states.
  * @property {import("./script-emphasis.mjs").Emphasis|undefined} conventions -
@@ -1394,6 +1430,7 @@ function analyseRuns(source, ctx, syntax) {
             holes: new Map(),
             body: undefined,
             contentEnd: construct.kind === "span" ? construct.node.contentEnd : undefined,
+            reference: undefined,
             languageEmphasis: lang === undefined ? undefined : ctx.languageEmphases?.get(lang),
             conventions: undefined,
             emphasis: [],
@@ -1413,27 +1450,34 @@ function analyseRuns(source, ctx, syntax) {
 
         if (construct.kind === "span") {
             const span = construct.node;
-            const inline = text.slice(span.start + 1, span.contentEnd);
-            detail.holes = holesIn(span.start + 1, span.contentEnd);
+            let from = span.start + 1;
+            let to = span.contentEnd;
+            const label = referenceLabel(text.slice(from, to));
+            if (label) {
+                detail.reference = [from + label[0], from + label[1]];
+                [from, to] = detail.reference;
+            }
+            const inline = text.slice(from, to);
+            detail.holes = label ? new Map() : holesIn(from, to);
             if (nonEnglishSpan) {
                 const relative = new Map(
                     [...detail.holes].map(([from, to]) => [
-                        from - span.start - 1,
-                        to - span.start - 1,
+                        from - (span.start + 1),
+                        to - (span.start + 1),
                     ]),
                 );
                 for (const delimiter of emphasisDelimiters(inline, relative))
                     if (delimiter.open)
                         report(
-                            positionOf(starts, span.start + 1 + delimiter.offset),
+                            positionOf(starts, from + delimiter.offset),
                             `a span in non-English language \`${lang}\` holds no bold or italic markup`,
                         );
             }
             if (plain && errors.length === before)
-                plainInline(inline, span.start + 1, marking, detail, detail.holes);
+                plainInline(inline, from, marking, detail, detail.holes);
             if (named && errors.length === before) {
                 const parts = outsideDelimiters(
-                    outsideHoles(span.start + 1, span.contentEnd, detail.holes),
+                    outsideHoles(from, to, detail.holes),
                     detail.emphasis,
                 );
                 lexical(parts, detail);
@@ -1837,10 +1881,32 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
         const attributes = rewrittenAttributes(detail, search);
         if (run.kind === "span") {
             const contentEnd = /** @type {number} */ (detail.contentEnd);
+            if (book && detail.reference) {
+                // The book's link renderer adds page and volume cues after
+                // the label. Keep those in the page font, while the authored
+                // presentation attributes still enclose the whole reference.
+                const empty = { id: "", classes: [], values: [] };
+                const native =
+                    rewrittenAttributes({ ...detail, own: empty }, search) ??
+                    attributeText({ lang: run.tag, ...empty });
+                const [from, to] = detail.reference;
+                const label = `[${setRange(text, from, to, detail, false, book)}]{${native}}`;
+                const reference =
+                    text.slice(run.start + 1, from) + label + text.slice(to, contentEnd);
+                const outer = attributeText({ lang: undefined, ...detail.own });
+                edits.push({
+                    from: run.start,
+                    to: run.end,
+                    text: outer ? `[${reference}]{${outer}}` : reference,
+                });
+                continue;
+            }
             if (attributes !== undefined)
                 edits.push({ from: contentEnd + 2, to: run.end - 1, text: attributes });
             if (detail.plain)
-                for (const [from, to] of outsideHoles(run.start + 1, contentEnd, detail.holes)) {
+                for (const [from, to] of detail.reference ?
+                    [detail.reference]
+                :   outsideHoles(run.start + 1, contentEnd, detail.holes)) {
                     const set = setRange(text, from, to, detail, false, book);
                     if (set !== text.slice(from, to)) edits.push({ from, to, text: set });
                 }

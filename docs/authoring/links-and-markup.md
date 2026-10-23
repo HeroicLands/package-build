@@ -706,6 +706,17 @@ Vylari typed in roman letters, mapped into Semaron Kuriale and set in it:
 The lintel is cut with [Zaron tholmeza]{lang=vyl font=semaron-kuriale map=semaron}.
 ```
 
+A named reference takes the same keys directly after its wikilink:
+
+```markdown
+[Keeper of the open book, ]{lang=en}[[lore-marendasdty|Marendas]]{lang=vyl}[, hear us.]{lang=en}
+```
+
+The reference's language, font and mapping apply to its visible name. Its
+navigation, spoiler styling and draft cue are preserved. Keep surrounding
+prose in adjacent spans, including their spaces and punctuation; a longer
+span of declared-language prose cannot contain a link.
+
 Text typed in the face's own code points, with a keyboard layout for the face,
 takes no map: `[…]{font=semaron-kuriale}` sets those code points as they are.
 
@@ -1219,7 +1230,9 @@ plain text.
 - **A span or a verse line** holds no link, image, footnote, wikilink, code or
   HTML, and no unmarked nested span. Marked spans may be nested. English may
   use Markdown emphasis; emphasis inside a span with an effective non-English
-  language is an error. See [emphasis in a script](#emphasis-in-a-script).
+  language is an error. A standalone wikilink may carry language, font and map
+  keys directly after it, as above; only its label is set. See [emphasis in a
+  script](#emphasis-in-a-script).
 - **A div** holds paragraphs and line breaks only: no heading, list, block
   quote, code fence, verse fence, table, rule, footnote definition or nested
   block. Mark a poem's own fence instead of a div around it.
