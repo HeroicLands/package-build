@@ -182,38 +182,57 @@ describe("the fence's own findings", () => {
 });
 
 describe("the face and the script", () => {
-    it("takes the face of a map drawn in one", () => {
-        expect(scanRuns("```scroll {lang=tsu map=tengchou}\nchen\n```\n", ctx).runs).toEqual([
+    it("uses an explicitly chosen native face and map", () => {
+        expect(
+            scanRuns(
+                "```scroll {lang=tsu map=tengchou font=teng-chou .nativefont}\nchen\n```\n",
+                ctx,
+            ).runs,
+        ).toEqual([
             expect.objectContaining({ kind: "scroll", font: "teng-chou", map: "tengchou" }),
         ]);
     });
 
-    it("refuses a fence that names no face, at the fence", () => {
+    it("requires native opt-in and its own language on a scroll", () => {
         expect(located(scanRuns("```scroll {rows=3}\nchen\n```\n", ctx).errors)).toEqual([
-            "1:1: a `scroll` fence names the face it is set in, with `font=`, a map drawn in one face, with `map=`, or a language whose note names its script in `data.writtenIn`, with `lang=`",
+            "1:1: a scroll requires `.nativefont` and an explicit `lang=` on the same construct",
         ]);
     });
 
-    it("refuses a map drawn in more than one face unless the fence names one", () => {
-        expect(located(scanRuns("```scroll {map=two-faces}\nchen\n```\n", ctx).errors)).toEqual([
-            "1:16: the map `two-faces` is drawn in more than one face; a `scroll` fence names its face with `font=`",
+    it("requires an explicit face when its language supplies no native font", () => {
+        expect(
+            located(
+                scanRuns("```scroll {map=two-faces lang=und .nativefont}\nchen\n```\n", ctx).errors,
+            ),
+        ).toEqual([
+            "1:35: `.nativefont` has no default `font=` for `und`; state `font=` explicitly",
         ]);
     });
 
     it("refuses a script written in lines, at the face or the map that gives it", () => {
         expect(
-            located(scanRuns("```scroll {font=semaron-kuriale}\nchen\n```\n", ctx).errors),
+            located(
+                scanRuns("```scroll {font=semaron-kuriale lang=und .nativefont}\nchen\n```\n", ctx)
+                    .errors,
+            ),
         ).toEqual([
             "1:17: a `scroll` fence sets a script written in columns, and the script of `semaron-kuriale` is written in lines; set it in a face whose script note states `direction: vertical-rl`, or use a div",
         ]);
-        expect(located(scanRuns("```scroll {font=serif}\nchen\n```\n", ctx).errors)[0]).toMatch(
-            /^1:17: .*the script of `serif` is written in lines/,
-        );
+        expect(
+            located(
+                scanRuns("```scroll {font=serif lang=und .nativefont}\nchen\n```\n", ctx).errors,
+            )[0],
+        ).toMatch(/^1:17: .*the script of `serif` is written in lines/);
     });
 
     it("checks a scroll's words as a mapped run's, at the word", () => {
         expect(
-            located(scanRuns("```scroll {lang=tsu map=tengchou}\nchen\nzhou\n```\n", ctx).errors),
+            located(
+                scanRuns(
+                    "```scroll {lang=tsu map=tengchou font=teng-chou .nativefont}\nchen\nzhou\n```\n",
+                    ctx,
+                ).errors,
+            ),
         ).toEqual([
             "3:1: `zhou` is not a word of the `tsu` lexicon, a registered name, or a regular form of one; coin it in the lexicon (or register the name) first",
             "3:1: `zhou` has no `tengchou` writing in the `tsu` lexicon, and its parts do not give one; state one, or write the word directly in signs",
@@ -233,7 +252,7 @@ describe("the face and the script", () => {
 
 describe("the rewrite", () => {
     const source =
-        "```scroll {rows=3 cols=2 lang=tsu map=tengchou}\nchen teng\n  chou *hing*\n\ntan\n```\n";
+        "```scroll {rows=3 cols=2 lang=tsu map=tengchou font=teng-chou .nativefont}\nchen teng\n  chou *hing*\n\ntan\n```\n";
 
     it("sets each paragraph on one line, mapped and unescaped, emphasis by the script's convention", () => {
         const { markdown, scrolls } = renderRuns(source, ctx, undefined, { target: "foundry" });
@@ -263,8 +282,8 @@ describe("the rewrite", () => {
     });
 
     it("escapes the text it does not write itself", () => {
-        expect(renderScroll("```scroll {font=teng-chou}\na <b> & c\n```\n").markdown).toBe(
-            '\n<div class="scroll" data-font="teng-chou">\n<p>a &lt;b&gt; &amp; c</p>\n</div>\n\n',
+        expect(renderScroll("```scroll {lang=en}\na <b> & c\n```\n").markdown).toBe(
+            '\n<div class="scroll" lang="en">\n<p>a &lt;b&gt; &amp; c</p>\n</div>\n\n',
         );
     });
 
@@ -339,7 +358,7 @@ describe("the book", () => {
 
     it("sets a scroll as panel images read right to left, its roman text as alt text", () => {
         const typst = markdownToTypst(
-            "```scroll {rows=2 cols=1 lang=tsu map=tengchou}\nchen teng chou\n```\n",
+            "```scroll {rows=2 cols=1 lang=tsu map=tengchou font=teng-chou .nativefont}\nchen teng chou\n```\n",
             { runs: ctx },
         );
         const boxes = [
@@ -354,7 +373,7 @@ describe("the book", () => {
 
     it("lets columns wrap where the measure ends when no cols is stated", () => {
         const typst = markdownToTypst(
-            "```scroll {rows=2 lang=tsu map=tengchou}\nchen teng chou\n```\n",
+            "```scroll {rows=2 lang=tsu map=tengchou font=teng-chou .nativefont}\nchen teng chou\n```\n",
             { runs: ctx },
         );
         expect(typst).toMatch(/\)\)​#box/);
@@ -362,7 +381,10 @@ describe("the book", () => {
 
     it("sets a scroll the rewrite did not set as code", () => {
         expect(
-            markdownToTypst("```scroll {rows=2 font=semaron-kuriale}\nchen\n```\n", { runs: ctx }),
+            markdownToTypst(
+                "```scroll {rows=2 font=semaron-kuriale lang=und .nativefont}\nchen\n```\n",
+                { runs: ctx },
+            ),
         ).toMatch(/```\nchen\n```/);
     });
 });

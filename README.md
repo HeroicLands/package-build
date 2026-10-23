@@ -18,6 +18,12 @@ The generated project includes a homepage, website and book targets, npm scripts
 
 Run selected content operations together with `package-build content run index lint links compile`. The [shared content command](docs/commands.md#package-build-content-run-targets) captures one source tree for the selected checks and outputs; standalone commands remain available.
 
+Language annotations keep authored spelling: `[Zaron]{lang=vyl}` stays Roman.
+Add `.nativefont` with an explicit `lang=` to use native script defaults;
+see [writing in invented scripts](docs/guides/writing-in-invented-scripts.md).
+Parallel verse sets `cols=N`, then prefixes each reading with its column
+number; blank lines divide logical rows.
+
 ## Working on this repository
 
 Run `npm ci` in each fresh clone or worktree. Its `prepare` step installs the

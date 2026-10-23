@@ -8,7 +8,7 @@
 /**
  * **The script a language is written in.** A language note's
  * `data.writtenIn` names a map and a face; a run marked with the language
- * alone takes them, an explicit `map=` or `font=` overrides its half, and a
+ * and `.nativefont` takes them, an explicit `map=` or `font=` overrides its half, and a
  * default that names nothing is the note's finding and fills no run.
  */
 
@@ -168,9 +168,9 @@ describe("what a run takes from its language", () => {
     });
 });
 
-describe("a run marked with the language alone", () => {
+describe("a run explicitly opting into its language's native presentation", () => {
     it("is a span mapped and set in the language's face", () => {
-        expect(run("Cut as [ka]{lang=prv}.")).toEqual({
+        expect(run("Cut as [ka]{lang=prv .nativefont}.")).toEqual({
             run: expect.objectContaining({
                 kind: "span",
                 lang: "prv",
@@ -180,31 +180,31 @@ describe("a run marked with the language alone", () => {
             }),
             errors: [],
         });
-        expect(renderRuns("Cut as [ka]{lang=prv}.", ctx).markdown).toBe(
+        expect(renderRuns("Cut as [ka]{lang=prv .nativefont}.", ctx).markdown).toBe(
             `Cut as [${KA}]{lang=art-x-prv .script .hl-semaron-kuriale}.`,
         );
     });
 
     it("is a div whose paragraphs are mapped and set in the face", () => {
-        expect(run("::: {lang=prv}\nka\n:::\n").run).toMatchObject({
+        expect(run("::: {lang=prv .nativefont}\nka\n:::\n").run).toMatchObject({
             kind: "block",
             map: "semaron",
             font: "semaron-kuriale",
         });
-        expect(renderRuns("::: {lang=prv}\nka\n:::\n", ctx).markdown).toBe(
+        expect(renderRuns("::: {lang=prv .nativefont}\nka\n:::\n", ctx).markdown).toBe(
             `::: {lang=art-x-prv .script .script-block .hl-semaron-kuriale}\n${KA}\n:::\n`,
         );
     });
 
     it("is a scroll fence set in the language's face, with no finding", () => {
-        expect(run("```scroll {rows=3 lang=tsu}\nchen\n```\n")).toEqual({
+        expect(run("```scroll {rows=3 lang=tsu .nativefont}\nchen\n```\n")).toEqual({
             run: expect.objectContaining({ kind: "scroll", map: "tengchou", font: "teng-chou" }),
             errors: [],
         });
     });
 
     it("is a scroll fence refused at its lang= where the language's script is written in lines", () => {
-        expect(run("```scroll {rows=3 lang=prv}\nka\n```\n").errors).toEqual([
+        expect(run("```scroll {rows=3 lang=prv .nativefont}\nka\n```\n").errors).toEqual([
             {
                 line: 1,
                 column: 24,
@@ -217,42 +217,49 @@ describe("a run marked with the language alone", () => {
     });
 
     it("is held to its language's words, as an explicitly mapped run is", () => {
-        expect(run("[kaa]{lang=prv}").errors.map((error) => error.message)).toEqual([
+        expect(run("[kaa]{lang=prv .nativefont}").errors.map((error) => error.message)).toEqual([
             expect.stringContaining("`kaa`"),
         ]);
     });
 });
 
 describe("a run that states its own map or face", () => {
-    it("is set in the face it names, unmapped where the language's map is not drawn in it", () => {
+    it("keeps an explicit generic font choice Roman without native opt-in", () => {
         expect(run("[ka]{lang=prv font=mono}").run).toMatchObject({ font: "mono", map: undefined });
     });
 
     it("takes the language's map where that map is drawn in the face it names", () => {
-        expect(run("[ka]{lang=prv font=semaron-kuriale}").run).toMatchObject({
+        expect(run("[ka]{lang=prv font=semaron-kuriale .nativefont}").run).toMatchObject({
             font: "semaron-kuriale",
             map: "semaron",
         });
     });
 
     it("takes the language's face where the map it names is drawn in it", () => {
-        expect(run("[ka]{lang=prv map=other}").run).toMatchObject({
+        expect(run("[ka]{lang=prv map=other .nativefont}").run).toMatchObject({
             map: "other",
             font: "semaron-kuriale",
         });
-        expect(run("[ka]{lang=prv map=thuravark}").run).toMatchObject({
+        expect(run("[ka]{lang=prv map=thuravark .nativefont}").run).toMatchObject({
             map: "thuravark",
-            font: undefined,
+            font: "semaron-kuriale",
         });
     });
 
     it("takes nothing from the language of a div around it when it names its own", () => {
-        const { runs } = scanRuns("::: {lang=prv}\nka [ka]{lang=vyl}\n:::\n", ctx);
+        const { runs } = scanRuns("::: {lang=prv .nativefont}\nka [ka]{lang=vyl}\n:::\n", ctx);
         expect(runs.find((one) => one.kind === "span")).toMatchObject({
             lang: "vyl",
             map: undefined,
-            font: undefined,
+            font: "serif",
         });
+    });
+});
+
+describe("language identification without native presentation", () => {
+    it("retains Roman spelling and the surrounding font even with configured native defaults", () => {
+        expect(run("[ka]{lang=prv}").run).toMatchObject({ map: undefined, font: undefined });
+        expect(renderRuns("[ka]{lang=prv}", ctx).markdown).toBe("[ka]{lang=art-x-prv}");
     });
 });
 
@@ -299,6 +306,7 @@ describe("the recorded runs", () => {
                     kind: "span",
                     lang: "prv",
                     tag: "art-x-prv",
+                    nativefont: true,
                     font: null,
                     map: null,
                     line: 1,

@@ -6,4 +6,4 @@ name:
     full: The Worded Note
 ---
 
-The vow is cut as [thirun _sorima_]{lang=tar font=semaron-kuriale map=vyl-semaron} on the lintel.
+The vow is cut as [thirun _sorima_]{lang=tar font=semaron-kuriale map=vyl-semaron .nativefont} on the lintel.

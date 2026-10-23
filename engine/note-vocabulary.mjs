@@ -2209,9 +2209,9 @@ export const NOTE_VOCABULARY = Object.freeze({
                     },
                 ]),
                 describe:
-                    "The script the language is written in, as the map and the face a run marked " +
-                    "with its name alone takes; a run's own `map=` or `font=` overrides it. Only a " +
-                    "skill of `subType: language` states it.",
+                    "The script the language is written in, as the default map and face selected " +
+                    "by a run with explicit `lang=` and `.nativefont`; a run's own `map=` or " +
+                    "`font=` overrides its half. Only a skill of `subType: language` states it.",
             },
             {
                 name: "script",
@@ -2451,8 +2451,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                     },
                 ]),
                 describe:
-                    "A mapping, which text marked `map=` with its `name` is rewritten by " +
-                    "before it is set. See " +
+                    "A mapping, which native text marked with `lang=`, `.nativefont` and its " +
+                    "`map=` name is rewritten by before it is set. See " +
                     "[mapping notes](format-details.md#mapping-notes).",
             },
             {

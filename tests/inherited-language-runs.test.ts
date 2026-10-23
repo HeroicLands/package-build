@@ -96,7 +96,7 @@ const context = (child = daughter, ancestors = [parent, grandparent]) =>
         },
         [child, ...ancestors, map],
     );
-const marked = (form: string) => `[${form}]{lang=child map=m font=semaron-kuriale}`;
+const marked = (form: string) => `[${form}]{lang=child map=m font=semaron-kuriale .nativefont}`;
 
 describe("inherited words in mapped language runs", () => {
     for (const target of ["web", "foundry"] as const) {
@@ -132,7 +132,9 @@ describe("inherited words in mapped language runs", () => {
                     }),
                 );
                 expect(
-                    createRenderer(target).render(`[${form}]{lang=child}`, { runs: automatic }),
+                    createRenderer(target).render(`[${form}]{lang=child .nativefont}`, {
+                        runs: automatic,
+                    }),
                 ).toContain(`>${native}</span>`);
             }
         });

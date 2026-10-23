@@ -67,7 +67,7 @@ function tree(contentPackage = "demo") {
         [
             "The colour is [colour]{lang=en-GB}, and the motto [Ad Astra]{lang=La}.",
             "",
-            "::: {lang=vyl font=Semaron-Kuriale}",
+            "::: {lang=vyl font=Semaron-Kuriale .nativefont}",
             "Zaron tholmeza.",
             ":::",
         ].join("\n"),
@@ -78,7 +78,7 @@ function tree(contentPackage = "demo") {
         [
             "The colour is [colour]{lang=en-gb}, and the motto [ad astra]{lang=la}.",
             "",
-            "```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}",
+            "```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}",
             "Zaron tholmeza.",
             "```",
         ].join("\n"),
@@ -183,6 +183,69 @@ function rows(contentPackage: string, audience = "all") {
 
 const ORDER = 'ORDER BY owner, line, "column"';
 
+describe("native presentation metadata", () => {
+    it("keeps Roman defaults absent and native defaults identical in the raw index and SQL", async () => {
+        const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "native-runs-index-")));
+        roots.push(root);
+        const content = path.join(root, "content");
+        write(
+            path.join(content, "Vylari.md"),
+            {
+                type: "skill",
+                subType: "language",
+                shortcode: "vylari",
+                data: { writtenIn: { map: "semaron", font: "semaron-kuriale" } },
+            },
+            "The language.",
+        );
+        write(
+            path.join(content, "Semaron.md"),
+            {
+                type: "doc",
+                shortcode: "semaron",
+                data: { map: { name: "semaron", fonts: [{ font: "semaron-kuriale" }], rows: [] } },
+            },
+            "The mapping.",
+        );
+        write(
+            path.join(content, "Presentation.md"),
+            {
+                type: "lore",
+                shortcode: "presentation",
+            },
+            "[ka]{lang=vyl}\n[ka]{lang=vyl .nativefont}\n[ka]{lang=vyl .nativefont font=qalezu-hand map=other}",
+        );
+        const records = collectContentIndex(content, {
+            contentPackage: "demo",
+            skipDirectories: [],
+            languages: { vyl: { tag: "art-x-vyl", note: "skill-vylari" } },
+        });
+        const runs = records.find((record) => record.shortcode === "presentation")!.runs;
+        expect(runs).toMatchObject([
+            { lang: "vyl", font: null, map: null },
+            { lang: "vyl", font: "semaron-kuriale", map: "semaron", nativefont: true },
+            { lang: "vyl", font: "qalezu-hand", map: "other", nativefont: true },
+        ]);
+        expect(runs[0]).not.toHaveProperty("nativefont");
+        const db = await openNotesDatabase(records);
+        try {
+            expect(
+                (
+                    await db.query(
+                        `SELECT lang, font, "map" FROM runs WHERE owner = 'demo-note-lore-presentation' ORDER BY line`,
+                    )
+                ).rows,
+            ).toEqual([
+                { lang: "vyl", font: null, map: null },
+                { lang: "vyl", font: "semaron-kuriale", map: "semaron" },
+                { lang: "vyl", font: "qalezu-hand", map: "other" },
+            ]);
+        } finally {
+            await db.close();
+        }
+    });
+});
+
 describe("the runs relation", () => {
     it("records each note's runs, at their file positions, as a derived key", () => {
         const records = tree();
@@ -204,6 +267,7 @@ describe("the runs relation", () => {
                 tag: "art-x-vyl",
                 font: "Semaron-Kuriale",
                 map: null,
+                nativefont: true,
                 line: 11,
                 column: 1,
             },
@@ -245,7 +309,7 @@ describe("the runs relation", () => {
                 (row: any) => row.column_name === "runs",
             ).column_type;
             expect(runsType).toBe(
-                'STRUCT("column" BIGINT, font VARCHAR, kind VARCHAR, lang VARCHAR, line BIGINT, "map" VARCHAR, tag VARCHAR)[]',
+                'STRUCT("column" BIGINT, font VARCHAR, kind VARCHAR, lang VARCHAR, line BIGINT, "map" VARCHAR, tag VARCHAR, nativefont BOOLEAN)[]',
             );
             expect(
                 (

@@ -505,7 +505,7 @@ the font registry.
 
 ### Fonts for marked text
 
-Text marked with `font=` and one of the faces of `@heroiclands/fonts` is set in
+Native text marked with `lang=` and `.nativefont` in one of the faces of `@heroiclands/fonts` is set in
 that face once the package installs the fonts package in `devDependencies`.
 The build then adds the fonts package's `fonts/` directory, which holds the
 TrueType files, to the compiler's font search path after the shipped faces and

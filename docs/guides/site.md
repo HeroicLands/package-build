@@ -270,12 +270,12 @@ part of the site.
 
 ## Show marked text in its font
 
-A site shows text marked with `font=` and one of the faces of
+A site shows native text marked with `lang=` and `.nativefont` in one of the faces of
 `@heroiclands/fonts` in that face once the package installs the fonts package
 in `devDependencies`, as the
 [authoring guide](../authoring/links-and-markup.md#marking-language-font-and-mapping)
 describes. Nothing else is configured: the build reads which faces the notes use
-from their `font=` keys.
+from explicit `font=` overrides or opted-in language defaults.
 
 `package-build site build` copies the font stylesheet, the WOFF2 files and the
 licence to a path that names the fonts package's version,

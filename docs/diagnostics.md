@@ -256,45 +256,34 @@ resolves it. The rules are under
 
 ## A worked case: a verse in columns
 
-A [verse in columns](authoring/links-and-markup.md#verse-in-columns) is
-checked line by line, and every finding sits on the text that makes it wrong.
-Each is an error, from `package-build lint` and from every build that sets the
-page.
+A [verse in columns](authoring/links-and-markup.md#verse-in-columns) has a
+positive whole-number `cols` value. Invalid counts are located at their
+value. With multiple columns, every content line needs a numeric prefix and
+one or more spaces. Missing prefixes point to the line's first content
+character; out-of-range or decreasing numbers point to the authored number.
 
-A verse line that leaves out a language its columns name is located at the
-group's first line, and names the column that asks for it. A language given
-twice is located at the second span, and one no column sets at its span:
+This row has a decreasing column number on its third content line:
 
-```text
-assets/content/Lore/Walking_of_the_Line.md:14:1: error: this verse line has no `en` line, which `col2=` sets
-assets/content/Lore/Walking_of_the_Line.md:18:1: error: this verse line gives `en` twice; give each language once
-assets/content/Lore/Walking_of_the_Line.md:22:1: error: no column sets `khel`; a verse line gives the languages `col1=` and `col2=` name
+````markdown
+```verse {cols=3 lang=en}
+1 The first reading.
+3 A later column.
+2 Out of order within this row.
 ```
+````
 
-A finding about the columns themselves is located in the opening line, at the
-key or at the entry. A third column is located at its key; a malformed entry
-at the entry; an unknown mapping or font at that part of its entry, with the
-nearest name the package knows:
+The finding points to `2`. A blank line before it would start another row,
+where the column order begins again. A number above three or below one is
+out of bounds. Skipping a column is valid and leaves an empty cell; repeating
+a number is valid and adds another reading to that column. The first reading
+in every column is foreground and its later readings are grey.
 
-```text
-assets/content/Lore/Walking_of_the_Line.md:9:85: error: `col3=` is not a column: a verse has at most two, `col1=` and `col2=`
-assets/content/Lore/Walking_of_the_Line.md:9:81: error: `vyl/a/b/c` in `col2=` is not an entry: an entry is `language[/mapping[/font]]`
-assets/content/Lore/Walking_of_the_Line.md:9:45: error: `vyl-semron` is not a map: `map=` names the `data.map.name` of a mapping note; did you mean `vyl-semaron`?
-```
-
-The text an entry sets is checked as a span with that entry's keys, and its
-findings sit on the character of the verse line they come from. A character
-the face does not draw, after the mapping, is located at the character as the
-note wrote it:
-
-```text
-assets/content/Lore/Walking_of_the_Line.md:19:8: error: `7` (U+0037) is not drawn by the font `semaron-kuriale`, and the map `vyl-semaron` has no row for it
-```
-
-A key that names nothing is the one finding: a line set through an unknown
-mapping or font is not then checked against a face or a lexicon it cannot
-reach. A verse in columns with any finding is set as its lines are written,
-and the build fails on the error.
+Language and native-font findings retain their authored locations inside a
+reading, including the column prefix and indentation before it. An unknown
+mapping or face points to that run's attribute; an unknown word or a character
+the face cannot draw points to the original word or character. A language-only
+Roman repeat is checked in its own language, independently of a native run.
+The build reports invalid input rather than publishing an inferred layout.
 
 ## Emphasis in non-English spans
 
@@ -313,6 +302,27 @@ a span in non-English language `vyl` holds no bold or italic markup
 For example, `[a *word*]{lang=vyl}` locates the finding at the `*` that opens
 the emphasis. A font does not make the markup valid; the language rule applies
 to the span whether its text uses a script face or ordinary type.
+
+## Native presentation is explicit
+
+A language-only run keeps its authored spelling and prose font. Native
+presentation requires `.nativefont` and an explicit `lang=` on that same
+span, div, verse fence or scroll fence. An inherited language does not satisfy
+this requirement. Findings point to the authored class or override:
+
+```text
+`.nativefont` requires an explicit `lang=` on the same construct
+native `font=semaron-kuriale` requires `.nativefont` and an explicit `lang=` on the same construct
+`map=semaron` requires `.nativefont` and an explicit `lang=` on the same construct
+`.nativefont` has no default `font=` for `vyl`; state `font=` explicitly
+```
+
+A missing font needs an explicit `font=` or a language font default. Mapping is
+optional when the language supplies none; configured maps still apply to
+native runs unless explicitly overridden. `font=serif`, `sans` and `mono`
+remain independent Roman choices. Each authored reading makes its own presentation choice in parallel verse,
+for example `1 [Zaron]{lang=vyl .nativefont}` and
+`3 [Zaron]{lang=vyl}` inside a `cols=3` poem. The Roman repeat stays Roman.
 
 ## Summary counts and prose are not findings
 

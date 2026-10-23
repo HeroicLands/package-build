@@ -29,9 +29,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
+import YAML from "yaml";
+import { createRenderer } from "../engine/content-render.mjs";
+import { markdownToTypst } from "../engine/pdf-render.mjs";
 
-import { COLUMN_KEYS, VERSE_KEYS } from "../engine/content-verse.mjs";
-import { GENERIC_FONTS, RUN_KEYS } from "../engine/content-scripts.mjs";
+import { VERSE_KEYS } from "../engine/content-verse.mjs";
+import { GENERIC_FONTS, RUN_KEYS, runContext, scanRuns } from "../engine/content-scripts.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 
@@ -151,9 +154,9 @@ describe("the guide names its whole subject", () => {
         expect(missing).toEqual([]);
     });
 
-    it("names every markup key a run, a verse fence and a column takes", () => {
+    it("names every markup key a run and a verse fence take", () => {
         // `scan` names the declared metre; the keys below it are not part of the guide's subject.
-        const keys = [...new Set([...RUN_KEYS, ...VERSE_KEYS, ...COLUMN_KEYS, "scan"])].filter(
+        const keys = [...new Set([...RUN_KEYS, ...VERSE_KEYS, "scan"])].filter(
             (key) =>
                 !["dir", "data-pagefind-ignore", "meter", "metre", "rhyme", "syllables"].includes(
                     key,
@@ -350,6 +353,48 @@ function lintProject(files: Map<string, string>): { status: number | null; lines
 
 describe("the worked example runs", () => {
     const blocks = labelled();
+
+    it("renders the guide's sparse three-column example with native and Roman readings", () => {
+        const files = new Map(blocks.map((block) => [block.file, block.text]));
+        const walking = files.get("assets/content/Lore/Walking.md")!;
+        expect(walking).toMatch(/```verse \{[^\n]*cols=3/);
+        const poem = /```verse \{[^\n]*cols=3[^\n]*\}\n[\s\S]*?\n```/.exec(walking)![0];
+        const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "guide-verse-grid-")));
+        made.push(root);
+        fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "demo" }));
+        fs.cpSync(FIXTURE_FONTS, path.join(root, "node_modules", "@heroiclands", "fonts"), {
+            recursive: true,
+        });
+        const config = YAML.parse(files.get("package-build.config.yaml")!);
+        const records = [...files].flatMap(([file, text]) => {
+            if (!file.startsWith("assets/content/") || !file.endsWith(".md")) return [];
+            const frontmatter = /^---\n([\s\S]*?)\n---/.exec(text);
+            if (!frontmatter) return [];
+            const record = YAML.parse(frontmatter[1]);
+            return [
+                {
+                    ...record,
+                    address: { canonical: `demo-note-${record.type}-${record.shortcode}` },
+                },
+            ];
+        });
+        const runs = runContext({ ...config, rootDir: root }, records);
+        expect(scanRuns(poem, runs).errors).toEqual([]);
+        for (const target of ["web", "foundry"] as const) {
+            const html = createRenderer(target).render(poem, { runs });
+            expect(html.match(/class="verse-row"/g)).toHaveLength(3);
+            expect(html.match(/class="verse-column"/g)).toHaveLength(9);
+            expect(html.match(/verse-secondary/g)).toHaveLength(3);
+            expect(html).toContain('<span class="verse-column"></span>');
+            expect(html).toContain('class="script hl-semaron-kuriale"');
+            expect(html).toContain('<span lang="art-x-vyl">Lokazor lonak zaron.</span>');
+            expect(html).not.toContain(">1 [");
+        }
+        const book = markdownToTypst(poem, { runs });
+        expect(book).toContain("#grid(columns: (2.5em, 1fr, 1fr, 1fr)");
+        expect(book).toContain("Lokazor lonak zaron.");
+        expect(book).toContain('"hl-semaron-kuriale"');
+    });
 
     it("labels the files of a package", () => {
         const names = blocks.map((block) => block.file);

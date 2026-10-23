@@ -124,7 +124,10 @@ describe("a mapped run's words take the pattern's forms", () => {
     );
 
     it("passes `lokazor` and locates `lokathenzor`", () => {
-        const errors = scanRuns("[lokazor lokathen lokathenzor]{lang=vyl map=m}", ctx).errors;
+        const errors = scanRuns(
+            "[lokazor lokathen lokathenzor]{lang=vyl map=m font=serif .nativefont}",
+            ctx,
+        ).errors;
         expect(errors.map((error: any) => `${error.line}:${error.column}`)).toEqual(["1:19"]);
         expect(errors[0].message).toContain("`lokathenzor`");
     });

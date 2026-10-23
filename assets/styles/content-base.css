@@ -217,6 +217,8 @@
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
+    direction: ltr;
+    grid-template-columns: repeat(var(--verse-columns, 2), minmax(0, 1fr));
     column-gap: 1.5rem;
     margin-bottom: 0.5em;
 }
@@ -224,7 +226,7 @@
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
     .verse-numbered.verse-columns
     .verse-row {
-    grid-template-columns: 2.5em;
+    grid-template-columns: 2.5em repeat(var(--verse-columns, 2), minmax(0, 1fr));
 }
 
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
@@ -252,6 +254,13 @@
     .verse-columns
     .verse-secondary {
     color: color-mix(in srgb, currentColor 60%, transparent);
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-columns
+    .verse-secondary
+    * {
+    color: inherit;
 }
 
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)

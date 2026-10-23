@@ -149,35 +149,35 @@ const built = (source: string) => {
 
 describe("a mapped run with a language", () => {
     it("writes an exception by the lexicon and every other word by the rows", () => {
-        expect(built("[zaron lonak]{lang=vyl font=f map=m}")).toBe(
+        expect(built("[zaron lonak]{lang=vyl font=f map=m .nativefont}")).toBe(
             `${ZARON_NATIVE} ${rowsOf("lonak")}`,
         );
     });
 
     it("spells a derived form by the rows", () => {
-        expect(built("[zarons]{lang=vyl font=f map=m}")).toBe(rowsOf("zaron") + "s");
+        expect(built("[zarons]{lang=vyl font=f map=m .nativefont}")).toBe(rowsOf("zaron") + "s");
     });
 
     it("takes a native form stated for the run's font over the shared one, and only in that font", () => {
-        expect(built("[karalzon]{lang=vyl font=g map=m}")).toBe(KARALZON_G);
-        expect(built("[karalzon]{lang=vyl font=f map=m}")).toBe(rowsOf("karalzon"));
+        expect(built("[karalzon]{lang=vyl font=g map=m .nativefont}")).toBe(KARALZON_G);
+        expect(built("[karalzon]{lang=vyl font=f map=m .nativefont}")).toBe(rowsOf("karalzon"));
     });
 
     it("tries the font's own rows before the shared rows", () => {
-        expect(built("[lonak]{lang=vyl font=g map=m}")).toBe(
+        expect(built("[lonak]{lang=vyl font=g map=m .nativefont}")).toBe(
             `${P("l")}\u{F0224}${P("n")}${P("a")}${P("k")}`,
         );
     });
 
     it("capitalises an exception by mapping its capital through the rows", () => {
-        expect(built("[Zaron lonak]{lang=vyl font=f map=m}")).toBe(
+        expect(built("[Zaron lonak]{lang=vyl font=f map=m .nativefont}")).toBe(
             `${CAP("z")}\u{F02F0}${P("n")} ${rowsOf("lonak")}`,
         );
     });
 
     it("refuses a capitalised exception the rows cannot capitalise, at the word", () => {
         expect(
-            scanRuns("Said [lonak Orlan]{lang=vyl font=f map=m}.", ctx).errors.map(
+            scanRuns("Said [lonak Orlan]{lang=vyl font=f map=m .nativefont}.", ctx).errors.map(
                 (error: { line: number; column: number; message: string }) =>
                     `${error.line}:${error.column}: ${error.message}`,
             ),
@@ -213,28 +213,32 @@ describe("a mapped run with a language", () => {
             ]),
             faces: new Map([["f", face("f", ALL + ZARON_NATIVE + ORLAN_NATIVE + "\u{F02F3}")]]),
         };
-        expect(scanRuns("[Orlan]{lang=vyl font=f map=m}", stated).errors).toEqual([]);
+        expect(scanRuns("[Orlan]{lang=vyl font=f map=m .nativefont}", stated).errors).toEqual([]);
         expect(transliterate(stated, { map: "m", lang: "vyl", font: "f" }, "Orlan")).toEqual({
             text: "\u{F02F3}",
         });
     });
 
     it("finds an exception written exactly before trying it in lowercase", () => {
-        expect(built("[ZARON]{lang=vyl font=f map=m}")).toBe(`${CAP("z")}\u{F02F0}${P("n")}`);
+        expect(built("[ZARON]{lang=vyl font=f map=m .nativefont}")).toBe(
+            `${CAP("z")}\u{F02F0}${P("n")}`,
+        );
     });
 
     it("spells every word by the rows with `map=` and no `lang=`", () => {
-        expect(built("[zaron lonak]{font=f map=m}")).toBe(`${rowsOf("zaron")} ${rowsOf("lonak")}`);
+        expect(built("[zaron lonak]{font=f map=m lang=und .nativefont}")).toBe(
+            `${rowsOf("zaron")} ${rowsOf("lonak")}`,
+        );
     });
 
     it("spells every word by the rows for a language with no `note`", () => {
-        expect(built("[zaron]{lang=khel font=f map=m}")).toBe(rowsOf("zaron"));
+        expect(built("[zaron]{lang=khel font=f map=m .nativefont}")).toBe(rowsOf("zaron"));
     });
 
     it("locates a character the face lacks inside an exception at the word's start", () => {
         const narrow = { ...ctx, faces: new Map([["f", face("f", ALL)]]) };
         expect(
-            scanRuns("Said [lonak zaron]{lang=vyl font=f map=m}.", narrow).errors.map(
+            scanRuns("Said [lonak zaron]{lang=vyl font=f map=m .nativefont}.", narrow).errors.map(
                 (error: { line: number; column: number; message: string }) =>
                     `${error.line}:${error.column}: ${error.message}`,
             ),
@@ -269,7 +273,7 @@ describe("a mapped run with a language", () => {
             text: "\u{F0200}\u{F02F3}",
         });
         expect(
-            scanRuns("Said [lonak orlan]{lang=vyl font=f map=m}.", plane15).errors.map(
+            scanRuns("Said [lonak orlan]{lang=vyl font=f map=m .nativefont}.", plane15).errors.map(
                 (error: { line: number; column: number; message: string }) =>
                     `${error.line}:${error.column}: ${error.message}`,
             ),
@@ -281,7 +285,7 @@ describe("a mapped run with a language", () => {
     it("refuses a font the map is not for, at the run's `map=`", () => {
         const wide = { ...ctx, faces: new Map([...ctx.faces, ["h", face("h", ALL)]]) };
         expect(
-            scanRuns("Said [lonak]{lang=vyl font=h map=m}.", wide).errors.map(
+            scanRuns("Said [lonak]{lang=vyl font=h map=m .nativefont}.", wide).errors.map(
                 (error: { line: number; column: number; message: string }) =>
                     `${error.line}:${error.column}: ${error.message}`,
             ),
@@ -292,13 +296,15 @@ describe("a mapped run with a language", () => {
 describe("transliterate and the lexicon share the build's path", () => {
     it("gives the native text a build of the same run gives", () => {
         for (const font of ["f", "g"]) {
-            const source = `[Zaron karalzon lonak, orlan]{lang=vyl font=${font} map=m}`;
+            const source = `[Zaron karalzon lonak, orlan]{lang=vyl font=${font} map=m .nativefont}`;
             expect(
                 transliterate(ctx, { map: "m", lang: "vyl", font }, "Zaron karalzon lonak, orlan"),
             ).toEqual({ text: built(source) });
             const listed = lexiconEntries(ctx, { lang: "vyl", map: "m", font });
             expect("entries" in listed && listed.entries.map((entry: any) => entry.native)).toEqual(
-                WORDS.map((word) => built(`[${word.form}]{lang=vyl font=${font} map=m}`)),
+                WORDS.map((word) =>
+                    built(`[${word.form}]{lang=vyl font=${font} map=m .nativefont}`),
+                ),
             );
         }
     });

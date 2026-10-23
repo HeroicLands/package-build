@@ -92,18 +92,7 @@
 import MarkdownIt from "markdown-it";
 
 import { scanBlocks, BLOCK_CONTAINERS } from "./content-blocks.mjs";
-import {
-    COLUMN_KEYS,
-    COLUMNS_CLASS,
-    expandVerse,
-    expandVerseOrigins,
-    scanVerse,
-    sourcePosition,
-    hasColumns,
-    verseColumns,
-    STANZA_BREAK,
-    verseLine,
-} from "./content-verse.mjs";
+import { scanVerse, hasColumns, verseLine, verseGroups } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { scanScrolls, scrollParagraphs } from "./content-scroll.mjs";
 import { directionsFromRecords } from "./script-direction.mjs";
@@ -123,10 +112,16 @@ import {
 import { unknownWordMessage, unknownWords, wordBooksFromRecords } from "./run-words.mjs";
 import { metreBooksFromRecords, metreFindings, metresFromRecords } from "./verse-metre.mjs";
 import { applyMap, mapsFromRecords } from "./text-maps.mjs";
-import { fromWrittenIn, writtenInOf } from "./written-in.mjs";
+import { writtenInOf } from "./written-in.mjs";
+import { WIKILINK, parseWikilink } from "./wikilink-syntax.mjs";
+import { matchAllOutsideCode } from "./code-fences.mjs";
+import { parseExtensionAttributes } from "./extension-attributes.mjs";
 
 /** The keys this module reads, which no construct passes through as written. */
 export const RUN_KEYS = Object.freeze(["lang", "font", "map"]);
+
+/** Explicit opt-in to native-script presentation on this construct. */
+export const NATIVEFONT_CLASS = "nativefont";
 
 /** The generic families `font=` may name, each with the class that sets it. */
 export const GENERIC_FONTS = Object.freeze({
@@ -178,9 +173,9 @@ const CONFIG = "package-build.config.yaml";
 /**
  * One span, div, verse fence or scroll fence carrying `lang=`, `font=` or
  * `map=`. Its `lang`, `font` and `map` are the ones it is set with: its own,
- * else the innermost div or fence around it that states one, else its
- * language's script. A scroll fence that still names no face takes the face of
- * its map where the map is drawn in one.
+ * else inherited language or an ordinary prose family. Native map/face
+ * defaults are selected only by this construct's explicit `.nativefont`
+ * opt-in; marked children make their own presentation choice.
  *
  * @typedef {object} Run
  * @property {"span"|"block"|"verse"|"scroll"} kind - Which construct.
@@ -195,6 +190,8 @@ const CONFIG = "package-build.config.yaml";
  *   0-based opening line.
  * @property {number} end - A span's offset past its attributes; a div's or
  *   fence's 0-based closing line.
+ * @property {boolean} [nativefont] - True only for an explicit native opt-in
+ *   with its own language; retained by index records for deferred defaults.
  */
 
 /** @type {WeakMap<object, RunContext>} */
@@ -879,6 +876,24 @@ function analyseRuns(source, ctx, syntax) {
     const runKeys = (values) =>
         Object.fromEntries(Object.entries(values).filter(([key]) => RUN_KEYS.includes(key)));
 
+    const nativeAt = (construct) => {
+        const opening = lines[construct.line0];
+        const from =
+            construct.kind === "span" ?
+                construct.node.contentEnd + 2
+            :   starts[construct.line0] + opening.indexOf("{") + 1;
+        const end =
+            construct.kind === "span" ?
+                construct.where.end
+            :   starts[construct.line0] + opening.lastIndexOf("}") + 1;
+        const to = text[end - 1] === "}" ? end - 1 : end;
+        // Attribute tokens keep quoted values intact, so a class-looking value
+        // or longer class cannot steal the opt-in's diagnostic location.
+        for (const token of text.slice(from, to).matchAll(/(?:[^\s"\\]|\\.|"(?:\\.|[^"\\])*")+/g))
+            if (token[0] === ".nativefont") return positionOf(starts, from + token.index);
+        return construct.where;
+    };
+
     // Every construct that states a run key, with where it sits.
     const constructs = [];
     const spans = (syntax ? syntax(text).spans : scanSpans(text)).spans;
@@ -917,6 +932,15 @@ function analyseRuns(source, ctx, syntax) {
             });
             const keys = runKeys(block.attributes);
             if (block.name !== "div") {
+                if (block.classes?.includes(NATIVEFONT_CLASS))
+                    report(
+                        nativeAt({
+                            kind: "block",
+                            line0: first,
+                            where: { line: first + 1, column: 1 },
+                        }),
+                        `\`.nativefont\` is read on a span, a div, a verse fence or a scroll fence, not on a ${block.name} block`,
+                    );
                 for (const key of Object.keys(keys))
                     report(
                         at(key, "key"),
@@ -924,7 +948,7 @@ function analyseRuns(source, ctx, syntax) {
                     );
             } else {
                 divs.set(first, block);
-                if (Object.keys(keys).length)
+                if (Object.keys(keys).length || block.classes?.includes(NATIVEFONT_CLASS))
                     constructs.push({
                         kind: "block",
                         keys,
@@ -954,25 +978,10 @@ function analyseRuns(source, ctx, syntax) {
     collect(0, text);
 
     const poems = new Map();
-    const romanColumnLines = new Set();
     for (const poem of scanVerse(text).blocks) {
         poems.set(poem.start, poem);
-        // Expansion writes one span per display entry. An entry with no map
-        // keeps the source spelling and page font, even when its language
-        // normally selects a script. The fence itself holds only structure.
-        if (poem.classes.includes(COLUMNS_CLASS)) {
-            const entries = verseColumns(poem, lines[poem.start]).flatMap(
-                (column) => column.entries,
-            );
-            let entry = 0;
-            for (let line = poem.start + 1; line < poem.end; line++) {
-                if (!lines[line].trim() || STANZA_BREAK.test(lines[line].trim())) continue;
-                if (entries[entry++ % entries.length]?.map === undefined)
-                    romanColumnLines.add(line);
-            }
-        }
         const keys = runKeys(poem.attributes);
-        if (!Object.keys(keys).length) continue;
+        if (!Object.keys(keys).length && !poem.classes.includes(NATIVEFONT_CLASS)) continue;
         const opening = lines[poem.start];
         constructs.push({
             kind: "verse",
@@ -1051,6 +1060,7 @@ function analyseRuns(source, ctx, syntax) {
     const active = constructs.filter(
         (construct) =>
             construct.kind === "scroll" ||
+            construct.own.classes.includes(NATIVEFONT_CLASS) ||
             Object.keys(construct.keys).length ||
             around(construct).some((container) => Object.keys(container.keys).length),
     );
@@ -1062,12 +1072,44 @@ function analyseRuns(source, ctx, syntax) {
         : isLanguageTag(lang) ? lang
         : undefined;
 
+    const native = (construct) => construct.own.classes.includes(NATIVEFONT_CLASS);
+
     const faceNames = () => [...faces.keys(), ...Object.keys(GENERIC_FONTS)];
 
     /** Check the keys a construct states itself. */
     const checkOwn = (construct) => {
         const { lang, font, map } = construct.keys;
         const { at } = construct;
+        if (native(construct) && lang === undefined)
+            report(
+                nativeAt(construct),
+                "`.nativefont` requires an explicit `lang=` on the same construct",
+            );
+        if (native(construct) && construct.kind === "verse" && hasColumns(construct.node))
+            report(
+                nativeAt(construct),
+                "a verse with cols>1 opts individual runs into `.nativefont`, not the fence",
+            );
+        if (!native(construct)) {
+            if (construct.kind === "scroll")
+                report(
+                    construct.where,
+                    "a scroll requires `.nativefont` and an explicit `lang=` on the same construct",
+                );
+            else {
+                if (font !== undefined && faces.has(font))
+                    report(
+                        at("font", "value"),
+                        `native \`font=${font}\` requires \`.nativefont\` and an explicit \`lang=\` on the same construct`,
+                    );
+                if (map !== undefined && maps.has(map))
+                    report(
+                        at("map", "value"),
+                        `\`map=${map}\` requires \`.nativefont\` and an explicit \`lang=\` on the same construct`,
+                    );
+            }
+        }
+
         if (lang !== undefined && !Object.hasOwn(languages, lang)) {
             if (isLanguageTag(lang)) {
                 const declared = Object.keys(languages).find((name) => withinOneEdit(lang, name));
@@ -1109,15 +1151,96 @@ function analyseRuns(source, ctx, syntax) {
         }
     };
 
+    const nativeDefaults = (construct, keys) => {
+        const defaults = ctx.writtenIn?.get(keys.lang);
+        for (const key of ["map", "font"])
+            if (keys[key] === undefined && defaults?.[key] !== undefined) keys[key] = defaults[key];
+        if (keys.font === undefined)
+            report(
+                nativeAt(construct),
+                `\`.nativefont\` has no default \`font=\` for \`${keys.lang}\`; state \`font=\` explicitly`,
+            );
+        if (keys.map !== undefined && !maps.has(keys.map))
+            report(
+                nativeAt(construct),
+                `native default \`map=${keys.map}\` is unavailable; state \`map=\` explicitly`,
+            );
+        if (
+            keys.font !== undefined &&
+            !faces.has(keys.font) &&
+            !Object.hasOwn(GENERIC_FONTS, keys.font)
+        )
+            report(
+                nativeAt(construct),
+                `native default \`font=${keys.font}\` is unavailable; state \`font=\` explicitly`,
+            );
+    };
+
+    // Raw wikilinks belong to the resolver, not the span rewriter. Validate
+    // their own control attributes with the same grammar before resolution,
+    // without mapping a destination or consuming the trailing attributes.
+    for (const match of matchAllOutsideCode(text, new RegExp(WIKILINK.source, "g"))) {
+        const parsed = parseWikilink(match[1], match[0]);
+        if (!parsed.attributes) continue;
+        const close = match[0].indexOf("]]") + 1;
+        const from = match.index + close + 2;
+        const attrs = parseExtensionAttributes(match[0].slice(close + 2, -1), { positions: true });
+        const at = positionOf(starts, match.index);
+        const construct = {
+            kind: "span",
+            keys: runKeys(attrs.values),
+            node: { contentEnd: match.index + close },
+            line0: at.line - 1,
+            where: { ...at, start: match.index, end: match.index + match[0].length },
+            own: { classes: attrs.classes },
+            at: (key, part) =>
+                attrs.positions?.[key]?.[part] ?
+                    positionOf(starts, from + attrs.positions[key][part].start)
+                :   at,
+        };
+        const unchecked = errors.length;
+        checkOwn(construct);
+        if (errors.length !== unchecked || !native(construct)) continue;
+        const keys = { ...construct.keys };
+        nativeDefaults(construct, keys);
+        if (errors.length !== unchecked || keys.map === undefined || keys.font === undefined)
+            continue;
+        const problem = fontProblem(maps.get(keys.map), keys.font);
+        if (problem)
+            report(
+                construct.at(construct.keys.map !== undefined ? "map" : "font", "value"),
+                problem,
+            );
+    }
+
     const verseMarkers = new Map();
-    for (const poem of scanVerse(text).blocks)
-        for (let line = poem.start + 1; line < poem.end; line++) {
-            const { markerStart, markerLength } = verseLine(lines[line]);
-            if (markerLength) {
-                const from = starts[line] + markerStart;
-                verseMarkers.set(from, from + markerLength);
+    for (const poem of scanVerse(text).blocks) {
+        if (hasColumns(poem)) {
+            for (const group of verseGroups(poem, lines)) {
+                if (group.stanzaBreak) continue;
+                for (const part of group.parts) {
+                    const start = starts[part.line];
+                    if (part.prefixLength)
+                        verseMarkers.set(
+                            start + part.sourceColumn - 1,
+                            start + part.textColumn - 1,
+                        );
+                    if (part.markerLength)
+                        verseMarkers.set(
+                            start + part.markerStart,
+                            start + part.markerStart + part.markerLength,
+                        );
+                }
             }
-        }
+        } else
+            for (let line = poem.start + 1; line < poem.end; line++) {
+                const { markerStart, markerLength } = verseLine(lines[line]);
+                if (markerLength) {
+                    const from = starts[line] + markerStart;
+                    verseMarkers.set(from, from + markerLength);
+                }
+            }
+    }
 
     /** Nested spans and verse markers excluded from a run, by absolute offset. */
     const holesIn = (from, to) =>
@@ -1286,8 +1409,8 @@ function analyseRuns(source, ctx, syntax) {
      * @param {RunDetail} detail - The run.
      */
     const lexical = (parts, detail) => {
-        const { lang, map } = detail.run;
-        if (lang === undefined || map === undefined || !maps.has(map)) return;
+        const { lang } = detail.run;
+        if (lang === undefined) return;
         const book = ctx.wordBooks?.get(lang);
         if (!book) return;
         const said = new Set();
@@ -1314,25 +1437,6 @@ function analyseRuns(source, ctx, syntax) {
      * @param {Record<string, string>} keys - Its run keys, given the face.
      */
     const scrollFace = (construct, keys) => {
-        const textMap = keys.map === undefined ? undefined : maps.get(keys.map);
-        if (keys.font === undefined) {
-            if (textMap && textMap.fonts.size === 1) keys.font = [...textMap.fonts.keys()][0];
-            else if (textMap && textMap.fonts.size > 1) {
-                report(
-                    construct.at("map", "value"),
-                    `the map \`${keys.map}\` is drawn in more than one face; a \`scroll\` fence names its face with \`font=\``,
-                );
-                return;
-            } else if (keys.map === undefined) {
-                report(
-                    construct.where,
-                    "a `scroll` fence names the face it is set in, with `font=`, a map drawn in one " +
-                        "face, with `map=`, or a language whose note names its script in " +
-                        "`data.writtenIn`, with `lang=`",
-                );
-                return;
-            } else return;
-        }
         if (!ctx.directions || !(faces.has(keys.font) || Object.hasOwn(GENERIC_FONTS, keys.font)))
             return;
         if (ctx.directions.get(keys.font) === "vertical-rl") return;
@@ -1354,33 +1458,26 @@ function analyseRuns(source, ctx, syntax) {
         // A key that names nothing is the finding; the text it would have set
         // is not then checked against a face or a language it cannot reach.
         let named = errors.length === unchecked;
+        // Language and ordinary prose-family choices inherit. Native map/face
+        // presentation belongs to this construct alone, including same-language
+        // children, so a parallel Roman run never takes a native neighbour's face.
+        const ancestors = around(construct);
         const keys = {};
-        const ancestors = [...around(construct), construct];
-        const columnEntry =
-            construct.kind === "span" && romanColumnLines.has(construct.line0) ?
-                ancestors.find((current) => current.kind === "span")
-            :   undefined;
-        let columnSource = false;
-        for (const current of ancestors) {
-            // An explicit language switch selects that language's own script.
-            if (
-                current.kind === "span" &&
-                current.keys.lang !== undefined &&
-                keys.lang !== undefined &&
-                tagOf(current.keys.lang)?.toLowerCase() !== tagOf(keys.lang)?.toLowerCase()
-            ) {
-                delete keys.font;
-                delete keys.map;
-                columnSource = false;
-            }
-            Object.assign(keys, current.keys);
-            if (current === columnEntry) columnSource = true;
+        for (const ancestor of ancestors) {
+            if (ancestor.keys.lang !== undefined) keys.lang = ancestor.keys.lang;
+            if (!native(ancestor) && Object.hasOwn(GENERIC_FONTS, ancestor.keys.font ?? ""))
+                keys.font = ancestor.keys.font;
         }
-        // The language's script fills what the run leaves unstated, once its
-        // own keys are known to name something.
+        if (native(construct)) delete keys.font;
+        Object.assign(keys, construct.keys);
         const columnFence = construct.kind === "verse" && hasColumns(construct.node);
-        if (named && !columnSource && !columnFence)
-            Object.assign(keys, fromWrittenIn(keys, ctx.writtenIn, maps));
+        if (named && native(construct) && !columnFence) {
+            nativeDefaults(construct, keys);
+            named = errors.length === unchecked;
+        } else if (!native(construct) && keys.font === undefined && ancestors.some(native)) {
+            // Reset CSS/Typst inheritance from a surrounding native face.
+            keys.font = "serif";
+        }
         if (construct.kind === "scroll" && named) {
             scrollFace(construct, keys);
             named = errors.length === unchecked;
@@ -1388,8 +1485,12 @@ function analyseRuns(source, ctx, syntax) {
         const { lang, font, map } = keys;
         // A face the run's map is not for, once the face and the map are each
         // known, at the construct that states either.
-        const stated = construct.keys.map !== undefined || construct.keys.font !== undefined;
+        const stated =
+            native(construct) ||
+            construct.keys.map !== undefined ||
+            construct.keys.font !== undefined;
         if (
+            named &&
             stated &&
             map !== undefined &&
             maps.has(map) &&
@@ -1409,6 +1510,7 @@ function analyseRuns(source, ctx, syntax) {
             tag: tagOf(lang),
             font,
             map,
+            ...(native(construct) && construct.keys.lang !== undefined ? { nativefont: true } : {}),
             ...construct.where,
         };
         runs.push(run);
@@ -1580,49 +1682,20 @@ function analyseRuns(source, ctx, syntax) {
  */
 export function scanRuns(source, ctx = {}, syntax) {
     const text = String(source ?? "");
-    const { markdown, origins } = expandVerseOrigins(text);
     const authored = analyseRuns(text, ctx, syntax);
     const metre = metreFindings(scanVerse(text).blocks, text.split("\n"), {
         metres: ctx.metres,
         languages: ctx.languages,
         metreBooks: ctx.metreBooks,
         lexicons: ctx.lexicons,
-        columnsClass: COLUMNS_CLASS,
-        columnKeys: COLUMN_KEYS,
         attributeColumns,
     });
-    /** @param {object[]} found @param {object[]} extra */
     const merged = (found, extra) =>
-        extra.length ?
-            [...found, ...extra].sort((a, b) => a.line - b.line || a.column - b.column)
-        :   found;
-    if (markdown === text)
-        return {
-            ...authored,
-            errors: merged(authored.errors, metre.errors),
-            warnings: merged(authored.warnings, metre.warnings),
-        };
-    // A verse in columns is checked as the spans each entry sets, which are
-    // written only in the expansion; every finding is placed back where the
-    // note wrote the text or the entry it comes from, once.
-    const expanded = markdown.split("\n");
-    const checked = analyseRuns(markdown, ctx);
-    const placed = (findings) => {
-        const seen = new Set();
-        return findings
-            .map((finding) => ({ ...finding, ...sourcePosition(finding, expanded, origins) }))
-            .filter((finding) => {
-                const key = `${finding.line}:${finding.column}:${finding.message}`;
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            })
-            .sort((a, b) => a.line - b.line || a.column - b.column);
-    };
+        [...found, ...extra].sort((a, b) => a.line - b.line || a.column - b.column);
     return {
-        runs: authored.runs,
-        errors: merged(placed(checked.errors), metre.errors),
-        warnings: merged(placed(checked.warnings), metre.warnings),
+        ...authored,
+        errors: merged(authored.errors, metre.errors),
+        warnings: merged(authored.warnings, metre.warnings),
     };
 }
 
@@ -1674,12 +1747,13 @@ const SCRIPT_BLOCK_CLASS = "script-block";
 function rewrittenAttributes(detail, search) {
     const { run, own, keys, face, generic, textMap } = detail;
     const changes =
+        own.classes.includes(NATIVEFONT_CLASS) ||
         run.font !== undefined ||
         run.map !== undefined ||
         (run.tag !== undefined &&
             (keys.lang !== run.tag || run.kind === "verse" || run.kind === "scroll"));
     if (!changes) return undefined;
-    const classes = [...own.classes];
+    const classes = own.classes.filter((name) => name !== NATIVEFONT_CLASS);
     const values = [...own.values];
     if (face) {
         classes.push(SCRIPT_CLASS);
@@ -1747,10 +1821,9 @@ function setRange(text, from, to, detail, lineStart, book) {
  * Rewrite text marked with `lang=`, `font=` and `map=` into the plain span,
  * div and verse grammar the rest of each chain renders, one line for one line.
  *
- * - **A verse in columns is expanded first** into one span per column entry
- *   per verse line, by {@link module:engine/content-verse.expandVerse}, so
- *   each entry is mapped and set as a span with its keys is. That is the one
- *   rewrite that changes the number of lines.
+ * - **Numbered verse prefixes and indentation markers** stay outside run text.
+ *   Each authored run chooses its own language and presentation; physical
+ *   lines and source positions remain unchanged.
  * - **The map, if any, is applied first.** Characters Markdown would read are
  *   then backslash-escaped, so they reach every later pass as characters.
  * - **Emphasis in a face** becomes an `<em>` or a `<strong>` carrying its
@@ -1784,12 +1857,11 @@ function setRange(text, from, to, detail, lineStart, book) {
 export function renderRuns(source, ctx = {}, syntax, options = {}) {
     const search = options.target === "site";
     const book = options.target === "book";
-    const authored = String(source ?? "");
-    const text = expandVerse(authored);
-    if (text !== authored) syntax = undefined;
+    const text = String(source ?? "");
     /** @type {Map<string, import("./content-scroll.mjs").ScrollLayout>} */
     const scrolls = new Map();
-    if (!/\b(?:lang|font|map)=/.test(text)) return { markdown: text, errors: [], scrolls };
+    if (!/\b(?:lang|font|map)=|\bnativefont\b/.test(text))
+        return { markdown: text, errors: [], scrolls };
     const { details, errors } = analyseRuns(text, ctx, syntax);
     if (!details.length) return { markdown: text, errors, scrolls };
     const lines = text.split("\n");
@@ -1893,7 +1965,11 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
                 const label = `[${setRange(text, from, to, detail, false, book)}]{${native}}`;
                 const reference =
                     text.slice(run.start + 1, from) + label + text.slice(to, contentEnd);
-                const outer = attributeText({ lang: undefined, ...detail.own });
+                const outer = attributeText({
+                    lang: undefined,
+                    ...detail.own,
+                    classes: detail.own.classes.filter((name) => name !== NATIVEFONT_CLASS),
+                });
                 edits.push({
                     from: run.start,
                     to: run.end,

@@ -150,6 +150,7 @@ beforeAll(() => {
                 ],
             }),
             mapNote("vylsemaron", VYL_SEMARON),
+            mapNote("romanmap", { name: "roman", rows: [["a", "a"]] }),
             mapNote("khelqalezu", KHEL_QALEZU),
             mapNote("vylthuravark", VYL_THURAVARK),
             scriptNote("semaronscrpt", { fonts: ["semaron-kuriale"], emphasis: "rubric" }),
@@ -165,11 +166,12 @@ beforeAll(() => {
 
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
-const SEMARON = "lang=en font=semaron-kuriale map=vyl-semaron";
-const VYLARI = "lang=vyl font=semaron-kuriale map=vyl-semaron";
-const TARVENI = "lang=tar font=semaron-kuriale map=vyl-semaron";
-const QALEZU = "lang=en font=qalezu-hand map=khel-qalezu";
-const THURAVARK = "lang=en font=thuravark-carved map=vyl-thuravark";
+const SEMARON_RUN = "lang=en font=semaron-kuriale map=vyl-semaron";
+const SEMARON = `${SEMARON_RUN} .nativefont`;
+const VYLARI = "lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont";
+const TARVENI = "lang=tar font=semaron-kuriale map=vyl-semaron .nativefont";
+const QALEZU = "lang=en font=qalezu-hand map=khel-qalezu .nativefont";
+const THURAVARK = "lang=en font=thuravark-carved map=vyl-thuravark .nativefont";
 
 const errors = (source: string) =>
     scanRuns(source, ctx).errors.map(
@@ -220,7 +222,7 @@ describe("emphasis in a script run is accepted", () => {
         ["emphasis written with underscores", `[thrima _sorima_]{${SEMARON}}`],
         ["strong emphasis written with underscores", `[thrima __sorima__]{${SEMARON}}`],
         ["a mix of stars and underscores", `[_thrima_ **sorima**]{${SEMARON}}`],
-        ["a face with no map", `[*${THRIMA}*]{font=semaron-kuriale}`],
+        ["a face with no map", `[*${THRIMA}*]{font=semaron-kuriale lang=en .nativefont}`],
     ])("in %s", (_, source) => {
         expect(errors(source)).toEqual([]);
     });
@@ -250,7 +252,7 @@ describe("emphasis that is still a finding", () => {
             "a strikethrough in a face",
             `[a ~~b~~ c]{${SEMARON}}`,
             [
-                `1:4: text marked \`${SEMARON}\` takes emphasis only as \`*…*\`, \`_…_\`, \`**…**\` or \`__…__\``,
+                `1:4: text marked \`${SEMARON_RUN}\` takes emphasis only as \`*…*\`, \`_…_\`, \`**…**\` or \`__…__\``,
             ],
         ],
         [
@@ -264,9 +266,9 @@ describe("emphasis that is still a finding", () => {
             ["1:4: text marked `font=serif` is plain text and holds no emphasis"],
         ],
         [
-            "emphasis in a map with no face",
-            "[a *b* c]{map=vyl-semaron}",
-            ["1:4: text marked `map=vyl-semaron` is plain text and holds no emphasis"],
+            "emphasis in a map set in an ordinary typeface",
+            "[a *b* c]{map=roman lang=en font=serif .nativefont}",
+            ["1:4: text marked `lang=en font=serif map=roman` is plain text and holds no emphasis"],
         ],
     ])("%s", (_, source, expected) => {
         expect(errors(source)).toEqual(expected);
@@ -319,7 +321,7 @@ describe("a language's own convention", () => {
 const LTR = `Said [thrima *sorima*]{${SEMARON}} once.`;
 const STRONG = `Said [thrima **sorima**]{${SEMARON}} once.`;
 const OVER = `Said [gar *nal*]{${QALEZU}} once.`;
-const MIXED = `[*${PZ}* **${PZ}**]{lang=en font=pirzath-hand-lifted}`;
+const MIXED = `[*${PZ}* **${PZ}**]{lang=en font=pirzath-hand-lifted .nativefont}`;
 const PLAIN = `[*sorima* **sorima**]{${THURAVARK}}`;
 const ROMAN = "Roman *stays* **as** written, [and *here*]{lang=en}.";
 const DIV = [`::: {${SEMARON}}`, "thrima *sorima*", ":::"].join("\n");

@@ -216,7 +216,7 @@ const errorsOf = (source: string, context = ctx) =>
             `${error.line}:${error.column}: ${error.message}`,
     );
 
-const KEYS = "lang=khel font=zethu-glyphs map=zethu";
+const KEYS = "lang=khel font=zethu-glyphs map=zethu .nativefont";
 const keys = { map: "zethu", lang: "khel", font: "zethu-glyphs" };
 
 const MISSING = (word: string) =>
@@ -280,12 +280,11 @@ describe("a word under a logographic map", () => {
     });
 
     it("is an error when the run has no lexicon to write it from", () => {
-        expect(errorsOf("[halzi]{font=zethu-glyphs map=zethu}")).toEqual([
-            "1:2: `halzi` has no `zethu` writing: the map `zethu` is logographic, and the run names " +
-                "no `lang=` whose lexicon writes it; mark the run with its language, or write the " +
-                "word directly in signs",
+        expect(errorsOf("[halzi]{font=zethu-glyphs map=zethu lang=und .nativefont}")).toEqual([
+            "1:2: `halzi` has no `zethu` writing: the map `zethu` is logographic, and `und` has " +
+                "no lexicon (`languages.und.note`) to write it from; write the word directly in signs",
         ]);
-        expect(errorsOf("[halzi]{lang=tant font=zethu-glyphs map=zethu}")).toEqual([
+        expect(errorsOf("[halzi]{lang=tant font=zethu-glyphs map=zethu .nativefont}")).toEqual([
             "1:2: `halzi` has no `zethu` writing: the map `zethu` is logographic, and `tant` has " +
                 "no lexicon (`languages.tant.note`) to write it from; write the word directly in signs",
         ]);

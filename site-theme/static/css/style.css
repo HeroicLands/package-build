@@ -1448,12 +1448,14 @@ a.tag:hover {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
+  direction: ltr;
+  grid-template-columns: repeat(var(--verse-columns, 2), minmax(0, 1fr));
   column-gap: 1.5rem;
   margin-bottom: 0.5em;
 }
 
 .single-content .verse-numbered.verse-columns .verse-row {
-  grid-template-columns: 2.5em;
+  grid-template-columns: 2.5em repeat(var(--verse-columns, 2), minmax(0, 1fr));
 }
 
 .single-content .verse-columns .verse-number {
@@ -1473,6 +1475,10 @@ a.tag:hover {
 
 .single-content .verse-columns .verse-secondary {
   color: var(--text-muted);
+}
+
+.single-content .verse-columns .verse-secondary * {
+  color: inherit;
 }
 
 .single-content .verse-columns .verse-part[dir="rtl"] {

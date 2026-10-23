@@ -89,12 +89,15 @@ A line.
   Indented line.
 \`\`\`
 
-\`\`\`verse {numstep=1 lang=en col1=en col2=en/x:en}
-[A verse line]{lang=en}
+\`\`\`verse {numstep=1 lang=en cols=3}
+1 [A verse line]{lang=en}
+3 [A verse line]{lang=en}
+3 [A verse line]{lang=en}
 
 ***
 
-[Another]{lang=en}
+1 [Another]{lang=en}
+3 [Another]{lang=en}
 \`\`\`
 
 \`\`\`scroll {rows=3 cols=2 lang=tsu map=tengchou}

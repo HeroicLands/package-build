@@ -64,7 +64,7 @@ const ctx = runContext(config, [vylari(AFFIXES), mapping]);
 
 /** The words of a list the check refuses. */
 const refused = (words: string[]) =>
-    scanRuns(`[${words.join(" ")}]{lang=vyl map=m}`, ctx).errors.map(
+    scanRuns(`[${words.join(" ")}]{lang=vyl map=m font=serif .nativefont}`, ctx).errors.map(
         (error: { message: string }) => error.message.match(/^`([^`]+)`/)?.[1],
     );
 

@@ -78,7 +78,7 @@ function resolve(source: string, target: string, gm = false, draft = false) {
     expect(errors).toEqual([]);
     return result;
 }
-const source = `[Keeper of the open book, ]{lang=en}[[${address}|Marendas]]{lang=vyl}[,]{lang=en}`;
+const source = `[Keeper of the open book, ]{lang=en}[[${address}|Marendas]]{lang=vyl .nativefont}[,]{lang=en}`;
 
 describe("language-marked references", () => {
     it.each(["web", "foundry", "book"])(
@@ -115,7 +115,11 @@ describe("language-marked references", () => {
         (target) => {
             const hidden = renderRuns(resolve(source, target, true), ctx).markdown;
             const shown = renderRuns(
-                resolve(source.replace("{lang=vyl}", "{lang=vyl .show}"), target, true),
+                resolve(
+                    source.replace("{lang=vyl .nativefont}", "{lang=vyl .nativefont .show}"),
+                    target,
+                    true,
+                ),
                 ctx,
             ).markdown;
             expect(hidden).toContain(".secret");
@@ -176,7 +180,7 @@ describe("language-marked references", () => {
             ]) {
                 const raw =
                     (before ? `[${before}]{lang=en}` : "") +
-                    `[[${address}|Marendas]]{lang=vyl}` +
+                    `[[${address}|Marendas]]{lang=vyl .nativefont}` +
                     (after ? `[${after}]{lang=en}` : "");
                 const rewritten = renderRuns(resolve(raw, target), ctx).markdown;
                 expect(rewritten.startsWith(before ? `[${before}]{lang=en}` : "[")).toBe(true);
@@ -187,16 +191,31 @@ describe("language-marked references", () => {
         },
     );
 
+    it.each(["web", "foundry", "book"])("keeps a language-only %s reference Roman", (target) => {
+        const roman = resolve(source.replace(" .nativefont", ""), target);
+        const result = renderRuns(roman, ctx, undefined, {
+            target: target === "web" ? "site" : target,
+        });
+        expect(result.errors).toEqual([]);
+        expect(result.markdown).toContain("Marendas");
+        expect(result.markdown).not.toContain(glyph);
+        expect(result.markdown).not.toContain(".script");
+        expect(result.markdown).toContain("lang=art-x-vyl");
+    });
+
     it("keeps book draft and navigation cues in the page font while retaining spoiler scope", () => {
         const resolved = resolve(source, "book", true, true);
         const rewritten = renderRuns(resolved, ctx, undefined, { target: "book" }).markdown;
         expect(rewritten).toMatch(/\) \(draft\)\]\{\.secret\}/);
-        const printed = markdownToTypst(resolve(`[[${address}|Marendas]]{lang=vyl}`, "book"), {
-            runs: ctx,
-            elsewhere: { get: () => ({ title: "Core", abbreviation: "Core", page: 12 }) },
-        });
+        const printed = markdownToTypst(
+            resolve(`[[${address}|Marendas]]{lang=vyl .nativefont}`, "book"),
+            {
+                runs: ctx,
+                elsewhere: { get: () => ({ title: "Core", abbreviation: "Core", page: 12 }) },
+            },
+        );
         expect(printed).toContain("))[󰈀] (Core~p12)");
-        const local = markdownToTypst("[[Marendas](/target/)]{lang=vyl}", {
+        const local = markdownToTypst("[[Marendas](/target/)]{lang=vyl .nativefont}", {
             runs: ctx,
             links: new Map([["target", "target-anchor"]]),
             generated: true,
@@ -206,7 +225,7 @@ describe("language-marked references", () => {
 
     it("leaves authored wikilinks and image/footnote priority to their parsers", () => {
         for (const raw of [
-            "[[doc-target|Marendas]]{lang=vyl}",
+            "[[doc-target|Marendas]]{lang=vyl .nativefont}",
             "![Marendas](/image/){lang=vyl}",
             "[^one]{lang=vyl}\n\n[^one]: A footnote.",
         ]) {
@@ -232,7 +251,7 @@ describe("language-marked references", () => {
     });
 
     it("keeps explicit map and font overrides on the reference", () => {
-        const raw = `[[${address}|Marendas]]{lang=vyl font=serif map=other}`;
+        const raw = `[[${address}|Marendas]]{lang=vyl font=serif map=other .nativefont}`;
         const overrides = {
             ...ctx,
             maps: new Map([
@@ -266,9 +285,10 @@ describe("language-marked references", () => {
 
     it("renders split references in a verse column without losing adjacent spaces", () => {
         const poem =
-            "```verse {lang=en col1=en col2=vyl/letters/script}\n" +
+            "```verse {lang=en cols=2}\n" +
+            "1 " +
             source +
-            "\n[Marendas]{lang=vyl}\n```";
+            "\n2 [Marendas]{lang=vyl .nativefont}\n```";
         const result = renderRuns(resolve(poem, "web"), ctx, undefined, { target: "site" });
         expect(result.errors).toEqual([]);
         expect(result.markdown).toContain(`[${glyph}](/target-only-not-a-word/)`);

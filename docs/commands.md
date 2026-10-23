@@ -2494,7 +2494,10 @@ the metadata artifact.
 
 Metadata also includes each own note's spans, divs and verse fences marked with
 `lang=`, `font=` or `map=` under `runs`, with the language as written, the tag
-it resolves to, the font, the map and the original source line/column. Local
+it resolves to, the font, the map and the original source line/column. Native
+runs carry `nativefont: true` in the metadata; language-only Roman runs omit
+the flag and do not receive script defaults. The `runs` SQL columns stay the
+same. Local
 and dependency SQL schemas expose them through `runs`, and each mapping note's
 rows through `maps`.
 
@@ -3081,7 +3084,7 @@ package-build transliterate <map> [--lang <language>] [--font <slug>] [--hex] [t
 
 Reads the content index, as `package-build lint` does, and prints the passage
 rewritten by the mapping note whose `data.map.name` is `<map>`, through the
-same code the build sets a run marked `map=<map> lang=<language> font=<slug>`
+same code the build sets a run marked `lang=<language> .nativefont map=<map> font=<slug>`
 with. With `--lang`, each word the language's lexicon states a native form for
 is written by it and every other word is spelled by the rows; without it, the
 rows alone apply. See

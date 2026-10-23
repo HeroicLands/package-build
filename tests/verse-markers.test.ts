@@ -1,13 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 import { describe, expect, it } from "vitest";
-import {
-    expandVerse,
-    expandVerseOrigins,
-    sourcePosition,
-    scanVerse,
-    verseStanzas,
-} from "../engine/content-verse.mjs";
+import { scanVerse, verseStanzas, verseGroups } from "../engine/content-verse.mjs";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 
@@ -46,51 +40,30 @@ describe("verse line markers and language runs", () => {
         expect(markdownToTypst(source)).toContain("grid.cell(colspan: 2)[#v(0.5em)]");
     });
 
-    it("reads outside markers before a language-labelled parallel part", () => {
-        const source = ["```verse {col1=en}", "..[hello]{lang=en}", "```"].join("\n");
-        expect(scanVerse(source).errors).toEqual([]);
-        expect(renderFoundryMarkdown(source)).toContain('class="verse-part i2"');
-        const { markdown, origins } = expandVerseOrigins(source);
-        const lines = markdown.split("\n");
-        expect(
-            sourcePosition({ line: 2, column: lines[1].indexOf("hello") + 1 }, lines, origins),
-        ).toEqual({ line: 2, column: 4 });
-    });
-
-    it("locates text after a marker stripped from an inline first span", () => {
+    it("keeps numbered-part period indentation and original offsets", () => {
         const source = [
-            "```verse {lang=en col1=en}",
-            "[..hello]{lang=la} and [word]{lang=en}",
-            "```",
-        ].join("\n");
-        const { markdown, origins } = expandVerseOrigins(source);
-        const lines = markdown.split("\n");
-        expect(
-            sourcePosition({ line: 2, column: lines[1].indexOf("hello") + 1 }, lines, origins),
-        ).toEqual({ line: 2, column: 4 });
-        expect(
-            sourcePosition({ line: 2, column: lines[1].indexOf("word") + 1 }, lines, origins),
-        ).toEqual({ line: 2, column: 25 });
-    });
-
-    it("keeps each parallel part's indentation and nested language switches", () => {
-        const source = [
-            "```verse {col1=la col2=en:la numstep=1}",
-            "[..salve [friend]{lang=en}]{lang=la}",
-            "[.hello friend]{lang=en}",
-            "",
-            "[vale]{lang=la}",
-            "[goodbye]{lang=en}",
+            "```verse {cols=3}",
+            "  1 ..[hello]{lang=en}",
+            "3 [.later]{lang=en}",
             "```",
         ].join("\n");
         expect(scanVerse(source).errors).toEqual([]);
-        const expanded = expandVerse(source);
-        expect(expanded).toContain("[..salve [friend]{lang=en}]{lang=la}");
-        const html = renderFoundryMarkdown(source);
-        expect(html).toContain('class="verse-part i2"');
-        expect(html).toContain('class="verse-part i1"');
-        expect(html).toContain('class="verse-part verse-secondary i2"');
-        expect(html.match(/class="verse-number"/g)).toHaveLength(2);
-        expect(markdownToTypst(source)).toContain("#pad(left: 2.5em)");
+        const row = verseGroups(scanVerse(source).blocks[0], source.split("\n"))[0];
+        expect(row.parts[0]).toMatchObject({
+            column: 1,
+            line: 1,
+            sourceColumn: 3,
+            textColumn: 5,
+            text: "[hello]{lang=en}",
+            indent: 2,
+            markerStart: 4,
+            markerLength: 2,
+        });
+        expect(row.parts[1]).toMatchObject({
+            column: 3,
+            text: "[later]{lang=en}",
+            indent: 1,
+            markerStart: 3,
+        });
     });
 });

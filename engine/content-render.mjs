@@ -77,7 +77,7 @@ import { imagePlugin } from "./content-images.mjs";
 import { renderRuns } from "./content-scripts.mjs";
 import { renderSpans, spanMarkdownPlugin } from "./content-spans.mjs";
 import { cartoucheFigures, renderSymbolSpans } from "./content-symbols.mjs";
-import { inlineVerse, verseStanzas } from "./content-verse.mjs";
+import { hasColumns, inlineVerse, scanVerse, verseGroups, verseStanzas } from "./content-verse.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 import { dictionaryEntryPlugin } from "./dictionary-layout.mjs";
 import { headingAttributesPlugin, headingIdsPlugin } from "./heading-attributes.mjs";
@@ -129,6 +129,27 @@ function verseInlinePlugin(md) {
             if (token.type !== "fence" || !/^verse(?:\s|$)/.test(token.info?.trim() || ""))
                 continue;
             token.meta ??= {};
+            const source = `${token.markup}${token.info}\n${token.content}${token.markup}`;
+            const poem = scanVerse(source).blocks[0];
+            if (hasColumns(poem)) {
+                token.meta.verseGroups = verseGroups(poem, source.split("\n")).map((group) => {
+                    if (group.stanzaBreak) return group;
+                    return {
+                        ...group,
+                        parts: group.parts.map((part) => {
+                            const children = [];
+                            state.md.inline.parse(
+                                inlineVerse(part.text),
+                                state.md,
+                                state.env,
+                                children,
+                            );
+                            return { ...part, children };
+                        }),
+                    };
+                });
+                continue;
+            }
             token.meta.verseStanzas = verseStanzas(token.content).map((stanza) =>
                 stanza.map(({ text, level }) => {
                     const children = [];

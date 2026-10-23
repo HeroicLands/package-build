@@ -91,12 +91,14 @@ The keeper guards the road till dawn,
 Taruna velomi sarandi
 ```
 
-```verse {numstep=2 lang=vyl col1=vyl/vyl-semaron/semaron-kuriale col2=en:vyl}
-[thirun sorima]{lang=vyl}
-[the hallowed boundary I sing]{lang=en}
+```verse {numstep=2 lang=vyl cols=3}
+1 [thirun sorima]{lang=vyl .nativefont map=vyl-semaron font=semaron-kuriale}
+3 [the hallowed boundary I sing]{lang=en}
+3 [thirun sorima]{lang=vyl}
 
-[mamu anthrasos]{lang=vyl}
-[and the one who walked it]{lang=en}
+1 [mamu anthrasos]{lang=vyl .nativefont map=vyl-semaron font=semaron-kuriale}
+2 [and the one who walked it]{lang=en}
+3 [mamu anthrasos]{lang=vyl}
 ```
 
 # Figures and tables {#figures}
@@ -190,39 +192,39 @@ The road is passable in summer.[^season] The bridge has a toll.[^toll] A ford cr
 
 The greeting is [Daimela, helthos.]{lang=vyl} and the motto is [ad astra]{lang=la}.
 
-The lintel is cut with [thirun sorima]{lang=vyl font=semaron-kuriale map=vyl-semaron}.
+The lintel is cut with [thirun sorima]{lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}.
 
-The stressed word is [thirun _sorima_]{font=semaron-kuriale map=vyl-semaron} in red, and the doubly stressed one [thirun **sorima**]{font=semaron-kuriale map=vyl-semaron} under a line.
+The stressed word is [thirun _sorima_]{lang=en font=semaron-kuriale map=vyl-semaron .nativefont} in red, and the doubly stressed one [thirun **sorima**]{lang=en font=semaron-kuriale map=vyl-semaron .nativefont} under a line.
 
 Code reads as [lantern()]{font=mono}, titles as [Harbor Ledger]{font=serif}, and labels as [Plain Label]{font=sans}.
 
-::: {lang=vyl font=semaron-kuriale map=vyl-semaron}
+::: {lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}
 thirun sorima.
 
 mamu anthrasos.
 :::
 
-```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}
+```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}
 thirun sorima
 .mamu anthrasos.
 ```
 
-```scroll {rows=3 cols=3 lang=tsu font=teng-chou map=tengchou}
+```scroll {rows=3 cols=3 lang=tsu font=teng-chou map=tengchou .nativefont}
 chen teng
 chou _hing_
 
 tan tsou dou rou
 ```
 
-The seal reads [chen teng]{lang=tsu font=teng-chou map=tengchou} across the line.
+The seal reads [chen teng]{lang=tsu font=teng-chou map=tengchou .nativefont} across the line.
 
-The south gate is cut as [thirun sorima]{lang=prv}, and its ledger as [thirun sorima]{lang=prv font=serif}.
+The south gate is cut as [thirun sorima]{lang=prv .nativefont}, and its ledger as [thirun sorima]{lang=prv font=serif}.
 
-::: {lang=prv}
+::: {lang=prv .nativefont}
 sorima thirun.
 :::
 
-```scroll {rows=3 cols=3 lang=tsu}
+```scroll {rows=3 cols=3 lang=tsu .nativefont}
 tan tsou
 ```
 

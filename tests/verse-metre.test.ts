@@ -351,12 +351,12 @@ describe("a `scan=` that cannot mean anything", () => {
 
     it("is refused on a verse in columns", () => {
         const source = fence(
-            "scan=hexameter lang=vyl col1=vyl col2=en",
-            "[zaros]{lang=vyl}",
-            "[oath]{lang=en}",
+            "scan=hexameter lang=vyl cols=2",
+            "1 [zaros]{lang=vyl}",
+            "2 [oath]{lang=en}",
         );
         expect(errors(source)).toEqual([
-            "1:11: `scan=` counts the beats of one language's lines; a verse in columns sets a line in each of two",
+            "1:11: `scan=` counts the beats of one language's lines; a verse with cols>1 groups independent physical lines",
         ]);
     });
 });

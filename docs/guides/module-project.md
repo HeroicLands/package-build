@@ -691,10 +691,10 @@ package-build: Cannot stage assets — these paths do not exist:
 
 ### Fonts for marked text
 
-A module shows text marked with `font=` and one of the faces of
+A module shows native text marked with `lang=` and `.nativefont` in one of the faces of
 `@heroiclands/fonts` in that face once the package installs the fonts package
 in `devDependencies`. Nothing is configured: the build reads which faces the
-notes use from their `font=` keys.
+notes use from explicit `font=` overrides or opted-in language defaults.
 
 `package-build assets` then stages the font stylesheet, the WOFF2 files and the
 licence under `fonts/heroiclands/` in the package; the staged stylesheet lists

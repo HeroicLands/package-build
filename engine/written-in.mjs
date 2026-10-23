@@ -20,20 +20,16 @@
  *   writtenIn: { map: semaron, font: semaron-kuriale }
  * ```
  *
- * A run marked with the language's name takes them where it states neither:
- * `[Zaron tholmeza]{lang=vyl}` is mapped by `semaron` and set in
- * `semaron-kuriale`. A run that states one of the two takes the other from the
- * default only where they agree, so the run is never set in a face its map is
- * not drawn in:
+ * These are native-presentation defaults, not an effect of identifying a
+ * language. A rendering run requests them with its own `.nativefont` class
+ * and explicit `lang=`; plain `[Zaron tholmeza]{lang=vyl}` stays Roman.
+ * The renderer fills the map and font independently, honoring explicit
+ * overrides and reporting an incompatible pair rather than silently omitting
+ * a default. A nested marked run makes its own presentation choice.
  *
- * - **`map=` alone** takes the default `font` where that map is drawn in it.
- * - **`font=` alone** takes the default `map` where the map is drawn in that
- *   face.
- * - **Both** take nothing.
- *
- * The default belongs to the run's own language, after a div or fence around
- * it has given it its keys: a span marked `lang=en` inside a div of a language
- * with a default takes no face from it.
+ * The low-level `fromWrittenIn` helper also serves explicit conversion
+ * commands. It returns compatible default suggestions to those callers;
+ * rendering opt-in and its required-font diagnostics belong to the run reader.
  *
  * @module
  */

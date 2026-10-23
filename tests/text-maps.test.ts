@@ -183,7 +183,7 @@ describe("a run through a plane-15 map", () => {
     ]);
 
     it("locates an undrawn plane-15 character at the character it came from, in UTF-16 columns", () => {
-        const source = "Said [ka t ka \u{F0205} x]{font=f map=m}.";
+        const source = "Said [ka t ka \u{F0205} x]{font=f map=m lang=und .nativefont}.";
         const found = scanRuns(source, { faces: new Map([["f", face]]), maps });
         expect(found.errors).toEqual([
             {
@@ -232,7 +232,7 @@ describe("a run through a map", () => {
     ]);
 
     it("locates an undrawn character at the source character it came from", () => {
-        const found = scanRuns("Said [ka t\\*ka x]{font=f map=m}.", {
+        const found = scanRuns("Said [ka t\\*ka x]{font=f map=m lang=und .nativefont}.", {
             faces: new Map([["f", face]]),
             maps,
         });

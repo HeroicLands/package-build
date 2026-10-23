@@ -340,10 +340,18 @@ keys reach the block as written, `lang` as its language and the rest as
 numbered line starts with its `.verse-number`.
 
 A [verse in columns](../authoring/links-and-markup.md#verse-in-columns) also
-carries `.verse-columns`, and each verse line is one `.verse-row`:
+carries `.verse-columns`, and each logical row is one `.verse-row`. The
+block carries `data-cols` and `--verse-columns` with its positive column
+count. Every row contains that many `.verse-column` cells, including empty
+ones:
 
 ```html
-<div class="verse verse-columns verse-numbered" lang="art-x-vyl" data-numstep="5">
+<div
+  class="verse verse-columns verse-numbered"
+  lang="art-x-vyl"
+  data-numstep="5"
+  data-cols="3"
+  style="--verse-columns: 3">
   <p>
     <span class="verse-row"
       ><span class="verse-number"></span
@@ -351,6 +359,7 @@ carries `.verse-columns`, and each verse line is one `.verse-row`:
         ><span class="verse-part"
           ><span class="script hl-semaron-kuriale" lang="art-x-vyl">…</span></span
         ></span
+      ><span class="verse-column"></span
       ><span class="verse-column"
         ><span class="verse-part"><span lang="en">The hallowed boundary I sing,</span></span
         ><span class="verse-part verse-secondary"
@@ -363,10 +372,10 @@ carries `.verse-columns`, and each verse line is one `.verse-row`:
 </div>
 ```
 
-A numbered verse in columns gives every row a `.verse-number`, empty on the
-lines it does not number, so the columns stay aligned. A part whose text runs
-right to left carries `dir="rtl"`. Each row is its own grid, so a long line
-keeps its partner level with it. Below a block width of `32rem` a row stacks
+A numbered verse in columns gives every logical row a `.verse-number`, empty
+on rows it does not number, so repeated readings do not advance the counter.
+The grid remains left to right while inline text follows its own script
+direction. Each row has its own grid and aligns all its cells at the top. Below a block width of `32rem` a row stacks
 its columns in order; it is a container query, so a narrow journal window
 stacks as well. The Foundry stylesheet draws the same.
 
@@ -377,10 +386,10 @@ stacks as well. The Foundry stylesheet draws the same.
 | `.verse-numbered`  | a numbered poem, with a margin for its numbers                |
 | `.verse-number`    | a line's number, muted                                        |
 | `.verse-columns`   | a poem in columns, and the container its rows are measured by |
-| `.verse-row`       | one verse line: its number and its columns                    |
-| `.verse-column`    | one column, its entries stacked                               |
+| `.verse-row`       | one logical verse row: its number and its cells               |
+| `.verse-column`    | one numbered cell, possibly empty, with its readings stacked  |
 | `.verse-part`      | one entry's text, in the body serif unless its face sets it   |
-| `.verse-secondary` | every entry after a column's first, muted                     |
+| `.verse-secondary` | every reading after a column's first in that row, grey        |
 
 ## Emphasis in a script
 

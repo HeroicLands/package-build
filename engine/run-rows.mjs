@@ -17,9 +17,10 @@
  * column value and none is a key, so two notes writing one tag in different
  * case are two rows. Documentation records and assets contribute no rows.
  *
- * A run's `font` and `map` are the ones it is set with: its own, else those of
- * the div or fence around it, else those its language's note names in
- * `data.writtenIn`, filled by {@link fillWrittenIn} once every record exists.
+ * Native runs retain their explicit opt-in so language defaults can be filled
+ * by {@link fillWrittenIn} once every record exists. Roman language-only runs
+ * retain null map/font fields; ordinary generic-family inheritance is already
+ * projected by the shared scanner.
  *
  * @module
  */
@@ -30,7 +31,7 @@ import { isNoteRecord } from "./index-records.mjs";
 import { scanRuns } from "./content-scripts.mjs";
 import { languageRecordsByName } from "./map-lexicon.mjs";
 import { mapsFromRecords } from "./text-maps.mjs";
-import { fromWrittenIn, writtenInOf } from "./written-in.mjs";
+import { writtenInOf } from "./written-in.mjs";
 
 /** Every column of the `runs` relation, in order. */
 export const RUN_COLUMNS = Object.freeze([
@@ -52,10 +53,12 @@ export const RUN_COLUMNS = Object.freeze([
  * @property {string|null} lang - The language it is set in, as written: its
  *   own `lang=`, else the one the div or fence around it states.
  * @property {string|null} tag - The BCP 47 tag it resolves to, or null.
- * @property {string|null} font - Its font, as written and inherited the same
- *   way, else its language's script's.
- * @property {string|null} map - Its map, as written and inherited the same way,
- *   else its language's script's.
+ * @property {string|null} font - Its explicit font, an inherited ordinary
+ *   prose family, or the configured default for an opted-in native run.
+ * @property {string|null} map - Its explicit map or the configured map of an
+ *   opted-in native run; null for Roman language-only text.
+ * @property {boolean} [nativefont] - Explicit native opt-in on this construct;
+ *   absent on Roman runs. This internal flag is not a SQL column.
  * @property {number} line - 1-based file line of its opening.
  * @property {number} column - 1-based UTF-16 file column of its opening.
  */
@@ -84,13 +87,14 @@ export function recordRuns(body, { context, bodyLine = 1, bodyColumn = 1, syntax
         tag: run.tag ?? null,
         font: run.font ?? null,
         map: run.map ?? null,
+        ...(run.nativefont ? { nativefont: true } : {}),
         line: bodyLine + run.line - 1,
         column: run.column + (run.line === 1 ? bodyColumn - 1 : 0),
     }));
 }
 
 /**
- * Give every recorded run the map and face its language's note names in
+ * Give explicitly native recorded runs the map and face their language names in
  * `data.writtenIn`, where the run leaves them unstated, as a run is set. Read
  * once every record exists, since a run's language note may be recorded after
  * the note that marks it.
@@ -107,17 +111,11 @@ export function fillWrittenIn(records, config) {
     for (const record of records) {
         if (!record || !isNoteRecord(record) || !Array.isArray(record.runs)) continue;
         for (const run of record.runs) {
-            const filled = fromWrittenIn(
-                {
-                    lang: run.lang ?? undefined,
-                    map: run.map ?? undefined,
-                    font: run.font ?? undefined,
-                },
-                scripts,
-                maps,
-            );
-            if (filled.map !== undefined) run.map = filled.map;
-            if (filled.font !== undefined) run.font = filled.font;
+            if (!run.nativefont) continue;
+            const script = scripts.get(run.lang);
+            if (!script) continue;
+            if (run.map == null) run.map = script.map;
+            if (run.font == null) run.font = script.font;
         }
     }
 }

@@ -90,22 +90,23 @@ describe("emphasis follows a span's effective language", () => {
         );
     });
 
-    it("selects the new language's script when a nested span switches language", () => {
-        const source = "[one [one]{lang=en}]{lang=vyl font=serif map=letters}";
+    it("drops native presentation when a nested span switches language", () => {
+        const source = "[one [one]{lang=en}]{lang=vyl font=serif map=letters .nativefont}";
         expect(renderRuns(source, ctx).markdown).toBe(
-            "[uno [one]{lang=en}]{lang=art-x-vyl .font-serif}",
+            "[uno [one]{lang=en .font-serif}]{lang=art-x-vyl .font-serif}",
         );
     });
 
     it("retains a language switch for descendants without their own language", () => {
-        const source = "[one [one [one]{.name}]{lang=en}]{lang=vyl font=serif map=letters}";
+        const source =
+            "[one [one [one]{.name}]{lang=en}]{lang=vyl font=serif map=letters .nativefont}";
         expect(renderRuns(source, ctx).markdown).toBe(
-            "[uno [one [one]{lang=en .name}]{lang=en}]{lang=art-x-vyl .font-serif}",
+            "[uno [one [one]{lang=en .name .font-serif}]{lang=en .font-serif}]{lang=art-x-vyl .font-serif}",
         );
     });
 
     it("lets a switched language select its own default script", () => {
-        const source = "[one [one]{lang=vyl}]{lang=en font=mono}";
+        const source = "[one [one]{lang=vyl .nativefont}]{lang=en font=mono}";
         const defaults = {
             ...ctx,
             writtenIn: new Map([["vyl", { map: "letters", font: "serif" }]]),
@@ -116,7 +117,11 @@ describe("emphasis follows a span's effective language", () => {
     });
 
     it("refuses non-English emphasis in a face and with an explicit map", () => {
-        for (const attrs of ["font=serif", "map=letters", "font=script"]) {
+        for (const attrs of [
+            "font=serif",
+            "map=letters font=serif .nativefont",
+            "font=script .nativefont",
+        ]) {
             const faces = new Map([
                 [
                     "script",
@@ -139,26 +144,28 @@ describe("emphasis follows a span's effective language", () => {
         }
     });
 
-    it("selects the new language's script inside a mapped verse fence", () => {
+    it("keeps a language-only span Roman inside a native verse fence", () => {
         const source = [
-            "```verse {lang=vyl font=serif map=letters}",
+            "```verse {lang=vyl font=serif map=letters .nativefont}",
             "one [one]{lang=en}",
             "```",
         ].join("\n");
         expect(renderRuns(source, ctx).markdown).toBe(
-            ["```verse {lang=art-x-vyl .font-serif}", "uno [one]{lang=en}", "```"].join("\n"),
+            ["```verse {lang=art-x-vyl .font-serif}", "uno [one]{lang=en .font-serif}", "```"].join(
+                "\n",
+            ),
         );
     });
 
-    it("inherits a script when two language names resolve to the same tag", () => {
-        const source = "[one [one]{lang=en-GB}]{lang=english font=serif map=letters}";
+    it("keeps a same-tag child Roman unless it opts in", () => {
+        const source = "[one [one]{lang=en-GB}]{lang=english font=serif map=letters .nativefont}";
         expect(renderRuns(source, ctx).markdown).toBe(
-            "[uno [uno]{lang=en-GB .font-serif}]{lang=en-GB .font-serif}",
+            "[uno [one]{lang=en-GB .font-serif}]{lang=en-GB .font-serif}",
         );
     });
 
     it("rewrites a valid mapped span following an invalid span on the same line", () => {
-        const source = "[*un*]{lang=fr} [one]{lang=vyl font=serif map=letters}";
+        const source = "[*un*]{lang=fr} [one]{lang=vyl font=serif map=letters .nativefont}";
         expect(renderRuns(source, ctx).markdown).toBe(
             "[*un*]{lang=fr} [uno]{lang=art-x-vyl .font-serif}",
         );
@@ -166,9 +173,9 @@ describe("emphasis follows a span's effective language", () => {
 
     it("keeps indentation periods outside mapping while mapping literal later periods", () => {
         const source = [
-            "```verse {lang=vyl font=serif map=letters}",
+            "```verse {lang=vyl font=serif map=letters .nativefont}",
             "...one",
-            "  [..one]{lang=vyl} [..one]{lang=vyl}",
+            "  [..one]{lang=vyl font=serif map=letters .nativefont} [..one]{lang=vyl font=serif map=letters .nativefont}",
             "```",
         ].join("\n");
         expect(scanRuns(source, ctx).errors).toEqual([]);
@@ -183,10 +190,10 @@ describe("emphasis follows a span's effective language", () => {
     });
 
     it.each([
-        ["vyl", "one", "one"],
-        ["vyl/letters/serif", "uno", "uno"],
+        ["lang=vyl", "one", "one"],
+        ["lang=vyl .nativefont map=letters font=serif", "uno", "one"],
     ])(
-        "keeps the column's script choice while inline languages select their own in %s",
+        "keeps each authored column reading's script while inline languages choose their own in %s",
         (entry, outer, same) => {
             const mixed = {
                 ...ctx,
@@ -201,15 +208,15 @@ describe("emphasis follows a span's effective language", () => {
                 ]),
             };
             const source = [
-                `\`\`\`verse {col1=${entry}}`,
-                "[one [one]{lang=foreign} [one]{lang=vyl}]{lang=vyl}",
+                "```verse {cols=2}",
+                `1 [one [one]{lang=foreign .nativefont} [one]{lang=vyl}]{${entry}}`,
                 "```",
             ].join("\n");
             expect(scanRuns(source, mixed).errors).toEqual([]);
             const rendered = renderRuns(source, mixed).markdown;
             expect(rendered).toContain(`[${outer} [Ω]{lang=fr .font-sans}`);
             expect(rendered).toContain(
-                `[${same}]{lang=art-x-vyl${entry === "vyl" ? "" : " .font-serif"}}`,
+                `[${same}]{lang=art-x-vyl${entry === "lang=vyl" ? "" : " .font-serif"}}`,
             );
         },
     );

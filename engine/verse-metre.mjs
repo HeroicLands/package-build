@@ -292,7 +292,7 @@ export function metreMessage({ min, max }, metre) {
  * @param {ReadonlyArray<{start: number, end: number, indent: string, attributes: Record<string, string>, classes: string[]}>} blocks -
  *   The fences, from {@link module:engine/content-verse.scanVerse}.
  * @param {string[]} lines - The source's lines.
- * @param {{languages?: Readonly<Record<string, {tag: string}>>, metres?: ReadonlyMap<string, import("./metre-declaration.mjs").Metre>, metreBooks?: ReadonlyMap<string, MetreBook>, lexicons?: ReadonlyMap<string, unknown>, columnsClass: string, columnKeys: readonly string[], attributeColumns: (line: string, key: string) => {key: number, value: number}}} ctx -
+ * @param {{languages?: Readonly<Record<string, {tag: string}>>, metres?: ReadonlyMap<string, import("./metre-declaration.mjs").Metre>, metreBooks?: ReadonlyMap<string, MetreBook>, lexicons?: ReadonlyMap<string, unknown>, attributeColumns: (line: string, key: string) => {key: number, value: number}}} ctx -
  *   The metres and books, and how the fence says its columns and where its
  *   keys sit.
  * @returns {{errors: object[], warnings: object[]}} The findings at 1-based
@@ -311,13 +311,10 @@ export function metreFindings(blocks, lines, ctx) {
             column: ctx.attributeColumns(opening, key)[part],
         });
         const error = (position, message) => errors.push({ ...position, message });
-        if (
-            block.classes.includes(ctx.columnsClass) ||
-            ctx.columnKeys.some((key) => block.attributes[key] !== undefined)
-        ) {
+        if (Number(block.attributes.cols ?? 1) > 1) {
             error(
                 at("scan", "key"),
-                "`scan=` counts the beats of one language's lines; a verse in columns sets a line in each of two",
+                "`scan=` counts the beats of one language's lines; a verse with cols>1 groups independent physical lines",
             );
             continue;
         }

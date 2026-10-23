@@ -764,12 +764,15 @@ shortcode, whose type defaults to `skill`. A run marked with the language and a
 `map=` writes each word the lexicon states a native form for by that form, and
 spells every other word by the map's rows; see
 [a map reads the dictionary first](reference/format-details.md#a-map-reads-the-dictionary-first).
-Every word of such a run is a word of the lexicon, of a name the language note's
+Language word-book validation applies to Roman and native runs alike,
+independently of `.nativefont` or mapping: every word is a word of the lexicon, of a name the language note's
 own register lists, or a regular form of a lexicon word, and any other word is an error; see
 [a mapped run's words](authoring/links-and-markup.md#a-mapped-runs-words).
 The language note may also name the script the language is written in, as
-`data.writtenIn: { map, font }`, and a run marked with the language alone is
-then mapped and set in it; see
+`data.writtenIn: { map, font }`, and a run explicitly marked with both the language and `.nativefont` is
+then mapped and set in it. Language-only runs retain authored Roman spelling
+and the surrounding prose font. Native `map=` and `font=` override the
+configured halves independently; missing halves require explicit overrides; see
 [a language's script](authoring/links-and-markup.md#a-languages-script). The
 script belongs to the language note, and the configuration never states it.
 A language with no `note` tags its text and has no lexicon. Whether the note

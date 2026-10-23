@@ -87,13 +87,11 @@ import { GENERIC_FONTS, renderRuns, scanRuns } from "./content-scripts.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
 import {
-    COLUMNS_CLASS,
-    STANZA_BREAK,
+    hasColumns,
     lineNumber,
     rightToLeft,
     scanVerse,
-    verseColumns,
-    verseStanzas,
+    verseColumnCount,
 } from "./content-verse.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { panelRoman, scanScrolls, scrollPanels, scrollParagraphs } from "./content-scroll.mjs";
@@ -763,11 +761,17 @@ function renderBlock(tokens, i, out, ctx) {
             }
             if (token.type === "fence" && /^verse(?:\s|$)/.test(token.info?.trim() || "")) {
                 const opening = `${token.markup}${token.info}`;
-                const poem = scanVerse(`${opening}\n${token.content}${token.markup}`).blocks[0];
+                const scanned = scanVerse(`${opening}\n${token.content}${token.markup}`);
+                // Findings are collected before rendering. Keep malformed verse
+                // literal rather than assigning invalid parts to display cells.
+                if (scanned.errors.length) {
+                    out.push(rawBlock(token.content, token.info));
+                    return 1;
+                }
+                const poem = scanned.blocks[0];
                 const step = Number(poem?.attributes.numstep ?? 0) || 0;
                 const content =
-                    poem?.classes.includes(COLUMNS_CLASS) ?
-                        verseGrid(token, poem, opening, step, ctx)
+                    hasColumns(poem) ? verseGrid(token, poem, step, ctx)
                     : step ? numberedVerse(token, step, ctx)
                     : token.meta.verseStanzas
                             .map((stanza) =>
@@ -1313,47 +1317,52 @@ function numberedVerse(token, step, ctx) {
  * A verse in columns: a grid with a row per verse line, its number first when
  * the verse is numbered, then each column's entries stacked, the first in the
  * normal tone and each later one grey. A part whose text runs right to left
- * is set right to left inside its cell, and the grid keeps the page's
- * direction, so the columns stay in order. A `***` line is a row of space
+ * is set right to left inside its cell; the grid stays left to right so
+ * numbered columns retain their authored order. A `***` line is a row of space
  * across the grid.
  *
- * @param {object} token - The expanded verse's fence token.
+ * @param {object} token - The verse's fence token with parsed logical rows.
  * @param {object} poem - The verse, from `scanVerse`.
- * @param {string} opening - Its opening line.
  * @param {number} step - Its `numstep`.
  * @param {object} ctx - Render context.
  * @returns {string} Typst markup.
  */
-function verseGrid(token, poem, opening, step, ctx) {
-    const counts = verseColumns(poem, opening).map((column) => column.entries.length);
-    const width = counts.length + (step ? 1 : 0);
-    const columns = [...(step ? ["2.5em"] : []), ...counts.map(() => "1fr")];
-    const raw = verseStanzas(token.content);
+function verseGrid(token, poem, step, ctx) {
+    const count = verseColumnCount(poem);
+    const width = count + (step ? 1 : 0);
+    const columns = [...(step ? ["2.5em"] : []), ...Array(count).fill("1fr")];
     const rows = [];
-    let count = 0;
-    token.meta.verseStanzas.forEach((group, at) => {
-        if (raw[at].length === 1 && STANZA_BREAK.test(raw[at][0].text)) {
+    let row = 0;
+    for (const group of token.meta.verseGroups) {
+        if (group.stanzaBreak) {
             rows.push(`  grid.cell(colspan: ${width})[#v(0.5em)],`);
-            return;
+            continue;
         }
-        const parts = group.map(({ children, level }, k) => {
-            const rtl = rightToLeft(raw[at][k].text);
-            const text = renderInline({ children }, ctx);
-            const part =
-                level ? `#pad(${rtl ? "right" : "left"}: ${level * 1.25}em)[${text}]` : text;
-            return rtl ? `#set text(dir: rtl)\n${part}` : part;
-        });
-        let next = 0;
-        const cells = counts.map((n) => {
-            const stacked = parts.slice(next, (next += n));
+        const cells = Array.from({ length: count }, () => []);
+        for (const part of group.parts) {
+            const rtl = rightToLeft(part.text);
+            const secondary = cells[part.column - 1].length > 0;
+            const text = renderInline(
+                { children: part.children },
+                secondary ? { ...ctx, textFill: "luma(45%)" } : ctx,
+            );
+            const padded =
+                part.indent ?
+                    `#pad(${rtl ? "right" : "left"}: ${part.indent * 1.25}em)[${text}]`
+                :   text;
+            cells[part.column - 1].push(rtl ? `#set text(dir: rtl)\n${padded}` : padded);
+        }
+        const rendered = cells.map((stacked) => {
+            if (!stacked.length) return "[]";
             if (stacked.length === 1) return `[${stacked[0]}]`;
             return `[#stack(dir: ttb, spacing: 0.3em, ${stacked.map((part, k) => (k ? `[#text(fill: luma(45%))[${part}]]` : `[${part}]`)).join(", ")})]`;
         });
-        const number = step ? [typstNumber(lineNumber(++count, step))] : [];
-        rows.push(`  ${[...number, ...cells].join(", ")},`);
-    });
+        const number = step ? [typstNumber(lineNumber(++row, step))] : [];
+        rows.push(`  ${[...number, ...rendered].join(", ")},`);
+    }
     return [
-        `#grid(columns: (${columns.join(", ")}${columns.length === 1 ? "," : ""}), column-gutter: 1.5em, row-gutter: 0.65em,`,
+        "#set text(dir: ltr)",
+        `#grid(columns: (${columns.join(", ")}), column-gutter: 1.5em, row-gutter: 0.65em,`,
         ...rows,
         ")",
     ].join("\n");
@@ -1447,7 +1456,7 @@ function renderInline(token, ctx) {
             case "script_emphasis_open":
                 out.push(
                     child.meta?.convention === "rubric" ?
-                        "#text(fill: book-rubric)["
+                        `#text(fill: ${ctx.textFill ?? "book-rubric"})[`
                     :   "#overline[",
                 );
                 break;
@@ -1682,6 +1691,9 @@ function pageOfLabel(label) {
  * @returns {string} Typst markup.
  */
 function renderLink(href, inner, ctx, { bracketed = false } = {}) {
+    // A secondary verse reading keeps its label gray inside the global blue
+    // link presentation, including any native spans or emphasis in that label.
+    if (ctx.textFill) inner = `#text(fill: ${ctx.textFill})[${inner}]`;
     const url = String(href ?? "");
     const fragment = /#([^?]*)/.exec(url)?.[1] ?? "";
     if (url.startsWith("#") && fragment)

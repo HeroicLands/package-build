@@ -1962,32 +1962,45 @@ exit status. Supplied-value errors prevent publication and compilation.
 
 #### Text marked with a language, a font or a map
 
-`lang=`, `font=` and `map=` on a span, a generic div or a verse fence are read
-by the build and never written through as ordinary attributes. Each is
-optional, and a run inside a div or a fence inherits the keys the div or fence
-states, its own keys overriding them. On a named block the three keys are
-errors.
+`lang=` identifies a span, generic div, verse fence or scroll fence's
+language while retaining authored spelling and the surrounding prose font.
+`.nativefont` explicitly requests native presentation and requires `lang=` on
+that same construct; an inherited language does not satisfy the requirement.
+On a named block the language, font and map keys are errors.
 
 - **`lang=`** is a name declared in [`languages`](../configuration.md#languages),
-  and otherwise a BCP 47 tag checked for its form alone. It gives the language
-  tag, and the language's script where its note names one.
-- **`font=`** is a face of the installed `@heroiclands/fonts`, named by its
-  `fonts.json` class without `hl-`, or `mono`, `serif` or `sans`.
-- **`map=`** is the `data.map.name` of a [mapping note](#mapping-notes). The
-  text is rewritten by the map before it is set; without `map=` it is set as
-  typed. With `font=`, the face is one the map lists in `fonts`, and its own
-  rows come first.
-- **`lang=` with `map=`** reads the language's lexicon first, when
-  [`languages.<name>.note`](../configuration.md#languages) names its language
-  note: see [a map reads the dictionary first](#a-map-reads-the-dictionary-first).
-- **`lang=` without `map=` or `font=`** takes the map and the face its
-  language note names in `data.writtenIn`, where the note states one. A run
-  that states `font=` alone takes the language's map only where the map is
-  drawn in that face, and one that states `map=` alone takes the language's
-  face only where that map is drawn in it. A run stating both takes nothing.
-  The default is read after a div or fence has given the run its keys, and is
-  its own language's. See
-  [a language's script](../authoring/links-and-markup.md#a-languages-script).
+  otherwise a BCP 47 tag checked for its form alone. Language identification
+  and its existing validation do not depend on native presentation.
+- **`.nativefont`** selects that language's `data.writtenIn` map and font.
+  A native run needs an effective font; a missing default reports the
+  required `font=` override. The map is optional when the language supplies
+  none, so directly typed script code points can be set without mapping. The
+  build does not guess a font from a map's list of faces.
+- **`font=`** overrides the native font independently. Without `.nativefont`,
+  only `mono`, `serif` and `sans` are permitted.
+- **`map=`** overrides the native map independently and requires `.nativefont`.
+  It names a [mapping note](#mapping-notes). With a configured language note,
+  mapping reads that language's lexicon first; see
+  [a map reads the dictionary first](#a-map-reads-the-dictionary-first).
+
+Unmarked text follows its passage. Each marked child chooses its presentation:
+a language-only child stays Roman, even inside a native passage of that same
+language. A native child requires its own explicit `lang=` and `.nativefont`,
+uses its own language's defaults and applies only its own overrides.
+
+Standalone wikilinks accept the same attributes. `[[address|Name]]{lang=vyl}`
+stays Roman, while `[[address|Name]]{lang=vyl .nativefont}` applies native
+mapping and font to the displayed name alone. Targets, spoilers, `.show`,
+draft annotations and book page cues retain their behavior. Adjacent prose
+belongs in sibling spans; an embedded link inside a longer native run is an error.
+Parallel verse uses `cols=N`, a positive whole number defaulting to one.
+With multiple columns, each content line starts with its column number and
+one or more spaces. Blank-separated logical rows accept nondecreasing
+numbers in `1..cols`, preserving omitted cells and any number of repeated
+readings. The first reading in each column is foreground and all later ones
+in that column are grey; each row resets that choice. `numstep` counts logical
+rows, and `***` separates stanzas. Language and native script choices remain
+on the authored inline runs, independently for every reading.
 
 **A face draws the code points its `fonts.json` entry lists in `codepoints`,
 and whitespace.** After the map, any other character in a run set in a face is
@@ -2007,13 +2020,15 @@ with a real language's tag alone keeps its Markdown. See
 [marking language, font and mapping](../authoring/links-and-markup.md#marking-language-font-and-mapping).
 
 Each own-note metadata record carries `runs` in source order, an empty array
-when the body marks nothing. Every entry has exactly `kind` (`span`, `block`, `scroll` or
+when the body marks nothing. Every entry has `kind` (`span`, `block`, `scroll` or
 `verse`), `lang`, `tag`, `font`, `map`, `line` and `column`: `lang`, `font` and
-`map` as written, its own or inherited, else its language's `data.writtenIn`
-(a scroll fence that names no face takes its map's), `tag` the BCP 47 tag `lang` resolves
+`map` as written, or its language's `data.writtenIn` defaults only for an
+explicit `.nativefont` run, `tag` the BCP 47 tag `lang` resolves
 to, each `null` when absent, and the position of the span's `[`, the div's
-`:::` or the fence's opening. Every value is a string or a number and none is a
-key, so tags that differ only in case are separate values. This is derived
+`:::` or the fence's opening. An opted-in run also carries optional `nativefont: true`; Roman runs omit
+that flag and leave unused script defaults null. The `runs` SQL relation
+retains its existing columns and projects no flag column. Tags differing
+only in case remain separate values. This is derived
 metadata, not frontmatter. The [`runs` relation](#content-tables) flattens
 these entries with their containing NOTE Address.
 
@@ -2167,7 +2182,7 @@ is written word by word:
    plural or a verb ending of an exception word is a different word, and the
    rows spell it.
 
-A run with `map=` and no `lang=`, a `lang=` that is a bare BCP 47 tag, and a
+A native run with an explicit bare BCP 47 `lang=` tag, and a
 declared language with no `note` are spelled by the rows alone. A character the
 face does not draw inside a word written by its native form is an error at the
 word's start:
@@ -2176,7 +2191,9 @@ word's start:
 
 > `` `zaron` is written U+F024F by the lexicon of `vyl` for the map `semaron`, which the font `semaron-kuriale` does not draw ``
 
-**Every word of such a run is a word of the language**, case folded: a
+**Language word-book validation applies to Roman and native runs alike**,
+independently of `.nativefont` or mapping. Every word is a word of the
+language, case folded: a
 `data.words[].form`, a word of a name the language note's own `data.register`
 lists under a `tongue` other than `translation`, or a form one rule derives from a lexicon form —
 the `data.grammar.plural` plural of a noun or its own `plural`, a verb's form
@@ -2383,7 +2400,8 @@ data:
   writtenIn: { map: semaron, font: semaron-kuriale }
 ```
 
-A run marked with the language alone is mapped by `map` and set in `font`, as
+A run explicitly marked with the language and `.nativefont` is mapped by
+`map` and set in `font`, as
 [text marked with a language, a font or a map](#text-marked-with-a-language-a-font-or-a-map)
 describes. A face a language's `writtenIn` names counts as used, so the
 package's fonts are delivered for it.
@@ -3602,8 +3620,8 @@ including on an empty relation:
 | `kind`   | `VARCHAR` | `span`, `block`, `verse` or `scroll`.                                                        |
 | `lang`   | `VARCHAR` | The language as written, its own or inherited, or `NULL`.                                    |
 | `tag`    | `VARCHAR` | The BCP 47 tag `lang` resolves to, or `NULL` when it resolves to none.                       |
-| `font`   | `VARCHAR` | The font as written, its own or inherited, or `NULL`.                                        |
-| `map`    | `VARCHAR` | The map as written, its own or inherited, or `NULL`.                                         |
+| `font`   | `VARCHAR` | The selected font; language defaults apply only to native runs, else `NULL`.                 |
+| `map`    | `VARCHAR` | The selected map; language defaults apply only to native runs, else `NULL`.                  |
 | `line`   | `BIGINT`  | Original 1-based source line of the span's `[`, the div's `:::` or the fence's opening.      |
 | `column` | `BIGINT`  | Original 1-based UTF-16 source column there.                                                 |
 
@@ -6318,7 +6336,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `affixes[].native[].font`                  | `string`                                                                                                                       | The one face the writing is for, one the map lists; unstated, every face it lists                                                                                                              |
 | `affixes[].native[].text`                  | `string`, required                                                                                                             | The affix as the script writes it                                                                                                                                                              |
 | `emphasis`                                 | `words`, `rubric` or `overline`                                                                                                | `language` only: how the language marks a stressed word, over its script's; `words` makes `*…*` and `**…**` in its runs an error — see [script notes and emphasis](#script-notes-and-emphasis) |
-| `writtenIn`                                | `{ map, font }`                                                                                                                | `language` only: the script the language is written in, which a run marked with the language alone takes — see [script notes and emphasis](#script-notes-and-emphasis)                         |
+| `writtenIn`                                | `{ map, font }`                                                                                                                | `language` only: the script the language is written in, which a run explicitly marked with the language and `.nativefont` takes — see [script notes and emphasis](#script-notes-and-emphasis)  |
 | `writtenIn.map`                            | `string`, required                                                                                                             | The `data.map.name` of a mapping note                                                                                                                                                          |
 | `writtenIn.font`                           | `string`, required                                                                                                             | A face the map lists                                                                                                                                                                           |
 | `script`                                   | `{ fonts, emphasis, strongEmphasis?, direction? }`                                                                             | `script` only: the faces the script is written in, how it marks emphasis and its direction — see [script notes and emphasis](#script-notes-and-emphasis)                                       |

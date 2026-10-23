@@ -43,7 +43,7 @@ const FIXTURE = path.join(HERE, "fixtures", "script-fonts", "fonts");
 const PATHS = { content: "content" };
 /** A content tree whose note sets text only in a generic family. */
 const GENERIC = { content: "generic" };
-/** A content tree whose language note names its script, and whose note marks only the language. */
+/** A content tree whose language note names its script, and whose notes keep Roman spelling while the declared script still delivers its font. */
 const WRITTEN = { content: "written" };
 
 const note = (root: string, dir: string, body: string) => {
@@ -80,7 +80,11 @@ beforeAll(() => {
     without = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "font-delivery-none-")));
     for (const root of [withFonts, without]) {
         fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "demo" }));
-        note(root, "content", "Cut as [\u{F0239}\u{F0230}]{font=semaron-kuriale}.");
+        note(
+            root,
+            "content",
+            "Cut as [\u{F0239}\u{F0230}]{lang=und .nativefont font=semaron-kuriale}.",
+        );
         note(root, "generic", "Typed as [ka]{font=mono}, and `[x]{font=qalezu-hand}` is code.");
         note(root, "written", "Cut as [ka]{lang=vyl}.");
         fs.mkdirSync(path.join(root, "written", "Skills"), { recursive: true });
@@ -248,7 +252,7 @@ describe("the provenance check", () => {
         try {
             fs.writeFileSync(path.join(root, "package.json"), "{}");
             install(root);
-            note(root, "content", "Cut as [\u{F0239}]{font=semaron-kuriale}.");
+            note(root, "content", "Cut as [\u{F0239}]{lang=und .nativefont font=semaron-kuriale}.");
             const pkg = path.join(root, "node_modules", "@heroiclands", "fonts");
             fs.rmSync(path.join(pkg, "fonts", "QalezuHand-Regular.woff2"));
             fs.rmSync(path.join(pkg, "LICENSE"));

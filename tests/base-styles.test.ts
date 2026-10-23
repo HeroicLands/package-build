@@ -289,7 +289,7 @@ describe("what the Foundry renderer emits", () => {
         ":@ A picture\n\n![A](icons/svg/mystery-man.svg)",
         ":@ A table\n\n| A | B |\n| --- | --- |\n| a | b |",
         ":@ A verse\n\n```verse\nA verse\n```",
-        "```verse {numstep=1 lang=en col1=en col2=en/x:en}\n[A verse line]{lang=en}\n\n***\n\n[Another]{lang=en}\n```",
+        "```verse {numstep=1 lang=en cols=3}\n1 [A verse line]{lang=en}\n3 [A verse line]{lang=en}\n3 [A verse line]{lang=en}\n\n***\n\n1 [Another]{lang=en}\n3 [Another]{lang=en}\n```",
         ":@ A passage\n\nA paragraph.",
         "| Left | Right |\n| :--- | ---: |\n| a | b |",
         "```js\nclass A extends B {\n  static run(x) {\n    return `a${x}` + /re/.test(x) ? 1 : null; // note\n  }\n}\nfunction f(a) {}\nf('two');\n```",

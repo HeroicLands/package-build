@@ -559,7 +559,7 @@ describe("text set in one of the faces", () => {
             fs.writeFileSync(
                 path.join(content, "Rules", "Carved.md"),
                 "---\ntype: doc\nsubType: rules\nshortcode: carved\nname:\n    full: Carved\n---\n\n" +
-                    "Cut as [\u{F0239}]{font=semaron-kuriale}.\n",
+                    "Cut as [\u{F0239}]{lang=und .nativefont font=semaron-kuriale}.\n",
             );
             const result = buildSite({
                 config: defineConfig({

@@ -114,10 +114,11 @@ const SORIMA = "\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}";
 const ANLAGH = "\u{1EA08}\u{1EA00}\u{1EA0D} \u{1EA06}\u{1EA01}";
 
 const ROMAN = "Said [Daimela, helthos.]{lang=vyl} twice.";
-const LTR = "Said [thrima sorima.]{lang=vyl font=semaron-kuriale map=vyl-semaron} twice.";
-const RTL = "Said [anlagh gar.]{lang=khel font=qalezu-hand map=khel-qalezu} twice.";
+const LTR =
+    "Said [thrima sorima.]{lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont} twice.";
+const RTL = "Said [anlagh gar.]{lang=khel font=qalezu-hand map=khel-qalezu .nativefont} twice.";
 const BLOCK = [
-    "::: {#verse .note lang=khel font=qalezu-hand map=khel-qalezu}",
+    "::: {#verse .note lang=khel font=qalezu-hand map=khel-qalezu .nativefont}",
     "anlagh gar.",
     "  zul.",
     "",
@@ -125,13 +126,13 @@ const BLOCK = [
     ":::",
 ].join("\n");
 const POEM = [
-    "```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}",
+    "```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}",
     "thrima sorima",
     "  thrima",
     "```",
 ].join("\n");
 const RTL_POEM = [
-    "```verse {#lay lang=khel font=qalezu-hand map=khel-qalezu}",
+    "```verse {#lay lang=khel font=qalezu-hand map=khel-qalezu .nativefont}",
     "anlagh gar",
     "  zul",
     "```",
@@ -157,9 +158,9 @@ describe("renderRuns, goldens", () => {
         );
     });
 
-    it("sets text with no map as typed", () => {
-        expect(render(`[${THRIMA}]{font=semaron-kuriale}`)).toBe(
-            `[${THRIMA}]{.script .hl-semaron-kuriale}`,
+    it("sets directly typed script code points without a map", () => {
+        expect(render(`[${THRIMA}]{font=semaron-kuriale lang=und .nativefont}`)).toBe(
+            `[${THRIMA}]{lang=und .script .hl-semaron-kuriale}`,
         );
     });
 
@@ -179,9 +180,11 @@ describe("renderRuns, goldens", () => {
     });
 
     it("keeps a span's own id, classes and attributes", () => {
-        expect(render("[gar]{#a .name title=x lang=khel font=qalezu-hand map=khel-qalezu}")).toBe(
-            `[${GAR}]{lang=art-x-khel #a .name .script .hl-qalezu-hand title=x}`,
-        );
+        expect(
+            render(
+                "[gar]{#a .name title=x lang=khel font=qalezu-hand map=khel-qalezu .nativefont}",
+            ),
+        ).toBe(`[${GAR}]{lang=art-x-khel #a .name .script .hl-qalezu-hand title=x}`);
     });
 
     it("maps a right-to-left block line by line, and marks the block right to left", () => {
@@ -199,8 +202,8 @@ describe("renderRuns, goldens", () => {
 
     it("sets a run inside a block by its own keys over the block's", () => {
         const source = [
-            "::: {lang=vyl font=semaron-kuriale map=vyl-semaron}",
-            "thrima [Tor]{font=serif map=khel-qalezu} thrima",
+            "::: {lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}",
+            "thrima [Tor]{lang=vyl font=serif map=khel-qalezu .nativefont} thrima",
             ":::",
         ].join("\n");
         expect(render(source)).toBe(
@@ -240,14 +243,15 @@ describe("renderRuns, goldens", () => {
     });
 
     it("renders no run that is faulty", () => {
-        const faulty = "[x]{lang=vyl font=nowhere} [y]{lang=q} [q]{font=semaron-kuriale}";
+        const faulty =
+            "[x]{lang=vyl font=nowhere .nativefont} [y]{lang=q} [q]{font=semaron-kuriale lang=und .nativefont}";
         expect(render(faulty)).toBe(faulty);
     });
 
     it("keeps every line, whatever it rewrites", () => {
         const out = render(ALL);
         expect(out.split("\n")).toHaveLength(ALL.split("\n").length);
-        const multi = "[gar\nnal\nzul]{lang=khel font=qalezu-hand map=khel-qalezu}";
+        const multi = "[gar\nnal\nzul]{lang=khel font=qalezu-hand map=khel-qalezu .nativefont}";
         expect(render(multi).split("\n")).toHaveLength(3);
     });
 
@@ -404,7 +408,11 @@ describe("Typst", () => {
 
     it("sets a left-to-right block and a generic block without a direction", () => {
         const out = typst(
-            ["::: {lang=vyl font=semaron-kuriale map=vyl-semaron}", "thrima", ":::"].join("\n"),
+            [
+                "::: {lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}",
+                "thrima",
+                ":::",
+            ].join("\n"),
         );
         expect(out).toContain(
             '#block(width: 100%)[#book-script-text(classes: ("script", "script-block", "hl-semaron-kuriale"))[',
@@ -438,7 +446,7 @@ describe("Typst", () => {
 describe("faults", () => {
     it("reports a character the face does not draw, at the character", () => {
         const found = scanRuns(
-            "Said [gar 7]{lang=khel font=qalezu-hand map=khel-qalezu}.",
+            "Said [gar 7]{lang=khel font=qalezu-hand map=khel-qalezu .nativefont}.",
             ctx,
         ).errors;
         expect(found).toEqual([
@@ -453,7 +461,12 @@ describe("faults", () => {
 
     it("locates an undrawn character on a later line of a block", () => {
         const found = scanRuns(
-            ["::: {lang=khel font=qalezu-hand map=khel-qalezu}", "gar", "  ga7", ":::"].join("\n"),
+            [
+                "::: {lang=khel font=qalezu-hand map=khel-qalezu .nativefont}",
+                "gar",
+                "  ga7",
+                ":::",
+            ].join("\n"),
             ctx,
         ).errors;
         expect(found.map((e: { line: number; column: number }) => [e.line, e.column])).toEqual([
@@ -462,7 +475,7 @@ describe("faults", () => {
     });
 
     it("leaves a run with an undrawn character as written", () => {
-        const bad = "[gar 7]{lang=khel font=qalezu-hand map=khel-qalezu}";
+        const bad = "[gar 7]{lang=khel font=qalezu-hand map=khel-qalezu .nativefont}";
         expect(render(bad)).toBe(bad);
     });
 

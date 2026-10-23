@@ -96,7 +96,7 @@ const withoutKeys = runContext(config, [vylari({}), mapping]);
 
 /** The words of a list a context's check refuses. */
 const refused = (words: string[], ctx = withKeys) =>
-    scanRuns(`[${words.join(" ")}]{lang=vyl map=m}`, ctx).errors.map(
+    scanRuns(`[${words.join(" ")}]{lang=vyl map=m font=serif .nativefont}`, ctx).errors.map(
         (error: { message: string }) => error.message.match(/^`([^`]+)`/)?.[1],
     );
 

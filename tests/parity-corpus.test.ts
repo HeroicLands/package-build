@@ -50,7 +50,7 @@ import {
 } from "../engine/content-glyphs.mjs";
 import { scanSpans } from "../engine/content-spans.mjs";
 import { GENERIC_FONTS, RUN_KEYS, runContext, scanRuns } from "../engine/content-scripts.mjs";
-import { COLUMN_KEYS, VERSE_KEYS, scanVerse } from "../engine/content-verse.mjs";
+import { VERSE_KEYS, scanVerse } from "../engine/content-verse.mjs";
 import { SCROLL_KEYS, scanScrolls } from "../engine/content-scroll.mjs";
 import { EXPRESSION_HELPERS } from "../engine/markdown-expressions.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
@@ -255,7 +255,6 @@ describe("the corpus exercises every vocabulary the renderers read", () => {
         );
         for (const key of VERSE_KEYS.filter((key: string) => !written.has(key)))
             expect(used.has(key), `no verse fence states ${key}=`).toBe(true);
-        for (const key of COLUMN_KEYS) expect(used.has(key), `no verse column ${key}=`).toBe(true);
     });
 
     it("states every attribute a scroll fence takes", () => {
