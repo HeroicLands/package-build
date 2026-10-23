@@ -1,5 +1,22 @@
 # @heroiclands/package-build
 
+## 24.0.4
+
+### Patch Changes
+
+**Languages**
+
+- Core vocabulary coverage uses only the nearest definition when a language
+  redefines an inherited expression.
+
+- Inherited dictionary words appear in a daughter language’s script with the
+  applicable native spelling.
+
+**Verse**
+
+- Parallel verse keeps its Roman reading beside the native script, with
+  gaps between stanzas.
+
 ## 24.0.3
 
 ### Patch Changes
