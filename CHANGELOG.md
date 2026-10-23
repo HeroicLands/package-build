@@ -1,5 +1,41 @@
 # @heroiclands/package-build
 
+## 24.1.0
+
+### Minor Changes
+
+**Languages and scripts**
+
+- Language-only text and linked names retain Roman spelling and surrounding
+  fonts; request native script with `.nativefont` and explicit `lang=` on the
+  same construct.
+- Native fonts and maps require that opt-in; `map=` and `font=` override
+  defaults independently, with explicit `font=` needed when no font default
+  exists.
+- Remove or escape bold and italic markup inside non-English spans.
+
+**Verse**
+
+- For `cols=N` above one, prefix each reading with its column number and spaces;
+  keep numbers nondecreasing within blank-separated logical rows, leaving
+  omitted columns empty.
+- Repeat readings explicitly; each column’s first is foreground and later
+  readings grey, while numbering counts logical rows.
+- Use leading periods for indentation and `***` for stanza breaks; leading
+  spaces do not indent.
+
+### Patch Changes
+
+**Languages and scripts**
+
+- Language-marked links preserve destinations, spoilers, draft cues and
+  surrounding spacing.
+
+**Verse**
+
+- Mixed marked and unmarked runs in multiple languages retain spelling, spacing
+  and each run’s language, font and mapping.
+
 ## 24.0.4
 
 ### Patch Changes
