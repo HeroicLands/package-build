@@ -1,5 +1,23 @@
 # @heroiclands/package-build
 
+## 24.0.3
+
+### Patch Changes
+
+**Sites**
+
+- Glossary and dictionary entries link only to pages a reader can reach, and such links never make a page reachable.
+
+**Configuration**
+
+- A package can no longer declare a dependency whose images replace its own: `assetReplacement` and `assetArchive` are refused as unknown options.
+
+**Languages and scripts**
+
+- A sound mark can say `apart`, beside `stress` and `length`: the mark sets a vowel to be said apart from its neighbour, as a diaeresis does.
+- A skeleton row can state `third`, the third consonants it holds for, beside `second`, so a rule that depends on the third consonant can be written.
+- Text in the Veldikko script draws no charset warnings.
+
 ## 24.0.2
 
 ### Patch Changes
