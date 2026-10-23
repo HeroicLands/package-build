@@ -95,6 +95,7 @@ beforeAll(async () => {
                 "    marks:",
                 "      - {mark: acute, letters: [á, é], kind: stress, limit: one}",
                 "    skeleton:",
+                "      - {second: [m, n], third: [r], between: u}",
                 "      - {second: [l, r], between: ''}",
                 "      - {second: any, between: a}",
                 "    frames:",
@@ -529,10 +530,13 @@ describe("the sound relations", () => {
     });
 
     it("hold the skeleton vowel and the frames, a frame's examples by root", async () => {
-        expect(await rows("SELECT second, between FROM skeleton ORDER BY position")).toEqual([
-            { second: ["l", "r"], between: "" },
-            { second: ["any"], between: "a" },
-        ]);
+        expect(await rows("SELECT second, third, between FROM skeleton ORDER BY position")).toEqual(
+            [
+                { second: ["m", "n"], third: ["r"], between: "u" },
+                { second: ["l", "r"], third: null, between: "" },
+                { second: ["any"], third: null, between: "a" },
+            ],
+        );
         expect(
             await rows(
                 "SELECT frame, shape, class, makes, list_filter(examples, e -> e.root = 'd-l-k')[1].form AS dlk FROM frames",

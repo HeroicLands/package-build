@@ -126,7 +126,9 @@ const DUNHARI = [
     "    marks:",
     "      - {mark: acute, letters: [á, é], kind: stress, limit: one}",
     "      - {mark: macron, letters: [ā, ē], kind: length, limit: any}",
+    "      - {mark: diaeresis, letters: [ë], kind: apart, limit: any}",
     "    skeleton:",
+    "      - {second: [m, n], third: [r, m], between: u}",
     '      - {second: [l, r, m], between: ""}',
     "      - {second: any, between: a}",
     "    frames:",
@@ -667,7 +669,7 @@ describe("the sound rules beside the letters", () => {
     it("refuse a mark's kind or limit outside the closed lists, at the value", () => {
         one(
             edit("kind: stress, limit: one", "kind: tone, limit: one"),
-            /`data\.sounds\.marks\[0\]\.kind` should be `stress` or `length`/,
+            /`data\.sounds\.marks\[0\]\.kind` should be `stress` or `length` or `apart`/,
             "tone",
         );
         one(
@@ -708,10 +710,18 @@ describe("the sound rules beside the letters", () => {
         );
     });
 
+    it("refuse a third consonant of the wrong shape, at the value", () => {
+        one(
+            edit("third: [r, m]", "third: 4"),
+            /`data\.sounds\.skeleton\[0\]\.third` should be `any`/,
+            "4",
+        );
+    });
+
     it("refuse a skeleton row holding for nothing, at the row", () => {
         one(
             edit("      - {second: any, between: a}", "      - {between: a}"),
-            /`data\.sounds\.skeleton\[1\]` must state `second`/,
+            /`data\.sounds\.skeleton\[2\]` must state `second`/,
             "{between: a}",
         );
     });

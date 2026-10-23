@@ -152,7 +152,7 @@ export const JOIN_MEETINGS = Object.freeze(["C+C", "V+C", "V+V"]);
 export const JOIN_RULES = Object.freeze(["merge", "insert", "drop", "double"]);
 
 /** What a written mark says of its letter. */
-export const MARK_KINDS = Object.freeze(["stress", "length"]);
+export const MARK_KINDS = Object.freeze(["stress", "length", "apart"]);
 
 /** How many of a mark a word may carry: `one` at most, or `any` number. */
 export const MARK_LIMITS = Object.freeze(["one", "any"]);
@@ -830,6 +830,12 @@ export const SKELETON_FIELDS = Object.freeze([
         ...SOUNDS_OR_ANY,
         required: true,
         describe: "The second consonants of a root the row holds for; `any` for every other.",
+    }),
+    Object.freeze({
+        name: "third",
+        ...SOUNDS_OR_ANY,
+        describe:
+            "The third consonants of a root the row holds for; every third consonant where absent.",
     }),
     Object.freeze({
         name: "between",

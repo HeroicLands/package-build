@@ -253,7 +253,7 @@ export const LANGUAGE_COLUMN_TYPES = Object.freeze({
     joining: { position: "BIGINT", first: LIST, second: LIST },
     joins: { position: "BIGINT", letters: LIST },
     marks: { position: "BIGINT", letters: LIST },
-    skeleton: { position: "BIGINT", second: LIST },
+    skeleton: { position: "BIGINT", second: LIST, third: LIST },
     frames: {
         position: "BIGINT",
         class: LIST,
@@ -911,14 +911,14 @@ export function markRows(records) {
 }
 
 /**
- * The `skeleton` rows: one per `data.sounds.skeleton` entry, `second` a list.
+ * The `skeleton` rows: one per `data.sounds.skeleton` entry, `second` and `third` lists.
  *
  * @param {Iterable<Record<string, any>>} records - Index records.
  * @returns {object[]}
  */
 export function skeletonRows(records) {
     return listRows(records, (data) => soundsOf(data).skeleton, SKELETON_KEYS, {
-        lists: ["second"],
+        lists: ["second", "third"],
     });
 }
 
