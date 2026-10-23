@@ -91,6 +91,9 @@ import {
     expandVerseOrigins,
     scanVerse,
     sourcePosition,
+    hasColumns,
+    verseColumns,
+    STANZA_BREAK,
 } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { scanScrolls, scrollParagraphs } from "./content-scroll.mjs";
@@ -908,8 +911,23 @@ function analyseRuns(source, ctx, syntax) {
     collect(0, text);
 
     const poems = new Map();
+    const romanColumnLines = new Set();
     for (const poem of scanVerse(text).blocks) {
         poems.set(poem.start, poem);
+        // Expansion writes one span per display entry. An entry with no map
+        // keeps the source spelling and page font, even when its language
+        // normally selects a script. The fence itself holds only structure.
+        if (poem.classes.includes(COLUMNS_CLASS)) {
+            const entries = verseColumns(poem, lines[poem.start]).flatMap(
+                (column) => column.entries,
+            );
+            let entry = 0;
+            for (let line = poem.start + 1; line < poem.end; line++) {
+                if (!lines[line].trim() || STANZA_BREAK.test(lines[line].trim())) continue;
+                if (entries[entry++ % entries.length]?.map === undefined)
+                    romanColumnLines.add(line);
+            }
+        }
         const keys = runKeys(poem.attributes);
         if (!Object.keys(keys).length) continue;
         const opening = lines[poem.start];
@@ -1272,7 +1290,10 @@ function analyseRuns(source, ctx, syntax) {
         const keys = Object.assign({}, ...around(construct).map((c) => c.keys), construct.keys);
         // The language's script fills what the run leaves unstated, once its
         // own keys are known to name something.
-        if (named) Object.assign(keys, fromWrittenIn(keys, ctx.writtenIn, maps));
+        const columnSource = construct.kind === "span" && romanColumnLines.has(construct.line0);
+        const columnFence = construct.kind === "verse" && hasColumns(construct.node);
+        if (named && !columnSource && !columnFence)
+            Object.assign(keys, fromWrittenIn(keys, ctx.writtenIn, maps));
         if (construct.kind === "scroll" && named) {
             scrollFace(construct, keys);
             named = errors.length === unchecked;

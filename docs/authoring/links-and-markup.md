@@ -490,7 +490,11 @@ column stacks one or more **entries**, joined by `:`. An entry is
 - **`mapping`** names a [mapping note](#mapping-notes), which rewrites the
   line before it is set. Left out, the line is set as written.
 - **`font`** names a face or a generic family, as `font=` does. Left out, the
-  line is set in the roman serif.
+  line keeps the page's normal typeface.
+
+A language-only entry stays in Roman letters even when the language's
+`data.writtenIn` names its usual script. Ordinary language-marked prose still
+selects that script automatically; columns use the entry's explicit mapping.
 
 A poem has at most two columns, and either may be left out. In every column
 the first entry is set in the normal tone and each later one in grey.
@@ -805,7 +809,12 @@ is one of them.
 
 **With `lang=`, the language's dictionary comes first.** Where
 [`languages.<name>.note`](../configuration.md#languages) names the language's
-note, each word of the run is looked up in its `data.words`:
+note, each word of the run is looked up in its `data.words` and the words of
+its `data.family` chain. The nearest exact NFC form supplies the entire word
+entry, including variants and native spellings; an override replaces the whole
+ancestor entry. Case and word separators remain part of that identity.
+Grammar, registered names and the default writing script remain the daughter's
+own. An inherited native spelling applies only to the map and face it names:
 
 1. **A word whose entry states a `native` form for the map** is written by it:
    the form stated for the run's face where there is one, else the form stated

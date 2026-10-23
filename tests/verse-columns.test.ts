@@ -26,6 +26,7 @@ import { renderBlocks, scanBlocks } from "../engine/content-blocks.mjs";
 import { renderRuns, runContext, scanRuns } from "../engine/content-scripts.mjs";
 import { renderSpans } from "../engine/content-spans.mjs";
 import { expandVerse } from "../engine/content-verse.mjs";
+import { createRenderer } from "../engine/content-render.mjs";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { markupFindings } from "../engine/markup-validation.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
@@ -404,4 +405,87 @@ describe("the scan", () => {
     it("accepts the new keys on a verse", () => {
         expect(scanBlocks("```verse {numstep=5}\nA\n```").errors).toEqual([]);
     });
+});
+
+describe("a language with an automatic script in parallel verse", () => {
+    const context = () =>
+        runContext(
+            {
+                rootDir: root,
+                contentPackage: "demo",
+                languages: { vyl: { tag: "art-x-vyl", note: "skill-vyllng" } },
+            },
+            [
+                mapNote("vylsemaron", {
+                    ...VYL_SEMARON,
+                    fonts: [{ font: "semaron-kuriale" }],
+                }),
+                {
+                    type: "skill",
+                    subType: "language",
+                    shortcode: "vyllng",
+                    address: { canonical: "demo-note-skill-vyllng" },
+                    data: {
+                        writtenIn: { map: "vyl-semaron", font: "semaron-kuriale" },
+                        words: [
+                            {
+                                form: "thrima",
+                                class: "n",
+                                gloss: "line",
+                                native: [{ map: "vyl-semaron", text: SORIMA }],
+                            },
+                            { form: "sorima", class: "n", gloss: "song" },
+                        ],
+                    },
+                },
+            ],
+        );
+    const parallel = (lang: string) =>
+        [
+            ": A song {#automatic-script-song}",
+            "",
+            `\`\`\`verse {lang=${lang} col1=vyl/vyl-semaron/semaron-kuriale col2=en:vyl}`,
+            "[The line]{lang=en}",
+            "[thrima]{lang=vyl}",
+            "",
+            "***",
+            "",
+            "[The song]{lang=en}",
+            "[sorima]{lang=vyl}",
+            "```",
+        ].join("\n");
+
+    it("still rejects an unregistered word in the mapped column", () => {
+        const source = parallel("en").replace("[thrima]", "[thrimathrima]");
+        expect(scanRuns(source, context()).errors).toEqual([
+            {
+                line: 5,
+                column: 2,
+                message:
+                    "`thrimathrima` is not a word of the `vyl` lexicon, a registered name, or a regular form of one; coin it in the lexicon (or register the name) first",
+            },
+        ]);
+    });
+
+    for (const target of ["web", "foundry"] as const) {
+        for (const lang of ["en", "vyl"]) {
+            it(`keeps the roman repeat beside native spelling on ${target}, outer lang=${lang}`, () => {
+                const runs = context();
+                const html = createRenderer(target).render(parallel(lang), { runs });
+                const search = target === "web" ? ' data-pagefind-ignore="true"' : "";
+                expect(html).toContain(
+                    row(undefined, [semaron(SORIMA, search)], [en("The line"), vyl("thrima")]),
+                );
+                expect(html).toContain(
+                    row(undefined, [semaron(SORIMA, search)], [en("The song"), vyl("sorima")]),
+                );
+                expect(html).not.toContain("font-serif");
+                expect(html).not.toContain("***");
+                expect(html).toMatch(/<\/p>\s*<p><span class="verse-row">/);
+                expect(scanRuns(parallel(lang), runs).errors).toEqual([]);
+                const prose = createRenderer(target).render("[thrima]{lang=vyl}", { runs });
+                expect(prose).toContain(semaron(SORIMA, search));
+            });
+        }
+    }
 });

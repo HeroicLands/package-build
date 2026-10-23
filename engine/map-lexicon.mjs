@@ -59,7 +59,7 @@ import { fromWrittenIn } from "./written-in.mjs";
 import { writingsOf } from "./logographic.mjs";
 import { FONTS_PACKAGE } from "./script-fonts.mjs";
 import { GENERIC_FAMILIES, applyMap } from "./text-maps.mjs";
-import { isLanguageRecord, noteAddressOf } from "./word-rows.mjs";
+import { isLanguageRecord, lineageChain, noteAddressOf } from "./word-rows.mjs";
 import { derivedForms } from "./word-forms.mjs";
 import { LANGUAGE_SUBTYPE, glossText } from "./word-terms.mjs";
 
@@ -183,7 +183,7 @@ function lexiconOf(language, data) {
  * @returns {string|undefined} The Address.
  */
 function noteKey(note, contentPackage, types) {
-    if (typeof note !== "string" || !contentPackage) return undefined;
+    if (!contentPackage) return undefined;
     const tuple = parseAddress(
         note,
         { package: contentPackage, system: "note", type: "skill", types: new Set(types) },
@@ -248,7 +248,9 @@ function languageNotes(languages, contentPackage, records) {
 
 /**
  * Each configured language's lexicon, read from the language note its `note`
- * names. A language with no `note`, or one naming no language note, has none.
+ * names and its family chain. The nearest exact NFC form supplies the whole
+ * word; grammar, registers and other settings remain the daughter's own.
+ * A language with no `note`, or one naming no language note, has none.
  *
  * @param {Iterable<Record<string, any>>|undefined} records - Index records.
  * @param {{languages?: Readonly<Record<string, {tag: string, note?: string}>>, contentPackage?: string}} config -
@@ -256,9 +258,39 @@ function languageNotes(languages, contentPackage, records) {
  * @returns {Map<string, Lexicon>} The lexicons by language name.
  */
 export function lexiconsFromRecords(records, config = {}) {
+    const list = [...(records ?? [])];
+    const byKey = recordsByKey(list, config.contentPackage);
+    const types = new Set(["skill", ...list.map((record) => record?.type).filter(Boolean)]);
+    const lineage = {
+        has: (key) => isLanguage(byKey.get(key)),
+        parentOf: (key) => {
+            const record = byKey.get(key);
+            return noteKey(record.data?.family, record.package ?? config.contentPackage, types);
+        },
+    };
     const lexicons = new Map();
-    for (const [name, record] of languageRecordsByName(records, config))
-        lexicons.set(name, lexiconOf(name, record.data));
+    for (const [name, { key, record }] of languageNotes(
+        config.languages,
+        config.contentPackage,
+        list,
+    )) {
+        if (!record) continue;
+        const chain = lineageChain(key, lineage);
+        let data = record.data;
+        if (chain.length > 1) {
+            const words = new Map();
+            for (const ancestor of chain)
+                for (const word of listOf(byKey.get(ancestor).data?.words)) {
+                    if (!isMap(word) || typeof word.form !== "string") continue;
+                    // The nearest complete definition wins before word matching
+                    // folds case or splits compounds. Only words are inherited.
+                    const form = word.form.normalize("NFC");
+                    if (!words.has(form)) words.set(form, word);
+                }
+            data = { ...data, words: [...words.values()] };
+        }
+        lexicons.set(name, lexiconOf(name, data));
+    }
     return lexicons;
 }
 

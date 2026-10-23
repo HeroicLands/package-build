@@ -36,7 +36,7 @@
  * @module
  */
 
-import { languageRecordsByName } from "./map-lexicon.mjs";
+import { lexiconsFromRecords } from "./map-lexicon.mjs";
 import { RESERVED_TONGUE } from "./language-terms.mjs";
 import { addWords, foldWord, lexiconWords } from "./word-forms.mjs";
 import { WORD } from "./word-pattern.mjs";
@@ -82,7 +82,8 @@ export function registeredNameWords(data) {
 
 /**
  * Each configured language's word book: one per language whose `note` names a
- * language note.
+ * language note. Its effective lexicon shares the renderer's nearest inherited
+ * words, and derives forms and registered names from its own settings.
  *
  * @param {Iterable<Record<string, any>>|undefined} records - Index records.
  * @param {{languages?: Readonly<Record<string, {tag: string, note?: string}>>, contentPackage?: string}} config -
@@ -92,11 +93,10 @@ export function registeredNameWords(data) {
 export function wordBooksFromRecords(records, config = {}) {
     const list = [...(records ?? [])];
     const books = new Map();
-    const languages = languageRecordsByName(list, config);
-    if (!languages.size) return books;
-    for (const [name, record] of languages) {
-        const own = lexiconWords(record.data);
-        const names = registeredNameWords(record.data);
+    const lexicons = lexiconsFromRecords(list, config);
+    for (const [name, lexicon] of lexicons) {
+        const own = lexiconWords(lexicon.data);
+        const names = registeredNameWords(lexicon.data);
         books.set(
             name,
             Object.freeze({
