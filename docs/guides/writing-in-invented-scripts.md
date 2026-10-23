@@ -190,7 +190,9 @@ so `[`, `]`, `"`, `<<`, `>>`, `!` and `@ # $ % ^ &` are characters; a bracket
 pair is markup only when `(` makes a link, `{` a span or a second `[` a
 wikilink, and an unbalanced bracket takes a backslash, `\[`. A code fence is
 verbatim: `[…]{…}` inside it stays literal text. Text marked with a real
-language's tag alone keeps its Markdown, so `[ad _astra_]{lang=la}` works.
+language's tag alone keeps its Markdown when that language is English; a span
+with a non-English effective language cannot contain actual bold or italic
+markup, even when the language is real.
 
 The three keys are errors on a named block such as a secret block. Put a marked
 div inside the block instead.
@@ -714,8 +716,14 @@ data:
 `emphasis` sets both `*…*` and `**…**`, and `strongEmphasis` optionally sets
 `**…**` alone. A tongue that states nothing takes its script's convention.
 
-**A `words` language makes emphasis an error.** `data.emphasis: words` says the
-language marks stress with a word, so stars in its runs are refused:
+**Non-English spans do not take Markdown emphasis.** Bold and italic markup in
+a span with an effective non-English language is an error, whether it has a
+font or not, and whether its language is declared on that span or inherited.
+English (`en`) and English BCP 47 tags remain eligible. Escaped literal
+delimiters are not emphasis. This restriction applies throughout the note.
+
+`data.emphasis: words` also makes emphasis an error: it says the language marks
+stress with a word, so stars in its runs are refused:
 
 > `` `ban` marks emphasis with a word, not a mark; write the word ``
 
@@ -763,13 +771,14 @@ numbers the lines (`numstep=1` every line, `numstep=5` every fifth, `0` none).
 `form=` records the poem's kind, such as `form=epic`; the build infers nothing
 from it.
 
-The body is **one fence, with interleaved `lang` spans.** Each verse line is a
-group of lines separated from the next by a blank line; every line of a group is
-a span giving the verse line in one language, `[text]{lang=…}`, or plain text in
-the fence's own `lang=`. A line of only `***` breaks a stanza. The Vylari is
-typed once, in roman, and each column picks what it needs: the first entry of
-`col1=` maps it into Semaron, and the second entry of `col2=` sets the same line
-in roman.
+The body is **one fence, with interleaved `lang` spans.** Each verse row is a
+group of lines separated from the next by a blank line; each part identifies
+its column language with an outer `[text]{lang=…}` span, or with the fence's
+`lang=` when unmarked. A part may contain inline runs in other languages or
+scripts; these remain in the same row and preserve their authored spacing. A
+line of only `***` breaks a stanza. The Vylari is typed once, in roman, and each
+column picks what it needs: the first entry of `col1=` maps it into Semaron,
+and the second entry of `col2=` sets the same line in roman.
 
 ````markdown
 ```verse {numstep=1 lang=vyl col1=vyl/semaron/semaron-kuriale col2=en:vyl}
@@ -792,9 +801,11 @@ and a narrow screen stacks them. A part in a right-to-left face stays in its
 column and runs right to left within it.
 
 The rules of a verse in columns: `font=` and `map=` belong to the entries, not
-to the poem; every verse line gives one span for each language its columns
-name and none for a language they do not; a line is not indented and its span
-takes only `lang=`. Each finding is an error at the text that is wrong:
+to the poem; every row gives one outer-labelled part for each language its
+columns name and none for a language they do not. A part may contain inline
+language or script runs, which remain in that row and do not count as another
+translation. Leading periods indent each part independently; leading spaces do
+not count. Each finding is an error at the text that is wrong:
 
 ```text
 assets/content/Lore/Walking.md:14:1: error: this verse line has no `en` line, which `col2=` sets
@@ -1287,11 +1298,11 @@ name: { full: The Marked Door }
 type: lore
 ---
 
-The door is marked with the same words as the lintel, and the scribe stressed the
-second word so that no one would read it as the first, which is how the script
-marks a stressed word.
+The door is marked with the same words as the lintel. Although Semaron's
+convention is rubric, this Vylari span uses no Markdown emphasis: spans with a
+non-English language cannot contain bold or italic markup.
 
-[Lokazor **lonak**, zaron.]{lang=vyl font=semaron-kuriale map=semaron}
+[Lokazor lonak, zaron.]{lang=vyl font=semaron-kuriale map=semaron}
 ```
 
 Finally, the core report lists what the language still lacks:

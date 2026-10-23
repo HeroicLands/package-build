@@ -253,6 +253,25 @@ describe("the warning", () => {
         expect(warnings(source)).toEqual([]);
     });
 
+    it("counts text inside same-language spans and ignores indentation and stanza markers", () => {
+        const source = fence(
+            "scan=trimeter lang=vyl",
+            "[..zaros zaros zaros]{lang=vyl}",
+            "***",
+            ".zaros zaros zaros",
+        );
+        expect(warnings(source)).toEqual([]);
+        expect(errors(source)).toEqual([]);
+    });
+
+    it("refuses to scan another language with the fence's beat rules", () => {
+        const source = fence("scan=trimeter lang=vyl", "zaros [a foreign phrase]{lang=en} zaros");
+        expect(errors(source)).toContain(
+            "2:7: `scan=` counts one language's beats; this verse line contains another language",
+        );
+        expect(warnings(source)).toEqual([]);
+    });
+
     it("warns at each line that fails, past stanza breaks", () => {
         const source = fence(
             "scan=trimeter lang=vyl",

@@ -11,39 +11,80 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/** The authored verse lines, excluding stanza separators. */
+/** The authored verse lines, excluding blank lines and stanza separators. */
 export function verseLines(body) {
     return String(body ?? "")
         .split("\n")
-        .filter((line) => line.trim());
+        .filter((line) => line.trim() && !STANZA_BREAK.test(line.trim()));
 }
 
 /**
- * The least-indented verse is level zero. Every two additional leading spaces
- * add one level; a leftover space is discarded and the level stops at eight.
- * Blank lines divide stanzas rather than contributing to the baseline.
+ * Read one verse line. Marker offsets are zero-based in the authored line;
+ * textColumn is the one-based column of its first non-space character.
+ * Periods inside a span set indentation only when that span starts the line.
+ */
+export function verseLine(line) {
+    const source = String(line ?? "");
+    const spaces = /^ */.exec(source)[0].length;
+    const written = source.slice(spaces).trimEnd();
+    let markerStart = spaces;
+    let markerLength = /^\.+/.exec(written)?.[0].length ?? 0;
+    if (!markerLength) {
+        const span = leadingSpan(written);
+        const html = /^<span\b[^>]*>/.exec(written);
+        const prefix =
+            span ? 1
+            : html ? html[0].length
+            : 0;
+        if (prefix) {
+            markerStart += prefix;
+            markerLength = /^\.+/.exec(written.slice(prefix))?.[0].length ?? 0;
+        }
+    }
+    const start = markerStart - spaces;
+    return {
+        text: written.slice(0, start) + written.slice(start + markerLength),
+        level: markerLength,
+        markerStart,
+        markerLength,
+        textColumn: spaces + 1,
+    };
+}
+
+/**
+ * Blank lines divide verse groups. A standalone `***` is its own group and
+ * separates stanzas. Each text line carries its period-based indentation.
  */
 export function verseStanzas(body) {
-    const lines = String(body ?? "").split("\n");
-    const verses = verseLines(body);
-    if (!verses.length) return [];
-    const baseline = Math.min(...verses.map((line) => /^ */.exec(line)[0].length));
-    const stanzas = [];
-    let stanza = [];
-    for (const line of lines) {
+    const groups = [];
+    let group = [];
+    const end = () => {
+        if (group.length) groups.push(group);
+        group = [];
+    };
+    for (const line of String(body ?? "").split("\n")) {
         if (!line.trim()) {
-            if (stanza.length) stanzas.push(stanza);
-            stanza = [];
+            end();
             continue;
         }
-        const spaces = /^ */.exec(line)[0].length;
-        stanza.push({
-            text: line.slice(spaces).trimEnd(),
-            level: Math.min(8, Math.floor((spaces - baseline) / 2)),
-        });
+        if (STANZA_BREAK.test(line.trim())) {
+            end();
+            groups.push([{ text: "***", level: 0 }]);
+            continue;
+        }
+        const { text, level } = verseLine(line);
+        group.push({ text, level });
     }
-    if (stanza.length) stanzas.push(stanza);
-    return stanzas;
+    end();
+    return groups;
+}
+
+/** A stanza separator group, independent of the surrounding verse lines. */
+export const stanzaSeparator = (group) => group.length === 1 && STANZA_BREAK.test(group[0].text);
+
+/** HTML indentation attributes; large levels retain their full authored depth. */
+function indentStyle(level) {
+    return level > 8 ? ` style="--verse-indent: ${level * 1.25}em"` : "";
 }
 
 /** A verse is inline Markdown even when it starts with block syntax. */
@@ -54,7 +95,8 @@ export function inlineVerse(text) {
 }
 
 /**
- * Keep stanzas as Markdown paragraphs and make every verse line a hard break.
+ * Keep blank-line verse groups as paragraphs and each text line a hard break.
+ * A standalone `***` emits a separate stanza gap.
  * The surrounding renderer still sees the entire note, so links and footnote
  * definitions remain in scope. The span carries the indent for each line.
  */
@@ -62,12 +104,14 @@ export function verseMarkdown(body, step = 0) {
     let count = 0;
     return verseStanzas(body)
         .map((stanza) =>
-            stanza
-                .map(({ text, level }) => {
-                    const number = lineNumber(++count, step);
-                    return `<span class="verse-line${level ? ` i${level}` : ""}">${number === undefined || number === "" ? "" : `<span class="verse-number">${number}</span>`}${inlineVerse(text)}</span>`;
-                })
-                .join("  \n"),
+            stanzaSeparator(stanza) ?
+                '<span class="verse-stanza-break" aria-hidden="true"></span>'
+            :   stanza
+                    .map(({ text, level }) => {
+                        const number = lineNumber(++count, step);
+                        return `<span class="verse-line${level ? ` i${level}` : ""}"${indentStyle(level)}>${number === undefined || number === "" ? "" : `<span class="verse-number">${number}</span>`}${inlineVerse(text)}</span>`;
+                    })
+                    .join("  \n"),
         )
         .join("\n\n");
 }
@@ -122,10 +166,10 @@ function columnsMarkdown(block, lines, step) {
                 '<span class="verse-column">' +
                 parts
                     .slice(next, (next += n))
-                    .map(
-                        (part, k) =>
-                            `<span class="verse-part${k ? " verse-secondary" : ""}"${rightToLeft(part) ? ' dir="rtl"' : ""}>${part}</span>`,
-                    )
+                    .map((part, k) => {
+                        const { text, level } = verseLine(part);
+                        return `<span class="verse-part${k ? " verse-secondary" : ""}${level ? ` i${level}` : ""}"${indentStyle(level)}${rightToLeft(text) ? ' dir="rtl"' : ""}>${text}</span>`;
+                    })
                     .join("") +
                 "</span>",
         );
@@ -146,9 +190,18 @@ function columnsMarkdown(block, lines, step) {
 
 import MarkdownIt from "markdown-it";
 import { slugify } from "./content-slug.mjs";
+import { spanMarkdownPlugin } from "./content-spans.mjs";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 
 const structureParser = new MarkdownIt({ html: true });
+const lineParser = new MarkdownIt({ html: true }).use(spanMarkdownPlugin);
+
+/** The structural first span of a line, with its source ranges and keys. */
+function leadingSpan(text) {
+    if (!text.startsWith("[")) return undefined;
+    const tokens = lineParser.parseInline(text, {})[0]?.children ?? [];
+    return tokens.find((token) => token.meta?.span && token.meta.start === 0);
+}
 
 /** The keys that set a verse in columns, the left first. */
 export const COLUMN_KEYS = Object.freeze(["col1", "col2"]);
@@ -378,16 +431,13 @@ export function verseColumns(block, opening) {
  */
 export const STANZA_BREAK = /^(?:\\?\*){3}$/;
 
-/** A whole-line span, `[text]{attributes}`. */
-const LINE_SPAN = /^\[(.*)\]\{([^{}]*)\}$/;
-
 /**
  * The verse lines of a verse in columns: each blank-line group of span lines
  * is one verse line, and a line holding only `***` breaks the stanza.
  *
  * @param {object} block - A verse from {@link scanVerse}.
  * @param {string[]} lines - The source, by line.
- * @returns {Array<{stanzaBreak: true, line: number}|{stanzaBreak?: false, parts: Array<{line: number, column: number, text: string, textColumn: number, lang?: string, span: boolean, extra: boolean, indent: number}>}>}
+ * @returns {Array<{stanzaBreak: true, line: number}|{stanzaBreak?: false, parts: Array<{line: number, column: number, text: string, textColumn: number, sourceTextColumn: number, markerOffset: number, markerColumn: number, lang?: string, span: boolean, extra: boolean, indent: number}>}>}
  *   0-based lines, 1-based columns.
  */
 export function verseGroups(block, lines) {
@@ -397,8 +447,6 @@ export function verseGroups(block, lines) {
         if (parts.length) groups.push({ parts });
         parts = [];
     };
-    const body = lines.slice(block.start + 1, block.end).filter((line) => line.trim());
-    const baseline = body.length ? Math.min(...body.map((line) => /^ */.exec(line)[0].length)) : 0;
     for (let at = block.start + 1; at < block.end; at++) {
         const line = lines[at];
         if (!line.trim()) {
@@ -411,16 +459,35 @@ export function verseGroups(block, lines) {
             continue;
         }
         const spaces = /^ */.exec(line)[0].length;
-        const written = line.slice(spaces).trimEnd();
-        const span = LINE_SPAN.exec(written);
-        const parsed = span ? parseExtensionAttributes(span[2]) : undefined;
+        const parsedLine = verseLine(line);
+        const written = parsedLine.text;
+        const outside = parsedLine.markerStart === spaces ? parsedLine.markerLength : 0;
+        const first = leadingSpan(written);
+        const span = first?.meta.end === written.length ? first : undefined;
+        const parsed =
+            span ?
+                {
+                    values: Object.fromEntries(
+                        (span.attrs ?? []).filter(([key]) => key !== "id" && key !== "class"),
+                    ),
+                    id: span.attrGet("id"),
+                    classes: (span.attrGet("class") ?? "").split(/\s+/).filter(Boolean),
+                    problems: span.meta.problems,
+                }
+            :   undefined;
+        const text = span ? span.meta.text : written;
+        const sourceTextColumn = spaces + outside + 1 + (span ? 1 : 0);
+        const markerOffset = parsedLine.markerStart - sourceTextColumn + 1;
         parts.push({
             line: at,
-            column: spaces + 1,
-            indent: spaces - baseline,
+            column: spaces + outside + 1,
+            indent: parsedLine.level,
             span: Boolean(span),
-            text: span ? span[1] : written,
-            textColumn: spaces + 1 + (span ? 1 : 0),
+            text,
+            textColumn: sourceTextColumn + (markerOffset === 0 ? parsedLine.markerLength : 0),
+            sourceTextColumn,
+            markerOffset,
+            markerColumn: parsedLine.markerStart + 1,
             lang: span ? parsed.values.lang : block.attributes.lang,
             extra:
                 Boolean(parsed) &&
@@ -477,8 +544,6 @@ function columnFindings(block, lines) {
         const seen = new Set();
         let unlabelled = false;
         for (const part of group.parts) {
-            if (part.indent > 0)
-                report(part.line, part.column, "a line of a verse in columns is not indented");
             if (part.span && part.extra) {
                 report(
                     part.line,
@@ -533,7 +598,11 @@ function columnFindings(block, lines) {
  * @returns {boolean} Whether it starts right to left.
  */
 export function rightToLeft(text) {
-    const first = /[\p{L}\p{M}\p{Co}\p{Cn}]/u.exec(String(text).replace(/\{[^}]*\}/g, ""));
+    const first = /[\p{L}\p{M}\p{Co}\p{Cn}]/u.exec(
+        String(text)
+            .replace(/<[^>]*>/g, "")
+            .replace(/\{[^}]*\}/g, ""),
+    );
     return Boolean(
         first &&
         /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u.test(
@@ -557,6 +626,10 @@ function attributeValue(value) {
  * @property {boolean} [span] - Whether the source line is a span, whose `[`
  *   sits before its text.
  * @property {number} [textLength] - The length of the entry's text.
+ * @property {number} [markers] - The indentation periods before the entry's text.
+ * @property {number} [sourceTextColumn] - The original text's first column before stripping markers.
+ * @property {number} [markerOffset] - The markers' original offset from that text, negative when outside it.
+ * @property {number} [markerColumn] - The original first marker's source column.
  * @property {{line: number, columns: {lang: number, map?: number, font?: number}}} [entry] -
  *   Where the entry is written in the opening line.
  */
@@ -617,11 +690,17 @@ export function expandVerseOrigins(source) {
                     ...(entry.map === undefined ? [] : [`map=${attributeValue(entry.map)}`]),
                     ...(entry.font === undefined ? [] : [`font=${attributeValue(entry.font)}`]),
                 ];
-                output.push(`${block.indent}[${part.text}]{${keys.join(" ")}}`);
+                output.push(
+                    `${block.indent}[${".".repeat(part.indent)}${part.text}]{${keys.join(" ")}}`,
+                );
                 origins.push({
                     line: part.line,
                     textColumn: part.textColumn,
                     indent: block.indent.length,
+                    markers: part.indent,
+                    sourceTextColumn: part.sourceTextColumn,
+                    markerOffset: part.markerOffset,
+                    markerColumn: part.markerColumn,
                     span: part.span,
                     textLength: part.text.length,
                     entry: { line: block.start, columns: entry.columns },
@@ -663,11 +742,20 @@ export function sourcePosition(at, expanded, origins) {
     if (!origin) return at;
     if (origin.entry === undefined) return { line: origin.line + 1, column: at.column };
     const local = at.column - (origin.indent ?? 0);
-    if (local <= origin.textLength + 1) {
-        const column = origin.textColumn + local - 2;
+    const markers = origin.markers ?? 0;
+    if (local <= origin.textLength + markers + 1) {
+        const offset = local - markers - 2;
+        const column =
+            local >= 2 && local < markers + 2 ?
+                origin.markerColumn + local - 2
+            :   origin.sourceTextColumn +
+                Math.max(0, offset) +
+                (markers && origin.markerOffset >= 0 && offset >= origin.markerOffset ?
+                    markers
+                :   0);
         return {
             line: origin.line + 1,
-            column: Math.max(origin.textColumn - (origin.span ? 1 : 0), column),
+            column: local <= 1 ? origin.sourceTextColumn - (origin.span ? 1 : 0) : column,
         };
     }
     const line = expanded[at.line - 1];

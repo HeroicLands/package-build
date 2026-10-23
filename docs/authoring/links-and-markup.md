@@ -343,39 +343,49 @@ Foundry renders a secret section; the website renders an expandable spoiler, and
 
 ### Verse
 
-Use a code fence with the language `verse` to preserve verse lines and stanzas. Every nonblank source line
-is one verse line; blank lines separate stanzas. Inline emphasis, links and
-footnotes work as they do in prose. The fence itself adds no title, caption or
-number.
+Use a code fence with the language `verse` to preserve verse lines and stanzas.
+Each nonblank source line is one verse line. A blank line separates verse units;
+`***` on a line by itself separates stanzas. Neither separator is numbered.
+The fence itself adds no title, caption or number.
 
-Leading spaces indent individual verse lines. The least-indented nonblank line
-sets level zero for the whole poem, so a common indentation on every line has no
-visual effect. Each additional two spaces adds one level, up to `i8`; an odd
-extra space rounds down. Each medium sets the actual width of a level, with
-every higher level wider than the preceding one. Tabs anywhere in the poem are
-an error. Interior spaces are preserved on a best-effort basis.
+Leading periods set indentation: one `.` per level. They are removed
+from the displayed line. Leading spaces are ignored and do not set indentation.
+Periods inside the first inline span also set indentation when that span begins
+the line; periods in later spans are literal text. Interior spaces between text
+and spans are preserved. Tabs anywhere in the poem are an error. Each medium
+sets the actual width of an indent level, with every higher level wider than the
+preceding one.
 
-| Extra leading spaces | Indent class |
-| -------------------- | ------------ |
-| 0–1                  | none         |
-| 2–3                  | `i1`         |
-| 4–5                  | `i2`         |
-| 6–7                  | `i3`         |
-| 8–9                  | `i4`         |
-| 10–11                | `i5`         |
-| 12–13                | `i6`         |
-| 14–15                | `i7`         |
-| 16 or more           | `i8`         |
+Levels 1 through 8 use the `i1`–`i8` indent classes. Deeper levels retain
+their full depth in the generated indent width.
 
-For example, a line with four leading spaces and a line with six leading spaces
-render at levels zero and `i1` respectively. This also works when the entire
-fence is indented inside a list item. Verse is upright by default; use normal
-Markdown emphasis when italics are part of the poem.
+For example, `.A line` is indented one level, while `  ..A line` is indented
+two levels: the spaces do not count. Verse is upright by default. English text
+can use Markdown emphasis; emphasis inside a span whose effective language is
+not English is an error. See [emphasis in a script](#emphasis-in-a-script).
+
+A verse line can mix plain English, language-marked spans and more English on
+one authored line. Spaces are kept exactly as written between those runs; the
+spans add no spaces of their own. A period at the start of the first span also
+sets that line's indentation:
+
+````markdown
+```verse {lang=en}
+..The [boundary]{lang=en} is [thiruthriman]{lang=vyl} again.
+[.The boundary]{lang=en} is [thiruthriman]{lang=vyl} again.
+```
+````
+
+Both lines have one verse number apiece when numbering is enabled. In the
+second, the leading period inside the first span is removed and indents the
+whole line.
 
 ````markdown
 ```verse {form=ballad lang=en}
 The lantern burns beside the gate,
 The harbor sleeps below.
+
+***
 
 The keeper guards the road till dawn,
 And keeps a light aglow.
@@ -422,6 +432,12 @@ Thiruthriman sorimamen, ul alathas kedis alatha valmazor,
 ````
 
 > ``this line has 4 beats (5 with secondary beats); the metre `hexameter` has 6``
+
+`scan=` uses the fence's one language to count beats. If a verse line contains
+a run in another language, the build does not scan that run with the fence
+language's stress rules; it reports an error at the line:
+
+> `` `scan=` counts one language’s beats; this verse line contains another language ``
 
 Beats are counted this way:
 
@@ -500,10 +516,29 @@ A poem has at most two columns, and either may be left out. In every column
 the first entry is set in the normal tone and each later one in grey.
 
 With columns, the poem's body is written as **verse lines**, each a group of
-lines separated by a blank line. Each line of a group is a span giving the
-verse line in one language, `[text]{lang=…}`, or plain text in the poem's
-`lang=`. The spans of a group may come in any order: each entry takes the
-span in its own language. A line holding only `***` breaks the stanza.
+lines separated by a blank line. Each line of a group is one part of the row.
+Its outer label is its column language: a `[text]{lang=…}` span labels itself,
+and unmarked text uses the poem's `lang=`. The text of a part may contain
+several adjacent marked and unmarked runs in different languages or scripts;
+their displayed text is concatenated in authored order, retaining authored
+spaces, and each marked run uses its own language, font and mapping. Inline
+language changes do not change the part's outer label or count as another
+column translation. A line holding only `***` breaks the stanza.
+
+Periods at the start of a part, or inside its first span when that span starts
+the part, indent that language's part. Later spans' leading periods are literal.
+For example, the Vylari part below has one indent level; the English gloss is
+inline and does not make another column entry:
+
+```markdown
+[.Thiruthriman [the boundary]{lang=en} sorimamen]{lang=vyl}
+```
+
+The periods in a later span remain visible text:
+
+```markdown
+[Thiruthriman [..sorimamen]{lang=vyl}]{lang=en}
+```
 
 Here the left column sets the Vylari in Semaron Kuriale through the `semaron`
 mapping, and the right column gives the English over the Vylari in roman:
@@ -541,10 +576,11 @@ as a grid with a row per verse line.
 **The rules of a verse in columns:**
 
 - `font=` and `map=` belong to the entries, not to the poem.
-- Every verse line gives one span for each language its columns name, and
-  none for a language they do not.
-- A line of a verse in columns is not indented, and a span there takes only
-  `lang=`.
+- Every verse line gives one part for each language its columns name, and
+  none for a language they do not. A part's outer language label determines
+  which column it fills, even when its inline runs switch language.
+- Indentation belongs to each part independently. Leading spaces are ignored;
+  leading periods are removed and set the part's indent level.
 - `syllables` gives one count per verse line, not per written line.
 
 Each finding is an error at the text that is wrong; see
@@ -692,15 +728,21 @@ Zaron tholmeza,
 ```
 ````
 
-**A run inside a div or a verse fence inherits its keys**, and its own keys
-override them. Here the gloss keeps the passage's language and map, and is set
-in the page's serif:
+**A run with no language change inherits the surrounding keys**, including
+explicit `lang=`, `map=` and `font=` values, and its own keys override them. A
+run that changes to a different effective language drops the surrounding
+language's explicit map and font, then uses its own language and script
+defaults. Explicit `map=` and `font=` on the run override those defaults. Here
+the English gloss is set in the page's serif, without the Vylari mapping:
 
 ```markdown
 ::: {lang=vyl font=semaron-kuriale map=semaron}
 Zaron tholmeza, [an oath, a vow]{lang=en font=serif}.
 :::
 ```
+
+Unmarked text and a span with no `lang=` keep the surrounding language. A span
+marked with that same language also keeps the surrounding script defaults.
 
 ### A language's script
 
@@ -722,8 +764,11 @@ The lintel is cut with [Zaron tholmeza]{lang=vyl font=semaron-kuriale map=semaro
 ```
 
 The same holds for a div, a verse fence and a [scroll fence](#scrolls). A run
-fills in what it leaves unstated, and an explicit key overrides its half of the
-default:
+in the same effective language inherits the enclosing run's explicit keys and
+fills unstated `map=` and `font=` values from that language's script defaults.
+A different language drops the enclosing language's explicit map and font,
+then takes its own script defaults. Explicit keys on either run override the
+corresponding defaults:
 
 | The run states             | It takes from the language                                     |
 | -------------------------- | -------------------------------------------------------------- |
@@ -1171,10 +1216,10 @@ alone. A block or verse in a right-to-left face is set right to left.
 Text marked with `font=` or `map=`, or with a language the package declares, is
 plain text.
 
-- **A span or a verse line** holds no emphasis, link, image, footnote,
-  wikilink, code or HTML, and no span but a marked one inside a div or a fence.
-  Text set in a face is the one exception: it takes `*…*` and `**…**`, as
-  [emphasis in a script](#emphasis-in-a-script) describes.
+- **A span or a verse line** holds no link, image, footnote, wikilink, code or
+  HTML, and no unmarked nested span. Marked spans may be nested. English may
+  use Markdown emphasis; emphasis inside a span with an effective non-English
+  language is an error. See [emphasis in a script](#emphasis-in-a-script).
 - **A div** holds paragraphs and line breaks only: no heading, list, block
   quote, code fence, verse fence, table, rule, footnote definition or nested
   block. Mark a poem's own fence instead of a div around it.
@@ -1186,7 +1231,13 @@ and a doubled `[[` a wikilink. `[^id]` is a footnote only where the note
 defines `[^id]:`. A bracket with no partner takes a backslash, `\[`.
 
 Text marked with a real language's tag alone keeps its Markdown, so
-`[ad _astra_]{lang=la}` and an English poem with emphasis are both accepted.
+English text and spans may use emphasis. Any actual bold or italic Markdown
+inside a span whose effective language is not English is an error, whether the
+span marks a real language or an invented one, and whether it declares the
+language itself or inherits it from a surrounding div or fence. English (`en`)
+and English BCP 47 tags such as `en-US` remain eligible. Escaped delimiter
+characters are literal text, not emphasis. This restriction applies throughout
+the note, including outside verse.
 
 ### Emphasis in a script
 
@@ -1221,26 +1272,17 @@ data:
 ---
 ```
 
-So a tongue that states nothing takes its script's convention. Provenzal set in
-Semaron is rubric:
-
-```markdown
-The lintel reads [a _stressed_ word]{lang=prv font=semaron-kuriale map=semaron}.
-```
-
-and renders on the site as
-
-```html
-<span class="script hl-semaron-kuriale" lang="art-x-prv" data-pagefind-ignore="true"
-  >… <em class="emph-rubric">…</em> …</span
->
-```
+So a tongue that states nothing takes its script's convention. A script may
+still define how accepted emphasis renders, but a span with an effective
+non-English language cannot use Markdown emphasis even when that convention is
+`rubric` or `overline`.
 
 **A language may mark emphasis with a word** instead of a mark:
 `data.emphasis: words` on its language note. Emphasis in a run of that language
-is then an error at the emphasis, and the remedy is the word the language
-stresses with. A language may also state `rubric` or `overline`, which it takes
-in every script it is written in.
+is an error; for a non-English language, the span restriction also applies
+regardless of its `data.emphasis` value. A language may state `rubric` or
+`overline`, which it takes in every script it is written in, but marked
+emphasis remains disallowed inside its non-English spans.
 
 `_…_` is emphasis equal to `*…*`, and `__…__` equal to `**…**`, so a note keeps
 its meaning when a formatter rewrites one pair to the other. A strikethrough is
@@ -1271,8 +1313,7 @@ that `lint` reports and that fails nothing:
 | `` `halzi` has no `zethu` writing: the map `zethu` is logographic, and the run names no `lang=` whose lexicon writes it; mark the run with its language, or write the word directly in signs ``                                                                | Mark the run with `lang=`, or write its signs directly.                                                                   |
 | `` `thiruthrimar` is not a word of the `vyl` lexicon, a registered name, or a regular form of one; coin it in the lexicon (or register the name) first ``                                                                                                      | Coin the word in the language note's `data.words`, register the name in its own `data.register`, or correct the spelling. |
 | `` `thuravark-carved` is not a font of the map `semaron`; it is for `semaron-kuriale` ``                                                                                                                                                                       | Set the run in a face the map lists, or list the face in `data.map.fonts`.                                                |
-| ``text marked `lang=vyl` is plain text and holds no emphasis``                                                                                                                                                                                                 | Remove the markup, or escape the character with a backslash.                                                              |
-| ``text marked `lang=prv font=semaron-kuriale map=semaron` takes emphasis only as `*…*`, `_…_`, `**…**` or `__…__` ``                                                                                                                                           | Write the emphasis with stars or underscores.                                                                             |
+| ``a span in non-English language `vyl` holds no bold or italic markup``                                                                                                                                                                                        | Remove the markup, or escape its delimiter characters.                                                                    |
 | `` `vyl` marks emphasis with a word, not a mark; write the word ``                                                                                                                                                                                             | Remove the emphasis marks and write the word the language stresses with.                                                  |
 | ``a div marked `lang=vyl font=semaron-kuriale map=semaron` holds paragraphs and line breaks only, not a list``                                                                                                                                                 | Move the list out of the div.                                                                                             |
 | `` `font=` is read on a span, a div or a verse fence, not on a secret block ``                                                                                                                                                                                 | Put a marked div inside the secret block.                                                                                 |

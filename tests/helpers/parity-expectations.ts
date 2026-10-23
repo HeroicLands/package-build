@@ -525,6 +525,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         book: {
             sees: [
+                /The harbor sleeps below\.\n\n#v\(0\.5em\)\n\nThe keeper guards/,
                 /The lantern burns beside the gate, \\\n#h\(1\.25em\)The harbor sleeps below\./,
                 /The keeper guards the road till dawn, \\\n#h\(1\.25em\)And keeps a light aglow\./,
             ],
@@ -1013,16 +1014,16 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
     },
     "run-lang-real": {
-        summary: "Text in a real language keeps its emphasis and carries the language's tag.",
-        probe: "[ad _astra_]{lang=la}",
-        foundry: { sees: [/<span lang="la">ad <em>astra<\/em><\/span>/] },
-        web: { sees: [/<span lang="la">ad <em>astra<\/em><\/span>/] },
+        summary: "Text in a real language carries the language's tag.",
+        probe: "[ad astra]{lang=la}",
+        foundry: { sees: [/<span lang="la">ad astra<\/span>/] },
+        web: { sees: [/<span lang="la">ad astra<\/span>/] },
         preview: {
-            sees: [/hl-preview-label">ad _astra_<\/span>[\s\S]*?\{lang=la\}/],
+            sees: [/hl-preview-label">ad astra<\/span>[\s\S]*?\{lang=la\}/],
             differs: SOURCE_ONLY,
             bufferOnly: true,
         },
-        book: { sees: [/#book-span\(classes: \(\), lang: "la"\)\[ad #emph\[astra\]\]/] },
+        book: { sees: [/#book-span\(classes: \(\), lang: "la"\)\[ad astra\]/] },
     },
     "run-map": {
         summary: "Text with a map is rewritten into the face's code points and set in the face.",
@@ -1055,24 +1056,24 @@ export const CONSTRUCTS: Record<string, Construct> = {
     },
     "run-emphasis-script": {
         summary:
-            "Emphasis in a run set in a script's face follows the script's convention: rubric red for *…*, an overline for **…** here.",
-        probe: "[thirun _sorima_]{lang=vyl font=semaron-kuriale map=vyl-semaron}",
+            "Emphasis in a font-only span set in a script's face follows the script's convention: rubric red for *…*, an overline for **…** here.",
+        probe: "[thirun _sorima_]{font=semaron-kuriale map=vyl-semaron}",
         foundry: {
             sees: [
-                /<span class="script hl-semaron-kuriale" lang="art-x-vyl">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <em class="emph-rubric">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/em><\/span> in red/u,
-                /<span class="script hl-semaron-kuriale" lang="art-x-vyl">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <strong class="emph-overline">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/strong><\/span> under a line/u,
+                /<span class="script hl-semaron-kuriale">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <em class="emph-rubric">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/em><\/span> in red/u,
+                /<span class="script hl-semaron-kuriale">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <strong class="emph-overline">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/strong><\/span> under a line/u,
             ],
         },
         web: {
             sees: [
-                /<span class="script hl-semaron-kuriale" lang="art-x-vyl" data-pagefind-ignore="true">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <em class="emph-rubric">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/em><\/span> in red/u,
-                /<span class="script hl-semaron-kuriale" lang="art-x-vyl" data-pagefind-ignore="true">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <strong class="emph-overline">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/strong><\/span> under a line/u,
+                /<span class="script hl-semaron-kuriale" data-pagefind-ignore="true">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <em class="emph-rubric">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/em><\/span> in red/u,
+                /<span class="script hl-semaron-kuriale" data-pagefind-ignore="true">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <strong class="emph-overline">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/strong><\/span> under a line/u,
             ],
         },
         preview: {
             sees: [
-                /hl-preview-label">thirun _sorima_<\/span>[\s\S]*?\{lang=vyl font=semaron-kuriale map=vyl-semaron\}/,
-                /hl-preview-label">thirun \*\*sorima\*\*<\/span>[\s\S]*?\{lang=vyl font=semaron-kuriale map=vyl-semaron\}/,
+                /hl-preview-label">thirun _sorima_<\/span>[\s\S]*?\{font=semaron-kuriale map=vyl-semaron\}/,
+                /hl-preview-label">thirun \*\*sorima\*\*<\/span>[\s\S]*?\{font=semaron-kuriale map=vyl-semaron\}/,
             ],
             differs: SOURCE_ONLY,
             bufferOnly: true,
@@ -1087,12 +1088,12 @@ export const CONSTRUCTS: Record<string, Construct> = {
     },
     "run-emphasis-words": {
         summary:
-            "Emphasis in a language that marks emphasis with a word is an error at the emphasis.",
+            "Bold or italic markup in a non-English span is an error at its opening delimiter.",
         probe: "[thirun _sorima_]{lang=tar font=semaron-kuriale map=vyl-semaron}",
         probeIn: "worded",
         foundry: {
             sees: [
-                /lore-worded\.md:9:27: error: `tar` marks emphasis with a word, not a mark; write the word/,
+                /lore-worded\.md:9:27: error: a span in non-English language `tar` holds no bold or italic markup/,
             ],
             absent: [/<!-- page/],
             of: "worded",
@@ -1113,7 +1114,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
             ],
             of: "worded",
             differs:
-                "The buffer-only preview has no index, so it cannot know the language's convention, and shows the source.",
+                "The buffer-only preview has no index, so it shows the language-marked source without running the build checks.",
             bufferOnly: true,
         },
         indexed: {
@@ -1125,7 +1126,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         book: {
             sees: [
                 /The vow is cut as #book-span\(classes: \(\), lang: "tar"\)\[thirun #emph\[sorima\]\] on the lintel\./,
-                /lore-worded\.md:9:27: error: `tar` marks emphasis with a word, not a mark; write the word/,
+                /lore-worded\.md:9:27: error: a span in non-English language `tar` holds no bold or italic markup/,
             ],
             of: "worded",
             differs:

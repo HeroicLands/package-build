@@ -165,11 +165,11 @@ beforeAll(() => {
 
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
-const SEMARON = "lang=prv font=semaron-kuriale map=vyl-semaron";
+const SEMARON = "lang=en font=semaron-kuriale map=vyl-semaron";
 const VYLARI = "lang=vyl font=semaron-kuriale map=vyl-semaron";
 const TARVENI = "lang=tar font=semaron-kuriale map=vyl-semaron";
-const QALEZU = "lang=khel font=qalezu-hand map=khel-qalezu";
-const THURAVARK = "lang=prv font=thuravark-carved map=vyl-thuravark";
+const QALEZU = "lang=en font=qalezu-hand map=khel-qalezu";
+const THURAVARK = "lang=en font=thuravark-carved map=vyl-thuravark";
 
 const errors = (source: string) =>
     scanRuns(source, ctx).errors.map(
@@ -256,7 +256,7 @@ describe("emphasis that is still a finding", () => {
         [
             "emphasis in a declared language with no face",
             "[a *b* c]{lang=prv}",
-            ["1:4: text marked `lang=prv` is plain text and holds no emphasis"],
+            ["1:4: a span in non-English language `prv` holds no bold or italic markup"],
         ],
         [
             "emphasis in a generic family",
@@ -276,23 +276,23 @@ describe("emphasis that is still a finding", () => {
 describe("a language's own convention", () => {
     it("is a finding at each emphasis where the language marks it with a word", () => {
         expect(errors(`[thrima *sorima* **thrima**]{${VYLARI}}`)).toEqual([
-            "1:9: `vyl` marks emphasis with a word, not a mark; write the word",
-            "1:18: `vyl` marks emphasis with a word, not a mark; write the word",
+            "1:9: a span in non-English language `vyl` holds no bold or italic markup",
+            "1:18: a span in non-English language `vyl` holds no bold or italic markup",
         ]);
         expect(errors("[a *b* _c_]{lang=vyl}")).toEqual([
-            "1:4: `vyl` marks emphasis with a word, not a mark; write the word",
-            "1:8: `vyl` marks emphasis with a word, not a mark; write the word",
+            "1:4: a span in non-English language `vyl` holds no bold or italic markup",
+            "1:8: a span in non-English language `vyl` holds no bold or italic markup",
         ]);
     });
 
     it("overrides the script's, and a tongue that states none takes the script's", () => {
         const render = (source: string) =>
             renderRuns(source, ctx, undefined, { target: "foundry" }).markdown;
-        expect(render(`[thrima *sorima*]{${TARVENI}}`)).toBe(
-            `[${THRIMA} <em class="emph-overline">${SORIMA}</em>]{lang=art-x-tar .script .hl-semaron-kuriale}`,
+        expect(render(`::: {${TARVENI}}\nthrima *sorima*\n:::`)).toBe(
+            `::: {lang=art-x-tar .script .script-block .hl-semaron-kuriale}\n${THRIMA} <em class="emph-overline">${SORIMA}</em>\n:::`,
         );
         expect(render(`[thrima *sorima*]{${SEMARON}}`)).toBe(
-            `[${THRIMA} <em class="emph-rubric">${SORIMA}</em>]{lang=art-x-prv .script .hl-semaron-kuriale}`,
+            `[${THRIMA} <em class="emph-rubric">${SORIMA}</em>]{lang=en .script .hl-semaron-kuriale}`,
         );
     });
 
@@ -319,9 +319,9 @@ describe("a language's own convention", () => {
 const LTR = `Said [thrima *sorima*]{${SEMARON}} once.`;
 const STRONG = `Said [thrima **sorima**]{${SEMARON}} once.`;
 const OVER = `Said [gar *nal*]{${QALEZU}} once.`;
-const MIXED = `[*${PZ}* **${PZ}**]{lang=prv font=pirzath-hand-lifted}`;
+const MIXED = `[*${PZ}* **${PZ}**]{lang=en font=pirzath-hand-lifted}`;
 const PLAIN = `[*sorima* **sorima**]{${THURAVARK}}`;
-const ROMAN = "Roman *stays* **as** written, [and *here*]{lang=la}.";
+const ROMAN = "Roman *stays* **as** written, [and *here*]{lang=en}.";
 const DIV = [`::: {${SEMARON}}`, "thrima *sorima*", ":::"].join("\n");
 const VERSE = ["```verse {" + QALEZU + "}", "gar **nal**", "```"].join("\n");
 
@@ -331,28 +331,28 @@ describe("renderRuns, goldens", () => {
 
     it("writes a rubric script's emphasis as a classed em and strong", () => {
         expect(render(LTR, "foundry")).toBe(
-            `Said [${THRIMA} <em class="emph-rubric">${SORIMA}</em>]{lang=art-x-prv .script .hl-semaron-kuriale} once.`,
+            `Said [${THRIMA} <em class="emph-rubric">${SORIMA}</em>]{lang=en .script .hl-semaron-kuriale} once.`,
         );
         expect(render(STRONG, "foundry")).toBe(
-            `Said [${THRIMA} <strong class="emph-rubric">${SORIMA}</strong>]{lang=art-x-prv .script .hl-semaron-kuriale} once.`,
+            `Said [${THRIMA} <strong class="emph-rubric">${SORIMA}</strong>]{lang=en .script .hl-semaron-kuriale} once.`,
         );
     });
 
     it("writes an overline script's emphasis with the overline class", () => {
         expect(render(OVER, "foundry")).toBe(
-            `Said [${GAR} <em class="emph-overline">${NL}</em>]{lang=art-x-khel .script .hl-qalezu-hand} once.`,
+            `Said [${GAR} <em class="emph-overline">${NL}</em>]{lang=en .script .hl-qalezu-hand} once.`,
         );
     });
 
     it("gives each level its own convention where the note states two", () => {
         expect(render(MIXED, "foundry")).toBe(
-            `[<em class="emph-overline">${PZ}</em> <strong class="emph-rubric">${PZ}</strong>]{lang=art-x-prv .script .hl-pirzath-hand-lifted}`,
+            `[<em class="emph-overline">${PZ}</em> <strong class="emph-rubric">${PZ}</strong>]{lang=en .script .hl-pirzath-hand-lifted}`,
         );
     });
 
     it("leaves a script's emphasis classless where its note states no convention", () => {
         expect(render(PLAIN, "foundry")).toBe(
-            `[<em>${SO}</em> <strong>${SO}</strong>]{lang=art-x-prv .script .hl-thuravark-carved}`,
+            `[<em>${SO}</em> <strong>${SO}</strong>]{lang=en .script .hl-thuravark-carved}`,
         );
     });
 
@@ -363,14 +363,14 @@ describe("renderRuns, goldens", () => {
     it("sets a div's and a verse's emphasis line by line", () => {
         expect(render(DIV, "foundry")).toBe(
             [
-                "::: {lang=art-x-prv .script .script-block .hl-semaron-kuriale}",
+                "::: {lang=en .script .script-block .hl-semaron-kuriale}",
                 `${THRIMA} <em class="emph-rubric">${SORIMA}</em>`,
                 ":::",
             ].join("\n"),
         );
         expect(render(VERSE, "foundry")).toBe(
             [
-                "```verse {lang=art-x-khel .script .hl-qalezu-hand dir=rtl}",
+                "```verse {lang=en .script .hl-qalezu-hand dir=rtl}",
                 `${GAR} <strong class="emph-overline">${NL}</strong>`,
                 "```",
             ].join("\n"),
@@ -378,9 +378,7 @@ describe("renderRuns, goldens", () => {
     });
 
     it("drops a classless emphasis in the book, where the face has only its Regular", () => {
-        expect(render(PLAIN, "book")).toBe(
-            `[${SO} ${SO}]{lang=art-x-prv .script .hl-thuravark-carved}`,
-        );
+        expect(render(PLAIN, "book")).toBe(`[${SO} ${SO}]{lang=en .script .hl-thuravark-carved}`);
         expect(render(LTR, "book")).toBe(render(LTR, "foundry"));
     });
 });
@@ -401,7 +399,7 @@ describe("the site", () => {
 
     it("renders a rubric run's emphasis as a classed em", () => {
         expect(site(LTR)).toContain(
-            `<span class="script hl-semaron-kuriale" lang="art-x-prv" data-pagefind-ignore="true">${THRIMA} <em class="emph-rubric">${SORIMA}</em></span>`,
+            `<span class="script hl-semaron-kuriale" lang="en" data-pagefind-ignore="true">${THRIMA} <em class="emph-rubric">${SORIMA}</em></span>`,
         );
     });
 
@@ -424,7 +422,7 @@ describe("Foundry", () => {
 
     it("renders each convention's class on the element", () => {
         expect(foundry(LTR)).toBe(
-            `<p>Said <span class="script hl-semaron-kuriale" lang="art-x-prv">${THRIMA} <em class="emph-rubric">${SORIMA}</em></span> once.</p>\n`,
+            `<p>Said <span class="script hl-semaron-kuriale" lang="en">${THRIMA} <em class="emph-rubric">${SORIMA}</em></span> once.</p>\n`,
         );
         expect(foundry(OVER)).toContain(`<em class="emph-overline">${NL}</em>`);
         expect(foundry(DIV)).toContain(`${THRIMA} <em class="emph-rubric">${SORIMA}</em>`);
@@ -436,14 +434,14 @@ describe("Typst", () => {
 
     it("sets a rubric in the book's rubric ink", () => {
         expect(typst(LTR)).toContain(
-            `#book-span(classes: ("script", "hl-semaron-kuriale"))[${THRIMA} #text(fill: book-rubric)[${SORIMA}]]`,
+            `#book-span(classes: ("script", "hl-semaron-kuriale"), lang: "en")[${THRIMA} #text(fill: book-rubric)[${SORIMA}]]`,
         );
         expect(typst(STRONG)).toContain(`#text(fill: book-rubric)[${SORIMA}]`);
     });
 
     it("sets an overline with Typst's own overline", () => {
         expect(typst(OVER)).toContain(
-            `#book-span(classes: ("script", "hl-qalezu-hand"))[${GAR} #overline[${NL}]]`,
+            `#book-span(classes: ("script", "hl-qalezu-hand"), lang: "en")[${GAR} #overline[${NL}]]`,
         );
     });
 
@@ -453,7 +451,7 @@ describe("Typst", () => {
 
     it("sets a script with no convention plain", () => {
         expect(typst(PLAIN)).toContain(
-            `#book-span(classes: ("script", "hl-thuravark-carved"))[${SO} ${SO}]`,
+            `#book-span(classes: ("script", "hl-thuravark-carved"), lang: "en")[${SO} ${SO}]`,
         );
     });
 

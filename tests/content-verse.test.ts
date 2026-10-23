@@ -102,37 +102,37 @@ describe("verse blocks", () => {
         );
     });
 
-    it("uses indentation relative to the least-indented verse, rounding odd spaces down", () => {
+    it("counts periods independently of leading spaces", () => {
         const source = [
             "```verse",
             "    Base  line",
-            "     One extra space",
-            "      Two extra spaces",
-            "       Three extra spaces",
-            "        Four extra spaces",
-            "",
+            "     Plain line",
+            "      .One level",
+            "       ..Two levels",
+            "***",
             "    Next stanza",
             "```",
         ].join("\n");
         expect(scanBlocks(source).errors).toEqual([]);
         const html = renderFoundryMarkdown(source);
         expect(html).toContain('<span class="verse-line">Base  line</span>');
-        expect(html).toContain('<span class="verse-line">One extra space</span>');
-        expect(html).toContain('<span class="verse-line i1">Two extra spaces</span>');
-        expect(html).toContain('<span class="verse-line i1">Three extra spaces</span>');
-        expect(html).toContain('<span class="verse-line i2">Four extra spaces</span>');
-        expect(html).toMatch(/<\/p>\s*<p><span class="verse-line">Next stanza/);
+        expect(html).toContain('<span class="verse-line">Plain line</span>');
+        expect(html).toContain('<span class="verse-line i1">One level</span>');
+        expect(html).toContain('<span class="verse-line i2">Two levels</span>');
+        expect(html).toContain('class="verse-stanza-break"');
         const typst = markdownToTypst(source);
-        expect(typst).toContain("#h(1.25em)Two extra spaces");
-        expect(typst).toContain("#h(2.5em)Four extra spaces");
+        expect(typst).toContain("#h(1.25em)One level");
+        expect(typst).toContain("#h(2.5em)Two levels");
+        expect(typst).not.toContain("***");
     });
 
-    it("caps indentation at i8 and accepts an indented fence", () => {
-        const source = ["  ```verse", "    Base", "                     Far line", "  ```"].join(
-            "\n",
-        );
+    it("keeps deep indentation and accepts an indented fence", () => {
+        const source = ["  ```verse", "    Base", "    .........Far line", "  ```"].join("\n");
         expect(scanBlocks(source).errors).toEqual([]);
-        expect(renderFoundryMarkdown(source)).toContain('class="verse-line i8"');
+        expect(renderFoundryMarkdown(source)).toContain(
+            'class="verse-line i9" style="--verse-indent: 11.25em"',
+        );
+        expect(markdownToTypst(source)).toContain("#h(11.25em)Far line");
     });
 
     it("keeps an indented poem inside its list item", () => {
@@ -141,7 +141,7 @@ describe("verse blocks", () => {
             "",
             "  ```verse",
             "    First",
-            "      Second",
+            "      .Second",
             "  ```",
             "",
             "- Next",
@@ -153,7 +153,7 @@ describe("verse blocks", () => {
     });
 
     it("renders a standalone fence indented four spaces as verse", () => {
-        const source = ["    ```verse", "      First", "        Second", "    ```"].join("\n");
+        const source = ["    ```verse", "      First", "        .Second", "    ```"].join("\n");
         const html = renderFoundryMarkdown(source);
         expect(html).toContain('<div class="verse">');
         expect(html).toContain('class="verse-line i1"');

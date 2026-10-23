@@ -133,7 +133,7 @@ function verseInlinePlugin(md) {
                 stanza.map(({ text, level }) => {
                     const children = [];
                     state.md.inline.parse(inlineVerse(text), state.md, state.env, children);
-                    return { children, level };
+                    return { children, level, stanzaBreak: /^\*{3}$/.test(text) };
                 }),
             );
         }

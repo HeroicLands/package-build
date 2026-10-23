@@ -13,8 +13,8 @@ describe("markup primitives", () => {
         expect(result).toContain('<div class="inner">');
         expect(result).not.toContain("<summary");
     });
-    it("reads verse fences, preserving stanza and relative indent", () => {
-        const source = "```verse {form=ballad}\n    Base  line\n       Indented\n\n    Last\n```";
+    it("reads verse fences, preserving stanza and period indentation", () => {
+        const source = "```verse {form=ballad}\n    Base  line\n    .Indented\n\n    Last\n```";
         expect(scanVerse(source).errors).toEqual([]);
         const result = renderVerse(source).markdown;
         expect(result).toContain('class="verse-line i1"');

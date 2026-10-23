@@ -296,6 +296,24 @@ mapping or font is not then checked against a face or a lexicon it cannot
 reach. A verse in columns with any finding is set as its lines are written,
 and the build fails on the error.
 
+## Emphasis in non-English spans
+
+Bold or italic Markdown inside a span whose effective language tag is not
+English is an error at the opening emphasis marker. This applies to declared
+and BCP 47 languages, including spans that inherit a language from an enclosing
+span, div or fence. English tags (`en` and tags beginning `en-`) remain
+eligible. Escaped or unmatched delimiters are literal text. The diagnostic
+names the language supplied by the span or inherited from its enclosing
+construct:
+
+```text
+a span in non-English language `vyl` holds no bold or italic markup
+```
+
+For example, `[a *word*]{lang=vyl}` locates the finding at the `*` that opens
+the emphasis. A font does not make the markup valid; the language rule applies
+to the span whether its text uses a script face or ordinary type.
+
 ## Summary counts and prose are not findings
 
 A run's progress and summary lines — `42 address(es) across 10 note(s).`,

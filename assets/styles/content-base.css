@@ -124,7 +124,7 @@
  * the two markers are also the editor preview's stylesheet, with the content
  * roots replaced by the preview's own. */
 
-/* Each verse line breaks in the markup; each paragraph is a stanza. */
+/* Verse groups are paragraphs; explicit stanza separators add their own gap. */
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse {
     margin: 1.5rem 0;
     line-height: 1.7;
@@ -144,29 +144,34 @@
     white-space: pre-wrap;
 }
 
-.verse .verse-line.i1 {
+.verse :is(.verse-line, .verse-part).i1 {
     --verse-indent: 1.25em;
 }
-.verse .verse-line.i2 {
+.verse :is(.verse-line, .verse-part).i2 {
     --verse-indent: 2.5em;
 }
-.verse .verse-line.i3 {
+.verse :is(.verse-line, .verse-part).i3 {
     --verse-indent: 3.75em;
 }
-.verse .verse-line.i4 {
+.verse :is(.verse-line, .verse-part).i4 {
     --verse-indent: 5em;
 }
-.verse .verse-line.i5 {
+.verse :is(.verse-line, .verse-part).i5 {
     --verse-indent: 6.25em;
 }
-.verse .verse-line.i6 {
+.verse :is(.verse-line, .verse-part).i6 {
     --verse-indent: 7.5em;
 }
-.verse .verse-line.i7 {
+.verse :is(.verse-line, .verse-part).i7 {
     --verse-indent: 8.75em;
 }
-.verse .verse-line.i8 {
+.verse :is(.verse-line, .verse-part).i8 {
     --verse-indent: 10em;
+}
+
+.verse .verse-stanza-break {
+    display: block;
+    height: 0.5em;
 }
 
 /* Numbered verse carries its numbers in a margin. A verse in columns is one
@@ -240,6 +245,7 @@
     .verse-columns
     .verse-part {
     font-family: serif;
+    padding-inline-start: var(--verse-indent, 0em);
 }
 
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)

@@ -79,10 +79,12 @@ Janapada
 
 ```verse {form=ballad lang=en}
 The lantern burns beside the gate,
-  The harbor sleeps below.
+.The harbor sleeps below.
+
+***
 
 The keeper guards the road till dawn,
-  And keeps a light aglow.
+.And keeps a light aglow.
 ```
 
 ```verse {scan=trimeter lang=tar}
@@ -186,11 +188,11 @@ The road is passable in summer.[^season] The bridge has a toll.[^toll] A ford cr
 
 # Marked text {#marked}
 
-The greeting is [Daimela, helthos.]{lang=vyl} and the motto is [ad _astra_]{lang=la}.
+The greeting is [Daimela, helthos.]{lang=vyl} and the motto is [ad astra]{lang=la}.
 
 The lintel is cut with [thirun sorima]{lang=vyl font=semaron-kuriale map=vyl-semaron}.
 
-The stressed word is [thirun _sorima_]{lang=vyl font=semaron-kuriale map=vyl-semaron} in red, and the doubly stressed one [thirun **sorima**]{lang=vyl font=semaron-kuriale map=vyl-semaron} under a line.
+The stressed word is [thirun _sorima_]{font=semaron-kuriale map=vyl-semaron} in red, and the doubly stressed one [thirun **sorima**]{font=semaron-kuriale map=vyl-semaron} under a line.
 
 Code reads as [lantern()]{font=mono}, titles as [Harbor Ledger]{font=serif}, and labels as [Plain Label]{font=sans}.
 
@@ -202,7 +204,7 @@ mamu anthrasos.
 
 ```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}
 thirun sorima
-  mamu anthrasos.
+.mamu anthrasos.
 ```
 
 ```scroll {rows=3 cols=3 lang=tsu font=teng-chou map=tengchou}

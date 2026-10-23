@@ -1384,7 +1384,7 @@ a.tag:hover {
   background: var(--bg-card);
 }
 
-/* Verse lines are hard breaks in the markup; paragraphs mark stanzas. */
+/* Verse groups are paragraphs; explicit stanza separators add their own gap. */
 .single-content .verse {
   margin: 1.5rem 0;
   line-height: 1.7;
@@ -1404,14 +1404,16 @@ a.tag:hover {
   white-space: pre-wrap;
 }
 
-.single-content .verse .verse-line.i1 { --verse-indent: 1.25em; }
-.single-content .verse .verse-line.i2 { --verse-indent: 2.5em; }
-.single-content .verse .verse-line.i3 { --verse-indent: 3.75em; }
-.single-content .verse .verse-line.i4 { --verse-indent: 5em; }
-.single-content .verse .verse-line.i5 { --verse-indent: 6.25em; }
-.single-content .verse .verse-line.i6 { --verse-indent: 7.5em; }
-.single-content .verse .verse-line.i7 { --verse-indent: 8.75em; }
-.single-content .verse .verse-line.i8 { --verse-indent: 10em; }
+.single-content .verse :is(.verse-line, .verse-part).i1 { --verse-indent: 1.25em; }
+.single-content .verse :is(.verse-line, .verse-part).i2 { --verse-indent: 2.5em; }
+.single-content .verse :is(.verse-line, .verse-part).i3 { --verse-indent: 3.75em; }
+.single-content .verse :is(.verse-line, .verse-part).i4 { --verse-indent: 5em; }
+.single-content .verse :is(.verse-line, .verse-part).i5 { --verse-indent: 6.25em; }
+.single-content .verse :is(.verse-line, .verse-part).i6 { --verse-indent: 7.5em; }
+.single-content .verse :is(.verse-line, .verse-part).i7 { --verse-indent: 8.75em; }
+.single-content .verse :is(.verse-line, .verse-part).i8 { --verse-indent: 10em; }
+
+.single-content .verse .verse-stanza-break { display: block; height: 0.5em; }
 
 /* Numbered verse carries its numbers in a margin. A verse in columns is one
    grid per verse line: its number, then each column's parts stacked, the
@@ -1466,6 +1468,7 @@ a.tag:hover {
 
 .single-content .verse-columns .verse-part {
   font-family: var(--font-body);
+  padding-inline-start: var(--verse-indent, 0em);
 }
 
 .single-content .verse-columns .verse-secondary {

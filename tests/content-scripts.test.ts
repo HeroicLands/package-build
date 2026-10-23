@@ -95,9 +95,9 @@ const GOOD: Array<[string, string, Array<Record<string, unknown>>]> = [
         [{ kind: "span", map: "vyl-semaron", font: undefined }],
     ],
     [
-        "a span in a real language, which keeps its inline Markdown",
-        "[ad _astra_]{lang=la}",
-        [{ kind: "span", lang: "la", tag: "la" }],
+        "an English span, which keeps its inline Markdown",
+        "[to _stars_]{lang=en}",
+        [{ kind: "span", lang: "en", tag: "en" }],
     ],
     [
         "a real language whose tag is mixed case",
@@ -166,7 +166,7 @@ const GOOD: Array<[string, string, Array<Record<string, unknown>>]> = [
                 lang: "la",
                 tag: "la",
                 font: "serif",
-                map: "vyl-semaron",
+                map: undefined,
                 line: 2,
                 column: 4,
             },
@@ -273,7 +273,7 @@ const BAD: Array<[string, string, string[]]> = [
     [
         "emphasis in a declared language",
         "[a *b* c]{lang=vyl}",
-        ["1:4: text marked `lang=vyl` is plain text and holds no emphasis"],
+        ["1:4: a span in non-English language `vyl` holds no bold or italic markup"],
     ],
     [
         "a link in a face",
@@ -290,21 +290,7 @@ const BAD: Array<[string, string, string[]]> = [
         "[a [[lore-harbor]] c]{lang=vyl}",
         ["1:4: text marked `lang=vyl` is plain text and holds no wikilink"],
     ],
-    [
-        "a nested span in a declared language",
-        "[a [b]{.x} c]{lang=vyl}",
-        ["1:4: text marked `lang=vyl` is plain text and holds no nested span"],
-    ],
-    [
-        "a marked span inside a marked span",
-        "[a [b]{font=mono} c]{lang=vyl}",
-        ["1:4: text marked `lang=vyl` is plain text and holds no nested span"],
-    ],
-    [
-        "an unmarked span inside a marked div",
-        ["::: {lang=vyl}", "a [b]{.x} c", ":::"].join("\n"),
-        ["2:3: text marked `lang=vyl` is plain text and holds no nested span"],
-    ],
+
     [
         "a footnote in a declared language",
         ["[a [^1] c]{lang=vyl}", "", "[^1]: A note."].join("\n"),

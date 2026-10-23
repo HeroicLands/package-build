@@ -51,18 +51,24 @@
  *   form. Any other
  *   word is a finding at its first character, once per run; see
  *   {@link module:engine/run-words}.
- * - **A run inside a div or a verse fence inherits its keys**, and its own
- *   keys override them. The language's script fills what is still unstated.
- * - **Text with a font, a map or a declared language is plain.** A span or a
+ * - **A run inside a span, div or verse fence inherits its keys**, and its
+ *   own keys override them. A span switching to a different language selects
+ *   that language's script defaults and its own explicit font and map. A span
+ *   in the same language keeps the surrounding script choices.
+ * - **Text with a font, a map or a declared non-English language is plain.** A span or a
  *   verse holds no emphasis, link, image, footnote, wikilink, code or HTML,
  *   and no span but a marked one; a div holds paragraphs and line breaks only.
- * - **Text set in a face takes `*…*` and `**…**`**, set by the convention its
+ * - **A non-English span holds no bold or italic markup**, including in a
+ *   script face. English tags and configured names resolving to English
+ *   retain their emphasis under the font's rules. Escaped delimiters are text.
+ * - **Other text set in a face takes `*…*` and `**…**`**, set by the convention its
  *   language's note states, else its face's script note, else plainly; see
  *   {@link module:engine/script-emphasis}. A language that marks emphasis
  *   with a word makes either a finding at the emphasis.
  *   The text is read as written, so `[`, `]`, `"`, `<<`, `>>`, `!` and
  *   `@#$%^&` are characters, and need no escaping. A real language's tag alone
- *   marks text and leaves its Markdown alone.
+ *   marks text and leaves its Markdown alone, subject to the non-English span
+ *   rule. Verse indentation periods remain layout rather than mapped text.
  * - **A face draws only what it lists.** After the map, a character that is
  *   neither whitespace nor in the face's `codepoints` is a finding, at the
  *   source character it came from. `mono`, `serif` and `sans` are not checked.
@@ -94,6 +100,7 @@ import {
     hasColumns,
     verseColumns,
     STANZA_BREAK,
+    verseLine,
 } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { scanScrolls, scrollParagraphs } from "./content-scroll.mjs";
@@ -841,7 +848,7 @@ function analyseRuns(source, ctx, syntax) {
     const spans = (syntax ? syntax(text).spans : scanSpans(text)).spans;
     for (const span of spans) {
         const keys = Object.fromEntries(span.attrs.filter(([key]) => RUN_KEYS.includes(key)));
-        if (!Object.keys(keys).length) continue;
+        if (!span.attrs.length && !span.id) continue;
         const positions = span.attributePositions ?? {};
         constructs.push({
             kind: "span",
@@ -987,17 +994,30 @@ function analyseRuns(source, ctx, syntax) {
         });
     }
 
-    const containers = constructs.filter((construct) => construct.kind !== "span");
-    /** The containers around a construct, outermost first. */
+    /** The constructs around a run, outermost first. */
     const around = (construct) =>
-        containers
+        constructs
             .filter(
                 (container) =>
                     container !== construct &&
-                    container.line0 < construct.line0 &&
-                    construct.line0 < container.last,
+                    (container.kind === "span" ?
+                        construct.kind === "span" &&
+                        container.where.start < construct.where.start &&
+                        container.where.end >= construct.where.end
+                    :   container.line0 < construct.line0 && construct.line0 < container.last),
             )
-            .sort((a, b) => a.line0 - b.line0);
+            .sort((a, b) =>
+                a.kind !== "span" && b.kind !== "span" ? a.line0 - b.line0
+                : a.kind !== "span" ? -1
+                : b.kind !== "span" ? 1
+                : a.where.start - b.where.start,
+            );
+    const active = constructs.filter(
+        (construct) =>
+            construct.kind === "scroll" ||
+            Object.keys(construct.keys).length ||
+            around(construct).some((container) => Object.keys(container.keys).length),
+    );
 
     /** A language's tag, or `undefined` when it resolves to none. */
     const tagOf = (lang) =>
@@ -1053,10 +1073,21 @@ function analyseRuns(source, ctx, syntax) {
         }
     };
 
-    /** Each marked span inside a container, by absolute offset. */
+    const verseMarkers = new Map();
+    for (const poem of scanVerse(text).blocks)
+        for (let line = poem.start + 1; line < poem.end; line++) {
+            const { markerStart, markerLength } = verseLine(lines[line]);
+            if (markerLength) {
+                const from = starts[line] + markerStart;
+                verseMarkers.set(from, from + markerLength);
+            }
+        }
+
+    /** Nested spans and verse markers excluded from a run, by absolute offset. */
     const holesIn = (from, to) =>
-        new Map(
-            constructs
+        new Map([
+            ...[...verseMarkers].filter(([start]) => start >= from && start < to),
+            ...active
                 .filter(
                     (construct) =>
                         construct.kind === "span" &&
@@ -1064,7 +1095,7 @@ function analyseRuns(source, ctx, syntax) {
                         construct.where.start < to,
                 )
                 .map((construct) => [construct.where.start, construct.where.end]),
-        );
+        ]);
 
     /**
      * Report the markup in inline text that must be plain, and collect the
@@ -1281,16 +1312,36 @@ function analyseRuns(source, ctx, syntax) {
 
     const runs = [];
     const details = [];
-    for (const construct of constructs) {
+    for (const construct of active) {
         const unchecked = errors.length;
         checkOwn(construct);
         // A key that names nothing is the finding; the text it would have set
         // is not then checked against a face or a language it cannot reach.
         let named = errors.length === unchecked;
-        const keys = Object.assign({}, ...around(construct).map((c) => c.keys), construct.keys);
+        const keys = {};
+        const ancestors = [...around(construct), construct];
+        const columnEntry =
+            construct.kind === "span" && romanColumnLines.has(construct.line0) ?
+                ancestors.find((current) => current.kind === "span")
+            :   undefined;
+        let columnSource = false;
+        for (const current of ancestors) {
+            // An explicit language switch selects that language's own script.
+            if (
+                current.kind === "span" &&
+                current.keys.lang !== undefined &&
+                keys.lang !== undefined &&
+                tagOf(current.keys.lang)?.toLowerCase() !== tagOf(keys.lang)?.toLowerCase()
+            ) {
+                delete keys.font;
+                delete keys.map;
+                columnSource = false;
+            }
+            Object.assign(keys, current.keys);
+            if (current === columnEntry) columnSource = true;
+        }
         // The language's script fills what the run leaves unstated, once its
         // own keys are known to name something.
-        const columnSource = construct.kind === "span" && romanColumnLines.has(construct.line0);
         const columnFence = construct.kind === "verse" && hasColumns(construct.node);
         if (named && !columnSource && !columnFence)
             Object.assign(keys, fromWrittenIn(keys, ctx.writtenIn, maps));
@@ -1328,7 +1379,9 @@ function analyseRuns(source, ctx, syntax) {
         const plain =
             font !== undefined ||
             map !== undefined ||
-            (lang !== undefined && Object.hasOwn(languages, lang));
+            (lang !== undefined &&
+                Object.hasOwn(languages, lang) &&
+                !/^en(?:-|$)/i.test(run.tag ?? ""));
         const detail = {
             run,
             own: construct.own,
@@ -1348,7 +1401,9 @@ function analyseRuns(source, ctx, syntax) {
         };
         detail.conventions = conventionsOf(detail, ctx);
         details.push(detail);
-        if (!plain) continue;
+        const nonEnglishSpan =
+            construct.kind === "span" && run.tag !== undefined && !/^en(?:-|$)/i.test(run.tag);
+        if (!plain && !nonEnglishSpan) continue;
         const marking = [
             ...(lang === undefined ? [] : [`lang=${lang}`]),
             ...(font === undefined ? [] : [`font=${font}`]),
@@ -1359,10 +1414,26 @@ function analyseRuns(source, ctx, syntax) {
         if (construct.kind === "span") {
             const span = construct.node;
             const inline = text.slice(span.start + 1, span.contentEnd);
-            plainInline(inline, span.start + 1, marking, detail);
+            detail.holes = holesIn(span.start + 1, span.contentEnd);
+            if (nonEnglishSpan) {
+                const relative = new Map(
+                    [...detail.holes].map(([from, to]) => [
+                        from - span.start - 1,
+                        to - span.start - 1,
+                    ]),
+                );
+                for (const delimiter of emphasisDelimiters(inline, relative))
+                    if (delimiter.open)
+                        report(
+                            positionOf(starts, span.start + 1 + delimiter.offset),
+                            `a span in non-English language \`${lang}\` holds no bold or italic markup`,
+                        );
+            }
+            if (plain && errors.length === before)
+                plainInline(inline, span.start + 1, marking, detail, detail.holes);
             if (named && errors.length === before) {
                 const parts = outsideDelimiters(
-                    [[span.start + 1, span.contentEnd]],
+                    outsideHoles(span.start + 1, span.contentEnd, detail.holes),
                     detail.emphasis,
                 );
                 lexical(parts, detail);
@@ -1469,6 +1540,7 @@ export function scanRuns(source, ctx = {}, syntax) {
     const authored = analyseRuns(text, ctx, syntax);
     const metre = metreFindings(scanVerse(text).blocks, text.split("\n"), {
         metres: ctx.metres,
+        languages: ctx.languages,
         metreBooks: ctx.metreBooks,
         lexicons: ctx.lexicons,
         columnsClass: COLUMNS_CLASS,
@@ -1682,8 +1754,8 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
     /** Whether a finding sits inside a run. */
     const faulted = (run) => {
         const from = (run.line - 1) * 1e6 + run.column;
-        const last = run.kind === "span" ? positionOf(starts, run.end).line : run.end + 1;
-        const to = last * 1e6;
+        const end = run.kind === "span" ? positionOf(starts, run.end) : undefined;
+        const to = end ? (end.line - 1) * 1e6 + end.column : (run.end + 1) * 1e6;
         return errors.some((error) => {
             const at = (error.line - 1) * 1e6 + error.column;
             return at >= from && at < to;
@@ -1765,19 +1837,13 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
         const attributes = rewrittenAttributes(detail, search);
         if (run.kind === "span") {
             const contentEnd = /** @type {number} */ (detail.contentEnd);
-            let inner = text.slice(run.start + 1, contentEnd);
+            if (attributes !== undefined)
+                edits.push({ from: contentEnd + 2, to: run.end - 1, text: attributes });
             if (detail.plain)
-                inner = setRange(
-                    text,
-                    run.start + 1,
-                    contentEnd,
-                    detail,
-                    run.start === 0 || text[run.start - 1] === "\n",
-                    book,
-                );
-            else if (attributes === undefined) continue;
-            const braces = attributes ?? text.slice(contentEnd + 2, run.end - 1);
-            edits.push({ from: run.start, to: run.end, text: `[${inner}]{${braces}}` });
+                for (const [from, to] of outsideHoles(run.start + 1, contentEnd, detail.holes)) {
+                    const set = setRange(text, from, to, detail, false, book);
+                    if (set !== text.slice(from, to)) edits.push({ from, to, text: set });
+                }
             continue;
         }
         if (run.kind === "scroll" && attributes !== undefined && !detail.unrolled) {

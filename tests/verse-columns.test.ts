@@ -168,7 +168,6 @@ describe("a verse in columns", () => {
         expect(findings(SOURCE.replace("lang=vyl numstep", "lang=vyl font=serif numstep"))).toEqual(
             [
                 "1:26: a verse in columns sets each column's fonts and maps in `col1=` and `col2=`, not with `font=`",
-                "12:6: text marked `lang=en font=serif` is plain text and holds no emphasis",
             ],
         );
         expect(findings(SOURCE.replace("numstep=2", "numstep=two"))).toEqual([
@@ -192,7 +191,7 @@ describe("a verse in columns", () => {
         ]);
     });
 
-    it("refuses a line that is not a lone span, an unlabelled line, an indent and the build's class", () => {
+    it("refuses a line that is not a lone span, an unlabelled line and the build's class", () => {
         expect(
             findings(SOURCE.replace("[the line]{lang=en}", "[the line]{lang=en .name}")),
         ).toEqual([
@@ -201,16 +200,14 @@ describe("a verse in columns", () => {
         expect(findings(SOURCE.replace("{#walk lang=vyl ", "{#walk "))).toEqual([
             "7:1: this line names no language: write it `[text]{lang=…}`, or give the verse `lang=`",
         ]);
-        expect(findings(SOURCE.replace("\nthrima\n", "\n  thrima\n"))).toEqual([
-            "7:3: a line of a verse in columns is not indented",
-        ]);
+        expect(findings(SOURCE.replace("\nthrima\n", "\n  thrima\n"))).toEqual([]);
         expect(findings(SOURCE.replace("{#walk", "{#walk .verse-columns"))).toEqual([
             "1:17: `.verse-columns` is the class the build gives a verse in columns; leave it out",
         ]);
     });
 
     it("leaves a verse without columns as it is, and numbers it", () => {
-        const plain = "```verse {numstep=1}\nOne\n  Two\n```";
+        const plain = "```verse {numstep=1}\nOne\n.Two\n```";
         expect(findings(plain)).toEqual([]);
         expect(expandVerse(plain)).toBe(plain);
     });
@@ -321,7 +318,7 @@ describe("the site", () => {
     });
 
     it("numbers a verse without columns in the margin of its line", () => {
-        expect(site("```verse {numstep=2}\nOne\n  Two\n\nThree\n```")).toBe(
+        expect(site("```verse {numstep=2}\nOne\n.Two\n\nThree\n```")).toBe(
             [
                 "",
                 '<div class="verse verse-numbered" data-numstep="2">',
@@ -395,7 +392,7 @@ describe("Typst", () => {
     });
 
     it("numbers a verse without columns", () => {
-        expect(typst("```verse {numstep=2}\nOne\n  Two\n```")).toContain(
+        expect(typst("```verse {numstep=2}\nOne\n.Two\n```")).toContain(
             "#grid(columns: (2.5em, 1fr), column-gutter: 1em, row-gutter: 0.35em,\n  [], [One],\n  [#text(fill: luma(45%))[2]], [#h(1.25em)Two],\n)",
         );
     });
@@ -488,4 +485,47 @@ describe("a language with an automatic script in parallel verse", () => {
             });
         }
     }
+});
+
+describe("period indentation in mapped verse", () => {
+    it("preserves each native and repeated Roman part's indentation", () => {
+        const source = SOURCE.replace("[thrima sorima]", "[..thrima sorima]").replace(
+            "[The line, the song,]",
+            "[.The line, the song,]",
+        );
+        expect(findings(source)).toEqual([]);
+        for (const output of [site(source), foundry(source)]) {
+            expect(output).toContain(
+                `class="verse-part i2"><span class="script hl-semaron-kuriale"`,
+            );
+            expect(output).toContain(
+                `class="verse-part verse-secondary i2"><span lang="art-x-vyl">thrima sorima</span>`,
+            );
+            expect(output).toContain(
+                `class="verse-part i1"><span lang="en">The line, the song,</span>`,
+            );
+        }
+        expect(typst(source)).toContain(
+            `#pad(left: 2.5em)[#book-span(classes: ("script", "hl-semaron-kuriale"))[${THRIMA} ${SORIMA}]`,
+        );
+        expect(typst(source)).toContain(`#pad(left: 2.5em)[#box[thrima sorima]`);
+    });
+
+    it("keeps an indented right-to-left part's native direction", () => {
+        const source = RTL.replace("[gar zul]", "[.gar zul]");
+        expect(findings(source)).toEqual([]);
+        expect(foundry(source)).toContain(
+            `<span class="verse-part i1" dir="rtl"><span class="script hl-qalezu-hand" lang="art-x-khel">${GAR} ${ZUL}</span></span>`,
+        );
+        expect(typst(source)).toContain(
+            `#set text(dir: rtl)\n#pad(right: 1.25em)[#book-span(classes: ("script", "hl-qalezu-hand"))[${GAR} ${ZUL}]`,
+        );
+    });
+
+    it("locates a mapped font error after the markers at its original source column", () => {
+        const source = SOURCE.replace("[sorima]", "[..sorima7]");
+        expect(findings(source)).toEqual([
+            "11:10: `7` (U+0037) is not drawn by the font `semaron-kuriale`, and the map `vyl-semaron` has no row for it",
+        ]);
+    });
 });

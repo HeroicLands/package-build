@@ -417,13 +417,14 @@ describe("markdownToTypst", () => {
 });
 
 describe("new block syntax in the printed book", () => {
-    it("preserves verse stanzas and relative indentation without forcing italics", () => {
+    it("preserves verse stanzas and period indentation without forcing italics", () => {
         const out = markdownToTypst(
-            "```verse {form=ballad}\n  First *verse*.\n    Next verse.\n\n  Last verse.\n```",
+            "```verse {form=ballad}\nFirst *verse*.\n.Next verse.\n\n***\n\nLast verse.\n```",
         );
         expect(out).toContain("First #emph[verse].");
         expect(out).toContain("#h(1.25em)Next verse.");
         expect(out).toContain("Last verse.");
+        expect(out).toContain("#v(0.5em)");
         expect(out).not.toContain("#raw(");
         expect(out).not.toContain("#emph[First");
     });

@@ -771,12 +771,14 @@ function renderBlock(tokens, i, out, ctx) {
                     : step ? numberedVerse(token, step, ctx)
                     : token.meta.verseStanzas
                             .map((stanza) =>
-                                stanza
-                                    .map(({ children, level }) => {
-                                        const verse = renderInline({ children }, ctx);
-                                        return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
-                                    })
-                                    .join(" \\\n"),
+                                stanza[0]?.stanzaBreak ?
+                                    "#v(0.5em)"
+                                :   stanza
+                                        .map(({ children, level }) => {
+                                            const verse = renderInline({ children }, ctx);
+                                            return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
+                                        })
+                                        .join(" \\\n"),
                             )
                             .join("\n\n");
                 const anchor = poem?.id ? ` <${sectionLabel(ctx.anchorPrefix, poem.id)}>` : "";
@@ -1291,12 +1293,14 @@ const typstNumber = (number) => (number ? `[#text(fill: luma(45%))[${number}]]` 
 function numberedVerse(token, step, ctx) {
     let count = 0;
     const stanzas = token.meta.verseStanzas.map((stanza) =>
-        stanza
-            .map(({ children, level }) => {
-                const verse = renderInline({ children }, ctx);
-                return `  ${typstNumber(lineNumber(++count, step))}, [${level ? `#h(${level * 1.25}em)` : ""}${verse}],`;
-            })
-            .join("\n"),
+        stanza[0]?.stanzaBreak ?
+            "  grid.cell(colspan: 2)[#v(0.5em)],"
+        :   stanza
+                .map(({ children, level }) => {
+                    const verse = renderInline({ children }, ctx);
+                    return `  ${typstNumber(lineNumber(++count, step))}, [${level ? `#h(${level * 1.25}em)` : ""}${verse}],`;
+                })
+                .join("\n"),
     );
     return [
         "#grid(columns: (2.5em, 1fr), column-gutter: 1em, row-gutter: 0.35em,",
@@ -1332,9 +1336,12 @@ function verseGrid(token, poem, opening, step, ctx) {
             rows.push(`  grid.cell(colspan: ${width})[#v(0.5em)],`);
             return;
         }
-        const parts = group.map(({ children }, k) => {
-            const part = renderInline({ children }, ctx);
-            return rightToLeft(raw[at][k].text) ? `#set text(dir: rtl)\n${part}` : part;
+        const parts = group.map(({ children, level }, k) => {
+            const rtl = rightToLeft(raw[at][k].text);
+            const text = renderInline({ children }, ctx);
+            const part =
+                level ? `#pad(${rtl ? "right" : "left"}: ${level * 1.25}em)[${text}]` : text;
+            return rtl ? `#set text(dir: rtl)\n${part}` : part;
         });
         let next = 0;
         const cells = counts.map((n) => {

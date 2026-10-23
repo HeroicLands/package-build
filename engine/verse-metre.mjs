@@ -58,6 +58,13 @@ import { parseWordClass } from "./word-classes.mjs";
 import { derivedForms, foldWord } from "./word-forms.mjs";
 import { WORD } from "./word-pattern.mjs";
 
+import MarkdownIt from "markdown-it";
+import { spanMarkdownPlugin } from "./content-spans.mjs";
+import { STANZA_BREAK, verseLine } from "./content-verse.mjs";
+import { inlineText } from "./name-markup.mjs";
+
+const verseParser = new MarkdownIt().use(spanMarkdownPlugin);
+
 export { METRE_KINDS, METRE_NAME, checkMetresField } from "./metre-declaration.mjs";
 
 /** The bases whose one-syllable words carry a beat. */
@@ -285,7 +292,7 @@ export function metreMessage({ min, max }, metre) {
  * @param {ReadonlyArray<{start: number, end: number, indent: string, attributes: Record<string, string>, classes: string[]}>} blocks -
  *   The fences, from {@link module:engine/content-verse.scanVerse}.
  * @param {string[]} lines - The source's lines.
- * @param {{metres?: ReadonlyMap<string, import("./metre-declaration.mjs").Metre>, metreBooks?: ReadonlyMap<string, MetreBook>, lexicons?: ReadonlyMap<string, unknown>, columnsClass: string, columnKeys: readonly string[], attributeColumns: (line: string, key: string) => {key: number, value: number}}} ctx -
+ * @param {{languages?: Readonly<Record<string, {tag: string}>>, metres?: ReadonlyMap<string, import("./metre-declaration.mjs").Metre>, metreBooks?: ReadonlyMap<string, MetreBook>, lexicons?: ReadonlyMap<string, unknown>, columnsClass: string, columnKeys: readonly string[], attributeColumns: (line: string, key: string) => {key: number, value: number}}} ctx -
  *   The metres and books, and how the fence says its columns and where its
  *   keys sit.
  * @returns {{errors: object[], warnings: object[]}} The findings at 1-based
@@ -344,8 +351,32 @@ export function metreFindings(blocks, lines, ctx) {
         }
         for (let line = block.start + 1; line < block.end; line++) {
             const text = lines[line];
-            if (!text.trim()) continue;
-            const beats = lineBeats(text, book);
+            if (!text.trim() || STANZA_BREAK.test(text.trim())) continue;
+            const reading = verseLine(text);
+            const tokens = verseParser.parseInline(reading.text, {})[0]?.children ?? [];
+            const tag = (name) => (ctx.languages?.[name]?.tag ?? name).toLowerCase();
+            const foreign = tokens.find(
+                (token) =>
+                    token.type === "span_open" &&
+                    token.attrGet("lang") &&
+                    tag(token.attrGet("lang")) !== tag(lang),
+            );
+            if (foreign) {
+                error(
+                    {
+                        line: line + 1,
+                        column:
+                            reading.textColumn +
+                            foreign.meta.start +
+                            (reading.markerStart <= reading.textColumn - 1 + foreign.meta.start ?
+                                reading.markerLength
+                            :   0),
+                    },
+                    "`scan=` counts one language's beats; this verse line contains another language",
+                );
+                continue;
+            }
+            const beats = lineBeats(inlineText(tokens), book);
             if (metre.beats >= beats.min && metre.beats <= beats.max) continue;
             warnings.push({
                 line: line + 1,

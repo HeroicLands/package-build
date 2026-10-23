@@ -7,7 +7,7 @@
  * construct the renderers handle, the notes its links reach, mapping notes,
  * script notes and language notes, and two pictures. Four more notes each
  * hold what the build refuses: a link no package publishes, emphasis in a
- * language that marks it with a word, a cartouche written as a block, and two
+ * non-English span, a cartouche written as a block, and two
  * `scroll` fences, one with no characters to a column and one in a script
  * written in lines. {@link buildParity} copies it to a scratch directory and
  * renders the corpus the way each target renders a note.
@@ -55,7 +55,7 @@ export const CORPUS_NOTE = "Lore/lore-corpus.md";
 /** The note whose only content is a link no package publishes. */
 export const LOST_NOTE = "Lore/lore-lost.md";
 
-/** The note whose only content is emphasis in a language that marks it with a word. */
+/** The note whose only content is emphasis in a non-English span. */
 export const WORDED_NOTE = "Lore/lore-worded.md";
 export const FENCED_NOTE = "Lore/lore-fenced.md";
 
