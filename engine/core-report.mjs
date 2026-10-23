@@ -18,7 +18,8 @@
  * The list is the `data.concepts` of the package's `doc` notes. A language
  * must cover it where it states `data.core: true`. A word covers every
  * concept its `concept` names, and a language reads the words of its
- * `data.family` chain as its own. A missing concept is a fact to work through,
+ * `data.family` chain as its own, with the nearest definition of each form
+ * winning. A missing concept is a fact to work through,
  * never a finding.
  *
  * @module
@@ -114,9 +115,16 @@ export function coreReport(records, { language } = {}) {
         concepts: concepts.length,
         languages: chosen.map((record) => {
             const have = new Set();
+            const forms = new Set();
             for (const key of chain(noteAddressOf(record) ?? ""))
-                for (const word of byKey.get(key)?.data?.words ?? [])
+                for (const word of byKey.get(key)?.data?.words ?? []) {
+                    if (!isMap(word) || typeof word.form !== "string") continue;
+                    // Match dictionary headwords: NFC, retaining case and word separators.
+                    const form = word.form.normalize("NFC");
+                    if (forms.has(form)) continue;
+                    forms.add(form);
                     for (const id of idsOf(word)) have.add(id);
+                }
             const missing = [];
             for (const group of groups) {
                 const members = concepts.filter((concept) => concept.group === group);

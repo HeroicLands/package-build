@@ -24,6 +24,8 @@ import { collectContentIndex } from "../engine/content-index.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { coreReport, coreReportText } from "../engine/core-report.mjs";
+import { encodeAddresses } from "../engine/address-values.mjs";
+import { dictionaryAndTermRows } from "../engine/dictionary-rows.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { WORD_KEYS } from "../engine/word-terms.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -290,6 +292,110 @@ describe("the core report", () => {
         expect(missing).toEqual(["taste-noun", "knee"]);
         expect(younger.covered).toBe(6);
         expect(younger.total).toBe(8);
+    });
+
+    it("inherits a multiword expression and each of its recorded concepts", () => {
+        const elder = language(
+            "elderlng",
+            "Elder",
+            [],
+            [
+                '{form: "nelá tor", class: n, field: Life, gloss: [the head, a knee], concept: [head, knee]}',
+            ],
+        );
+        const { records, findings } = tree({ ...FULL, "Skills/Elder.md": elder });
+        expect(findings).toEqual([]);
+        const report: any = coreReport(records, { language: "younger" });
+        expect(report.languages[0].covered).toBe(4);
+        const dictionary = dictionaryAndTermRows(
+            records.map((record: any) => encodeAddresses(record)),
+        ).dictionary;
+        expect(
+            dictionary.find((row: any) => row.name === "nelá tor" && row.depth === 1)?.senses,
+        ).toEqual([
+            { text: "the head", bodies: [] },
+            { text: "a knee", bodies: [] },
+        ]);
+    });
+
+    it("counts the nearest expression's concepts when it shadows an ancestor", () => {
+        const elder = language(
+            "elderlng",
+            "Elder",
+            [],
+            [
+                '{form: "nelá tor", class: n, field: Life, gloss: [the head, a knee], concept: [head, knee]}',
+                "{form: oma, class: n, field: Life, gloss: a mother, concept: mother}",
+            ],
+        );
+        const middle = language(
+            "middlelng",
+            "Middle",
+            ["  family: skill-elderlng"],
+            [
+                '{form: "nela\u0301 tor", class: n, field: Life, gloss: a taste, concept: taste-noun}',
+            ],
+        );
+        const younger = language(
+            "youngerlng",
+            "Younger",
+            ["  core: true", "  family: skill-middlelng"],
+            ["{form: oma, class: n, field: Life, gloss: a hearth}"],
+        );
+        const { records, findings } = tree({
+            ...FULL,
+            "Skills/Elder.md": elder,
+            "Skills/Middle.md": middle,
+            "Skills/Younger.md": younger,
+        });
+        expect(findings).toEqual([]);
+        const report: any = coreReport(records, { language: "younger" });
+        expect(report.languages[0].covered).toBe(1);
+        const missing = report.languages[0].missing.flatMap((group: any) =>
+            group.concepts.map((concept: any) => concept.id),
+        );
+        expect(missing).toContain("head");
+        expect(missing).toContain("knee");
+        expect(missing).toContain("mother");
+        const dictionary = dictionaryAndTermRows(
+            records.map((record: any) => encodeAddresses(record)),
+        ).dictionary;
+        expect(
+            dictionary.find(
+                (row: any) => row.name === "nelá tor" && row.language.endsWith("youngerlng"),
+            )?.senses,
+        ).toEqual([{ text: "a taste", bodies: [] }]);
+    });
+
+    it("keeps distinct spellings and other expressions for a shadowed concept", () => {
+        const elder = language(
+            "elderlng",
+            "Elder",
+            [],
+            [
+                "{form: tor, class: n, field: Life, gloss: the head, concept: head}",
+                "{form: Tor, class: n, field: Life, gloss: a knee, concept: knee}",
+                '{form: "ne-tor", class: n, field: Life, gloss: a taste, concept: taste-noun}',
+                "{form: kep, class: n, field: Life, gloss: the head, concept: head}",
+            ],
+        );
+        const younger = language(
+            "youngerlng",
+            "Younger",
+            ["  core: true", "  family: skill-elderlng"],
+            [
+                "{form: tor, class: n, field: Life, gloss: a hearth}",
+                '{form: "ne tor", class: n, field: Life, gloss: a mother, concept: mother}',
+            ],
+        );
+        const { records, findings } = tree({
+            ...FULL,
+            "Skills/Elder.md": elder,
+            "Skills/Younger.md": younger,
+        });
+        expect(findings).toEqual([]);
+        const report: any = coreReport(records, { language: "younger" });
+        expect(report.languages[0].covered).toBe(4);
     });
 
     it("lists only the languages that state `core: true`, in name order", () => {

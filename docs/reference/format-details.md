@@ -6637,9 +6637,18 @@ The lint holds each to what it means, each finding located at the key at fault:
   Where no note states `data.concepts`, every id is unknown, and the message
   says so.
 
-A language reads the words of its `data.family` chain as its own, so a parent's
-tagged word covers the daughter's concept. `data.core` is not inherited: each
-language that must cover the list states it.
+A language reads the words of its `data.family` chain as its own. The nearest
+definition of a form wins, using the dictionary's matching: Unicode NFC, with
+case and word separators kept. If the daughter defines the same form, only
+that definition's `concept` ids count; an untagged definition covers none of
+the ancestor's concepts. A different inherited expression can still cover
+them. `data.core` is not inherited: each language that must cover the list
+states it.
+
+A `form` may contain several words. Its `gloss` records the expression's
+meaning, `built` may name its existing pieces, and `concept` may name every
+concept those senses support. The report counts declared ids; it does not
+prove an expression's meaning or infer coverage from grammar or untagged prose.
 
 `package-build core` is the report. A concept no word serves is never a lint
 finding; the report lists it so the language can be filled in. See
