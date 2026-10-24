@@ -16,6 +16,8 @@ npm install -D @heroiclands/package-build
 
 The generated project includes a homepage, website and book targets, npm scripts, and a local `.gitignore`. [Getting started](docs/getting-started.md) routes you to a [system](docs/guides/system-project.md), [module](docs/guides/module-project.md), or [content authoring](docs/authoring/first-note.md) path. The [content-language-server](https://github.com/HeroicLands/content-language-server) provides editor navigation and completion.
 
+Build indexes, calendars, staged assets and packs together with `package-build content build --calendaria-version 1.4.2`. The [complete content build](docs/commands.md#package-build-content-build) shares one source capture across publication, lint, links and compilation and reports each build stage's time.
+
 Run selected content operations together with `package-build content run index lint links compile`. The [shared content command](docs/commands.md#package-build-content-run-targets) captures one source tree for the selected checks and outputs; standalone commands remain available.
 
 Language annotations keep authored spelling: `[Zaron]{lang=vyl}` stays Roman.

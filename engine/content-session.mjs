@@ -13,6 +13,9 @@
 
 /** One invocation's authored sources and context-specific prepared views. */
 import path from "node:path";
+import fs from "node:fs";
+import { DEPLOYED_ASSET_TYPES } from "./asset-types.mjs";
+import { createContentTimings } from "./content-timings.mjs";
 import * as contentIndex from "./content-index.mjs";
 import * as blocks from "./content-blocks.mjs";
 import * as alerts from "./content-alerts.mjs";
@@ -52,6 +55,8 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {() => Promise<import("./content-index.mjs").PreparedContentIndex>} publication
  * @property {() => ReturnType<import("./compile-corpus.mjs").buildCompileCorpus>} compileCorpus
  * @property {(targets: readonly ContentTarget[]) => Promise<ContentSession>} prepare
+ * @property {ReturnType<typeof createContentTimings>} timings
+ * @property {() => void} assertUnchanged
  * @property {() => void} dispose
  */
 
@@ -71,6 +76,8 @@ export const CONTENT_TARGETS = Object.freeze(["index", "lint", "links", "compile
  * @param {string} [options.assetsBase] - Assets root, defaulting to configuration.
  * @param {readonly string[]} [options.skipDirectories] - Resolved content scope.
  * @param {ReturnType<typeof routerFor>} [options.router] - One router shared by this session's compile.
+ * @param {boolean} [options.trackChanges] - Snapshot physical input metadata for build phase guards.
+ * @param {ReturnType<typeof createContentTimings>} [options.timings] - Invocation stage accounting.
  * @returns {Promise<ContentSession>} Captured sources and lazy prepared views; dispose after use.
  */
 export async function createContentSession({
@@ -79,14 +86,36 @@ export async function createContentSession({
     assetsBase = config.paths.assets,
     skipDirectories = config.skipDirectories,
     router = routerFor(config),
+    timings = createContentTimings(),
+    trackChanges = false,
 } = {}) {
     const tree = path.resolve(contentBase);
     const assets = path.resolve(assetsBase);
     const scope = [...skipDirectories];
-    const inventory = captureContentSources(tree, assets, scope);
+    const inventory = timings.sync("source capture", () =>
+        captureContentSources(tree, assets, scope),
+    );
+    const fingerprint = (file) => {
+        const stat = fs.statSync(file, { throwIfNoEntry: false });
+        return stat ? `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}` : "absent";
+    };
+    const fingerprints =
+        trackChanges ?
+            new Map(
+                [
+                    ...new Set([
+                        tree,
+                        ...DEPLOYED_ASSET_TYPES.map((entry) => path.resolve(assets, entry.root)),
+                        ...inventory.paths.map((entry) => entry.file),
+                    ]),
+                ].map((file) => [file, fingerprint(file)]),
+            )
+        :   undefined;
     const parsed = new Map();
     const problems = [];
-    const foreign = loadForeignIndexes(config, [config.contentPackage]);
+    const foreign = timings.sync("dependency indexes", () =>
+        loadForeignIndexes(config, [config.contentPackage]),
+    );
     const syntaxCache = new Map();
     const prepared = new Map();
     let disposed = false;
@@ -104,23 +133,31 @@ export async function createContentSession({
             });
         return syntaxCache.get(text);
     };
-    const records = contentIndex.indexRecordsFor({
-        config,
-        contentBase: tree,
-        assetsBase: assets,
-        skipDirectories: scope,
-        sources: inventory.indexSources,
-        parsed,
-        problems,
-        foreignIndex: foreign.index,
-        syntax,
-    });
+    const records = timings.sync("index derivation", () =>
+        contentIndex.indexRecordsFor({
+            config,
+            contentBase: tree,
+            assetsBase: assets,
+            skipDirectories: scope,
+            sources: inventory.indexSources,
+            parsed,
+            problems,
+            foreignIndex: foreign.index,
+            syntax,
+        }),
+    );
     const memo = (key, make) => {
         active();
-        if (!prepared.has(key)) prepared.set(key, Promise.resolve().then(make));
+        if (!prepared.has(key))
+            prepared.set(
+                key,
+                Promise.resolve().then(() => timings.measure(key, make)),
+            );
+        else timings.hit(key);
         return prepared.get(key);
     };
     const session = {
+        timings,
         config,
         contentBase: tree,
         assetsBase: assets,
@@ -133,6 +170,17 @@ export async function createContentSession({
         problems,
         foreign,
         syntax,
+        /** Refuse a stale capture after any build phase changes an input. */
+        assertUnchanged() {
+            active();
+            if (!fingerprints)
+                throw new Error("Content change tracking was not enabled for this session");
+            for (const [file, before] of fingerprints)
+                if (fingerprint(file) !== before)
+                    throw new Error(
+                        `Content sources changed during the build: ${file}. Finish source generation before content build.`,
+                    );
+        },
         /** Refuse use with a different configuration, root, scope or router. */
         assertContext(options = {}) {
             active();

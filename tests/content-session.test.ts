@@ -23,6 +23,9 @@ import { lintPathCharset } from "../engine/path-charset.mjs";
 import { generatePacksJson } from "../engine/generate.mjs";
 import { prepareLinkSqlTables, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
+import { fileURLToPath } from "node:url";
+import { checkScriptFonts, copyScriptFonts, facesUsed } from "../engine/script-font-delivery.mjs";
+import { resolveScriptFonts } from "../engine/script-fonts.mjs";
 import { walkMarkdownTree } from "../engine/helpers.mjs";
 import { fixture, note, outputBytes, write } from "./content-session-fixture.js";
 
@@ -120,6 +123,16 @@ describe("one invocation owns the shared content session", () => {
                     "all",
                     "public",
                 ]);
+                const timing = session.timings.snapshot();
+                expect(timing.stages["source capture"]).toBeGreaterThan(0);
+                expect(timing.stages["index derivation"]).toBeGreaterThan(0);
+                expect(timing.stages["sql:all"]).toBeGreaterThan(0);
+                expect(timing.stages["sql:public"]).toBeGreaterThan(0);
+                expect(timing.hits["sql:all"]).toBeGreaterThan(0);
+                expect(
+                    Object.values(timing.stages).reduce((sum: number, ms: any) => sum + ms, 0),
+                ).toBeCloseTo(timing.totalMs, 5);
+
                 for (const body of new Set(
                     [...session.parsed.values()].map((source: any) => source.body),
                 )) {
@@ -132,6 +145,41 @@ describe("one invocation owns the shared content session", () => {
             }
         },
     );
+
+    it("uses the captured raw source and parsed frontmatter for font delivery", async () => {
+        const input = repo();
+        const language = [...input.files.keys()][2];
+        const raw = input.files
+            .get(language)!
+            .replace("data:\n", "data:\n  writtenIn: { map: semaron, font: teng-chou }\n");
+        write(language, raw);
+        input.files.set(language, raw);
+        fs.cpSync(
+            fileURLToPath(new URL("./fixtures/script-fonts/fonts", import.meta.url)),
+            path.join(input.root, "node_modules/@heroiclands/fonts"),
+            { recursive: true },
+        );
+        const work = observe(input.files);
+        const session = await factory()({ config: input.config });
+        try {
+            const installed = resolveScriptFonts(input.root)!;
+            expect([...facesUsed(input.config, installed, session)]).toEqual(["teng-chou"]);
+            expect(checkScriptFonts(input.config, session)).toEqual([]);
+            expect(
+                copyScriptFonts(
+                    input.config,
+                    path.join(input.root, "build/fonts"),
+                    ["woff2"],
+                    session,
+                ),
+            ).toBeGreaterThan(0);
+            expect(work.reads.sort()).toEqual([...input.files.keys()].sort());
+            expect(work.parses.sort()).toEqual([...input.files.keys()].sort());
+        } finally {
+            work.stop();
+            session.dispose();
+        }
+    });
 
     it("reuses actual authored scanner results and keeps distinct text projections", async () => {
         const input = repo();

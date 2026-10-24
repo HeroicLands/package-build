@@ -1556,6 +1556,89 @@ package-build: This repository declares no end-to-end suite to `run`. Name one u
 
 ## Content operations
 
+### `package-build content build`
+
+**NAME**
+
+Build indexes, calendars, assets and packs from one captured content tree.
+
+**SYNOPSIS**
+
+```text
+package-build content build --calendaria-version <version>
+```
+
+**DESCRIPTION**
+
+The complete content build runs these existing operations in order:
+
+1. Capture authored sources and prepare and publish fresh metadata, dictionary
+   and terms indexes.
+2. Emit calendar definitions and Calendaria imports from the published index.
+3. Stage the configured assets, including calendars, provenance-filtered
+   pictures, base styles and fonts.
+4. Run content lint, link checks and pack compilation with the same live session.
+
+Finish dependency fetching and source generation before invoking the command.
+Public and complete SQL preparations remain separate and each is reused by
+operations needing that audience. No resolved index or source cache survives
+into another invocation. Standalone commands and `content run` remain available.
+
+The command clears its index directory, generated calendar directory, pack JSON
+and configured compiled pack directories before preparing the new build. Other
+stage files, including a manifest written by a parallel packaging task, remain.
+Use `package-build stage reset` before starting the complete packaging workflow
+when the entire stage must start empty. Build output paths must be outside the
+captured content and picture roots. A phase that changes those inputs fails the
+build, invalidates publication readiness and stops further use of the capture;
+source generation belongs before this command.
+
+After all three index files are published successfully, the command writes
+`<paths.contentIndex>/.publication-ready` (normally
+`build/content-index/.publication-ready`). It removes that marker at startup.
+The marker means this invocation published a complete fresh index, even when
+calendar emission, asset staging, lint, link checks or compilation later fails.
+A subsequent index consumer can check it to report independent findings after a
+build failure. Clear the marker before a surrounding workflow starts as well,
+so failures before the command starts cannot expose an earlier run's index.
+Never restore the marker or resolved indexes from a cache.
+
+Preparation failure blocks publication and compilation but preserves useful
+independent lint and link findings. Calendar or asset failure blocks compilation;
+ordinary lint or link findings do not block an otherwise valid compile. Pack
+generation still refuses to compile incomplete output. An advisory warning does
+not fail the command.
+
+The final timing summary includes eager capture and index derivation, SQL by
+audience, publication, calendars, assets, validation, rendering and native pack
+compilation. Stage times are exclusive: a nested SQL preparation is charged to
+SQL rather than its calling stage. Counts, preparation reuse and peak process
+RSS accompany the timings; importing the CLI and validating its arguments happen
+before the measured build interval.
+
+**OPTIONS**
+
+| Option                 | Type   | Default  | Description                            |
+| ---------------------- | ------ | -------- | -------------------------------------- |
+| `--calendaria-version` | string | required | Calendaria import version, e.g. 1.4.2. |
+
+**EXIT STATUS**
+
+0 when every operation succeeds. 1 when arguments, preparation or any build
+operation fails. Publication readiness alone does not mean the build passed.
+
+**EXAMPLES**
+
+```bash
+package-build deps fetch
+package-build content build --calendaria-version 1.4.2
+```
+
+**SEE ALSO**
+
+`package-build content run`, `package-build content-index`, `package-build calendars`,
+`package-build assets`, `package-build package compile`.
+
 ### `package-build content run <targets..>`
 
 **NAME**

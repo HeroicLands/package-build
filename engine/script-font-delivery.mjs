@@ -76,14 +76,15 @@ const FRONTMATTER = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
  *
  * @param {string} source - The note's file.
  * @param {import("./script-fonts.mjs").ScriptFonts} installed - The fonts package.
+ * @param {import("./content-session.mjs").ContentNoteSource} [parsed] - Already parsed authored note.
  * @returns {string|undefined} The face's slug.
  */
-function writtenInFace(source, installed) {
+function writtenInFace(source, installed, parsed) {
     const yaml = FRONTMATTER.exec(source)?.[1];
     if (yaml === undefined) return undefined;
     let fm;
     try {
-        fm = YAML.parse(yaml);
+        fm = parsed ? parsed.frontmatter : YAML.parse(yaml);
     } catch {
         return undefined;
     }
@@ -102,10 +103,12 @@ function writtenInFace(source, installed) {
  *
  * @param {DeliveryConfig} config - The resolved configuration.
  * @param {import("./script-fonts.mjs").ScriptFonts} installed - The fonts package.
+ * @param {import("./content-session.mjs").ContentSession} [session] - Captured sources when staging within a content build.
  * @returns {ReadonlySet<string>} The slugs of the faces used.
  */
-export function facesUsed(config, installed) {
-    const known = usedFaces.get(config);
+export function facesUsed(config, installed, session) {
+    const cacheKey = session ?? config;
+    const known = usedFaces.get(cacheKey);
     if (known) return known;
     const used = new Set();
     const content =
@@ -119,9 +122,9 @@ export function facesUsed(config, installed) {
             const full = path.join(dir, entry.name);
             if (entry.isDirectory()) walk(full);
             else if (entry.isFile() && entry.name.endsWith(".md")) {
-                const source = fs.readFileSync(full, "utf8");
+                const source = session?.sources.get(full)?.raw ?? fs.readFileSync(full, "utf8");
                 if (/^\s*writtenIn:/m.test(source)) {
-                    const face = writtenInFace(source, installed);
+                    const face = writtenInFace(source, installed, session?.parsed.get(full));
                     if (face) used.add(face);
                 }
                 if (!/\bfont=/.test(source)) continue;
@@ -135,7 +138,7 @@ export function facesUsed(config, installed) {
         }
     };
     if (content && fs.existsSync(content)) walk(content);
-    usedFaces.set(config, used);
+    usedFaces.set(cacheKey, used);
     return used;
 }
 
@@ -143,15 +146,16 @@ export function facesUsed(config, installed) {
  * The installed package, when this consumer is to ship it.
  *
  * @param {DeliveryConfig} config - The resolved configuration.
+ * @param {import("./content-session.mjs").ContentSession} [session] - Captured sources.
  * @returns {import("./script-fonts.mjs").ScriptFonts|undefined} The package, or
  *   `undefined` without a root, an install, a manifest, or a note that sets
  *   text in one of its faces.
  */
-function delivered(config) {
+function delivered(config, session) {
     if (!config?.rootDir) return undefined;
     const installed = resolveScriptFonts(config.rootDir);
     if (!installed?.manifest) return undefined;
-    return facesUsed(config, installed).size ? installed : undefined;
+    return facesUsed(config, installed, session).size ? installed : undefined;
 }
 
 /**
@@ -159,12 +163,13 @@ function delivered(config) {
  *
  * @param {DeliveryConfig} config - The resolved configuration.
  * @param {string[]} formats - The font formats the target uses: `woff2`, `ttf`.
+ * @param {import("./content-session.mjs").ContentSession} [session] - Captured sources when staging within a content build.
  * @returns {{root: string, version: string, files: string[]}|undefined} The
  *   files, sorted: `fonts.css`, `LICENSE` and every file in `fonts/` of a
  *   listed format. `undefined` when the consumer ships none.
  */
-export function scriptFontFiles(config, formats) {
-    const installed = delivered(config);
+export function scriptFontFiles(config, formats, session) {
+    const installed = delivered(config, session);
     if (!installed) return undefined;
     const fontsDir = path.join(installed.root, "fonts");
     const fonts =
@@ -250,10 +255,11 @@ export function stagedStylesheet(css, staged) {
  * @param {string} dest - The directory to fill; created when there is
  *   something to put in it.
  * @param {string[]} formats - The font formats the target uses.
+ * @param {import("./content-session.mjs").ContentSession} [session] - Captured sources when staging within a content build.
  * @returns {number} How many files were written; 0 when the consumer ships none.
  */
-export function copyScriptFonts(config, dest, formats) {
-    const found = scriptFontFiles(config, formats);
+export function copyScriptFonts(config, dest, formats, session) {
+    const found = scriptFontFiles(config, formats, session);
     if (!found) return 0;
     const staged = new Set(found.files);
     for (const file of found.files) {
@@ -274,11 +280,12 @@ export function copyScriptFonts(config, dest, formats) {
  * stylesheet, the licence and every file the manifest lists.
  *
  * @param {DeliveryConfig} config - The resolved configuration.
+ * @param {import("./content-session.mjs").ContentSession} [session] - Captured sources when staging within a content build.
  * @returns {{file: string, severity: "error", message: string}[]} One finding
  *   per missing file, located at the manifest; empty when the consumer ships none.
  */
-export function checkScriptFonts(config) {
-    const installed = delivered(config);
+export function checkScriptFonts(config, session) {
+    const installed = delivered(config, session);
     if (!installed) return [];
     const manifest = path.join(installed.root, FONTS_MANIFEST);
     const wanted = new Set([STYLESHEET, LICENSE]);

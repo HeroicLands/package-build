@@ -77,16 +77,20 @@ function readIndex(file) {
  *
  * @param {object} opts
  * @param {object} opts.config - Resolved content configuration.
+ * @param {Map<string, {raw: string}>} [opts.sources] - Captured authored text for diagnostics.
  * @param {string} opts.calendariaVersion - Version whose import format is targeted.
  * @returns {{directory: string, calendars: number, files: number}}
  */
-export function emitCalendarArtifacts({ config, calendariaVersion } = {}) {
+export function emitCalendarArtifacts({ config, calendariaVersion, sources } = {}) {
     if (!config) throw new Error("calendar emission requires a content configuration");
     if (!/^\d+\.\d+\.\d+$/.test(calendariaVersion ?? "")) {
         throw new Error("calendar emission requires a Calendaria version such as 1.4.2");
     }
 
     const root = config.rootDir;
+    const rawSource = (file) =>
+        sources?.get(path.resolve(root, file))?.raw ??
+        fs.readFileSync(path.resolve(root, file), "utf8");
     const contentBase = path.resolve(root, config.paths.content);
     const indexFile = path.resolve(
         root,
@@ -108,7 +112,7 @@ export function emitCalendarArtifacts({ config, calendariaVersion } = {}) {
     );
     const names = new Map();
     for (const note of calendars) {
-        const raw = fs.readFileSync(path.resolve(root, note.file), "utf8");
+        const raw = rawSource(note.file);
         const shortcode = note.fm.shortcode;
         if (typeof shortcode !== "string" || !/^[a-z0-9]+$/.test(shortcode)) {
             failAt(
@@ -135,7 +139,7 @@ export function emitCalendarArtifacts({ config, calendariaVersion } = {}) {
         failAt(
             note.file,
             "calendar notes require a world note declaring data.year",
-            fs.readFileSync(path.resolve(root, note.file), "utf8"),
+            rawSource(note.file),
             ["subType"],
         );
     }

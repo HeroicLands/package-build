@@ -135,6 +135,10 @@ import { serveSite } from "../engine/site-serve.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
 import { prepareLinkSqlTables, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
+import { createContentTimings } from "../engine/content-timings.mjs";
+import { emitCalendarArtifacts } from "../engine/calendar-artifacts.mjs";
+import { stagePackageBuildAssets } from "../engine/build-assets.mjs";
+import { DEPLOYED_ASSET_TYPES } from "../engine/asset-types.mjs";
 import { createContentSession, CONTENT_TARGETS } from "../engine/content-session.mjs";
 import { createFirstUseChecker } from "../engine/first-use.mjs";
 import { createNameCatalog, createNamesReport, namesReportFinding } from "../engine/names.mjs";
@@ -297,7 +301,7 @@ export function registerContentCommands(cli) {
         .command(proseCommand())
         .command(contentFormatCommand())
         .command(withIndexPreflight(linksCommand()))
-        .command(withIndexPreflight(contentCommand()))
+        .command(contentCommand())
         .command(formatCommand())
         .command(markdownCommand())
         .command(
@@ -1494,25 +1498,187 @@ function markdownCommand() {
     };
 }
 
-/**
- * `package-build links` — check that every link in a content tree lands.
- *
- * Reports a dead `#anchor`, a dead qualified address, and a wikilink authored
- * in frontmatter, plus a vendored manifest that has drifted out of reach. All
- * of it is package-agnostic, so a consumer needs no script of its own: the
- * manifest directory is the only thing it might name, and that comes from its
- * configuration.
- *
- * @returns {object} The yargs command module.
- */
-// eslint-disable-next-line
+/** Content operations with a shared invocation-local capture. */
 function contentCommand() {
     return {
-        command: "content <action> <targets..>",
+        command: "content",
+        describe: "Run content operations in one in-memory session",
+        builder: (yargs) =>
+            yargs
+                .command(withIndexPreflight(contentRunCommand()))
+                .command(contentBuildCommand())
+                .demandCommand(1, "Choose content run or content build."),
+        handler: () => {},
+    };
+}
+
+/** The complete build writes only outside the captured input roots. */
+function contentBuildOutputs(config, packaging) {
+    const roots = [
+        config.paths.content,
+        ...DEPLOYED_ASSET_TYPES.map((entry) => path.resolve(config.paths.assets, entry.root)),
+    ];
+    const stage = path.resolve(packaging.rootDir, packaging.stageDir);
+    const outputs = [
+        config.paths.contentIndex,
+        config.paths.packJson,
+        config.paths.stage,
+        stage,
+        path.join(config.rootDir, "build/calendars"),
+    ];
+    const contains = (parent, child) => {
+        const relative = path.relative(path.resolve(parent), path.resolve(child));
+        return (
+            relative === "" ||
+            (!relative.startsWith(`..${path.sep}`) &&
+                relative !== ".." &&
+                !path.isAbsolute(relative))
+        );
+    };
+    for (const output of [...outputs, ...packaging.assets.map(({ to }) => path.resolve(stage, to))])
+        for (const root of roots)
+            if (contains(root, output) || contains(output, root))
+                throw new Error(
+                    `content build output ${output} overlaps captured input ${root}; keep build outputs outside source roots`,
+                );
+    return [
+        ...new Set([
+            config.paths.contentIndex,
+            config.paths.packJson,
+            path.join(config.rootDir, "build/calendars"),
+            ...config.packDirectories.map((name) => path.join(config.paths.stage, name)),
+        ]),
+    ];
+}
+
+/** Publish, generate calendars, stage assets and check/compile one live session. */
+function contentBuildCommand() {
+    return {
+        command: "build",
+        describe:
+            "Publish fresh indexes, emit calendars, stage assets, lint, check links and compile",
+        builder: (yargs) =>
+            yargs
+                .option("calendaria-version", {
+                    type: "string",
+                    demandOption: true,
+                    describe: "Calendaria import format version",
+                })
+                .check((argv) => {
+                    if (!/^\d+\.\d+\.\d+$/.test(argv.calendariaVersion))
+                        throw new Error("--calendaria-version requires a version such as 1.4.2");
+                    return true;
+                }),
+        handler: async (argv) => {
+            const timings = createContentTimings();
+            let session;
+            const shared = {
+                ...argv,
+                references: true,
+                [PREPARATION_REPORTED]: true,
+                [REPORTED_FAILURES]: new Set(),
+            };
+            const fail = (error) => {
+                reportContentFailure(error, shared);
+                process.exitCode = 1;
+            };
+            try {
+                const config = loadPackConfig();
+                const marker = path.join(config.paths.contentIndex, ".publication-ready");
+                fs.rmSync(marker, { force: true });
+                const packaging = loadPackageBuildConfig();
+                const outputs = contentBuildOutputs(config, packaging);
+                for (const output of outputs) fs.rmSync(output, { recursive: true, force: true });
+                cachedMetadataIndexes(config);
+                session = await createContentSession({ config, timings, trackChanges: true });
+                shared[CONTENT_SESSION] = session;
+                let prepared = false;
+                const reportedProblems = new Set();
+                try {
+                    assertCompendiumOperation(config, "compile");
+                    await session.prepare(["index"]);
+                    prepared = true;
+                } catch (error) {
+                    if (error.findings) {
+                        for (const finding of error.findings) {
+                            emitDiagnostic(finding);
+                            reportedProblems.add(finding);
+                        }
+                        shared[REPORTED_FAILURES].add(error);
+                        process.exitCode = 1;
+                    } else fail(error);
+                }
+                for (const problem of session.problems) {
+                    if (!reportedProblems.has(problem)) emitDiagnostic(problem);
+                    process.exitCode = 1;
+                }
+                let staged = false;
+                if (
+                    prepared &&
+                    (await timings.measure("index publication", () =>
+                        contentIndexCommand().handler(shared),
+                    ))
+                ) {
+                    fs.writeFileSync(marker, `${config.contentPackage}\n`);
+                    try {
+                        await timings.measure("calendars", () => {
+                            const result = emitCalendarArtifacts({
+                                config,
+                                calendariaVersion: argv.calendariaVersion,
+                                sources: session.sources,
+                            });
+                            log.info(
+                                `${result.calendars} calendars emitted (${result.files} files).`,
+                            );
+                        });
+                        await timings.measure("assets", () =>
+                            stagePackageBuildAssets({
+                                config: packaging,
+                                packConfig: config,
+                                session,
+                            }),
+                        );
+                        staged = true;
+                    } catch (error) {
+                        fail(error);
+                    }
+                    try {
+                        session.assertUnchanged();
+                    } catch (error) {
+                        fs.rmSync(marker, { force: true });
+                        throw error;
+                    }
+                }
+                await timings.measure("validation", () => lintCommand().handler(shared));
+                await timings.measure("links", () => linksCommand().handler(shared));
+                if (staged)
+                    await timings.measure("compile", () =>
+                        packageCommand().handler({ ...shared, action: "compile" }),
+                    );
+            } catch (error) {
+                fail(error);
+            } finally {
+                const summary = timings.snapshot();
+                log.info(
+                    `Content timings (exclusive): ${Object.entries(summary.stages)
+                        .map(([name, ms]) => `${name} ${Number(ms).toFixed(1)} ms`)
+                        .join("; ")}; total ${summary.totalMs.toFixed(1)} ms.`,
+                );
+                log.info(
+                    `Content work: ${session?.sources.size ?? 0} sources; ${session?.parsed.size ?? 0} parsed notes; ${session?.records.length ?? 0} records; reuse ${JSON.stringify(summary.hits)}; peak RSS ${(process.resourceUsage().maxRSS / 1024).toFixed(1)} MiB.`,
+                );
+                session?.dispose();
+            }
+        },
+    };
+}
+
+function contentRunCommand() {
+    return {
+        command: "run <targets..>",
         describe: "Run selected content operations with one in-memory source capture",
         builder: (yargs) =>
             yargs
-                .positional("action", { type: "string", choices: ["run"] })
                 .positional("targets", { type: "string", array: true, choices: CONTENT_TARGETS })
                 .option("references", {
                     type: "boolean",
@@ -1801,9 +1967,11 @@ function contentIndexCommand() {
                         `${config.contentPackage} → ${path.relative(process.cwd(), written.file)} ` +
                             `(${written.rows} ${relation} rows)`,
                     );
+                return true;
             } catch (err) {
                 reportContentFailure(err, argv);
                 process.exitCode = 1;
+                return false;
             } finally {
                 if (!argv[CONTENT_SESSION]) session?.dispose();
             }

@@ -3,6 +3,11 @@
 See [the content format guide](docs/content-format.md) for the complete note
 format and publishing behavior.
 
+For a complete package build, `package-build content build --calendaria-version 1.4.2`
+publishes fresh indexes, emits calendars, stages assets, checks content and links,
+and compiles packs in one invocation. See the [command reference](docs/commands.md#package-build-content-build)
+for ordering, publication readiness and failure behavior.
+
 Nonempty `data.words` on a language note, or `data.glossary` on a culture or
 affiliation, supplies page content without an authored body. Every other
 typed note must have a nonempty body after its frontmatter, including drafts,

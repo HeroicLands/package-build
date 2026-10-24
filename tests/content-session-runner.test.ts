@@ -27,7 +27,7 @@ function repo(size = 8) {
     roots.push(input.root);
     return input;
 }
-function run(input: ReturnType<typeof fixture>, ...args: string[]) {
+function run(input: ReturnType<typeof fixture> & { failWrite?: string }, ...args: string[]) {
     const script = `
         const fs = (await import('node:fs')).default;
         const paths = new Set(${JSON.stringify([...input.files.keys()])});
@@ -37,15 +37,35 @@ function run(input: ReturnType<typeof fixture>, ...args: string[]) {
             if (paths.has(String(file))) reads[file] = (reads[file] ?? 0) + 1;
             return read.call(this, file, ...options);
         };
+        const failWrite = ${JSON.stringify(input.failWrite ?? "")};
+        const write = fs.writeFileSync;
+        fs.writeFileSync = function(file, ...options) {
+            if (failWrite && String(file).endsWith(failWrite)) throw new Error('publication write failed deliberately');
+            return write.call(this, file, ...options);
+        };
         process.on('exit', () => console.log('SESSION_WORK=' + JSON.stringify(reads)));
         process.argv = [process.execPath, ${JSON.stringify(cli)}, ...${JSON.stringify(args)}];
         await import(${JSON.stringify(pathToFileURL(cli).href)});
     `;
+    const started = performance.now();
     const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
         cwd: input.root,
         env: { ...process.env, PACKAGE_BUILD_CONFIG: input.configFile },
         encoding: "utf8",
     });
+    if (process.env.CONTENT_TIMING_BASELINE)
+        console.log(
+            JSON.stringify({
+                args,
+                ms: performance.now() - started,
+                timing: result.stdout
+                    ?.split("\n")
+                    .filter(
+                        (line) =>
+                            line.includes("Content timings") || line.includes("Content work:"),
+                    ),
+            }),
+        );
     const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
     const work = /SESSION_WORK=(.*)/.exec(output)?.[1];
     return { status: result.status, output, reads: work ? JSON.parse(work) : {} };
@@ -246,6 +266,211 @@ describe("the explicit multi-target content command", () => {
                     "utf8",
                 ),
             ).toContain('"shortcode":"root"');
+        },
+        subprocessTimeout(3),
+    );
+});
+
+function buildRepo() {
+    const input = repo();
+    const data = YAML.parse(fs.readFileSync(input.configFile, "utf8"));
+    data.packageBuild = { assets: [{ from: "build/calendars", to: "calendars" }] };
+    write(input.configFile, YAML.stringify(data));
+    input.config = configFromData(data, input.configFile);
+    for (const [name, fm] of Object.entries({
+        World: {
+            type: "place",
+            subType: "world",
+            shortcode: "world",
+            name: { full: "World" },
+            data: {
+                year: { days: 365, hoursPerDay: 24, minutesPerHour: 60, secondsPerMinute: 60 },
+            },
+        },
+        Calendar: {
+            type: "lore",
+            subType: "calendar",
+            shortcode: "calendar",
+            name: { full: "Calendar" },
+            data: {
+                epoch: "720.1",
+                months: [{ name: "Year", days: 365 }],
+                eras: [
+                    { shortcode: "before", name: "Before", start: null },
+                    { shortcode: "present", name: "Present", start: 1 },
+                ],
+            },
+        },
+    })) {
+        const file = path.join(input.config.paths.content, `${name}.md`);
+        const raw = note(fm);
+        write(file, raw);
+        input.files.set(file, raw);
+    }
+    return input;
+}
+const ready = (input: ReturnType<typeof fixture>) =>
+    path.join(input.config.paths.contentIndex, ".publication-ready");
+
+describe("the complete content build", () => {
+    it(
+        "publishes, emits calendars, stages assets and compiles with standalone artifact parity and one source read",
+        async () => {
+            const input = buildRepo();
+            for (const args of [
+                ["content-index"],
+                ["calendars", "--calendaria-version", "1.4.2"],
+                ["assets"],
+                ["content", "run", "lint", "links", "compile"],
+            ]) {
+                const result = run(input, ...args);
+                expect(result.status, result.output).toBe(0);
+            }
+            const index = outputBytes(input.config.paths.contentIndex);
+            const calendars = outputBytes(path.join(input.root, "build/calendars"));
+            const staged = outputBytes(path.join(input.root, "build/stage/calendars"));
+            const packs = outputBytes(input.config.paths.packJson);
+            const native = await nativeContents(input);
+            write(path.join(input.config.paths.contentIndex, "stale.jsonl"), "stale");
+            write(path.join(input.root, "build/stage/stale.txt"), "stale");
+            const result = run(input, "content", "build", "--calendaria-version", "1.4.2");
+            expect(result.status, result.output).toBe(0);
+            expect(fs.existsSync(ready(input))).toBe(true);
+            const actualIndex = outputBytes(input.config.paths.contentIndex);
+            delete actualIndex[".publication-ready"];
+            expect(actualIndex).toEqual(index);
+            expect(outputBytes(path.join(input.root, "build/calendars"))).toEqual(calendars);
+            expect(outputBytes(path.join(input.root, "build/stage/calendars"))).toEqual(staged);
+            expect(outputBytes(input.config.paths.packJson)).toEqual(packs);
+            expect(await nativeContents(input)).toEqual(native);
+            expect(fs.readFileSync(path.join(input.root, "build/stage/stale.txt"), "utf8")).toBe(
+                "stale",
+            );
+            expect(result.reads).toEqual(
+                Object.fromEntries([...input.files.keys()].map((file) => [file, 1])),
+            );
+            expect(result.output).toContain("Content timings (exclusive)");
+            expect(result.output).toContain("source capture");
+            expect(result.output).toContain("index derivation");
+        },
+        subprocessTimeout(5),
+    );
+
+    it(
+        "clears stale publication readiness on preparation failure and still reports independent findings",
+        () => {
+            const input = buildRepo();
+            write(ready(input), "stale");
+            write(path.join(input.config.paths.contentIndex, "stale.jsonl"), "stale");
+            write(
+                path.join(input.config.paths.content, "Malformed.md"),
+                "---\ntype: doc\nbroken: [ }\n---\n\nə\n",
+            );
+            const result = run(input, "content", "build", "--calendaria-version", "1.4.2");
+            expect(result.status, result.output).toBe(1);
+            expect(result.output).toContain("YAML parse error");
+            expect(result.output).toContain("U+0259");
+            expect(fs.existsSync(ready(input))).toBe(false);
+            expect(fs.existsSync(path.join(input.config.paths.contentIndex, "stale.jsonl"))).toBe(
+                false,
+            );
+            expect(fs.existsSync(input.config.paths.packJson)).toBe(false);
+            expect(fs.existsSync(path.join(input.root, "build/stage/calendars"))).toBe(false);
+        },
+        subprocessTimeout(1),
+    );
+
+    it(
+        "does not mark a partly written publication ready and still runs independent checks",
+        () => {
+            const input = buildRepo();
+            write(ready(input), "stale");
+            const result = run(
+                { ...input, failWrite: `${input.config.contentPackage}-dictionary.jsonl` },
+                "content",
+                "build",
+                "--calendaria-version",
+                "1.4.2",
+            );
+            expect(result.status, result.output).toBe(1);
+            expect(result.output).toContain("publication write failed deliberately");
+            expect(result.output).toContain("U+000D");
+            expect(fs.existsSync(ready(input))).toBe(false);
+            expect(fs.existsSync(input.config.paths.packJson)).toBe(false);
+        },
+        subprocessTimeout(1),
+    );
+
+    it(
+        "retains a fresh publication after later lint failure and preserves located diagnostics",
+        () => {
+            const input = buildRepo();
+            const file = [...input.files.keys()][0];
+            write(file, input.files.get(file)!.replace("---\n", "---\nunknown: true\n"));
+            const lint = run(input, "lint");
+            const result = run(input, "content", "build", "--calendaria-version", "1.4.2");
+            expect(result.status, result.output).toBe(1);
+            expect(located(result.output)).toEqual(located(lint.output));
+            expect(fs.existsSync(ready(input))).toBe(true);
+            expect(fs.existsSync(input.config.paths.packJson)).toBe(true);
+        },
+        subprocessTimeout(2),
+    );
+
+    it(
+        "keeps publication ready after asset failure, reports checks, and refuses compilation",
+        () => {
+            const input = buildRepo();
+            const data = YAML.parse(fs.readFileSync(input.configFile, "utf8"));
+            data.packageBuild.assetTransform = "./broken-transform.mjs";
+            write(input.configFile, YAML.stringify(data));
+            write(
+                path.join(input.root, "broken-transform.mjs"),
+                'export function transform() { throw new Error("staging failed deliberately"); }',
+            );
+            const result = run(input, "content", "build", "--calendaria-version", "1.4.2");
+            expect(result.status, result.output).toBe(1);
+            expect(result.output).toContain("staging failed deliberately");
+            expect(result.output).toContain("notes —");
+            expect(fs.existsSync(ready(input))).toBe(true);
+            expect(fs.existsSync(input.config.paths.packJson)).toBe(false);
+        },
+        subprocessTimeout(1),
+    );
+
+    it(
+        "refuses changed source inventory after an asset transform instead of compiling a stale capture",
+        () => {
+            const input = buildRepo();
+            const data = YAML.parse(fs.readFileSync(input.configFile, "utf8"));
+            data.packageBuild.assetTransform = "./mutating-transform.mjs";
+            write(input.configFile, YAML.stringify(data));
+            write(
+                path.join(input.root, "mutating-transform.mjs"),
+                `import fs from 'node:fs'; export function transform() { fs.writeFileSync(${JSON.stringify(path.join(input.config.paths.content, "New.md"))}, ${JSON.stringify(note({ type: "lore", subType: "history", shortcode: "new", name: { full: "New" } }))}); return null; }`,
+            );
+            const result = run(input, "content", "build", "--calendaria-version", "1.4.2");
+            expect(result.status, result.output).toBe(1);
+            expect(result.output).toContain("Content sources changed during the build");
+            expect(fs.existsSync(ready(input))).toBe(false);
+            expect(fs.existsSync(input.config.paths.packJson)).toBe(false);
+        },
+        subprocessTimeout(1),
+    );
+
+    it(
+        "validates the build grammar before reading sources",
+        () => {
+            const input = buildRepo();
+            for (const args of [
+                ["content", "build"],
+                ["content", "build", "index", "--calendaria-version", "1.4.2"],
+                ["content", "build", "--calendaria-version", "wrong"],
+            ]) {
+                const result = run(input, ...args);
+                expect(result.status, result.output).toBe(1);
+                expect(result.reads).toEqual({});
+            }
         },
         subprocessTimeout(3),
     );

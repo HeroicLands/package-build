@@ -87,20 +87,13 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
-import { checkForeignAssetBindings } from "../engine/asset-bindings.mjs";
-import { emitDiagnostic, formatDiagnostic, positionOfYamlPath } from "../engine/diagnostics.mjs";
+import { loadAssetTransform, stagePackageBuildAssets } from "../engine/build-assets.mjs";
+import { emitDiagnostic, formatDiagnostic } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments, siteBase } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pack-config.mjs";
-import { cleanBuildArtifacts, resetStage, stageAssets } from "../stage.mjs";
-import { rowsStagingPictureRoots, stagePackageAssets } from "../engine/asset-shipping.mjs";
-import { baseStyleStageEntry } from "../engine/base-styles.mjs";
-import {
-    checkScriptFonts,
-    copyScriptFonts,
-    STAGED_FONTS_DIR,
-} from "../engine/script-font-delivery.mjs";
+import { cleanBuildArtifacts, resetStage } from "../stage.mjs";
 import {
     CDN_ENV,
     cdnCredentials,
@@ -438,171 +431,13 @@ function cleanCommand() {
     };
 }
 
-/**
- * A finding for each `packageBuild.assets` row that would stage a picture root
- * itself, located at the row's `from` when the configuration is YAML.
- *
- * @param {readonly {from: string, to: string}[]} rows - The configured rows.
- * @param {{rootDir: string, assetsBase: string}} opts - Where they resolve.
- * @returns {object[]} The findings.
- */
-function pictureRootRowFindings(rows, { rootDir, assetsBase }) {
-    const offending = rowsStagingPictureRoots(rows, { rootDir, assetsBase });
-    if (!offending.length) return [];
-    const file = packConfigPath();
-    const text =
-        file.endsWith(".yaml") || file.endsWith(".yml") ? fs.readFileSync(file, "utf8") : "";
-    return offending.map(({ index, from, root }) => ({
-        file,
-        ...(text ? positionOfYamlPath(text, ["packageBuild", "assets", index, "from"]) : {}),
-        severity: "error",
-        message:
-            `\`packageBuild.assets[${index}]\` copies \`${from}\`, which reaches ${root}/ — ` +
-            "the stage copies the icon and image roots itself, flat and filtered by " +
-            "each file's provenance, so a row copying them would ship every file " +
-            "unfiltered. Remove the row",
-    }));
-}
-
-/**
- * The repository's `packageBuild.assetTransform`, loaded.
- *
- * One loader for every command that writes a picture, so the stage and the CDN
- * hold the same bytes for the same file.
- *
- * @param {object} config - The resolved package-build configuration.
- * @returns {Promise<((sourcePath: string) => string|null|undefined)|undefined>}
- *   The transform, or `undefined` when the repository names none.
- */
-async function loadAssetTransform(config) {
-    if (!config.assetTransform) return undefined;
-    const module = await import(`file://${config.assetTransform}`).catch((err) =>
-        die(
-            `cannot load \`packageBuild.assetTransform\` ` +
-                `(${config.assetTransform}): ${err.message}`,
-        ),
-    );
-    const transform = module.transform;
-    if (typeof transform !== "function") {
-        die(
-            `\`packageBuild.assetTransform\` ` +
-                `(${config.assetTransform}) exports no \`transform\` ` +
-                `function. It must export ` +
-                `\`transform(sourcePath) -> string | null\`.`,
-        );
-    }
-    return transform;
-}
-
-/**
- * `assets` — stage the repository's static files into the package root.
- *
- * The table is data (`packageBuild.assets`). A repository that has to *change*
- * a file on the way — SoHL rewrites each SVG's hard-coded fill so icons follow
- * the Foundry theme — names a module in `packageBuild.assetTransform`, whose
- * `transform(sourcePath)` returns replacement text or `null` to copy verbatim.
- * That is the one genuine piece of code in the job, and it stays the
- * repository's.
- *
- * @returns {object} The yargs command module.
- */
+/** Stage the configured package assets. */
 function assetsCommand() {
     return {
         command: "assets",
         describe: "Stage static assets into the package root",
         builder: (y) => y,
-        handler: handler(async () => {
-            const config = loadPackageBuildConfig();
-            const packConfig = loadPackConfig();
-            const assetsBase = packConfig.paths.assets;
-            const findings = [
-                ...pictureRootRowFindings(config.assets, {
-                    rootDir: config.rootDir,
-                    assetsBase,
-                }),
-                ...checkForeignAssetBindings(packConfig, { assets: config.assets }),
-            ];
-            if (findings.length) {
-                const error = new Error(findings.map(formatDiagnostic).join("\n"));
-                error.located = true;
-                die(error);
-            }
-
-            const transform = await loadAssetTransform(config);
-
-            // `to:` is relative to the staged package root, so a
-            // repository's table reads `lang`, not `build/stage/lang`.
-            const entries = config.assets.map(({ from, to }) => [
-                from,
-                path.join(config.stageDir, to),
-            ]);
-            let { entries: count, files } = stageAssets(entries, {
-                cwd: config.rootDir,
-                transform,
-            });
-
-            // The picture roots, staged by the toolchain rather than by a row:
-            // flat, filtered by each file's provenance, and listed in the
-            // package's asset set.
-            const pictures = stagePackageAssets({
-                assetsBase,
-                contentPackage: packConfig.contentPackage,
-                stageDir: path.resolve(config.rootDir, config.stageDir),
-                // The manifest's title names the set; a package with none is
-                // named by its content package.
-                title:
-                    typeof config.manifest?.title === "string" && config.manifest.title.trim() ?
-                        config.manifest.title
-                    :   packConfig.contentPackage,
-                transform,
-                shippingLicenses: config.shippingLicenses,
-            });
-            if (pictures.findings.length) {
-                const error = new Error(pictures.findings.map(formatDiagnostic).join("\n"));
-                error.located = true;
-                die(error);
-            }
-            files += pictures.staged.length;
-            if (pictures.staged.length || pictures.excluded.length) {
-                console.log(
-                    `Pictures: ${pictures.staged.length} staged, ` +
-                        `${pictures.excluded.length} left out by provenance.`,
-                );
-            }
-
-            // Staged in its own pass, without the repository's transform: the
-            // sheet is this toolchain's file rather than one of the
-            // repository's assets, and a `transform` written to retheme a
-            // package's own SVGs has no business being handed it.
-            if (config.baseStyles) {
-                const staged = stageAssets([baseStyleStageEntry(config.stageDir)], {
-                    cwd: config.rootDir,
-                });
-                count += staged.entries;
-                files += staged.files;
-            }
-
-            // The installed fonts, when the package has installed the fonts
-            // package and a note sets text in one of its faces: the
-            // stylesheet, the WOFF2 files and the licence, which the
-            // manifest's `styles` names.
-            const fontFindings = checkScriptFonts(packConfig);
-            if (fontFindings.length) {
-                const error = new Error(fontFindings.map(formatDiagnostic).join("\n"));
-                error.located = true;
-                die(error);
-            }
-            const fonts = copyScriptFonts(
-                packConfig,
-                path.resolve(config.rootDir, config.stageDir, STAGED_FONTS_DIR),
-                ["woff2"],
-            );
-            if (fonts) {
-                count += 1;
-                files += fonts;
-            }
-            console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
-        }),
+        handler: handler(() => stagePackageBuildAssets()),
     };
 }
 

@@ -96,6 +96,7 @@ export async function compilePacks({
         contentBase: config.paths.content,
         skipDirectories: config.skipDirectories,
     });
+    const measured = (name, work) => (session ? session.timings.measure(name, work) : work());
     const packNames = sourcePacks.filter((name) => !packName || name === packName);
 
     // A prebuilt pack's JSON is checked in rather than generated, so it is
@@ -114,12 +115,14 @@ export async function compilePacks({
     // content tree, and a package that ships only prebuilt packs has none at
     // all — so running it would fail the build over a tree nothing reads.
     if (needsGeneration) {
-        const errors = await generatePacksJson({
-            only: packName,
-            config,
-            session,
-            reportPreparation,
-        });
+        const errors = await measured("rendering/documents", () =>
+            generatePacksJson({
+                only: packName,
+                config,
+                session,
+                reportPreparation,
+            }),
+        );
         if (errors > 0) {
             throw new Error(
                 `Pack JSON generation reported ${errors} error(s); refusing to ` +
@@ -141,11 +144,13 @@ export async function compilePacks({
 
         const stage = path.join(stageDest, name);
         log.info(`Pack ${name}: compiling to LevelDB at ${stage}`);
-        await compilePack(source, stage, {
-            recursive: true,
-            log: false,
-            transformEntry: cleanPackEntry,
-        });
+        await measured("pack compilation", () =>
+            compilePack(source, stage, {
+                recursive: true,
+                log: false,
+                transformEntry: cleanPackEntry,
+            }),
+        );
 
         // A Scene's map image lives on an embedded Level, stored under its own
         // LevelDB key. Nothing in Foundry ties the two together on read: a
