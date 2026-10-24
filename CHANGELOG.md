@@ -1,5 +1,15 @@
 # @heroiclands/package-build
 
+## 24.1.1
+
+### Patch Changes
+
+**Content builds**
+
+- Build indexes, calendars, assets and packs with
+  `package-build content build --calendaria-version 1.4.2`, sharing preparation
+  across validation and compilation.
+
 ## 24.1.0
 
 ### Minor Changes
