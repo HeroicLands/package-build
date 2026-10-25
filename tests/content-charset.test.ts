@@ -304,15 +304,15 @@ describe("the HeroicLands script blocks", () => {
 
     it("admits every registered block at both ends", () => {
         for (const cp of [
-            0xf0000, 0xf2fff, 0xf3000, 0xf3fff, 0x1e960, 0x1ea00, 0x1ec6f, 0x1ecc0, 0x1ecff,
-            0x13430, 0x1345f,
+            0xf0000, 0xf2fff, 0xf3000, 0xf3fff, 0xf4000, 0xf4fff, 0x1e960, 0x1ea00, 0x1ec6f,
+            0x1ecc0, 0x1ecff, 0x13430, 0x1345f,
         ]) {
             expect(isAllowedCodePoint(cp), cp.toString(16)).toBe(true);
         }
     });
 
     it("still refuses the characters just outside the blocks", () => {
-        for (const cp of [0xeffff, 0xf4000, 0x1e95f, 0x1ec70, 0x1ecbf, 0x13460, 0x1342f]) {
+        for (const cp of [0xeffff, 0xf5000, 0x1e95f, 0x1ec70, 0x1ecbf, 0x13460, 0x1342f]) {
             expect(isAllowedCodePoint(cp), cp.toString(16)).toBe(false);
         }
     });
