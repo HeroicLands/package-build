@@ -92,7 +92,7 @@
 import MarkdownIt from "markdown-it";
 
 import { scanBlocks, BLOCK_CONTAINERS } from "./content-blocks.mjs";
-import { scanVerse, hasColumns, verseLine, verseGroups } from "./content-verse.mjs";
+import { scanVerse, hasColumns, verseLine, verseGroups, STANZA_BREAK } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { scanScrolls, scrollParagraphs } from "./content-scroll.mjs";
 import { directionsFromRecords } from "./script-direction.mjs";
@@ -113,7 +113,9 @@ import { unknownWordMessage, unknownWords, wordBooksFromRecords } from "./run-wo
 import { metreBooksFromRecords, metreFindings, metresFromRecords } from "./verse-metre.mjs";
 import { applyMap, mapsFromRecords } from "./text-maps.mjs";
 import { writtenInOf } from "./written-in.mjs";
-import { WIKILINK, parseWikilink } from "./wikilink-syntax.mjs";
+import { romanInventoriesOf, romanTextProblems } from "./roman-characters.mjs";
+import { isSettingScriptCodePoint } from "./content-charset.mjs";
+import { WIKILINK } from "./wikilink-syntax.mjs";
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
 
@@ -159,6 +161,8 @@ const CONFIG = "package-build.config.yaml";
  * @property {ReadonlyMap<string, import("./verse-metre.mjs").MetreBook>} [metreBooks] -
  *   What each configured language's verse is counted by, from
  *   {@link module:engine/verse-metre.metreBooksFromRecords}.
+ * @property {ReadonlyMap<string, import("./roman-characters.mjs").RomanInventory>} [romanInventories] -
+ *   Exact Roman source inventories by configured alias and BCP 47 tag.
  * @property {ReadonlyMap<string, import("./script-emphasis.mjs").Emphasis>} [emphases] -
  *   Each face's emphasis conventions, from the script notes, by
  *   {@link module:engine/script-emphasis.emphasesFromRecords}.
@@ -241,6 +245,7 @@ export function runContext(config, records) {
         ...base,
         maps,
         writtenIn: writtenInOf(languageRecords, maps),
+        romanInventories: romanInventoriesOf(languageRecords, config.languages),
         lexicons: lexiconsFromRecords(records, config),
         wordBooks: wordBooksFromRecords(records, config),
         metres: metresFromRecords(records),
@@ -1176,12 +1181,11 @@ function analyseRuns(source, ctx, syntax) {
             );
     };
 
+    const rawReferences = [];
     // Raw wikilinks belong to the resolver, not the span rewriter. Validate
     // their own control attributes with the same grammar before resolution,
     // without mapping a destination or consuming the trailing attributes.
     for (const match of matchAllOutsideCode(text, new RegExp(WIKILINK.source, "g"))) {
-        const parsed = parseWikilink(match[1], match[0]);
-        if (!parsed.attributes) continue;
         const close = match[0].indexOf("]]") + 1;
         const from = match.index + close + 2;
         const attrs = parseExtensionAttributes(match[0].slice(close + 2, -1), { positions: true });
@@ -1200,6 +1204,19 @@ function analyseRuns(source, ctx, syntax) {
         };
         const unchecked = errors.length;
         checkOwn(construct);
+        const bar = match[1].indexOf("|");
+        if (bar >= 0 && errors.length === unchecked) {
+            const ancestors = around(construct);
+            const inherited = ancestors.filter((parent) => parent.keys.lang !== undefined).at(-1)
+                ?.keys.lang;
+            rawReferences.push({
+                lang: construct.keys.lang ?? inherited,
+                from: match.index + 2 + bar + 1,
+                to: match.index + close - 1,
+                where: construct.where,
+                construct,
+            });
+        }
         if (errors.length !== unchecked || !native(construct)) continue;
         const keys = { ...construct.keys };
         nativeDefaults(construct, keys);
@@ -1215,6 +1232,9 @@ function analyseRuns(source, ctx, syntax) {
 
     const verseMarkers = new Map();
     for (const poem of scanVerse(text).blocks) {
+        for (let line = poem.start + 1; line < poem.end; line++)
+            if (STANZA_BREAK.test(lines[line].trim()))
+                verseMarkers.set(starts[line], starts[line] + lines[line].length);
         if (hasColumns(poem)) {
             for (const group of verseGroups(poem, lines)) {
                 if (group.stanzaBreak) continue;
@@ -1401,6 +1421,47 @@ function analyseRuns(source, ctx, syntax) {
         }
     };
 
+    /** The configured source inventory for either an alias or its BCP 47 tag. */
+    const inventoryOf = (lang) =>
+        lang === undefined ? undefined : (
+            (ctx.romanInventories?.get(lang) ?? ctx.romanInventories?.get(lang.toLowerCase()))
+        );
+
+    /** Check visible source before mapping or lexicon-native replacement. */
+    const roman = (parts, detail) => {
+        const inventory = inventoryOf(detail.run.lang);
+        if (!inventory) return;
+        if (!inventory.characters) {
+            report(
+                { line: detail.run.line, column: detail.run.column },
+                `the language note for \`${inventory.language}\` must declare \`data.roman\``,
+            );
+            return;
+        }
+        for (const [from, to] of parts) {
+            let base = from;
+            for (const line of text.slice(from, to).split("\n")) {
+                // A terminal unescaped backslash is a Markdown line break.
+                const breakMark =
+                    /(?<!\\)(?:\\\\)*\\$/.test(line) && text[base + line.length] === "\n";
+                const plain = unescapeRoman(breakMark ? line.slice(0, -1) : line);
+                for (const problem of romanTextProblems(plain.text, inventory, (char) => {
+                    const point = char.codePointAt(0);
+                    return (
+                        detail.run.nativefont === true &&
+                        isSettingScriptCodePoint(point) &&
+                        detail.face?.draws.has(point)
+                    );
+                }))
+                    report(
+                        positionOf(starts, base + (plain.offsets[problem.offset] ?? 0)),
+                        problem.message,
+                    );
+                base += line.length + 1;
+            }
+        }
+    };
+
     /**
      * Report each word of a mapped run that is not a word of its language, once
      * per run, at its first character.
@@ -1515,6 +1576,7 @@ function analyseRuns(source, ctx, syntax) {
         };
         runs.push(run);
         const plain =
+            inventoryOf(lang) !== undefined ||
             font !== undefined ||
             map !== undefined ||
             (lang !== undefined &&
@@ -1577,15 +1639,18 @@ function analyseRuns(source, ctx, syntax) {
             }
             if (plain && errors.length === before)
                 plainInline(inline, from, marking, detail, detail.holes);
-            if (named && errors.length === before) {
+            if (errors.length === before) {
                 const parts = outsideDelimiters(
                     outsideHoles(from, to, detail.holes),
                     detail.emphasis,
                 );
-                lexical(parts, detail);
-                capitals(parts, detail);
-                writings(parts, detail);
-                covered(parts, detail);
+                roman(parts, detail);
+                if (named) {
+                    lexical(parts, detail);
+                    capitals(parts, detail);
+                    writings(parts, detail);
+                    covered(parts, detail);
+                }
             }
             continue;
         }
@@ -1647,13 +1712,28 @@ function analyseRuns(source, ctx, syntax) {
             for (let line = first; line < last; line++)
                 plainInline(lines[line], starts[line], marking, detail, detail.holes);
         }
-        if (named && errors.length === before) {
+        if (errors.length === before) {
             const parts = outsideDelimiters(outsideHoles(from, to, detail.holes), detail.emphasis);
-            lexical(parts, detail);
-            capitals(parts, detail);
-            writings(parts, detail);
-            covered(parts, detail);
+            roman(parts, detail);
+            if (named) {
+                lexical(parts, detail);
+                capitals(parts, detail);
+                writings(parts, detail);
+                covered(parts, detail);
+            }
         }
+    }
+
+    for (const reference of rawReferences) {
+        const font = reference.construct.keys.font ?? ctx.writtenIn?.get(reference.lang)?.font;
+        roman([[reference.from, reference.to]], {
+            run: {
+                lang: reference.lang,
+                nativefont: native(reference.construct),
+                ...reference.where,
+            },
+            face: font === undefined ? undefined : faces.get(font),
+        });
     }
 
     const order = (a, b) => a.line - b.line || a.column - b.column;

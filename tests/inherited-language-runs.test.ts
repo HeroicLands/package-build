@@ -21,7 +21,7 @@ const language = (shortcode: string, data: object) => ({
     type: "skill",
     subType: "language",
     shortcode,
-    data,
+    data: { roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZáéíóúâêîôûëöü.-", ...data },
 });
 const map = {
     package: "demo",

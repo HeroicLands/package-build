@@ -5,6 +5,7 @@ shortcode: provenzlng
 name:
     full: Provenzal
 data:
+    roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ."
     pack: none
     writtenIn: { map: vyl-semaron, font: semaron-kuriale }
     words:

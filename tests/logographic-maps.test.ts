@@ -155,6 +155,7 @@ const WORDS = [
 ];
 
 const LANGUAGE_DATA = {
+    roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-",
     fields: [{ name: "Words", holds: "words" }],
     affixes: [
         { form: "-unet", gloss: "a thing made of", native: [{ map: "zethu", text: INK }] },

@@ -104,6 +104,7 @@ describe("a mapped run's words take the pattern's forms", () => {
         name: { full: "Vylari" },
         address: { canonical: "demo-note-skill-vylarilng" },
         data: {
+            roman: "abcdefghijklmnopqrstuvwxyz",
             words: [{ form: "lokathen", class: "v", gloss: "to come" }],
             grammar: { verbs: { replaces: "then", persons: PERSONS } },
         },

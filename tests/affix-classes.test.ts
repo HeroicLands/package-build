@@ -44,7 +44,7 @@ const vylari = (affixes: object[]) => ({
     shortcode: "vylarilng",
     name: { full: "Vylari" },
     address: { canonical: "demo-note-skill-vylarilng" },
-    data: { words: WORDS, affixes },
+    data: { roman: "abcdefghijklmnopqrstuvwxyz", words: WORDS, affixes },
 });
 
 const mapping = {

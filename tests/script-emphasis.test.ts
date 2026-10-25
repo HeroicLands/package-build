@@ -66,7 +66,7 @@ const languageNote = (shortcode: string, data: object) => ({
     subType: "language",
     shortcode,
     address: { canonical: `demo-note-skill-${shortcode}` },
-    data,
+    data: { roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", ...data },
 });
 
 /** Semaron Kuriale's letters for the words used here. */

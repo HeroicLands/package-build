@@ -73,6 +73,7 @@ import {
 import { LANGUAGE_SUBTYPE } from "./word-terms.mjs";
 import { WORD_CLASS_BASES } from "./word-classes.mjs";
 import { nearest } from "./near-miss.mjs";
+import { romanInventoryProblems } from "./roman-characters.mjs";
 
 /** The bases a frame's `class` names. */
 const CLASS_BASES = new Set(WORD_CLASS_BASES.map((item) => item.token));
@@ -614,7 +615,9 @@ export function checkLanguageData(note, { index, types } = {}) {
             ),
         );
 
-    const findings = [];
+    const findings = romanInventoryProblems(data.roman).map((message) =>
+        finding(["data", "roman"], "error", message),
+    );
 
     // Only the shape of a supplied declaration: no word is compared with it.
     const grammar = isMap(data.grammar) ? data.grammar : {};

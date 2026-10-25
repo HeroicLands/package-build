@@ -25,6 +25,7 @@ const vylari = {
     name: { full: "Vylari" },
     address: { canonical: "demo-note-skill-vylarilng" },
     data: {
+        roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZé.,;:'’-–",
         words: [
             { form: "zaron", class: "n", gloss: "an oath" },
             { form: "lonak", class: "n", gloss: "a road" },
@@ -67,7 +68,11 @@ const dunhari = {
     shortcode: "dunharilng",
     name: { full: "Dunhari" },
     address: { canonical: "demo-note-skill-dunharilng" },
-    data: { words: [], register: [{ name: "Arzen-Thalor", tongue: "dunhari" }] },
+    data: {
+        roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-",
+        words: [],
+        register: [{ name: "Arzen-Thalor", tongue: "dunhari" }],
+    },
 };
 
 const mapping = {

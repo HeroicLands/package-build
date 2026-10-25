@@ -39,6 +39,7 @@ const language = (stress: object | undefined, extra: object = {}) => ({
     name: { full: "Vylari" },
     address: { canonical: "demo-note-skill-vylarilng" },
     data: {
+        roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZáéíóú.,-",
         sounds: { stress, syllables: { vowelPairs: PAIRS } },
         words: [
             { form: "zar", class: "n", gloss: "an oath" },

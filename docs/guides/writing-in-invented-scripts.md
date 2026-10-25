@@ -158,6 +158,7 @@ language note says which, as one map and one face:
 
 ```yaml
 data:
+  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789."
   writtenIn: { map: semaron, font: semaron-kuriale }
 ```
 
@@ -300,7 +301,6 @@ data:
       - { from: "y", to: "󰉅", before: vowel } # U+F0245
       - ["y", "󰈷"] # U+F0237
       - [".", "󰉨"] # U+F0268
-      - [",", "󰉨"] # U+F0268
     fonts: [{ font: semaron-kuriale }]
 ---
 
@@ -339,8 +339,8 @@ them, none included. A mapping that drops a language's vowels writes `[a, ""]`.
   `y` is the consonant letter before a vowel and the vowel `i` elsewhere.
 - **Capitals and marks need rows of their own.** A row matches the character as
   written, so `L` and `l` are two rows, and a script with no capitals gives both
-  the same code point. The full stop and the comma are characters too: a run
-  that holds one needs a row for it, or the face-coverage check reports it.
+  the same code point. A period is a character too and needs its own row.
+  A language's `data.roman` decides which source characters may appear.
 - **A character no row matches passes through unchanged,** and the face-coverage
   check then reports it. A mapping for a face that draws nothing on roman code
   points lists every letter the spelling uses.
@@ -381,14 +381,19 @@ A row with a fault is left out of the map and the rest apply.
 
 ## How a mapping treats punctuation
 
+The language note's `data.roman` lists its exact permitted Roman source
+characters. Include capitals, accents, digits and punctuation explicitly;
+`package-build lint` checks them before mapping. A map cannot admit a character
+that the language's inventory excludes. There are no automatic punctuation
+substitutions.
+
 The toolchain is used with one convention for marks: **mood, questions and
 quotation are carried by words, not marks,** unless a language's note rules
 otherwise. A mapping therefore lists the marks its script has and nothing more.
-In the sample, a comma and a full stop are the script's one point:
+In the sample, only a period writes the script's pause point:
 
 ```yaml
 - [".", "\U000F0268"] # U+F0268
-- [",", "\U000F0268"] # U+F0268
 ```
 
 (Formatting rewrites the escapes, as above.) A character with no row passes
@@ -398,10 +403,11 @@ mapped run is an error that names the mark and the mapping:
 > `` `?` (U+003F) is not drawn by the font `semaron-kuriale`, and the map `semaron` has no row for it ``
 
 The remedy is to write the question or the quotation in words, as the language
-does, and leave the mark out of the run. A language whose note rules
-otherwise gets rows for its marks in the mapping, and the check stops
-reporting them. The same holds for the digits, the hyphen and the catch: a row
-for each makes the mark part of the script; none leaves it out.
+does, and leave the mark out of the run. A language whose note permits a mark
+includes it in `data.roman`; its script needs a row for that mark as well.
+Vylari permits period alone as punctuation. Its lexical catch is written with
+a grave-accented vowel, as in `kàralzon`, and that vowel needs its own mapping
+row; an apostrophe is not another spelling of it.
 
 ## The dictionary first
 
@@ -793,7 +799,7 @@ paragraphs: indentation, line breaks and spans survive formatting untouched.
 
 ````markdown
 ```verse {lang=vyl font=semaron-kuriale map=semaron .nativefont}
-Lokazor lonak,
+Lokazor lonak.
   lokamen zaron.
 ```
 ````
@@ -1114,6 +1120,7 @@ name: { full: Vylari Language }
 type: skill
 subType: language
 data:
+  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789."
   writtenIn: { map: semaron, font: semaron-kuriale }
   core: true
   fields:
@@ -1177,7 +1184,7 @@ The lintel over the door of the oath road is cut with a couplet, and the
 stonecutter set the couplet in the script of the court, so that every traveller
 could read it as the court reads it.
 
-[Lokazor lonak thiruthrimar, lokamen zaron.]{lang=vyl font=semaron-kuriale map=semaron .nativefont}
+[Lokazor lonak thiruthrimar. lokamen zaron.]{lang=vyl font=semaron-kuriale map=semaron .nativefont}
 ```
 
 Linting reports the unknown word, at its first character:
@@ -1198,6 +1205,7 @@ name: { full: Vylari Language }
 type: skill
 subType: language
 data:
+  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789."
   writtenIn: { map: semaron, font: semaron-kuriale }
   core: true
   fields:
@@ -1251,7 +1259,7 @@ The lint is now clean, and the conversion can be read. `package-build transliter
 prints the code points the build writes for the couplet:
 
 ```console
-$ package-build transliterate semaron --lang vyl --hex "Lokazor lonak, lokamen zaron."
+$ package-build transliterate semaron --lang vyl --hex "Lokazor lonak. lokamen zaron."
 U+F020A U+F023D U+F0239 U+F0230 U+F0246 U+F023D U+F023F U+0020 U+F023A U+F023D U+F023C U+F0230 U+F0239 U+F0268 U+0020 U+F023A U+F023D U+F0239 U+F0230 U+F023B U+F0233 U+F023C U+0020 U+F0246 U+F0248 U+F023F U+F023D U+F023C U+F0268
 ```
 
@@ -1264,8 +1272,8 @@ The site sets the run as
 ```
 
 where the characters are the code points above: `Lokazor` begins with the
-capital `L` of the rows, `zaron` is the exception's long vowel, and the comma
-and full stop are the script's one point.
+capital `L` of the rows, `zaron` is the exception's long vowel, and each period
+writes the script's pause point.
 
 A poem in columns and a poem with its metre checked sit on one note. Both parse
 with no finding: the first sets native Vylari in column one and English over Roman
@@ -1341,7 +1349,7 @@ The door is marked with the same words as the lintel. Although Semaron's
 convention is rubric, this Vylari span uses no Markdown emphasis: spans with a
 non-English language cannot contain bold or italic markup.
 
-[Lokazor lonak, zaron.]{lang=vyl font=semaron-kuriale map=semaron .nativefont}
+[Lokazor lonak. zaron.]{lang=vyl font=semaron-kuriale map=semaron .nativefont}
 ```
 
 Finally, the core report lists what the language still lacks:

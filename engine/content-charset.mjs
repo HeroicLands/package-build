@@ -177,6 +177,17 @@ const SCRIPT_BLOCKS = Object.freeze([
 ]);
 
 /**
+ * Whether a code point belongs to a declared setting-script encoding block.
+ * This identifies native input independently of a language's Roman inventory;
+ * a selected native face must still draw the individual character.
+ * @param {number} cp - A Unicode code point.
+ * @returns {boolean}
+ */
+export function isSettingScriptCodePoint(cp) {
+    return SCRIPT_BLOCKS.some(([from, to]) => cp >= from && cp <= to);
+}
+
+/**
  * Whether the charset admits a code point anywhere in a note.
  *
  * @param {number} cp - A Unicode code point.
@@ -184,10 +195,7 @@ const SCRIPT_BLOCKS = Object.freeze([
  */
 export function isAllowedCodePoint(cp) {
     return (
-        isLetterTier(cp) ||
-        TYPOGRAPHY.has(cp) ||
-        NOTATION.has(cp) ||
-        SCRIPT_BLOCKS.some(([from, to]) => cp >= from && cp <= to)
+        isLetterTier(cp) || TYPOGRAPHY.has(cp) || NOTATION.has(cp) || isSettingScriptCodePoint(cp)
     );
 }
 

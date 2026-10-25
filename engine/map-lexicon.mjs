@@ -330,7 +330,18 @@ export function languageNoteFindings(config, records) {
     }
     const findings = [];
     for (const [name, { record }] of languageNotes(languages, contentPackage, records)) {
-        if (record) continue;
+        if (record) {
+            if (typeof record.data?.roman !== "string")
+                findings.push({
+                    file: configFile ?? CONFIG,
+                    ...(text ?
+                        positionOfYamlPath(text, ["languages", name, "note"], { key: true })
+                    :   {}),
+                    severity: "error",
+                    message: `the language note named by \`languages.${name}.note\` must declare \`data.roman\``,
+                });
+            continue;
+        }
         findings.push({
             file: configFile ?? CONFIG,
             ...(text ? positionOfYamlPath(text, ["languages", name, "note"], { key: true }) : {}),

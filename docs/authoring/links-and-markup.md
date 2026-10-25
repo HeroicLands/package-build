@@ -644,6 +644,14 @@ has an error is set exactly as written.
 
 ## Marking language, font and mapping
 
+Each configured language note declares `data.roman`, a literal NFC string of
+permitted source characters. Include capitals, accents, digits and punctuation
+explicitly; an empty string declares no written characters. Spaces and line
+breaks are structural. `package-build lint` checks Roman source before mapping,
+including language-only runs and visible link labels. The configured name and
+its BCP 47 tag select the same inventory; external tags without a configured
+language note keep their ordinary behavior.
+
 `lang=` identifies the language. It preserves the authored spelling and the
 surrounding prose font. Add **`.nativefont`** to request native script:
 

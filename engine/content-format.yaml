@@ -200,6 +200,7 @@ types:
             - other
     skill:
         data:
+            - roman
             - grammar
             - templatePriority
             - masteryLevel

@@ -110,6 +110,7 @@ const languageRecord = {
     shortcode: "vylarilng",
     address: { canonical: "demo-note-skill-vylarilng" },
     data: {
+        roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,",
         fields: [{ name: "Law", holds: "law" }],
         grammar: { plural: [{ ending: "", becomes: "s" }] },
         words: WORDS,
@@ -599,6 +600,7 @@ beforeAll(() => {
         type: "skill",
         subType: "language",
         data: {
+            roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,",
             fields: [{ name: "Law", holds: "law" }],
             grammar: { plural: [{ ending: "", becomes: "a" }] },
             words: [

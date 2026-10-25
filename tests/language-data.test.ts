@@ -218,6 +218,20 @@ function edit(from: string, to: string) {
     return DUNHARI.replace(from, to);
 }
 
+describe("a language's literal Roman inventory", () => {
+    const inventory = (value: string) => DUNHARI.replace("data:\n", `data:\n  roman: ${value}\n`);
+    it("accepts exact permitted characters and an explicitly empty alphabet", () => {
+        expect(dunhari(inventory('"abcABCàÀ.012"'))).toEqual([]);
+        expect(dunhari(inventory('""'))).toEqual([]);
+    });
+    it("refuses a list where the inventory takes one literal string", () => {
+        one(inventory("[a, b]"), /data\.roman.*should be/, "[a, b]");
+    });
+    it("locates a repeated character at the inventory", () => {
+        one(inventory('"aba"'), /data\.roman.*repeats/, '"aba"');
+    });
+});
+
 describe("a language note's register, sounds and history", () => {
     it("are declared on skill", () => {
         const names = dataFields("skill").map((field: { name: string }) => field.name);

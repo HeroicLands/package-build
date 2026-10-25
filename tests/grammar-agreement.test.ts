@@ -53,6 +53,7 @@ const vylari = (grammar: object) => ({
     name: { full: "Vylari" },
     address: { canonical: "demo-note-skill-vylarilng" },
     data: {
+        roman: "abcdefghijklmnopqrstuvwxyz",
         words: WORDS,
         affixes: AFFIXES,
         grammar: {

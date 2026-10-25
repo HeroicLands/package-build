@@ -48,7 +48,7 @@ const language = (shortcode: string, data: object) => ({
     subType: "language",
     shortcode,
     address: { canonical: `demo-note-skill-${shortcode}` },
-    data,
+    data: { roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", ...data },
 });
 
 const mapNote = (shortcode: string, map: object) => ({

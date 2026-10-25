@@ -5,6 +5,7 @@ shortcode: tantsoulng
 name:
     full: Tantsou
 data:
+    roman: "abcdefghijklmnopqrstuvwxyz"
     pack: none
     writtenIn: { map: tengchou, font: teng-chou }
     words:

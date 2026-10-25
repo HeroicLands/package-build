@@ -30,6 +30,7 @@
 
 /** The `data` keys a language note states its sounds, names and history in. */
 export const LANGUAGE_DATA_KEYS = Object.freeze([
+    "roman",
     "tongues",
     "register",
     "retired",
@@ -1889,6 +1890,15 @@ const GRAMMAR_FIELDS = Object.freeze([
  * @type {readonly object[]}
  */
 export const LANGUAGE_DATA_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "roman",
+        kind: "string",
+        shape: "a literal NFC string of permitted characters, including case, accents, digits and punctuation",
+        describe:
+            "The exact Roman source characters this language permits, each once. No ranges, case " +
+            "expansion or inherited inventory; spaces and line breaks are structural. An empty " +
+            "string declares no written characters. Required on each configured language note.",
+    }),
     Object.freeze({
         name: "grammar",
         kind: "map",

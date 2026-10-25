@@ -2002,6 +2002,30 @@ in that column are grey; each row resets that choice. `numstep` counts logical
 rows, and `***` separates stanzas. Language and native script choices remain
 on the authored inline runs, independently for every reading.
 
+**A language note declares its Roman source inventory in `data.roman`.** It is
+one literal NFC string containing each permitted character once, including every
+capital, accent, digit and punctuation mark the language uses. For example,
+`roman: "kaKàÀ.1"` permits exactly those seven characters. There is no range
+syntax, automatic case expansion, or inventory inherited from a parent language.
+An empty string explicitly declares that the language has no written characters.
+Spaces, tabs and line breaks are structural and are not listed in the inventory.
+A missing declaration on a configured language note is an error even when no
+passage uses the language. A directly typed native sign is separate from
+Roman input only when the run explicitly selects `.nativefont`, the character
+belongs to a recognized setting-script encoding, and the selected face draws it.
+A font's ability to draw Roman punctuation does not admit that punctuation.
+
+`package-build lint` checks the visible source of language-tagged spans, divs,
+verse and scroll fences against that inventory before any map or native-word
+replacement can hide a character. Both the configured name and its BCP 47 tag
+select the same inventory. A nested language selects its own; link destinations,
+attributes, column numbers, indentation periods and `***` stanza separators are
+structure. Escaping a character does not admit it. Source spelling must be NFC;
+errors retain the original file position. Unassociated external tags such as
+`en` and `zxx` keep their ordinary behavior. Standalone `package-build markdown`
+checks markup without loading language inventories. Structured frontmatter words
+are separate from prose runs.
+
 **A face draws the code points its `fonts.json` entry lists in `codepoints`,
 and whitespace.** After the map, any other character in a run set in a face is
 an error, located at the source character it came from; through a map, at the
@@ -6095,6 +6119,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `family`                                   | `Address`                                                                                                                      | `language` only: the parent language, naming a skill note with `subType: language`; this language reads the parent's words as its own — see [a language's words](#a-languages-words)           |
 | `abbreviation`                             | `string`                                                                                                                       | `language` only: the tag a dictionary prints for it, as `Prov.`; its full name where unstated — see [dictionaries and glossaries](#dictionaries-and-glossaries)                                |
 | `core`                                     | `boolean`                                                                                                                      | `language` only: `true` where the language must cover the [core vocabulary](#the-core-vocabulary)                                                                                              |
+| `roman`                                    | literal NFC string, may be empty                                                                                               | Exact permitted Roman source characters, including both cases, accents, digits and punctuation; required on each configured language note. No family inheritance or range syntax.              |
 | `grammar`                                  | `{ plural?, verbs?, agreement?, participles? }`                                                                                | Optional noun plurals, one verb pattern, agreement and participles; supplied shapes only are checked                                                                                           |
 | `grammar.plural`                           | `{ ending, becomes }[]`                                                                                                        | Literal suffix replacements in authored order; the first match wins                                                                                                                            |
 | `grammar.plural[].ending`                  | `string`, required, may be empty                                                                                               | Bare suffix to replace; empty matches every noun                                                                                                                                               |

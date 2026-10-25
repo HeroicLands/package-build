@@ -227,6 +227,9 @@ export * as contentLint from "./content-lint.mjs";
 
 /** The charset authored content is held to, so a book can choose its face. */
 export * as contentCharset from "./content-charset.mjs";
+
+/** Exact permitted Roman source characters for configured languages. */
+export * as romanCharacters from "./roman-characters.mjs";
 export * as pathCharset from "./path-charset.mjs";
 
 /** Naming an interface icon in a note, without drawing one there. */

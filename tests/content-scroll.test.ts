@@ -87,6 +87,7 @@ beforeAll(() => {
                 shortcode: "tantsoulng",
                 address: { canonical: "demo-note-skill-tantsoulng" },
                 data: {
+                    roman: "abcdefghijklmnopqrstuvwxyz",
                     words: [
                         native("chen", CHEN),
                         native("teng", TENG),

@@ -5,6 +5,7 @@ shortcode: tarvenlng
 name:
     full: Tarveni
 data:
+    roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
     pack: none
     emphasis: words
     words:
