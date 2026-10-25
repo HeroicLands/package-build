@@ -42,7 +42,7 @@ jobs:
             # `node_modules/`, so scanning the tree is both exact and
             # self-extending.
             - name: Check for forbidden markers
-              uses: HeroicLands/.github/actions/todos@83bb0cd0af7db952098ef5fe2e8312e7f41040eb # main
+              uses: HeroicLands/.github/actions/todos@d5df169d556decffa602bcfc566f1b391a57ad09 # main
               with:
                   paths: .
 
