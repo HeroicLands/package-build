@@ -1,5 +1,27 @@
 # @heroiclands/package-build
 
+## 25.0.0
+
+### Major Changes
+
+**Languages and scripts**
+
+- Add `data.roman` to every configured language note: an NFC string listing each
+  permitted Roman character once, with capitals, accents, digits and punctuation
+  explicit.
+- Use `""` for no written characters; omit spaces and line breaks, and declare
+  inventories without ranges, automatic case expansion or inheritance. Maps and
+  fonts grant no extra Roman characters.
+- Language-tagged source and visible link labels are checked before mapping;
+  configured names and their BCP 47 tags select the same inventory.
+- Invalid characters and non-NFC spellings are reported at their original
+  positions; link destinations, attributes and verse structure are excluded.
+- Only period maps to Semaron's pause; recognized native signs require explicit
+  native presentation and a face that draws them, while mappings never broaden
+  Roman inventories.
+- Unassociated external tags such as `en` and `zxx` retain ordinary behavior;
+  standalone `package-build markdown` does not load language inventories.
+
 ## 24.1.1
 
 ### Patch Changes
