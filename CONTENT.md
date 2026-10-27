@@ -93,33 +93,19 @@ index. See
 [glossary terms](docs/reference/format-details.md#glossary-terms) and
 [dictionaries and glossaries](docs/reference/format-details.md#dictionaries-and-glossaries).
 
-A span, a div, a verse fence or a scroll fence identifies its language with
-`lang=` while retaining the authored spelling and surrounding prose font.
-Explicit `.nativefont` on the same construct requests native presentation and
-requires its own `lang=`. It takes the language's configured `data.writtenIn`
-map and font; `map=` and `font=` override their halves independently. A missing
-font requires `font=`; a language with no configured map permits directly
-typed signs without a map. Native font or mapping keys without `.nativefont`
-are errors; Roman `font=mono`, `serif` and `sans` remain independent choices.
-A language-only child stays Roman even inside a native passage. In parallel
-verse, `cols=N` is a positive whole number. With more than one column, each
-content line starts with its column number and spaces; blank lines divide
-logical rows. Numbers are nondecreasing within each row, omitted columns
-stay empty, and every reading after a column's first is grey. Native and
-Roman readings are authored separately with their own language and native
-presentation choices.
-A mapping note is a `doc`
-note whose `data.map` has a `name`, the `fonts` it is drawn in (each with any
-`rows` of its own, tried first) and a list of shared `rows`, each `[from, to]`
-or `{from, to, before?, at?}`; the longest match wins. With `lang=` naming a
-language whose `languages.<name>.note` names its language note, a word whose
-entry states a `native` form for the map is written by it, and the rows spell
-every other word. Language word-book validation applies to Roman and native runs alike,
-independently of `.nativefont` or mapping: every word is a lexicon form, a word of a name
-the language's own register lists, or a regular form of a lexicon word, and any other word is a
-located error, as is a character a face does not draw after the map. A map
-stating `logographic: true` spells no word by its rows: each word is written by
-its own `native` entry or its parts' writings, and a word with neither, or
-whose form stands for entries written differently, is a located error. See
-[marking language, font and mapping](docs/authoring/links-and-markup.md#marking-language-font-and-mapping)
-and [mapping notes](docs/reference/format-details.md#mapping-notes).
+A span, div, verse or scroll fence selects an encoding document with `enc=`;
+its default Address type is `doc`. The document's language and single font
+supply those defaults, and explicit selections must agree. `enc=default`
+leaves Roman text as written. Language word-book validation applies to both
+Roman and encoded text, and native spellings and complete parts precede rows.
+
+Encoding documents state `data.language`, `font`, `mappings` and `rules`, with
+optional `accepts` and `vowels`. Fonts publish glyph codes in `fonts.json`;
+`⟦codes⟧` reads those codes or strict `U+XXXX` scalars. Unknown input is a
+located error. Invisible U+E0100 through U+E01EF marks preserve punctuation,
+spelling and stress distinctions, while every visible output must be drawn.
+
+Decoding can use a language's lexicon to recover unmarked words, with longest
+native writing and first-listed ties. Marked words keep exact decoding.
+See [encodings](docs/reference/format-details.md#encodings) and
+[native spellings and parts](docs/reference/format-details.md#native-spellings-and-parts).

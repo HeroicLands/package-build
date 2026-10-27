@@ -10,6 +10,8 @@ The corpus opens with a plain paragraph. It holds _emphasis_, **strong text**, ~
 and a soft break
 within one paragraph.
 
+Span emphasis reads [marked softly]{.emph} and [marked strongly]{.strong}.
+
 > A plain quotation stands apart.
 
 - A bullet item
@@ -92,11 +94,11 @@ Taruna velomi sarandi
 ```
 
 ```verse {numstep=2 lang=vyl cols=3}
-1 [thirun sorima]{lang=vyl .nativefont map=vyl-semaron font=semaron-kuriale}
+1 [thirun sorima]{lang=vyl enc=vylsemaronenc font=semaron-kuriale}
 3 [the hallowed boundary I sing]{lang=en}
 3 [thirun sorima]{lang=vyl}
 
-1 [mamu anthrasos]{lang=vyl .nativefont map=vyl-semaron font=semaron-kuriale}
+1 [mamu anthrasos]{lang=vyl enc=vylsemaronenc font=semaron-kuriale}
 2 [and the one who walked it]{lang=en}
 3 [mamu anthrasos]{lang=vyl}
 ```
@@ -192,39 +194,39 @@ The road is passable in summer.[^season] The bridge has a toll.[^toll] A ford cr
 
 The greeting is [Daimela, helthos.]{lang=vyl} and the motto is [ad astra]{lang=la}.
 
-The lintel is cut with [thirun sorima]{lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}.
+The lintel is cut with [thirun sorima]{lang=vyl font=semaron-kuriale enc=vylsemaronenc}.
 
-The stressed word is [thirun _sorima_]{lang=en font=semaron-kuriale map=vyl-semaron .nativefont} in red, and the doubly stressed one [thirun **sorima**]{lang=en font=semaron-kuriale map=vyl-semaron .nativefont} under a line.
+The stressed word is [thirun _sorima_]{lang=en font=semaron-kuriale enc=ensemaronenc} in red, and the doubly stressed one [thirun **sorima**]{lang=en font=semaron-kuriale enc=ensemaronenc} under a line.
 
 Code reads as [lantern()]{font=mono}, titles as [Harbor Ledger]{font=serif}, and labels as [Plain Label]{font=sans}.
 
-::: {lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}
+::: {lang=vyl font=semaron-kuriale enc=vylsemaronenc}
 thirun sorima.
 
 mamu anthrasos.
 :::
 
-```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}
+```verse {form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}
 thirun sorima
 .mamu anthrasos.
 ```
 
-```scroll {rows=3 cols=3 lang=tsu font=teng-chou map=tengchou .nativefont}
+```scroll {rows=3 cols=3 lang=tsu font=teng-chou enc=tsutengenc}
 chen teng
 chou _hing_
 
 tan tsou dou rou
 ```
 
-The seal reads [chen teng]{lang=tsu font=teng-chou map=tengchou .nativefont} across the line.
+The seal reads [chen teng]{lang=tsu font=teng-chou enc=tsutengenc} across the line.
 
-The south gate is cut as [thirun sorima]{lang=prv .nativefont}, and its ledger as [thirun sorima]{lang=prv font=serif}.
+The south gate is cut as [thirun sorima]{lang=prv enc=prvsemaronenc}, and its ledger as [thirun sorima]{lang=prv font=serif}.
 
-::: {lang=prv .nativefont}
+::: {lang=prv enc=prvsemaronenc}
 sorima thirun.
 :::
 
-```scroll {rows=3 cols=3 lang=tsu .nativefont}
+```scroll {rows=3 cols=3 lang=tsu enc=tsutengenc}
 tan tsou
 ```
 

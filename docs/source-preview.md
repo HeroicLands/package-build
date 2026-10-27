@@ -39,6 +39,14 @@ picture, marked text is mapped and set in its face, an icon is drawn, and a
 caption is numbered with its asset's role, so a map is a **Map**. A query, which
 a buffer cannot run, stays highlighted source in both views.
 
+With an index, a marked-text run that cannot be set produces an error finding
+and sets the result's `ok` to `false`. The preview still returns recoverable
+HTML, including the Roman text of a failed native-script run. Findings identify
+the supplied `file`, severity, message, line and column in the authored buffer,
+including its frontmatter lines; expansion does not shift their positions.
+Hosts can display that HTML beside the findings. Without an index, marked text
+stays highlighted source and produces no run findings.
+
 Wikilinks, image and portrait links retain their complete source: blue brackets,
 purple addresses, bold foreground labels and grey attributes. Entire spans are bold, including their visible brackets and attributes.
 Definition-list terms are bold and definitions use normal text. SQL and pagelist fences remain grey source;

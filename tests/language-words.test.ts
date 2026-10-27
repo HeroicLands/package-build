@@ -240,11 +240,12 @@ describe("the ordinary frontmatter check", () => {
     it("refuses a doc subType outside the genres, and the word keys on a doc", () => {
         const text = OSKET.replace("type: skill", "type: doc")
             .replace("subType: language", "subType: lexicon")
-            .replace("data:\n", "data:\n  language: skill-osketlng\n");
+            .replace("data:\n", "data:\n  language: osket\n");
         const { findings } = osket(text);
         const keys = findings.map((finding: any) => at(text, finding).split(/[:\s]/)[0]);
-        for (const key of ["subType", "language", "classModifiers", "fields", "affixes", "words"])
+        for (const key of ["subType", "classModifiers", "fields", "affixes", "words"])
             expect(keys, key).toContain(key);
+        expect(keys).not.toContain("language");
         expect(findings.map((finding: any) => finding.message).join("\n")).toMatch(
             /"lexicon" is not one of the subtypes doc declares/,
         );

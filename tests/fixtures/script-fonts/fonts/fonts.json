@@ -14,353 +14,640 @@
             "codepoints": [
                 {
                     "codepoint": "U+F0200",
+                    "name": "SEMARON CAPITAL LETTER ANKRON",
                     "glyph": "A",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ANKRON_MAJ"
                 },
                 {
                     "codepoint": "U+F0201",
+                    "name": "SEMARON CAPITAL LETTER BRUTHEKA",
                     "glyph": "B",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "BRUTHEKA_MAJ"
                 },
                 {
                     "codepoint": "U+F0202",
+                    "name": "SEMARON CAPITAL LETTER DEKAZU",
                     "glyph": "D",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "DEKAZU_MAJ"
                 },
                 {
                     "codepoint": "U+F0203",
+                    "name": "SEMARON CAPITAL LETTER ELZA",
                     "glyph": "E",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ELZA_MAJ"
                 },
                 {
                     "codepoint": "U+F0204",
+                    "name": "SEMARON CAPITAL LETTER FUNELA",
                     "glyph": "F",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "FUNELA_MAJ"
                 },
                 {
                     "codepoint": "U+F0205",
+                    "name": "SEMARON CAPITAL LETTER GULMOS",
                     "glyph": "G",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "GULMOS_MAJ"
                 },
                 {
                     "codepoint": "U+F0206",
+                    "name": "SEMARON CAPITAL LETTER HARLEN",
                     "glyph": "H",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "HARLEN_MAJ"
                 },
                 {
                     "codepoint": "U+F0207",
+                    "name": "SEMARON CAPITAL LETTER ILTHERA",
                     "glyph": "I",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ILTHERA_MAJ"
                 },
                 {
                     "codepoint": "U+F0208",
+                    "name": "SEMARON CAPITAL LETTER JA",
                     "glyph": "J",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "JA_MAJ"
                 },
                 {
                     "codepoint": "U+F0209",
+                    "name": "SEMARON CAPITAL LETTER KALPEZA",
                     "glyph": "K",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "KALPEZA_MAJ"
                 },
                 {
                     "codepoint": "U+F020A",
+                    "name": "SEMARON CAPITAL LETTER LIZELA",
                     "glyph": "L",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LIZELA_MAJ"
                 },
                 {
                     "codepoint": "U+F020B",
+                    "name": "SEMARON CAPITAL LETTER MEZARA",
                     "glyph": "M",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "MEZARA_MAJ"
                 },
                 {
                     "codepoint": "U+F020C",
+                    "name": "SEMARON CAPITAL LETTER NELAMIS",
                     "glyph": "N",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "NELAMIS_MAJ"
                 },
                 {
                     "codepoint": "U+F020D",
+                    "name": "SEMARON CAPITAL LETTER ORNETHE",
                     "glyph": "O",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ORNETHE_MAJ"
                 },
                 {
                     "codepoint": "U+F020E",
+                    "name": "SEMARON CAPITAL LETTER POZERA",
                     "glyph": "P",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "POZERA_MAJ"
                 },
                 {
                     "codepoint": "U+F020F",
+                    "name": "SEMARON CAPITAL LETTER RONETHOS",
                     "glyph": "R",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "RONETHOS_MAJ"
                 },
                 {
                     "codepoint": "U+F0210",
+                    "name": "SEMARON CAPITAL LETTER SIRETHA",
                     "glyph": "S",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "SIRETHA_MAJ"
                 },
                 {
                     "codepoint": "U+F0211",
+                    "name": "SEMARON CAPITAL LETTER TALOTHOS",
                     "glyph": "T",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "TALOTHOS_MAJ"
                 },
                 {
                     "codepoint": "U+F0212",
+                    "name": "SEMARON CAPITAL LETTER ULMERA",
                     "glyph": "U",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ULMERA_MAJ"
                 },
                 {
                     "codepoint": "U+F0213",
+                    "name": "SEMARON CAPITAL LETTER VARTHOS",
                     "glyph": "V",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "VARTHOS_MAJ"
                 },
                 {
                     "codepoint": "U+F0214",
+                    "name": "SEMARON CAPITAL LETTER WA",
                     "glyph": "W",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "WA_MAJ"
                 },
                 {
                     "codepoint": "U+F0215",
+                    "name": "SEMARON CAPITAL LETTER YALZEMIS",
                     "glyph": "Y",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "YALZEMIS_MAJ"
                 },
                 {
                     "codepoint": "U+F0216",
+                    "name": "SEMARON CAPITAL LETTER ZARGON",
                     "glyph": "Z",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ZARGON_MAJ"
+                },
+                {
+                    "codepoint": "U+F0217",
+                    "name": "SEMARON CAPITAL LETTER QORETHA",
+                    "glyph": "Q",
+                    "kind": "letter",
+                    "code": "QORETHA_MAJ"
                 },
                 {
                     "codepoint": "U+F0220",
+                    "name": "SEMARON CAPITAL LETTER LONG ANKRON",
                     "glyph": "A.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ANKRON_MAJ"
                 },
                 {
                     "codepoint": "U+F0221",
+                    "name": "SEMARON CAPITAL LETTER LONG ELZA",
                     "glyph": "E.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ELZA_MAJ"
                 },
                 {
                     "codepoint": "U+F0222",
+                    "name": "SEMARON CAPITAL LETTER LONG ILTHERA",
                     "glyph": "I.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ILTHERA_MAJ"
                 },
                 {
                     "codepoint": "U+F0223",
+                    "name": "SEMARON CAPITAL LETTER LONG ORNETHE",
                     "glyph": "O.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ORNETHE_MAJ"
                 },
                 {
                     "codepoint": "U+F0224",
+                    "name": "SEMARON CAPITAL LETTER LONG ULMERA",
                     "glyph": "U.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ULMERA_MAJ"
                 },
                 {
                     "codepoint": "U+F0230",
+                    "name": "SEMARON SMALL LETTER ANKRON",
                     "glyph": "a",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ANKRON_MIN"
                 },
                 {
                     "codepoint": "U+F0231",
+                    "name": "SEMARON SMALL LETTER BRUTHEKA",
                     "glyph": "b",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "BRUTHEKA_MIN"
                 },
                 {
                     "codepoint": "U+F0232",
+                    "name": "SEMARON SMALL LETTER DEKAZU",
                     "glyph": "d",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "DEKAZU_MIN"
                 },
                 {
                     "codepoint": "U+F0233",
+                    "name": "SEMARON SMALL LETTER ELZA",
                     "glyph": "e",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ELZA_MIN"
                 },
                 {
                     "codepoint": "U+F0234",
+                    "name": "SEMARON SMALL LETTER FUNELA",
                     "glyph": "f",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "FUNELA_MIN"
                 },
                 {
                     "codepoint": "U+F0235",
+                    "name": "SEMARON SMALL LETTER GULMOS",
                     "glyph": "g",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "GULMOS_MIN"
                 },
                 {
                     "codepoint": "U+F0236",
+                    "name": "SEMARON SMALL LETTER HARLEN",
                     "glyph": "h",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "HARLEN_MIN"
                 },
                 {
                     "codepoint": "U+F0237",
+                    "name": "SEMARON SMALL LETTER ILTHERA",
                     "glyph": "i",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ILTHERA_MIN"
                 },
                 {
                     "codepoint": "U+F0238",
+                    "name": "SEMARON SMALL LETTER JA",
                     "glyph": "j",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "JA_MIN"
                 },
                 {
                     "codepoint": "U+F0239",
+                    "name": "SEMARON SMALL LETTER KALPEZA",
                     "glyph": "k",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "KALPEZA_MIN"
                 },
                 {
                     "codepoint": "U+F023A",
+                    "name": "SEMARON SMALL LETTER LIZELA",
                     "glyph": "l",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LIZELA_MIN"
                 },
                 {
                     "codepoint": "U+F023B",
+                    "name": "SEMARON SMALL LETTER MEZARA",
                     "glyph": "m",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "MEZARA_MIN"
                 },
                 {
                     "codepoint": "U+F023C",
+                    "name": "SEMARON SMALL LETTER NELAMIS",
                     "glyph": "n",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "NELAMIS_MIN"
                 },
                 {
                     "codepoint": "U+F023D",
+                    "name": "SEMARON SMALL LETTER ORNETHE",
                     "glyph": "o",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ORNETHE_MIN"
                 },
                 {
                     "codepoint": "U+F023E",
+                    "name": "SEMARON SMALL LETTER POZERA",
                     "glyph": "p",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "POZERA_MIN"
                 },
                 {
                     "codepoint": "U+F023F",
+                    "name": "SEMARON SMALL LETTER RONETHOS",
                     "glyph": "r",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "RONETHOS_MIN"
                 },
                 {
                     "codepoint": "U+F0240",
+                    "name": "SEMARON SMALL LETTER SIRETHA",
                     "glyph": "s",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "SIRETHA_MIN"
                 },
                 {
                     "codepoint": "U+F0241",
+                    "name": "SEMARON SMALL LETTER TALOTHOS",
                     "glyph": "t",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "TALOTHOS_MIN"
                 },
                 {
                     "codepoint": "U+F0242",
+                    "name": "SEMARON SMALL LETTER ULMERA",
                     "glyph": "u",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ULMERA_MIN"
                 },
                 {
                     "codepoint": "U+F0243",
+                    "name": "SEMARON SMALL LETTER VARTHOS",
                     "glyph": "v",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "VARTHOS_MIN"
                 },
                 {
                     "codepoint": "U+F0244",
+                    "name": "SEMARON SMALL LETTER WA",
                     "glyph": "w",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "WA_MIN"
                 },
                 {
                     "codepoint": "U+F0245",
+                    "name": "SEMARON SMALL LETTER YALZEMIS",
                     "glyph": "y",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "YALZEMIS_MIN"
                 },
                 {
                     "codepoint": "U+F0246",
+                    "name": "SEMARON SMALL LETTER ZARGON",
                     "glyph": "z",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ZARGON_MIN"
+                },
+                {
+                    "codepoint": "U+F0247",
+                    "name": "SEMARON SMALL LETTER QORETHA",
+                    "glyph": "q",
+                    "kind": "letter",
+                    "code": "QORETHA_MIN"
                 },
                 {
                     "codepoint": "U+F0248",
+                    "name": "SEMARON SMALL LETTER LONG ANKRON",
                     "glyph": "a.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ANKRON_MIN"
                 },
                 {
                     "codepoint": "U+F0249",
+                    "name": "SEMARON SMALL LETTER LONG ELZA",
                     "glyph": "e.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ELZA_MIN"
                 },
                 {
                     "codepoint": "U+F024A",
+                    "name": "SEMARON SMALL LETTER LONG ILTHERA",
                     "glyph": "i.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ILTHERA_MIN"
                 },
                 {
                     "codepoint": "U+F024B",
+                    "name": "SEMARON SMALL LETTER LONG ORNETHE",
                     "glyph": "o.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ORNETHE_MIN"
                 },
                 {
                     "codepoint": "U+F024C",
+                    "name": "SEMARON SMALL LETTER LONG ULMERA",
                     "glyph": "u.long",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LONG_ULMERA_MIN"
                 },
                 {
                     "codepoint": "U+F0250",
+                    "name": "SEMARON SMALL LETTER THOLERA",
                     "glyph": "th",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "THOLERA_MIN"
                 },
                 {
                     "codepoint": "U+F0251",
+                    "name": "SEMARON CAPITAL LETTER THOLERA",
                     "glyph": "TH",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "THOLERA_MAJ"
                 },
                 {
                     "codepoint": "U+F0258",
+                    "name": "SEMARON DIGIT ZERO",
                     "glyph": "num.0",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_ZERO"
                 },
                 {
                     "codepoint": "U+F0259",
+                    "name": "SEMARON DIGIT ONE",
                     "glyph": "num.1",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_ONE"
                 },
                 {
                     "codepoint": "U+F025A",
+                    "name": "SEMARON DIGIT TWO",
                     "glyph": "num.2",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_TWO"
                 },
                 {
                     "codepoint": "U+F025B",
+                    "name": "SEMARON DIGIT THREE",
                     "glyph": "num.3",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_THREE"
                 },
                 {
                     "codepoint": "U+F025C",
+                    "name": "SEMARON DIGIT FOUR",
                     "glyph": "num.4",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FOUR"
                 },
                 {
                     "codepoint": "U+F025D",
+                    "name": "SEMARON DIGIT FIVE",
                     "glyph": "num.5",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FIVE"
                 },
                 {
                     "codepoint": "U+F025E",
+                    "name": "SEMARON DIGIT SIX",
                     "glyph": "num.6",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_SIX"
                 },
                 {
                     "codepoint": "U+F025F",
+                    "name": "SEMARON DIGIT SEVEN",
                     "glyph": "num.7",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_SEVEN"
                 },
                 {
                     "codepoint": "U+F0260",
+                    "name": "SEMARON DIGIT EIGHT",
                     "glyph": "num.8",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_EIGHT"
                 },
                 {
                     "codepoint": "U+F0261",
+                    "name": "SEMARON DIGIT NINE",
                     "glyph": "num.9",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_NINE"
                 },
                 {
                     "codepoint": "U+F0268",
+                    "name": "SEMARON POINT",
                     "glyph": "point",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "POINT"
                 },
                 {
                     "codepoint": "U+F0270",
+                    "name": "SEMARON CATCH",
                     "glyph": "grave",
-                    "kind": "mark"
+                    "kind": "mark",
+                    "code": "CATCH"
+                },
+                {
+                    "codepoint": "U+F0280",
+                    "name": "SEMARON SMALL LETTER DHANETHE",
+                    "glyph": "dh",
+                    "kind": "digraph",
+                    "code": "DHANETHE_MIN"
+                },
+                {
+                    "codepoint": "U+F0281",
+                    "name": "SEMARON CAPITAL LETTER DHANETHE",
+                    "glyph": "DH",
+                    "kind": "digraph",
+                    "code": "DHANETHE_MAJ"
+                },
+                {
+                    "codepoint": "U+F0282",
+                    "name": "SEMARON SMALL LETTER KHORVENA",
+                    "glyph": "kh",
+                    "kind": "digraph",
+                    "code": "KHORVENA_MIN"
+                },
+                {
+                    "codepoint": "U+F0283",
+                    "name": "SEMARON CAPITAL LETTER KHORVENA",
+                    "glyph": "KH",
+                    "kind": "digraph",
+                    "code": "KHORVENA_MAJ"
+                },
+                {
+                    "codepoint": "U+F0284",
+                    "name": "SEMARON SMALL LETTER GHORMAS",
+                    "glyph": "gh",
+                    "kind": "digraph",
+                    "code": "GHORMAS_MIN"
+                },
+                {
+                    "codepoint": "U+F0285",
+                    "name": "SEMARON CAPITAL LETTER GHORMAS",
+                    "glyph": "GH",
+                    "kind": "digraph",
+                    "code": "GHORMAS_MAJ"
+                },
+                {
+                    "codepoint": "U+F0286",
+                    "name": "SEMARON SMALL LETTER SHELMORA",
+                    "glyph": "sh",
+                    "kind": "digraph",
+                    "code": "SHELMORA_MIN"
+                },
+                {
+                    "codepoint": "U+F0287",
+                    "name": "SEMARON CAPITAL LETTER SHELMORA",
+                    "glyph": "SH",
+                    "kind": "digraph",
+                    "code": "SHELMORA_MAJ"
+                },
+                {
+                    "codepoint": "U+F0288",
+                    "name": "SEMARON SMALL LETTER ZHAREVA",
+                    "glyph": "zh",
+                    "kind": "digraph",
+                    "code": "ZHAREVA_MIN"
+                },
+                {
+                    "codepoint": "U+F0289",
+                    "name": "SEMARON CAPITAL LETTER ZHAREVA",
+                    "glyph": "ZH",
+                    "kind": "digraph",
+                    "code": "ZHAREVA_MAJ"
+                },
+                {
+                    "codepoint": "U+F028A",
+                    "name": "SEMARON SMALL LETTER TSALEMA",
+                    "glyph": "ts",
+                    "kind": "digraph",
+                    "code": "TSALEMA_MIN"
+                },
+                {
+                    "codepoint": "U+F028B",
+                    "name": "SEMARON CAPITAL LETTER TSALEMA",
+                    "glyph": "TS",
+                    "kind": "digraph",
+                    "code": "TSALEMA_MAJ"
+                },
+                {
+                    "codepoint": "U+F028C",
+                    "name": "SEMARON SMALL LETTER CHEROLA",
+                    "glyph": "ch",
+                    "kind": "digraph",
+                    "code": "CHEROLA_MIN"
+                },
+                {
+                    "codepoint": "U+F028D",
+                    "name": "SEMARON CAPITAL LETTER CHEROLA",
+                    "glyph": "CH",
+                    "kind": "digraph",
+                    "code": "CHEROLA_MAJ"
+                },
+                {
+                    "codepoint": "U+F028E",
+                    "name": "SEMARON SMALL LETTER ENGARIS",
+                    "glyph": "ng",
+                    "kind": "digraph",
+                    "code": "ENGARIS_MIN"
+                },
+                {
+                    "codepoint": "U+F028F",
+                    "name": "SEMARON CAPITAL LETTER ENGARIS",
+                    "glyph": "NG",
+                    "kind": "digraph",
+                    "code": "ENGARIS_MAJ"
+                },
+                {
+                    "codepoint": "U+F0290",
+                    "name": "SEMARON SMALL LETTER NYELIS",
+                    "glyph": "ny",
+                    "kind": "digraph",
+                    "code": "NYELIS_MIN"
+                },
+                {
+                    "codepoint": "U+F0291",
+                    "name": "SEMARON CAPITAL LETTER NYELIS",
+                    "glyph": "NY",
+                    "kind": "digraph",
+                    "code": "NYELIS_MAJ"
+                },
+                {
+                    "codepoint": "U+E0114",
+                    "name": "VARIATION SELECTOR-37",
+                    "glyph": "ignorable",
+                    "kind": "control",
+                    "code": "STRESS"
                 }
             ]
         },
@@ -378,322 +665,386 @@
                 {
                     "codepoint": "U+F0000",
                     "glyph": "a",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "A"
                 },
                 {
                     "codepoint": "U+F0001",
                     "glyph": "e",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "E"
                 },
                 {
                     "codepoint": "U+F0002",
                     "glyph": "i",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "I"
                 },
                 {
                     "codepoint": "U+F0003",
                     "glyph": "o",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "O"
                 },
                 {
                     "codepoint": "U+F0004",
                     "glyph": "u",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "U"
                 },
                 {
                     "codepoint": "U+F0005",
                     "glyph": "p",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "PARGH"
                 },
                 {
                     "codepoint": "U+F0006",
                     "glyph": "b",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "BALG"
                 },
                 {
                     "codepoint": "U+F0007",
                     "glyph": "f",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "FARZ"
                 },
                 {
                     "codepoint": "U+F0008",
                     "glyph": "v",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "VAZAL"
                 },
                 {
                     "codepoint": "U+F0009",
                     "glyph": "m",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "MARP"
                 },
                 {
                     "codepoint": "U+F000A",
                     "glyph": "t",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "TAMB"
                 },
                 {
                     "codepoint": "U+F000B",
                     "glyph": "d",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "DALK"
                 },
                 {
                     "codepoint": "U+F000C",
                     "glyph": "n",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "NAZAF"
                 },
                 {
                     "codepoint": "U+F000D",
                     "glyph": "k",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "KAMV"
                 },
                 {
                     "codepoint": "U+F000E",
                     "glyph": "g",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "GAMTH"
                 },
                 {
                     "codepoint": "U+F000F",
                     "glyph": "s",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "SAKAR"
                 },
                 {
                     "codepoint": "U+F0010",
                     "glyph": "z",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ZALD"
                 },
                 {
                     "codepoint": "U+F0011",
                     "glyph": "h",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "HALB"
                 },
                 {
                     "codepoint": "U+F0012",
                     "glyph": "l",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LADHAV"
                 },
                 {
                     "codepoint": "U+F0013",
                     "glyph": "r",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "RAGHAV"
                 },
                 {
                     "codepoint": "U+F0014",
                     "glyph": "j",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "JA"
                 },
                 {
                     "codepoint": "U+F0015",
                     "glyph": "q",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "QA"
                 },
                 {
                     "codepoint": "U+F0016",
                     "glyph": "w",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "WA"
                 },
                 {
                     "codepoint": "U+F0017",
                     "glyph": "y",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "YA"
                 },
                 {
                     "codepoint": "U+F0018",
                     "glyph": "catch",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "CATCH"
                 },
                 {
                     "codepoint": "U+F0020",
                     "glyph": "t_h",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "THARZ"
                 },
                 {
                     "codepoint": "U+F0021",
                     "glyph": "d_h",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "DHALZ"
                 },
                 {
                     "codepoint": "U+F0022",
                     "glyph": "k_h",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "KHABAR"
                 },
                 {
                     "codepoint": "U+F0023",
                     "glyph": "g_h",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "GHARM"
                 },
                 {
                     "codepoint": "U+F0024",
                     "glyph": "sh",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "SHA"
                 },
                 {
                     "codepoint": "U+F0025",
                     "glyph": "zh",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "ZHA"
                 },
                 {
                     "codepoint": "U+F0026",
                     "glyph": "ts",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "TSA"
                 },
                 {
                     "codepoint": "U+F0027",
                     "glyph": "ch",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "CHA"
                 },
                 {
                     "codepoint": "U+F0028",
                     "glyph": "ng",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "NGA"
                 },
                 {
                     "codepoint": "U+F0029",
                     "glyph": "ny",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "NYA"
                 },
                 {
                     "codepoint": "U+F002A",
                     "glyph": "hl",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "HLA"
                 },
                 {
                     "codepoint": "U+F0030",
                     "glyph": "ai",
-                    "kind": "diphthong"
+                    "kind": "diphthong",
+                    "code": "AI"
                 },
                 {
                     "codepoint": "U+F0031",
                     "glyph": "au",
-                    "kind": "diphthong"
+                    "kind": "diphthong",
+                    "code": "AU"
                 },
                 {
                     "codepoint": "U+F0032",
                     "glyph": "ei",
-                    "kind": "diphthong"
+                    "kind": "diphthong",
+                    "code": "EI"
                 },
                 {
                     "codepoint": "U+F0033",
                     "glyph": "oi",
-                    "kind": "diphthong"
+                    "kind": "diphthong",
+                    "code": "OI"
                 },
                 {
                     "codepoint": "U+F0034",
                     "glyph": "ou",
-                    "kind": "diphthong"
+                    "kind": "diphthong",
+                    "code": "OU"
                 },
                 {
                     "codepoint": "U+F0040",
                     "glyph": "num.0",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_ZERO"
                 },
                 {
                     "codepoint": "U+F0041",
                     "glyph": "num.1",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_ONE"
                 },
                 {
                     "codepoint": "U+F0042",
                     "glyph": "num.2",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_TWO"
                 },
                 {
                     "codepoint": "U+F0043",
                     "glyph": "num.3",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_THREE"
                 },
                 {
                     "codepoint": "U+F0044",
                     "glyph": "num.4",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FOUR"
                 },
                 {
                     "codepoint": "U+F0045",
                     "glyph": "num.5",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FIVE"
                 },
                 {
                     "codepoint": "U+F0046",
                     "glyph": "num.6",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_SIX"
                 },
                 {
                     "codepoint": "U+F0047",
                     "glyph": "num.7",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_SEVEN"
                 },
                 {
                     "codepoint": "U+F0048",
                     "glyph": "num.8",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_EIGHT"
                 },
                 {
                     "codepoint": "U+F0049",
                     "glyph": "num.9",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_NINE"
                 },
                 {
                     "codepoint": "U+F004A",
                     "glyph": "num.10",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_TEN"
                 },
                 {
                     "codepoint": "U+F004B",
                     "glyph": "num.11",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_ELEVEN"
                 },
                 {
                     "codepoint": "U+F004C",
                     "glyph": "num.12",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_TWELVE"
                 },
                 {
                     "codepoint": "U+F004D",
                     "glyph": "num.13",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_THIRTEEN"
                 },
                 {
                     "codepoint": "U+F004E",
                     "glyph": "num.14",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FOURTEEN"
                 },
                 {
                     "codepoint": "U+F004F",
                     "glyph": "num.15",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FIFTEEN"
                 },
                 {
                     "codepoint": "U+F0050",
                     "glyph": "period",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "STOP"
                 },
                 {
                     "codepoint": "U+F0051",
                     "glyph": "comma",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "PAUSE"
                 },
                 {
                     "codepoint": "U+F0052",
                     "glyph": "exclam",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "IMPERATIVE"
                 },
                 {
                     "codepoint": "U+F0053",
                     "glyph": "hyphen",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "NAME_DASH"
                 },
                 {
                     "codepoint": "U+F0054",
                     "glyph": "quote.open",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "OPEN_QUOTE"
                 },
                 {
                     "codepoint": "U+F0055",
                     "glyph": "quote.close",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "CLOSE_QUOTE"
                 },
                 {
                     "codepoint": "U+F0060",
                     "glyph": "lengthmark",
-                    "kind": "mark"
+                    "kind": "mark",
+                    "code": "LONG"
                 }
             ]
         },
@@ -711,202 +1062,242 @@
                 {
                     "codepoint": "U+F0100",
                     "glyph": "a",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "A"
                 },
                 {
                     "codepoint": "U+F0101",
                     "glyph": "e",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "E"
                 },
                 {
                     "codepoint": "U+F0102",
                     "glyph": "i",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "I"
                 },
                 {
                     "codepoint": "U+F0103",
                     "glyph": "o",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ODEL"
                 },
                 {
                     "codepoint": "U+F0104",
                     "glyph": "u",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "U"
                 },
                 {
                     "codepoint": "U+F0105",
                     "glyph": "b",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "BRELD"
                 },
                 {
                     "codepoint": "U+F0106",
                     "glyph": "d",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "DRESK"
                 },
                 {
                     "codepoint": "U+F0107",
                     "glyph": "f",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "FOSK"
                 },
                 {
                     "codepoint": "U+F0108",
                     "glyph": "g",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "GELDRA"
                 },
                 {
                     "codepoint": "U+F0109",
                     "glyph": "h",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "HVELM"
                 },
                 {
                     "codepoint": "U+F010A",
                     "glyph": "j",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "JA"
                 },
                 {
                     "codepoint": "U+F010B",
                     "glyph": "k",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "KNERV"
                 },
                 {
                     "codepoint": "U+F010C",
                     "glyph": "l",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LA"
                 },
                 {
                     "codepoint": "U+F010D",
                     "glyph": "m",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "MERV"
                 },
                 {
                     "codepoint": "U+F010E",
                     "glyph": "n",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "NELTH"
                 },
                 {
                     "codepoint": "U+F010F",
                     "glyph": "p",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "PA"
                 },
                 {
                     "codepoint": "U+F0110",
                     "glyph": "r",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "RELTH"
                 },
                 {
                     "codepoint": "U+F0111",
                     "glyph": "s",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "SVELD"
                 },
                 {
                     "codepoint": "U+F0112",
                     "glyph": "t",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "TING"
                 },
                 {
                     "codepoint": "U+F0113",
                     "glyph": "v",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "VULD"
                 },
                 {
                     "codepoint": "U+F0114",
                     "glyph": "w",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "WA"
                 },
                 {
                     "codepoint": "U+F0115",
                     "glyph": "z",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ZA"
                 },
                 {
                     "codepoint": "U+F0120",
                     "glyph": "th",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "THRESK"
                 },
                 {
                     "codepoint": "U+F0121",
                     "glyph": "dh",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "DHA"
                 },
                 {
                     "codepoint": "U+F0122",
                     "glyph": "kh",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "KHA"
                 },
                 {
                     "codepoint": "U+F0123",
                     "glyph": "gh",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "GHA"
                 },
                 {
                     "codepoint": "U+F0124",
                     "glyph": "hl",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "HLA"
                 },
                 {
                     "codepoint": "U+F0125",
                     "glyph": "ng",
-                    "kind": "digraph"
+                    "kind": "digraph",
+                    "code": "NGA"
                 },
                 {
                     "codepoint": "U+F0130",
                     "glyph": "num.0",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_ZERO"
                 },
                 {
                     "codepoint": "U+F0131",
                     "glyph": "num.1",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_ONE"
                 },
                 {
                     "codepoint": "U+F0132",
                     "glyph": "num.2",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_TWO"
                 },
                 {
                     "codepoint": "U+F0133",
                     "glyph": "num.3",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_THREE"
                 },
                 {
                     "codepoint": "U+F0134",
                     "glyph": "num.4",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FOUR"
                 },
                 {
                     "codepoint": "U+F0135",
                     "glyph": "num.5",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FIVE"
                 },
                 {
                     "codepoint": "U+F0136",
                     "glyph": "num.6",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_SIX"
                 },
                 {
                     "codepoint": "U+F0137",
                     "glyph": "num.7",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_SEVEN"
                 },
                 {
                     "codepoint": "U+F0138",
                     "glyph": "num.8",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_EIGHT"
                 },
                 {
                     "codepoint": "U+F0139",
                     "glyph": "num.9",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_NINE"
                 },
                 {
                     "codepoint": "U+F0140",
                     "glyph": "period",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "STOP"
                 },
                 {
                     "codepoint": "U+F0148",
                     "glyph": "acutecomb",
-                    "kind": "mark"
+                    "kind": "mark",
+                    "code": "ACUTE"
                 }
             ]
         },
@@ -924,507 +1315,608 @@
                 {
                     "codepoint": "U+1EA00",
                     "glyph": "l",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "LAGUN"
                 },
                 {
                     "codepoint": "U+1EA01",
                     "glyph": "r",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "RETHU"
                 },
                 {
                     "codepoint": "U+1EA02",
                     "glyph": "t",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "TULAZ"
                 },
                 {
                     "codepoint": "U+1EA03",
                     "glyph": "d",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "DURAS"
                 },
                 {
                     "codepoint": "U+1EA04",
                     "glyph": "z",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "ZAGUL"
                 },
                 {
                     "codepoint": "U+1EA05",
                     "glyph": "s",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "SELQUR"
                 },
                 {
                     "codepoint": "U+1EA06",
                     "glyph": "g",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "GITHAR"
                 },
                 {
                     "codepoint": "U+1EA07",
                     "glyph": "k",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "KA"
                 },
                 {
                     "codepoint": "U+1EA08",
                     "glyph": "n",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "NELGIR"
                 },
                 {
                     "codepoint": "U+1EA09",
                     "glyph": "th",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "THELQEN"
                 },
                 {
                     "codepoint": "U+1EA0A",
                     "glyph": "m",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "MELNU"
                 },
                 {
                     "codepoint": "U+1EA0B",
                     "glyph": "q",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "QENUWA"
                 },
                 {
                     "codepoint": "U+1EA0C",
                     "glyph": "kh",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "KHA"
                 },
                 {
                     "codepoint": "U+1EA0D",
                     "glyph": "gh",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "GHA"
                 },
                 {
                     "codepoint": "U+1EA0E",
                     "glyph": "h",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "HALZI"
                 },
                 {
                     "codepoint": "U+1EA0F",
                     "glyph": "sh",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "SHENULET"
                 },
                 {
                     "codepoint": "U+1EA10",
                     "glyph": "p",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "PA"
                 },
                 {
                     "codepoint": "U+1EA11",
                     "glyph": "b",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "BA"
                 },
                 {
                     "codepoint": "U+1EA12",
                     "glyph": "f",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "FA"
                 },
                 {
                     "codepoint": "U+1EA13",
                     "glyph": "w",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "WALIR"
                 },
                 {
                     "codepoint": "U+1EA14",
                     "glyph": "y",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "YA"
                 },
                 {
                     "codepoint": "U+1EA15",
                     "glyph": "catch",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "CATCH"
                 },
                 {
                     "codepoint": "U+1EA16",
                     "glyph": "tj",
-                    "kind": "letter"
+                    "kind": "letter",
+                    "code": "TJA"
                 },
                 {
                     "codepoint": "U+1EA17",
                     "glyph": "l.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "LAGUN_DBL"
                 },
                 {
                     "codepoint": "U+1EA18",
                     "glyph": "r.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "RETHU_DBL"
                 },
                 {
                     "codepoint": "U+1EA19",
                     "glyph": "t.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "TULAZ_DBL"
                 },
                 {
                     "codepoint": "U+1EA1A",
                     "glyph": "d.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "DURAS_DBL"
                 },
                 {
                     "codepoint": "U+1EA1B",
                     "glyph": "z.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "ZAGUL_DBL"
                 },
                 {
                     "codepoint": "U+1EA1C",
                     "glyph": "s.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "SELQUR_DBL"
                 },
                 {
                     "codepoint": "U+1EA1D",
                     "glyph": "g.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "GITHAR_DBL"
                 },
                 {
                     "codepoint": "U+1EA1E",
                     "glyph": "k.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "KA_DBL"
                 },
                 {
                     "codepoint": "U+1EA1F",
                     "glyph": "n.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "NELGIR_DBL"
                 },
                 {
                     "codepoint": "U+1EA20",
                     "glyph": "th.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "THELQEN_DBL"
                 },
                 {
                     "codepoint": "U+1EA21",
                     "glyph": "m.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "MELNU_DBL"
                 },
                 {
                     "codepoint": "U+1EA22",
                     "glyph": "q.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "QENUWA_DBL"
                 },
                 {
                     "codepoint": "U+1EA23",
                     "glyph": "kh.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "KHA_DBL"
                 },
                 {
                     "codepoint": "U+1EA24",
                     "glyph": "gh.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "GHA_DBL"
                 },
                 {
                     "codepoint": "U+1EA25",
                     "glyph": "h.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "HALZI_DBL"
                 },
                 {
                     "codepoint": "U+1EA26",
                     "glyph": "sh.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "SHENULET_DBL"
                 },
                 {
                     "codepoint": "U+1EA27",
                     "glyph": "p.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "PA_DBL"
                 },
                 {
                     "codepoint": "U+1EA28",
                     "glyph": "b.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "BA_DBL"
                 },
                 {
                     "codepoint": "U+1EA29",
                     "glyph": "f.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "FA_DBL"
                 },
                 {
                     "codepoint": "U+1EA2A",
                     "glyph": "w.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "WALIR_DBL"
                 },
                 {
                     "codepoint": "U+1EA2B",
                     "glyph": "y.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "YA_DBL"
                 },
                 {
                     "codepoint": "U+1EA2C",
                     "glyph": "tj.dbl",
-                    "kind": "doubled"
+                    "kind": "doubled",
+                    "code": "TJA_DBL"
                 },
                 {
                     "codepoint": "U+1EA2D",
                     "glyph": "zero",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_ZERO"
                 },
                 {
                     "codepoint": "U+1EA2E",
                     "glyph": "one",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_ONE"
                 },
                 {
                     "codepoint": "U+1EA2F",
                     "glyph": "two",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_TWO"
                 },
                 {
                     "codepoint": "U+1EA30",
                     "glyph": "three",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_THREE"
                 },
                 {
                     "codepoint": "U+1EA31",
                     "glyph": "four",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FOUR"
                 },
                 {
                     "codepoint": "U+1EA32",
                     "glyph": "five",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_FIVE"
                 },
                 {
                     "codepoint": "U+1EA33",
                     "glyph": "six",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_SIX"
                 },
                 {
                     "codepoint": "U+1EA34",
                     "glyph": "seven",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_SEVEN"
                 },
                 {
                     "codepoint": "U+1EA35",
                     "glyph": "eight",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_EIGHT"
                 },
                 {
                     "codepoint": "U+1EA36",
                     "glyph": "nine",
-                    "kind": "numeral"
+                    "kind": "numeral",
+                    "code": "DIGIT_NINE"
                 },
                 {
                     "codepoint": "U+1EA37",
                     "glyph": "period",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "STOP"
                 },
                 {
                     "codepoint": "U+1EA38",
                     "glyph": "comma",
-                    "kind": "point"
+                    "kind": "point",
+                    "code": "PAUSE"
                 },
                 {
                     "codepoint": "U+1ECC0",
                     "glyph": "l.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC0"
                 },
                 {
                     "codepoint": "U+1ECC1",
                     "glyph": "r.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC1"
                 },
                 {
                     "codepoint": "U+1ECC2",
                     "glyph": "t.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC2"
                 },
                 {
                     "codepoint": "U+1ECC3",
                     "glyph": "d.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC3"
                 },
                 {
                     "codepoint": "U+1ECC4",
                     "glyph": "z.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC4"
                 },
                 {
                     "codepoint": "U+1ECC5",
                     "glyph": "s.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC5"
                 },
                 {
                     "codepoint": "U+1ECC6",
                     "glyph": "g.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC6"
                 },
                 {
                     "codepoint": "U+1ECC7",
                     "glyph": "k.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC7"
                 },
                 {
                     "codepoint": "U+1ECC8",
                     "glyph": "n.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC8"
                 },
                 {
                     "codepoint": "U+1ECC9",
                     "glyph": "th.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECC9"
                 },
                 {
                     "codepoint": "U+1ECCA",
                     "glyph": "m.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECCA"
                 },
                 {
                     "codepoint": "U+1ECCB",
                     "glyph": "q.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECCB"
                 },
                 {
                     "codepoint": "U+1ECCC",
                     "glyph": "kh.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECCC"
                 },
                 {
                     "codepoint": "U+1ECCD",
                     "glyph": "gh.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECCD"
                 },
                 {
                     "codepoint": "U+1ECCE",
                     "glyph": "h.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECCE"
                 },
                 {
                     "codepoint": "U+1ECCF",
                     "glyph": "sh.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECCF"
                 },
                 {
                     "codepoint": "U+1ECD0",
                     "glyph": "p.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD0"
                 },
                 {
                     "codepoint": "U+1ECD1",
                     "glyph": "b.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD1"
                 },
                 {
                     "codepoint": "U+1ECD2",
                     "glyph": "f.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD2"
                 },
                 {
                     "codepoint": "U+1ECD3",
                     "glyph": "w.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD3"
                 },
                 {
                     "codepoint": "U+1ECD4",
                     "glyph": "y.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD4"
                 },
                 {
                     "codepoint": "U+1ECD5",
                     "glyph": "tj.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD5"
                 },
                 {
                     "codepoint": "U+1ECD6",
                     "glyph": "l.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD6"
                 },
                 {
                     "codepoint": "U+1ECD7",
                     "glyph": "r.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD7"
                 },
                 {
                     "codepoint": "U+1ECD8",
                     "glyph": "t.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD8"
                 },
                 {
                     "codepoint": "U+1ECD9",
                     "glyph": "d.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECD9"
                 },
                 {
                     "codepoint": "U+1ECDA",
                     "glyph": "z.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECDA"
                 },
                 {
                     "codepoint": "U+1ECDB",
                     "glyph": "s.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECDB"
                 },
                 {
                     "codepoint": "U+1ECDC",
                     "glyph": "g.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECDC"
                 },
                 {
                     "codepoint": "U+1ECDD",
                     "glyph": "k.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECDD"
                 },
                 {
                     "codepoint": "U+1ECDE",
                     "glyph": "n.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECDE"
                 },
                 {
                     "codepoint": "U+1ECDF",
                     "glyph": "th.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECDF"
                 },
                 {
                     "codepoint": "U+1ECE0",
                     "glyph": "m.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE0"
                 },
                 {
                     "codepoint": "U+1ECE1",
                     "glyph": "q.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE1"
                 },
                 {
                     "codepoint": "U+1ECE2",
                     "glyph": "kh.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE2"
                 },
                 {
                     "codepoint": "U+1ECE3",
                     "glyph": "gh.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE3"
                 },
                 {
                     "codepoint": "U+1ECE4",
                     "glyph": "h.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE4"
                 },
                 {
                     "codepoint": "U+1ECE5",
                     "glyph": "sh.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE5"
                 },
                 {
                     "codepoint": "U+1ECE6",
                     "glyph": "p.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE6"
                 },
                 {
                     "codepoint": "U+1ECE7",
                     "glyph": "b.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE7"
                 },
                 {
                     "codepoint": "U+1ECE8",
                     "glyph": "f.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE8"
                 },
                 {
                     "codepoint": "U+1ECE9",
                     "glyph": "w.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECE9"
                 },
                 {
                     "codepoint": "U+1ECEA",
                     "glyph": "y.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECEA"
                 },
                 {
                     "codepoint": "U+1ECEB",
                     "glyph": "tj.dbl.catch",
-                    "kind": "catchbefore"
+                    "kind": "catchbefore",
+                    "code": "TEST_U1ECEB"
                 }
             ]
         },
@@ -1443,49 +1935,57 @@
                     "codepoint": "U+F1013",
                     "name": "TENG CHOU CHARACTER TENG",
                     "glyph": "tc.teng",
-                    "kind": "character"
+                    "kind": "character",
+                    "code": "TENG"
                 },
                 {
                     "codepoint": "U+F1014",
                     "name": "TENG CHOU CHARACTER TAN",
                     "glyph": "tc.tan",
-                    "kind": "character"
+                    "kind": "character",
+                    "code": "TAN"
                 },
                 {
                     "codepoint": "U+F101F",
                     "name": "TENG CHOU CHARACTER CHEN",
                     "glyph": "tc.chen",
-                    "kind": "character"
+                    "kind": "character",
+                    "code": "CHEN"
                 },
                 {
                     "codepoint": "U+F102A",
                     "name": "TENG CHOU CHARACTER TSOU",
                     "glyph": "tc.tsou",
-                    "kind": "character"
+                    "kind": "character",
+                    "code": "TSOU"
                 },
                 {
                     "codepoint": "U+F1036",
                     "name": "TENG CHOU CHARACTER DOU",
                     "glyph": "tc.dou",
-                    "kind": "character"
+                    "kind": "character",
+                    "code": "DOU"
                 },
                 {
                     "codepoint": "U+F103E",
                     "name": "TENG CHOU CHARACTER CHOU",
                     "glyph": "tc.chou",
-                    "kind": "character"
+                    "kind": "character",
+                    "code": "CHOU"
                 },
                 {
                     "codepoint": "U+F1057",
                     "name": "TENG CHOU CHARACTER HING",
                     "glyph": "tc.hing",
-                    "kind": "character"
+                    "kind": "character",
+                    "code": "HING"
                 },
                 {
                     "codepoint": "U+F10AA",
                     "name": "TENG CHOU CHARACTER ROU",
                     "glyph": "tc.rou",
-                    "kind": "character"
+                    "kind": "character",
+                    "code": "ROU"
                 }
             ]
         }

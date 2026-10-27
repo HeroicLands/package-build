@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { encodingContext } from "./helpers/encoding.js";
+
 /**
  * **Emphasis inside a script run is set by the script's own convention.** A
  * script note's `data.script` names its faces and its convention; `*…*` and
@@ -44,11 +46,11 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, "fixtures", "script-fonts", "fonts");
 
 /** A mapping note's record, as the content index carries it. */
-const mapNote = (shortcode: string, map: object) => ({
+const mapNote = (shortcode: string, enc: object) => ({
     type: "doc",
     shortcode,
     address: { canonical: `demo-note-doc-${shortcode}` },
-    data: { map },
+    encodingDefinition: enc,
 });
 
 /** A script note's record, as the content index carries it. */
@@ -71,7 +73,7 @@ const languageNote = (shortcode: string, data: object) => ({
 
 /** Semaron Kuriale's letters for the words used here. */
 const VYL_SEMARON = {
-    name: "vyl-semaron",
+    name: "semaron",
     rows: [
         ["th", "\u{F0250}"],
         ["r", "\u{F023F}"],
@@ -129,7 +131,7 @@ beforeAll(() => {
     fs.cpSync(FIXTURE, path.join(root, "node_modules", "@heroiclands", "fonts"), {
         recursive: true,
     });
-    ctx = runContext(
+    ctx = encodingContext(
         {
             rootDir: root,
             contentPackage: "demo",
@@ -150,7 +152,8 @@ beforeAll(() => {
                 ],
             }),
             mapNote("vylsemaron", VYL_SEMARON),
-            mapNote("romanmap", { name: "roman", rows: [["a", "a"]] }),
+            mapNote("romanmap", { name: "roman", fonts: ["semaron-kuriale"], rows: [["a", "a"]] }),
+            mapNote("pirzathmap", { name: "pirzath", fonts: ["pirzath-hand-lifted"], rows: [] }),
             mapNote("khelqalezu", KHEL_QALEZU),
             mapNote("vylthuravark", VYL_THURAVARK),
             scriptNote("semaronscrpt", { fonts: ["semaron-kuriale"], emphasis: "rubric" }),
@@ -158,7 +161,6 @@ beforeAll(() => {
             scriptNote("pirzathscrpt", {
                 fonts: ["pirzath-hand-lifted"],
                 emphasis: "overline",
-                strongEmphasis: "rubric",
             }),
         ],
     );
@@ -166,12 +168,12 @@ beforeAll(() => {
 
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
-const SEMARON_RUN = "lang=en font=semaron-kuriale map=vyl-semaron";
-const SEMARON = `${SEMARON_RUN} .nativefont`;
-const VYLARI = "lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont";
-const TARVENI = "lang=tar font=semaron-kuriale map=vyl-semaron .nativefont";
-const QALEZU = "lang=en font=qalezu-hand map=khel-qalezu .nativefont";
-const THURAVARK = "lang=en font=thuravark-carved map=vyl-thuravark .nativefont";
+const SEMARON_RUN = "lang=en font=semaron-kuriale enc=semaron";
+const SEMARON = `${SEMARON_RUN}`;
+const VYLARI = "lang=vyl font=semaron-kuriale enc=semaron";
+const TARVENI = "lang=tar font=semaron-kuriale enc=semaron";
+const QALEZU = "lang=en font=qalezu-hand enc=khel-qalezu";
+const THURAVARK = "lang=en font=thuravark-carved enc=vyl-thuravark";
 
 const errors = (source: string) =>
     scanRuns(source, ctx).errors.map(
@@ -185,18 +187,18 @@ describe("the conventions", () => {
         expect(EMPHASIS_CLASSES).toEqual({ rubric: "emph-rubric", overline: "emph-overline" });
     });
 
-    it("are read from each script note, both levels from one unless it states two", () => {
+    it("are read from each script note, both levels from its one convention", () => {
         expect(
             emphasesFromRecords([
                 scriptNote("a", { fonts: ["f", "g"], emphasis: "rubric" }),
-                scriptNote("b", { fonts: ["h"], emphasis: "overline", strongEmphasis: "rubric" }),
+                scriptNote("b", { fonts: ["h"], emphasis: "overline" }),
                 { type: "skill", subType: "language", data: { script: { fonts: ["x"] } } },
             ]),
         ).toEqual(
             new Map([
                 ["f", { em: "rubric", strong: "rubric" }],
                 ["g", { em: "rubric", strong: "rubric" }],
-                ["h", { em: "overline", strong: "rubric" }],
+                ["h", { em: "overline", strong: "overline" }],
             ]),
         );
     });
@@ -222,26 +224,28 @@ describe("emphasis in a script run is accepted", () => {
         ["emphasis written with underscores", `[thrima _sorima_]{${SEMARON}}`],
         ["strong emphasis written with underscores", `[thrima __sorima__]{${SEMARON}}`],
         ["a mix of stars and underscores", `[_thrima_ **sorima**]{${SEMARON}}`],
-        ["a face with no map", `[*${THRIMA}*]{font=semaron-kuriale lang=en .nativefont}`],
+        ["literal native codage", `[*⟦U+F0250 U+F023F U+F0237 U+F023B U+F0230⟧*]{${SEMARON}}`],
     ])("in %s", (_, source) => {
         expect(errors(source)).toEqual([]);
     });
 
     it("reads an unpaired or escaped star as a character the map spells", () => {
         expect(errors(`[thrima \\*sorima*]{${SEMARON}}`)).toEqual([
-            "1:10: `*` (U+002A) is not drawn by the font `semaron-kuriale`, and the map `vyl-semaron` has no row for it",
+            '1:10: "*" (U+002A) is not in the `semaron` encoding',
+            '1:17: "*" (U+002A) is not in the `semaron` encoding',
         ]);
     });
 
     it("reads an escaped or unpaired underscore as a character the map spells", () => {
         expect(errors(`[thrima \\_sorima_]{${SEMARON}}`)).toEqual([
-            "1:10: `_` (U+005F) is not drawn by the font `semaron-kuriale`, and the map `vyl-semaron` has no row for it",
+            '1:10: "_" (U+005F) is not in the `semaron` encoding',
+            '1:17: "_" (U+005F) is not in the `semaron` encoding',
         ]);
     });
 
     it("checks the text between the stars against the face, at the character", () => {
         expect(errors(`[thrima *sorimak*]{${SEMARON}}`)).toEqual([
-            "1:16: `k` (U+006B) is not drawn by the font `semaron-kuriale`, and the map `vyl-semaron` has no row for it",
+            "1:16: `k` encodes to U+006B in `semaron`, which the font `semaron-kuriale` does not draw",
         ]);
     });
 });
@@ -263,12 +267,12 @@ describe("emphasis that is still a finding", () => {
         [
             "emphasis in a generic family",
             "[a *b* c]{font=serif}",
-            ["1:4: text marked `font=serif` is plain text and holds no emphasis"],
+            ["1:4: text marked `font=serif enc=default` is plain text and holds no emphasis"],
         ],
         [
-            "emphasis in a map set in an ordinary typeface",
-            "[a *b* c]{map=roman lang=en font=serif .nativefont}",
-            ["1:4: text marked `lang=en font=serif map=roman` is plain text and holds no emphasis"],
+            "an encoding refuses an incompatible ordinary typeface",
+            "[abc]{enc=roman lang=en font=serif}",
+            ["1:30: `serif` is not a font of the encoding `roman`; it serves `semaron-kuriale`"],
         ],
     ])("%s", (_, source, expected) => {
         expect(errors(source)).toEqual(expected);
@@ -321,7 +325,7 @@ describe("a language's own convention", () => {
 const LTR = `Said [thrima *sorima*]{${SEMARON}} once.`;
 const STRONG = `Said [thrima **sorima**]{${SEMARON}} once.`;
 const OVER = `Said [gar *nal*]{${QALEZU}} once.`;
-const MIXED = `[*${PZ}* **${PZ}**]{lang=en font=pirzath-hand-lifted .nativefont}`;
+const MIXED = `[*⟦U+F0000 U+F0001⟧* **⟦U+F0000 U+F0001⟧**]{lang=en enc=pirzath font=pirzath-hand-lifted}`;
 const PLAIN = `[*sorima* **sorima**]{${THURAVARK}}`;
 const ROMAN = "Roman *stays* **as** written, [and *here*]{lang=en}.";
 const DIV = [`::: {${SEMARON}}`, "thrima *sorima*", ":::"].join("\n");
@@ -346,9 +350,9 @@ describe("renderRuns, goldens", () => {
         );
     });
 
-    it("gives each level its own convention where the note states two", () => {
+    it("gives both levels the script convention", () => {
         expect(render(MIXED, "foundry")).toBe(
-            `[<em class="emph-overline">${PZ}</em> <strong class="emph-rubric">${PZ}</strong>]{lang=en .script .hl-pirzath-hand-lifted}`,
+            `[<em class="emph-overline">\u{E0112}${PZ}\u{E0113}</em> <strong class="emph-overline">\u{E0112}${PZ}\u{E0113}</strong>]{lang=en .script .hl-pirzath-hand-lifted}`,
         );
     });
 
@@ -373,7 +377,7 @@ describe("renderRuns, goldens", () => {
         expect(render(VERSE, "foundry")).toBe(
             [
                 "```verse {lang=en .script .hl-qalezu-hand dir=rtl}",
-                `${GAR} <strong class="emph-overline">${NL}</strong>`,
+                `${GAR} <strong class="emph-overline">${NL}</strong>\u{E010C}`,
                 "```",
             ].join("\n"),
         );
@@ -398,6 +402,15 @@ describe("the site", () => {
                 ).markdown,
             ).markdown,
         );
+
+    it.each([
+        ["emph", "*"],
+        ["strong", "**"],
+    ])("sets .%s like Markdown in an English face run", (name, mark) => {
+        expect(site(`[thrima [sorima]{.${name}}]{${SEMARON}}`)).toBe(
+            site(`[thrima ${mark}sorima${mark}]{${SEMARON}}`),
+        );
+    });
 
     it("renders a rubric run's emphasis as a classed em", () => {
         expect(site(LTR)).toContain(
@@ -433,6 +446,18 @@ describe("Foundry", () => {
 
 describe("Typst", () => {
     const typst = (source: string) => markdownToTypst(source, { runs: ctx });
+
+    it.each([
+        ["emph", "*"],
+        ["strong", "**"],
+    ])("sets .%s like Markdown in each English face in the book", (name, mark) => {
+        for (const attrs of [SEMARON, QALEZU, THURAVARK]) {
+            const word = attrs === QALEZU ? "gar" : "sorima";
+            expect(typst(`[${word} [${word}]{.${name}}]{${attrs}}`)).toBe(
+                typst(`[${word} ${mark}${word}${mark}]{${attrs}}`),
+            );
+        }
+    });
 
     it("sets a rubric in the book's rubric ink", () => {
         expect(typst(LTR)).toContain(
@@ -506,7 +531,6 @@ describe("`data.script` in the note lint", () => {
                 skill("script", {
                     fonts: ["pirzath-hand"],
                     emphasis: "overline",
-                    strongEmphasis: "rubric",
                 }),
             ),
         ).toEqual([]);
@@ -525,7 +549,7 @@ describe("`data.script` in the note lint", () => {
                 }),
             ),
         ).toEqual([
-            '12:21: `data.script.strongEmphasis` should be `rubric` or `overline`, but reads "bold"',
+            '12:5: "strongEmphasis" is not a key of `data.script`; it takes only `fonts`, `emphasis`, `direction`',
         ]);
     });
 
@@ -533,7 +557,7 @@ describe("`data.script` in the note lint", () => {
         expect(
             lint(skill("script", { fonts: ["semaron-kuriale"], emphasis: "rubric", colour: "x" })),
         ).toEqual([
-            '12:5: "colour" is not a key of `data.script`; it takes only `fonts`, `emphasis`, `strongEmphasis`, `direction`',
+            '12:5: "colour" is not a key of `data.script`; it takes only `fonts`, `emphasis`, `direction`',
         ]);
         expect(lint(skill("script", { emphasis: "rubric" }))).toEqual([
             "8:3: `data.script` must state `fonts` — list of installed faces' slugs",

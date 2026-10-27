@@ -194,7 +194,7 @@ function localAssetImageInfo() {
  *   {@link module:engine/content-figures.scanFigures}.
  * @param {import("./content-scripts.mjs").RunContext} [runs] - The package's
  *   languages, faces and maps. Given, text marked with `lang=`, `font=` and
- *   `map=` is rewritten first, so it is tagged for its language, mapped and
+ *   `enc=` is rewritten first, so it is tagged for its language, mapped and
  *   set in its font.
  * @returns {string} The rendered HTML.
  */

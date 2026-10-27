@@ -148,12 +148,26 @@ describe("one invocation owns the shared content session", () => {
 
     it("uses the captured raw source and parsed frontmatter for font delivery", async () => {
         const input = repo();
-        const language = [...input.files.keys()][2];
-        const raw = input.files
-            .get(language)!
-            .replace("data:\n", "data:\n  writtenIn: { map: semaron, font: teng-chou }\n");
-        write(language, raw);
-        input.files.set(language, raw);
+        const declared = YAML.parse(fs.readFileSync(input.configFile, "utf8"));
+        declared.languages = { en: { tag: "en" } };
+        write(input.configFile, YAML.stringify(declared));
+        input.config = configFromData(declared, input.configFile);
+        const encoding = path.join(input.config.paths.content, "Encoding.md");
+        const raw = note({
+            type: "doc",
+            subType: "reference",
+            shortcode: "testenc",
+            name: { full: "English codage" },
+            data: {
+                language: "en",
+                font: "teng-chou",
+                accepts: ["a-z"],
+                mappings: {},
+                rules: { normalization: "NFC", matching: "longest-first" },
+            },
+        });
+        write(encoding, raw);
+        input.files.set(encoding, raw);
         fs.cpSync(
             fileURLToPath(new URL("./fixtures/script-fonts/fonts", import.meta.url)),
             path.join(input.root, "node_modules/@heroiclands/fonts"),

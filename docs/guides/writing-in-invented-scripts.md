@@ -12,9 +12,9 @@ reads as the language, text that is drawn in the language's own letters, and a
 way to keep both honest. This guide explains how the toolchain does that, from
 the model underneath to every finding it can report, for human authors and for
 agents. The reference pages state each rule exactly: [links and
-markup](../authoring/links-and-markup.md#marking-language-font-and-mapping),
-[format details](../reference/format-details.md#text-marked-with-a-language-a-font-or-a-map),
-[commands](../commands.md#package-build-transliterate-map-text),
+markup](../authoring/links-and-markup.md#marking-language-font-and-encoding),
+[format details](../reference/format-details.md#text-marked-with-a-language-font-or-encoding),
+[commands](../commands.md#package-build-encode-text),
 [configuration](../configuration.md#languages) and
 [diagnostics](../diagnostics.md). This guide ties them into one account and
 works one example through from start to finish.
@@ -24,461 +24,182 @@ Semaron script. The lexicon and the notes in them are the guide's own sample.
 
 ## The model
 
-These ideas carry everything else.
+A language defines its words, meanings and pronunciation. An encoding defines
+which source sequences write which characters. A face draws those characters.
+Keeping these facts in their owning sources gives each passage one consistent
+conversion on the site, in Foundry and in the book.
 
-1. **A note records Unicode characters, and nothing else.** Which keyboard
-   typed them is the author's business. The markdown and the build neither
-   know nor care.
-2. **A font draws glyphs for code points.** A code point a font lacks draws a
-   box, so the build refuses it before a box reaches a reader. A font states no
-   sounds and no spelling, just as a Unicode block chart states none.
-3. **Each script has code points of its own,** as Runic and Ogham have their
-   own Unicode blocks. Semaron's `a` is not U+0061. Every face of one script
-   draws the same code points, so changing the face changes only the look. The
-   left-to-right scripts sit in plane 15, the Supplementary Private Use Area-A
-   (Semaron from U+F0200). The right-to-left scripts sit in unassigned code
-   points of plane 1 whose default direction is right to left, so their text
-   runs right to left in any editor, browser or typesetter with no control
-   characters.
-4. **Sounds and spelling belong to the language.** A script is not a language:
-   several languages are written in one script, as many Earth languages share
-   the Latin alphabet. A mapping therefore belongs to a script and serves every
-   language written in it. What differs between languages is their dictionaries.
-5. **Language and presentation are separate.** `lang=` identifies the
-   language, retaining the authored Roman spelling and the surrounding prose
-   font. Language and vocabulary checks still apply.
-6. **`.nativefont` requests native presentation.** It requires an explicit
-   `lang=` on that same span, div or fence, then selects the language's
-   configured native map and font. Each marked child makes its own choice;
-   native presentation is not inherited by a language-only child.
-7. **`font=` and `map=` override independently.** A native run takes any
-   missing half from the language's `data.writtenIn`; if neither the run nor
-   its language provides a font, the build reports the needed `font=` override.
-   When the language supplies no map, native code points can be typed directly.
-   A native font or map without `.nativefont` is an error. Ordinary Roman
-   `font=mono`, `serif` and `sans` remain available without native opt-in.
-8. **Native mapping uses the dictionary first.** A word the dictionary does
-   not write is spelled by the mapping's rows. Every word must belong to the
-   language where its configured note supplies a dictionary.
+| Fact                       | Source                                    | Selection                      |
+| -------------------------- | ----------------------------------------- | ------------------------------ |
+| Language and vocabulary    | Configuration and language note           | `lang=`                        |
+| Authored lexical spelling  | Word, affix or grammatical `native` entry | Encoding and optional face     |
+| Encoding rows and controls | Encoding document frontmatter             | `enc=` document Address        |
+| Font face                  | Installed `fonts.json`                    | `font=` or the encoding's font |
 
-A script that writes meanings rather than sounds is **logographic**. It has no
-sound rules, so every word is written from the dictionary and never guessed;
-see [logographic scripts](#logographic-scripts).
-
-One code path serves the build and its users. `package-build transliterate`
-converts a passage exactly as the build does, and `package-build lexicon` lists
-every word of a language with its native form; see
-[the commands](#the-commands).
-
-The pipeline for one marked run reads left to right:
-
-| Stage         | Reads                                | Reports                                    |
-| ------------- | ------------------------------------ | ------------------------------------------ |
-| Keys          | `lang=`, `font=`, `map=`             | an unknown language, font or map           |
-| Dictionary    | the language's `data.words[].native` | a native form the rows cannot capitalise   |
-| Rows          | the mapping's `data.map.rows`        | nothing: a character with no row passes on |
-| Lexicon check | the language's words and register    | a word the language does not hold          |
-| Face coverage | the face's `fonts.json` code points  | a character the face does not draw         |
-| Element       | the face, the tag and the direction  | nothing                                    |
+Language identification alone retains Roman text. `enc=` selects an encoding
+document, which infers its language and font. Unknown source characters are
+errors; a face drawing a character does not make it a spelling mapping.
 
 ## Language and native presentation
 
-The keys go in the attribute block that a span, a fenced div or a `verse`
-fence already takes:
+`enc=` names an encoding document, with `doc` as its default Address type:
+`[say.]{enc=aelwsemaronenc}` selects `doc-aelwsemaronenc`. That document supplies
+its configured `language` and single `font`; an explicit `lang=` must identify
+the same language, and an explicit `font=` must be that font. Another face is
+a separate encoding document.
 
-| Written                                                                | Meaning                                                                          |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `[Daimela, helthos.]{lang=vyl}`                                        | Vylari in authored Roman spelling and the page's font, with language validation. |
-| `[Zaron lonak]{lang=vyl .nativefont}`                                  | Vylari mapped and drawn with its configured native defaults.                     |
-| `[Zaron lonak]{lang=vyl .nativefont font=semaron-kuriale map=semaron}` | Native Vylari with both defaults explicitly overridden.                          |
-| `[ad astra]{lang=la font=serif}`                                       | A real language's BCP 47 tag, in the reader's serif.                             |
-| `::: {lang=vyl .nativefont}` … `:::`                                   | Native presentation for a passage's unmarked paragraphs.                         |
-| a `verse` fence opened with `{lang=vyl .nativefont}`                   | Native presentation for a poem's unmarked lines.                                 |
-
-The class is explicit on each construct. `[Zaron]{.nativefont}` is an error
-even inside a passage marked `lang=vyl`: add `lang=vyl` to that span. A native
-font such as `font=semaron-kuriale`, or any `map=`, requires `.nativefont`.
-Generic Roman `font=serif`, `sans` and `mono` do not.
-
-**`lang=`** is read in this order. First a short name declared in the
-configuration's `languages`; then a BCP 47 language tag for a real language
-(`la`, `grc`, `en-GB`), checked for its form alone. A declared name wins over a
-tag spelled the same way. A well-formed tag one edit from a declared name draws
-a warning that names the declared one, since `vly` is a valid tag for another
-language than `vyl`.
-
-**`font=`** is a face of `@heroiclands/fonts`, named by its class without
-`hl-` (`hl-semaron-kuriale` is `font=semaron-kuriale`), or one of the generic
-families `mono`, `serif` and `sans`. A package that sets text in a face adds the
-fonts to its own development dependencies:
-
-```bash
-npm install --save-dev @heroiclands/fonts
-```
-
-The installed package's `fonts.json` lists every face and every code point it
-draws, which is the list to write a mapping from. This prints Semaron Kuriale's:
-
-```bash
-jq -r '.families[] | select(.class == "hl-semaron-kuriale") | .codepoints[] | [.codepoint, .kind, .glyph, .name] | @tsv' \
-  node_modules/@heroiclands/fonts/fonts.json
-```
-
-Each line is a code point, its kind (`letter`, `digraph`, `numeral`, `point`, `mark`
-or `sign`), the glyph's name and the character's name; the glyph named `a` is the
-letter that writes the sound `a`, and `a.long` the long vowel. Those names are
-what a mapping's rows are written from.
-
-On the site `serif` and `mono` are the site's own body and code faces and
-`sans` is the reader's sans-serif; in Foundry they are the reader's generic
-families; in a book they are the book's own serif, sans and mono. The generic
-families are not checked for coverage.
-
-**`map=`** is the `data.map.name` of a [mapping note](#mapping-notes). It
-rewrites the run before anything else; a run's `font=` is then one of the faces
-the mapping lists.
-
-The `languages` block of `package-build.config.yaml` declares the short names:
-
-```yaml
-languages:
-  vyl: { tag: art-x-vyl, note: skill-vylarilng }
-  khel: { tag: art-x-khel, note: skill-khelathlng }
-```
-
-A name is lowercase letters, digits and hyphens, starting with a letter. `tag`
-is a BCP 47 tag; a constructed language takes `art-x-<name>`. `note` is the
-address of the language's `skill` note of `subType: language`, whose
-`data.words` is the dictionary and whose `data.register` is the names register.
-Without `note`, `lang=` only tags: there is no dictionary and no lexicon check.
-`package-build lint` checks at the key that `note` names a language note.
-
-**A language names its script.** Most tongues are written in one script, so the
-language note says which, as one map and one face:
-
-```yaml
-data:
-  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789."
-  writtenIn: { map: semaron, font: semaron-kuriale }
-```
-
-A language-only run stays Roman: `[Zaron lonak]{lang=vyl}`. Add
-`.nativefont` to select both defaults:
+`enc=default` leaves Roman text as written and is the default when no encoding
+is selected. `lang=` still identifies the text and selects its language's
+vocabulary; `font=mono`, `serif`, `sans` or an installed font selects its face
+without encoding it. Language identification does not select an encoding.
 
 ```markdown
-[Zaron lonak]{lang=vyl .nativefont}
-[Zaron lonak]{lang=vyl .nativefont font=semaron-kuriale map=semaron}
+[say.]{enc=aelwsemaronenc}
+[say.]{enc=doc-aelwsemaronenc lang=aelw font=semaron-kuriale}
+[say.]{lang=aelw enc=default}
 ```
 
-Those two spans display the same native text. `font=` replaces only the font;
-`map=` replaces only the map. A missing font default produces an error naming the
-needed `font=` override, and incompatible map/font pairs are errors. A map
-is optional when the language supplies none; directly typed signs then
-reach the selected font unchanged. The build does
-not discard a default to make an override fit. This applies to spans, divs,
-verse fences, scroll fences and standalone wikilinks. The language note's
-keys are checked at their values:
+Class-only emphasis and name children belong to the parent's complete logical
+text; encoding preserves their rendered wrappers. A child with its own run
+keys makes a separate presentation choice. `enc=default` inside an encoded
+parent keeps the inherited language but does not inherit its inferred script
+face. An explicitly authored font remains a font choice.
 
-> `` `data.writtenIn.map` is `semoran`, which no mapping note's `data.map.name` declares; did you mean `semaron`? ``
+A name's braces use the shared name controls. Resolved references encode only
+their visible labels, retaining URLs and presentation cues. These keys apply
+to spans, divs, verse fences and scroll fences. A scroll's selected font must
+belong to a script whose note declares `direction: vertical-rl`.
 
-> `` `data.writtenIn.font` is `teng-chou`, which the map `semaron` is not drawn in; it is drawn in `semaron-kuriale` ``
+## Roman source and literal characters
 
-**Unmarked text follows its passage; marked children choose their own
-presentation.** A language-only child stays Roman, even in the same language
-as its native parent:
+Language-only text retains the exact spelling and surrounding prose font:
 
 ```markdown
-::: {lang=vyl .nativefont}
-Zaron lonak, [Zaron lonak]{lang=vyl}, lokamen zaron.
-[Gar-Anlagh]{lang=khel .nativefont font=qalezu-hand map=qalezu}
-:::
-```
-
-The first Vylari phrase and the unmarked text use Semaron; the language-only
-span gives the Roman reading. The Khelathi span opts in independently and uses
-its own map and font. Qalezu runs right to left inside the left-to-right line
-with no `dir=` written. An English gloss, `[an oath]{lang=en font=serif}`,
-uses the page's serif. A child's own native defaults and overrides are used;
-the parent's explicit map and font are not copied into the child.
-
-**References make the same choice.** The first name below stays Roman; the
-second uses Vylari's native defaults:
-
-```markdown
-[[lore-marendasdty|Marendas]]{lang=vyl}
-[[lore-marendasdty|Marendas]]{lang=vyl .nativefont}
-```
-
-Only the displayed name is mapped and set in the native face. The destination,
-spoiler and `.show` behavior, draft cue and book page references are preserved.
-Keep adjacent prose and its spaces in sibling spans; a longer native passage
-cannot contain an embedded link.
-
-**What a run may hold.** A marked span or verse line is plain text: no
-emphasis (other than the stars a face's run takes, see [emphasis in a
-script](#emphasis-in-a-script)), link, image, footnote, wikilink, code or HTML.
-A standalone resolved reference may carry the language and native class, as
-above; only its label is set. A marked div holds paragraphs and line breaks only. The text is read as written,
-so `[`, `]`, `"`, `<<`, `>>`, `!` and `@ # $ % ^ &` are characters; a bracket
-pair is markup only when `(` makes a link, `{` a span or a second `[` a
-wikilink, and an unbalanced bracket takes a backslash, `\[`. A code fence is
-verbatim: `[…]{…}` inside it stays literal text. Text marked with a real
-language's tag alone keeps its Markdown when that language is English; a span
-with a non-English effective language cannot contain actual bold or italic
-markup, even when the language is real.
-
-The language, font and map keys are errors on a named block such as a secret block. Put a marked
-div inside the block instead.
-
-## Roman text and directly typed signs
-
-Language-only text retains its spelling and the surrounding prose font:
-
-```markdown
-[Zaron lonak]{lang=vyl}
+[Zaron lonak]{lang=vyl enc=default}
 [Zaron lonak]{lang=vyl font=serif}
 ```
 
-The second span explicitly chooses the ordinary serif. Neither selects the
-language's native defaults. A configured language's existing vocabulary and
-language checks still apply; presentation does not turn those checks off.
+The language note's `data.roman` lists additions to the shared standard:
+letters in their accepted cases, accented letters, catch signs and digits.
+List each character once in NFC spelling. Standard punctuation and whitespace
+are supplied automatically. A language that lists uppercase letters accepts
+them; the build changes no authored case.
 
-Text already typed in a script's code points also opts in explicitly:
+The terminals are `.` for a statement, `?` for a question, `‼` for an imperative
+and `!` for an exclamation. None is required. A comma pauses within a sentence;
+use it instead of `;` or `:`, and use a period between complete sentences.
+Quotation pairs alternate `«…»`, `‹…›`, then `«…»` at successive depths.
+English double quotes, `<<` and `>>` are findings. A closing quote is not a
+terminal for the enclosing sentence.
 
-```markdown
-The lintel is cut with [󰈹󰈰]{lang=und .nativefont font=semaron-kuriale}.
-```
+An em dash interrupts a sentence. An ellipsis at a sentence's start resumes
+one; later it abandons one. An interruption or abandonment takes an immediate
+terminal unless it ends the run. Write `…`, not three periods. Markdown
+escapes are removed before encoding, and diagnostics retain the source position.
 
-Here `und` identifies an unspecified language with no configured map. The
-font receives the typed code points unchanged. If a map is selected, rows
-leave characters with no matching row unchanged. The selected face must draw
-every resulting character, except whitespace, or the build
-reports the source character. Keyboard layouts and Emacs input methods for
-the scripts ship under the fonts package's `keyboards/`; an editor font that
-carries the script draws its code points where they are typed. Typing Roman
-and mapping it keeps the source readable and diffable.
+Every `Zs` space separator and U+0009 through U+000D count as whitespace. A run
+of them is one word separator, which the encoding writes by its own rule.
+Newlines in prose are whitespace. In a verse fence, line endings supply line
+boundaries, blank lines supply stanza boundaries, and `--- {.canto}` on its
+own line supplies a canto boundary. Do not type a verse slash `/` inside the
+fence; an inline quotation of verse may use it. Verse indentation is layout,
+not a punctuation character added to the encoded words.
 
-## Mapping notes
+A `.name` child in a language run reaches the encoding with standard `{…}`
+name boundaries. An `.emph` child contributes the same letters with emphasis
+presentation. Both inherit the surrounding native writing when they state no
+run keys.
 
-A mapping note is a `doc` note whose `data.map` lists the rewrites. **There is
-one mapping per script,** serving every language written in it. The note below
-is complete; the rows are the Semaron letters this guide's sample uses.
+Write an exact native character through codage, such as `⟦U+F0230⟧`, or a name
+that the chosen encoding defines. Literal codes are immutable; ordinary letter
+and punctuation rules do not reinterpret their contents. A setting-script
+character pasted directly into a configured language run is a finding. The
+same restriction applies to a face that can draw it.
 
-**`assets/content/Lore/Semaron_Spelling.md`**
+A `!` touching the `[` of another span is Markdown image syntax. Separate the
+terminal from the following span, or escape the terminal.
 
-```markdown
----
-shortcode: mapsemaron
-name: { full: Semaron Spelling }
-type: doc
-subType: reference
-data:
-  map:
-    name: semaron
-    vowels: "aeiou"
-    rows:
-      - ["a", "󰈰"] # U+F0230
-      - ["d", "󰈲"] # U+F0232
-      - ["e", "󰈳"] # U+F0233
-      - ["h", "󰈶"] # U+F0236
-      - ["i", "󰈷"] # U+F0237
-      - ["k", "󰈹"] # U+F0239
-      - ["l", "󰈺"] # U+F023A
-      - ["m", "󰈻"] # U+F023B
-      - ["n", "󰈼"] # U+F023C
-      - ["o", "󰈽"] # U+F023D
-      - ["r", "󰈿"] # U+F023F
-      - ["s", "󰉀"] # U+F0240
-      - ["t", "󰉁"] # U+F0241
-      - ["u", "󰉂"] # U+F0242
-      - ["z", "󰉆"] # U+F0246
-      - ["aa", "󰉈"] # U+F0248
-      - ["th", "󰉐"] # U+F0250
-      - ["Th", "󰉑"] # U+F0251
-      - ["L", "󰈊"] # U+F020A
-      - ["T", "󰈑"] # U+F0211
-      - ["Z", "󰈖"] # U+F0216
-      - { from: "y", to: "󰉅", before: vowel } # U+F0245
-      - ["y", "󰈷"] # U+F0237
-      - [".", "󰉨"] # U+F0268
-    fonts: [{ font: semaron-kuriale }]
----
+## Encodings
 
-Semaron Spelling writes roman spelling in the Semaron script. A passage marked with
-`map=semaron` is converted by the rows of this note before it is set, so the note's
-source stays in roman letters and the page shows the script. Every language written
-in Semaron shares these rows.
-```
+An encoding is a `doc` note. Its `data.language` is a configured language
+alias, `data.font` is one installed font slug, and `data.mappings` maps Roman
+strings to a font glyph code or a sequence of codes. `data.rules` holds the
+closed executable rules. Optional `data.accepts` states accepted characters
+or ranges and `data.vowels` states contextual vowels. The note body explains
+the spelling to a reader.
 
-The keys of `data.map`:
+The font supplies each glyph's `code` beside its `codepoint` in `fonts.json`.
+Codes belong to the selected font; the note never repeats a code table.
+Unknown fields, glyph codes, languages and fonts are positioned findings.
+An encoding's output must decode unambiguously, including across adjacent
+mappings and spaces. The compiler refuses indistinguishable spellings rather
+than choosing a guessed reading. See [the executable rules](../encoding-core.md).
 
-| Key           | Meaning                                                                                      |
-| ------------- | -------------------------------------------------------------------------------------------- |
-| `name`        | What `map=` names it by: lowercase letters, digits and `-`, unique in the package. Required. |
-| `rows`        | The rewrites, in authored order. Required.                                                   |
-| `fonts`       | The faces the mapping is drawn in, each by its slug, at least one. Required.                 |
-| `vowels`      | The characters that `before: vowel` reads as vowels. Any other letter is a consonant.        |
-| `logographic` | `true` for a script that writes meanings; see [logographic scripts](#logographic-scripts).   |
+Mappings match longest first; contextual before-vowel rules precede their
+unconditional alternatives. A case rule may allow lowercase and initial-capital
+groups while refusing other mixed or uppercase group spellings. Encoding keeps
+authored case and never rewrites a word's Roman spelling.
 
-**Rows.** A row is `[from, to]`, or `{ from, to, before, at }` with the two
-conditions optional. `from` is one or more characters; `to` is any number of
-them, none included. A mapping that drops a language's vowels writes `[a, ""]`.
-`rows` is a list, never a keyed map, so `A` and `a` are two rows.
+Outside literal markers, a run of Unicode Zs characters or U+0009 through
+U+000D writes one space. Other whitespace needs an explicit mapping. Standard
+Roman punctuation, verse and name controls are inherited from the shared
+standard; an explicit mapping can give a standard source its font glyph.
 
-**How a mapping reads text.**
+### Literal codes
 
-- **The longest match wins.** In the note above `th` is one letter, and `t` and
-  `h` are read only where `th` does not match. Among rows of one length, a row
-  whose condition holds comes before a row with none, and otherwise the earlier
-  row wins.
-- **A row whose condition fails is skipped.** `before: vowel` holds when the next
-  character is one of `vowels`; `before: consonant` when it is any other
-  letter; neither holds at the end of the text. `at: start` holds at the first
-  character of the run or after white space or punctuation; `at: end` holds at
-  the last character or before white space or punctuation. In the note above,
-  `y` is the consonant letter before a vowel and the vowel `i` elsewhere.
-- **Capitals and marks need rows of their own.** A row matches the character as
-  written, so `L` and `l` are two rows, and a script with no capitals gives both
-  the same code point. A period is a character too and needs its own row.
-  A language's `data.roman` decides which source characters may appear.
-- **A character no row matches passes through unchanged,** and the face-coverage
-  check then reports it. A mapping for a face that draws nothing on roman code
-  points lists every letter the spelling uses.
+Inside an encoded run, `⟦…⟧` writes the selected font's glyph codes or exact
+Unicode scalars: `[⟦MAN⟧]{enc=khelzethuenc}` where `MAN` is defined, and
+`[⟦U+00E1⟧]{enc=vylsemaronenc}` for an exact character. A Unicode code takes four to
+six uppercase hexadecimal digits, U+0000 through U+10FFFF excluding
+surrogates. Codes come only from the font; Unicode database
+names are not inferred. Whitespace between codes writes nothing. Nested or
+unmatched markers, unknown codes and standard marks absent from the font
+code table are errors. Without an encoding, a literal marker is a finding.
 
-**Fonts.** `fonts` lists each face the mapping may be used with, as a list of
-`{ font, rows }`. A face may carry rows of its own, which a run in that face
-tries first (longest match among them) before the shared rows. That is the way
-to write a sound differently in a variant face. The generic families `mono`,
-`serif` and `sans` are not listed. The lint checks that every listed face draws
-every code point that its own rows, the shared rows it can reach and the
-lexicons' native forms for it write.
-
-**Code points above U+FFFF in YAML.** A double-quoted YAML string writes a
-code point by its escape, and the left-to-right scripts sit in plane 15, so
-they take the eight-digit `\U`: `"\U000F0230"` is U+F0230, and the four-digit
-`\u` reaches only code points up to U+FFFF. Both forms mean the same thing.
-`package-build format --write` (Prettier) rewrites such an escape into the
-character itself, so a mapping note on disk usually holds the raw Private Use
-characters, as the note above does. Those read only in one of the fonts
-package's faces or its editor fonts, and elsewhere show as boxes. The
-convention is a trailing comment, `# U+F0230`, on every row, which keeps the
-note readable in any editor and survives formatting. A row that writes several
-code points lists them all in its comment.
-
-**Where the checks sit.** Every key is checked at its own line and column:
-
-> `` `data.map.name` is `Vyl_Semaron`; a map's name is lowercase letters, digits and `-` ``
-
-> `` `data.map.rows[4]` has `before: consonant`, and the map states no `vowels` to read it by ``
-
-> `` `data.map.rows[1]` has an empty `from`; a row matches one or more characters ``
-
-> `` `data.map.fonts` is empty; a map lists each face it is drawn in ``
-
-> `` `data.map.rows[5]` writes U+F0239, which the font `semaron-kuriale`, listed in `data.map.fonts`, does not draw ``
-
-A row with a fault is left out of the map and the rest apply.
-
-## How a mapping treats punctuation
-
-The language note's `data.roman` lists its exact permitted Roman source
-characters. Include capitals, accents, digits and punctuation explicitly;
-`package-build lint` checks them before mapping. A map cannot admit a character
-that the language's inventory excludes. There are no automatic punctuation
-substitutions.
-
-The toolchain is used with one convention for marks: **mood, questions and
-quotation are carried by words, not marks,** unless a language's note rules
-otherwise. A mapping therefore lists the marks its script has and nothing more.
-In the sample, only a period writes the script's pause point:
-
-```yaml
-- [".", "\U000F0268"] # U+F0268
-```
-
-(Formatting rewrites the escapes, as above.) A character with no row passes
-through unchanged, and the face does not draw it, so a question mark in a
-mapped run is an error that names the mark and the mapping:
-
-> `` `?` (U+003F) is not drawn by the font `semaron-kuriale`, and the map `semaron` has no row for it ``
-
-The remedy is to write the question or the quotation in words, as the language
-does, and leave the mark out of the run. A language whose note permits a mark
-includes it in `data.roman`; its script needs a row for that mark as well.
-Vylari permits period alone as punctuation. Its lexical catch is written with
-a grave-accented vowel, as in `kàralzon`, and that vowel needs its own mapping
-row; an apostrophe is not another spelling of it.
+Each outer marker writes its own invisible control. Payload occurrences of
+those controls or the literal escape are quoted with U+E0115. Decoding
+unquotes the payload before reading code rows and uses `U+XXXX` for scalars
+with no code name. Variation selectors U+E0100 through U+E01EF are valid
+encoded characters and carry distinctions the visible font does not draw.
 
 ## The dictionary first
 
-The sound rules belong to the script and the exceptions belong to the language.
-With `lang=` naming a language that has a `note`, the build reads the
-language's `data.words` before the rows.
-
-**How a run is split into words.** A word is a run of letters, combining marks
-and digits, with an apostrophe (`'` or `’`), a hyphen or an en dash joining two
-such runs into one word. `k'aralzon` is one word and `zaron-lonak` is one word
-for lookup. Everything between words is spelled by the rows.
-
-**How a word is written.** The word is looked up as written, and then in
-lowercase. A word that states a `native` form for the run's mapping (for the
-run's face where an entry names one, else the one for no face) is written by it
-whole. Every other word, with every derived form of an exception word, is
-spelled by the rows. There are no stem-level exceptions: the plural of an
-exception word is another word, and the rows spell it.
-
-**A native form states only an exception.** `native` is a list of
-`{ map, font, text }` on a word:
+A language's configured note supplies `data.words`, including the nearest
+complete inherited definition from its `data.family` chain. Grammar and names
+remain the current language's own. Native entries use `{enc, font?, text}`.
 
 ```yaml
-- form: zaron
-  class: n
-  field: Law
-  gloss: an oath
-  native:
-    - { map: semaron, text: "\U000F0246\U000F0248\U000F023F\U000F023D\U000F023C" }
+words:
+  - form: zaron
+    class: n
+    field: Law
+    gloss: an oath
+    native:
+      - { enc: vylsemaronenc, text: "\U000F024F\U000F0230\U000F023F\U000F023C" }
 ```
 
-`map` is the mapping's `name`, `font` optionally limits the form to one face, and
-`text` is the word as the script writes it. A form that the rows already give is
-redundant, and the lint says so:
+Every encoding tries the word's own writing, then complete native parts,
+affixes and explicitly named grammatical endings, then its rows. A face-specific
+entry takes precedence. A native entry repeating what all applicable rows give
+is redundant and is reported at that entry.
 
-> `` `data.words[0].native[0]` states what the rows already give: the map `semaron` spells `zaron` so in the font `semaron-kuriale`; a native form is stated only where the rows spell the word differently ``
+Exact case and exact variants are tried before folded lookup. A lowercase
+native exception can take an initial capital where the rows identify its first
+sound in both cases and its native text begins with the lowercase result.
+That prefix is replaced by the capital result. An ambiguous or uninferable
+capital needs an explicitly authored case-specific entry. Explicit entries
+retain authority; their pronunciation or glyph choices are not inferred.
 
-so a dictionary holds its exceptions and nothing else. The other checks of a
-native form (an unknown map, a face the map is not for, a second form for one
-map, a character the face does not draw) report at the entry:
-
-> `` `data.words[0].native[0].map` is `semron`, which is not a map: a native form names the `data.map.name` of a mapping note; did you mean `semaron`? ``
-
-> `` `data.words[0].native[2]` states a second native form for the map `semaron`; the first is `data.words[0].native[0]` ``
-
-> `` `data.words[0].native[0]` holds U+F024F, which the font `semaron-kuriale`, listed in the map `semaron`, does not draw ``
-
-**Capitals.** A capitalised word that is found only in lowercase takes its
-capital from the rows: the rows spell the first sound as written and in
-lowercase, and where the native form begins with the lowercase spelling, that
-beginning is replaced by the capital. A native form that does not begin the way
-the rows begin the word cannot be capitalised, and the capitalised word is an
-error at its place in the run:
-
-> `` `Orlan` is capitalised, and the native form the lexicon of `vyl` states for `orlan` under the map `semaron` does not begin as the rows spell its first letter, so the rows cannot capitalise it; state `Orlan` as a word of its own with its native form ``
-
-The fix is the one the message names: a lexicon word `Orlan` with its own
-native form, which the lookup as written finds first.
-
-A character the face does not draw inside a native form reports at the word:
-
-> `` `zaron` is written U+F024F by the lexicon of `vyl` for the map `semaron`, which the font `semaron-kuriale` does not draw ``
-
-A native run whose explicit `lang=` is a bare BCP 47 tag, and a declared
-language with no `note` are spelled by the rows alone.
+A derived form uses a native grammatical ending only when the complete stem
+and ending writings exist. Otherwise the rows spell the complete form. Missing
+parts never invent signs. A bare encoding without a language uses its rows and
+inline codes alone.
 
 ## The checks
 
 A run with `lang=`, whose language has a `note`, is checked word by
 word. This applies to Roman language-only runs and native runs alike;
-`.nativefont` selects presentation and does not turn vocabulary checks off. The comparison is case folded and NFC, with `’` read as `'`. A word passes
+Encoding selection does not turn vocabulary checks off. The comparison is case folded and NFC, with `’` read as `'`. A word passes
 when it is any of these:
 
 1. **A lexicon word:** a `data.words[].form` of the language. A form listed in a
@@ -541,25 +262,24 @@ Bare `other`, `kept`, `ancient` and `translation` rows are not checked.
 noun stated with its own plural and the plural the rule gives both pass, and no
 check asks that a word takes the right ending.
 
-**Face coverage** follows the mapping. A character left over after the rows
-reports once per run, at the start of the matched `from`:
+**Encoding coverage** refuses an unknown character at its source position:
 
-> `` `x` (U+0078) is not drawn by the font `semaron-kuriale`, and the map `semaron` has no row for it ``
+> ``"x" (U+0078) is not in the `semaron` encoding``
 
 and a row that writes a code point the face lacks reports where it is applied:
 
-> `` `ch` maps to U+F0299 in the map `semaron`, which the font `semaron-kuriale` does not draw ``
+> `` `ch` encodes to U+F0299 in `semaron`, which the font `semaron-kuriale` does not draw ``
 
 **Keys that name nothing.** A key that names nothing is the one finding, and
 the run is not then checked against a face or a lexicon it cannot reach.
 
 > `` `semaron-kurial` is not a font: `font=` names an installed face, or `mono`, `serif` or `sans`; did you mean `semaron-kuriale`? ``
 
-> `` `semron` is not a map: `map=` names the `data.map.name` of a mapping note; did you mean `semaron`? ``
+> `` `semron` is not an encoding document ``
 
 > `` `q` is not a declared language (`languages` in package-build.config.yaml) or a BCP 47 tag ``
 
-> `` `thuravark-carved` is not a font of the map `semaron`; it is for `semaron-kuriale` ``
+> `` `thuravark-carved` is not a font of encoding `semaron`; it is for `semaron-kuriale` ``
 
 > `` `semaron-kuriale` is not a font: `font=` names `mono`, `serif` or `sans`, or a face of @heroiclands/fonts, which this package has not installed ``
 
@@ -622,7 +342,7 @@ With the note above, a run accepts:
 
 A near miss such as _alathe_ is still an unknown word. To see every form the
 rules give, each beside the word it comes from, run
-`package-build lexicon vyl --map semaron --derived`.
+`package-build lexicon vyl --enc vylsemaronenc --derived`.
 
 The keys are checked where they sit:
 
@@ -636,100 +356,71 @@ The keys are checked where they sit:
 
 > `` `data.affixes[1].attachesTo[0]` is `verb`, which is not a word class; did you mean `v`? ``
 
-## Logographic scripts
+## Native spellings and parts
 
-**A script that writes meanings is written from the dictionary, never by
-sound.** Its mapping note states `logographic: true`, and every word of a run
-under it comes from the language's lexicon. The rows write only the text
-between words: spaces, points and anything else with no letter. A word never
-falls through to the rows, so a word the lexicon gives no writing is an error
-rather than a guess.
-
-A word is written by the first of these that gives a writing, matched case
-folded because the script has no capitals:
-
-1. **Its own `native` entry** for the map (the run's face where an entry names
-   one, else the one for no face), or the entry of a set compound written its
-   own way.
-2. **Its parts, joined.** The roots of the entry's `built` list in order; each
-   piece is a lexicon word or an affix of `data.affixes` with a `native` entry of
-   its own, resolved the same way down. A noun's plural and a verb's present
-   forms are the stem's writing followed by the ending's, which
-   `data.grammar.native` states once per ending: `plural`, or one of the persons
-   `I`, `you`, `heShe`, `we`, `youAll` and `they`.
-3. **Its hyphenated parts,** each by these same steps, so `Gar-halzunet` is
-   `Gar-`'s writing followed by `halzunet`'s.
-4. **Otherwise an error** at the word.
-
-Forms outside the parts rule (a suffix that replaces a vowel, an agreeing form,
-a participle) have no writing of their own. They are coined as lexicon words
-with a writing, or written in signs.
+Every encoding uses the same order for a language word: its own `native`
+entry for that encoding and face; otherwise the writings of all its parts;
+otherwise the encoding's rows. A face-specific entry precedes an entry for no
+face. Exact lexical forms precede folded lookup, so separately authored
+capitalized spellings keep their own native text. A flat variant is a lexical
+form; it does not assign a grammatical role by itself.
 
 ```yaml
-affixes:
-  - form: "-unet"
-    gloss: "a thing made of"
-    native:
-      - { map: zethu, text: "𞯇" }
-grammar:
-  plural:
-    - { ending: "", becomes: "im" }
-  native:
-    - { ending: plural, map: zethu, text: "𞯡" }
 words:
   - form: halzi
     class: n
-    field: The body
     gloss: heart
+    field: Words
     native:
-      - { map: zethu, text: "𞪻" }
+      - { enc: zethu, text: "\U0001EABB" }
   - form: halzunet
     class: n
-    field: The body
     gloss: the account
+    field: Words
     built: [halzi, -unet]
+affixes:
+  - form: -unet
+    gloss: a thing made of
+    native:
+      - { enc: zethu, text: "\U0001EBC7" }
 ```
 
-`[halzi halzunet halziim]{lang=khel font=khelathi-zethu-glyphs map=zethu .nativefont}` is
-written U+1EABB, then U+1EABB U+1EBC7, then U+1EABB U+1EBE1, with the spaces the
-rows write between them. An affix's `native` and `data.grammar.native` are read
-only under a logographic map; naming any other map is an error at the entry.
+A built part is an exact word or affix, then the same form with joining
+hyphens removed. Parts can themselves be built. A plural or present form can
+use the stem's writing followed by its explicitly named ending from
+`grammar.native`, whose entries use `{ending, enc, font?, text}`. These
+writings work under every encoding. Missing parts do not invent signs, and
+recursive parts terminate without a writing. Entries with genuinely different
+writings remain an ambiguity naming every matching gloss.
 
-**Ambiguity.** One roman form that stands for entries written differently is an
-error naming every entry's gloss, and so is one form with a writing for one
-sense and none for another. Nothing is guessed. List the words with
-`package-build lexicon khel --map zethu`: the third column says where each
-writing comes from, `own` for a stored writing, `parts` for one the pieces give,
-`none` for a word with no writing, and `ambiguous` for a form a run cannot
-write. An ambiguous word's second column is still that entry's own writing, so
-pick the entry by its gloss and write those signs directly in the run. Signs
-typed in a run hold no letter, so they are no word and pass through as typed.
+An encoding accepting no letters, such as `zethu` or `chalish-pilam`, needs a
+lexical writing or literal codes for a word. The refusal names the word,
+language and encoding and points to that word.
 
-**Foreign names.** A registered name is written like any other word, so a name
-with no writing is an error. A foreign name is written deliberately: its signs
-typed directly, or through a mapping whose rows read a sign-by-sign notation
-(sign ids and joiners, as in Manuel de Codage input), which an author writes the
-way any other mapping is written. A native run with an explicit bare BCP 47
-tag such as `lang=und` has no configured dictionary and uses the rows alone;
-it still needs `.nativefont`, an explicit map for conversion and an explicit
-font where no language default supplies one.
+### Reading script text
 
-**An unknown word gets two errors:** the lexicon check reports it is no word of
-the language, and the writing check reports it has no writing.
+Without a language, decoding is exactly the encoding's longest-output match.
+With a language, explicit native and composed writings are tried first,
+longest first; a shared writing uses the first listed sense. Literal marker
+spans decode through their inline codes. Unknown unmarked signs in a script
+accepting no letters become `⟦codes⟧` with a finding.
 
-> `` `zamlu` has no `zethu` writing in the `khel` lexicon, and its parts do not give one; state one, or write the word directly in signs ``
-
-> `` `nelgir` stands for 2 words of the `khel` lexicon that the map `zethu` writes differently, “a god” and “god”; write the word directly in signs, choosing by its sense in `package-build lexicon khel --map zethu` ``
-
-> `` `halzi` has no `zethu` writing: the map `zethu` is logographic, and the run names no `lang=` whose lexicon writes it; mark the run with its language, or write the word directly in signs ``
-
-> `` `data.grammar.native[3]` writes the ending `they`, and `data.grammar.verbs` states no `persons` ``
+For an unmarked word, the lexicon can recover its unwritten sounds from the
+plain decoded skeleton. A unique skeleton gives its form; a shared skeleton
+gives the first authored form. Each word's citation precedes its variants and derived forms, before the next word's citation. Registered names retain their authored order. Complete names are matched longest first across word separators and receive one pair of braces. A known ordinary word keeps its encoded case without a false unknown-word finding. An unknown skeleton keeps the
+plain decoding and produces a located finding. This is decided per word: a
+passage can mix typed words with encoded words. A word carrying any invisible
+mark keeps exact decoding without skeleton recovery; an explicit authored
+native exception still has precedence. Stress marks are preserved by exact
+rows. Names are represented with braces according to the language's rules.
 
 ## Emphasis in a script
 
-Inside a run set in a face, `*…*` and `**…**` are written as in English. No
-script marks a stressed word by a bold or a slant, so the build sets emphasis by
-the scribal convention the text's language or script states:
+Inside a language run, mark a stressed word as `[word]{.emph}`. The span
+inherits its surrounding language, face and encoding, so its letters follow
+the same writing rules as the rest of the run. In English, `.emph` equals
+`*…*`, and `.strong` equals `**…**`. Non-English spans refuse `.strong` and
+Markdown emphasis. The build sets `.emph` by the language's or script's convention:
 
 | Convention | Site and Foundry                                   | Book                  |
 | ---------- | -------------------------------------------------- | --------------------- |
@@ -752,12 +443,11 @@ data:
   script:
     fonts: [semaron-kuriale]
     emphasis: rubric
-    strongEmphasis: overline
 ```
 
 `fonts` lists the faces of the script (a face belongs to one script),
-`emphasis` sets both `*…*` and `**…**`, and `strongEmphasis` optionally sets
-`**…**` alone. A tongue that states nothing takes its script's convention.
+`emphasis` sets `.emph` and accepted English emphasis. A tongue that states
+nothing takes its script's convention.
 
 **Non-English spans do not take Markdown emphasis.** Bold and italic markup in
 a span with an effective non-English language is an error, whether it has a
@@ -766,13 +456,12 @@ English (`en`) and English BCP 47 tags remain eligible. Escaped literal
 delimiters are not emphasis. This restriction applies throughout the note.
 
 `data.emphasis: words` also makes emphasis an error: it says the language marks
-stress with a word, so stars in its runs are refused:
+stress with a word, so `.emph` and stars in its runs are refused:
 
 > `` `ban` marks emphasis with a word, not a mark; write the word ``
 
-Underscores and strikethrough are errors in a face. A stressed word is best
-enclosed whole: a star inside a word splits it, so a row or lexicon word that
-crosses the star is not matched.
+A strikethrough is an error in a face. Mark a whole stressed word: a mark
+inside a word splits the text, so a row or lexicon word crossing it cannot match.
 
 **The `--rubric` token.** The theme's `--rubric` is a warm red for its dark
 ground, and the book prints its own. A rubric carries emphasis by colour alone,
@@ -798,7 +487,7 @@ the contents of a fence byte for byte, which is why a poem is a fence and not
 paragraphs: indentation, line breaks and spans survive formatting untouched.
 
 ````markdown
-```verse {lang=vyl font=semaron-kuriale map=semaron .nativefont}
+```verse {lang=vyl font=semaron-kuriale enc=vylsemaronenc}
 Lokazor lonak.
   lokamen zaron.
 ```
@@ -822,20 +511,20 @@ fills it, and the last row begins a new stanza:
 
 ````markdown
 ```verse {numstep=1 lang=vyl cols=3}
-1 [Lokazor lonak zaron.]{lang=vyl .nativefont}
+1 [Lokazor lonak zaron.]{lang=vyl enc=vylsemaronenc}
 3 [He walks the oath road.]{lang=en}
-3 [Lokazor lonak zaron.]{lang=vyl}
+3 [Lokazor lonak zaron.]{lang=vyl enc=default}
 
-1 [Lokamen lonak zaron.]{lang=vyl .nativefont}
+1 [Lokamen lonak zaron.]{lang=vyl enc=vylsemaronenc}
 2 [Nothing to say]{lang=en}
 3 [I walk the oath road.]{lang=en}
-3 [Lokamen lonak zaron.]{lang=vyl}
+3 [Lokamen lonak zaron.]{lang=vyl enc=default}
 
 ***
 
-1 [alathos lokazor.]{lang=vyl .nativefont}
+1 [alathos lokazor.]{lang=vyl enc=vylsemaronenc}
 3 [That one walks.]{lang=en}
-3 [alathos lokazor.]{lang=vyl}
+3 [alathos lokazor.]{lang=vyl enc=default}
 ```
 ````
 
@@ -941,7 +630,7 @@ paragraphs, and each paragraph starts at the top of a fresh column. `rows=`
 sets the characters in a column and `cols=` the columns in a panel:
 
 ````markdown
-```scroll {rows=25 cols=12 lang=tsu map=tengchou .nativefont}
+```scroll {rows=25 cols=12 lang=tsu enc=tsutengchouenc}
 chen teng chou hing
 tan tsou dou rou
 
@@ -949,8 +638,8 @@ gen chei chou tsuen
 ```
 ````
 
-Where the Tantsou note states `writtenIn: { map: tengchou, font: teng-chou }`,
-` ```scroll {rows=25 cols=12 lang=tsu .nativefont} ` is enough.
+The Tantsou encoding document names its language and the `teng-chou` font;
+its Address selects both. A language-only scroll keeps Roman text.
 
 The site, the preview and Foundry set it in columns, in a panel that scrolls
 sideways from the right. The book draws it as panel images from the face's
@@ -1010,38 +699,35 @@ package's own output: the site copies `fonts.css`, the WOFF2 files and the
 licence to `fonts/heroiclands/<version>/` beside the pages and links them from
 every page; Foundry stages the same files; the book adds the TrueType files to
 the typesetter's font search path. A package that has not installed the fonts, or
-whose notes set no text in a face, ships none of it.
+whose notes select no native face, ships none of it.
 
 ## The commands
 
-`package-build transliterate <map> [--lang <language>] [--font <slug>] [--hex] [text..]`
-maps a passage exactly as the build maps a run marked
-`lang=<language> .nativefont map=<map> font=<slug>`. The text is the words given; `-` or none reads standard input.
-`--font` defaults to the language's `writtenIn` face where the mapping is drawn
-in it, and is otherwise required when the mapping lists more than one face.
-`--hex` prints `U+XXXX` code points separated by spaces.
+`package-build encode --enc <name|file> [--in|-i <file>] [--out|-o <file>] [text..]`
+encodes one string argument or the UTF-8 file named by `--in`; `--in -` reads
+standard input. `package-build decode` takes the same options and reads code
+points back through the encoding. An encoding is a document Address, with `doc` as the default type.
+These commands apply the bare encoding. The [browser conversion API](../api.md#browser-conversion)
+uses the same implementation with a language's vocabulary and lexical recovery.
 
-```console
-$ package-build transliterate semaron --lang vyl --hex zaron lonak
-U+F0246 U+F0248 U+F023F U+F023D U+F023C U+0020 U+F023A U+F023D U+F023C U+F0230 U+F0239
-$ package-build transliterate semaron --hex zaron
-U+F0246 U+F0230 U+F023F U+F023D U+F023C
+```sh
+package-build encode --enc vylsemaronenc "zaron lonak"
+package-build encode --enc khelqalezuenc --in roman.txt --out native.txt
+package-build decode --enc khelqalezuenc --in native.txt --out roman.txt
+package-build encode --enc khelzethuenc "⟦MAN⟧"
 ```
 
-The first run writes `zaron` by its exception, and the second, with no
-`--lang`, spells it by the rows.
-
-`package-build lexicon <language> [--map <map>] [--font <slug>] [--derived] [--json]`
-lists every word of the language with its native form under the map, or under
-the language's `writtenIn` script when `--map` is left out, tab-separated: the form,
-the native form, `exception` or `rows`, the class and the gloss. `--derived`
+`package-build lexicon <language> [--enc <name>] [--font <slug>] [--derived] [--json]`
+lists every word of the language with its native form under the encoding, or under
+the explicitly selected encoding document, tab-separated: the form,
+the native form, `own`, `parts`, `rows` or `none`, the class and the gloss. `--derived`
 adds the forms the language's rules derive, each with the word it comes from,
-`--json` prints an array instead, and under a logographic map the third column
+`--json` prints an array instead, and the third column
 is `own`, `parts`, `none` or `ambiguous`.
 
 ```console
-$ package-build lexicon vyl --map semaron | cut -f1,3-
-zaron  exception  n  an oath
+$ package-build lexicon vyl --enc vylsemaronenc | cut -f1,3-
+zaron  own  n  an oath
 lonak  rows  n  a road
 lokathen  rows  v  to walk
 alathos  rows  pron  he, that one
@@ -1055,8 +741,8 @@ thiruthrimar  rows  n  a sworn witness
 
 This builds a small package from nothing: a language, a script, a couplet and a
 poem. It is the guide's own test: every file below is written into a project and
-linted, and the findings printed are the ones the lint reports. The mapping note
-is the one from [mapping notes](#mapping-notes).
+linted, and the findings printed are the ones the lint reports. The sample selects the
+installed Semaron encoding.
 
 Install the fonts, then write the configuration. A package that declares
 dependencies in its configuration fetches their indexes with
@@ -1120,8 +806,7 @@ name: { full: Vylari Language }
 type: skill
 subType: language
 data:
-  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789."
-  writtenIn: { map: semaron, font: semaron-kuriale }
+  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789"
   core: true
   fields:
     - { name: Law, holds: "Oaths, seals and roads." }
@@ -1159,7 +844,7 @@ data:
       gloss: an oath
       concept: oath-noun
       native:
-        - { map: semaron, text: "󰉆󰉈󰈿󰈽󰈼" }
+        - { enc: vylsemaronenc, text: "󰉆󰉈󰈿󰈽󰈼" }
     - { form: lonak, class: n, field: Law, gloss: a road, concept: road-noun }
     - { form: lokathen, class: v, field: Law, gloss: to walk, concept: walk-verb }
     - { form: alathos, class: pron, field: Law, gloss: "he, that one" }
@@ -1167,6 +852,196 @@ data:
 
 The imperial tongue of the sample setting, written in the Semaron script and
 read aloud at its court. The lexicon here is a small sample made for the guide.
+```
+
+**`assets/content/Docs/Vylari_Encoding.md`**
+
+```markdown
+---
+type: doc
+subType: reference
+shortcode: vylsemaronenc
+name:
+  full: Vylari in Semaron
+data:
+  language: vyl
+  font: semaron-kuriale
+  accepts:
+    - a-z
+    - A-Z
+    - 0-9
+    - "'"
+    - "-"
+    - "`"
+    - Á
+    - É
+    - Í
+    - Ó
+    - Ú
+    - á
+    - é
+    - í
+    - ó
+    - ú
+    - ’
+  vowels: aeiouAEIOUáéíóúÁÉÍÓÚ
+  mappings:
+    "0": DIGIT_ZERO
+    "1": DIGIT_ONE
+    "2": DIGIT_TWO
+    "3": DIGIT_THREE
+    "4": DIGIT_FOUR
+    "5": DIGIT_FIVE
+    "6": DIGIT_SIX
+    "7": DIGIT_SEVEN
+    "8": DIGIT_EIGHT
+    "9": DIGIT_NINE
+    a: ANKRON_MIN
+    A: ANKRON_MAJ
+    e: ELZA_MIN
+    E: ELZA_MAJ
+    i: ILTHERA_MIN
+    I: ILTHERA_MAJ
+    o: ORNETHE_MIN
+    O: ORNETHE_MAJ
+    u: ULMERA_MIN
+    U: ULMERA_MAJ
+    b: BRUTHEKA_MIN
+    B: BRUTHEKA_MAJ
+    d: DEKAZU_MIN
+    D: DEKAZU_MAJ
+    f: FUNELA_MIN
+    F: FUNELA_MAJ
+    g: GULMOS_MIN
+    G: GULMOS_MAJ
+    h: HARLEN_MIN
+    H: HARLEN_MAJ
+    j: JA_MIN
+    J: JA_MAJ
+    k: KALPEZA_MIN
+    K: KALPEZA_MAJ
+    l: LIZELA_MIN
+    L: LIZELA_MAJ
+    m: MEZARA_MIN
+    M: MEZARA_MAJ
+    n: NELAMIS_MIN
+    N: NELAMIS_MAJ
+    p: POZERA_MIN
+    P: POZERA_MAJ
+    q: QORETHA_MIN
+    Q: QORETHA_MAJ
+    r: RONETHOS_MIN
+    R: RONETHOS_MAJ
+    s: SIRETHA_MIN
+    S: SIRETHA_MAJ
+    t: TALOTHOS_MIN
+    T: TALOTHOS_MAJ
+    v: VARTHOS_MIN
+    V: VARTHOS_MAJ
+    w: WA_MIN
+    W: WA_MAJ
+    y: YALZEMIS_MIN
+    Y: YALZEMIS_MAJ
+    z: ZARGON_MIN
+    Z: ZARGON_MAJ
+    ch: CHEROLA_MIN
+    Ch: CHEROLA_MAJ
+    sh: SHELMORA_MIN
+    Sh: SHELMORA_MAJ
+    th: THOLERA_MIN
+    Th: THOLERA_MAJ
+    dh: DHANETHE_MIN
+    Dh: DHANETHE_MAJ
+    kh: KHORVENA_MIN
+    Kh: KHORVENA_MAJ
+    gh: GHORMAS_MIN
+    Gh: GHORMAS_MAJ
+    zh: ZHAREVA_MIN
+    Zh: ZHAREVA_MAJ
+    ts: TSALEMA_MIN
+    Ts: TSALEMA_MAJ
+    ng: ENGARIS_MIN
+    Ng: ENGARIS_MAJ
+    .: POINT
+    á:
+      - ANKRON_MIN
+      - STRESS
+    é:
+      - ELZA_MIN
+      - STRESS
+    í:
+      - ILTHERA_MIN
+      - STRESS
+    ó:
+      - ORNETHE_MIN
+      - STRESS
+    ú:
+      - ULMERA_MIN
+      - STRESS
+    Á:
+      - ANKRON_MAJ
+      - STRESS
+    É:
+      - ELZA_MAJ
+      - STRESS
+    Í:
+      - ILTHERA_MAJ
+      - STRESS
+    Ó:
+      - ORNETHE_MAJ
+      - STRESS
+    Ú:
+      - ULMERA_MAJ
+      - STRESS
+  rules:
+    normalization: NFC
+    matching: longest-first
+    case:
+      single-letter: preserve
+      consonant-group: lowercase-or-initial-uppercase
+      other-group-cases: forbidden
+    stress:
+      modifier: STRESS
+      position: after-stressed-vowel
+      printing: false
+      effect: stress-only
+      changes-sound: false
+      changes-length: false
+      vowel-group-position: first-vowel
+    vowel-groups:
+      reading: established
+      allow-splitting: false
+      unrecognized-adjacent-vowels: separate
+      groups:
+        - ai
+        - au
+        - ei
+        - oi
+        - ou
+        - ae
+        - ie
+        - uo
+        - aa
+        - ii
+        - uu
+    diaeresis:
+      allowed: false
+    contextual-mappings:
+      - match: ny
+        before: vowel
+        emit: NYELIS_MIN
+      - match: Ny
+        before: vowel
+        emit: NYELIS_MAJ
+    y:
+      kind: consonant
+      sound: y in yes
+      vowel-reading: false
+    grave-accent:
+      allowed: false
+---
+
+These mappings write the sample vocabulary in Semaron Kuriale. They preserve its letter case and use the font's published glyph codes. Contextual groups take their stated before-vowel spelling, and stress is retained after the accented vowel so that the written distinction can be read back exactly.
 ```
 
 A note with a run. The couplet uses a word the lexicon does not hold:
@@ -1184,7 +1059,7 @@ The lintel over the door of the oath road is cut with a couplet, and the
 stonecutter set the couplet in the script of the court, so that every traveller
 could read it as the court reads it.
 
-[Lokazor lonak thiruthrimar. lokamen zaron.]{lang=vyl font=semaron-kuriale map=semaron .nativefont}
+[Lokazor lonak thiruthrimar. lokamen zaron.]{lang=vyl font=semaron-kuriale enc=vylsemaronenc}
 ```
 
 Linting reports the unknown word, at its first character:
@@ -1205,8 +1080,7 @@ name: { full: Vylari Language }
 type: skill
 subType: language
 data:
-  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789."
-  writtenIn: { map: semaron, font: semaron-kuriale }
+  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789"
   core: true
   fields:
     - { name: Law, holds: "Oaths, seals and roads." }
@@ -1244,7 +1118,7 @@ data:
       gloss: an oath
       concept: oath-noun
       native:
-        - { map: semaron, text: "󰉆󰉈󰈿󰈽󰈼" }
+        - { enc: vylsemaronenc, text: "󰉆󰉈󰈿󰈽󰈼" }
     - { form: lonak, class: n, field: Law, gloss: a road, concept: road-noun }
     - { form: lokathen, class: v, field: Law, gloss: to walk, concept: walk-verb }
     - { form: alathos, class: pron, field: Law, gloss: "he, that one" }
@@ -1255,13 +1129,15 @@ The imperial tongue of the sample setting, written in the Semaron script and
 read aloud at its court. The lexicon here is a small sample made for the guide.
 ```
 
-The lint is now clean, and the conversion can be read. `package-build transliterate`
-prints the code points the build writes for the couplet:
+The lint is now clean, and the conversion can be read. `package-build encode`
+checks a passage through the encoding's rows:
 
-```console
-$ package-build transliterate semaron --lang vyl --hex "Lokazor lonak. lokamen zaron."
-U+F020A U+F023D U+F0239 U+F0230 U+F0246 U+F023D U+F023F U+0020 U+F023A U+F023D U+F023C U+F0230 U+F0239 U+F0268 U+0020 U+F023A U+F023D U+F0239 U+F0230 U+F023B U+F0233 U+F023C U+0020 U+F0246 U+F0248 U+F023F U+F023D U+F023C U+F0268
+```sh
+package-build encode --enc vylsemaronenc "Lokazor lonak. lokamen zaron."
 ```
+
+The build also applies the language's recorded native writings when setting
+its runs.
 
 The site sets the run as
 
@@ -1293,20 +1169,20 @@ beside its translation, and the second keeps the metre that the court keeps, so
 that a line with the wrong count is reported to the author who wrote it.
 
 ```verse {numstep=1 lang=vyl cols=3}
-1 [Lokazor lonak zaron.]{lang=vyl .nativefont}
+1 [Lokazor lonak zaron.]{lang=vyl enc=vylsemaronenc}
 3 [He walks the oath road.]{lang=en}
-3 [Lokazor lonak zaron.]{lang=vyl}
+3 [Lokazor lonak zaron.]{lang=vyl enc=default}
 
-1 [Lokamen lonak zaron.]{lang=vyl .nativefont}
+1 [Lokamen lonak zaron.]{lang=vyl enc=vylsemaronenc}
 2 [Nothing to say]{lang=en}
 3 [I walk the oath road.]{lang=en}
-3 [Lokamen lonak zaron.]{lang=vyl}
+3 [Lokamen lonak zaron.]{lang=vyl enc=default}
 
 ***
 
-1 [alathos lokazor.]{lang=vyl .nativefont}
+1 [alathos lokazor.]{lang=vyl enc=vylsemaronenc}
 3 [That one walks.]{lang=en}
-3 [alathos lokazor.]{lang=vyl}
+3 [alathos lokazor.]{lang=vyl enc=default}
 ```
 
 ```verse {lang=vyl scan=trimeter}
@@ -1349,7 +1225,7 @@ The door is marked with the same words as the lintel. Although Semaron's
 convention is rubric, this Vylari span uses no Markdown emphasis: spans with a
 non-English language cannot contain bold or italic markup.
 
-[Lokazor lonak. zaron.]{lang=vyl font=semaron-kuriale map=semaron .nativefont}
+[Lokazor lonak. zaron.]{lang=vyl font=semaron-kuriale enc=vylsemaronenc}
 ```
 
 Finally, the core report lists what the language still lacks:
@@ -1362,6 +1238,6 @@ Vylari Language (skill-vylarilng): 1 of 4 core concepts have no word
 ```
 
 Everything in this package comes from the guide. A new script follows the same
-steps: a mapping note for its face, `languages` entries for the languages
+steps: an encoding document for its language and font, `languages` entries for the languages
 written in it, a language note with the dictionary, and runs marked with the
 language key and native presentation class.

@@ -807,8 +807,8 @@ export function renderSitePage(
         ...markupAnchorFindings(page.body),
     ])
         secretErrors.push({
-            file: page.file,
-            line: (page.bodyLine ?? 1) + error.line - 1,
+            file: error.file ?? page.file,
+            line: error.file ? error.line : (page.bodyLine ?? 1) + error.line - 1,
             column: error.column,
             message: error.message,
         });
@@ -818,8 +818,8 @@ export function renderSitePage(
         headingErrors.push({ file: page.file, ...error });
     for (const error of footnoteFindings(page.body))
         footnoteErrors.push({
-            file: page.file,
-            line: (page.bodyLine ?? 1) + error.line - 1,
+            file: error.file ?? page.file,
+            line: error.file ? error.line : (page.bodyLine ?? 1) + error.line - 1,
             column: error.column,
             message: error.message,
         });
@@ -1008,11 +1008,20 @@ export function renderPages(pages, options) {
             drawings: maps,
             runs,
         });
+    const externalRunFindings = new Set();
     for (const page of pages) {
         const result = renderOne(page);
         tableErrors.push(...result.tableErrors);
         expressionErrors.push(...result.expressionErrors);
-        secretErrors.push(...result.secretErrors);
+        secretErrors.push(
+            ...result.secretErrors.filter((error) => {
+                if (!error.file || error.file === page.file) return true;
+                const key = JSON.stringify([error.file, error.line, error.column, error.message]);
+                if (externalRunFindings.has(key)) return false;
+                externalRunFindings.add(key);
+                return true;
+            }),
+        );
         captionErrors.push(...result.captionErrors);
         headingErrors.push(...result.headingErrors);
         footnoteErrors.push(...result.footnoteErrors);

@@ -648,6 +648,7 @@ export function buildLinkIndex(
     }
 
     return {
+        config,
         notes,
         frontmatterLinks,
         anchors,

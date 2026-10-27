@@ -227,7 +227,6 @@ types:
             - negation
             - naming
             - emphasis
-            - writtenIn
             - script
         subTypes:
             - social
@@ -367,12 +366,17 @@ types:
             - encounter
     doc:
         data:
+            - language
+            - font
+            - accepts
+            - vowels
+            - mappings
+            - rules
             - culture
             - concepts
             - date
             - author
             - sounds
-            - map
             - metres
         subTypes:
             - rules

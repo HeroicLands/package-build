@@ -5,9 +5,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { encodingContext } from "./helpers/encoding.js";
+
 /**
  * **A mapped run's words are words of its language.** In a run with `lang=`
- * naming a language with a `note`, and `map=`, every word is a lexicon form, a
+ * naming a language with a `note`, and `enc=`, every word is a lexicon form, a
  * word of a name in that language's own register under any tongue but
  * `translation`, or a form one machine-readable rule derives from a lexicon
  * form: a `grammar.plural` row, a `grammar.verbs` pattern, or an affix stating
@@ -80,7 +82,7 @@ const mapping = {
     subType: "reference",
     shortcode: "mapm",
     address: { canonical: "demo-note-doc-mapm" },
-    data: { map: { name: "m", rows: [["th", "þ"]] } },
+    encodingDefinition: { name: "m", rows: [["th", "þ"]] },
 };
 
 const config = {
@@ -92,7 +94,7 @@ const config = {
     },
 };
 
-const ctx = runContext(config, [vylari, dunhari, mapping]);
+const ctx = encodingContext(config, [vylari, dunhari, mapping]);
 
 /** Every finding of a source, as `line:column: message`. */
 const findings = (source: string) =>
@@ -108,101 +110,101 @@ const unknown = (word: string, language = "vyl") =>
 
 describe("a mapped run's words", () => {
     it("accepts a lexicon word", () => {
-        expect(findings("[zaron qux]{lang=vyl map=m font=serif .nativefont}")).toEqual([
+        expect(findings("[zaron qux]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
             `1:8: ${unknown("qux")}`,
         ]);
     });
 
     it("accepts a word of a name in the language's register", () => {
-        expect(
-            findings("[Revothar Baremzator qux]{lang=vyl map=m font=serif .nativefont}"),
-        ).toEqual([`1:22: ${unknown("qux")}`]);
+        expect(findings("[Revothar Baremzator qux]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
+            `1:22: ${unknown("qux")}`,
+        ]);
     });
 
     it("accepts a foreign name the language's own register lists under `other:<tongue>`", () => {
-        expect(findings("[Epistémion qux]{lang=vyl map=m font=serif .nativefont}")).toEqual([
+        expect(findings("[Epistémion qux]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
             `1:13: ${unknown("qux")}`,
         ]);
     });
 
     it("refuses a name only another language's register lists", () => {
-        expect(findings("[Arzen-Thalor zaron]{lang=vyl map=m font=serif .nativefont}")).toEqual([
+        expect(findings("[Arzen-Thalor zaron]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
             `1:2: ${unknown("Arzen")}`,
             `1:8: ${unknown("Thalor")}`,
         ]);
-        expect(findings("[Arzen-Thalor Revothar]{lang=dun map=m font=serif .nativefont}")).toEqual([
+        expect(findings("[Arzen-Thalor Revothar]{lang=dun enc=m font=semaron-kuriale}")).toEqual([
             `1:15: ${unknown("Revothar", "dun")}`,
         ]);
     });
 
     it("does not count a name whose tongue is `translation`", () => {
-        expect(findings("[zaron Arcane]{lang=vyl map=m font=serif .nativefont}")).toEqual([
+        expect(findings("[zaron Arcane]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
             `1:8: ${unknown("Arcane")}`,
         ]);
     });
 
     it("accepts a plural a `grammar.plural` row makes", () => {
-        expect(findings("[marendoi zarons qux]{lang=vyl map=m font=serif .nativefont}")).toEqual([
+        expect(findings("[marendoi zarons qux]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
             `1:18: ${unknown("qux")}`,
         ]);
     });
 
     it("accepts a verb form a `grammar.verbs` pattern makes", () => {
-        expect(
-            findings("[thelmarat thelmarant qux]{lang=vyl map=m font=serif .nativefont}"),
-        ).toEqual([`1:23: ${unknown("qux")}`]);
+        expect(findings("[thelmarat thelmarant qux]{lang=vyl enc=m font=semaron-kuriale}")).toEqual(
+            [`1:23: ${unknown("qux")}`],
+        );
     });
 
     it("accepts a form an affix stating `replaces` makes", () => {
-        expect(
-            findings("[talothenna lonakenna qux]{lang=vyl map=m font=serif .nativefont}"),
-        ).toEqual([`1:23: ${unknown("qux")}`]);
+        expect(findings("[talothenna lonakenna qux]{lang=vyl enc=m font=semaron-kuriale}")).toEqual(
+            [`1:23: ${unknown("qux")}`],
+        );
     });
 
     it("refuses a form an affix stating no `replaces` makes", () => {
-        expect(findings("[talothara talothaara]{lang=vyl map=m font=serif .nativefont}")).toEqual([
+        expect(findings("[talothara talothaara]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
             `1:2: ${unknown("talothara")}`,
             `1:12: ${unknown("talothaara")}`,
         ]);
     });
 
     it("accepts a compound whose parts are known, and locates an unknown part", () => {
-        expect(findings("[zaron-lonak zaron–qux]{lang=vyl map=m font=serif .nativefont}")).toEqual([
+        expect(findings("[zaron-lonak zaron–qux]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
             `1:20: ${unknown("qux")}`,
         ]);
     });
 
     it("reads a word with a catch as one word", () => {
         expect(
-            findings("[k'aralzon k’aralzon k'qux]{lang=vyl map=m font=serif .nativefont}"),
+            findings("[k'aralzon k’aralzon k'qux]{lang=vyl enc=m font=semaron-kuriale}"),
         ).toEqual([`1:22: ${unknown("k'qux")}`]);
     });
 
     it("refuses an unknown word at its first character, once per run", () => {
-        expect(findings("Said [zaron qux, qux]{lang=vyl map=m font=serif .nativefont}.")).toEqual([
+        expect(findings("Said [zaron qux, qux]{lang=vyl enc=m font=semaron-kuriale}.")).toEqual([
             `1:13: ${unknown("qux")}`,
         ]);
     });
 
     it("checks the lines of a div and a verse fence at their words", () => {
         expect(
-            findings("::: {lang=vyl map=m font=serif .nativefont}\nzaron lonak\nlonak qux\n:::\n"),
+            findings("::: {lang=vyl enc=m font=semaron-kuriale}\nzaron lonak\nlonak qux\n:::\n"),
         ).toEqual([`3:7: ${unknown("qux")}`]);
         expect(
             findings(
-                "```verse {lang=vyl map=m font=serif .nativefont}\nzaron\n  thelmaro quxa\n```\n",
+                "```verse {lang=vyl enc=m font=semaron-kuriale}\nzaron\n  thelmaro quxa\n```\n",
             ),
         ).toEqual([`3:12: ${unknown("quxa")}`]);
     });
 
     it("folds case", () => {
         expect(
-            findings("[ZARON Lonak revothar MARENDOI Qux]{lang=vyl map=m font=serif .nativefont}"),
+            findings("[ZARON Lonak revothar MARENDOI Qux]{lang=vyl enc=m font=semaron-kuriale}"),
         ).toEqual([`1:32: ${unknown("Qux")}`]);
     });
 
     it("checks language-only Roman and explicitly native runs alike", () => {
-        expect(findings("[qux]{lang=vyl} [qux]{lang=vyl map=m font=serif .nativefont}")).toEqual([
+        expect(findings("[qux]{lang=vyl} [qux]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
             `1:2: ${unknown("qux")}`,
             `1:18: ${unknown("qux")}`,
         ]);
@@ -211,17 +213,17 @@ describe("a mapped run's words", () => {
     it("does not check a language with no `note`", () => {
         expect(
             findings(
-                "[qux]{lang=khel map=m font=serif .nativefont} [qux]{lang=vyl map=m font=serif .nativefont}",
+                "[qux]{lang=khel enc=m font=semaron-kuriale} [qux]{lang=vyl enc=m font=semaron-kuriale}",
             ),
-        ).toEqual([`1:48: ${unknown("qux")}`]);
+        ).toEqual([`1:46: ${unknown("qux")}`]);
     });
 
     it("uses rows without a lexicon for an explicit bare BCP 47 language", () => {
         expect(
             findings(
-                "[qux]{map=m lang=und font=serif .nativefont} [qux]{lang=vyl map=m font=serif .nativefont}",
+                "[qux]{enc=m lang=und font=semaron-kuriale} [qux]{lang=vyl enc=m font=semaron-kuriale}",
             ),
-        ).toEqual([`1:47: ${unknown("qux")}`]);
+        ).toEqual([`1:45: ${unknown("qux")}`]);
     });
 });
 
@@ -236,7 +238,7 @@ describe("a word's declared variants", () => {
             ],
         },
     };
-    const variantCtx = runContext(config, [variantSpeech, dunhari, mapping]);
+    const variantCtx = encodingContext(config, [variantSpeech, dunhari, mapping]);
     const variantFindings = (source: string) =>
         scanRuns(source, variantCtx).errors.map(
             (error: { line: number; column: number; message: string }) =>
@@ -245,19 +247,19 @@ describe("a word's declared variants", () => {
 
     it("accepts a variant as written", () => {
         expect(
-            variantFindings("[zenothatora zenothazor]{lang=vyl map=m font=serif .nativefont}"),
+            variantFindings("[zenothatora zenothazor]{lang=vyl enc=m font=semaron-kuriale}"),
         ).toEqual([]);
     });
 
     it("still refuses a near miss of a variant", () => {
-        expect(variantFindings("[zenothazir]{lang=vyl map=m font=serif .nativefont}")).toEqual([
+        expect(variantFindings("[zenothazir]{lang=vyl enc=m font=semaron-kuriale}")).toEqual([
             `1:2: ${unknown("zenothazir")}`,
         ]);
     });
 
     it("gives a variant the forms its word's class takes", () => {
         expect(
-            variantFindings("[zenothazors thelmo thelmant]{lang=vyl map=m font=serif .nativefont}"),
+            variantFindings("[zenothazors thelmo thelmant]{lang=vyl enc=m font=semaron-kuriale}"),
         ).toEqual([]);
     });
 

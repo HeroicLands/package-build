@@ -318,12 +318,24 @@ function reportUnrenderable(source, definitions, opts, original) {
     if (!findings) return;
     const file = opts.file ? { file: opts.file } : {};
     /**
-     * @param {{line: number, column?: number}} position - Where it is.
+     * @param {{file?: string, line: number, column?: number}} position - Where it is.
      * @param {"warning"|"error"} severity - Which level.
      * @param {string} message - What is wrong.
      * @returns {void}
      */
     const report = (position, severity, message) => {
+        if (
+            position.file &&
+            position.file !== opts.file &&
+            findings.some(
+                (one) =>
+                    one.file === position.file &&
+                    one.line === position.line &&
+                    one.column === position.column &&
+                    one.message === message,
+            )
+        )
+            return;
         findings.push({ ...file, ...position, severity, message });
     };
 
@@ -357,7 +369,13 @@ function reportUnrenderable(source, definitions, opts, original) {
         ...scanRuns(source, opts.runs).errors,
         ...markupAnchorFindings(source),
     ])
-        report(linePosition(error.line, error.column, opts), "error", error.message);
+        report(
+            error.file ?
+                { file: error.file, line: error.line, column: error.column }
+            :   linePosition(error.line, error.column, opts),
+            "error",
+            error.message,
+        );
     for (const error of scanFigures(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
     // An image sharing its paragraph with other text, or an address or title
@@ -450,7 +468,7 @@ function reportUnrenderable(source, definitions, opts, original) {
  *   finding.
  * @param {import("./content-scripts.mjs").RunContext} [opts.runs] - The
  *   package's languages, faces and maps, which text marked with `lang=`,
- *   `font=` and `map=` is checked against and set by.
+ *   `font=` and `enc=` is checked against and set by.
  * @param {number} [opts.bodyLine] - The 1-based file line the body starts on, so
  *   a finding's line is the file's rather than the body's.
  * @param {number} [opts.bodyColumn] - The 1-based column the body starts at.
@@ -1413,6 +1431,16 @@ function renderInline(token, ctx) {
                 out.push(inlineRaw(child.content));
                 break;
             case "span_open": {
+                if (["em", "strong"].includes(child.tag)) {
+                    const classes = (child.attrGet?.("class") ?? "").split(/\s+/);
+                    out.push(
+                        classes.includes("emph-rubric") ?
+                            `#text(fill: ${ctx.textFill ?? "book-rubric"})[`
+                        : classes.includes("emph-overline") ? "#overline["
+                        : `#${child.tag === "em" ? "emph" : "strong"}[`,
+                    );
+                    break;
+                }
                 const sign = renderGlyph(children, i, ctx) ?? renderCartouche(children, i, ctx);
                 if (sign) {
                     out.push(sign.typst);

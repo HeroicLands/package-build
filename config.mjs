@@ -70,6 +70,7 @@ const SECTION_KEYS = [
     "baseStyles",
     "manifest",
     "manifestFlags",
+    "converterData",
     "schema",
     "clean",
     "lang",
@@ -338,6 +339,28 @@ function normalizeManifest(value) {
     return Object.freeze(structuredClone(input));
 }
 
+/** The optional converter artifact is a JSON file beneath the package stage. */
+function normalizeConverterData(value) {
+    if (value === undefined) return null;
+    const declared = requireNonEmptyString(value, "packageBuild.converterData");
+    const pieces = declared.split(/[\\/]/);
+    if (
+        path.posix.isAbsolute(declared) ||
+        path.win32.isAbsolute(declared) ||
+        pieces.includes("..") ||
+        pieces.includes("") ||
+        !declared.endsWith(".json") ||
+        declared.includes("\0") ||
+        ["module.json", "system.json", "package.json"].includes(declared)
+    ) {
+        fail(
+            "packageBuild.converterData",
+            "must name a JSON artifact within the build stage, such as data/converter.json",
+        );
+    }
+    return pieces.join("/");
+}
+
 /**
  * Normalize a setting that is one glob or several.
  *
@@ -565,6 +588,7 @@ function normalizeExceptions(value, field, where) {
  *                                   named first in the manifest's `styles`.
  * @property {Readonly<Record<string, unknown>>} manifest  The manifest
  *                                   specification, emitted as declared.
+ * @property {string|null} converterData  Optional JSON path relative to the build stage.
  * @property {string|null} manifestFlags  Module to load a `flags` function
  *                                   from, for namespaced flags a repository has
  *                                   to compute. `null` when it declares none.
@@ -938,6 +962,7 @@ export function resolvePackageBuildConfig(shared) {
                     shared.rootDir,
                 ),
         manifest: normalizeManifest(section.manifest),
+        converterData: normalizeConverterData(section.converterData),
         manifestFlags:
             section.manifestFlags === undefined ?
                 null

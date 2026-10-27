@@ -17,7 +17,7 @@
  * each one draws — in its `fonts.json`, and this module reads them from the
  * **consuming package's** install.
  *
- * package-build declares no dependency on `@heroiclands/fonts` in any field:
+ * package-build declares no runtime dependency on `@heroiclands/fonts`:
  * the fonts package depends on package-build to build, so the consumer adds it
  * as a devDependency of its own and package-build resolves it from the
  * consumer's root. Resolving from this module's own location would find
@@ -42,6 +42,7 @@ export const FONTS_MANIFEST = "fonts.json";
  * @typedef {object} FaceCodepoint
  * @property {string} codepoint - `U+` and the hexadecimal code point.
  * @property {string} glyph - The glyph's name in the face.
+ * @property {string} [code] - The font's case-sensitive glyph code.
  * @property {string} kind - What it is: `letter`, `numeral`, `mark` and so on.
  */
 

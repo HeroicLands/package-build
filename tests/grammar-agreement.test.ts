@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { encodingContext } from "./helpers/encoding.js";
+
 /**
  * **Agreement and participles are two optional rules a language states in
  * `data.grammar`, and the mapped-run word check accepts the forms they
@@ -19,9 +21,9 @@
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
 
-import { runContext, scanRuns } from "../engine/content-scripts.mjs";
+import { scanRuns } from "../engine/content-scripts.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
-import { lexiconEntries } from "../engine/map-lexicon.mjs";
+import { lexiconEntries } from "../engine/encoding-lexicon.mjs";
 import { foldWord, lexiconWords } from "../engine/word-forms.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -83,7 +85,7 @@ const mapping = {
     subType: "reference",
     shortcode: "mapm",
     address: { canonical: "demo-note-doc-mapm" },
-    data: { map: { name: "m", rows: [["th", "þ"]] } },
+    encodingDefinition: { name: "m", rows: [["th", "þ"]] },
 };
 
 const config = {
@@ -92,12 +94,12 @@ const config = {
 };
 
 const stated = vylari({ agreement: AGREEMENT, participles: PARTICIPLES });
-const withKeys = runContext(config, [stated, mapping]);
-const withoutKeys = runContext(config, [vylari({}), mapping]);
+const withKeys = encodingContext(config, [stated, mapping]);
+const withoutKeys = encodingContext(config, [vylari({}), mapping]);
 
 /** The words of a list a context's check refuses. */
 const refused = (words: string[], ctx = withKeys) =>
-    scanRuns(`[${words.join(" ")}]{lang=vyl map=m font=serif .nativefont}`, ctx).errors.map(
+    scanRuns(`[${words.join(" ")}]{lang=vyl enc=m font=semaron-kuriale}`, ctx).errors.map(
         (error: { message: string }) => error.message.match(/^`([^`]+)`/)?.[1],
     );
 
@@ -159,7 +161,7 @@ describe("what the rules do not accept", () => {
 });
 
 describe("`package-build lexicon --derived`", () => {
-    const listed = lexiconEntries(withKeys, { lang: "vyl", map: "m", derived: true });
+    const listed = lexiconEntries(withKeys, { lang: "vyl", enc: "m", derived: true });
 
     it("lists each derived form with the lexicon word it comes from", () => {
         if (!("entries" in listed)) throw new Error(listed.problem);
@@ -183,7 +185,7 @@ describe("`package-build lexicon --derived`", () => {
     });
 
     it("lists the lexicon words alone without the flag", () => {
-        const plain = lexiconEntries(withKeys, { lang: "vyl", map: "m" });
+        const plain = lexiconEntries(withKeys, { lang: "vyl", enc: "m" });
         if (!("entries" in plain)) throw new Error(plain.problem);
         expect(plain.entries.map((entry: any) => entry.form)).toEqual(
             WORDS.map((word) => word.form),

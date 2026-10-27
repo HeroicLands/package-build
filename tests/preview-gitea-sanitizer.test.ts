@@ -100,7 +100,7 @@ A line.
 3 [Another]{lang=en}
 \`\`\`
 
-\`\`\`scroll {rows=3 cols=2 lang=tsu map=tengchou}
+\`\`\`scroll {rows=3 cols=2 lang=tsu enc=teng-chou}
 chen teng chou
 
 hing

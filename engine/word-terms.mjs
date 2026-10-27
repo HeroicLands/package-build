@@ -106,28 +106,28 @@ export const WORD_SOURCE_FIELDS = Object.freeze([
  */
 export const WORD_NATIVE_FIELDS = Object.freeze([
     Object.freeze({
-        name: "map",
+        name: "enc",
         kind: "string",
         required: true,
-        shape: "a mapping note's `data.map.name`",
-        describe: "The map the native form is written for.",
+        shape: "an encoding document Address",
+        describe: "The encoding the native form is written for.",
     }),
     Object.freeze({
         name: "font",
         kind: "string",
-        shape: "a face the map lists",
+        shape: "a face the encoding lists",
         describe:
-            "The one face the native form is for; unstated, it is for every face the map lists, " +
+            "The one face the native form is for; unstated, it is for every face the encoding lists, " +
             "and a form stated for a face wins over it there.",
     }),
     Object.freeze({
         name: "text",
         kind: "string",
         required: true,
-        shape: "the word in the script, as the map's characters",
+        shape: "the word in the script, as the encoding's characters",
         describe:
-            "The word as the script writes it, where the map's rows would write it otherwise, " +
-            "or as a logographic map writes it.",
+            "The word as the script writes it, where the encoding's rows would write it otherwise, " +
+            "or by an explicit native spelling.",
     }),
 ]);
 
@@ -253,17 +253,16 @@ export const WORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "native",
         kind: "list",
-        shape: "a list of `{ map, font?, text }`",
+        shape: "a list of `{ enc, font?, text }`",
         entries: Object.freeze({
             kind: "map",
-            shape: "a map — `{ map, font?, text }`",
+            shape: "a map — `{ enc, font?, text }`",
             fields: WORD_NATIVE_FIELDS,
         }),
         describe:
-            "The word's native form under a map. Under a map that spells by its rows it is " +
-            "stated only where the rows spell the word differently, and the word's derived " +
-            "forms are spelled by the rows; under a logographic map it is the word's writing, " +
-            "which its derived forms and the words built on it are written from.",
+            "The word's own writing for an encoding and optional face. It precedes complete " +
+            "parts and the encoding's rows; an entry for a face precedes an unqualified entry. " +
+            "Derived forms can use the stem and explicitly written grammatical endings.",
     }),
 ]);
 
@@ -426,14 +425,14 @@ export const AFFIX_FIELDS = Object.freeze([
     Object.freeze({
         name: "native",
         kind: "list",
-        shape: "a list of `{ map, font?, text }`",
+        shape: "a list of `{ enc, font?, text }`",
         entries: Object.freeze({
             kind: "map",
-            shape: "a map — `{ map, font?, text }`",
+            shape: "a map — `{ enc, font?, text }`",
             fields: WORD_NATIVE_FIELDS,
         }),
         describe:
-            "The affix's writing under a logographic map, which a word whose `built` names the " +
+            "The affix's writing under an encoding, which a word whose `built` names the " +
             "affix is written with.",
     }),
 ]);

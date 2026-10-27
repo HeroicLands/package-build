@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { encodingContext } from "./helpers/encoding.js";
+
 /**
  * **A replacing suffix attaches to the word classes its `attachesTo` names**,
  * by their base, and to every class where the affix states none. The mapped-run
@@ -16,9 +18,9 @@
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
 
-import { runContext, scanRuns } from "../engine/content-scripts.mjs";
+import { scanRuns } from "../engine/content-scripts.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
-import { lexiconEntries } from "../engine/map-lexicon.mjs";
+import { lexiconEntries } from "../engine/encoding-lexicon.mjs";
 import { derivedForms } from "../engine/word-forms.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -52,7 +54,7 @@ const mapping = {
     subType: "reference",
     shortcode: "mapm",
     address: { canonical: "demo-note-doc-mapm" },
-    data: { map: { name: "m", rows: [["th", "þ"]] } },
+    encodingDefinition: { name: "m", rows: [["th", "þ"]] },
 };
 
 const config = {
@@ -60,11 +62,11 @@ const config = {
     languages: { vyl: { tag: "art-x-vyl", note: "skill-vylarilng" } },
 };
 
-const ctx = runContext(config, [vylari(AFFIXES), mapping]);
+const ctx = encodingContext(config, [vylari(AFFIXES), mapping]);
 
 /** The words of a list the check refuses. */
 const refused = (words: string[]) =>
-    scanRuns(`[${words.join(" ")}]{lang=vyl map=m font=serif .nativefont}`, ctx).errors.map(
+    scanRuns(`[${words.join(" ")}]{lang=vyl enc=m font=semaron-kuriale}`, ctx).errors.map(
         (error: { message: string }) => error.message.match(/^`([^`]+)`/)?.[1],
     );
 
@@ -89,7 +91,7 @@ describe("a suffix stating `attachesTo`", () => {
     });
 
     it("is what `lexicon --derived` lists", () => {
-        const listed = lexiconEntries(ctx, { lang: "vyl", map: "m", derived: true });
+        const listed = lexiconEntries(ctx, { lang: "vyl", enc: "m", derived: true });
         if (!("entries" in listed)) throw new Error(listed.problem);
         const derived = listed.entries.filter((entry: any) => entry.from);
         const pairs = derived.map((entry: any) => `${entry.from}>${entry.form}`);

@@ -36,8 +36,7 @@ import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventCalendars, eventRows } from "./
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { NAME_COLUMNS, namesRows } from "./name-rows.mjs";
 import { RUN_COLUMNS, ownerOf, runsRows } from "./run-rows.mjs";
-import { MAP_COLUMNS, mapRows } from "./text-maps.mjs";
-import { NATIVE_COLUMNS, nativeRows } from "./map-lexicon.mjs";
+import { NATIVE_COLUMNS, nativeRows } from "./encoding-lexicon.mjs";
 import {
     GLOSSARY_COLUMNS,
     AFFIX_COLUMNS,
@@ -217,6 +216,31 @@ export function findSqlBlocks(markdown) {
     return blocks;
 }
 
+/** Keep encoding source keys as case-sensitive values in the SQL projection.
+ * The canonical index retains its authored mapping object; DuckDB structs
+ * cannot distinguish a and A as field names.
+ */
+function sqlRecord(record) {
+    const mappings = record?.data?.mappings;
+    if (
+        record?.type !== "doc" ||
+        !mappings ||
+        typeof mappings !== "object" ||
+        Array.isArray(mappings)
+    )
+        return record;
+    return {
+        ...record,
+        data: {
+            ...record.data,
+            mappings: Object.entries(mappings).map(([from, value]) => ({
+                from,
+                codes: Array.isArray(value) ? value : [value],
+            })),
+        },
+    };
+}
+
 /**
  * Open a DuckDB view over the content index.
  *
@@ -274,7 +298,7 @@ export async function openNotesDatabase(
     const base = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
     fs.mkdirSync(base, { recursive: true });
     const jsonl = path.join(base, "notes.jsonl");
-    const encoded = records.map((record) => encodeAddresses(record));
+    const encoded = records.map((record) => sqlRecord(encodeAddresses(record)));
 
     const instance = await DuckDBInstance.create(":memory:");
     const connection = await instance.connect();
@@ -284,7 +308,7 @@ export async function openNotesDatabase(
     } catch (err) {
         // DuckDB names the clashing key but not the notes that spell it.
         if (/Duplicate name ".*" in struct/.test(String(err?.message))) {
-            const lines = keyCaseCollisionDiagnostics(records, { contentBase });
+            const lines = keyCaseCollisionDiagnostics(encoded, { contentBase });
             if (lines.length) {
                 const located = new Error(lines.join("\n"));
                 /** @type {any} */ (located).located = true;
@@ -296,7 +320,7 @@ export async function openNotesDatabase(
     await createEventRelation(connection, path.join(base, "events.jsonl"), encoded, "", audience);
     await createNameRelation(connection, path.join(base, "names.jsonl"), encoded, "", audience);
     await createRunRelation(connection, path.join(base, "runs.jsonl"), encoded, "", audience);
-    await createMapRelation(connection, path.join(base, "maps.jsonl"), encoded, "", audience);
+    await createNativeRelation(connection, path.join(base, "natives.jsonl"), encoded, "", audience);
     await createWordRelations(connection, path.join(base, "notes"), encoded, "", audience);
 
     // One schema per declared dependency, so `FROM sohl.notes` reads the notes
@@ -317,7 +341,7 @@ export async function openNotesDatabase(
             .readFileSync(dep.file, "utf8")
             .split("\n")
             .filter((line) => line.trim())
-            .map((line) => flattenPublishedAddresses(JSON.parse(line)));
+            .map((line) => sqlRecord(flattenPublishedAddresses(JSON.parse(line))));
         await createRelations(connection, flat, depRecords, `${schema}.`, audience);
         await createEventRelation(
             connection,
@@ -340,9 +364,9 @@ export async function openNotesDatabase(
             `${schema}.`,
             audience,
         );
-        await createMapRelation(
+        await createNativeRelation(
             connection,
-            flat.replace(/\.jsonl$/, "-maps.jsonl"),
+            flat.replace(/\.jsonl$/, "-natives.jsonl"),
             depRecords,
             `${schema}.`,
             audience,
@@ -382,7 +406,6 @@ export async function openNotesDatabase(
         "events",
         "names",
         "runs",
-        "maps",
         "words",
         "affixes",
         "fields",
@@ -643,7 +666,7 @@ async function createNameRelation(connection, file, records, prefix, audience) {
 
 /**
  * Create the `runs` relation: one row per span, div and verse fence an own
- * note marks with `lang=`, `font=` or `map=`, with the columns
+ * note marks with `lang=`, `font=` or `enc=`, with the columns
  * {@link module:engine/run-rows.RUN_COLUMNS} names. The columns are declared
  * rather than inferred, so every value stays a string and none becomes a
  * struct key whose case DuckDB folds.
@@ -665,30 +688,12 @@ async function createRunRelation(connection, file, records, prefix, audience) {
     ]);
 }
 
-/**
- * Create the `maps` relation: one row per row of a mapping note's
- * `data.map`, with the columns {@link module:engine/text-maps.MAP_COLUMNS}
- * names; and the `natives` relation, one row per native form of a language's
- * word, with the columns {@link module:engine/map-lexicon.NATIVE_COLUMNS}
- * names. A row is a row here, never a struct key, so `A` and `a` are two rows.
- *
- * @param {object} connection - An open DuckDB connection.
- * @param {string} file - Where to write the rows.
- * @param {object[]} records - Index records, every Address a string.
- * @param {string} prefix - A schema to qualify the relation name with.
- * @param {"all"|"public"} audience - Whether to leave out GM notes.
- * @returns {Promise<void>}
- */
-async function createMapRelation(connection, file, records, prefix, audience) {
-    const rows = mapRows(
-        audience === "public" ? records.filter((record) => !isGmNote(record)) : records,
-        ownerOf,
-    );
-    await createTypedRelation(connection, file, `${prefix}maps`, rows, MAP_COLUMNS, ["row"]);
+/** Project authored native entries into the natives SQL relation. */
+async function createNativeRelation(connection, file, records, prefix, audience) {
     const visible = audience === "public" ? records.filter((record) => !isGmNote(record)) : records;
     await createTypedRelation(
         connection,
-        file.replace(/maps\.jsonl$/, "natives.jsonl"),
+        file,
         `${prefix}natives`,
         nativeRows(visible),
         NATIVE_COLUMNS,

@@ -3,8 +3,8 @@
 import { describe, expect, it } from "vitest";
 import { runContext, scanRuns, renderRuns } from "../engine/content-scripts.mjs";
 import { checkLanguageData } from "../engine/language-data.mjs";
-import { languageNoteFindings } from "../engine/map-lexicon.mjs";
-import { compileMap } from "../engine/text-maps.mjs";
+import { languageNoteFindings } from "../engine/encoding-lexicon.mjs";
+import { compileTestEncoding } from "./helpers/encoding.js";
 
 const config = {
     contentPackage: "demo",
@@ -22,20 +22,25 @@ const language = (shortcode: string, roman?: string) => ({
     shortcode,
     data: roman === undefined ? {} : { roman },
 });
-const records = [language("vyl", "kaKàÀ.1"), language("other", "x,"), language("silent", "")];
-const context = (notes = records) => ({ ...runContext(config, notes), wordBooks: new Map() });
+const records = [language("vyl", "kaKàÀ1"), language("other", "x"), language("silent", "")];
+const context = (notes = records) => ({
+    ...runContext(config, notes),
+    encodingFindings: [],
+    wordBooks: new Map(),
+});
 const errors = (source: string, ctx = context()) => scanRuns(source, ctx).errors;
-const comma = (source: string, ctx = context()) =>
-    errors(source, ctx).filter((error) => error.message.includes("U+002C"));
+const semicolon = (source: string, ctx = context()) =>
+    errors(source, ctx).filter((error) => error.message.includes("U+003B"));
 
 describe("a language's literal Roman characters", () => {
-    it("rejects comma in a Roman span at the original source character", () => {
-        const source = "Before [ka,]{lang=vyl} after.";
-        expect(comma(source)).toEqual([
+    it("rejects semicolon in a Roman span at the original source character", () => {
+        const source = "Before [ka;]{lang=vyl} after.";
+        expect(semicolon(source)).toEqual([
             {
                 line: 1,
-                column: source.indexOf(",") + 1,
-                message: "`,` (U+002C) is not in `vyl`'s `data.roman` inventory",
+                column: source.indexOf(";") + 1,
+                message:
+                    "`;` (U+003B) is not standard Roman punctuation; write `,` for a pause within a sentence or `.` between complete sentences",
             },
         ]);
     });
@@ -45,18 +50,20 @@ describe("a language's literal Roman characters", () => {
         expect(errors(source).map((error) => error.column)).toEqual([3, 6]);
     });
     it("uses the same inventory for a configured BCP 47 tag", () => {
-        expect(comma("[ka,]{lang=art-x-vyl}")).toHaveLength(1);
-        expect(comma("::: {lang=ART-x-VYL}\nka,\n:::")).toHaveLength(1);
+        expect(semicolon("[ka;]{lang=art-x-vyl}")).toHaveLength(1);
+        expect(semicolon("::: {lang=ART-x-VYL}\nka;\n:::")).toHaveLength(1);
         expect(errors("[An external language, really!]{lang=en}")).toEqual([]);
         expect(errors("[?!]{lang=zxx}")).toEqual([]);
     });
     it("respects the nearest nested language and checks inherited children once", () => {
-        const source = "[ka [x,]{lang=other} [ka,]{.name}]{lang=vyl}";
-        expect(comma(source).map((error) => error.column)).toEqual([source.lastIndexOf(",") + 1]);
+        const source = "[ka [x,]{lang=other} [ka;]{.name}]{lang=vyl}";
+        expect(semicolon(source).map((error) => error.column)).toEqual([
+            source.lastIndexOf(";") + 1,
+        ]);
     });
     it("checks paragraphs, verse and scroll text with the same character rule", () => {
-        expect(comma("::: {lang=vyl}\nka,\n:::")).toHaveLength(1);
-        expect(comma("```verse {lang=vyl}\nka,\n```")).toHaveLength(1);
+        expect(semicolon("::: {lang=vyl}\nka;\n:::")).toHaveLength(1);
+        expect(semicolon("```verse {lang=vyl}\nka;\n```")).toHaveLength(1);
     });
     it("excludes column numbers, indent periods and stanza separators", () => {
         const source =
@@ -65,55 +72,55 @@ describe("a language's literal Roman characters", () => {
         expect(errors("```verse {lang=vyl}\n...ka.\n***\nka.\n```")).toEqual([]);
     });
     it("checks escaped punctuation at the punctuation, without accepting its escape", () => {
-        const source = "[ka\\,]{lang=vyl}";
-        expect(comma(source).map((error) => error.column)).toEqual([source.indexOf(",") + 1]);
+        const source = "[ka\\;]{lang=vyl}";
+        expect(semicolon(source).map((error) => error.column)).toEqual([source.indexOf(";") + 1]);
         expect(errors("::: {lang=vyl}\nka.\\\nka.\n:::")).toEqual([]);
     });
-    it("requires NFC source spelling and keeps UTF-16 source columns", () => {
-        const source = "😀 [ka\u0300,]{lang=vyl}";
+    it("requires NFC source spelling and counts diagnostic columns in code points", () => {
+        const source = "😀 [ka\u0300;]{lang=vyl}";
         expect(errors(source)).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     line: 1,
-                    column: source.indexOf("a") + 1,
+                    column: [...source.slice(0, source.indexOf("a"))].length + 1,
                     message: expect.stringContaining("NFC"),
                 }),
                 expect.objectContaining({
                     line: 1,
-                    column: source.indexOf(",") + 1,
-                    message: expect.stringContaining("U+002C"),
+                    column: [...source.slice(0, source.indexOf(";"))].length + 1,
+                    message: expect.stringContaining("U+003B"),
                 }),
             ]),
         );
     });
     it.each([
-        "[[doc-target#anchor|ka,]]{lang=vyl}",
-        "[[doc-target#anchor|ka,]]{lang=art-x-vyl}",
-        "[[ka,](/target-with-comma,/)]{lang=vyl}",
-        "[@UUID[Compendium.demo.entries.Item.id]{ka,}]{lang=vyl}",
+        "[[doc-target#anchor|ka;]]{lang=vyl}",
+        "[[doc-target#anchor|ka;]]{lang=art-x-vyl}",
+        "[[ka;](/target-with-comma,/)]{lang=vyl}",
+        "[@UUID[Compendium.demo.entries.Item.id]{ka;}]{lang=vyl}",
     ])("checks only the visible linked label in %s", (source) => {
-        expect(comma(source).map((error) => error.column)).toEqual([source.indexOf(",") + 1]);
+        expect(semicolon(source).map((error) => error.column)).toEqual([source.indexOf(";") + 1]);
     });
     it("checks raw labels in inherited language runs and excludes link syntax", () => {
-        const source = "[ka [[doc-target|ka,]]{lang=vyl} ka.]{lang=vyl}";
-        expect(comma(source).map((error) => error.column)).toEqual([source.indexOf(",") + 1]);
+        const source = "[ka [[doc-target|ka;]]{lang=vyl} ka.]{lang=vyl}";
+        expect(semicolon(source).map((error) => error.column)).toEqual([source.indexOf(";") + 1]);
         expect(errors("[[doc-target-with-comma,|ka.]]{lang=vyl}")).toEqual([]);
     });
     it("rejects invalid input before a map or lexicon can conceal it", () => {
         const mapped = {
             ...context(),
-            maps: new Map([
-                ["m", compileMap({ name: "m", rows: [["ka,", "◇"]], fonts: ["face"] })],
+            encodings: new Map([
+                ["m", compileTestEncoding({ name: "m", rows: [["ka;", "◇"]], fonts: ["face"] })],
             ]),
             faces: new Map([
                 ["face", { slug: "face", family: "Face", class: "face", draws: new Set([0x25c7]) }],
             ]),
         };
-        expect(comma("[ka,]{lang=vyl font=face map=m .nativefont}", mapped)).toHaveLength(1);
-        expect(comma("[ka,]{lang=vyl font=mono}")).toHaveLength(1);
+        expect(semicolon("[ka;]{lang=vyl font=face enc=m}", mapped)).toHaveLength(1);
+        expect(semicolon("[ka;]{lang=vyl font=mono}")).toHaveLength(1);
     });
     it("checks source even when native font resolution already failed", () => {
-        expect(comma("[ka,]{lang=vyl .nativefont}")).toHaveLength(1);
+        expect(semicolon("[ka;]{lang=vyl}")).toHaveLength(1);
     });
     it("keeps direct native signs separate from the Roman source inventory", () => {
         const sign = "\u{F0200}";
@@ -126,22 +133,29 @@ describe("a language's literal Roman characters", () => {
                         slug: "face",
                         family: "Face",
                         class: "face",
-                        draws: new Set([0xf0200, 0x2c]),
+                        draws: new Set([0xf0200, 0x3b]),
                     },
                 ],
             ]),
         };
-        expect(errors(`[${sign}]{lang=vyl font=face .nativefont}`, ctx)).toEqual([]);
-        expect(errors(`[[doc-target|${sign}]]{lang=vyl font=face .nativefont}`, ctx)).toEqual([]);
+        for (const source of [
+            `[${sign}]{lang=vyl font=face}`,
+            `[[doc-target|${sign}]]{lang=vyl font=face}`,
+        ])
+            expect(errors(source, ctx)).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ message: expect.stringContaining("⟦U+F0200⟧") }),
+                ]),
+            );
         expect(errors(`[${sign}]{lang=vyl}`, ctx)).toEqual([
             expect.objectContaining({ message: expect.stringContaining("U+F0200") }),
         ]);
-        expect(errors("[\u{F0201}]{lang=vyl font=face .nativefont}", ctx)).toEqual(
+        expect(errors("[\u{F0201}]{lang=vyl font=face}", ctx)).toEqual(
             expect.arrayContaining([
-                expect.objectContaining({ message: expect.stringContaining("not drawn") }),
+                expect.objectContaining({ message: expect.stringContaining("⟦U+F0201⟧") }),
             ]),
         );
-        expect(comma("[,]{lang=vyl font=face .nativefont}", ctx)).toHaveLength(1);
+        expect(semicolon("[;]{lang=vyl font=face}", ctx)).toHaveLength(1);
     });
     it("checks native scroll source while excluding valid emphasis delimiters", () => {
         const ctx = {
@@ -153,22 +167,28 @@ describe("a language's literal Roman characters", () => {
                         slug: "vertical",
                         family: "Vertical",
                         class: "vertical",
-                        draws: new Set([0x6b, 0x61, 0x2e, 0x2c]),
+                        draws: new Set([0x6b, 0x61, 0x2e, 0x3b]),
                     },
+                ],
+            ]),
+            encodings: new Map([
+                [
+                    "vertical",
+                    compileTestEncoding({ name: "vertical", fonts: ["vertical"], rows: [] }),
                 ],
             ]),
             directions: new Map([["vertical", "vertical-rl"]]),
         };
-        expect(comma("```scroll {lang=vyl font=vertical .nativefont}\nka,\n```", ctx)).toHaveLength(
-            1,
-        );
         expect(
-            errors("```scroll {lang=vyl font=vertical .nativefont}\nka *ka.*\n```", ctx),
+            semicolon("```scroll {lang=vyl enc=vertical font=vertical}\nka;\n```", ctx),
+        ).toHaveLength(1);
+        expect(
+            errors("```scroll {lang=vyl enc=vertical font=vertical}\nka *ka.*\n```", ctx),
         ).toEqual([]);
     });
     it("does not inherit a family inventory or admit other Unicode letters", () => {
-        const parent = language("parent", "kx.");
-        const child = { ...language("vyl", "ka."), data: { roman: "ka.", family: "skill-parent" } };
+        const parent = language("parent", "kx");
+        const child = { ...language("vyl", "ka"), data: { roman: "ka", family: "skill-parent" } };
         expect(
             errors("[xЖ]{lang=vyl}", context([child, parent])).map((error) => error.message),
         ).toEqual([expect.stringContaining("U+0078"), expect.stringContaining("U+0416")]);
@@ -177,10 +197,10 @@ describe("a language's literal Roman characters", () => {
         const sign = "\u{F0200}";
         const ctx = {
             ...context(),
-            maps: new Map([
+            encodings: new Map([
                 [
                     "notation",
-                    compileMap({
+                    compileTestEncoding({
                         name: "notation",
                         fonts: ["face"],
                         rows: [
@@ -198,7 +218,7 @@ describe("a language's literal Roman characters", () => {
                 ],
             ]),
         };
-        const source = "[16-024:16-024\\*16-024]{lang=zxx map=notation font=face .nativefont}";
+        const source = "[16-024:16-024\\*16-024]{lang=zxx enc=notation font=face}";
         expect(errors(source, ctx)).toEqual([]);
         expect(renderRuns(source, ctx).markdown).toContain(sign.repeat(5));
         expect(errors(source.replace("lang=zxx", "lang=vyl"), ctx)).toEqual(
@@ -210,25 +230,26 @@ describe("a language's literal Roman characters", () => {
     it("rejects punctuation hidden by an entire word's native spelling", () => {
         const sign = "\u{F0200}";
         const nativeWord = {
-            ...language("vyl", "ka."),
+            ...language("vyl", "ka"),
             data: {
-                roman: "ka.",
+                roman: "ka",
                 words: [
                     {
                         form: "k'a",
                         class: "n",
                         gloss: "fixture",
-                        native: [{ map: "m", text: sign }],
+                        native: [{ enc: "m", text: sign }],
                     },
                 ],
             },
         };
         const ctx = {
             ...runContext(config, [nativeWord]),
-            maps: new Map([
+            encodingFindings: [],
+            encodings: new Map([
                 [
                     "m",
-                    compileMap({
+                    compileTestEncoding({
                         name: "m",
                         rows: [
                             ["k", sign],
@@ -245,7 +266,7 @@ describe("a language's literal Roman characters", () => {
                 ],
             ]),
         };
-        expect(errors("[k'a]{lang=vyl map=m font=face .nativefont}", ctx)).toEqual([
+        expect(errors("[k'a]{lang=vyl enc=m font=face}", ctx)).toEqual([
             expect.objectContaining({ column: 3, message: expect.stringContaining("U+0027") }),
         ]);
     });
@@ -275,7 +296,7 @@ describe("a language's literal Roman characters", () => {
     it("validates inventory normalization, duplicate characters and structural whitespace", () => {
         const findings = (roman: string) =>
             checkLanguageData({ file: "language.md", raw: "", fm: language("vyl", roman) });
-        expect(findings("kaKàÀ.1")).toEqual([]);
+        expect(findings("kaKàÀ1")).toEqual([]);
         expect(findings("")).toEqual([]);
         expect(findings("aa")).toEqual([
             expect.objectContaining({ message: expect.stringContaining("repeats") }),

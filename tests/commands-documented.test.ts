@@ -197,6 +197,10 @@ const PACKAGE_BUILD_SRC = fs.readFileSync(path.join(ROOT, "bin/package-build.mjs
 const CONTENT_COMMANDS_SRC = fs.readFileSync(path.join(ROOT, "bin/content-commands.mjs"), "utf8");
 
 const COMMAND_SOURCES: { binary: string; source: string }[] = [
+    {
+        binary: "package-build",
+        source: fs.readFileSync(path.join(ROOT, "bin/encoding-commands.mjs"), "utf8"),
+    },
     { binary: "package-build", source: PACKAGE_BUILD_SRC },
     { binary: "package-build", source: CONTENT_COMMANDS_SRC },
 ];
@@ -227,9 +231,9 @@ const nodes = allNodes();
 const doc = fs.readFileSync(DOC_PATH, "utf8");
 
 describe("the command's real surface, extracted from source", () => {
-    it("has 42 top-level commands", () => {
+    it("has 43 top-level commands", () => {
         const topLevel = nodes.filter((n) => n.path.length === 1);
-        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(42);
+        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(43);
     });
 
     it("includes `package-build site-root`", () => {

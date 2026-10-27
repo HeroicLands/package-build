@@ -734,7 +734,7 @@ any finding it reports is a refusal, joined into one message:
 The languages a note may tag text with, by short name. A note writes the short
 name, as in `[Daimela, helthos.]{lang=vyl}`; the build gives the text the
 language's tag. See
-[marking language, font and mapping](authoring/links-and-markup.md#marking-language-font-and-mapping).
+[marking language, font and encoding](authoring/links-and-markup.md#marking-language-font-and-encoding).
 
 ```yaml
 languages:
@@ -761,20 +761,18 @@ checked.
 **`note`** names the language note whose `data.words` is the language's
 lexicon, as an Address in this package: `skill-vylarilng`, or the bare
 shortcode, whose type defaults to `skill`. A run marked with the language and a
-`map=` writes each word the lexicon states a native form for by that form, and
+`enc=` writes each word the lexicon states a native form for by that form, and
 spells every other word by the map's rows; see
-[a map reads the dictionary first](reference/format-details.md#a-map-reads-the-dictionary-first).
+[an encoding reads the dictionary first](reference/format-details.md#an-encoding-reads-the-dictionary-first).
 Language word-book validation applies to Roman and native runs alike,
-independently of `.nativefont` or mapping: every word is a word of the lexicon, of a name the language note's
+independently of encoding selection: every word is a word of the lexicon, of a name the language note's
 own register lists, or a regular form of a lexicon word, and any other word is an error; see
-[a mapped run's words](authoring/links-and-markup.md#a-mapped-runs-words).
-The language note may also name the script the language is written in, as
-`data.writtenIn: { map, font }`, and a run explicitly marked with both the language and `.nativefont` is
-then mapped and set in it. Language-only runs retain authored Roman spelling
-and the surrounding prose font. Native `map=` and `font=` override the
-configured halves independently; missing halves require explicit overrides; see
-[a language's script](authoring/links-and-markup.md#a-languages-script). The
-script belongs to the language note, and the configuration never states it.
+[a mapped run's words](authoring/links-and-markup.md#an-encoded-runs-words).
+An encoding document names its configured language in `data.language` and
+its installed face in `data.font`. `enc=` selects that document and infers
+those values; explicit choices must agree. A run without an encoding uses
+`enc=default` and keeps its Roman spelling. See
+[marking language, font and encoding](authoring/links-and-markup.md#marking-language-font-and-encoding).
 A language with no `note` tags its text and has no lexicon. Whether the note
 resolves is checked by `package-build lint`, at the key:
 
@@ -1905,6 +1903,7 @@ packageBuild:
 | [`packageBuild.baseStyles`](#packagebuildbasestyles)                                       | boolean                                     | no       | `true`                                                     |
 | [`packageBuild.manifest`](#packagebuildmanifest)                                           | object, pass-through                        | no       | `{}`                                                       |
 | [`packageBuild.manifestFlags`](#packagebuildassettransform-and-packagebuildmanifestflags)  | string (path to a module)                   | no       | `null`                                                     |
+| [`packageBuild.converterData`](#packagebuildconverterdata)                                 | string (stage-relative JSON path)           | no       | `null`                                                     |
 | [`packageBuild.schema`](#packagebuildschema)                                               | object (`{documentType: {from, registry}}`) | no       | `[]`                                                       |
 | [`packageBuild.clean`](#packagebuildclean)                                                 | object                                      | no       | `{extra: []}`                                              |
 | [`packageBuild.lang`](#packagebuildlang)                                                   | object                                      | no       | see below                                                  |
@@ -1916,7 +1915,7 @@ packageBuild:
 | [`packageBuild.proseLint`](#packagebuildproselint)                                         | object                                      | no       | `{age: 21, threshold: 5, minWords: 8, rules: readability}` |
 | [`packageBuild.proseScore`](#packagebuildprosescore)                                       | object                                      | no       | `{minWords: 80, bands: {}}`                                |
 
-> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, shippingLicenses, baseStyles, manifest, manifestFlags, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore).``
+> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, shippingLicenses, baseStyles, manifest, manifestFlags, converterData, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore).``
 
 ### `packageBuild.proseLint`
 
@@ -2338,3 +2337,22 @@ the source directory:
 | `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs` | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
 | `publish.site` (any value)                                                                                                                      | Refused — publication follows the authored content tree.                                                                                               |
 | `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                       | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |
+
+### `packageBuild.converterData`
+
+Optional path for a browser converter's JSON data, relative to
+`packageBuild.stageDir`. `package-build manifest` writes it during the module
+build from the same published encodings and language vocabulary that render
+native text. The path must stay within the stage, end in `.json`, and name an
+artifact other than `module.json`, `system.json` or `package.json`. Absolute
+paths and parent traversal are refused. Omission writes no converter file.
+
+```yaml
+packageBuild:
+  converterData: data/converter.json
+```
+
+The result is `build/stage/data/converter.json` with the default stage. It
+ships with that stage in the release archive. See the
+[data format](reference/format-details.md#converter-data-format) and
+[browser API](api.md#browser-conversion).

@@ -143,6 +143,23 @@ function boolean(name: string): Construct {
 
 /** Every construct the corpus exercises, by id. */
 export const CONSTRUCTS: Record<string, Construct> = {
+    "span-emphasis": {
+        summary: "A span marks ordinary emphasis with the same presentation as Markdown emphasis.",
+        probe: "[marked softly]{.emph}",
+        foundry: { sees: [/<em>marked softly<\/em>/] },
+        web: { sees: [/<em>marked softly<\/em>/] },
+        preview: { sees: [/<em>marked softly<\/em>/] },
+        book: { sees: [/#emph\[marked softly\]/] },
+    },
+    "span-strong": {
+        summary:
+            "A span marks strong English text with the same presentation as Markdown strong text.",
+        probe: "[marked strongly]{.strong}",
+        foundry: { sees: [/<strong>marked strongly<\/strong>/] },
+        web: { sees: [/<strong>marked strongly<\/strong>/] },
+        preview: { sees: [/<strong>marked strongly<\/strong>/] },
+        book: { sees: [/#strong\[marked strongly\]/] },
+    },
     "plain-markup": {
         summary:
             "Emphasis, strong text, strikethrough, code, links, breaks, quotes, lists and rules.",
@@ -1031,7 +1048,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
     },
     "run-map": {
         summary: "Text with a map is rewritten into the face's code points and set in the face.",
-        probe: "[thirun sorima]{lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}",
+        probe: "[thirun sorima]{lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
         foundry: {
             sees: [
                 /<span class="script hl-semaron-kuriale" lang="art-x-vyl">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} \u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/span>/u,
@@ -1046,7 +1063,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         preview: {
             sees: [
-                /hl-preview-label">thirun sorima<\/span>[\s\S]*?\{lang=vyl font=semaron-kuriale map=vyl-semaron \.nativefont\}/,
+                /hl-preview-label">thirun sorima<\/span>[\s\S]*?\{lang=vyl font=semaron-kuriale enc=vylsemaronenc\}/,
             ],
             differs: SOURCE_ONLY,
             bufferOnly: true,
@@ -1060,24 +1077,24 @@ export const CONSTRUCTS: Record<string, Construct> = {
     },
     "run-emphasis-script": {
         summary:
-            "Emphasis in an explicitly native span set in a script's face follows the script's convention: rubric red for *…*, an overline for **…** here.",
-        probe: "[thirun _sorima_]{lang=en font=semaron-kuriale map=vyl-semaron .nativefont}",
+            "Emphasis in an explicitly native span set in a script's face follows the script's convention: rubric red for both *…* and **…** here.",
+        probe: "[thirun _sorima_]{lang=en font=semaron-kuriale enc=ensemaronenc}",
         foundry: {
             sees: [
                 /<span class="script hl-semaron-kuriale" lang="en">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <em class="emph-rubric">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/em><\/span> in red/u,
-                /<span class="script hl-semaron-kuriale" lang="en">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <strong class="emph-overline">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/strong><\/span> under a line/u,
+                /<span class="script hl-semaron-kuriale" lang="en">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <strong class="emph-rubric">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/strong><\/span> under a line/u,
             ],
         },
         web: {
             sees: [
                 /<span class="script hl-semaron-kuriale" lang="en" data-pagefind-ignore="true">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <em class="emph-rubric">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/em><\/span> in red/u,
-                /<span class="script hl-semaron-kuriale" lang="en" data-pagefind-ignore="true">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <strong class="emph-overline">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/strong><\/span> under a line/u,
+                /<span class="script hl-semaron-kuriale" lang="en" data-pagefind-ignore="true">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} <strong class="emph-rubric">\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/strong><\/span> under a line/u,
             ],
         },
         preview: {
             sees: [
-                /hl-preview-label">thirun _sorima_<\/span>[\s\S]*?\{lang=en font=semaron-kuriale map=vyl-semaron \.nativefont\}/,
-                /hl-preview-label">thirun \*\*sorima\*\*<\/span>[\s\S]*?\{lang=en font=semaron-kuriale map=vyl-semaron \.nativefont\}/,
+                /hl-preview-label">thirun _sorima_<\/span>[\s\S]*?\{lang=en font=semaron-kuriale enc=ensemaronenc\}/,
+                /hl-preview-label">thirun \*\*sorima\*\*<\/span>[\s\S]*?\{lang=en font=semaron-kuriale enc=ensemaronenc\}/,
             ],
             differs: SOURCE_ONLY,
             bufferOnly: true,
@@ -1085,7 +1102,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         book: {
             sees: [
                 /#book-span\(classes: \("script", "hl-semaron-kuriale"\), lang: "en"\)\[\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} #text\(fill: book-rubric\)\[\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}\]\] in red/u,
-                /#book-span\(classes: \("script", "hl-semaron-kuriale"\), lang: "en"\)\[\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} #overline\[\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}\]\] under a line/u,
+                /#book-span\(classes: \("script", "hl-semaron-kuriale"\), lang: "en"\)\[\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} #text\(fill: book-rubric\)\[\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}\]\] under a line/u,
             ],
             absent: [/#emph\[\u{F0240}/u, /#strong\[\u{F0240}/u],
         },
@@ -1093,7 +1110,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
     "run-emphasis-words": {
         summary:
             "Bold or italic markup in a non-English span is an error at its opening delimiter.",
-        probe: "[thirun _sorima_]{lang=tar font=semaron-kuriale map=vyl-semaron .nativefont}",
+        probe: "[thirun _sorima_]{lang=tar font=semaron-kuriale enc=tarsemaronenc}",
         probeIn: "worded",
         foundry: {
             sees: [
@@ -1106,7 +1123,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         web: {
             sees: [
-                /The vow is cut as <span class="nativefont" lang="tar" font="semaron-kuriale" map="vyl-semaron">thirun <em>sorima<\/em><\/span> on the lintel\./,
+                /The vow is cut as <span lang="tar" font="semaron-kuriale" enc="tarsemaronenc">thirun <em>sorima<\/em><\/span> on the lintel\./,
             ],
             of: "worded",
             differs:
@@ -1114,7 +1131,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         preview: {
             sees: [
-                /hl-preview-label">thirun _sorima_<\/span>[\s\S]*?\{lang=tar font=semaron-kuriale map=vyl-semaron \.nativefont\}/,
+                /hl-preview-label">thirun _sorima_<\/span>[\s\S]*?\{lang=tar font=semaron-kuriale enc=tarsemaronenc\}/,
             ],
             of: "worded",
             differs:
@@ -1123,13 +1140,13 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         indexed: {
             sees: [
-                /The vow is cut as <span class="nativefont" lang="tar" font="semaron-kuriale" map="vyl-semaron">thirun <em>sorima<\/em><\/span> on the lintel\./,
+                /The vow is cut as <span lang="tar" font="semaron-kuriale" enc="tarsemaronenc">thirun <em>sorima<\/em><\/span> on the lintel\./,
             ],
             of: "worded",
         },
         book: {
             sees: [
-                /The vow is cut as #book-span\(classes: \("nativefont",\), lang: "tar"\)\[thirun #emph\[sorima\]\] on the lintel\./,
+                /The vow is cut as #book-span\(classes: \(\), lang: "tar"\)\[thirun #emph\[sorima\]\] on the lintel\./,
                 /lore-worded\.md:9:27: error: a span in non-English language `tar` holds no bold or italic markup/,
             ],
             of: "worded",
@@ -1142,7 +1159,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
     "run-font-sans": generic("sans", "Plain Label", "[Plain Label]{font=sans}"),
     "run-block": {
         summary: "A div marked with a font and a map sets its paragraphs in the face.",
-        probe: "::: {lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}",
+        probe: "::: {lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
         foundry: {
             sees: [
                 /<div class="script script-block hl-semaron-kuriale" lang="art-x-vyl">\s*<p>\u{F0250}\u{F0237}/u,
@@ -1155,7 +1172,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         preview: {
             sees: [
-                /<div class="nativefont" lang="vyl" font="semaron-kuriale" map="vyl-semaron">\s*<p>thirun sorima\.<\/p>\s*<p>mamu anthrasos\.<\/p>/,
+                /<div class="" lang="vyl" font="semaron-kuriale" enc="vylsemaronenc">\s*<p>thirun sorima\.<\/p>\s*<p>mamu anthrasos\.<\/p>/,
             ],
             differs:
                 "The buffer-only preview has no script notes: it sets the div's roman text unmapped and in no face.",
@@ -1169,7 +1186,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
     },
     "run-verse": {
         summary: "A verse fence marked with a font and a map sets its lines in the face.",
-        probe: "```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}",
+        probe: "```verse {form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
         foundry: {
             sees: [
                 /<div class="verse script hl-semaron-kuriale" lang="art-x-vyl" data-form="epic">\s*<p><span class="verse-line">\u{F0250}\u{F0237}/u,
@@ -1182,7 +1199,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         preview: {
             sees: [
-                /<div class="verse nativefont" data-form="epic" lang="vyl" data-font="semaron-kuriale" data-map="vyl-semaron">\s*<p><span class="verse-line">thirun sorima<\/span><br>\s*<span class="verse-line i1">mamu anthrasos\.<\/span>/,
+                /<div class="verse" data-form="epic" lang="vyl" data-font="semaron-kuriale" data-enc="vylsemaronenc">\s*<p><span class="verse-line">thirun sorima<\/span><br>\s*<span class="verse-line i1">mamu anthrasos\.<\/span>/,
             ],
             differs:
                 "The buffer-only preview has no script notes: it sets the verse's roman text unmapped and in no face.",
@@ -1198,22 +1215,22 @@ export const CONSTRUCTS: Record<string, Construct> = {
     "run-scroll": {
         summary:
             "A scroll fence in a script written in columns sets its paragraphs as columns read from the right, each paragraph at the top of a fresh column, in a panel that scrolls sideways; the book sets it as panel images.",
-        probe: "```scroll {rows=3 cols=3 lang=tsu font=teng-chou map=tengchou .nativefont}",
+        probe: "```scroll {rows=3 cols=3 lang=tsu font=teng-chou enc=tsutengenc}",
         foundry: {
             sees: [
-                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F101F}\u{F1013}\u{F103E}<em class="emph-rubric">\u{F1057}<\/em><\/p>\s*<p>\u{F1014}\u{F102A}\u{F1036}\u{F10AA}<\/p>\s*<\/div>/u,
+                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F101F} \u{F1013} \u{F103E} <em class="emph-rubric">\u{F1057}<\/em><\/p>\s*<p>\u{F1014} \u{F102A} \u{F1036} \u{F10AA}<\/p>\s*<\/div>/u,
             ],
             absent: [/language-scroll/, /chen teng/],
         },
         web: {
             sees: [
-                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" data-pagefind-ignore="true" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F101F}\u{F1013}\u{F103E}<em class="emph-rubric">\u{F1057}<\/em><\/p>\s*<p>\u{F1014}\u{F102A}\u{F1036}\u{F10AA}<\/p>\s*<\/div>/u,
+                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" data-pagefind-ignore="true" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F101F} \u{F1013} \u{F103E} <em class="emph-rubric">\u{F1057}<\/em><\/p>\s*<p>\u{F1014} \u{F102A} \u{F1036} \u{F10AA}<\/p>\s*<\/div>/u,
             ],
             absent: [/language-scroll/, /chen teng/],
         },
         preview: {
             sees: [
-                /<div class="scroll nativefont" lang="tsu" data-rows="3" data-cols="3" data-font="teng-chou" data-map="tengchou" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>chen teng chou _hing_<\/p>\s*<p>tan tsou dou rou<\/p>\s*<\/div>/,
+                /<div class="scroll" lang="tsu" data-rows="3" data-cols="3" data-font="teng-chou" data-enc="tsutengenc" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>chen teng chou _hing_<\/p>\s*<p>tan tsou dou rou<\/p>\s*<\/div>/,
             ],
             differs:
                 "The buffer-only preview has no script notes: it sets the scroll's roman text in columns, unmapped and in no face.",
@@ -1221,7 +1238,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         book: {
             sees: [
-                /#block\(width: 100%\)\[#set text\(dir: rtl\)\n#box\(image\(bytes\("<svg [^\n]*?"\), format: "svg", height: 3em, alt: "chen teng chou hing tan tsou dou"\)\)#h\(1em, weak: true\) #box\(image\(bytes\("<svg [^\n]*?"\), format: "svg", height: 3em, alt: "rou"\)\)\n\]/,
+                /#block\(width: 100%\)\[#set text\(dir: rtl\)\n#box\(image\(bytes\("<svg [^\n]*?"\), format: "svg", height: 3em, alt: "chen teng chou hing"\)\)#h\(1em, weak: true\) #box\(image\(bytes\("<svg [^\n]*?"\), format: "svg", height: 3em, alt: "tan tsou dou rou"\)\)\n\]/,
                 /fill=\\"#9c281b\\"/,
             ],
             absent: [/chen teng\nchou/],
@@ -1231,34 +1248,34 @@ export const CONSTRUCTS: Record<string, Construct> = {
     },
     "run-scroll-span": {
         summary: "A span in a script written in columns stays horizontal, inline in its line.",
-        probe: "[chen teng]{lang=tsu font=teng-chou map=tengchou .nativefont}",
+        probe: "[chen teng]{lang=tsu font=teng-chou enc=tsutengenc}",
         foundry: {
             sees: [
-                /The seal reads <span class="script hl-teng-chou" lang="art-x-tsu">\u{F101F}\u{F1013}<\/span> across the line\./u,
+                /The seal reads <span class="script hl-teng-chou" lang="art-x-tsu">\u{F101F} \u{F1013}<\/span> across the line\./u,
             ],
         },
         web: {
             sees: [
-                /The seal reads <span class="script hl-teng-chou" lang="art-x-tsu" data-pagefind-ignore="true">\u{F101F}\u{F1013}<\/span> across the line\./u,
+                /The seal reads <span class="script hl-teng-chou" lang="art-x-tsu" data-pagefind-ignore="true">\u{F101F} \u{F1013}<\/span> across the line\./u,
             ],
         },
         preview: {
             sees: [
-                /hl-preview-label">chen teng<\/span>[\s\S]*?\{lang=tsu font=teng-chou map=tengchou \.nativefont\}/,
+                /hl-preview-label">chen teng<\/span>[\s\S]*?\{lang=tsu font=teng-chou enc=tsutengenc\}/,
             ],
             differs: SOURCE_ONLY,
             bufferOnly: true,
         },
         book: {
             sees: [
-                /The seal reads #book-span\(classes: \("script", "hl-teng-chou"\)\)\[\u{F101F}\u{F1013}\] across the line\./u,
+                /The seal reads #book-span\(classes: \("script", "hl-teng-chou"\)\)\[\u{F101F} \u{F1013}\] across the line\./u,
             ],
         },
     },
     "run-lang-default": {
         summary:
             "Text explicitly opting into native presentation uses its language’s configured map and face.",
-        probe: "[thirun sorima]{lang=prv .nativefont}",
+        probe: "[thirun sorima]{lang=prv enc=prvsemaronenc}",
         foundry: {
             sees: [
                 /The south gate is cut as <span class="script hl-semaron-kuriale" lang="art-x-prv">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} \u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/span>,/u,
@@ -1270,7 +1287,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
             ],
         },
         preview: {
-            sees: [/hl-preview-label">thirun sorima<\/span>[\s\S]*?\{lang=prv \.nativefont\}/],
+            sees: [/hl-preview-label">thirun sorima<\/span>[\s\S]*?\{lang=prv enc=prvsemaronenc\}/],
             differs: SOURCE_ONLY,
             bufferOnly: true,
         },
@@ -1306,7 +1323,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
     "run-block-default": {
         summary:
             "A div opting into native presentation sets its paragraphs in its language’s configured native face.",
-        probe: "::: {lang=prv .nativefont}",
+        probe: "::: {lang=prv enc=prvsemaronenc}",
         foundry: {
             sees: [
                 /<div class="script script-block hl-semaron-kuriale" lang="art-x-prv">\s*<p>\u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230} \u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C}\u{F0268}<\/p>/u,
@@ -1318,7 +1335,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
             ],
         },
         preview: {
-            sees: [/<div class="nativefont" lang="prv">\s*<p>sorima thirun\.<\/p>/],
+            sees: [/<div class="" lang="prv" enc="prvsemaronenc">\s*<p>sorima thirun\.<\/p>/],
             differs:
                 "The buffer-only preview has no language notes: it sets the div's roman text unmapped and in no face.",
             bufferOnly: true,
@@ -1332,22 +1349,22 @@ export const CONSTRUCTS: Record<string, Construct> = {
     "run-scroll-default": {
         summary:
             "A scroll fence explicitly opting into a language’s native defaults is set in columns in that script's face.",
-        probe: "```scroll {rows=3 cols=3 lang=tsu .nativefont}",
+        probe: "```scroll {rows=3 cols=3 lang=tsu enc=tsutengenc}",
         foundry: {
             sees: [
-                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F1014}\u{F102A}<\/p>\s*<\/div>/u,
+                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F1014} \u{F102A}<\/p>\s*<\/div>/u,
             ],
             absent: [/<p>tan tsou<\/p>/],
         },
         web: {
             sees: [
-                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" data-pagefind-ignore="true" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F1014}\u{F102A}<\/p>\s*<\/div>/u,
+                /<div class="scroll script hl-teng-chou" lang="art-x-tsu" data-rows="3" data-cols="3" data-pagefind-ignore="true" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>\u{F1014} \u{F102A}<\/p>\s*<\/div>/u,
             ],
             absent: [/<p>tan tsou<\/p>/],
         },
         preview: {
             sees: [
-                /<div class="scroll nativefont" lang="tsu" data-rows="3" data-cols="3" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>tan tsou<\/p>\s*<\/div>/,
+                /<div class="scroll" lang="tsu" data-rows="3" data-cols="3" data-enc="tsutengenc" style="--scroll-rows: 3; --scroll-cols: 3">\s*<p>tan tsou<\/p>\s*<\/div>/,
             ],
             differs:
                 "The buffer-only preview has no language notes: it sets the scroll's roman text in columns, unmapped and in no face.",
@@ -1364,7 +1381,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
     "scroll-rows-invalid": {
         summary:
             "A scroll fence whose rows= is not a whole number above zero is an error at the value, and draws no scroll.",
-        probe: "```scroll {rows=0 cols=2 lang=tsu map=tengchou .nativefont}",
+        probe: "```scroll {rows=0 cols=2 lang=tsu enc=tsutengenc}",
         probeIn: "unrolled",
         foundry: {
             sees: [
@@ -1401,7 +1418,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
     "scroll-horizontal": {
         summary:
             "A scroll fence set in a script written in lines is an error at the face, and its text is left as written.",
-        probe: "```scroll {rows=3 lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}",
+        probe: "```scroll {rows=3 lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
         probeIn: "unrolled",
         foundry: {
             sees: [
@@ -1414,7 +1431,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         web: {
             sees: [
-                /<div class="scroll nativefont" lang="vyl" data-rows="3" data-font="semaron-kuriale" data-map="vyl-semaron" style="--scroll-rows: 3">\s*<p>thirun sorima<\/p>\s*<\/div>/,
+                /<div class="scroll" lang="vyl" data-rows="3" data-font="semaron-kuriale" data-enc="vylsemaronenc" style="--scroll-rows: 3">\s*<p>thirun sorima<\/p>\s*<\/div>/,
             ],
             absent: [/\u{F0250}/u],
             of: "unrolled",
@@ -1423,7 +1440,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         preview: {
             sees: [
-                /<div class="scroll nativefont" lang="vyl" data-rows="3" data-font="semaron-kuriale" data-map="vyl-semaron" style="--scroll-rows: 3">\s*<p>thirun sorima<\/p>\s*<\/div>/,
+                /<div class="scroll" lang="vyl" data-rows="3" data-font="semaron-kuriale" data-enc="vylsemaronenc" style="--scroll-rows: 3">\s*<p>thirun sorima<\/p>\s*<\/div>/,
             ],
             of: "unrolled",
             differs:
@@ -1432,7 +1449,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         indexed: {
             sees: [
-                /<div class="scroll nativefont" lang="vyl" data-rows="3" data-font="semaron-kuriale" data-map="vyl-semaron" style="--scroll-rows: 3">\s*<p>thirun sorima<\/p>\s*<\/div>/,
+                /<div class="scroll" lang="vyl" data-rows="3" data-font="semaron-kuriale" data-enc="vylsemaronenc" style="--scroll-rows: 3">\s*<p>thirun sorima<\/p>\s*<\/div>/,
             ],
             absent: [/\u{F0250}/u],
             of: "unrolled",

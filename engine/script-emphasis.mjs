@@ -21,14 +21,12 @@
  *   script:
  *     fonts: [semaron-kuriale]
  *     emphasis: rubric
- *     strongEmphasis: overline
  * ```
  *
  * - **`fonts`** lists installed faces by the slug `font=` names them by. A
  *   face belongs to one script.
  * - **`emphasis`** is `rubric` (red text) or `overline` (a line above the
  *   word), and sets both `*…*` and `**…**`.
- * - **`strongEmphasis`**, where stated, sets `**…**` alone.
  *
  * Inside a run in one of those faces, `*…*` and `**…**` stay an `<em>` and a
  * `<strong>` on the site and in Foundry, carrying {@link module:engine/script-emphasis-terms.EMPHASIS_CLASSES}'s
@@ -48,7 +46,7 @@ import {
     LANGUAGE_EMPHASES,
     SCRIPT_SUBTYPE,
 } from "./script-emphasis-terms.mjs";
-import { GENERIC_FAMILIES } from "./text-maps.mjs";
+import { GENERIC_FAMILIES } from "./script-emphasis-terms.mjs";
 import { LANGUAGE_SUBTYPE } from "./word-terms.mjs";
 
 export {
@@ -97,12 +95,7 @@ export function emphasesFromRecords(records) {
         const script = record.data?.script;
         if (!isMap(script) || !Array.isArray(script.fonts) || !isConvention(script.emphasis))
             continue;
-        const strong =
-            script.strongEmphasis === undefined || script.strongEmphasis === null ?
-                script.emphasis
-            :   script.strongEmphasis;
-        if (!isConvention(strong)) continue;
-        const emphasis = Object.freeze({ em: script.emphasis, strong });
+        const emphasis = Object.freeze({ em: script.emphasis, strong: script.emphasis });
         for (const slug of script.fonts)
             if (typeof slug === "string" && !out.has(slug)) out.set(slug, emphasis);
     }
@@ -114,7 +107,7 @@ export function emphasesFromRecords(records) {
  *
  * @param {ReadonlyMap<string, Record<string, any>>} byName - Each configured
  *   language's note record, by language name, from
- *   {@link module:engine/map-lexicon.languageRecordsByName}.
+ *   {@link module:engine/encoding-lexicon.languageRecordsByName}.
  * @returns {Map<string, LanguageEmphasis>} The conventions, by language name;
  *   a language whose note states none, or one the build does not know, is
  *   absent.

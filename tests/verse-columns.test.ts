@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { scanRuns, renderRuns } from "../engine/content-scripts.mjs";
-import { compileMap } from "../engine/text-maps.mjs";
+import { compileTestEncoding } from "./helpers/encoding.js";
 import * as verse from "../engine/content-verse.mjs";
 
 const poem = (attrs: string, ...lines: string[]) =>
@@ -139,13 +139,11 @@ describe("numbered verse columns", () => {
         expect(verse.scanVerse(poem("cols=2 lang=en font=serif", "1 One", "2 Two")).errors).toEqual(
             [],
         );
-        const source = poem("cols=2 lang=vyl .nativefont", "1 One");
-        expect(
-            scanRuns(source, { languages: { vyl: { tag: "art-x-vyl" } } }).errors,
-        ).toContainEqual({
+        const source = poem("cols=2 lang=vyl enc=letters", "1 One");
+        expect(scanRuns(source, nativeContext).errors).toContainEqual({
             line: 1,
-            column: source.indexOf(".nativefont") + 1,
-            message: "a verse with cols>1 opts individual runs into `.nativefont`, not the fence",
+            column: source.indexOf("letters") + 1,
+            message: "a verse with cols>1 selects encoding on individual runs, not the fence",
         });
     });
 });
@@ -163,10 +161,10 @@ const nativeContext = {
             },
         ],
     ]),
-    maps: new Map([
+    encodings: new Map([
         [
             "letters",
-            compileMap({
+            compileTestEncoding({
                 name: "letters",
                 fonts: [{ font: "script" }],
                 rows: [
@@ -176,7 +174,6 @@ const nativeContext = {
             }),
         ],
     ]),
-    writtenIn: new Map([["vyl", { font: "script", map: "letters" }]]),
     wordBooks: new Map([
         ["vyl", { language: "vyl", accepts: (word: string) => word.toLowerCase() === "word" }],
     ]),
@@ -186,23 +183,23 @@ describe("numbered columns retain authored language runs", () => {
     it("maps only opted native runs and keeps Roman repeats, prefixes and nested markers intact", () => {
         const source = poem(
             "cols=3 lang=en",
-            "1 [..word]{lang=vyl .nativefont}",
+            "1 [..word]{lang=vyl enc=letters}",
             "2 A translation",
             "2 [word]{lang=vyl}",
             "3 [word]{lang=vyl}",
         );
         const result = renderRuns(source, nativeContext);
         expect(result.errors).toEqual([]);
-        expect(result.markdown).toContain("1 [..字]{lang=art-x-vyl .script .hl-script}");
+        expect(result.markdown).toContain("1 [..字\u{E010C}]{lang=art-x-vyl .script .hl-script}");
         expect(result.markdown).toContain("2 [word]{lang=art-x-vyl}");
         expect(result.markdown).toContain("3 [word]{lang=art-x-vyl}");
         const html = verse.renderVerse(result.markdown).markdown;
-        expect(html).toContain('class="verse-part i2">[字]');
+        expect(html).toContain('class="verse-part i2">[字\u{E010C}]');
         expect(html).toContain('class="verse-part verse-secondary">[word]');
         expect(html).not.toContain("1 [");
     });
     it("reports lexical faults at the original authored word after its numeric prefix", () => {
-        const source = poem("cols=3 lang=vyl", "  3 [unknown]{lang=vyl .nativefont}");
+        const source = poem("cols=3 lang=vyl", "  3 [unknown]{lang=vyl}");
         expect(scanRuns(source, nativeContext).errors).toContainEqual({
             line: 2,
             column: 6,
@@ -210,24 +207,23 @@ describe("numbered columns retain authored language runs", () => {
         });
     });
     it("reports unmapped characters at their authored position without treating the prefix as text", () => {
-        const source = poem("cols=3", "  3 [word7]{lang=en font=script map=letters .nativefont}");
+        const source = poem("cols=3", "  3 [word7]{lang=en font=script enc=letters}");
         expect(scanRuns(source, nativeContext).errors).toEqual([
             {
                 line: 2,
                 column: 10,
                 message:
-                    "`7` (U+0037) is not drawn by the font `script`, and the map `letters` has no row for it",
+                    "`7` encodes to U+0037 in `letters`, which the font `script` does not draw",
             },
         ]);
     });
-    it("keeps located native control diagnostics on authored runs", () => {
-        const source = poem("cols=2", "1 [word]{font=script}");
+    it("keeps located encoding diagnostics on authored runs", () => {
+        const source = poem("cols=2", "1 [word]{font=script enc=missing}");
         expect(scanRuns(source, nativeContext).errors).toEqual([
             {
                 line: 2,
-                column: 15,
-                message:
-                    "native `font=script` requires `.nativefont` and an explicit `lang=` on the same construct",
+                column: source.split("\n")[1].indexOf("missing") + 1,
+                message: "`missing` does not resolve to an encoding document",
             },
         ]);
     });

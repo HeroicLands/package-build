@@ -12,39 +12,19 @@
  */
 
 /**
- * **A logographic map writes meanings, so a word's writing comes from the
- * lexicon and never from its sound.** A mapping note stating
- * `data.map.logographic: true` writes each word of a run in this order:
- *
- * 1. **The word's own `native` entry** for the map, and for the run's face
- *    where an entry names one.
- * 2. **Otherwise its parts.** A word stating `built` is written by the
- *    writings of its pieces joined in order: a piece is a word of the
- *    lexicon, matched exactly and then with its joining hyphens taken off, or
- *    an affix of `data.affixes` with its own `native`; a word piece resolves
- *    by this same rule. A noun's plural and a verb's present forms are written
- *    by the stem's writing followed by the ending's, which
- *    `data.grammar.native` states by the ending's name: `plural`, or one of
- *    the six persons. A hyphenated word no entry states is written by its
- *    parts, each by this rule.
- * 3. **Otherwise the word has no writing**, which a run reports at the word.
- *
- * A run's word is matched case folded, so one roman form may stand for more
- * than one entry. Where those entries are written alike the word takes that
- * writing; where they differ, or one has a writing and another none, the word
- * is ambiguous, and the finding names every entry's gloss. A part matched to
- * entries written differently makes the word ambiguous the same way.
- *
- * @module
+ * Native word spellings under any encoding: authored entries first, then all
+ * stated parts, affixes and grammatical endings. Ambiguous spellings remain
+ * findings, with every matching gloss. Exact lexical forms precede folded
+ * lookup, preserving explicitly distinct capitalized spellings.
  */
 
-import { pluralOf } from "./dictionary-rows.mjs";
+import { pluralOf } from "./word-inflections.mjs";
 import { verbForm, verbPattern } from "./verb-pattern.mjs";
 import { parseWordClass } from "./word-classes.mjs";
 import { foldWord } from "./word-forms.mjs";
 import { glossText } from "./word-terms.mjs";
 
-/** Whether a value is a plain map. */
+/** Whether a value is a plain object. */
 const isMap = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 /** A list value, or an empty one. */
@@ -65,17 +45,18 @@ const JOINS = /[–-]/u;
  */
 
 /**
- * The text a list of native entries states for a map in a face: the entry for
+ * The text a list of native entries states for a enc in a face: the entry for
  * the face, else the entry for no face.
  *
  * @param {unknown} natives - A `native` list as authored.
- * @param {string} map - The map's name.
+ * @param {string} enc - The encoding's name.
  * @param {string|undefined} font - The face.
  * @returns {string|undefined} The text.
  */
-export function nativeText(natives, map, font) {
+
+export function nativeText(natives, enc, font) {
     const entries = listOf(natives).filter(
-        (entry) => isMap(entry) && entry.map === map && typeof entry.text === "string",
+        (entry) => isMap(entry) && entry.enc === enc && typeof entry.text === "string",
     );
     const own = font === undefined ? undefined : entries.find((entry) => entry.font === font);
     return (own ?? entries.find((entry) => typeof entry.font !== "string"))?.text;
@@ -100,15 +81,15 @@ function oneOf(form, candidates) {
 }
 
 /**
- * The writings of a language's words under one logographic map in one face.
+ * The writings of a language's words under one encoding in one face.
  *
  * @param {Record<string, any>|undefined} data - The language note's `data`.
- * @param {string} map - The map's name.
+ * @param {string} enc - The encoding's name.
  * @param {string|undefined} font - The face.
  * @returns {{word: (word: string) => Writing, entry: (index: number) => Writing}}
  *   The writing of a run's word, and of the `data.words` entry at an index.
  */
-export function writingsOf(data, map, font) {
+export function writingsOf(data, enc, font) {
     const words = listOf(data?.words);
     const affixes = listOf(data?.affixes).filter(isMap);
     const grammar = isMap(data?.grammar) ? data.grammar : undefined;
@@ -127,7 +108,7 @@ export function writingsOf(data, map, font) {
      */
     const entry = (index, visiting) => {
         const word = words[index];
-        const own = nativeText(word?.native, map, font);
+        const own = nativeText(word?.native, enc, font);
         if (own !== undefined) return { text: own, source: "own" };
         const pieces = listOf(word?.built).filter((piece) => typeof piece === "string");
         if (!pieces.length || visiting.has(index)) return { missing: true };
@@ -148,7 +129,7 @@ export function writingsOf(data, map, font) {
             gloss: glossOf(word),
         })),
         ...matchedAffixes.map((affix) => {
-            const text = nativeText(affix.native, map, font);
+            const text = nativeText(affix.native, enc, font);
             return {
                 writing: /** @type {Writing} */ (
                     text === undefined ? { missing: true } : { text, source: "own" }
@@ -192,7 +173,7 @@ export function writingsOf(data, map, font) {
     const endingText = (ending) =>
         nativeText(
             listOf(endings).filter((one) => isMap(one) && one.ending === ending),
-            map,
+            enc,
             font,
         );
 
@@ -205,8 +186,18 @@ export function writingsOf(data, map, font) {
     const word = (written) => {
         const folded = foldWord(written);
         const none = new Set();
-        const stated = indexed.filter(({ word: one }) => foldWord(one.form) === folded);
-        if (stated.length) return oneOf(written, candidatesOf(stated, [], none));
+        const stages = [
+            indexed.filter(({ word: one }) => one.form === written),
+            indexed.filter(({ word: one }) => listOf(one.variants).includes(written)),
+            indexed.filter(({ word: one }) => foldWord(one.form) === folded),
+            indexed.filter(({ word: one }) =>
+                listOf(one.variants).some(
+                    (form) => typeof form === "string" && foldWord(form) === folded,
+                ),
+            ),
+        ];
+        for (const stated of stages)
+            if (stated.length) return oneOf(written, candidatesOf(stated, [], none));
         const stripped = indexed.filter(({ word: one }) => bare(foldWord(one.form)) === folded);
         if (stripped.length) return oneOf(written, candidatesOf(stripped, [], none));
         const derived = [];

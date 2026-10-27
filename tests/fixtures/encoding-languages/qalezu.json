@@ -1,0 +1,19 @@
+{
+    "language": "qal",
+    "data": {
+        "writtenIn": { "enc": "qalezu", "font": "qalezu-hand" },
+        "words": [
+            { "form": "razan", "class": "n", "gloss": "first skeleton" },
+            { "form": "rizan", "class": "n", "gloss": "second skeleton" },
+            {
+                "form": "lor",
+                "class": "n",
+                "gloss": "own writing",
+                "native": [{ "enc": "qalezu", "text": "𞨀𞨁" }]
+            },
+            { "form": "loran", "class": "n", "gloss": "built writing", "built": ["lor", "-an"] }
+        ],
+        "affixes": [{ "form": "-an", "native": [{ "enc": "qalezu", "text": "𞨂" }] }],
+        "register": [{ "name": "maran", "tongue": "qal" }]
+    }
+}

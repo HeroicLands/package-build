@@ -21,6 +21,7 @@ import { PREVIEW_HELPERS, colored, wikiSource } from "./preview-source.mjs";
 import { dataFields } from "./note-vocabulary.mjs";
 import { applyComputedBeingAge } from "./being-age.mjs";
 import { DEFAULT_CURRENT_DATE, normalizeCurrentDate } from "./current-date.mjs";
+import { scanRuns } from "./content-scripts.mjs";
 
 export { PREVIEW_HELPERS };
 
@@ -76,7 +77,7 @@ function localInfobox(fm, md) {
  * @param {string} text - Markdown, optionally beginning with YAML frontmatter.
  * @param {{dark?: boolean, infobox?: boolean, file?: string, currentDate?: string,
  *   index?: import("./preview-index.mjs").PreviewIndex}} [options] - Explicit palette, profile visibility, diagnostic filename, neutral current date (default "720.1") and the content index, from {@link module:engine/preview-index.previewIndex}.
- * @returns {{ok: boolean, html: string, frontmatter: object, findings: object[]}} HTML and metadata with locally calculable ages; unavailable ages remain absent or null.
+ * @returns {{ok: boolean, html: string, frontmatter: object, findings: object[]}} HTML and metadata with locally calculable ages; unavailable ages remain absent or null. Error findings set `ok` to false while retaining the HTML.
  */
 export function renderPreview(
     text,
@@ -84,6 +85,7 @@ export function renderPreview(
 ) {
     const date = normalizeCurrentDate(currentDate);
     const findings = [];
+    let bodyLine = 1;
     let frontmatter = {},
         body = String(text ?? "");
     try {
@@ -92,6 +94,7 @@ export function renderPreview(
             parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data) ?
                 structuredClone(parsed.data)
             :   {};
+        bodyLine = body.slice(0, body.length - parsed.content.length).split("\n").length;
         body = parsed.content;
     } catch (error) {
         findings.push({ file, severity: "warning", message: String(error.message) });
@@ -123,6 +126,13 @@ export function renderPreview(
     let markdown = authored;
     let figures = scan.figures;
     if (indexed) {
+        for (const error of scanRuns(body, index.runs).errors)
+            findings.push({
+                file,
+                severity: "error",
+                ...error,
+                line: error.file && error.file !== file ? error.line : bodyLine + error.line - 1,
+            });
         const expanded = index.expand(authored, { fm: frontmatter, file });
         markdown = expanded.markdown;
         figures = expanded.figures;
@@ -134,7 +144,7 @@ export function renderPreview(
     });
     const profile = infobox ? localInfobox(frontmatter, renderer.md) : "";
     return {
-        ok: true,
+        ok: !findings.some((finding) => finding.severity === "error"),
         html: `<div class="hl-preview hl-preview-${dark ? "dark" : "light"}">${profile}<main class="hl-preview-main">${content}</main></div>`,
         frontmatter,
         findings,

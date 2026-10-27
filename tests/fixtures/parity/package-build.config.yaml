@@ -13,6 +13,7 @@ packageBuild:
 packs:
     - { name: journals, label: Journals, type: JournalEntry, default: true }
 languages:
+    en: { tag: en }
     vyl: { tag: art-x-vyl }
     tar: { tag: art-x-tar, note: skill-tarvenlng }
     tsu: { tag: art-x-tsu, note: skill-tantsoulng }

@@ -2583,14 +2583,11 @@ with visible text, nullable type/subtype and original source line/column.
 Local and dependency SQL schemas expose them through `names`; they travel in
 the metadata artifact.
 
-Metadata also includes each own note's spans, divs and verse fences marked with
-`lang=`, `font=` or `map=` under `runs`, with the language as written, the tag
-it resolves to, the font, the map and the original source line/column. Native
-runs carry `nativefont: true` in the metadata; language-only Roman runs omit
-the flag and do not receive script defaults. The `runs` SQL columns stay the
-same. Local
-and dependency SQL schemas expose them through `runs`, and each mapping note's
-rows through `maps`.
+Metadata includes each own note's spans, divs and verse fences marked with
+`lang=`, `font=` or `enc=` under `runs`, with the language as written, its
+resolved tag, font, encoding document Address and original source line/column.
+Roman runs use the default encoding and receive no inferred script face.
+Local and dependency SQL schemas expose these records through `runs`.
 
 The command prepares SQL tables, page lists, automatic sections and scalar
 expressions before publishing their prose targets. Each source uses its own
@@ -3159,173 +3156,167 @@ $ package-build reachability assets/content
 `package-build links [root]`, `package-build lint [root]`, [Diagnostics](diagnostics.md),
 [Configuration](configuration.md).
 
-### `package-build transliterate <map> [text..]`
+### `package-build encode [text..]`
 
 **NAME**
 
-Map a passage into a script exactly as the build maps a marked run.
+Encode roman text using an encoding document.
 
 **SYNOPSIS**
 
-```
-package-build transliterate <map> [--lang <language>] [--font <slug>] [--hex] [text..]
+```text
+package-build encode --enc <document|default> [--in|-i <file>] [--out|-o <file>] [text..]
 ```
 
 **DESCRIPTION**
 
-Reads the content index, as `package-build lint` does, and prints the passage
-rewritten by the mapping note whose `data.map.name` is `<map>`, through the
-same code the build sets a run marked `lang=<language> .nativefont map=<map> font=<slug>`
-with. With `--lang`, each word the language's lexicon states a native form for
-is written by it and every other word is spelled by the rows; without it, the
-rows alone apply. See
-[a map reads the dictionary first](reference/format-details.md#a-map-reads-the-dictionary-first).
-Under a [logographic map](reference/format-details.md#a-logographic-map) every
-word is written from the language's lexicon, by its own writing or its parts',
-and the rows write only the text between words.
-The text is the words given, joined by single spaces; `-` or no text reads it
-from standard input, less one trailing newline. Writes nothing.
+Reads an encoding document from the consuming package's content index and
+writes its Unicode output. `--enc` is an Address whose default type is `doc`,
+or `default` to keep text unchanged. The note supplies its font, and glyph
+codes come from that face's `fonts.json`. These commands apply the bare
+encoding; they do not apply a language's lexical native spellings.
+
+Give exactly one string argument, or `--in` with a UTF-8 file; `--in -` drains
+standard input. `--out` writes the exact result to a file. Standard output adds
+one newline only for string arguments; file and stream input add nothing.
+A refusal writes no result and preserves an existing output file.
 
 **OPTIONS**
 
-| Positional | Type             | Default | Description                            |
-| ---------- | ---------------- | ------- | -------------------------------------- |
-| `map`      | string           | —       | The `data.map.name` of a mapping note. |
-| `text`     | string, variadic | stdin   | The passage; `-` reads it from stdin.  |
-
-| Option   | Type    | Default                                                                           | Description                                                                                           |
-| -------- | ------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `--lang` | string  | —                                                                                 | A language declared in `languages`, whose lexicon is read first.                                      |
-| `--font` | string  | the language's face where the map is drawn in it, else the map's one face, if one | The face, whose own rows come first; required when neither gives one and the map lists more than one. |
-| `--hex`  | boolean | `false`                                                                           | Print the code points, as `U+XXXX` separated by spaces.                                               |
+| Option        | Description                                        |
+| ------------- | -------------------------------------------------- |
+| `--enc`       | Required encoding document Address, or `default`.  |
+| `--in`, `-i`  | Read a UTF-8 file, or standard input with `-`.     |
+| `--out`, `-o` | Write the exact result to a file.                  |
+| `[text..]`    | One quoted input string, used only without `--in`. |
 
 **EXIT STATUS**
 
-1 if the content index could not be built for any note, or the map, the
-language or the face names nothing, each reported as a finding: an unknown
-language at `languages` in the configuration, an unknown map or face at the
-content tree. 1, with the build's own message, if a capitalised word of the
-passage has a native form the rows cannot capitalise, or, under a logographic
-map, a word has no writing or stands for entries written differently.
-Otherwise 0.
+0 on success; 1 for unreadable files or an encoding refusal; 2 for a usage
+error. Findings go to standard error as `file:line:column: error: message`.
+Line and column count Unicode code points, starting at one. String input is
+named `<text>` and standard input `<stdin>`.
 
 **EXAMPLES**
 
-With Vylari's `zaron` stating a native form for `semaron`, and `lonak` stating
-none:
-
-```
-$ package-build transliterate semaron --lang vyl --hex zaron lonak
-U+F024F U+F0230 U+F023F U+F023C U+0020 U+F023A U+F023D U+F023C U+F0230 U+F0239
-$ package-build transliterate semaron --hex zaron
-U+F0255 U+F0230 U+F023F U+F023D U+F023C
-$ package-build transliterate semoran zaron
-assets/content: error: `semoran` is not a map: a map is named by the `data.map.name` of a mapping note; did you mean `semaron`?
-```
-
-The first run writes `zaron` by its exception; the second, with no `--lang`,
-spells it by the rows.
-
-Under the logographic `zethu`, with Khelathi's `lekhunet` built from `lekhau`
-and the affix `-unet`, the plural written by its own sign, and `zamlu` given no
-writing:
-
-```
-$ package-build transliterate zethu --lang khel --hex lekhunet halziim.
-U+1EA93 U+1EBC7 U+0020 U+1EABB U+1EBE1 U+1EBED
-$ package-build transliterate zethu --lang khel zamlu
-error: `zamlu` has no `zethu` writing in the `khel` lexicon, and its parts do not give one; state one, or write the word directly in signs
+```sh
+package-build encode --enc vylsemaronenc "zaron"
+package-build encode --enc khelqalezuenc --in roman.txt --out native.txt
+package-build encode --enc khelzethuenc "⟦MAN⟧"
+printf 'zaron' | package-build encode --enc vylsemaronenc -i - -o native.txt
 ```
 
 **SEE ALSO**
 
-`package-build lexicon <language>`, [Mapping notes](reference/format-details.md#mapping-notes).
+`package-build decode`, `package-build lexicon`, [Writing in invented scripts](guides/writing-in-invented-scripts.md#the-commands).
+
+### `package-build decode [text..]`
+
+**NAME**
+
+Decode Unicode through an encoding document.
+
+**SYNOPSIS**
+
+```text
+package-build decode --enc <document|default> [--in|-i <file>] [--out|-o <file>] [text..]
+```
+
+**DESCRIPTION**
+
+Reads the encoding's longest output rows back as roman text. `--enc` is
+required and resolves exactly as for `encode`. Literal spans decode to the
+encoding's own codes, or `U+XXXX` for an unnamed Unicode scalar. The bare
+command reads no language vocabulary; the [browser conversion API](api.md#browser-conversion)
+adds lexical recovery.
+
+**OPTIONS**
+
+| Option        | Description                                        |
+| ------------- | -------------------------------------------------- |
+| `--enc`       | Required encoding document Address, or `default`.  |
+| `--in`, `-i`  | Read a UTF-8 file, or standard input with `-`.     |
+| `--out`, `-o` | Write the exact result to a file.                  |
+| `[text..]`    | One quoted input string, used only without `--in`. |
+
+**EXIT STATUS**
+
+0 on success; 1 for unreadable files or a decoding refusal; 2 for a usage
+error. Diagnostics and output bytes follow the same rules as `encode`.
+
+**EXAMPLES**
+
+```sh
+package-build decode --enc vylsemaronenc --in native.txt --out roman.txt
+package-build decode --enc khelqalezuenc -i native.txt
+package-build decode --enc khelzethuenc --in signs.txt
+```
+
+**SEE ALSO**
+
+`package-build encode`, `package-build lexicon`, [Browser conversion](api.md#browser-conversion).
 
 ### `package-build lexicon <language>`
 
 **NAME**
 
-List a language's words with their native forms under a map.
+List a language's words and native writings under an encoding document.
 
 **SYNOPSIS**
 
 ```
-package-build lexicon <language> [--map <map>] [--font <slug>] [--derived] [--json]
+package-build lexicon <language> [--enc <encoding>] [--font <slug>] [--derived] [--json]
 ```
 
 **DESCRIPTION**
 
-Reads the content index and lists every word of the language note
-[`languages.<language>.note`](configuration.md#languages) names, in `data.words`
-order, each with its native form under `<map>`, or under the script the
-language note names in `data.writtenIn` when `--map` is left out: the stated exception where the
-word has one, else the rows' spelling, each exactly as
-`package-build transliterate` and the build give it. Each line holds, separated
-by tabs, the word's `form`, its native form, `exception` or `rows`, its `class`
-and its `gloss`. Writes nothing.
+Reads the content index and lists the words of the note named by
+[`languages.<language>.note`](configuration.md#languages), in authored order.
+`--enc` selects an encoding document; its language must agree with the
+requested language, and `--font`, when supplied, must equal its font.
+Native writings and composed parts take precedence over encoding mappings.
 
-Under a [logographic map](reference/format-details.md#a-logographic-map) the
-native form is the word's writing, and the third column says where it comes
-from: `own` for a writing the word states, `parts` for one its `built` pieces
-give, or `none`, with an empty second column, for a word with no writing. A
-word whose form a run cannot write, because the form stands for entries
-written differently or one of its parts does, is marked `ambiguous`, and its
-second column is still that entry's own writing: the signs to write directly
-for that sense. Every word listed with a writing and not `ambiguous` is written
-so by the build and by `package-build transliterate`.
+Tab-separated output contains `form`, native text, source, class and gloss.
+Source is `own`, `parts`, `rows`, `none` or `ambiguous`. A missing writing leaves
+native text empty; an ambiguous entry shows that entry's own writing so the
+reader can choose signs for its meaning. JSON output preserves these fields
+and adds `ambiguous: true` where appropriate.
 
-With `--derived`, the forms the language's own rules derive from those words
-follow them: each word's declared `variants`, then plurals, verb forms, replacing suffixes, agreeing forms and
-participles, exactly the regular forms
-[the mapped-run word check](authoring/links-and-markup.md#a-mapped-runs-words)
-accepts. Each is listed once, case folded as the check compares it, and spelled
-by the rows; a form that is itself a lexicon word is not repeated. Every line
-then has a sixth column: the lexicon word a derived form comes from, empty for
-the lexicon's own words. A derived line carries its word's `class` and `gloss`.
+With `--derived`, declared variants and regular forms follow the citations,
+each once. The final tab-separated column, or JSON `from`, names its source
+word. This lists the forms the language's authored grammar supplies; it does
+not infer grammatical roles from an unlabelled variant.
 
 **OPTIONS**
 
-| Positional | Type   | Default | Description                                         |
-| ---------- | ------ | ------- | --------------------------------------------------- |
-| `language` | string | —       | A declared language whose `note` names its lexicon. |
+| Positional | Type   | Default | Description                                           |
+| ---------- | ------ | ------- | ----------------------------------------------------- |
+| `language` | string | —       | A configured language whose `note` names its lexicon. |
 
-| Option      | Type    | Default                                                                           | Description                                                                                                                                                                                                                                      |
-| ----------- | ------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--map`     | string  | the language's `data.writtenIn` map                                               | The `data.map.name` of a mapping note; required when the language note states no `data.writtenIn`.                                                                                                                                               |
-| `--font`    | string  | the language's face where the map is drawn in it, else the map's one face, if one | The face; required when neither gives one and the map lists more than one.                                                                                                                                                                       |
-| `--derived` | boolean | `false`                                                                           | Also list the forms the language's rules derive, each with the word it comes from.                                                                                                                                                               |
-| `--json`    | boolean | `false`                                                                           | Print a JSON array of `{ form, native, exception, class, gloss }` instead; a derived form adds `from`. Under a logographic map `source` (`own`, `parts` or `none`) takes the place of `exception`, and an ambiguous word adds `ambiguous: true`. |
+| Option      | Type    | Default                  | Description                                                |
+| ----------- | ------- | ------------------------ | ---------------------------------------------------------- |
+| `--enc`     | string  | required                 | An encoding document Address.                              |
+| `--font`    | string  | encoding document's font | A face supported by the encoding.                          |
+| `--derived` | boolean | `false`                  | Include variants and derived forms with their source word. |
+| `--json`    | boolean | `false`                  | Print JSON records instead of tab-separated lines.         |
 
 **EXIT STATUS**
 
-1 if the content index could not be built for any note, or the language, the
-map or the face names nothing, no map is named and the language note states no
-`data.writtenIn`, the language states no `note`, or a capitalised
-word has a native form the rows cannot capitalise, each reported as a finding.
-Otherwise 0.
+0 on success; 1 for content-index findings, an unknown language, encoding or
+face, a missing language note or encoding selection, or an invalid conversion.
 
 **EXAMPLES**
 
 ```
-$ package-build lexicon vyl --map semaron | head -3
-zaron	<native form>	exception	n	an oath
-lonak	<native form>	rows	n	a road
-thizaron	<native form>	rows	n	a seal
-$ package-build lexicon vyl --map semaron --derived | grep -P '\talathos$'
-alatha	<native form>	rows	pron	he, that one	alathos
-alathon	<native form>	rows	pron	he, that one	alathos
-alathoi	<native form>	rows	pron	he, that one	alathos
-alathai	<native form>	rows	pron	he, that one	alathos
-$ package-build lexicon khel --map zethu | grep -P '\t(none|ambiguous)\t'
-nelgir	<writing>	ambiguous	n	a god
-Nelgir	<writing>	ambiguous	stem	god
-zamlu		none	n	music
+package-build lexicon vyl --enc vylsemaronenc
+package-build lexicon vyl --enc vylsemaronenc --derived --json
+package-build lexicon khel --enc khelzethuenc
 ```
 
 **SEE ALSO**
 
-`package-build transliterate <map> [text..]`,
-[A language's words](reference/format-details.md#a-languages-words).
+`package-build encode`, `package-build decode`,
+[native spellings and parts](reference/format-details.md#native-spellings-and-parts).
 
 ### `package-build core`
 

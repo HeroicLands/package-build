@@ -68,7 +68,15 @@ import {
     type Rendering,
     type Subject,
 } from "./helpers/parity-expectations";
-import { bodyOf, buildParity, noteRecords, previewIndexFor, type Built } from "./helpers/parity";
+import {
+    bodyOf,
+    buildParity,
+    fixtureConfig,
+    noteRecords,
+    previewIndexFor,
+    type Built,
+} from "./helpers/parity";
+import { encodeText, decodeText } from "../engine/encoding.mjs";
 
 let built: Built;
 
@@ -588,4 +596,16 @@ describe("the corpus note is the one place each construct is exercised", () => {
         expect(bodyOf(built.corpusSource)).toBe(built.corpusBody);
         expect(built.corpusBody.startsWith("---")).toBe(false);
     });
+});
+
+it("retains the shared word separators in the public Teng Chou encoding note", () => {
+    const context = runContext(fixtureConfig(built.root), noteRecords(built.root));
+    expect(context.encodingFindings).toEqual([]);
+    const encoding = context.encodings.get("tsutengenc");
+    expect(encoding).toMatchObject({ language: "tsu", font: "teng-chou" });
+    const source = "chen teng chou hing tan tsou dou rou";
+    const native =
+        "\u{F101F} \u{F1013} \u{F103E} \u{F1057} \u{F1014} \u{F102A} \u{F1036} \u{F10AA}";
+    expect(encodeText(encoding, source)).toBe(native);
+    expect(decodeText(encoding, native)).toBe(source);
 });

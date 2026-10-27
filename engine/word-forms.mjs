@@ -50,7 +50,7 @@
  * @module
  */
 
-import { pluralByRule, pluralOf } from "./dictionary-rows.mjs";
+import { pluralByRule, pluralOf } from "./word-inflections.mjs";
 import { replaceClosing, verbForm, verbPattern } from "./verb-pattern.mjs";
 import { parseWordClass } from "./word-classes.mjs";
 import { WORD } from "./word-pattern.mjs";

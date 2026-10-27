@@ -14,7 +14,7 @@
 /**
  * **Delivering the installed faces to each target.** A consumer that installs
  * `@heroiclands/fonts` and sets text in one of its faces, with `font=` or by a
- * language note's `data.writtenIn`, gets the fonts on the site, in the Foundry
+ * encoding document's `data.font`, gets the fonts on the site, in the Foundry
  * module and in its books; without both, nothing ships and nothing links to it.
  *
  * - **Site and Foundry** receive `fonts.css`, listing only the WOFF2 sources,
@@ -32,7 +32,6 @@ import YAML from "yaml";
 import { baseStyleLayer } from "./base-styles.mjs";
 import { scanRuns } from "./content-scripts.mjs";
 import { FONTS_MANIFEST, resolveScriptFonts } from "./script-fonts.mjs";
-import { LANGUAGE_SUBTYPE } from "./word-terms.mjs";
 
 /**
  * Where the files land in the staged Foundry module, relative to its root.
@@ -72,14 +71,14 @@ const usedFaces = new WeakMap();
 const FRONTMATTER = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
 
 /**
- * The face a language note names in `data.writtenIn`, where it is installed.
+ * The face an encoding document names in `data.font`, where it is installed.
  *
  * @param {string} source - The note's file.
  * @param {import("./script-fonts.mjs").ScriptFonts} installed - The fonts package.
  * @param {import("./content-session.mjs").ContentNoteSource} [parsed] - Already parsed authored note.
  * @returns {string|undefined} The face's slug.
  */
-function writtenInFace(source, installed, parsed) {
+function encodingNoteFace(source, installed, parsed) {
     const yaml = FRONTMATTER.exec(source)?.[1];
     if (yaml === undefined) return undefined;
     let fm;
@@ -88,18 +87,16 @@ function writtenInFace(source, installed, parsed) {
     } catch {
         return undefined;
     }
-    if (fm?.type !== "skill" || String(fm.subType ?? "").toLowerCase() !== LANGUAGE_SUBTYPE)
-        return undefined;
-    const font = fm.data?.writtenIn?.font;
+    if (fm?.type !== "doc" || !fm.data?.mappings || !fm.data?.rules) return undefined;
+    const font = fm.data?.font;
     return typeof font === "string" && installed.faces.has(font) ? font : undefined;
 }
 
 /**
  * The faces the package's notes set text in, read from the notes
  * themselves: every Markdown file under the content tree that writes `font=`
- * is scanned for its runs, and the face every language note names in
- * `data.writtenIn` counts, since a run marked with the language alone is set
- * in it.
+ * is scanned for its runs, and encoding documents supply the fonts their
+ * encoded runs infer.
  *
  * @param {DeliveryConfig} config - The resolved configuration.
  * @param {import("./script-fonts.mjs").ScriptFonts} installed - The fonts package.
@@ -123,8 +120,8 @@ export function facesUsed(config, installed, session) {
             if (entry.isDirectory()) walk(full);
             else if (entry.isFile() && entry.name.endsWith(".md")) {
                 const source = session?.sources.get(full)?.raw ?? fs.readFileSync(full, "utf8");
-                if (/^\s*writtenIn:/m.test(source)) {
-                    const face = writtenInFace(source, installed, session?.parsed.get(full));
+                if (/^\s*font:/m.test(source)) {
+                    const face = encodingNoteFace(source, installed, session?.parsed.get(full));
                     if (face) used.add(face);
                 }
                 if (!/\bfont=/.test(source)) continue;

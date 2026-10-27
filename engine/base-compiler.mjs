@@ -633,9 +633,24 @@ export class BasePackCompiler {
      * @throws {Error} When `findings` is non-empty, after reporting all of them.
      */
     reportConvertBodyFindings(findings) {
+        this.externalBodyFindings ??= new Set();
         for (const finding of findings) {
+            if (finding.file && finding.file !== this.currentNote?.absPath) {
+                const key = JSON.stringify([
+                    finding.file,
+                    finding.line,
+                    finding.column,
+                    finding.message,
+                ]);
+                if (this.externalBodyFindings.has(key)) continue;
+                this.externalBodyFindings.add(key);
+            }
             this.errorCount++;
-            this.noteError(finding.message, { line: finding.line, column: finding.column });
+            this.noteError(finding.message, {
+                file: finding.file,
+                line: finding.line,
+                column: finding.column,
+            });
         }
         if (findings.length) {
             const error = new Error(
@@ -670,10 +685,13 @@ export class BasePackCompiler {
         const bodyColumn = this.currentNote?.bodyColumn ?? 1;
         // A finding's body position, in the file. The parser trims the body,
         // so only its first line is offset by the column the body starts at.
-        const inFile = ({ line, column }) => ({
-            line: bodyLine + line - 1,
-            column: line === 1 && column !== undefined ? bodyColumn + column - 1 : column,
-        });
+        const inFile = ({ file, line, column }) =>
+            file ?
+                { file, line, column }
+            :   {
+                    line: bodyLine + line - 1,
+                    column: line === 1 && column !== undefined ? bodyColumn + column - 1 : column,
+                };
         const syntax = this.corpus?.syntax;
         const scanned = syntax?.(body);
         for (const secretError of [
@@ -893,12 +911,12 @@ export class BasePackCompiler {
      * naming the file alone beats naming a line that is not the problem.
      *
      * @param {string} message - What is wrong, in one sentence.
-     * @param {{line?: number, column?: number}} [position] - Where, if known.
+     * @param {{file?: string, line?: number, column?: number}} [position] - Where, if known.
      * @returns {void}
      */
     noteWarn(message, position) {
         emitDiagnostic({
-            file: this.currentNote?.absPath,
+            file: position?.file ?? this.currentNote?.absPath,
             line: position?.line,
             column: position?.column,
             severity: "warning",
@@ -910,12 +928,12 @@ export class BasePackCompiler {
      * Reports an error about the note being compiled.
      *
      * @param {string} message - What is wrong, in one sentence.
-     * @param {{line?: number, column?: number}} [position] - Where, if known.
+     * @param {{file?: string, line?: number, column?: number}} [position] - Where, if known.
      * @returns {void}
      */
     noteError(message, position) {
         emitDiagnostic({
-            file: this.currentNote?.absPath,
+            file: position?.file ?? this.currentNote?.absPath,
             line: position?.line,
             column: position?.column,
             severity: "error",

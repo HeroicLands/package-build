@@ -1960,208 +1960,100 @@ subtypes conflict. One package advisory contains both groups and is located
 at the earliest reported use. Advisory findings preserve a successful lint
 exit status. Supplied-value errors prevent publication and compilation.
 
-#### Text marked with a language, a font or a map
+#### Text marked with a language, font or encoding
 
-`lang=` identifies a span, generic div, verse fence or scroll fence's
-language while retaining authored spelling and the surrounding prose font.
-`.nativefont` explicitly requests native presentation and requires `lang=` on
-that same construct; an inherited language does not satisfy the requirement.
-On a named block the language, font and map keys are errors.
+`enc=` names an encoding document, with `doc` as its default Address type:
+`[say.]{enc=aelwsemaronenc}` selects `doc-aelwsemaronenc`. That document supplies
+its configured `language` and single `font`; an explicit `lang=` must identify
+the same language, and an explicit `font=` must be that font. Another face is
+a separate encoding document.
 
-- **`lang=`** is a name declared in [`languages`](../configuration.md#languages),
-  otherwise a BCP 47 tag checked for its form alone. Language identification
-  and its existing validation do not depend on native presentation.
-- **`.nativefont`** selects that language's `data.writtenIn` map and font.
-  A native run needs an effective font; a missing default reports the
-  required `font=` override. The map is optional when the language supplies
-  none, so directly typed script code points can be set without mapping. The
-  build does not guess a font from a map's list of faces.
-- **`font=`** overrides the native font independently. Without `.nativefont`,
-  only `mono`, `serif` and `sans` are permitted.
-- **`map=`** overrides the native map independently and requires `.nativefont`.
-  It names a [mapping note](#mapping-notes). With a configured language note,
-  mapping reads that language's lexicon first; see
-  [a map reads the dictionary first](#a-map-reads-the-dictionary-first).
+`enc=default` leaves Roman text as written and is the default when no encoding
+is selected. `lang=` still identifies the text and selects its language's
+vocabulary; `font=mono`, `serif`, `sans` or an installed font selects its face
+without encoding it. Language identification does not select an encoding.
 
-Unmarked text follows its passage. Each marked child chooses its presentation:
-a language-only child stays Roman, even inside a native passage of that same
-language. A native child requires its own explicit `lang=` and `.nativefont`,
-uses its own language's defaults and applies only its own overrides.
-
-Standalone wikilinks accept the same attributes. `[[address|Name]]{lang=vyl}`
-stays Roman, while `[[address|Name]]{lang=vyl .nativefont}` applies native
-mapping and font to the displayed name alone. Targets, spoilers, `.show`,
-draft annotations and book page cues retain their behavior. Adjacent prose
-belongs in sibling spans; an embedded link inside a longer native run is an error.
-Parallel verse uses `cols=N`, a positive whole number defaulting to one.
-With multiple columns, each content line starts with its column number and
-one or more spaces. Blank-separated logical rows accept nondecreasing
-numbers in `1..cols`, preserving omitted cells and any number of repeated
-readings. The first reading in each column is foreground and all later ones
-in that column are grey; each row resets that choice. `numstep` counts logical
-rows, and `***` separates stanzas. Language and native script choices remain
-on the authored inline runs, independently for every reading.
-
-**A language note declares its Roman source inventory in `data.roman`.** It is
-one literal NFC string containing each permitted character once, including every
-capital, accent, digit and punctuation mark the language uses. For example,
-`roman: "kaKàÀ.1"` permits exactly those seven characters. There is no range
-syntax, automatic case expansion, or inventory inherited from a parent language.
-An empty string explicitly declares that the language has no written characters.
-Spaces, tabs and line breaks are structural and are not listed in the inventory.
-A missing declaration on a configured language note is an error even when no
-passage uses the language. A directly typed native sign is separate from
-Roman input only when the run explicitly selects `.nativefont`, the character
-belongs to a recognized setting-script encoding, and the selected face draws it.
-A font's ability to draw Roman punctuation does not admit that punctuation.
-
-`package-build lint` checks the visible source of language-tagged spans, divs,
-verse and scroll fences against that inventory before any map or native-word
-replacement can hide a character. Both the configured name and its BCP 47 tag
-select the same inventory. A nested language selects its own; link destinations,
-attributes, column numbers, indentation periods and `***` stanza separators are
-structure. Escaping a character does not admit it. Source spelling must be NFC;
-errors retain the original file position. Unassociated external tags such as
-`en` and `zxx` keep their ordinary behavior. Standalone `package-build markdown`
-checks markup without loading language inventories. Structured frontmatter words
-are separate from prose runs.
-
-**A face draws the code points its `fonts.json` entry lists in `codepoints`,
-and whitespace.** After the map, any other character in a run set in a face is
-an error, located at the source character it came from; through a map, at the
-start of the matched `from`. Each character is reported once per run. The
-generic families are not checked. `input`, `layout` and `encoding` in
-`fonts.json` are not read.
-
-Text marked with `font=` or `map=`, or with a declared language, is plain: a
-span or a verse holds no emphasis, link, image, footnote, wikilink, code or
-HTML, and no span but a marked one inside a div or a fence; a div holds
-paragraphs and line breaks only. Text set in a face takes `*…*` and `**…**`,
-set by its [emphasis convention](#script-notes-and-emphasis). The text is read as written, so `[`, `]`, `"`,
-`<<`, `>>`, `!` and `@#$%^&` are characters, and a bracket pair is markup only
-when `(`, `{` or a second `[` makes it a link, a span or a wikilink. Text marked
-with a real language's tag alone keeps its Markdown. See
-[marking language, font and mapping](../authoring/links-and-markup.md#marking-language-font-and-mapping).
-
-Each own-note metadata record carries `runs` in source order, an empty array
-when the body marks nothing. Every entry has `kind` (`span`, `block`, `scroll` or
-`verse`), `lang`, `tag`, `font`, `map`, `line` and `column`: `lang`, `font` and
-`map` as written, or its language's `data.writtenIn` defaults only for an
-explicit `.nativefont` run, `tag` the BCP 47 tag `lang` resolves
-to, each `null` when absent, and the position of the span's `[`, the div's
-`:::` or the fence's opening. An opted-in run also carries optional `nativefont: true`; Roman runs omit
-that flag and leave unused script defaults null. The `runs` SQL relation
-retains its existing columns and projects no flag column. Tags differing
-only in case remain separate values. This is derived
-metadata, not frontmatter. The [`runs` relation](#content-tables) flattens
-these entries with their containing NOTE Address.
-
-#### Mapping notes
-
-A `doc` note's `data.map` is a mapping: rows that rewrite sequences of
-characters into characters, which a run marked `map=` with its `name` is
-rewritten by before it is set. A mapping belongs to a script, and serves every
-language written in it.
-
-```yaml
-data:
-  map:
-    name: semaron
-    vowels: "aeiouAEIOU"
-    fonts:
-      - font: semaron-kuriale
-      - font: semaron-carved
-        rows:
-          - [th, "\U000F0251"]
-    rows:
-      - [a, "\U000F0230"]
-      - [th, "\U000F0250"]
-      - { from: y, to: "\U000F0246", before: consonant }
+```markdown
+[say.]{enc=aelwsemaronenc}
+[say.]{enc=doc-aelwsemaronenc lang=aelw font=semaron-kuriale}
+[say.]{lang=aelw enc=default}
 ```
 
-| Key           | Shape                                                | Meaning                                                                         |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `name`        | string, required                                     | What `map=` names it by: lowercase letters, digits and `-`, unique in the index |
-| `logographic` | `true`                                               | The script writes meanings; see [a logographic map](#a-logographic-map)         |
-| `vowels`      | string                                               | The characters `before: vowel` reads as vowels                                  |
-| `fonts`       | list of `{ font, rows? }`, required, at least one    | The faces the map is drawn in, by slug, each with any rows of its own           |
-| `rows`        | list of `[from, to]` or `{ from, to, before?, at? }` | The shared rewrites, in authored order                                          |
+Class-only emphasis and name children belong to the parent's complete logical
+text; encoding preserves their rendered wrappers. A child with its own run
+keys makes a separate presentation choice. `enc=default` inside an encoded
+parent keeps the inherited language but does not inherit its inferred script
+face. An explicitly authored font remains a font choice.
 
-**A face's own rows come first.** A run in a face tries that face's `rows`,
-the longest match among them, and only where none matches the shared `rows`; a
-face listed with no `rows` uses the shared rows alone, and a run with no
-`font=` uses them too. Rows take the same shapes and conditions in both places,
-and `vowels` serves them all. A run whose `font=` is not one of the map's
-`fonts` is an error at its `map=`:
+A name's braces use the shared name controls. Resolved references encode only
+their visible labels, retaining URLs and presentation cues. These keys apply
+to spans, divs, verse fences and scroll fences. A scroll's selected font must
+belong to a script whose note declares `direction: vertical-rl`.
 
-> `` `thuravark-carved` is not a font of the map `semaron`; it is for `semaron-kuriale` and `semaron-carved` ``
+#### Encodings
 
-A row's `from` is one or more characters and its `to` any number, none
-included, each a whole code point; a code point above U+FFFF is written in YAML
-with the eight-digit escape, as `"\U000F0200"`. The longest match wins; among rows of one length, a row with a
-condition that holds comes before a row with none, and otherwise the earlier
-row wins. A row whose condition fails is skipped, and a character no row
-matches passes through unchanged.
+An encoding is a `doc` note. Its `data.language` is a configured language
+alias, `data.font` is one installed font slug, and `data.mappings` maps Roman
+strings to a font glyph code or a sequence of codes. `data.rules` holds the
+closed executable rules. Optional `data.accepts` states accepted characters
+or ranges and `data.vowels` states contextual vowels. The note body explains
+the spelling to a reader.
 
-| Condition           | Holds when                                                                   |
-| ------------------- | ---------------------------------------------------------------------------- |
-| `before: vowel`     | the next character is one of `vowels`                                        |
-| `before: consonant` | the next character is any other letter                                       |
-| `at: start`         | the match is the run's first character, or follows whitespace or punctuation |
-| `at: end`           | the match ends the run, or is followed by whitespace or punctuation          |
+The font supplies each glyph's `code` beside its `codepoint` in `fonts.json`.
+Codes belong to the selected font; the note never repeats a code table.
+Unknown fields, glyph codes, languages and fonts are positioned findings.
+An encoding's output must decode unambiguously, including across adjacent
+mappings and spaces. The compiler refuses indistinguishable spellings rather
+than choosing a guessed reading.
 
-Neither `before` condition holds at the end of the text. The note's body is
-for a reader: nothing reads it. Each row is a row of the
-[`maps` relation](#content-tables), never a struct key, so `A` and `a` are two
-rows; a face's own rows carry its slug in `font`.
+Lint checks every authored word, variant and registered name for a language
+with an encoding document, including unused entries. It also checks actual
+name-list entries and name-element spellings and examples; patterns and
+abstract roots are excluded. Bound-element edge hyphens mark joining positions.
+These are bare Roman checks, so a native writing cannot bypass spelling rules.
+Different case and multiword names retain their authored spelling.
+See [the executable rules](../encoding-core.md).
 
-The data-key check holds every key of `data.map` and of each row to the table
-under [`type: doc`](#type-doc), at its own line and column:
+Mappings match longest first; contextual before-vowel rules precede their
+unconditional alternatives. A case rule may allow lowercase and initial-capital
+groups while refusing other mixed or uppercase group spellings. Encoding keeps
+authored case and never rewrites a word's Roman spelling.
 
-> `` `data.map.rows[2]` should be `[from, to]` or `{ from, to, before?, at? }`, but reads "a" ``
+Outside literal markers, a run of Unicode Zs characters or U+0009 through
+U+000D writes one space. Other whitespace needs an explicit mapping. Standard
+Roman punctuation, verse and name controls are inherited from the shared
+standard; an explicit mapping can give a standard source its font glyph.
 
-> `` `data.map.rows[3]` must state `to` — a string, which may be empty ``
+The canonical content index retains the authored mapping object. In the SQL
+`notes` and dependency relations, `data.mappings` is an ordered list of
+`{from, codes}` records: a scalar glyph code becomes a one-entry `codes`
+list. Source keys such as `a` and `A` remain case-sensitive values, rather
+than case-insensitive SQL struct keys.
 
-> `` "when" is not a key of `data.map.rows[5]`; it takes only `from`, `to`, `before`, `at` ``
+```sql
+SELECT mapping."from", mapping.codes
+FROM notes, UNNEST(data.mappings) AS selected(mapping)
+WHERE type = 'doc' AND shortcode = 'aelwsemaronenc'
+```
 
-> `` `data.map.rows[6].before` should be `vowel` or `consonant`, but reads "liquid" ``
+##### Literal codes
 
-The map's own check reports the rest, each at its key:
+Inside an encoded run, `⟦…⟧` writes the selected font's glyph codes or exact
+Unicode scalars: `[⟦MAN⟧]{enc=khelzethuenc}` where `MAN` is defined, and
+`[⟦U+00E1⟧]{enc=vylsemaronenc}` for an exact character. A Unicode code takes four to
+six uppercase hexadecimal digits, U+0000 through U+10FFFF excluding
+surrogates. Codes come only from the font; Unicode database
+names are not inferred. Whitespace between codes writes nothing. Nested or
+unmatched markers, unknown codes and standard marks absent from the font
+code table are errors. Without an encoding, a literal marker is a finding.
 
-> `` `data.map.name` is `Vyl_Semaron`; a map's name is lowercase letters, digits and `-` ``
+Each outer marker writes its own invisible control. Payload occurrences of
+those controls or the literal escape are quoted with U+E0115. Decoding
+unquotes the payload before reading code rows and uses `U+XXXX` for scalars
+with no code name. Variation selectors U+E0100 through U+E01EF are valid
+encoded characters and carry distinctions the visible font does not draw.
 
-> `` `data.map.name` is `vyl-semaron`, which Lore/Other.md also declares; a map's name is unique ``
-
-> `` `data.map.rows[0]` is a list, and a row written as a list is two strings, `[from, to]` ``
-
-> `` `data.map.rows[1]` has an empty `from`; a row matches one or more characters ``
-
-> `` `data.map.rows[4]` has `before: consonant`, and the map states no `vowels` to read it by ``
-
-> `` `data.map.fonts` is empty; a map lists each face it is drawn in ``
-
-> `` `data.map.fonts[0].font` is `mono`, a generic family; a map lists the faces it is drawn in ``
-
-> `` `data.map.rows[2]` matches `z`, a letter, and the rows of a logographic map write only the text between words ``
-
-The lint checks the listed faces against the installed `@heroiclands/fonts`,
-each at the entry or the row at fault. Every listed face draws every code point
-its own rows write, every code point the shared rows it can reach write (a
-shared row is out of a face's reach where a plain row of the face's own matches
-the start of its `from`), and every code point of the native forms that apply
-to it:
-
-> `` `semaron-kurale` is not a font: `data.map.fonts[1].font` names an installed face; did you mean `semaron-kuriale`? ``
-
-> `` `data.map.fonts[2]` lists the font `semaron-kuriale` a second time; the first is `data.map.fonts[0]` ``
-
-> `` `data.map.fonts[1].rows[0]` writes U+F0251, which the font `semaron-carved` does not draw ``
-
-> `` `data.map.rows[5]` writes U+F0239, which the font `semaron-kuriale`, listed in `data.map.fonts`, does not draw ``
-
-A row with a fault is left out of the map; the rest apply.
-
-#### A map reads the dictionary first
+#### An encoding reads the dictionary first
 
 The sound rules belong to the script, and the exceptions to the language. A
 word of a [language's words](#a-languages-words) states a `native` form for a
@@ -2174,18 +2066,17 @@ words:
     field: "Law, the court and the written act"
     gloss: an oath
     native:
-      - { map: semaron, text: "\U000F024F\U000F0230\U000F023F\U000F023C" }
-      - { map: semaron, font: semaron-carved, text: "\U000F024F\U000F0230\U000F023C" }
+      - { enc: vylsemaronenc, text: "\U000F024F\U000F0230\U000F023F\U000F023C" }
+      - { enc: vylsemaronenc, font: semaron-carved, text: "\U000F024F\U000F0230\U000F023C" }
 ```
 
 | Key    | Shape            | Meaning                                                                                      |
 | ------ | ---------------- | -------------------------------------------------------------------------------------------- |
-| `map`  | string, required | The `data.map.name` the native form is written for                                           |
 | `font` | string           | The one face it is for; unstated, every face the map lists, and a face's own form wins there |
 | `text` | string, required | The word as the script writes it, in the map's characters                                    |
 
 A run marked `lang=` with a declared language whose
-[`note`](../configuration.md#languages) names its language note, and `map=`,
+[`note`](../configuration.md#languages) names its language note, and `enc=`,
 is written word by word:
 
 1. **A word** is a maximal run of letters, combining marks and digits, an
@@ -2211,12 +2102,12 @@ declared language with no `note` are spelled by the rows alone. A character the
 face does not draw inside a word written by its native form is an error at the
 word's start:
 
-> `` `Orlan` is capitalised, and the native form the lexicon of `vyl` states for `orlan` under the map `semaron` does not begin as the rows spell its first letter, so the rows cannot capitalise it; state `Orlan` as a word of its own with its native form ``
+> `` `Orlan` is capitalised, and the native form the lexicon of `vyl` states for `orlan` under the encoding `semaron` does not begin as the rows spell its first letter, so the rows cannot capitalise it; state `Orlan` as a word of its own with its native form ``
 
-> `` `zaron` is written U+F024F by the lexicon of `vyl` for the map `semaron`, which the font `semaron-kuriale` does not draw ``
+> `` `zaron` is written U+F024F by the lexicon of `vyl` for the encoding `semaron`, which the font `semaron-kuriale` does not draw ``
 
 **Language word-book validation applies to Roman and native runs alike**,
-independently of `.nativefont` or mapping. Every word is a word of the
+independently of encoding selection. Every word is a word of the
 language, case folded: a
 `data.words[].form`, a word of a name the language note's own `data.register`
 lists under a `tongue` other than `translation`, or a form one rule derives from a lexicon form —
@@ -2231,7 +2122,7 @@ gives a word of one of its `classes`, or a participle `data.grammar.participles`
 gives a verb (see [optional noun and verb forms](#optional-noun-and-verb-forms)). A compound not known whole is checked part by
 part at its hyphens and en dashes. Any other word is an error at its first
 character, once per run; see
-[a mapped run's words](../authoring/links-and-markup.md#a-mapped-runs-words):
+[a mapped run's words](../authoring/links-and-markup.md#an-encoded-runs-words):
 
 > `` `thiruthrimar` is not a word of the `vyl` lexicon, a registered name, or a regular form of one; coin it in the lexicon (or register the name) first ``
 
@@ -2240,24 +2131,24 @@ struct key, so forms that differ only in case are two rows. The data-key check
 holds each entry to its three keys; the lint checks the rest, each at the entry
 or the key at fault:
 
-> `` `data.words[0].native[0].map` is `semron`, which is not a map: a native form names the `data.map.name` of a mapping note; did you mean `semaron`? ``
+> `` `data.words[0].native[0].enc` is `semron`, which does not resolve to an encoding document ``
 
-> `` `data.words[0].native[1].font` is `thuravark-carved`, which is not a font of the map `semaron`; it is for `semaron-kuriale` and `semaron-carved` ``
+> `` `data.words[0].native[1].font` is `thuravark-carved`, which is not a font of encoding `semaron`; it is for `semaron-kuriale` and `semaron-carved` ``
 
-> `` `data.words[0].native[2]` states a second native form for the map `semaron`; the first is `data.words[0].native[0]` ``
+> `` `data.words[0].native[2]` states a second native form for the encoding `semaron`; the first is `data.words[0].native[0]` ``
 
-> `` `data.words[0].native[0]` states what the rows already give: the map `semaron` spells `zaron` so in the font `semaron-kuriale`; a native form is stated only where the rows spell the word differently ``
+> `` `data.words[0].native[0]` states what the rows already give: the encoding `semaron` spells `zaron` so in the font `semaron-kuriale`; a native form is stated only where the rows spell the word differently ``
 
-> `` `data.words[0].native[0]` holds U+F024F, which the font `semaron-kuriale`, listed in the map `semaron`, does not draw ``
+> `` `data.words[0].native[0]` holds U+F024F, which the font `semaron-kuriale`, listed in the encoding `semaron`, does not draw ``
 
 The "states what the rows already give" finding compares a native form stated
 for a face with that face's rows, and one stated for no face with every listed
 face's rows: it is redundant only where every face's rows give it. This is what
 keeps a lexicon to its exceptions.
 
-`package-build transliterate` maps a passage, and `package-build lexicon` lists
-every word with its native form, through the same code as the build: see
-[`transliterate`](../commands.md#package-build-transliterate-map-text) and
+`package-build encode` and `package-build decode` apply the bare encoding;
+`package-build lexicon` lists every word with the native form the build uses. See
+[`encode`](../commands.md#package-build-encode-text), [`decode`](../commands.md#package-build-decode-text) and
 [`lexicon`](../commands.md#package-build-lexicon-language).
 
 #### Metres
@@ -2293,103 +2184,74 @@ its count can be the metre's.
 The count is an author-side check. The rendered fence carries `data-scan` with
 the metre's name and nothing a reader sees.
 
-#### A logographic map
+#### Native spellings and parts
 
-A map stating `logographic: true` writes meanings, so its rows spell no word.
-Every word of a run under it is written from the run language's lexicon, and
-the rows write only the text between words: whitespace, points and any other
-text holding no letter. A word holds at least one letter; a run of digits is
-text between words. A word is matched case folded, NFC, with `’` read as `'`,
-and written by the first of these that gives a writing:
-
-1. **The entries of its form.** Each entry whose `form`, folded, is the word,
-   and failing that each whose folded `form` with its joining hyphens taken
-   off is the word (`Gar-` for `gar`). An entry is written by its own `native`
-   for the map, the one for the run's face where it states one, else the one
-   for no face; else by its `built` pieces' writings joined in order.
-2. **A derived form.** A noun's plural (its own `plural`, else the
-   `data.grammar.plural` rule) and a verb's present form for one person of
-   `data.grammar.verbs.persons` are written by the stem's entry's writing,
-   followed by the `text` of the `data.grammar.native` entry for that ending.
-   Other derived forms (a replacing suffix, an agreeing form, a participle)
-   have no writing of their own here; they are coined as words, or written in
-   signs.
-3. **Its hyphenated parts.** A word holding a hyphen or an en dash that the
-   steps above do not write is written by each part in turn, each by steps 1
-   and 2; the hyphen writes nothing.
-
-A `built` piece is a word of the lexicon written exactly as the piece, else an
-affix of `data.affixes` whose `form` or `front` is the piece, else either one
-with joining hyphens taken off; a word piece is written by its own `native` or
-its own pieces, recursively, and an affix by its own `native`. A piece that
-reaches a word already being resolved has no writing.
-
-**Ambiguity.** Where a step matches more than one entry and their writings are
-not all one text, or one has a writing and another none, the word has no
-writing and is an error naming every entry's gloss. A part matched that way
-makes the word ambiguous the same way, naming the part.
-
-| Key                            | Shape                                                   | Meaning                                                 |
-| ------------------------------ | ------------------------------------------------------- | ------------------------------------------------------- |
-| `data.affixes[].native`        | list of `{ map, font?, text }`                          | The affix's writing, for a `built` piece naming it      |
-| `data.grammar.native`          | list of `{ ending, map, font?, text }`                  | The signs a derived form takes after its stem's writing |
-| `data.grammar.native[].ending` | `plural`, `I`, `you`, `heShe`, `we`, `youAll` or `they` | The ending written                                      |
-| `data.grammar.native[].text`   | string, required, may be empty                          | The ending's signs; empty writes the stem alone         |
+Every encoding uses the same order for a language word: its own `native`
+entry for that encoding and face; otherwise the writings of all its parts;
+otherwise the encoding's rows. A face-specific entry precedes an entry for no
+face. Exact lexical forms precede folded lookup, so separately authored
+capitalized spellings keep their own native text. A flat variant is a lexical
+form; it does not assign a grammatical role by itself.
 
 ```yaml
-affixes:
-  - form: "-unet"
-    gloss: "a thing made of"
+words:
+  - form: halzi
+    class: n
+    gloss: heart
+    field: Words
     native:
-      - { map: zethu, text: "\U0001EBC7" }
-grammar:
-  plural:
-    - { ending: "", becomes: "im" }
-  verbs:
-    persons: { I: en, you: et, heShe: "", we: enu, youAll: etu, they: ar }
-  native:
-    - { ending: plural, map: zethu, text: "\U0001EBE1" }
-    - { ending: I, map: zethu, text: "\U0001EBDF" }
+      - { enc: zethu, text: "\U0001EABB" }
+  - form: halzunet
+    class: n
+    gloss: the account
+    field: Words
+    built: [halzi, -unet]
+affixes:
+  - form: -unet
+    gloss: a thing made of
+    native:
+      - { enc: zethu, text: "\U0001EBC7" }
 ```
 
-A word with no writing, an ambiguous word, and a word in a run with no lexicon
-to write it from are each an error at the word, once per run:
+A built part is an exact word or affix, then the same form with joining
+hyphens removed. Parts can themselves be built. A plural or present form can
+use the stem's writing followed by its explicitly named ending from
+`grammar.native`, whose entries use `{ending, enc, font?, text}`. These
+writings work under every encoding. Missing parts do not invent signs, and
+recursive parts terminate without a writing. Entries with genuinely different
+writings remain an ambiguity naming every matching gloss.
 
-> `` `zamlu` has no `zethu` writing in the `khel` lexicon, and its parts do not give one; state one, or write the word directly in signs ``
+An encoding accepting no letters, such as `zethu` or `chalish-pilam`, needs a
+lexical writing or literal codes for a word. The refusal names the word,
+language and encoding and points to that word.
 
-> `` `nelgir` stands for 2 words of the `khel` lexicon that the map `zethu` writes differently, “a god” and “god”; write the word directly in signs, choosing by its sense in `package-build lexicon khel --map zethu` ``
+##### Reading script text
 
-> `` `Gar-nelgir` is written from its part `nelgir`, which stands for 2 words of the `khel` lexicon that the map `zethu` writes differently, “a god” and “god”; write the word directly in signs, choosing by its sense in `package-build lexicon khel --map zethu` ``
+Without a language, decoding is exactly the encoding's longest-output match.
+With a language, explicit native and composed writings are tried first,
+longest first; a shared writing uses the first listed sense. Literal marker
+spans decode through their inline codes. Unknown unmarked signs in a script
+accepting no letters become `⟦codes⟧` with a finding.
 
-> `` `halzi` has no `zethu` writing: the map `zethu` is logographic, and the run names no `lang=` whose lexicon writes it; mark the run with its language, or write the word directly in signs ``
-
-> `` `halzi` has no `zethu` writing: the map `zethu` is logographic, and `tant` has no lexicon (`languages.tant.note`) to write it from; write the word directly in signs ``
-
-Signs typed in the run hold no letter, so they are no word and pass through as
-typed. The face-coverage check reads the writings as it reads native forms; a
-word with no writing is reported by its own finding alone. The lexicon check
-and the register check apply to the run as to any mapped run.
-
-Under a logographic map a word's `native` is its writing and is not compared
-with the rows. An affix's `native` and `data.grammar.native` are read only by
-a logographic map, so an entry naming any other map is an error, as is an
-ending of a person where the pattern states no `persons`. The checks of a
-word's `native` (an unknown map, a face the map is not for, a second entry, an
-undrawn code point) apply to both, a second entry being one for the same
-ending, map and face:
-
-> `` `data.affixes[0].native[0]` names the map `roman`, which is not logographic; an affix is written by a native form only under a logographic map ``
-
-> `` `data.grammar.native[0]` names the map `roman`, which is not logographic; an ending is written by a native form only under a logographic map ``
-
-> `` `data.grammar.native[2]` states a second native form of the ending `plural` for the map `zethu`; the first is `data.grammar.native[1]` ``
-
-> `` `data.grammar.native[3]` writes the ending `they`, and `data.grammar.verbs` states no `persons` ``
-
-Affix and ending writings are not rows of the `natives` relation, which holds
-the words' native forms; `package-build lexicon` resolves them.
+For an unmarked word, the lexicon can recover its unwritten sounds from the
+plain decoded skeleton. A unique skeleton gives its form; a shared skeleton
+gives the first authored form. Each word's citation precedes its variants and derived forms, before the next word's citation. Registered names retain their authored order. Complete names are matched longest first across word separators and receive one pair of braces. A known ordinary word keeps its encoded case without a false unknown-word finding. An unknown skeleton keeps the
+plain decoding and produces a located finding. This is decided per word: a
+passage can mix typed words with encoded words. A word carrying any invisible
+mark keeps exact decoding without skeleton recovery; an explicit authored
+native exception still has precedence. Stress marks are preserved by exact
+rows. Names are represented with braces according to the language's rules.
 
 #### Script notes and emphasis
+
+A stressed word inside a language run is `[word]{.emph}`. A class-only span
+inherits the enclosing language, font and encoding; its text is written by the
+same rules. The language's `data.emphasis`, then the script's convention,
+determines its presentation. A language stating `words` refuses `.emph`.
+
+In English, `.emph` equals `*…*` and `.strong` equals `**…**`. Non-English
+spans accept `.emph` only; Markdown emphasis and `.strong` are findings. A
+span carrying both `.emph` and `.strong` is a finding at its opening bracket.
 
 A `skill` note of `subType: script` states the faces its script is written in,
 how the script marks a stressed word, and the direction it is written in, in
@@ -2400,35 +2262,17 @@ data:
   script:
     fonts: [qalezu-hand]
     emphasis: overline
-    strongEmphasis: rubric
 ```
 
 - **`fonts`** lists installed faces by the slug `font=` names them by, at least
   one. A face belongs to one script.
 - **`emphasis`** is `rubric` or `overline`, and sets both `*…*` and `**…**`
   (or `_…_` and `__…__`) inside a run in one of the faces.
-- **`strongEmphasis`**, optional, is `rubric` or `overline`, and sets `**…**`
-  alone.
 - **`direction`**, optional, is `vertical-rl` for a script written in columns,
   top to bottom, with the columns read from the right. A
   [`scroll` fence](../authoring/links-and-markup.md#scrolls) sets text in
   such a script, and is an error in any other. A script that states no
   direction is written in lines.
-
-A `skill` note of `subType: language` may state `data.writtenIn`, the script
-the language is written in: `map`, the `data.map.name` of a mapping note, and
-`font`, one of the faces that map lists, both required.
-
-```yaml
-data:
-  writtenIn: { map: semaron, font: semaron-kuriale }
-```
-
-A run explicitly marked with the language and `.nativefont` is mapped by
-`map` and set in `font`, as
-[text marked with a language, a font or a map](#text-marked-with-a-language-a-font-or-a-map)
-describes. A face a language's `writtenIn` names counts as used, so the
-package's fonts are delivered for it.
 
 A `skill` note of `subType: language` may state `data.emphasis`: `words`,
 `rubric` or `overline`. It overrides the script's convention in every run of the
@@ -2464,12 +2308,6 @@ Each of these is an error at the key or the entry at fault:
 
 > `` `data.emphasis` states how a language marks emphasis, and this note's `subType` is not `language` ``
 
-> `` `data.writtenIn` names the script a language is written in, and this note's `subType` is not `language` ``
-
-> `` `data.writtenIn.map` is `semoran`, which no mapping note's `data.map.name` declares; did you mean `semaron`? ``
-
-> `` `data.writtenIn.font` is `teng-chou`, which the map `semaron` is not drawn in; it is drawn in `semaron-kuriale` ``
-
 > `` `data.script.fonts` is empty; a script lists each face it is written in ``
 
 > `` `data.script.fonts[0]` is `serif`, a generic family; a script lists the faces it is written in ``
@@ -2482,7 +2320,7 @@ Each of these is an error at the key or the entry at fault:
 
 In a run:
 
-> ``text marked `lang=prv font=semaron-kuriale map=semaron` takes emphasis only as `*…*`, `_…_`, `**…**` or `__…__` ``
+> ``text marked `lang=prv font=semaron-kuriale enc=vylsemaronenc` takes emphasis only as `*…*`, `_…_`, `**…**` or `__…__` ``
 
 > `` `vyl` marks emphasis with a word, not a mark; write the word ``
 
@@ -3635,7 +3473,7 @@ GM-only owners; all/native contexts retain them. Only authored occurrences
 contribute rows, so generated queries and sections add no further names.
 
 **`runs`** is one row per span, generic div and verse fence an authored note
-body marks with `lang=`, `font=` or `map=`. Each row has these columns,
+body marks with `lang=`, `font=` or `enc=`. Each row has these columns,
 including on an empty relation:
 
 | Column   | SQL type  | Meaning                                                                                      |
@@ -3645,7 +3483,7 @@ including on an empty relation:
 | `lang`   | `VARCHAR` | The language as written, its own or inherited, or `NULL`.                                    |
 | `tag`    | `VARCHAR` | The BCP 47 tag `lang` resolves to, or `NULL` when it resolves to none.                       |
 | `font`   | `VARCHAR` | The selected font; language defaults apply only to native runs, else `NULL`.                 |
-| `map`    | `VARCHAR` | The selected map; language defaults apply only to native runs, else `NULL`.                  |
+| `enc`    | `VARCHAR` | The selected encoding; language defaults apply only to native runs, else `NULL`.             |
 | `line`   | `BIGINT`  | Original 1-based source line of the span's `[`, the div's `:::` or the fence's opening.      |
 | `column` | `BIGINT`  | Original 1-based UTF-16 source column there.                                                 |
 
@@ -3656,29 +3494,8 @@ WHERE font = 'semaron-kuriale'
 ORDER BY owner, line, "column"
 ```
 
-**`maps`** is one row per well-formed row of a [mapping note](#mapping-notes)'s
-`data.map.rows` and of each face's own `rows`. Each row has these columns,
-including on an empty relation:
-
-| Column   | SQL type  | Meaning                                                     |
-| -------- | --------- | ----------------------------------------------------------- |
-| `owner`  | `VARCHAR` | The mapping note's canonical NOTE Address.                  |
-| `name`   | `VARCHAR` | The map's `name`.                                           |
-| `font`   | `VARCHAR` | The face whose own row it is; `NULL` for a shared row.      |
-| `row`    | `BIGINT`  | The row's 1-based place in its `rows`.                      |
-| `from`   | `VARCHAR` | The characters it matches.                                  |
-| `to`     | `VARCHAR` | What it writes; empty for a row that drops what it matches. |
-| `before` | `VARCHAR` | `vowel`, `consonant` or `NULL`.                             |
-| `at`     | `VARCHAR` | `start`, `end` or `NULL`.                                   |
-
-`from`, `to` and `at` are SQL keywords, so a query quotes them:
-
-```sql
-SELECT "row", "from", "to", before FROM maps WHERE name = 'vyl-semaron' ORDER BY "row"
-```
-
 **`natives`** is one row per entry of a word's `native` on every
-[language note](#a-map-reads-the-dictionary-first). Each row has these columns,
+[language note](#an-encoding-reads-the-dictionary-first). Each row has these columns,
 including on an empty relation:
 
 | Column     | SQL type  | Meaning                                                          |
@@ -3687,7 +3504,7 @@ including on an empty relation:
 | `word`     | `BIGINT`  | The word's place in `data.words`, from `0`, as `words.position`. |
 | `form`     | `VARCHAR` | The word's `form`.                                               |
 | `native`   | `BIGINT`  | The entry's place in the word's `native`, from `0`.              |
-| `map`      | `VARCHAR` | The map the form is written for.                                 |
+| `enc`      | `VARCHAR` | The encoding the form is written for.                            |
 | `font`     | `VARCHAR` | The one face it is for; `NULL` for every face the map lists.     |
 | `text`     | `VARCHAR` | The word as the script writes it; a value, so case is kept.      |
 
@@ -6163,8 +5980,8 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `words[].tones`                            | `string`                                                                                                                       | A tone pattern, as `LHL`                                                                                                                                                                       |
 | `words[].root`                             | `string`                                                                                                                       | A consonantal skeleton, as `d-l-k`                                                                                                                                                             |
 | `words[].frame`                            | `string`                                                                                                                       | The frame a root is set in, named in `sounds.frames` of the language or an ancestor                                                                                                            |
-| `words[].native`                           | `{ map, font?, text }[]`                                                                                                       | The word's native form under a map, stated only where the rows spell it differently — see [a map reads the dictionary first](#a-map-reads-the-dictionary-first)                                |
-| `words[].native[].map`                     | `string`                                                                                                                       | Required: the `data.map.name` the form is written for                                                                                                                                          |
+| `words[].native`                           | `{ enc, font?, text }[]`                                                                                                       | The word's native form under a map, stated only where the rows spell it differently — see [an encoding reads the dictionary first](#an-encoding-reads-the-dictionary-first)                    |
+| `words[].native[].enc`                     | `string`                                                                                                                       | Required: the `encoding name` the form is written for                                                                                                                                          |
 | `words[].native[].font`                    | `string`                                                                                                                       | The one face the form is for, one the map lists; unstated, every face it lists                                                                                                                 |
 | `words[].native[].text`                    | `string`                                                                                                                       | Required: the word as the script writes it                                                                                                                                                     |
 | `affixes`                                  | `{ form?, zero?, kind?, given?, where?, gloss, attaches?, examples?, barredAfter?, tones? }[]`                                 | `language` only: the affixes a word's `built` pieces may name; each states a `form` or `zero: true`                                                                                            |
@@ -6351,23 +6168,19 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `naming.nearName.examples`                 | `{ near, given }[]`                                                                                                            | Worked near names                                                                                                                                                                              |
 | `naming.nearName.examples[].near`          | `string`, required                                                                                                             | The near name                                                                                                                                                                                  |
 | `naming.nearName.examples[].given`         | `string`, required                                                                                                             | The given name it is the near name of                                                                                                                                                          |
-| `grammar.native`                           | `{ ending, map, font?, text }[]`                                                                                               | Under a logographic map, the signs a derived form takes after its stem's writing — see [a logographic map](#a-logographic-map)                                                                 |
+| `grammar.native`                           | `{ ending, enc, font?, text }[]`                                                                                               | Under an encoding, the signs a derived form takes after its stem's writing — see [an encoding](#native-spellings-and-parts)                                                                    |
 | `grammar.native[].ending`                  | `plural`, `I`, `you`, `heShe`, `we`, `youAll` or `they`, required                                                              | The ending written; a person only where `verbs.persons` is stated                                                                                                                              |
-| `grammar.native[].map`                     | `string`, required                                                                                                             | The `data.map.name` of a logographic map                                                                                                                                                       |
+| `grammar.native[].enc`                     | `string`, required                                                                                                             | The `encoding name` of an encoding                                                                                                                                                             |
 | `grammar.native[].font`                    | `string`                                                                                                                       | The one face the writing is for, one the map lists; unstated, every face it lists                                                                                                              |
 | `grammar.native[].text`                    | `string`, required, may be empty                                                                                               | The ending's signs; empty writes the stem alone                                                                                                                                                |
-| `affixes[].native`                         | `{ map, font?, text }[]`                                                                                                       | The affix's writing under a logographic map, for a `built` piece naming it                                                                                                                     |
-| `affixes[].native[].map`                   | `string`, required                                                                                                             | The `data.map.name` of a logographic map                                                                                                                                                       |
+| `affixes[].native`                         | `{ enc, font?, text }[]`                                                                                                       | The affix's writing under an encoding, for a `built` piece naming it                                                                                                                           |
+| `affixes[].native[].enc`                   | `string`, required                                                                                                             | The `encoding name` of an encoding                                                                                                                                                             |
 | `affixes[].native[].font`                  | `string`                                                                                                                       | The one face the writing is for, one the map lists; unstated, every face it lists                                                                                                              |
 | `affixes[].native[].text`                  | `string`, required                                                                                                             | The affix as the script writes it                                                                                                                                                              |
 | `emphasis`                                 | `words`, `rubric` or `overline`                                                                                                | `language` only: how the language marks a stressed word, over its script's; `words` makes `*…*` and `**…**` in its runs an error — see [script notes and emphasis](#script-notes-and-emphasis) |
-| `writtenIn`                                | `{ map, font }`                                                                                                                | `language` only: the script the language is written in, which a run explicitly marked with the language and `.nativefont` takes — see [script notes and emphasis](#script-notes-and-emphasis)  |
-| `writtenIn.map`                            | `string`, required                                                                                                             | The `data.map.name` of a mapping note                                                                                                                                                          |
-| `writtenIn.font`                           | `string`, required                                                                                                             | A face the map lists                                                                                                                                                                           |
-| `script`                                   | `{ fonts, emphasis, strongEmphasis?, direction? }`                                                                             | `script` only: the faces the script is written in, how it marks emphasis and its direction — see [script notes and emphasis](#script-notes-and-emphasis)                                       |
+| `script`                                   | `{ fonts, emphasis, direction? }`                                                                                              | `script` only: the faces the script is written in, how it marks emphasis and its direction — see [script notes and emphasis](#script-notes-and-emphasis)                                       |
 | `script.fonts`                             | `string[]`, required                                                                                                           | Installed faces by the slug `font=` names them by; a face belongs to one script                                                                                                                |
 | `script.emphasis`                          | `rubric` or `overline`, required                                                                                               | Sets `*…*` and `**…**` in a run in one of its faces                                                                                                                                            |
-| `script.strongEmphasis`                    | `rubric` or `overline`                                                                                                         | Sets `**…**` instead of `emphasis`                                                                                                                                                             |
 | `script.direction`                         | `vertical-rl`                                                                                                                  | Written in columns, top to bottom, read from the right, which a [`scroll` fence](../authoring/links-and-markup.md#scrolls) sets                                                                |
 
 #### A language's words
@@ -6529,7 +6342,7 @@ states; an affix it names that is a prefix, or that the language does not
 state, is an error at the entry.
 
 Neither rule is used by the dictionary. Both are read by the
-[mapped-run word check](#mapping-notes), which accepts the forms they give,
+[mapped-run word check](#encodings), which accepts the forms they give,
 and `package-build lexicon --derived` lists the same forms.
 
 All grammar is optional. Only a supplied key's shape is checked: no language
@@ -8271,48 +8084,69 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - settingguide: A culture's guide to the setting, which names its culture in `data.culture`. It orients a reader to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
 - post: A blog post, which states the day it was published in `data.date` and may name its writer in `data.author`. A site whose `site.feed` names a section lists its posts there, newest first, and feeds them as Atom.
 
-| `data` property             | Values                                               | Description                                                                                                                                    |
-| --------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `culture`                   | `Address`                                            | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture`                          |
-| `concepts`                  | list of `{ id, gloss, group }`                       | A core vocabulary's concept list, any subType. See [the core vocabulary](#the-core-vocabulary)                                                 |
-| `date`                      | `YYYY-MM-DD`                                         | `post` only, and required there: the day the post was published                                                                                |
-| `author`                    | string                                               | `post` only: who wrote the post; a post naming none carries the site's byline, the first entry of `authors`                                    |
-| `concepts[].id`             | string                                               | Required: lowercase letters, digits and `-`, unique in the package                                                                             |
-| `concepts[].gloss`          | string                                               | Required: what the concept means, in brief                                                                                                     |
-| `concepts[].group`          | string                                               | Required: the group the report lists the concept under                                                                                         |
-| `map`                       | `{ name, vowels?, fonts, rows }`                     | A mapping, which text marked `map=` with its `name` is rewritten by; any subType. See [mapping notes](#mapping-notes)                          |
-| `map.name`                  | string                                               | Required: what `map=` names it by, lowercase letters, digits and `-`, unique in the index                                                      |
-| `map.vowels`                | string                                               | The characters `before: vowel` reads as vowels                                                                                                 |
-| `map.rows`                  | list of `[from, to]` or `{ from, to, before?, at? }` | Required: the rewrites, in authored order                                                                                                      |
-| `map.rows[].from`           | string of one or more characters                     | Required in a map row: the characters it matches                                                                                               |
-| `map.rows[].to`             | string, which may be empty                           | Required in a map row: what it writes in their place                                                                                           |
-| `map.rows[].before`         | `vowel \| consonant`                                 | What must follow the match                                                                                                                     |
-| `map.rows[].at`             | `start \| end`                                       | Where the match must sit                                                                                                                       |
-| `map.fonts`                 | list of `{ font, rows? }`                            | Required, at least one: the faces the map is drawn in                                                                                          |
-| `map.fonts[].font`          | an installed face's slug                             | Required: the face, as `font=` names it; not `mono`, `serif` or `sans`                                                                         |
-| `map.fonts[].rows`          | list of `[from, to]` or `{ from, to, before?, at? }` | Rows for this face alone, tried before the shared `rows`                                                                                       |
-| `map.fonts[].rows[].from`   | string of one or more characters                     | Required in a map row: the characters it matches                                                                                               |
-| `map.fonts[].rows[].to`     | string, which may be empty                           | Required in a map row: what it writes in their place                                                                                           |
-| `map.fonts[].rows[].before` | `vowel \| consonant`                                 | What must follow the match                                                                                                                     |
-| `map.fonts[].rows[].at`     | `start \| end`                                       | Where the match must sit                                                                                                                       |
-| `metres`                    | `{ name, beats, kind }[]`                            | The metres a verse fence's `scan=` names; any subType. See [metres](#metres)                                                                   |
-| `metres[].name`             | string                                               | Required: what `scan=` names it by, lowercase letters, digits and `-`, unique in the package                                                   |
-| `metres[].beats`            | `integer`, required                                  | The beats of one line, above zero                                                                                                              |
-| `metres[].kind`             | `accentual`                                          | Required: how the beats are counted                                                                                                            |
-| `map.logographic`           | `true`                                               | The script writes meanings: a run's words are written by the lexicon alone, and the rows write only the text between them                      |
-| `sounds`                    | `{ letters?, marks? }`                               | A spelling guide's letters and marks, for every tongue of the setting; any subType. See [a spelling guide's sounds](#a-spelling-guides-sounds) |
-| `sounds.letters`            | `{ letters, kind, like?, place?, ipa?, tongue? }[]`  | The letters, each row's keys as a language note's `sounds.letters`                                                                             |
-| `sounds.letters[].letters`  | `string[]`, required                                 | The letters or digraphs the row describes                                                                                                      |
-| `sounds.letters[].kind`     | `string`, required                                   | What kind of sound they write, as `consonant` or `vowel pair`                                                                                  |
-| `sounds.letters[].like`     | `string`                                             | What they sound like                                                                                                                           |
-| `sounds.letters[].place`    | `string`                                             | Where in the mouth they are made                                                                                                               |
-| `sounds.letters[].ipa`      | `string`                                             | The sounds they write, in the International Phonetic Alphabet                                                                                  |
-| `sounds.letters[].tongue`   | an Address, or a list of them                        | The language notes that write the letters; every tongue where absent                                                                           |
-| `sounds.marks`              | `{ mark, letters, kind, limit }[]`                   | The marks written on the letters, each row's keys as a language note's `sounds.marks`                                                          |
-| `sounds.marks[].mark`       | `string`, required                                   | The mark's name, as `acute`                                                                                                                    |
-| `sounds.marks[].letters`    | `string[]`, required                                 | The letters that carry it                                                                                                                      |
-| `sounds.marks[].kind`       | `stress`, `length` or `apart`, required              | What it says of its letter                                                                                                                     |
-| `sounds.marks[].limit`      | `one` or `any`, required                             | How many a word may carry                                                                                                                      |
+| `data` property                                   | Values                                              | Description                                                                                                                                    |
+| ------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `language`                                        | a configured language alias                         | The configured language alias an encoding document writes.                                                                                     |
+| `font`                                            | an installed font slug                              | The encoding's installed font, which supplies all glyph codes.                                                                                 |
+| `accepts`                                         | a list of characters or ranges                      | Accepted Roman letters and additions to standard punctuation.                                                                                  |
+| `vowels`                                          | a string                                            | The letters a contextual vowel match reads as vowels.                                                                                          |
+| `mappings`                                        | Roman strings to glyph codes                        | Roman source strings mapped to codes published by the selected font.                                                                           |
+| `rules`                                           | the closed encoding rules vocabulary                | Executable normalization, matching, case, stress, vowel groups, accents and contextual mappings.                                               |
+| `rules.normalization`                             | "NFC"                                               | Required value: "NFC".                                                                                                                         |
+| `rules.matching`                                  | "longest-first"                                     | Required value: "longest-first".                                                                                                               |
+| `rules.case`                                      | a map                                               | Case handling for letters and consonant groups.                                                                                                |
+| `rules.case.single-letter`                        | "preserve"                                          | Required value: "preserve".                                                                                                                    |
+| `rules.case.consonant-group`                      | "lowercase-or-initial-uppercase"                    | Required value: "lowercase-or-initial-uppercase".                                                                                              |
+| `rules.case.other-group-cases`                    | "forbidden"                                         | Required value: "forbidden".                                                                                                                   |
+| `rules.stress`                                    | a map                                               | The font's nonprinting stress modifier after an acute vowel.                                                                                   |
+| `rules.stress.modifier`                           | a string                                            | The font code for U+E0114.                                                                                                                     |
+| `rules.stress.position`                           | "after-stressed-vowel"                              | Required value: "after-stressed-vowel".                                                                                                        |
+| `rules.stress.printing`                           | false                                               | Required value: false.                                                                                                                         |
+| `rules.stress.effect`                             | "stress-only"                                       | Required value: "stress-only".                                                                                                                 |
+| `rules.stress.changes-sound`                      | false                                               | Required value: false.                                                                                                                         |
+| `rules.stress.changes-length`                     | false                                               | Required value: false.                                                                                                                         |
+| `rules.stress.vowel-group-position`               | "first-vowel"                                       | Required value: "first-vowel".                                                                                                                 |
+| `rules.vowel-groups`                              | a map                                               | Explicit recognized vowel groups and their acute placement.                                                                                    |
+| `rules.vowel-groups.reading`                      | "established"                                       | Required value: "established".                                                                                                                 |
+| `rules.vowel-groups.allow-splitting`              | false                                               | Required value: false.                                                                                                                         |
+| `rules.vowel-groups.unrecognized-adjacent-vowels` | "separate"                                          | Required value: "separate".                                                                                                                    |
+| `rules.vowel-groups.groups`                       | a list of vowel groups                              | The complete authored group inventory.                                                                                                         |
+| `rules.diaeresis`                                 | a map                                               | Whether diaeresis mappings are allowed.                                                                                                        |
+| `rules.diaeresis.allowed`                         | false                                               | Required value: false.                                                                                                                         |
+| `rules.grave-accent`                              | a map                                               | Whether grave-accent mappings are allowed.                                                                                                     |
+| `rules.grave-accent.allowed`                      | false                                               | Required value: false.                                                                                                                         |
+| `rules.contextual-mappings`                       | a list of conditional mappings                      | Before-vowel alternatives applied before unconditional mappings.                                                                               |
+| `rules.contextual-mappings[].match`               | a string                                            | The source sequence.                                                                                                                           |
+| `rules.contextual-mappings[].before`              | "vowel"                                             | Required value: "vowel".                                                                                                                       |
+| `rules.contextual-mappings[].emit`                | a glyph code or list of codes                       | The font codes written by this alternative.                                                                                                    |
+| `rules.y`                                         | a map                                               | The consonant reading of y.                                                                                                                    |
+| `rules.y.kind`                                    | "consonant"                                         | Required value: "consonant".                                                                                                                   |
+| `rules.y.sound`                                   | "y in yes"                                          | Required value: "y in yes".                                                                                                                    |
+| `rules.y.vowel-reading`                           | false                                               | Required value: false.                                                                                                                         |
+| `culture`                                         | `Address`                                           | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture`                          |
+| `concepts`                                        | list of `{ id, gloss, group }`                      | A core vocabulary's concept list, any subType. See [the core vocabulary](#the-core-vocabulary)                                                 |
+| `date`                                            | `YYYY-MM-DD`                                        | `post` only, and required there: the day the post was published                                                                                |
+| `author`                                          | string                                              | `post` only: who wrote the post; a post naming none carries the site's byline, the first entry of `authors`                                    |
+| `concepts[].id`                                   | string                                              | Required: lowercase letters, digits and `-`, unique in the package                                                                             |
+| `concepts[].gloss`                                | string                                              | Required: what the concept means, in brief                                                                                                     |
+| `concepts[].group`                                | string                                              | Required: the group the report lists the concept under                                                                                         |
+| `metres`                                          | `{ name, beats, kind }[]`                           | The metres a verse fence's `scan=` names; any subType. See [metres](#metres)                                                                   |
+| `metres[].name`                                   | string                                              | Required: what `scan=` names it by, lowercase letters, digits and `-`, unique in the package                                                   |
+| `metres[].beats`                                  | `integer`, required                                 | The beats of one line, above zero                                                                                                              |
+| `metres[].kind`                                   | `accentual`                                         | Required: how the beats are counted                                                                                                            |
+| `sounds`                                          | `{ letters?, marks? }`                              | A spelling guide's letters and marks, for every tongue of the setting; any subType. See [a spelling guide's sounds](#a-spelling-guides-sounds) |
+| `sounds.letters`                                  | `{ letters, kind, like?, place?, ipa?, tongue? }[]` | The letters, each row's keys as a language note's `sounds.letters`                                                                             |
+| `sounds.letters[].letters`                        | `string[]`, required                                | The letters or digraphs the row describes                                                                                                      |
+| `sounds.letters[].kind`                           | `string`, required                                  | What kind of sound they write, as `consonant` or `vowel pair`                                                                                  |
+| `sounds.letters[].like`                           | `string`                                            | What they sound like                                                                                                                           |
+| `sounds.letters[].place`                          | `string`                                            | Where in the mouth they are made                                                                                                               |
+| `sounds.letters[].ipa`                            | `string`                                            | The sounds they write, in the International Phonetic Alphabet                                                                                  |
+| `sounds.letters[].tongue`                         | an Address, or a list of them                       | The language notes that write the letters; every tongue where absent                                                                           |
+| `sounds.marks`                                    | `{ mark, letters, kind, limit }[]`                  | The marks written on the letters, each row's keys as a language note's `sounds.marks`                                                          |
+| `sounds.marks[].mark`                             | `string`, required                                  | The mark's name, as `acute`                                                                                                                    |
+| `sounds.marks[].letters`                          | `string[]`, required                                | The letters that carry it                                                                                                                      |
+| `sounds.marks[].kind`                             | `stress`, `length` or `apart`, required             | What it says of its letter                                                                                                                     |
+| `sounds.marks[].limit`                            | `one` or `any`, required                            | How many a word may carry                                                                                                                      |
 
 A setting guide introduces one culture's view of the setting, so it names that
 culture, and a `doc` of any other `subType` has no culture of its own to name.
@@ -8632,3 +8466,54 @@ base without a comma, so `n I f` reads "noun of class I, feminine".
 | `i`      | conjugation | i            | of the third conjugation  |
 | `c`      | conjugation | c            | of the fourth conjugation |
 | `dep`    | voice       | dep.         | deponent                  |
+
+### Converter data format
+
+A module can ship one JSON converter file during its manifest build when
+[`packageBuild.converterData`](../configuration.md#packagebuildconverterdata)
+names a staged artifact. `format` is `2`.
+
+```json
+{
+  "format": 2,
+  "contentPackage": "demo",
+  "encodings": {
+    "demo-note-doc-aelwsemaronenc": {
+      "data": {
+        "language": "aelw",
+        "font": "semaron-kuriale",
+        "mappings": { "a": "ANKRON_MIN" },
+        "rules": { "normalization": "NFC", "matching": "longest-first" }
+      },
+      "codes": { "ANKRON_MIN": "󰈰" }
+    }
+  },
+  "languages": {
+    "aelw": {
+      "name": "Aelwythi",
+      "lexicon": { "language": "aelw", "data": { "words": [], "affixes": [], "register": [] } }
+    }
+  }
+}
+```
+
+`contentPackage` supplies the namespace for unqualified document references;
+an unqualified reference never selects a foreign document. Each encoding key
+is the document's canonical Address. Its `data` contains
+only executable authored fields; `codes` is a generated snapshot from the
+selected font's `fonts.json`, not a code table authored in the note. All valid
+encoding documents are included. Languages carry display names and serialized
+lexical inputs, with no default encoding or font. `enc=default`, or an omitted
+encoding option, preserves Roman text. An explicit selection supplies its
+language and font; contradictory language or face selections are errors.
+
+A lexicon's data contains only the word, affix, grammar and name-register
+fields conversion reads. Native encoding references are canonical Addresses
+resolved in each source note's own package, including inherited vocabulary.
+Authored order, case and senses are retained; prose, source records, closures
+and Maps are absent. The same pure conversion functions serve the build and
+[browser entry point](../api.md#browser-conversion). A null or omitted language
+is inferred from the selected encoding and uses that language's lexical inputs.
+The pure `encodeText` and `decodeText` functions and the CLI commands provide
+bare encoding without lexical overrides. No font or encoding files are fetched
+separately by the browser.

@@ -78,6 +78,7 @@ The documentation lives in the Markdown files in this repository. Start with [th
 | Foundry integration testing                       | [End-to-end testing](docs/guides/e2e.md), including an optional S3 server |
 | Release and deployment                            | [Release and deploy](docs/guides/release-and-deploy.md)                   |
 | Invented languages and scripts                    | [Write in invented scripts](docs/guides/writing-in-invented-scripts.md)   |
+| Encoding rules and the conversion core            | [Encoding core](docs/encoding-core.md)                                    |
 | Buffer-only preview and Gitea rendering           | [Source preview](docs/source-preview.md)                                  |
 | Every CLI command                                 | [Commands](docs/commands.md)                                              |
 | Every build setting                               | [Configuration](docs/configuration.md)                                    |

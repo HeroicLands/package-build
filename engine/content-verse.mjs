@@ -208,7 +208,7 @@ export const VERSE_KEYS = Object.freeze([
     "scan",
     "lang",
     "font",
-    "map",
+    "enc",
     "numstep",
     "cols",
     "dir",

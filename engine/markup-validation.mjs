@@ -43,7 +43,7 @@ function shortcodeErrors(body) {
  * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Exact-text scanner projections.
  * @param {import("./content-scripts.mjs").RunContext} [runs] - The package's
  *   languages, faces and maps. Given, text marked with `lang=`, `font=` and
- *   `map=` is checked against them; a caller with no package configuration
+ *   `enc=` is checked against them; a caller with no package configuration
  *   leaves it out.
  * @returns {Array<{file: string, line: number, column: number, severity: string, message: string}>} Syntax errors,
  *   then warnings.

@@ -6,11 +6,8 @@
  */
 
 /**
- * **The `runs` and `maps` relations.** One row per marked span, div and verse
- * fence, and one per row of a mapping note. Their values are strings, never
- * keys, so two notes writing one language tag in different case are two rows,
- * and a map's `A` and `a` are two rows, rather than two struct keys DuckDB
- * cannot tell apart.
+ * The runs relation retains authored case, source positions and explicit
+ * encoding choices as column values across local and dependency indexes.
  */
 
 import fs from "node:fs";
@@ -24,6 +21,7 @@ import { collectContentIndex, serializeContentIndex } from "../engine/content-in
 import { authoredFrontmatter } from "../engine/index-records.mjs";
 import { RUN_COLUMNS, runsRows } from "../engine/run-rows.mjs";
 import { openNotesDatabase } from "../engine/sql-tables.mjs";
+import { template } from "./helpers/encoding-note.js";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -36,10 +34,28 @@ const COLUMNS = [
     { column_name: "lang", column_type: "VARCHAR" },
     { column_name: "tag", column_type: "VARCHAR" },
     { column_name: "font", column_type: "VARCHAR" },
-    { column_name: "map", column_type: "VARCHAR" },
+    { column_name: "enc", column_type: "VARCHAR" },
     { column_name: "line", column_type: "BIGINT" },
     { column_name: "column", column_type: "BIGINT" },
 ];
+
+const FONT_FIXTURE = new URL("./fixtures/script-fonts/fonts/", import.meta.url);
+const installFonts = (root: string) =>
+    fs.cpSync(FONT_FIXTURE, path.join(root, "node_modules/@heroiclands/fonts"), {
+        recursive: true,
+    });
+const encodingData = (language = "vyl") => ({
+    ...template,
+    language,
+    mappings: Object.fromEntries(
+        Object.entries(template.mappings).map(([from, to]) => [
+            from,
+            Array.isArray(to) ?
+                to.map((code) => code.replace(/^KALPEZ_/, "KALPEZA_"))
+            :   (to as string).replace(/^KALPEZ_/, "KALPEZA_"),
+        ]),
+    ),
+});
 
 const LANGUAGES = Object.freeze({ vyl: Object.freeze({ tag: "art-x-vyl" }) });
 
@@ -56,6 +72,12 @@ function tree(contentPackage = "demo") {
     const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "runs-index-")));
     roots.push(root);
     const content = path.join(root, contentPackage);
+    installFonts(root);
+    write(
+        path.join(content, "Encoding.md"),
+        { type: "doc", subType: "reference", shortcode: "vylsemaronenc", data: encodingData() },
+        "Vylari in Semaron.",
+    );
     write(
         path.join(content, "Vylari.md"),
         { type: "skill", subType: "language", shortcode: "vylari", name: { full: "Vylari" } },
@@ -67,7 +89,7 @@ function tree(contentPackage = "demo") {
         [
             "The colour is [colour]{lang=en-GB}, and the motto [Ad Astra]{lang=La}.",
             "",
-            "::: {lang=vyl font=Semaron-Kuriale .nativefont}",
+            "::: {lang=vyl font=Semaron-Kuriale}",
             "Zaron tholmeza.",
             ":::",
         ].join("\n"),
@@ -78,7 +100,7 @@ function tree(contentPackage = "demo") {
         [
             "The colour is [colour]{lang=en-gb}, and the motto [ad astra]{lang=la}.",
             "",
-            "```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron .nativefont}",
+            "```verse {form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
             "Zaron tholmeza.",
             "```",
         ].join("\n"),
@@ -98,6 +120,7 @@ function tree(contentPackage = "demo") {
         contentPackage,
         skipDirectories: [],
         languages: LANGUAGES,
+        rootDir: root,
     });
 }
 
@@ -112,7 +135,7 @@ function rows(contentPackage: string, audience = "all") {
                     lang: "vyl",
                     tag: "art-x-vyl",
                     font: null,
-                    map: null,
+                    enc: "default",
                     line: 11n,
                     column: 17n,
                 },
@@ -124,7 +147,7 @@ function rows(contentPackage: string, audience = "all") {
             lang: "en-gb",
             tag: "en-gb",
             font: null,
-            map: null,
+            enc: "default",
             line: 9n,
             column: 15n,
         },
@@ -134,7 +157,7 @@ function rows(contentPackage: string, audience = "all") {
             lang: "la",
             tag: "la",
             font: null,
-            map: null,
+            enc: "default",
             line: 9n,
             column: 51n,
         },
@@ -144,7 +167,7 @@ function rows(contentPackage: string, audience = "all") {
             lang: "vyl",
             tag: "art-x-vyl",
             font: "semaron-kuriale",
-            map: "vyl-semaron",
+            enc: `${contentPackage}-note-doc-vylsemaronenc`,
             line: 11n,
             column: 1n,
         },
@@ -154,7 +177,7 @@ function rows(contentPackage: string, audience = "all") {
             lang: "en-GB",
             tag: "en-GB",
             font: null,
-            map: null,
+            enc: "default",
             line: 9n,
             column: 15n,
         },
@@ -164,7 +187,7 @@ function rows(contentPackage: string, audience = "all") {
             lang: "La",
             tag: "La",
             font: null,
-            map: null,
+            enc: "default",
             line: 9n,
             column: 51n,
         },
@@ -174,7 +197,7 @@ function rows(contentPackage: string, audience = "all") {
             lang: "vyl",
             tag: "art-x-vyl",
             font: "Semaron-Kuriale",
-            map: null,
+            enc: "default",
             line: 11n,
             column: 1n,
         },
@@ -184,28 +207,39 @@ function rows(contentPackage: string, audience = "all") {
 const ORDER = 'ORDER BY owner, line, "column"';
 
 describe("native presentation metadata", () => {
-    it("keeps Roman defaults absent and native defaults identical in the raw index and SQL", async () => {
+    it("records Roman default and encoding-note defaults identically in the raw index and SQL", async () => {
         const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "native-runs-index-")));
         roots.push(root);
         const content = path.join(root, "content");
+        installFonts(root);
+        write(
+            path.join(content, "Encoding.md"),
+            { type: "doc", subType: "reference", shortcode: "vylsemaronenc", data: encodingData() },
+            "Vylari in Semaron.",
+        );
+        write(
+            path.join(content, "OtherEncoding.md"),
+            {
+                type: "doc",
+                subType: "reference",
+                shortcode: "other",
+                data: {
+                    language: "vyl",
+                    font: "qalezu-hand",
+                    mappings: { k: "LAGUN", a: "RETHU" },
+                    rules: { normalization: "NFC", matching: "longest-first" },
+                },
+            },
+            "The other hand.",
+        );
         write(
             path.join(content, "Vylari.md"),
             {
                 type: "skill",
                 subType: "language",
                 shortcode: "vylari",
-                data: { writtenIn: { map: "semaron", font: "semaron-kuriale" } },
             },
             "The language.",
-        );
-        write(
-            path.join(content, "Semaron.md"),
-            {
-                type: "doc",
-                shortcode: "semaron",
-                data: { map: { name: "semaron", fonts: [{ font: "semaron-kuriale" }], rows: [] } },
-            },
-            "The mapping.",
         );
         write(
             path.join(content, "Presentation.md"),
@@ -213,32 +247,33 @@ describe("native presentation metadata", () => {
                 type: "lore",
                 shortcode: "presentation",
             },
-            "[ka]{lang=vyl}\n[ka]{lang=vyl .nativefont}\n[ka]{lang=vyl .nativefont font=qalezu-hand map=other}",
+            "[ka]{lang=vyl}\n[ka]{enc=vylsemaronenc}\n[ka]{font=qalezu-hand enc=other}",
         );
         const records = collectContentIndex(content, {
             contentPackage: "demo",
             skipDirectories: [],
             languages: { vyl: { tag: "art-x-vyl", note: "skill-vylari" } },
+            rootDir: root,
         });
         const runs = records.find((record) => record.shortcode === "presentation")!.runs;
         expect(runs).toMatchObject([
-            { lang: "vyl", font: null, map: null },
-            { lang: "vyl", font: "semaron-kuriale", map: "semaron", nativefont: true },
-            { lang: "vyl", font: "qalezu-hand", map: "other", nativefont: true },
+            { lang: "vyl", font: null, enc: "default" },
+            { lang: "vyl", font: "semaron-kuriale", enc: "demo-note-doc-vylsemaronenc" },
+            { lang: "vyl", font: "qalezu-hand", enc: "demo-note-doc-other" },
         ]);
-        expect(runs[0]).not.toHaveProperty("nativefont");
+        for (const run of runs) expect(run).not.toHaveProperty("nativefont");
         const db = await openNotesDatabase(records);
         try {
             expect(
                 (
                     await db.query(
-                        `SELECT lang, font, "map" FROM runs WHERE owner = 'demo-note-lore-presentation' ORDER BY line`,
+                        `SELECT lang, font, enc FROM runs WHERE owner = 'demo-note-lore-presentation' ORDER BY line`,
                     )
                 ).rows,
             ).toEqual([
-                { lang: "vyl", font: null, map: null },
-                { lang: "vyl", font: "semaron-kuriale", map: "semaron" },
-                { lang: "vyl", font: "qalezu-hand", map: "other" },
+                { lang: "vyl", font: null, enc: "default" },
+                { lang: "vyl", font: "semaron-kuriale", enc: "demo-note-doc-vylsemaronenc" },
+                { lang: "vyl", font: "qalezu-hand", enc: "demo-note-doc-other" },
             ]);
         } finally {
             await db.close();
@@ -256,18 +291,25 @@ describe("the runs relation", () => {
                 lang: "en-GB",
                 tag: "en-GB",
                 font: null,
-                map: null,
+                enc: "default",
                 line: 9,
                 column: 15,
             },
-            { kind: "span", lang: "La", tag: "La", font: null, map: null, line: 9, column: 51 },
+            {
+                kind: "span",
+                lang: "La",
+                tag: "La",
+                font: null,
+                enc: "default",
+                line: 9,
+                column: 51,
+            },
             {
                 kind: "block",
                 lang: "vyl",
                 tag: "art-x-vyl",
                 font: "Semaron-Kuriale",
-                map: null,
-                nativefont: true,
+                enc: "default",
                 line: 11,
                 column: 1,
             },
@@ -309,7 +351,7 @@ describe("the runs relation", () => {
                 (row: any) => row.column_name === "runs",
             ).column_type;
             expect(runsType).toBe(
-                'STRUCT("column" BIGINT, font VARCHAR, kind VARCHAR, lang VARCHAR, line BIGINT, "map" VARCHAR, tag VARCHAR, nativefont BOOLEAN)[]',
+                'STRUCT("column" BIGINT, enc VARCHAR, font VARCHAR, kind VARCHAR, lang VARCHAR, line BIGINT, tag VARCHAR)[]',
             );
             expect(
                 (

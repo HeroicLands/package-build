@@ -1,7 +1,7 @@
 {
     "name": "@heroiclands/package-build",
     "version": "25.0.0",
-    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package — content compilation, manifest, localization, staging, bundle, release and deployment.",
+    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package \u2014 content compilation, manifest, localization, staging, bundle, release and deployment.",
     "license": "GPL-3.0-or-later",
     "type": "module",
     "main": "./index.mjs",
@@ -97,7 +97,12 @@
             "import": "./templates.mjs"
         },
         "./changelog": "./changelog.cjs",
-        "./package.json": "./package.json"
+        "./package.json": "./package.json",
+        "./convert": {
+            "types": "./types/convert.d.mts",
+            "import": "./convert.mjs",
+            "default": "./convert.mjs"
+        }
     },
     "bin": {
         "package-build": "./bin/package-build.mjs",
@@ -134,7 +139,8 @@
         "stage.mjs",
         "templates.mjs",
         "types",
-        "vendor"
+        "vendor",
+        "convert.mjs"
     ],
     "dependencies": {
         "@duckdb/node-api": "^1.5.5-r.4",

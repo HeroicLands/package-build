@@ -12,15 +12,14 @@
  */
 
 /**
- * Spans, divs and verse fences marked with `lang=`, `font=` or `map=`, projected
+ * Spans, divs and verse fences marked with `lang=`, `font=` or `enc=`, projected
  * from own-note index records into the SQL `runs` relation. Every value is a
  * column value and none is a key, so two notes writing one tag in different
  * case are two rows. Documentation records and assets contribute no rows.
  *
- * Native runs retain their explicit opt-in so language defaults can be filled
- * by {@link fillWrittenIn} once every record exists. Roman language-only runs
- * retain null map/font fields; ordinary generic-family inheritance is already
- * projected by the shared scanner.
+ * Encoding-document language and font defaults are filled by
+ * {@link fillEncodingRuns} once every document exists. Roman runs use the
+ * default encoding; ordinary font inheritance is projected by the scanner.
  *
  * @module
  */
@@ -29,9 +28,8 @@ import { canonicalKey, readCanonicalKey } from "./address.mjs";
 import { encodeAddresses } from "./address-values.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { scanRuns } from "./content-scripts.mjs";
-import { languageRecordsByName } from "./map-lexicon.mjs";
-import { mapsFromRecords } from "./text-maps.mjs";
-import { writtenInOf } from "./written-in.mjs";
+import { resolveScriptFonts } from "./script-fonts.mjs";
+import { encodingsFromRecords, encodingAddress } from "./encoding-notes.mjs";
 
 /** Every column of the `runs` relation, in order. */
 export const RUN_COLUMNS = Object.freeze([
@@ -40,7 +38,7 @@ export const RUN_COLUMNS = Object.freeze([
     "lang",
     "tag",
     "font",
-    "map",
+    "enc",
     "line",
     "column",
 ]);
@@ -54,11 +52,8 @@ export const RUN_COLUMNS = Object.freeze([
  *   own `lang=`, else the one the div or fence around it states.
  * @property {string|null} tag - The BCP 47 tag it resolves to, or null.
  * @property {string|null} font - Its explicit font, an inherited ordinary
- *   prose family, or the configured default for an opted-in native run.
- * @property {string|null} map - Its explicit map or the configured map of an
- *   opted-in native run; null for Roman language-only text.
- * @property {boolean} [nativefont] - Explicit native opt-in on this construct;
- *   absent on Roman runs. This internal flag is not a SQL column.
+ *   prose family, or the font of the selected encoding document.
+ * @property {string|null} enc - Its resolved encoding document, or default for Roman text.
  * @property {number} line - 1-based file line of its opening.
  * @property {number} column - 1-based UTF-16 file column of its opening.
  */
@@ -86,36 +81,39 @@ export function recordRuns(body, { context, bodyLine = 1, bodyColumn = 1, syntax
         lang: run.lang ?? null,
         tag: run.tag ?? null,
         font: run.font ?? null,
-        map: run.map ?? null,
-        ...(run.nativefont ? { nativefont: true } : {}),
+        enc: run.enc ?? null,
         line: bodyLine + run.line - 1,
         column: run.column + (run.line === 1 ? bodyColumn - 1 : 0),
     }));
 }
 
 /**
- * Give explicitly native recorded runs the map and face their language names in
- * `data.writtenIn`, where the run leaves them unstated, as a run is set. Read
- * once every record exists, since a run's language note may be recorded after
- * the note that marks it.
+ * Resolve recorded encoding Addresses and fill the language and font supplied
+ * by each selected document, once every index record exists.
  *
  * @param {Record<string, any>[]} records - The package's index records; each
  *   note record's `runs` is updated in place.
- * @param {{languages?: Readonly<Record<string, {tag: string, note?: string}>>, contentPackage?: string}} config -
+ * @param {{languages?: Readonly<Record<string, {tag: string, note?: string}>>, contentPackage?: string, rootDir?:string, paths?:{content?:string}}} config -
  *   The configured languages, whose `note` names each language note.
  */
-export function fillWrittenIn(records, config) {
-    const maps = mapsFromRecords(records);
-    const scripts = writtenInOf(languageRecordsByName(records, config), maps);
-    if (!scripts.size) return;
+export function fillEncodingRuns(records, config) {
+    const { encodings } = encodingsFromRecords(
+        records,
+        config,
+        config?.rootDir ? resolveScriptFonts(config.rootDir) : undefined,
+    );
     for (const record of records) {
         if (!record || !isNoteRecord(record) || !Array.isArray(record.runs)) continue;
         for (const run of record.runs) {
-            if (!run.nativefont) continue;
-            const script = scripts.get(run.lang);
-            if (!script) continue;
-            if (run.map == null) run.map = script.map;
-            if (run.font == null) run.font = script.font;
+            run.enc ??= "default";
+            const encoding =
+                encodings.get(run.enc) ??
+                encodings.get(encodingAddress(run.enc, config.contentPackage));
+            if (!encoding) continue;
+            run.enc = encoding.name;
+            run.lang ??= encoding.language;
+            run.font ??= encoding.font;
+            run.tag ??= config.languages?.[run.lang]?.tag ?? null;
         }
     }
 }
@@ -150,7 +148,7 @@ export function runsRows(records) {
                 lang: run.lang ?? null,
                 tag: run.tag ?? null,
                 font: run.font ?? null,
-                map: run.map ?? null,
+                enc: run.enc ?? null,
                 line: run.line,
                 column: run.column,
             });

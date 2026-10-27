@@ -114,6 +114,7 @@ describe("docs/api.md documents the real export surface", () => {
             "./stage",
             "./templates",
             "./changelog",
+            "./convert",
         ]);
         for (const entry of MODULE_SUBPATHS) {
             const heading = entry === "." ? "`.` —" : `\`${entry}\``;

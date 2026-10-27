@@ -52,7 +52,7 @@
 import { nearest } from "./near-miss.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { METRE_KINDS, METRE_NAME } from "./metre-declaration.mjs";
-import { languageRecordsByName } from "./map-lexicon.mjs";
+import { languageRecordsByName } from "./encoding-lexicon.mjs";
 import { STRESS_LONGER, STRESS_MARKS, STRESS_TWO } from "./language-terms.mjs";
 import { parseWordClass } from "./word-classes.mjs";
 import { derivedForms, foldWord } from "./word-forms.mjs";

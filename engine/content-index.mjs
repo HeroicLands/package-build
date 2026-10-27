@@ -106,7 +106,7 @@ import { AddressLink } from "./address-values.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { rebaseNameSpans } from "./name-markup.mjs";
 import { analyzeNameSpans } from "./names.mjs";
-import { fillWrittenIn, recordRuns } from "./run-rows.mjs";
+import { fillEncodingRuns, recordRuns } from "./run-rows.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -1074,6 +1074,8 @@ export function resolveCultures(
  *   calendar note's shortcode; see {@link module:engine/note-calendars}.
  * @param {string} [options.configFile] - The configuration file, where an
  *   unknown `defaultCalendar` is reported.
+ * @param {string} [options.rootDir] - Consumer package root for loading installed
+ *   encodings when filling language native-writing defaults.
  * @param {Readonly<Record<string, {tag: string}>>} [options.languages] - The
  *   configured languages, which give each run's `lang=` its tag.
  * @param {(key: string) => ({culture?: unknown}|undefined)} [options.foreignRecord] -
@@ -1095,6 +1097,7 @@ export function collectContentIndex(
         currentDate,
         defaultCalendar,
         configFile,
+        rootDir,
         languages,
         skipDirectories,
         assetsBase,
@@ -1252,7 +1255,7 @@ export function collectContentIndex(
 
     // A run marked with a language alone takes its language's script, which
     // is read once every language note is recorded.
-    fillWrittenIn(records, { languages, contentPackage });
+    fillEncodingRuns(records, { languages, contentPackage, rootDir });
 
     // Every note record exists and every Address in it is a tuple, so a parent
     // is found by its canonical address. Before the sort, which reads nothing
@@ -1489,6 +1492,7 @@ export function indexRecordsFor({
         return foreign.get(key);
     };
     return collectContentIndex(tree, {
+        rootDir: resolved.rootDir,
         contentPackage: resolved.contentPackage,
         currentDate: resolved.currentDate,
         defaultCalendar: resolved.defaultCalendar ?? undefined,

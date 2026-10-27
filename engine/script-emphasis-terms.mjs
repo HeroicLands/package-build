@@ -44,3 +44,6 @@ export const SCRIPT_DIRECTIONS = Object.freeze(["vertical-rl"]);
 
 /** The `subType` of a script note. */
 export const SCRIPT_SUBTYPE = "script";
+
+/** The ordinary prose families accepted by font=. */
+export const GENERIC_FAMILIES = Object.freeze(["mono", "serif", "sans"]);

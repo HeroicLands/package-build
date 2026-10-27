@@ -71,7 +71,7 @@ export const GLOSSARY_COLUMNS = Object.freeze(["note", "position", ...GLOSSARY_E
 
 /**
  * The affix's own keys an affix row carries: all but `native`, its writings
- * under a logographic map, which `package-build lexicon` resolves.
+ * under an encoding, which `package-build lexicon` resolves.
  */
 const AFFIX_ROW_KEYS = Object.freeze(AFFIX_KEYS.filter((key) => key !== "native"));
 

@@ -125,6 +125,13 @@ export function isLetterTier(cp) {
  */
 export const TYPOGRAPHY = Object.freeze(
     new Set([
+        0x00ab, // « outer quotation open
+        0x00bb, // » outer quotation close
+        0x2039, // ‹ inner quotation open
+        0x203a, // › inner quotation close
+        0x203c, // ‼ imperative terminal
+        0x27e6, // ⟦ codage open
+        0x27e7, // ⟧ codage close
         0x2013, // – en dash
         0x2014, // — em dash
         0x2018, // ' left single quote
@@ -196,7 +203,11 @@ export function isSettingScriptCodePoint(cp) {
  */
 export function isAllowedCodePoint(cp) {
     return (
-        isLetterTier(cp) || TYPOGRAPHY.has(cp) || NOTATION.has(cp) || isSettingScriptCodePoint(cp)
+        isLetterTier(cp) ||
+        TYPOGRAPHY.has(cp) ||
+        NOTATION.has(cp) ||
+        isSettingScriptCodePoint(cp) ||
+        (cp >= 0xe0100 && cp <= 0xe01ef)
     );
 }
 

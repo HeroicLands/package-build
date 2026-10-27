@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
+import { encodingContext } from "./helpers/encoding.js";
+
 /**
  * **A verb pattern says what its endings replace.** A form is the citation
  * form with the ending added, or, where the pattern states `replaces`, with a
@@ -12,7 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import { verbForm, verbPattern } from "../engine/verb-pattern.mjs";
 import { lexiconWords } from "../engine/word-forms.mjs";
-import { runContext, scanRuns } from "../engine/content-scripts.mjs";
+import { scanRuns } from "../engine/content-scripts.mjs";
 
 const PERSONS = { I: "men", you: "zen", heShe: "zor", we: "mar", youAll: "zar", they: "zoi" };
 
@@ -114,9 +116,9 @@ describe("a mapped run's words take the pattern's forms", () => {
         subType: "reference",
         shortcode: "mapm",
         address: { canonical: "demo-note-doc-mapm" },
-        data: { map: { name: "m", rows: [["th", "þ"]] } },
+        encodingDefinition: { name: "m", rows: [["th", "þ"]] },
     };
-    const ctx = runContext(
+    const ctx = encodingContext(
         {
             contentPackage: "demo",
             languages: { vyl: { tag: "art-x-vyl", note: "skill-vylarilng" } },
@@ -126,7 +128,7 @@ describe("a mapped run's words take the pattern's forms", () => {
 
     it("passes `lokazor` and locates `lokathenzor`", () => {
         const errors = scanRuns(
-            "[lokazor lokathen lokathenzor]{lang=vyl map=m font=serif .nativefont}",
+            "[lokazor lokathen lokathenzor]{lang=vyl enc=m font=semaron-kuriale}",
             ctx,
         ).errors;
         expect(errors.map((error: any) => `${error.line}:${error.column}`)).toEqual(["1:19"]);

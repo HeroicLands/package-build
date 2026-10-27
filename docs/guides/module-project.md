@@ -691,7 +691,7 @@ package-build: Cannot stage assets — these paths do not exist:
 
 ### Fonts for marked text
 
-A module shows native text marked with `lang=` and `.nativefont` in one of the faces of
+A module shows native text selected with an `enc=` document Address in one of the faces of
 `@heroiclands/fonts` in that face once the package installs the fonts package
 in `devDependencies`. Nothing is configured: the build reads which faces the
 notes use from explicit `font=` overrides or opted-in language defaults.
@@ -704,6 +704,28 @@ package's own. A package that has not installed the fonts, or whose notes set
 no text in a face, stages nothing and its manifest names nothing. The stage
 refuses a fonts package that lacks its stylesheet, its licence or a file its
 manifest lists, with a finding at the fonts package's `fonts.json`.
+
+## Browser conversion data
+
+A module offering a language converter declares one output in its existing
+manifest build:
+
+```yaml
+packageBuild:
+  converterData: data/converter.json
+```
+
+`package-build manifest` writes the JSON beneath the build stage, so the
+release includes the data alongside the module's other files. It embeds each
+language's published encoding and the lexical inputs used by the build.
+
+Bundle `@heroiclands/package-build/convert` into the module's browser code,
+fetch `modules/<module-id>/data/converter.json` once, and pass the parsed data
+to `encode` or `decode`. A picker can list `Object.entries(data.languages)`
+using each entry's `name`; each entry already states its encoding and face.
+Show the returned findings alongside the text when a word cannot be recovered.
+See the [API](../api.md#browser-conversion) and
+[data format](../reference/format-details.md#converter-data-format).
 
 ## Step 9 — generate the manifest
 

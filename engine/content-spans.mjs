@@ -27,11 +27,11 @@ import { cartoucheProblems, glyphProblems } from "./content-glyphs.mjs";
  * @param {boolean} [options.spoilers] - Add focusable CSS spoiler wrappers (Foundry).
  */
 export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}) {
-    if (spoilers) {
+    {
         md.renderer.rules.span_open = (tokens, index, options, env, renderer) => {
             const token = tokens[index];
             const secret = (token.attrGet("class") ?? "").split(/\s+/).includes("secret");
-            if (secret) {
+            if (spoilers && secret) {
                 token.attrSet("data-inline-spoiler", "");
                 token.attrSet("tabindex", "0");
                 if (!token.attrGet("title"))
@@ -39,7 +39,18 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
                 if (!token.attrGet("aria-label"))
                     token.attrSet("aria-label", "Spoiler; focus to reveal");
             }
-            return renderer.renderToken(tokens, index, options);
+            const original = token.attrs;
+            if (["em", "strong"].includes(token.tag))
+                token.attrs = (token.attrs ?? []).flatMap(([key, value]) => {
+                    if (key !== "class") return [[key, value]];
+                    const classes = value
+                        .split(/\s+/)
+                        .filter((name) => !["emph", "strong"].includes(name));
+                    return classes.length ? [[key, classes.join(" ")]] : [];
+                });
+            const rendered = renderer.renderToken(tokens, index, options);
+            token.attrs = original;
+            return rendered;
         };
     }
     md.inline.ruler.after("link", "bracket_span", (state, silent) => {
@@ -97,7 +108,7 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
         // there for ordinary spans, including names used by the first-use audit.
         if (
             state.src[start - 1] === "[" &&
-            !["lang", "font", "map"].some((key) => Object.hasOwn(parsed.values, key)) &&
+            !["lang", "font", "enc"].some((key) => Object.hasOwn(parsed.values, key)) &&
             !parsed.classes.some(
                 (name) => name === "script" || /^font-(?:mono|serif|sans)$/.test(name),
             )
@@ -110,7 +121,11 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
             state.pos = finish;
             return true;
         }
-        if (source) {
+        const emphasis =
+            parsed.classes.includes("emph") ? "em"
+            : parsed.classes.includes("strong") ? "strong"
+            : undefined;
+        if (source && !emphasis) {
             // An incomplete attribute stays opaque through the end of its line.
             if (state.src[finish] === "{") {
                 const newline = state.src.indexOf("\n", finish);
@@ -126,7 +141,7 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
             state.pos = finish;
             return true;
         }
-        const token = state.push("span_open", "span", 1);
+        const token = state.push("span_open", emphasis ?? "span", 1);
         token.meta = {
             span: true,
             start,
@@ -162,7 +177,7 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
                     }
             }
         state.tokens.push(...nested);
-        state.push("span_close", "span", -1);
+        state.push("span_close", emphasis ?? "span", -1);
         state.pos = finish;
         return true;
     });
@@ -315,7 +330,23 @@ export function renderSpans(source) {
             (span) => !spans.some((parent) => parent.start < span.start && parent.end >= span.end),
         )
         .sort((a, b) => b.start - a.start)) {
-        const attrs = span.attrs.map(([key, value]) => ` ${key}="${escape(value)}"`).join("");
+        const classes = (span.attrs.find(([key]) => key === "class")?.[1] ?? "").split(/\s+/);
+        const tag =
+            classes.includes("emph") ? "em"
+            : classes.includes("strong") ? "strong"
+            : "span";
+        const attrs = span.attrs
+            .flatMap(([key, value]) => {
+                if (key === "class" && tag !== "span") {
+                    value = value
+                        .split(/\s+/)
+                        .filter((name) => !["emph", "strong"].includes(name))
+                        .join(" ");
+                    if (!value) return [];
+                }
+                return [` ${key}="${escape(value)}"`];
+            })
+            .join("");
         const inner = renderSpans(markdown.slice(span.start + 1, span.contentEnd)).markdown;
         const secret = span.attrs.some(
             ([key, value]) => key === "class" && value.split(/\s+/).includes("secret"),
@@ -323,7 +354,7 @@ export function renderSpans(source) {
         const content =
             secret ?
                 `<span${attrs} data-inline-secret data-pagefind-ignore><button type="button" class="inline-secret-toggle" aria-label="Show spoiler" aria-expanded="false">Show spoiler</button><span class="inline-secret-content" hidden>${inner}</span></span>`
-            :   `<span${attrs}>${inner}</span>`;
+            :   `<${tag}${attrs}>${inner}</${tag}>`;
         markdown = markdown.slice(0, span.start) + content + markdown.slice(span.end);
     }
     return { markdown, errors };

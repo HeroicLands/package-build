@@ -13,7 +13,7 @@
 
 /**
  * **A mapped run's words are words of its language.** In a run marked with
- * `lang=`, whose language's `note` names its language note, and with `map=`,
+ * `lang=`, whose language's `note` names its language note, and with `enc=`,
  * each word (see {@link module:engine/word-pattern.WORD}) is accepted when,
  * case folded, it is:
  *
@@ -36,7 +36,7 @@
  * @module
  */
 
-import { lexiconsFromRecords } from "./map-lexicon.mjs";
+import { lexiconsFromRecords } from "./encoding-lexicon.mjs";
 import { RESERVED_TONGUE } from "./language-terms.mjs";
 import { addWords, foldWord, lexiconWords } from "./word-forms.mjs";
 import { WORD } from "./word-pattern.mjs";

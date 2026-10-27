@@ -11,7 +11,16 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/** A language's exact Roman source characters, before any script conversion. */
+/** A language's Roman additions and the shared punctuation standard. */
+
+import { isSettingScriptCodePoint } from "./content-charset.mjs";
+
+/** Sentence terminals in the shared Roman standard. */
+const TERMINALS = new Set(".?‼!");
+/** Unconditional punctuation; ^ is conditional indentation or a language addition. */
+const STANDARD = new Set(".?‼!,«»‹›—…/{}⟦⟧");
+/** Exactly the encoding definition's word-separating whitespace class. */
+export const isRomanWhitespace = (char) => /^[\p{Zs}\u0009-\u000D]$/u.test(char);
 
 /** Unicode graphemes keep every canonically composing sequence together. */
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -38,6 +47,21 @@ export function romanInventoryProblems(value) {
         );
     if (/[\p{Cc}\p{Cf}\p{Cs}]/u.test(value))
         problems.push("`data.roman` contains a control, format or unpaired surrogate character");
+    const supplied = [...new Set(value)].filter(
+        (char) => STANDARD.has(char) || /[;:"“”]/u.test(char),
+    );
+    if (supplied.length)
+        problems.push(
+            "`data.roman` lists only language additions, without standard punctuation, literal markers, semicolons, colons or English quotation marks: " +
+                supplied.map((char) => `\`${char}\``).join(", "),
+        );
+    const native = [...new Set(value)].filter((char) =>
+        isSettingScriptCodePoint(char.codePointAt(0)),
+    );
+    if (native.length)
+        problems.push(
+            "`data.roman` lists Roman additions, without setting-script characters; write exact native characters through codage",
+        );
     const seen = new Set();
     const repeated = new Set();
     for (const char of value) {
@@ -85,29 +109,124 @@ export function romanInventoriesOf(records, languages = {}) {
  * No punctuation, case or normalization repair is performed.
  * @param {string} text - Visible Roman source.
  * @param {RomanInventory} inventory - Its language's declared characters.
- * @param {(char: string) => boolean} [native] - Whether a directly typed native sign is drawn in the selected native face.
  * @returns {Array<{offset: number, message: string}>}
  */
-export function romanTextProblems(text, inventory, native = () => false) {
+export function romanTextProblems(text, inventory) {
     const out = [];
     if (!inventory.characters) return out;
-    for (const { segment: cluster, index } of graphemes.segment(text)) {
-        let offset = index;
-        if (cluster !== cluster.normalize("NFC")) {
-            out.push({
-                offset,
-                message: `\`${cluster}\` is not NFC spelling in \`${inventory.language}\`; write \`${cluster.normalize("NFC")}\``,
-            });
+    const decomposed = new Map(
+        [...graphemes.segment(text)]
+            .filter(({ segment }) => segment !== segment.normalize("NFC"))
+            .map(({ segment, index }) => [index, segment]),
+    );
+    const quotes = [];
+    let sentenceStart = true;
+    const report = (offset, message) => out.push({ offset, message });
+    for (let offset = 0; offset < text.length;) {
+        const char = String.fromCodePoint(text.codePointAt(offset));
+        if (char === "⟦") {
+            // The encoding validates codage and its boundary grammar. Roman
+            // punctuation and language letters never reinterpret its contents.
+            const close = text.indexOf("⟧", offset + 1);
+            offset = close < 0 ? text.length : close + 1;
+            sentenceStart = false;
             continue;
         }
-        for (const char of cluster) {
-            if (!/[ \t\r\n]/u.test(char) && !inventory.characters.has(char) && !native(char))
-                out.push({
-                    offset,
-                    message: `\`${char}\` (${codeName(char)}) is not in \`${inventory.language}\`'s \`data.roman\` inventory`,
-                });
-            offset += char.length;
+        const cluster = decomposed.get(offset);
+        if (cluster) {
+            report(
+                offset,
+                `\`${cluster}\` is not NFC spelling in \`${inventory.language}\`; write \`${cluster.normalize("NFC")}\``,
+            );
+            offset += cluster.length;
+            sentenceStart = false;
+            continue;
         }
+        if (isRomanWhitespace(char)) {
+            offset += char.length;
+            continue;
+        }
+        if (char === "^") {
+            const start =
+                Math.max(text.lastIndexOf("\n", offset - 1), text.lastIndexOf("/", offset - 1)) + 1;
+            if (/^\^*$/.test(text.slice(start, offset))) {
+                // Indentation is layout and leaves sentence-start ellipsis
+                // semantics intact. The reference encoder uses these bounds.
+                offset += char.length;
+                continue;
+            }
+        }
+        if (text.startsWith("<<", offset) || text.startsWith(">>", offset)) {
+            report(
+                offset,
+                `write \`${char === "<" ? "«" : "»"}\` for a quotation, not \`${char}${char}\``,
+            );
+            offset += 2;
+            continue;
+        }
+        if (text.startsWith("...", offset)) {
+            report(offset, "write the ellipsis `…`, not three periods `...`");
+            offset += 3;
+            continue;
+        }
+        if (char === ";" || char === ":") {
+            report(
+                offset,
+                `\`${char}\` (${codeName(char)}) is not standard Roman punctuation; write \`,\` for a pause within a sentence or \`.\` between complete sentences`,
+            );
+        } else if (/^["“”]$/u.test(char)) {
+            report(
+                offset,
+                "write `«…»` for an outer quotation and `‹…›` for a quotation inside it",
+            );
+        } else if (isSettingScriptCodePoint(char.codePointAt(0))) {
+            report(
+                offset,
+                `write the setting-script character ${codeName(char)} as \`⟦${codeName(char)}⟧\` or by its encoding's codage name`,
+            );
+        } else if (char === "^" && !inventory.characters.has(char)) {
+            report(
+                offset,
+                "`^` is line-start indentation; elsewhere it must be a declared language addition in `data.roman`",
+            );
+        } else if (!STANDARD.has(char) && !inventory.characters.has(char)) {
+            report(
+                offset,
+                `\`${char}\` (${codeName(char)}) is not in \`${inventory.language}\`'s \`data.roman\` inventory`,
+            );
+        }
+        if (char === "«" || char === "‹") {
+            const expected = quotes.length % 2 === 0 ? "«" : "‹";
+            if (char !== expected)
+                report(offset, `a quotation at this depth opens with \`${expected}\``);
+            quotes.push({ char, offset });
+            sentenceStart = true;
+        } else if (char === "»" || char === "›") {
+            const opening = quotes.at(-1);
+            const expected = opening?.char === "«" ? "»" : "›";
+            if (!opening) report(offset, `quotation closer \`${char}\` has no opening quotation`);
+            else {
+                if (char !== expected)
+                    report(offset, `this quotation closes with \`${expected}\`, not \`${char}\``);
+                quotes.pop();
+                sentenceStart = false;
+            }
+        } else if (char === "—" || (char === "…" && !sentenceStart)) {
+            const rest = text.slice(offset + char.length);
+            if ([...rest].some((next) => !isRomanWhitespace(next)) && !TERMINALS.has(rest[0]))
+                report(
+                    offset,
+                    `\`${char}\` is immediately followed by a terminal (\`.\`, \`?\`, \`‼\` or \`!\`) except at the end of a run`,
+                );
+            sentenceStart = false;
+        } else if (TERMINALS.has(char)) sentenceStart = true;
+        else sentenceStart = false;
+        offset += char.length;
     }
-    return out;
+    for (const opening of quotes)
+        report(
+            opening.offset,
+            `quotation \`${opening.char}\` needs its closing \`${opening.char === "«" ? "»" : "›"}\``,
+        );
+    return out.sort((a, b) => a.offset - b.offset);
 }

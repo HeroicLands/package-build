@@ -221,7 +221,7 @@ function edit(from: string, to: string) {
 describe("a language's literal Roman inventory", () => {
     const inventory = (value: string) => DUNHARI.replace("data:\n", `data:\n  roman: ${value}\n`);
     it("accepts exact permitted characters and an explicitly empty alphabet", () => {
-        expect(dunhari(inventory('"abcABCàÀ.012"'))).toEqual([]);
+        expect(dunhari(inventory('"abcABCàÀ012"'))).toEqual([]);
         expect(dunhari(inventory('""'))).toEqual([]);
     });
     it("refuses a list where the inventory takes one literal string", () => {

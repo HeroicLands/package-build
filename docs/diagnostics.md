@@ -303,26 +303,25 @@ For example, `[a *word*]{lang=vyl}` locates the finding at the `*` that opens
 the emphasis. A font does not make the markup valid; the language rule applies
 to the span whether its text uses a script face or ordinary type.
 
-## Native presentation is explicit
-
-A language-only run keeps its authored spelling and prose font. Native
-presentation requires `.nativefont` and an explicit `lang=` on that same
-span, div, verse fence or scroll fence. An inherited language does not satisfy
-this requirement. Findings point to the authored class or override:
+Use `[word]{.emph}` for emphasis in a non-English span. It inherits the
+surrounding run's language, face and encoding. These findings point to the
+opening `[` of the emphasis span:
 
 ```text
-`.nativefont` requires an explicit `lang=` on the same construct
-native `font=semaron-kuriale` requires `.nativefont` and an explicit `lang=` on the same construct
-`map=semaron` requires `.nativefont` and an explicit `lang=` on the same construct
-`.nativefont` has no default `font=` for `vyl`; state `font=` explicitly
+a span in non-English language `vyl` holds no `.strong` emphasis
+`vyl` marks emphasis with a word, not a mark; write the word
+a span takes `.emph` or `.strong`, not both
 ```
 
-A missing font needs an explicit `font=` or a language font default. Mapping is
-optional when the language supplies none; configured maps still apply to
-native runs unless explicitly overridden. `font=serif`, `sans` and `mono`
-remain independent Roman choices. Each authored reading makes its own presentation choice in parallel verse,
-for example `1 [Zaron]{lang=vyl .nativefont}` and
-`3 [Zaron]{lang=vyl}` inside a `cols=3` poem. The Roman repeat stays Roman.
+## Native presentation is explicit
+
+`enc=` resolves an encoding document and infers its language and font.
+`enc=default` leaves Roman text unchanged. A conflicting explicit language or
+font is a finding at that attribute. Encoding-note schema errors point to
+frontmatter; missing, duplicate or malformed font glyph codes point to
+`fonts.json`. Their original source positions survive preview, lint, site,
+Foundry and book builds. Text diagnostics use code-point columns; run offsets
+and captured index coordinates retain UTF-16 units.
 
 ## Summary counts and prose are not findings
 
@@ -510,3 +509,31 @@ and exits `1`, because it saw two `error`-severity diagnostics. The summary
 line the emitting process printed to stdout, `3 finding(s) across 1
 note(s).`, never reaches the parser at all — it was never on stderr, and the
 regex would not have matched it if it had been.
+
+## Standard Roman punctuation
+
+Each configured language's `data.roman` adds its own characters to the shared
+Roman standard. Listing standard punctuation or literal boundaries in that
+field is an error at the field. Quote pairs balance and alternate; an English
+double quotation mark, `<<`, `>>` or three periods receives an error at the
+source mark. A terminal is optional, and authored capitalization is preserved.
+
+A semicolon or colon needs a comma for a pause or a period between complete
+sentences. An interruption or abandoning ellipsis within a run needs an
+immediate terminal; at the end of the run it may stand alone. A closing
+quotation is not an outer-sentence terminal.
+
+A native character pasted directly into a configured language run receives a
+finding naming its `⟦U+XXXX⟧` spelling. Use that notation, or the chosen
+encoding's codage name, inside the literal markers. The encoder checks the
+codes; the Roman validator leaves their contents immutable.
+
+A verse fence uses its authored line endings for boundaries. A literal `/`
+inside it is an error at that slash. Visual indentation does not add periods
+to the encoded text. Source positions survive Markdown escapes and nested
+`.emph` or `.name` spans.
+
+Language-run diagnostic columns count Unicode code points, so a supplementary
+character occupies one column. Source offsets and the SQL `runs.column` field
+use UTF-16 units for source indexing. An encoding-file finding retains that
+file's own location; a note's frontmatter offset is not added to it.

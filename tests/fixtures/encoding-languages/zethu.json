@@ -1,0 +1,22 @@
+{
+    "language": "zet",
+    "data": {
+        "writtenIn": { "enc": "zethu", "font": "khelathi-zethu-glyphs" },
+        "words": [
+            {
+                "form": "rava",
+                "class": "n",
+                "gloss": "first sense",
+                "native": [{ "enc": "zethu", "text": "𞰀" }]
+            },
+            {
+                "form": "zava",
+                "class": "n",
+                "gloss": "second sense",
+                "native": [{ "enc": "zethu", "text": "𞰀" }]
+            },
+            { "form": "ravan", "class": "n", "gloss": "built sense", "built": ["rava", "-n"] }
+        ],
+        "affixes": [{ "form": "-n", "native": [{ "enc": "zethu", "text": "𞰁" }] }]
+    }
+}

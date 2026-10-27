@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,6 +11,8 @@ import { execFileSync } from "node:child_process";
 import * as preview from "../engine/site-preview.mjs";
 import { EXPRESSION_HELPERS } from "../engine/markdown-expressions.mjs";
 import { ALERT_TYPES } from "../engine/content-alerts.mjs";
+import { previewIndexFor } from "./helpers/parity.js";
+import { installEncodingNote } from "./helpers/encoding-note.js";
 
 const { renderPreview, previewStyles } = preview;
 const textOf = (html: string) =>
@@ -21,6 +23,96 @@ const textOf = (html: string) =>
         .replace(/&gt;/g, ">")
         .replace(/&amp;/g, "&");
 const sourceHtml = (source: string) => renderPreview(source, { infobox: false }).html;
+
+describe("indexed preview run findings", () => {
+    let root: string;
+    let index: ReturnType<typeof previewIndexFor>;
+    const bad = "[say #@$%.]{lang=aelw enc=aelwsemaronenc}";
+    const good = "[say thikke]{lang=aelw enc=aelwsemaronenc}";
+
+    beforeAll(() => {
+        root = mkdtempSync(path.join(tmpdir(), "encoding-preview-"));
+        installEncodingNote(root);
+        index = previewIndexFor(root);
+    });
+    afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+    it.each(["\n", "\r\n"])(
+        "reports every run failure at authored buffer positions with %j line endings",
+        (newline) => {
+            const line = `<tag> ${bad}`;
+            const source = ["---", "name: Preview", "---", "", line].join(newline);
+            const shifted = {
+                ...index,
+                expand: (markdown: string, options: any) => {
+                    const expanded = index.expand(markdown, options);
+                    return { ...expanded, markdown: `Extra paragraph.\n\n${expanded.markdown}` };
+                },
+            };
+            const result = renderPreview(source, {
+                index: shifted,
+                infobox: false,
+                file: "note.md",
+            });
+            expect(result.ok).toBe(false);
+            expect(result.findings).toHaveLength(4);
+            expect(result.findings).toEqual(
+                [..."#@$%"].map((char) => ({
+                    file: "note.md",
+                    severity: "error",
+                    line: 5,
+                    column: line.indexOf(char) + 1,
+                    message: `\`${char}\` (U+${char.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}) is not in \`aelw\`'s \`data.roman\` inventory`,
+                })),
+            );
+            expect(result.html).toContain("say #@$%.");
+            expect(result.html).toContain("Extra paragraph.");
+        },
+    );
+
+    it("renders a valid native run without findings", () => {
+        const result = renderPreview(`---\nname: Preview\n---\n${good}`, { index, infobox: false });
+        expect(result.ok).toBe(true);
+        expect(result.findings).toEqual([]);
+        expect(result.html).toMatch(/[\u{F0000}-\u{FFFFD}]/u);
+        expect(result.html).not.toContain("say thikke");
+    });
+
+    it("reports unavailable explicit encoding and font choices while retaining text", () => {
+        const result = renderPreview("[say]{lang=aelw enc=missing font=missing}", {
+            index,
+            infobox: false,
+        });
+        expect(result.ok).toBe(false);
+        expect(result.findings).toEqual([
+            expect.objectContaining({
+                severity: "error",
+                line: 1,
+                message: expect.stringMatching(/encoding/),
+            }),
+            expect.objectContaining({
+                severity: "error",
+                line: 1,
+                message: expect.stringMatching(/font/),
+            }),
+        ]);
+        expect(result.html).toContain("say");
+    });
+
+    it("keeps language-only text Roman without selecting an encoding", () => {
+        const result = renderPreview("[say]{lang=aelw}", { index, infobox: false });
+        expect(result.ok).toBe(true);
+        expect(result.findings).toEqual([]);
+        expect(textOf(result.html)).toBe("say\n");
+    });
+
+    it("keeps the same failing run as successful source when no index is provided", () => {
+        const result = renderPreview(bad, { infobox: false });
+        expect(result.ok).toBe(true);
+        expect(result.findings).toEqual([]);
+        expect(textOf(result.html)).toBe(bad + "\n");
+    });
+});
 
 describe("buffer-only preview", () => {
     it("classifies every registered expression helper", () => {

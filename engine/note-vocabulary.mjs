@@ -140,6 +140,7 @@ import {
 } from "./language-words.mjs";
 import { checkGlossary } from "./glossary-entries.mjs";
 import { GUIDE_SOUND_FIELDS, LANGUAGE_DATA_FIELDS } from "./language-terms.mjs";
+import { ENCODING_NOTE_FIELDS } from "./encoding-terms.mjs";
 import { checkGuideSounds, checkLanguageData } from "./language-data.mjs";
 import { checkAffiliationReach } from "./culture-reach.mjs";
 import { checkLanguageNames, requiredGivenGenders } from "./language-names.mjs";
@@ -159,11 +160,9 @@ import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkSettlementTables } from "./settlement-tables.mjs";
-import { checkMapField } from "./text-maps.mjs";
 import { checkConceptList, checkCoreFlag } from "./core-vocabulary.mjs";
 import { METRE_KINDS, checkMetresField } from "./metre-declaration.mjs";
 import { checkLanguageEmphasis, checkScriptField } from "./script-emphasis.mjs";
-import { WRITTEN_IN_KEY, checkWrittenIn } from "./written-in.mjs";
 import {
     EMPHASIS_CONVENTIONS,
     LANGUAGE_EMPHASES,
@@ -1592,47 +1591,6 @@ export const BEING_ARCHETYPES = Object.freeze({
 });
 
 /**
- * One row of a mapping note's `data.map.rows` or of a face's own `rows`.
- *
- * @type {object}
- */
-const MAP_ROW_ENTRY = Object.freeze({
-    kind: "list-or-map",
-    shape: "`[from, to]` or `{ from, to, before?, at? }`",
-    entries: Object.freeze({ ...TEXT, shape: "a string" }),
-    fields: Object.freeze([
-        {
-            name: "from",
-            ...TEXT,
-            shape: "a string of one or more characters",
-            required: true,
-            describe: "The one or more characters the row matches.",
-        },
-        {
-            name: "to",
-            ...TEXT,
-            shape: "a string, which may be empty",
-            required: true,
-            allowEmpty: true,
-            describe: "What the row writes in their place; empty to drop them.",
-        },
-        {
-            name: "before",
-            ...TEXT,
-            allowed: Object.freeze(["vowel", "consonant"]),
-            describe:
-                "`vowel` or `consonant`: what must follow the match for the " + "row to apply.",
-        },
-        {
-            name: "at",
-            ...TEXT,
-            allowed: Object.freeze(["start", "end"]),
-            describe: "`start` or `end`: where the match must sit for the row to " + "apply.",
-        },
-    ]),
-});
-
-/**
  * Every note type this toolchain compiles, and the closed vocabulary it
  * declares.
  *
@@ -2188,35 +2146,9 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "`subType: language` states it.",
             },
             {
-                name: WRITTEN_IN_KEY,
-                kind: "map",
-                shape: "a map — `{ map, font }`",
-                check: checkWrittenIn,
-                fields: Object.freeze([
-                    {
-                        name: "map",
-                        kind: "string",
-                        shape: "a mapping note's `data.map.name`",
-                        required: true,
-                        describe: "The map the language's text is written by.",
-                    },
-                    {
-                        name: "font",
-                        kind: "string",
-                        shape: "an installed face's slug",
-                        required: true,
-                        describe: "The face the text is set in, one the map is drawn in.",
-                    },
-                ]),
-                describe:
-                    "The script the language is written in, as the default map and face selected " +
-                    "by a run with explicit `lang=` and `.nativefont`; a run's own `map=` or " +
-                    "`font=` overrides its half. Only a skill of `subType: language` states it.",
-            },
-            {
                 name: "script",
                 kind: "map",
-                shape: "a map — `{ fonts, emphasis, strongEmphasis?, direction? }`",
+                shape: "a map — `{ fonts, emphasis, direction? }`",
                 check: checkScriptField,
                 fields: Object.freeze([
                     {
@@ -2240,16 +2172,9 @@ export const NOTE_VOCABULARY = Object.freeze({
                         required: true,
                         describe:
                             "How the script marks a stressed word: `rubric` sets it in red, " +
-                            "`overline` draws a line above it. It sets `*…*` and `**…**` inside a " +
+                            "`overline` draws a line above it. It sets `.emph` and accepted English emphasis inside a " +
                             "run in one of its faces, unless the run's language states its own " +
                             "`emphasis`.",
-                    },
-                    {
-                        name: "strongEmphasis",
-                        kind: "string",
-                        shape: "`rubric` or `overline`",
-                        allowed: EMPHASIS_CONVENTIONS,
-                        describe: "The convention `**…**` takes instead of `emphasis`'s.",
                     },
                     {
                         name: "direction",
@@ -2355,6 +2280,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             ...checkPostFields(note),
         ],
         data: Object.freeze([
+            ...ENCODING_NOTE_FIELDS,
             CONCEPTS_FIELD,
             POST_DATE_FIELD,
             POST_AUTHOR_FIELD,
@@ -2374,86 +2300,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "A spelling guide's letters and the marks written on them, for every " +
                     "tongue of the setting: each letter row's `tongue` names the language notes " +
                     "that write it.",
-            },
-            {
-                name: "map",
-                kind: "map",
-                shape: "a map — `{ name, logographic?, vowels?, fonts, rows }`",
-                check: checkMapField,
-                fields: Object.freeze([
-                    {
-                        name: "name",
-                        ...TEXT,
-                        required: true,
-                        describe:
-                            "What `map=` names the map by: lowercase letters, digits and `-`, " +
-                            "unique in the package.",
-                    },
-                    {
-                        name: "logographic",
-                        kind: "boolean",
-                        shape: "`true`",
-                        describe:
-                            "The script writes meanings: a mapped run's words are written by " +
-                            "the language's lexicon alone, and the rows write only the text " +
-                            "between them.",
-                    },
-                    {
-                        name: "vowels",
-                        ...TEXT,
-                        describe:
-                            "The characters a row's `before: vowel` reads as vowels; any other " +
-                            "letter is a consonant.",
-                    },
-                    {
-                        name: "rows",
-                        kind: "list",
-                        shape: "list of `[from, to]` or `{ from, to, before?, at? }`",
-                        required: true,
-                        entries: MAP_ROW_ENTRY,
-                        describe:
-                            "The rewrites, each `[from, to]` or `{ from, to, before?, at? }`: " +
-                            "`before` is `vowel` or `consonant`, `at` is `start` or `end`. The " +
-                            "longest `from` wins, and a character no row matches passes through.",
-                    },
-                    {
-                        name: "fonts",
-                        kind: "list",
-                        shape: "list of `{ font, rows? }`",
-                        required: true,
-                        entries: Object.freeze({
-                            kind: "map",
-                            shape: "a map — `{ font, rows? }`",
-                            fields: Object.freeze([
-                                {
-                                    name: "font",
-                                    ...TEXT,
-                                    required: true,
-                                    shape: "an installed face's slug",
-                                    describe:
-                                        "A face the map is drawn in, by the slug `font=` names it by.",
-                                },
-                                {
-                                    name: "rows",
-                                    kind: "list",
-                                    shape: "list of `[from, to]` or `{ from, to, before?, at? }`",
-                                    entries: MAP_ROW_ENTRY,
-                                    describe:
-                                        "Rows for this face alone, tried before the shared `rows`; " +
-                                        "the same shapes and conditions.",
-                                },
-                            ]),
-                        }),
-                        describe:
-                            "The faces the map is drawn in, at least one, each with any rows of " +
-                            "its own. A run in another face is refused, and each face must draw " +
-                            "every character its rows and the lexicon's native forms write.",
-                    },
-                ]),
-                describe:
-                    "A mapping, which native text marked with `lang=`, `.nativefont` and its " +
-                    "`map=` name is rewritten by before it is set. See " +
-                    "[mapping notes](format-details.md#mapping-notes).",
             },
             {
                 name: "metres",

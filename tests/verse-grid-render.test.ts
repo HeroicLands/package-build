@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { compileMap } from "../engine/text-maps.mjs";
+import { compileTestEncoding } from "./helpers/encoding.js";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 
 const verse = (body: string, attrs = "cols=4") => `\`\`\`verse {${attrs}}\n${body}\n\`\`\``;
@@ -50,7 +50,6 @@ describe("numbered verse column print layout", () => {
         const glyph = "\u{F0200}";
         const runs = {
             languages: { vyl: { tag: "art-x-vyl" } },
-            writtenIn: new Map([["vyl", { font: "script", map: "letters" }]]),
             faces: new Map([
                 [
                     "script",
@@ -64,10 +63,14 @@ describe("numbered verse column print layout", () => {
                     },
                 ],
             ]),
-            maps: new Map([
+            encodings: new Map([
                 [
                     "letters",
-                    compileMap({ name: "letters", rows: [["Marendas", glyph]], fonts: ["script"] }),
+                    compileTestEncoding({
+                        name: "letters",
+                        rows: [["Marendas", glyph]],
+                        fonts: ["script"],
+                    }),
                 ],
             ]),
             wordBooks: new Map([
@@ -82,13 +85,13 @@ describe("numbered verse column print layout", () => {
         };
         const result = markdownToTypst(
             verse(
-                "2 [[Marendas](/target/)]{lang=vyl .nativefont}\n2 [Marendas]{lang=vyl}",
+                "2 [[Marendas](/target/)]{lang=vyl enc=letters}\n2 [Marendas]{lang=vyl}",
                 "cols=3",
             ),
             { runs },
         );
         expect(result).toContain(
-            `#link("/target/")[#book-span(classes: ("script", "hl-script"))[${glyph}]]`,
+            `#link("/target/")[#book-span(classes: ("script", "hl-script"))[${glyph}\u{E010C}]]`,
         );
         expect(result).toContain("#text(fill: luma(45%))[#box[Marendas]]");
         expect(result.match(/hl-script/g)).toHaveLength(1);
@@ -100,12 +103,15 @@ describe("numbered verse column print layout", () => {
             faces: new Map([
                 ["f", { slug: "f", family: "Face", class: "hl-f", draws: new Set([97, 98]) }],
             ]),
+            encodings: new Map([
+                ["letters", compileTestEncoding({ name: "letters", fonts: ["f"], rows: [] })],
+            ]),
             languageEmphases: new Map([["en", "rubric"]]),
         };
         const findings: object[] = [];
         const result = markdownToTypst(
             verse(
-                "1 [a **b**]{lang=en .nativefont font=f}\n1 [a **b**]{lang=en .nativefont font=f}\n1 [linked](/target/)",
+                "1 [a **b**]{lang=en font=f enc=letters}\n1 [a **b**]{lang=en font=f enc=letters}\n1 [linked](/target/)",
                 "cols=2 lang=en",
             ),
             { runs, findings },
@@ -113,7 +119,7 @@ describe("numbered verse column print layout", () => {
         expect(findings).toEqual([]);
         expect(result.match(/#text\(fill: book-rubric\)\[b\]/g)).toHaveLength(1);
         expect(result).toContain(
-            '#book-span(classes: ("script", "hl-f"), lang: "en")[a #text(fill: luma(45%))[b]]',
+            '#book-span(classes: ("script", "hl-f"), lang: "en")[a #text(fill: luma(45%))[b]\u{E010C}]',
         );
         expect(result).toContain('#link("/target/")[#text(fill: luma(45%))[linked]]');
         expect(result.match(/#book-span/g)).toHaveLength(2);

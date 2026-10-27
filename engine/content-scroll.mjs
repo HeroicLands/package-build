@@ -16,7 +16,7 @@
  * from the right, as a handscroll unrolls.
  *
  * ````markdown
- * ```scroll {rows=25 cols=12 lang=tsu map=tengchou}
+ * ```scroll {rows=25 cols=12 lang=tsu enc=tengchou}
  * chen teng chou hing
  * tan tsou dou rou
  *
@@ -29,7 +29,7 @@
  *   blank line starts the next paragraph, flush at the top of a fresh column.
  * - **`rows=`** is the characters in a column and **`cols=`** the columns in a
  *   panel, each a whole number above zero. Either may be left out.
- * - **`lang=`, `font=` and `map=`** are read by
+ * - **`lang=`, `font=` and `enc=`** are read by
  *   {@link module:engine/content-scripts.scanRuns}, which maps the text and
  *   refuses a fence whose script its note does not state is written in
  *   columns.
@@ -56,7 +56,7 @@ export const SCROLL_KEYS = Object.freeze([
     "cols",
     "lang",
     "font",
-    "map",
+    "enc",
     "data-pagefind-ignore",
 ]);
 
@@ -195,7 +195,7 @@ export function scanScrolls(source) {
                 errors.push({
                     line: i + 1,
                     column: columns.key,
-                    message: `\`${key}=\` is not a scroll attribute; a scroll takes \`rows=\`, \`cols=\`, \`lang=\`, \`font=\` and \`map=\``,
+                    message: `\`${key}=\` is not a scroll attribute; a scroll takes \`rows=\`, \`cols=\`, \`lang=\`, \`font=\` and \`enc=\``,
                 });
                 scroll.invalid = true;
             } else if (Object.hasOwn(SIZE_KEYS, key)) {

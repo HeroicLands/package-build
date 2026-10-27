@@ -145,6 +145,7 @@ import {
     INIT_KINDS,
     INIT_LICENSES,
 } from "../engine/project-init.mjs";
+import { registerEncodingCommands } from "./encoding-commands.mjs";
 import { registerContentCommands } from "./content-commands.mjs";
 
 /**
@@ -711,6 +712,10 @@ function manifestCommand() {
                 // So a `packFolders` finding names the line it is about.
                 configFile: packConfigPath(),
             });
+            if (config.converterData) {
+                const { writeConverterData } = await import("../engine/converter-data.mjs");
+                writeConverterData({ config: shared, packageBuild: config });
+            }
             console.log(
                 `✅ Wrote ${path.relative(config.rootDir, written)} ` +
                     `(${Object.keys(manifest).length} keys, ` +
@@ -1746,30 +1751,32 @@ function bumpCommand() {
 }
 
 registerContentCommands(
-    yargs(hideBin(process.argv))
-        .scriptName("package-build")
-        .command(initCommand())
-        .command(ciCommand())
-        .command(cleanCommand())
-        .command(assetsCommand())
-        .command(stageCommand())
-        .command(calendarsCommand())
-        .command(datefromCommand())
-        .command(datetoCommand())
-        .command(manifestCommand())
-        .command(siteRootCommand())
-        .command(typesCommand())
-        .command(schemaCommand())
-        .command(langCommand())
-        .command(bumpCommand())
-        .command(yamlCommand())
-        .command(changelogCommand())
-        .command(bundleCommand())
-        .command(releaseCommand())
-        .command(deployCommand())
-        .command(cdnCommand())
-        .command(containerCommand())
-        .command(e2eCommand()),
+    registerEncodingCommands(
+        yargs(hideBin(process.argv))
+            .scriptName("package-build")
+            .command(initCommand())
+            .command(ciCommand())
+            .command(cleanCommand())
+            .command(assetsCommand())
+            .command(stageCommand())
+            .command(calendarsCommand())
+            .command(datefromCommand())
+            .command(datetoCommand())
+            .command(manifestCommand())
+            .command(siteRootCommand())
+            .command(typesCommand())
+            .command(schemaCommand())
+            .command(langCommand())
+            .command(bumpCommand())
+            .command(yamlCommand())
+            .command(changelogCommand())
+            .command(bundleCommand())
+            .command(releaseCommand())
+            .command(deployCommand())
+            .command(cdnCommand())
+            .command(containerCommand())
+            .command(e2eCommand()),
+    ),
 )
     .demandCommand(1, "Name a command.")
     .strict()
@@ -1779,5 +1786,9 @@ registerContentCommands(
     .epilog("Run package-build <command> --help for that command's actions and options.")
     .fail((message, err, cli) => {
         if (!err) cli.showHelp("error");
+        if (["encode", "decode"].includes(process.argv[2])) {
+            console.error(`package-build: ${err?.message ?? message}`);
+            process.exit(2);
+        }
         die(err ?? message);
     }).argv;

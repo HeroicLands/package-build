@@ -331,3 +331,10 @@ export {
 
 /** The curated region-event vocabulary, shared with the Foundry runtime. */
 export * as regionEvents from "./region-events.mjs";
+
+/** Browser-safe encoding-document compilation and conversion. */
+export * as encoding from "./encoding.mjs";
+export * as encodingLanguage from "./encoding-language.mjs";
+/** Consumer-root file loading and authored language projections. */
+export * as encodingNotes from "./encoding-notes.mjs";
+export * as encodingLexicon from "./encoding-lexicon.mjs";

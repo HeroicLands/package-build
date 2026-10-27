@@ -50,6 +50,17 @@ describe("the standalone source preview", () => {
         expect(result.stdout).not.toContain("<style");
     });
 
+    it("preserves native-run source without indexed findings", () => {
+        const result = run(
+            [],
+            "[thirun 7#zq.]{lang=vyl .nativefont enc=semaron font=semaron-kuriale}",
+        );
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).toContain("thirun 7#zq.");
+        expect(result.stdout).toContain("hl-preview-attribute");
+    });
+
     it("selects dark explicitly", () => {
         const result = run(["--dark"]);
         expect(result.status, result.stderr).toBe(0);

@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { encodingContext } from "./helpers/encoding.js";
+
 /**
  * **The `scroll` fence.** A script whose note states `direction: vertical-rl`
  * is set in columns read from the right: as a `.scroll` block on the site, in
@@ -56,7 +58,7 @@ const native = (form: string, text: string) => ({
     form,
     class: "n",
     gloss: form,
-    native: [{ map: "tengchou", text }],
+    native: [{ enc: "teng-chou", text }],
 });
 
 const CHEN = "\u{F101F}";
@@ -74,7 +76,7 @@ beforeAll(() => {
     fs.cpSync(FIXTURE, path.join(root, "node_modules", "@heroiclands", "fonts"), {
         recursive: true,
     });
-    ctx = runContext(
+    ctx = encodingContext(
         {
             rootDir: root,
             contentPackage: "demo",
@@ -101,25 +103,21 @@ beforeAll(() => {
                 type: "doc",
                 shortcode: "tengchoumap",
                 address: { canonical: "demo-note-doc-tengchoumap" },
-                data: {
-                    map: {
-                        name: "tengchou",
-                        logographic: true,
-                        fonts: [{ font: "teng-chou" }],
-                        rows: [[" ", ""]],
-                    },
+                encodingDefinition: {
+                    name: "teng-chou",
+                    noLetters: true,
+                    fonts: [{ font: "teng-chou" }],
+                    rows: [[" ", ""]],
                 },
             },
             {
                 type: "doc",
                 shortcode: "semaronmap",
                 address: { canonical: "demo-note-doc-semaronmap" },
-                data: {
-                    map: {
-                        name: "two-faces",
-                        fonts: [{ font: "semaron-kuriale" }, { font: "teng-chou" }],
-                        rows: [],
-                    },
+                encodingDefinition: {
+                    name: "two-faces",
+                    fonts: [{ font: "semaron-kuriale" }, { font: "teng-chou" }],
+                    rows: [],
                 },
             },
             scriptNote("tengchouscript", {
@@ -140,14 +138,14 @@ const located = (findings: Array<{ line: number; column: number; message: string
 describe("the fence's own findings", () => {
     it("reads rows and cols as whole numbers above zero, each finding at its value", () => {
         const { blocks, errors } = scanScrolls(
-            "```scroll {rows=12 cols=4 lang=tsu map=tengchou}\nchen\n```\n",
+            "```scroll {rows=12 cols=4 lang=tsu enc=teng-chou}\nchen\n```\n",
         );
         expect(errors).toEqual([]);
         expect(blocks[0]).toMatchObject({ rows: 12, cols: 4, invalid: false, start: 0, end: 2 });
         expect(
             located(
                 scanScrolls(
-                    '```scroll {rows=0 cols="two" map=tengchou}\nchen\n```\n\n```scroll {cols=1.5 map=tengchou}\nchen\n```\n',
+                    '```scroll {rows=0 cols="two" enc=teng-chou}\nchen\n```\n\n```scroll {cols=1.5 enc=teng-chou}\nchen\n```\n',
                 ).errors,
             ),
         ).toEqual([
@@ -159,17 +157,17 @@ describe("the fence's own findings", () => {
 
     it("refuses a key it does not take, an id, an empty body and a missing close", () => {
         expect(
-            located(scanScrolls("```scroll {rows=3 width=2 map=tengchou}\nchen\n```\n").errors),
+            located(scanScrolls("```scroll {rows=3 width=2 enc=teng-chou}\nchen\n```\n").errors),
         ).toEqual([
-            "1:19: `width=` is not a scroll attribute; a scroll takes `rows=`, `cols=`, `lang=`, `font=` and `map=`",
+            "1:19: `width=` is not a scroll attribute; a scroll takes `rows=`, `cols=`, `lang=`, `font=` and `enc=`",
         ]);
-        expect(located(scanScrolls("```scroll {#seal map=tengchou}\nchen\n```\n").errors)).toEqual([
-            "1:1: a scroll fence takes no `#id`",
-        ]);
-        expect(located(scanScrolls("```scroll {map=tengchou}\n\n```\n").errors)).toEqual([
+        expect(located(scanScrolls("```scroll {#seal enc=teng-chou}\nchen\n```\n").errors)).toEqual(
+            ["1:1: a scroll fence takes no `#id`"],
+        );
+        expect(located(scanScrolls("```scroll {enc=teng-chou}\n\n```\n").errors)).toEqual([
             "1:1: scroll fence is empty",
         ]);
-        expect(located(scanScrolls("```scroll {map=tengchou}\nchen\n").errors)).toEqual([
+        expect(located(scanScrolls("```scroll {enc=teng-chou}\nchen\n").errors)).toEqual([
             "1:1: scroll fence needs a closing code fence",
         ]);
     });
@@ -185,58 +183,55 @@ describe("the fence's own findings", () => {
 describe("the face and the script", () => {
     it("uses an explicitly chosen native face and map", () => {
         expect(
-            scanRuns(
-                "```scroll {lang=tsu map=tengchou font=teng-chou .nativefont}\nchen\n```\n",
-                ctx,
-            ).runs,
+            scanRuns("```scroll {lang=tsu enc=teng-chou font=teng-chou}\nchen\n```\n", ctx).runs,
         ).toEqual([
-            expect.objectContaining({ kind: "scroll", font: "teng-chou", map: "tengchou" }),
+            expect.objectContaining({ kind: "scroll", font: "teng-chou", enc: "teng-chou" }),
         ]);
     });
 
-    it("requires native opt-in and its own language on a scroll", () => {
-        expect(located(scanRuns("```scroll {rows=3}\nchen\n```\n", ctx).errors)).toEqual([
-            "1:1: a scroll requires `.nativefont` and an explicit `lang=` on the same construct",
-        ]);
+    it("keeps a scroll with the default encoding Roman", () => {
+        const source = "```scroll {rows=3}\nchen\n```\n";
+        expect(scanRuns(source, ctx).errors).toEqual([]);
+        expect(renderRuns(source, ctx).markdown).toContain("chen");
     });
 
-    it("requires an explicit face when its language supplies no native font", () => {
+    it("selects the first encoding face and validates its direction", () => {
+        expect(
+            located(scanRuns("```scroll {enc=two-faces lang=und}\n⟦U+F0230⟧\n```", ctx).errors),
+        ).toEqual([
+            "1:16: a `scroll` fence sets a script written in columns, and the script of `semaron-kuriale` is written in lines; set it in a face whose script note states `direction: vertical-rl`, or use a div",
+        ]);
+    });
+    it("checks explicit face compatibility and script direction", () => {
         expect(
             located(
-                scanRuns("```scroll {map=two-faces lang=und .nativefont}\nchen\n```\n", ctx).errors,
-            ),
-        ).toEqual([
-            "1:35: `.nativefont` has no default `font=` for `und`; state `font=` explicitly",
-        ]);
-    });
-
-    it("refuses a script written in lines, at the face or the map that gives it", () => {
-        expect(
-            located(
-                scanRuns("```scroll {font=semaron-kuriale lang=und .nativefont}\nchen\n```\n", ctx)
-                    .errors,
+                scanRuns(
+                    "```scroll {font=semaron-kuriale enc=two-faces lang=und}\n⟦U+F0230⟧\n```",
+                    ctx,
+                ).errors,
             ),
         ).toEqual([
             "1:17: a `scroll` fence sets a script written in columns, and the script of `semaron-kuriale` is written in lines; set it in a face whose script note states `direction: vertical-rl`, or use a div",
         ]);
         expect(
             located(
-                scanRuns("```scroll {font=serif lang=und .nativefont}\nchen\n```\n", ctx).errors,
-            )[0],
-        ).toMatch(/^1:17: .*the script of `serif` is written in lines/);
+                scanRuns("```scroll {font=serif enc=two-faces lang=und}\nchen\n```", ctx).errors,
+            ),
+        ).toEqual([
+            "1:17: `serif` is not a font of the encoding `two-faces`; it serves `semaron-kuriale` and `teng-chou`",
+        ]);
     });
 
     it("checks a scroll's words as a mapped run's, at the word", () => {
         expect(
             located(
                 scanRuns(
-                    "```scroll {lang=tsu map=tengchou font=teng-chou .nativefont}\nchen\nzhou\n```\n",
+                    "```scroll {lang=tsu enc=teng-chou font=teng-chou}\nchen\nzhou\n```\n",
                     ctx,
                 ).errors,
             ),
         ).toEqual([
             "3:1: `zhou` is not a word of the `tsu` lexicon, a registered name, or a regular form of one; coin it in the lexicon (or register the name) first",
-            "3:1: `zhou` has no `tengchou` writing in the `tsu` lexicon, and its parts do not give one; state one, or write the word directly in signs",
         ]);
     });
 
@@ -253,7 +248,7 @@ describe("the face and the script", () => {
 
 describe("the rewrite", () => {
     const source =
-        "```scroll {rows=3 cols=2 lang=tsu map=tengchou font=teng-chou .nativefont}\nchen teng\n  chou *hing*\n\ntan\n```\n";
+        "```scroll {rows=3 cols=2 lang=tsu enc=teng-chou font=teng-chou}\nchen teng\n  chou *hing*\n\ntan\n```\n";
 
     it("sets each paragraph on one line, mapped and unescaped, emphasis by the script's convention", () => {
         const { markdown, scrolls } = renderRuns(source, ctx, undefined, { target: "foundry" });
@@ -359,7 +354,7 @@ describe("the book", () => {
 
     it("sets a scroll as panel images read right to left, its roman text as alt text", () => {
         const typst = markdownToTypst(
-            "```scroll {rows=2 cols=1 lang=tsu map=tengchou font=teng-chou .nativefont}\nchen teng chou\n```\n",
+            "```scroll {rows=2 cols=1 lang=tsu enc=teng-chou font=teng-chou}\nchen teng chou\n```\n",
             { runs: ctx },
         );
         const boxes = [
@@ -374,7 +369,7 @@ describe("the book", () => {
 
     it("lets columns wrap where the measure ends when no cols is stated", () => {
         const typst = markdownToTypst(
-            "```scroll {rows=2 lang=tsu map=tengchou font=teng-chou .nativefont}\nchen teng chou\n```\n",
+            "```scroll {rows=2 lang=tsu enc=teng-chou font=teng-chou}\nchen teng chou\n```\n",
             { runs: ctx },
         );
         expect(typst).toMatch(/\)\)​#box/);
@@ -382,17 +377,16 @@ describe("the book", () => {
 
     it("sets a scroll the rewrite did not set as code", () => {
         expect(
-            markdownToTypst(
-                "```scroll {rows=2 font=semaron-kuriale lang=und .nativefont}\nchen\n```\n",
-                { runs: ctx },
-            ),
+            markdownToTypst("```scroll {rows=2 font=semaron-kuriale lang=und}\nchen\n```\n", {
+                runs: ctx,
+            }),
         ).toMatch(/```\nchen\n```/);
     });
 });
 
 /** A note as the lint reads it, its YAML written out so positions are real. */
 const noteOf = (fm: object) => ({
-    file: "tengchou.md",
+    file: "teng-chou.md",
     fm,
     raw: `---\n${YAML.stringify(fm)}---\n`,
 });

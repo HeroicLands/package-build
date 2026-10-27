@@ -30,7 +30,6 @@
  *   npx package-build site [--out <dir>]
  *   npx package-build map [--tree] [--from <shortcode>] [--chart <shortcode>] [--travel] [--out <dir>]
  *   npx package-build reachability <dir> [file] [--index <shortcode>]
- *   npx package-build transliterate <map> [--lang <language>] [--font <slug>] [--hex] [text..]
  *   npx package-build lexicon <language> [--map <map>] [--font <slug>] [--derived] [--json]
  *   npx package-build addresses diff --from <zip|dir> [--strict]
  *   npx package-build npc new (--spec <json> | --specfile <path>) [--seed <text>] [--out <path>]
@@ -110,11 +109,10 @@ import { coreReport, coreReportText } from "../engine/core-report.mjs";
 import { checkScriptNoteFonts } from "../engine/script-emphasis.mjs";
 import {
     checkLexiconNatives,
-    checkMapFonts,
+    checkEncodingLexicon,
     languageNoteFindings,
     lexiconEntries,
-    transliterate,
-} from "../engine/map-lexicon.mjs";
+} from "../engine/encoding-lexicon.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import { lintProse, scoreProseTree } from "../engine/readability-lint.mjs";
 import { loadPackageBuildConfig } from "../config.mjs";
@@ -321,7 +319,6 @@ export function registerContentCommands(cli) {
         )
         .command(withIndexPreflight(mapCommand()))
         .command(withIndexPreflight(reachabilityCommand()))
-        .command(transliterateCommand())
         .command(lexiconCommand())
         .command(coreCommand())
         .command(addressesCommand())
@@ -1285,15 +1282,22 @@ function lintCommand() {
                 // the languages this package declares, the faces it installed
                 // and the maps its notes declare.
                 const runs = runContext(config, records);
+                const loaderLocations = new Set(
+                    (runs.encodingFindings ?? []).map((one) =>
+                        JSON.stringify([one.file, one.line, one.column, one.message]),
+                    ),
+                );
+                const reportedLoaders = new Set();
                 const findings = [
                     ...index.notes.flatMap((note) =>
                         markupFindings(note.raw, note.file, session.syntax, runs),
                     ),
                     // Each mapping note's faces, each language's native forms
                     // and each language's `note`, against the faces and maps.
-                    ...index.notes.flatMap((note) => checkMapFonts(note, runs)),
                     ...index.notes.flatMap((note) => checkScriptNoteFonts(note, runs)),
                     ...index.notes.flatMap((note) => checkLexiconNatives(note, runs)),
+                    ...index.notes.flatMap((note) => checkEncodingLexicon(note, runs)),
+                    ...(runs.encodingFindings ?? []),
                     ...languageNoteFindings({ ...config, configFile: packConfigPath() }, records),
                     ...index.notes.flatMap(firstUseChecker),
                     ...(names ? [names] : []),
@@ -1309,7 +1313,13 @@ function lintCommand() {
                     ...states.findings,
                     ...generatedArt,
                     ...artSizes,
-                ];
+                ].filter((one) => {
+                    const key = JSON.stringify([one.file, one.line, one.column, one.message]);
+                    if (!loaderLocations.has(key)) return true;
+                    if (reportedLoaders.has(key)) return false;
+                    reportedLoaders.add(key);
+                    return true;
+                });
                 // Only an **error** fails the run. `reportFindings` draws that
                 // line, so the rule is the shared one rather than a second
                 // copy here. Each finding names its own file.
@@ -2566,7 +2576,7 @@ function mapCommand() {
  *   `undefined` when the content tree could not be read whole, which is
  *   reported.
  */
-function mappingContext() {
+function encodingContext() {
     const config = loadPackConfig();
     const problems = [];
     const records = indexRecordsFor({
@@ -2590,7 +2600,7 @@ function mappingContext() {
  * @param {{problem: string, about: string}} found - What is wrong.
  * @param {string} [lang] - The language asked for.
  */
-function reportMapping(config, found) {
+function reportEncoding(config, found) {
     if (found.about === "lang") {
         const file = packConfigPath();
         let text;
@@ -2613,84 +2623,10 @@ function reportMapping(config, found) {
 }
 
 /**
- * `package-build transliterate <map> [text..]` — map a passage exactly as the
- * build maps a run marked with the same `map=`, `lang=` and `font=`.
- *
- * @returns {object} The yargs command module.
- */
-// eslint-disable-next-line
-function transliterateCommand() {
-    return {
-        command: "transliterate <map> [text..]",
-        describe: "Map a passage into a script exactly as the build maps a marked run",
-        builder: (yargs) =>
-            yargs
-                .positional("map", {
-                    type: "string",
-                    describe: "The `data.map.name` of a mapping note",
-                })
-                .positional("text", {
-                    type: "string",
-                    array: true,
-                    describe: "The passage; `-` or nothing reads it from stdin",
-                })
-                .option("lang", {
-                    type: "string",
-                    describe: "A declared language, whose lexicon is read first",
-                })
-                .option("font", {
-                    type: "string",
-                    describe:
-                        "The face; the language's `data.writtenIn` face where the map is drawn in it, and required when neither it nor the map gives one",
-                })
-                .option("hex", {
-                    type: "boolean",
-                    default: false,
-                    describe: "Print the code points, as `U+XXXX` separated by spaces",
-                }),
-        handler: async (argv) => {
-            try {
-                const read = mappingContext();
-                if (!read) {
-                    process.exitCode = 1;
-                    return;
-                }
-                const words = (argv.text ?? []).map(String);
-                const text =
-                    !words.length || (words.length === 1 && words[0] === "-") ?
-                        (await readStdin()).replace(/\r?\n$/, "")
-                    :   words.join(" ");
-                const mapped = transliterate(
-                    read.ctx,
-                    { map: String(argv.map), lang: argv.lang, font: argv.font },
-                    text,
-                );
-                if ("problem" in mapped) {
-                    reportMapping(read.config, mapped);
-                    return;
-                }
-                console.log(
-                    argv.hex ?
-                        Array.from(
-                            mapped.text,
-                            (char) =>
-                                `U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`,
-                        ).join(" ")
-                    :   mapped.text,
-                );
-            } catch (err) {
-                reportFailure(err);
-                process.exitCode = 1;
-            }
-        },
-    };
-}
-
-/**
- * `package-build lexicon <language> [--map <map>]` — every word of a language's
- * lexicon with its native form under a map, as the build writes it; with
+ * `package-build lexicon <language> [--enc <enc>]` — every word of a language's
+ * lexicon with its native form under an encoding, as the build writes it; with
  * `--derived`, the forms its rules derive follow, each naming its word in a
- * sixth column. Under a logographic map the third column says where a
+ * sixth column. Under a logographic enc the third column says where a
  * word's writing comes from, `own` or `parts`, or marks it `none` or
  * `ambiguous`.
  *
@@ -2700,22 +2636,20 @@ function transliterateCommand() {
 function lexiconCommand() {
     return {
         command: "lexicon <language>",
-        describe: "List a language's words with their native forms under a map",
+        describe: "List a language's words with their native forms under an encoding",
         builder: (yargs) =>
             yargs
                 .positional("language", {
                     type: "string",
                     describe: "A declared language whose `note` names its language note",
                 })
-                .option("map", {
+                .option("enc", {
                     type: "string",
-                    describe:
-                        "The `data.map.name` of a mapping note; the language's `data.writtenIn` map where left out",
+                    describe: "The encoding document Address, with doc as default type",
                 })
                 .option("font", {
                     type: "string",
-                    describe:
-                        "The face; the language's `data.writtenIn` face where the map is drawn in it, and required when neither it nor the map gives one",
+                    describe: "The encoding document's font; an explicit value must agree",
                 })
                 .option("derived", {
                     type: "boolean",
@@ -2730,19 +2664,19 @@ function lexiconCommand() {
                 }),
         handler: (argv) => {
             try {
-                const read = mappingContext();
+                const read = encodingContext();
                 if (!read) {
                     process.exitCode = 1;
                     return;
                 }
                 const listed = lexiconEntries(read.ctx, {
                     lang: String(argv.language),
-                    map: argv.map === undefined ? undefined : String(argv.map),
+                    enc: argv.enc === undefined ? undefined : String(argv.enc),
                     font: argv.font,
                     derived: Boolean(argv.derived),
                 });
                 if ("problem" in listed) {
-                    reportMapping(read.config, listed);
+                    reportEncoding(read.config, listed);
                     return;
                 }
                 if (argv.json) console.log(JSON.stringify(listed.entries, null, 2));
@@ -3339,7 +3273,7 @@ function readNpcSpec(argv) {
  *
  * @param {{file?: string, raw?: string}} note - Where the note is.
  * @param {Array<string|number>} keyPath - The frontmatter key at fault, or the
- *   map a missing key belongs in.
+ *   enc a missing key belongs in.
  * @param {string} message - What is wrong.
  * @returns {Error} The error, for `reportFailure` to print as a diagnostic.
  */

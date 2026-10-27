@@ -35,6 +35,7 @@ import { resolveScriptFonts } from "../engine/script-fonts.mjs";
 import { siteSettings } from "../engine/site-config.mjs";
 import { headers, writeSiteRoot } from "../engine/site-root.mjs";
 import { buildManifest } from "../manifest.mjs";
+import YAML from "yaml";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, "fixtures", "script-fonts", "fonts");
@@ -43,8 +44,8 @@ const FIXTURE = path.join(HERE, "fixtures", "script-fonts", "fonts");
 const PATHS = { content: "content" };
 /** A content tree whose note sets text only in a generic family. */
 const GENERIC = { content: "generic" };
-/** A content tree whose language note names its script, and whose notes keep Roman spelling while the declared script still delivers its font. */
-const WRITTEN = { content: "written" };
+/** A content tree whose encoding note supplies the font without any font= attributes. */
+const ENCODED = { content: "encoded" };
 
 const note = (root: string, dir: string, body: string) => {
     fs.mkdirSync(path.join(root, dir, "Lore"), { recursive: true });
@@ -80,18 +81,14 @@ beforeAll(() => {
     without = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "font-delivery-none-")));
     for (const root of [withFonts, without]) {
         fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "demo" }));
-        note(
-            root,
-            "content",
-            "Cut as [\u{F0239}\u{F0230}]{lang=und .nativefont font=semaron-kuriale}.",
-        );
+        note(root, "content", "Cut as [\u{F0239}\u{F0230}]{lang=und font=semaron-kuriale}.");
         note(root, "generic", "Typed as [ka]{font=mono}, and `[x]{font=qalezu-hand}` is code.");
-        note(root, "written", "Cut as [ka]{lang=vyl}.");
-        fs.mkdirSync(path.join(root, "written", "Skills"), { recursive: true });
+        note(root, "encoded", "Cut as [ka]{enc=vyl-tengchouenc}.");
+        const encodingDir = path.join(root, "encoded", "Docs");
+        fs.mkdirSync(encodingDir, { recursive: true });
         fs.writeFileSync(
-            path.join(root, "written", "Skills", "Vylari.md"),
-            "---\ntype: skill\nsubType: language\nshortcode: vylarilng\ndata:\n" +
-                "    writtenIn: { map: semaron, font: teng-chou }\n---\n\nVylari.\n",
+            path.join(encodingDir, "Encoding.md"),
+            `---\n${YAML.stringify({ type: "doc", subType: "reference", shortcode: "vyl-tengchouenc", data: { language: "vyl", font: "teng-chou", mappings: { k: "TENG", a: "TAN" }, rules: { normalization: "NFC", matching: "longest-first" } } })}---\n\nVylari in Teng Chou.\n`,
         );
     }
     install(withFonts);
@@ -125,7 +122,7 @@ describe("what is delivered", () => {
         const found = scriptFontFiles({ rootDir: withFonts, paths: PATHS }, ["woff2"]);
 
         expect(found?.files).toEqual(["LICENSE", "fonts.css", ...WOFF2]);
-        expect(found?.version).toBe("0.0.0-fixture");
+        expect(found?.version).toBe("1.4.0");
     });
 
     it("is exactly the stylesheet, the TTF files and the licence for a book", () => {
@@ -151,12 +148,12 @@ describe("what is delivered", () => {
         expect([...facesUsed({ rootDir: withFonts, paths: GENERIC }, installed)]).toEqual([]);
     });
 
-    it("counts the face a language note names as its script, with no font= anywhere", () => {
+    it("counts the face an encoding note supplies, with no font= anywhere", () => {
         const installed = resolveScriptFonts(withFonts)!;
-        expect([...facesUsed({ rootDir: withFonts, paths: WRITTEN }, installed)]).toEqual([
+        expect([...facesUsed({ rootDir: withFonts, paths: ENCODED }, installed)]).toEqual([
             "teng-chou",
         ]);
-        expect(scriptFontFiles({ rootDir: withFonts, paths: WRITTEN }, ["woff2"])?.files).toEqual([
+        expect(scriptFontFiles({ rootDir: withFonts, paths: ENCODED }, ["woff2"])?.files).toEqual([
             "LICENSE",
             "fonts.css",
             ...WOFF2,
@@ -252,7 +249,7 @@ describe("the provenance check", () => {
         try {
             fs.writeFileSync(path.join(root, "package.json"), "{}");
             install(root);
-            note(root, "content", "Cut as [\u{F0239}]{lang=und .nativefont font=semaron-kuriale}.");
+            note(root, "content", "Cut as [\u{F0239}]{lang=und font=semaron-kuriale}.");
             const pkg = path.join(root, "node_modules", "@heroiclands", "fonts");
             fs.rmSync(path.join(pkg, "fonts", "QalezuHand-Regular.woff2"));
             fs.rmSync(path.join(pkg, "LICENSE"));
@@ -287,9 +284,9 @@ describe("the site link", () => {
     it("names the stylesheet by its versioned address when the fonts are delivered", () => {
         const config = base({ rootDir: withFonts, paths: PATHS });
 
-        expect(siteFontsParam(config)).toBe("fonts/heroiclands/0.0.0-fixture/fonts.css");
+        expect(siteFontsParam(config)).toBe("fonts/heroiclands/1.4.0/fonts.css");
         const generated = siteSettings({ config: config as never });
-        expect(generated.params.scriptFonts).toBe("fonts/heroiclands/0.0.0-fixture/fonts.css");
+        expect(generated.params.scriptFonts).toBe("fonts/heroiclands/1.4.0/fonts.css");
     });
 
     it("is absent when the package is, so the theme links nothing", () => {

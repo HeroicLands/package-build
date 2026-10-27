@@ -186,12 +186,13 @@ function commandBody(source: string, name: string): string {
 }
 
 describe("the guide documents the commands it uses", () => {
-    const source = fs.readFileSync(path.join(ROOT, "bin", "content-commands.mjs"), "utf8");
-    for (const [command, factory] of [
-        ["transliterate", "transliterateCommand"],
-        ["lexicon", "lexiconCommand"],
-        ["core", "coreCommand"],
+    for (const [command, factory, file] of [
+        ["encode", "encodeCommand", "encoding-commands.mjs"],
+        ["decode", "decodeCommand", "encoding-commands.mjs"],
+        ["lexicon", "lexiconCommand", "content-commands.mjs"],
+        ["core", "coreCommand", "content-commands.mjs"],
     ]) {
+        const source = fs.readFileSync(path.join(ROOT, "bin", file), "utf8");
         it(`names \`package-build ${command}\` and every option it takes`, () => {
             const body = commandBody(source, factory);
             const options = [...body.matchAll(/\.option\(\s*["']([\w-]+)["']/g)].map((m) => m[1]);
@@ -400,7 +401,15 @@ describe("the worked example runs", () => {
         const names = blocks.map((block) => block.file);
         expect(names).toContain("package-build.config.yaml");
         expect(names.some((name) => name.startsWith("assets/content/Skills/"))).toBe(true);
-        expect(names.some((name) => /Spelling|Map/i.test(name))).toBe(true);
+        expect(names).toContain("assets/content/Skills/Scripts/Semaron.md");
+        expect(
+            blocks.some(
+                (block) =>
+                    /shortcode: vylsemaronenc/.test(block.text) &&
+                    /mappings:/.test(block.text) &&
+                    /font: semaron-kuriale/.test(block.text),
+            ),
+        ).toBe(true);
     });
 
     /** The package every example sits in, with a homepage the lint requires. */

@@ -1,0 +1,931 @@
+{
+    "name": "veldikko-aelendi",
+    "fonts": ["veldikko"],
+    "accepts": [
+        "a-z",
+        "-",
+        "á",
+        "é",
+        "ë",
+        "í",
+        "ó",
+        "ú",
+        "ý",
+        " ",
+        "!",
+        ",",
+        ".",
+        "/",
+        "?",
+        "^",
+        "{",
+        "}",
+        "«",
+        "»",
+        "—",
+        "…",
+        "‹",
+        "›",
+        "‼"
+    ],
+    "separator": " ",
+    "rows": [
+        [".", "\uDB40\uDD00"],
+        ["?", "\uDB40\uDD01"],
+        ["‼", "\uDB40\uDD02"],
+        ["!", "\uDB40\uDD03"],
+        { "from": "^", "to": "\uDB40\uDD04", "at": "line-start" },
+        [",", "\uDB40\uDD05"],
+        ["«", "\uDB40\uDD06"],
+        ["»", "\uDB40\uDD07"],
+        ["‹", "\uDB40\uDD08"],
+        ["›", "\uDB40\uDD09"],
+        ["—", "\uDB40\uDD0A"],
+        ["…", "\uDB40\uDD0B"],
+        ["/", "\uDB40\uDD0C"],
+        ["{", "\uDB40\uDD10"],
+        ["}", "\uDB40\uDD11"],
+        ["ng", "𞵚"],
+        ["dh", "𞵢"],
+        ["th", "𞵡"],
+        ["kh", "𞵣"],
+        ["gh", "𞵤"],
+        ["nk", "𞵚𞵘\uDB40\uDD4E\uDB40\uDD4B\uDB40\uDDEF"],
+        ["ch", "𞵘"],
+        ["sh", "𞵔"],
+        ["x", "𞵘𞵔\uDB40\uDD58\uDB40\uDDEF"],
+        ["p", "𞵐"],
+        ["v", "𞵑"],
+        ["m", "𞵒"],
+        ["t", "𞵓"],
+        ["s", "𞵔\uDB40\uDD53\uDB40\uDDEF"],
+        ["n", "𞵕"],
+        ["d", "𞵖"],
+        ["k", "𞵘\uDB40\uDD4B\uDB40\uDDEF"],
+        ["h", "𞵙"],
+        ["l", "𞵛"],
+        ["r", "𞵜"],
+        ["g", "𞵠"],
+        ["b", "𞵐\uDB40\uDD42\uDB40\uDDEF"],
+        ["f", "𞵑\uDB40\uDD46\uDB40\uDDEF"],
+        ["w", "𞵑\uDB40\uDD57\uDB40\uDDEF"],
+        ["z", "𞵔\uDB40\uDD5A\uDB40\uDDEF"],
+        ["c", "𞵘\uDB40\uDD43\uDB40\uDDEF"],
+        ["q", "𞵘\uDB40\uDD51\uDB40\uDDEF"],
+        ["pp", "𞵐𞵼"],
+        ["vv", "𞵑𞵼"],
+        ["mm", "𞵒𞵼"],
+        ["tt", "𞵓𞵼"],
+        ["ss", "𞵔𞵼"],
+        ["nn", "𞵕𞵼"],
+        ["dd", "𞵖𞵼"],
+        ["kk", "𞵘𞵼"],
+        ["hh", "𞵙𞵼"],
+        ["ll", "𞵛𞵼"],
+        ["rr", "𞵜𞵼"],
+        ["gg", "𞵠𞵼"],
+        ["ngng", "𞵚𞵼"],
+        ["dhdh", "𞵢𞵼"],
+        ["thth", "𞵡𞵼"],
+        ["khkh", "𞵣𞵼"],
+        ["ghgh", "𞵤𞵼"],
+        { "from": "-", "to": "\uDB40\uDD5B\uDB40\uDD12\uDB40\uDD44\uDB40\uDD5D", "at": "start" },
+        { "from": "-", "to": "\uDB40\uDD5B\uDB40\uDD12\uDB40\uDD44\uDB40\uDD5D", "at": "end" },
+        ["-", " \uDB40\uDD5B\uDB40\uDD12\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        { "from": "a", "to": "𞵝𞵰", "at": "start" },
+        ["a", "𞵰"],
+        {
+            "from": "á",
+            "to": "𞵝𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["á", "𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"],
+        { "from": "e", "to": "𞵝𞵳", "at": "start" },
+        ["e", "𞵳"],
+        {
+            "from": "é",
+            "to": "𞵝𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["é", "𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"],
+        { "from": "i", "to": "𞵝𞵴", "at": "start" },
+        ["i", "𞵴"],
+        {
+            "from": "í",
+            "to": "𞵝𞵴\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["í", "𞵴\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        { "from": "o", "to": "𞵝𞵱", "at": "start" },
+        ["o", "𞵱"],
+        {
+            "from": "ó",
+            "to": "𞵝𞵱\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ó", "𞵱\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"],
+        { "from": "u", "to": "𞵝𞵲", "at": "start" },
+        ["u", "𞵲"],
+        {
+            "from": "ú",
+            "to": "𞵝𞵲\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ú", "𞵲\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"],
+        { "from": "y", "to": "𞵝𞵵", "at": "start" },
+        ["y", "𞵵"],
+        {
+            "from": "ý",
+            "to": "𞵝𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ý", "𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        { "from": "ë", "to": "𞵝𞵶", "at": "start" },
+        ["ë", "𞵶"],
+        { "from": "j", "to": "𞵝𞵵\uDB40\uDD4A\uDB40\uDDEF", "at": "start" },
+        ["j", "𞵵\uDB40\uDD4A\uDB40\uDDEF"],
+        { "from": "aa", "to": "𞵝𞵰𞵸", "at": "start" },
+        ["aa", "𞵰𞵸"],
+        {
+            "from": "aá",
+            "to": "𞵝𞵰𞵸\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["aá", "𞵰𞵸\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "áa",
+            "to": "𞵝𞵰𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["áa", "𞵰𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "áá",
+            "to": "𞵝𞵰𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "áá",
+            "𞵰𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ae", "to": "𞵝𞵰𞵝𞵳\uDB40\uDD41\uDB40\uDD45\uDB40\uDDEF", "at": "start" },
+        ["ae", "𞵰𞵝𞵳\uDB40\uDD41\uDB40\uDD45\uDB40\uDDEF"],
+        {
+            "from": "aé",
+            "to": "𞵝𞵰𞵝𞵳\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["aé", "𞵰𞵝𞵳\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "áe",
+            "to": "𞵝𞵰𞵝𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["áe", "𞵰𞵝𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF"],
+        {
+            "from": "áé",
+            "to": "𞵝𞵰𞵝𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "áé",
+            "𞵰𞵝𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ao", "to": "𞵝𞵰𞵝𞵱\uDB40\uDD41\uDB40\uDD4F\uDB40\uDDEF", "at": "start" },
+        ["ao", "𞵰𞵝𞵱\uDB40\uDD41\uDB40\uDD4F\uDB40\uDDEF"],
+        {
+            "from": "aó",
+            "to": "𞵝𞵰𞵝𞵱\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["aó", "𞵰𞵝𞵱\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "áo",
+            "to": "𞵝𞵰𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["áo", "𞵰𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF"],
+        {
+            "from": "áó",
+            "to": "𞵝𞵰𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "áó",
+            "𞵰𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ay", "to": "𞵝𞵰𞵝𞵵\uDB40\uDD41\uDB40\uDD59\uDB40\uDDEF", "at": "start" },
+        ["ay", "𞵰𞵝𞵵\uDB40\uDD41\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "aý",
+            "to": "𞵝𞵰𞵝𞵵\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["aý", "𞵰𞵝𞵵\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "áy",
+            "to": "𞵝𞵰𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["áy", "𞵰𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "áý",
+            "to": "𞵝𞵰𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "áý",
+            "𞵰𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "aë",
+            "to": "𞵝𞵰𞵝𞵶\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["aë", "𞵰𞵝𞵶\uDB40\uDD41\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "áë",
+            "to": "𞵝𞵰𞵝𞵶\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "áë",
+            "𞵰𞵝𞵶\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ea", "to": "𞵝𞵳𞵝𞵰\uDB40\uDD45\uDB40\uDD41\uDB40\uDDEF", "at": "start" },
+        ["ea", "𞵳𞵝𞵰\uDB40\uDD45\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "eá",
+            "to": "𞵝𞵳𞵝𞵰\uDB40\uDD45\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["eá", "𞵳𞵝𞵰\uDB40\uDD45\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "éa",
+            "to": "𞵝𞵳𞵝𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["éa", "𞵳𞵝𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "éá",
+            "to": "𞵝𞵳𞵝𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "éá",
+            "𞵳𞵝𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ee", "to": "𞵝𞵳𞵸", "at": "start" },
+        ["ee", "𞵳𞵸"],
+        {
+            "from": "eé",
+            "to": "𞵝𞵳𞵸\uDB40\uDD45\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["eé", "𞵳𞵸\uDB40\uDD45\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "ée",
+            "to": "𞵝𞵳𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ée", "𞵳𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF"],
+        {
+            "from": "éé",
+            "to": "𞵝𞵳𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "éé",
+            "𞵳𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "eu", "to": "𞵝𞵳𞵝𞵲\uDB40\uDD45\uDB40\uDD55\uDB40\uDDEF", "at": "start" },
+        ["eu", "𞵳𞵝𞵲\uDB40\uDD45\uDB40\uDD55\uDB40\uDDEF"],
+        {
+            "from": "eú",
+            "to": "𞵝𞵳𞵝𞵲\uDB40\uDD45\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["eú", "𞵳𞵝𞵲\uDB40\uDD45\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "éu",
+            "to": "𞵝𞵳𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["éu", "𞵳𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF"],
+        {
+            "from": "éú",
+            "to": "𞵝𞵳𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "éú",
+            "𞵳𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ey", "to": "𞵝𞵳𞵝𞵵\uDB40\uDD45\uDB40\uDD59\uDB40\uDDEF", "at": "start" },
+        ["ey", "𞵳𞵝𞵵\uDB40\uDD45\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "eý",
+            "to": "𞵝𞵳𞵝𞵵\uDB40\uDD45\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["eý", "𞵳𞵝𞵵\uDB40\uDD45\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "éy",
+            "to": "𞵝𞵳𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["éy", "𞵳𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "éý",
+            "to": "𞵝𞵳𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "éý",
+            "𞵳𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "eë", "to": "𞵝𞵶𞵸", "at": "start" },
+        ["eë", "𞵶𞵸"],
+        {
+            "from": "éë",
+            "to": "𞵝𞵶𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "éë",
+            "𞵶𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ii", "to": "𞵝𞵴𞵸", "at": "start" },
+        ["ii", "𞵴𞵸"],
+        {
+            "from": "ií",
+            "to": "𞵝𞵴𞵸\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ií", "𞵴𞵸\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "íi",
+            "to": "𞵝𞵴𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD49\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["íi", "𞵴𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD49\uDB40\uDDEF"],
+        {
+            "from": "íí",
+            "to": "𞵝𞵴𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "íí",
+            "𞵴𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "io", "to": "𞵝𞵴𞵝𞵱\uDB40\uDD49\uDB40\uDD4F\uDB40\uDDEF", "at": "start" },
+        ["io", "𞵴𞵝𞵱\uDB40\uDD49\uDB40\uDD4F\uDB40\uDDEF"],
+        {
+            "from": "ió",
+            "to": "𞵝𞵴𞵝𞵱\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ió", "𞵴𞵝𞵱\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "ío",
+            "to": "𞵝𞵴𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ío", "𞵴𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF"],
+        {
+            "from": "íó",
+            "to": "𞵝𞵴𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "íó",
+            "𞵴𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "iu", "to": "𞵝𞵴𞵝𞵲\uDB40\uDD49\uDB40\uDD55\uDB40\uDDEF", "at": "start" },
+        ["iu", "𞵴𞵝𞵲\uDB40\uDD49\uDB40\uDD55\uDB40\uDDEF"],
+        {
+            "from": "iú",
+            "to": "𞵝𞵴𞵝𞵲\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["iú", "𞵴𞵝𞵲\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "íu",
+            "to": "𞵝𞵴𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["íu", "𞵴𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF"],
+        {
+            "from": "íú",
+            "to": "𞵝𞵴𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "íú",
+            "𞵴𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "iy", "to": "𞵝𞵴𞵝𞵵\uDB40\uDD49\uDB40\uDD59\uDB40\uDDEF", "at": "start" },
+        ["iy", "𞵴𞵝𞵵\uDB40\uDD49\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "iý",
+            "to": "𞵝𞵴𞵝𞵵\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["iý", "𞵴𞵝𞵵\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "íy",
+            "to": "𞵝𞵴𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["íy", "𞵴𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "íý",
+            "to": "𞵝𞵴𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "íý",
+            "𞵴𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "ië",
+            "to": "𞵝𞵴𞵝𞵶\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ië", "𞵴𞵝𞵶\uDB40\uDD49\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "íë",
+            "to": "𞵝𞵴𞵝𞵶\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "íë",
+            "𞵴𞵝𞵶\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "oa", "to": "𞵝𞵱𞵝𞵰\uDB40\uDD4F\uDB40\uDD41\uDB40\uDDEF", "at": "start" },
+        ["oa", "𞵱𞵝𞵰\uDB40\uDD4F\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "oá",
+            "to": "𞵝𞵱𞵝𞵰\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["oá", "𞵱𞵝𞵰\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "óa",
+            "to": "𞵝𞵱𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["óa", "𞵱𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "óá",
+            "to": "𞵝𞵱𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "óá",
+            "𞵱𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "oe", "to": "𞵝𞵱𞵝𞵳\uDB40\uDD4F\uDB40\uDD45\uDB40\uDDEF", "at": "start" },
+        ["oe", "𞵱𞵝𞵳\uDB40\uDD4F\uDB40\uDD45\uDB40\uDDEF"],
+        {
+            "from": "oé",
+            "to": "𞵝𞵱𞵝𞵳\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["oé", "𞵱𞵝𞵳\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "óe",
+            "to": "𞵝𞵱𞵝𞵳\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["óe", "𞵱𞵝𞵳\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF"],
+        {
+            "from": "óé",
+            "to": "𞵝𞵱𞵝𞵳\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "óé",
+            "𞵱𞵝𞵳\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "oo", "to": "𞵝𞵱𞵸", "at": "start" },
+        ["oo", "𞵱𞵸"],
+        {
+            "from": "oó",
+            "to": "𞵝𞵱𞵸\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["oó", "𞵱𞵸\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "óo",
+            "to": "𞵝𞵱𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["óo", "𞵱𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF"],
+        {
+            "from": "óó",
+            "to": "𞵝𞵱𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "óó",
+            "𞵱𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "oy", "to": "𞵝𞵱𞵝𞵵\uDB40\uDD4F\uDB40\uDD59\uDB40\uDDEF", "at": "start" },
+        ["oy", "𞵱𞵝𞵵\uDB40\uDD4F\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "oý",
+            "to": "𞵝𞵱𞵝𞵵\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["oý", "𞵱𞵝𞵵\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "óy",
+            "to": "𞵝𞵱𞵝𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["óy", "𞵱𞵝𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "óý",
+            "to": "𞵝𞵱𞵝𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "óý",
+            "𞵱𞵝𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "oë",
+            "to": "𞵝𞵱𞵝𞵶\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["oë", "𞵱𞵝𞵶\uDB40\uDD4F\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "óë",
+            "to": "𞵝𞵱𞵝𞵶\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "óë",
+            "𞵱𞵝𞵶\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ua", "to": "𞵝𞵲𞵝𞵰\uDB40\uDD55\uDB40\uDD41\uDB40\uDDEF", "at": "start" },
+        ["ua", "𞵲𞵝𞵰\uDB40\uDD55\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "uá",
+            "to": "𞵝𞵲𞵝𞵰\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["uá", "𞵲𞵝𞵰\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "úa",
+            "to": "𞵝𞵲𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["úa", "𞵲𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "úá",
+            "to": "𞵝𞵲𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "úá",
+            "𞵲𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ue", "to": "𞵝𞵲𞵝𞵳\uDB40\uDD55\uDB40\uDD45\uDB40\uDDEF", "at": "start" },
+        ["ue", "𞵲𞵝𞵳\uDB40\uDD55\uDB40\uDD45\uDB40\uDDEF"],
+        {
+            "from": "ué",
+            "to": "𞵝𞵲𞵝𞵳\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ué", "𞵲𞵝𞵳\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "úe",
+            "to": "𞵝𞵲𞵝𞵳\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["úe", "𞵲𞵝𞵳\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF"],
+        {
+            "from": "úé",
+            "to": "𞵝𞵲𞵝𞵳\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "úé",
+            "𞵲𞵝𞵳\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "uu", "to": "𞵝𞵲𞵸", "at": "start" },
+        ["uu", "𞵲𞵸"],
+        {
+            "from": "uú",
+            "to": "𞵝𞵲𞵸\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["uú", "𞵲𞵸\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "úu",
+            "to": "𞵝𞵲𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["úu", "𞵲𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF"],
+        {
+            "from": "úú",
+            "to": "𞵝𞵲𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "úú",
+            "𞵲𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "uy", "to": "𞵝𞵲𞵝𞵵\uDB40\uDD55\uDB40\uDD59\uDB40\uDDEF", "at": "start" },
+        ["uy", "𞵲𞵝𞵵\uDB40\uDD55\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "uý",
+            "to": "𞵝𞵲𞵝𞵵\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["uý", "𞵲𞵝𞵵\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "úy",
+            "to": "𞵝𞵲𞵝𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["úy", "𞵲𞵝𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "úý",
+            "to": "𞵝𞵲𞵝𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "úý",
+            "𞵲𞵝𞵵\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "uë",
+            "to": "𞵝𞵲𞵝𞵶\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["uë", "𞵲𞵝𞵶\uDB40\uDD55\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "úë",
+            "to": "𞵝𞵲𞵝𞵶\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "úë",
+            "𞵲𞵝𞵶\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "ya", "to": "𞵝𞵵𞵝𞵰\uDB40\uDD59\uDB40\uDD41\uDB40\uDDEF", "at": "start" },
+        ["ya", "𞵵𞵝𞵰\uDB40\uDD59\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "yá",
+            "to": "𞵝𞵵𞵝𞵰\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["yá", "𞵵𞵝𞵰\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "ýa",
+            "to": "𞵝𞵵𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ýa", "𞵵𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "ýá",
+            "to": "𞵝𞵵𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ýá",
+            "𞵵𞵝𞵰\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "yo", "to": "𞵝𞵵𞵝𞵱\uDB40\uDD59\uDB40\uDD4F\uDB40\uDDEF", "at": "start" },
+        ["yo", "𞵵𞵝𞵱\uDB40\uDD59\uDB40\uDD4F\uDB40\uDDEF"],
+        {
+            "from": "yó",
+            "to": "𞵝𞵵𞵝𞵱\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["yó", "𞵵𞵝𞵱\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "ýo",
+            "to": "𞵝𞵵𞵝𞵱\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ýo", "𞵵𞵝𞵱\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF"],
+        {
+            "from": "ýó",
+            "to": "𞵝𞵵𞵝𞵱\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ýó",
+            "𞵵𞵝𞵱\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "yu", "to": "𞵝𞵵𞵝𞵲\uDB40\uDD59\uDB40\uDD55\uDB40\uDDEF", "at": "start" },
+        ["yu", "𞵵𞵝𞵲\uDB40\uDD59\uDB40\uDD55\uDB40\uDDEF"],
+        {
+            "from": "yú",
+            "to": "𞵝𞵵𞵝𞵲\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["yú", "𞵵𞵝𞵲\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "ýu",
+            "to": "𞵝𞵵𞵝𞵲\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ýu", "𞵵𞵝𞵲\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF"],
+        {
+            "from": "ýú",
+            "to": "𞵝𞵵𞵝𞵲\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ýú",
+            "𞵵𞵝𞵲\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        { "from": "yy", "to": "𞵝𞵵𞵸", "at": "start" },
+        ["yy", "𞵵𞵸"],
+        {
+            "from": "yý",
+            "to": "𞵝𞵵𞵸\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["yý", "𞵵𞵸\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "ýy",
+            "to": "𞵝𞵵𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ýy", "𞵵𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "ýý",
+            "to": "𞵝𞵵𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ýý",
+            "𞵵𞵸\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "yë",
+            "to": "𞵝𞵵𞵝𞵶\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["yë", "𞵵𞵝𞵶\uDB40\uDD59\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"],
+        {
+            "from": "ýë",
+            "to": "𞵝𞵵𞵝𞵶\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ýë",
+            "𞵵𞵝𞵶\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "ëa",
+            "to": "𞵝𞵶𞵝𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ëa", "𞵶𞵝𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD41\uDB40\uDDEF"],
+        {
+            "from": "ëá",
+            "to": "𞵝𞵶𞵝𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ëá",
+            "𞵶𞵝𞵰\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD11\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "ëe",
+            "to": "𞵝𞵶𞵝𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ëe", "𞵶𞵝𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD45\uDB40\uDDEF"],
+        {
+            "from": "ëé",
+            "to": "𞵝𞵶𞵝𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ëé",
+            "𞵶𞵝𞵳\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD19\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "ëi",
+            "to": "𞵝𞵶𞵝𞵴\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD49\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ëi", "𞵶𞵝𞵴\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD49\uDB40\uDDEF"],
+        {
+            "from": "ëí",
+            "to": "𞵝𞵶𞵝𞵴\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ëí",
+            "𞵶𞵝𞵴\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "ëo",
+            "to": "𞵝𞵶𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ëo", "𞵶𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD4F\uDB40\uDDEF"],
+        {
+            "from": "ëó",
+            "to": "𞵝𞵶𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ëó",
+            "𞵶𞵝𞵱\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD13\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "ëu",
+            "to": "𞵝𞵶𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ëu", "𞵶𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD55\uDB40\uDDEF"],
+        {
+            "from": "ëú",
+            "to": "𞵝𞵶𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ëú",
+            "𞵶𞵝𞵲\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD41\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "ëy",
+            "to": "𞵝𞵶𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF",
+            "at": "start"
+        },
+        ["ëy", "𞵶𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD59\uDB40\uDDEF"],
+        {
+            "from": "ëý",
+            "to": "𞵝𞵶𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ëý",
+            "𞵶𞵝𞵵\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD46\uDB40\uDD44\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        {
+            "from": "ëë",
+            "to": "𞵝𞵶𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF",
+            "at": "start"
+        },
+        [
+            "ëë",
+            "𞵶𞵸\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDD5B\uDB40\uDD45\uDB40\uDD42\uDB40\uDD5D\uDB40\uDDEF"
+        ],
+        [" ", " "]
+    ],
+    "controls": {
+        "verseStanza": "\uDB40\uDD0D",
+        "verseCanto": "\uDB40\uDD0E",
+        "wordSeparator": " ",
+        "literalOpen": "\uDB40\uDD12",
+        "literalClose": "\uDB40\uDD13",
+        "literalEscape": "\uDB40\uDD15"
+    },
+    "codes": [
+        ["VELDIKKO_LETTER_P", "𞵐"],
+        ["VELDIKKO_LETTER_V", "𞵑"],
+        ["VELDIKKO_LETTER_M", "𞵒"],
+        ["VELDIKKO_LETTER_T", "𞵓"],
+        ["VELDIKKO_LETTER_S", "𞵔"],
+        ["VELDIKKO_LETTER_N", "𞵕"],
+        ["VELDIKKO_LETTER_D", "𞵖"],
+        ["VELDIKKO_LETTER_DH", "𞵗"],
+        ["VELDIKKO_LETTER_K", "𞵘"],
+        ["VELDIKKO_LETTER_H", "𞵙"],
+        ["VELDIKKO_LETTER_NG", "𞵚"],
+        ["VELDIKKO_LETTER_L", "𞵛"],
+        ["VELDIKKO_LETTER_R", "𞵜"],
+        ["VELDIKKO_LETTER_CARRIER", "𞵝"],
+        ["VELDIKKO_LETTER_G", "𞵠"],
+        ["VELDIKKO_LETTER_TH", "𞵡"],
+        ["VELDIKKO_LETTER_AELENDI_DH", "𞵢"],
+        ["VELDIKKO_LETTER_KH", "𞵣"],
+        ["VELDIKKO_LETTER_GH", "𞵤"],
+        ["VELDIKKO_LETTER_T_EJECTIVE", "𞵥"],
+        ["VELDIKKO_LETTER_D_EJECTIVE", "𞵦"],
+        ["VELDIKKO_LETTER_K_EJECTIVE", "𞵧"],
+        ["VELDIKKO_LETTER_G_EJECTIVE", "𞵨"],
+        ["VELDIKKO_VOWEL_SIGN_A", "𞵰"],
+        ["VELDIKKO_VOWEL_SIGN_O", "𞵱"],
+        ["VELDIKKO_VOWEL_SIGN_U", "𞵲"],
+        ["VELDIKKO_VOWEL_SIGN_E", "𞵳"],
+        ["VELDIKKO_VOWEL_SIGN_I", "𞵴"],
+        ["VELDIKKO_VOWEL_SIGN_Y", "𞵵"],
+        ["VELDIKKO_VOWEL_SIGN_E_WITH_DIAERESIS", "𞵶"],
+        ["VELDIKKO_SIGN_LONG", "𞵸"],
+        ["VELDIKKO_SIGN_RISE", "𞵹"],
+        ["VELDIKKO_SIGN_FALL", "𞵺"],
+        ["VELDIKKO_SIGN_EMPHASIS", "𞵻"],
+        ["VELDIKKO_SIGN_DOUBLING_BAR", "𞵼"]
+    ]
+}

@@ -146,6 +146,8 @@ export function refusedAttributes(values) {
             problems.push(
                 `set ${key} with ${key.toLowerCase() === "id" ? "#id" : ".class"} rather than ${key}=`,
             );
+        } else if (key === "map") {
+            problems.push("map is not an attribute");
         } else if (/^on/i.test(key)) {
             problems.push(`${key} is an event handler and is not written`);
         }

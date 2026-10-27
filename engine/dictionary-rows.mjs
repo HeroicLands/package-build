@@ -48,6 +48,8 @@
  * @module
  */
 
+import { pluralOf, pluralByRule } from "./word-inflections.mjs";
+export { pluralOf, pluralByRule } from "./word-inflections.mjs";
 import { createHash } from "node:crypto";
 import { parseAddress, renderAddress } from "./address.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
@@ -129,40 +131,6 @@ const isSingleWord = (title) => !/[\s\-‐‑]/u.test(title);
 
 /** Whether a glossary entry states a definition. */
 const defines = (entry) => typeof entry.definition === "string" && entry.definition.trim() !== "";
-
-/**
- * A noun's stated plural, or the first literal ending replacement that fits.
- *
- * @param {{form: string, class?: unknown, plural?: unknown}} word - A word of
- *   `data.words`.
- * @param {Record<string, any>|undefined} grammar - Its language's
- *   `data.grammar`.
- * @returns {string|null} The plural, or `null` for a word that is no noun or
- *   that no rule fits.
- */
-export function pluralOf(word, grammar) {
-    if (parseWordClass(word.class).base !== "n") return null;
-    if (typeof word.plural === "string" && word.plural) return word.plural;
-    return pluralByRule(word.form, grammar);
-}
-
-/**
- * The plural a language's `data.grammar.plural` rule gives a form: the first
- * literal ending replacement that fits, whatever the form's class.
- *
- * @param {string} form - The form.
- * @param {Record<string, any>|undefined} grammar - Its language's
- *   `data.grammar`.
- * @returns {string|null} The plural, or `null` where no rule fits.
- */
-export function pluralByRule(form, grammar) {
-    for (const rule of Array.isArray(grammar?.plural) ? grammar.plural : []) {
-        if (typeof rule?.ending !== "string" || typeof rule.becomes !== "string") continue;
-        if (form.endsWith(rule.ending))
-            return (rule.ending ? form.slice(0, -rule.ending.length) : form) + rule.becomes;
-    }
-    return null;
-}
 
 /**
  * The stable prose anchor of a word in one language's dictionary. The exact

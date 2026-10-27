@@ -8,7 +8,7 @@
 /**
  * **The keys that mark a run, read from the scanner's own list.** Every key in
  * `RUN_KEYS` makes a span, a div and a verse fence a run, the list is exactly
- * `lang`, `font` and `map`, and a verse fence, whose keys are closed, refuses
+ * `lang`, `font` and `enc`, and a verse fence, whose keys are closed, refuses
  * any other.
  */
 
@@ -17,11 +17,11 @@ import { describe, expect, it } from "vitest";
 import { RUN_KEYS, scanRuns } from "../engine/content-scripts.mjs";
 import { VERSE_KEYS, scanVerse } from "../engine/content-verse.mjs";
 
-const VALUE: Record<string, string> = { lang: "en", font: "serif", map: "demo" };
+const VALUE: Record<string, string> = { lang: "en", font: "serif", enc: "demo" };
 
 describe("the keys a run is marked with", () => {
-    it("are lang, font and map", () => {
-        expect([...RUN_KEYS].sort()).toEqual(["font", "lang", "map"]);
+    it("are lang, font and enc", () => {
+        expect([...RUN_KEYS].sort()).toEqual(["enc", "font", "lang"]);
     });
 
     it.each(RUN_KEYS.map((key: string) => [key]))("%s= makes each construct a run", (key) => {

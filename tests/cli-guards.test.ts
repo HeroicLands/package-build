@@ -207,11 +207,13 @@ describe("what still answers without a configuration", () => {
                 "lint",
                 "links",
                 "reachability",
-                "transliterate",
+                "encode",
+                "decode",
                 "lexicon",
             ]) {
                 expect(out).toContain(command);
             }
+            expect(out).not.toContain("transliterate");
         },
         SUBPROCESS_TEST_TIMEOUT,
     );

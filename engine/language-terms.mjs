@@ -1696,7 +1696,7 @@ export const VERB_PERSON_FIELDS = Object.freeze(
 );
 
 /**
- * The endings `data.grammar.native` writes under a logographic map: the noun
+ * The endings `data.grammar.native` writes under a encoding: the noun
  * plural, then the six persons of the verb pattern.
  */
 export const WRITTEN_ENDINGS = Object.freeze([
@@ -1717,18 +1717,18 @@ const GRAMMAR_NATIVE_FIELDS = Object.freeze([
             "for a verb's present form.",
     }),
     Object.freeze({
-        name: "map",
+        name: "enc",
         kind: "string",
         required: true,
-        shape: "a logographic mapping note's `data.map.name`",
-        describe: "The logographic map the ending is written for.",
+        shape: "an encoding document Address",
+        describe: "The encoding the ending is written for.",
     }),
     Object.freeze({
         name: "font",
         kind: "string",
-        shape: "a face the map lists",
+        shape: "a face the encoding lists",
         describe:
-            "The one face the writing is for; unstated, it is for every face the map lists, " +
+            "The one face the writing is for; unstated, it is for every face the encoding lists, " +
             "and a writing stated for a face wins over it there.",
     }),
     Object.freeze({
@@ -1870,15 +1870,15 @@ const GRAMMAR_FIELDS = Object.freeze([
     Object.freeze({
         name: "native",
         kind: "list",
-        shape: "a list of `{ ending, map, font?, text }`",
+        shape: "a list of `{ ending, enc, font?, text }`",
         entries: Object.freeze({
             kind: "map",
-            shape: "a map — `{ ending, map, font?, text }`",
+            shape: "a map — `{ ending, enc, font?, text }`",
             fields: GRAMMAR_NATIVE_FIELDS,
         }),
         describe:
-            "Under a logographic map, the signs a noun's plural or a verb's present form is " +
-            "written with after its stem's writing, one entry per ending, map and face.",
+            "Under an encoding, the signs a noun's plural or a verb's present form is " +
+            "written with after its stem's writing, one entry per ending, encoding and face.",
     }),
 ]);
 
@@ -1893,11 +1893,12 @@ export const LANGUAGE_DATA_FIELDS = Object.freeze([
     Object.freeze({
         name: "roman",
         kind: "string",
-        shape: "a literal NFC string of permitted characters, including case, accents, digits and punctuation",
+        shape: "a literal NFC string of additional source characters, including exact letter case and digits",
         describe:
-            "The exact Roman source characters this language permits, each once. No ranges, case " +
-            "expansion or inherited inventory; spaces and line breaks are structural. An empty " +
-            "string declares no written characters. Required on each configured language note.",
+            "The additional Roman source characters the language permits, each once. Standard " +
+            "punctuation and structural whitespace remain available. No ranges, case expansion " +
+            "or inherited inventory. An empty string declares no additions. Required on each " +
+            "configured language note.",
     }),
     Object.freeze({
         name: "grammar",
@@ -1906,8 +1907,8 @@ export const LANGUAGE_DATA_FIELDS = Object.freeze([
         fields: GRAMMAR_FIELDS,
         describe:
             "Optional noun plurals, one verb pattern, agreement, participles and the endings' " +
-            "logographic writings, for dictionary presentation, the mapped-run word check and " +
-            "logographic maps. Only the shape of supplied keys is " +
+            "native writings, for dictionary presentation, language word checks and encodings. " +
+            "Only the shape of supplied keys is " +
             "checked; no word must follow or state a rule. A language skill note only.",
     }),
     listOfMaps(

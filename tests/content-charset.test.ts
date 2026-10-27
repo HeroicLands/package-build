@@ -69,8 +69,8 @@ describe("typography", () => {
         expect(isAllowedCodePoint(0x2014)).toBe(true);
     });
 
-    it("admits the ten enumerated marks and no more of the block", () => {
-        expect(TYPOGRAPHY.size).toBe(10);
+    it("admits the enumerated marks without opening the whole block", () => {
+        expect(TYPOGRAPHY.size).toBe(17);
     });
 
     it("refuses the invisible characters that share the block with them", () => {

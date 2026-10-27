@@ -559,12 +559,17 @@ describe("text set in one of the faces", () => {
             fs.writeFileSync(
                 path.join(content, "Rules", "Carved.md"),
                 "---\ntype: doc\nsubType: rules\nshortcode: carved\nname:\n    full: Carved\n---\n\n" +
-                    "Cut as [\u{F0239}]{lang=und .nativefont font=semaron-kuriale}.\n",
+                    "Cut as [⟦U+F0239⟧]{lang=und enc=semaron font=semaron-kuriale}.\n",
+            );
+            fs.writeFileSync(
+                path.join(content, "Rules", "Encoding.md"),
+                "---\ntype: doc\nsubType: reference\nshortcode: semaron\nname: {full: Test Semaron Encoding}\ndata:\n  language: und\n  font: semaron-kuriale\n  mappings: {k: KALPEZA_MIN}\n  rules: {normalization: NFC, matching: longest-first}\n---\n\nThe selected native writing.\n",
             );
             const result = buildSite({
                 config: defineConfig({
                     rootDir: site,
                     contentPackage: "demo",
+                    languages: { und: { tag: "und" } },
                     foundryPackage: "demo",
                     packageKind: "modules",
                     compatibility: { minimum: "14.359" },

@@ -9,7 +9,6 @@ data:
     script:
         fonts: [semaron-kuriale]
         emphasis: rubric
-        strongEmphasis: overline
 ---
 
 Semaron is written in Semaron Kuriale, and marks a stressed word in red.

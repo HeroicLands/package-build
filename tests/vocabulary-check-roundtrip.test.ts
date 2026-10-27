@@ -252,15 +252,6 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             data: { emphasis: "words" },
         }),
     },
-    "skill:writtenIn": {
-        covers: ["writtenIn"],
-        fm: () => ({
-            type: "skill",
-            subType: "language",
-            shortcode: "vylarilng",
-            data: { writtenIn: { map: "vyl-semaron", font: "semaron-kuriale" } },
-        }),
-    },
     doc: {
         covers: ["culture"],
         fm: () => ({
@@ -277,21 +268,6 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             subType: "reference",
             shortcode: "coreconcepts",
             data: { concepts: [{ id: "see-verb", gloss: "to see", group: "senses" }] },
-        }),
-    },
-    "doc:map": {
-        covers: ["map"],
-        fm: () => ({
-            type: "doc",
-            subType: "reference",
-            shortcode: "vylsemaron",
-            data: {
-                map: {
-                    name: "vyl-semaron",
-                    vowels: "aeiou",
-                    rows: [["a", "\u{F0230}"], { from: "y", to: "\u{F0237}", before: "consonant" }],
-                },
-            },
         }),
     },
     "doc:sounds": {
@@ -344,9 +320,6 @@ for (const type of Object.keys(NOTE_VOCABULARY)) {
         fm: () => ({ type, shortcode: "subject", data: { calendar: "calendarone" } }),
     };
 }
-
-// The mapping note a language's `writtenIn` names, as the lint index holds it.
-index.notes.push({ file: "doc.md", fm: FIXTURES["doc:map"].fm() });
 
 /** The fixture that covers one field of a type. */
 function fixtureFor(type: string, name: string) {

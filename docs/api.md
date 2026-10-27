@@ -1343,6 +1343,13 @@ index for checking page links.
 
 `renderPreview(text, { dark = false, infobox = true, file = "", currentDate = "720.1", index })` renders the current Markdown buffer directly to HTML. Frontmatter is optional. Without `index` it needs no package configuration, saved note, content tree, dependency cache, database or Pandoc installation. The result is `{ ok, html, frontmatter, findings }`; `file` only labels diagnostics. Malformed frontmatter produces a warning and remains visible without preventing a preview update.
 
+With `index`, every marked-text run error appears in `findings` as
+`{ file, severity: "error", line, column, message }`. Positions refer to the
+authored buffer, including frontmatter lines, before indexed expansion. Any
+error finding makes `ok` false. `html` is returned even when `ok` is false, with
+recoverable Roman text for a native-script run that cannot be set. Without
+`index`, marked text remains source and produces no run findings.
+
 With `index`, from [`engine.previewIndex`](#enginepreviewindex), the preview expands the buffer as the website expands a page and renders it through the same renderer: links resolve, embeds draw their pictures, marked text is mapped and set in its face, icons draw, figure numbers carry their asset roles, and a concealed link is concealed. A query, which a buffer cannot run, stays highlighted source.
 
 | Export                   | Signature                       | Returns                               | Use it when                                                            |
@@ -1400,13 +1407,14 @@ The charset authored content is held to, so a book can choose its face. The pack
 ### `engine.romanCharacters`
 
 Exact permitted Roman source characters for configured languages, before script
-mapping. Inventories come from `data.roman` on each language's own note.
+encoding. Inventories come from `data.roman` on each language's own note.
 
-| Export                   | Signature                                     | Returns                       | Use it when                                                                                   |
-| ------------------------ | --------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------- |
-| `romanInventoryProblems` | `romanInventoryProblems(value)`               | `string[]`                    | checking NFC, repeated characters and forbidden whitespace or controls in a literal inventory |
-| `romanInventoriesOf`     | `romanInventoriesOf(records, languages)`      | `Map<string, RomanInventory>` | looking up a configured language's own inventory by name or BCP 47 tag                        |
-| `romanTextProblems`      | `romanTextProblems(text, inventory, native?)` | `{offset, message}[]`         | validating visible unescaped source with exact offsets and an optional native-sign predicate  |
+| Export                   | Signature                                | Returns                       | Use it when                                                                                   |
+| ------------------------ | ---------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------- |
+| `isRomanWhitespace`      | `isRomanWhitespace(char)`                | `boolean`                     | recognizing standard spaces and ASCII tab or line whitespace                                  |
+| `romanInventoryProblems` | `romanInventoryProblems(value)`          | `string[]`                    | checking NFC, repeated characters and forbidden whitespace or controls in a literal inventory |
+| `romanInventoriesOf`     | `romanInventoriesOf(records, languages)` | `Map<string, RomanInventory>` | looking up a configured language's own inventory by name or BCP 47 tag                        |
+| `romanTextProblems`      | `romanTextProblems(text, inventory)`     | `{offset, message}[]`         | validating standard Roman punctuation and language additions with exact UTF-16 offsets        |
 
 ### `engine.pathCharset`
 
@@ -2773,3 +2781,126 @@ language contributes words, affixes and elements, in that order. Words and
 affixes supply `gloss`, including an affix matched by its `front` form. Elements
 supply `sense` and match their `form` and `variants`. Exact matches precede matches without joining hyphens; case and
 accents are preserved. A missing gloss returns `null`.
+
+### `engine.encoding`
+
+Browser-safe compilation of an encoding document with separately resolved font glyph codes;
+see [encoding text](encoding-core.md). No files are read. Text errors expose a
+UTF-16 `offset` and one-based code-point `line` and `column`; definition errors
+expose their schema `key`.
+
+| Export            | Signature                                   | Returns              | Use it when                                                                         |
+| ----------------- | ------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------- |
+| `EncodingError`   | `new EncodingError(message, details)`       | error                | locating a schema fault or unidentified character                                   |
+| `compileEncoding` | `compileEncoding(data, {codes, name})`      | compiled encoding    | validating executable document mappings and rules                                   |
+| `compileRows`     | `compileRows(definition)`                   | internal row program | executing captured row-conformance fixtures; application inputs use compileEncoding |
+| `validateSource`  | `validateSource(encoding, text, options)`   | void                 | validating accepted Roman spelling and rules independently of mapping coverage      |
+| `encodePieces`    | `encodePieces(encoding, text, options)`     | piece array          | retaining original UTF-16 `start` and `end` offsets while encoding                  |
+| `encodeText`      | `encodeText(encoding, text, {font, verse})` | string               | encoding exactly by rows and inline codes                                           |
+| `decodeText`      | `decodeText(encoding, text, {font})`        | string               | decoding by longest output matches                                                  |
+
+### `engine.encodingLanguage`
+
+Pure language-aware conversion takes a compiled encoding and optional plain
+`lexicon: {language, data}` from `serializeLexicon`. The build and browser use
+the same functions. Findings retain input offsets; an encoding refusal returns
+no partial encoded output. Decoding preserves the plain skeleton of an unknown
+unmarked word and reports it.
+
+| Export               | Signature                                                    | Returns                    | Use it when                                                            |
+| -------------------- | ------------------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------- |
+| `encodeWithLanguage` | `encodeWithLanguage(encoding, text, {font, verse, lexicon})` | `{text, pieces, findings}` | writing authored native entries or complete parts before encoding rows |
+| `decodeWithLanguage` | `decodeWithLanguage(encoding, text, {font, lexicon})`        | `{text, findings}`         | reading native exceptions and recovering unmarked lexical skeletons    |
+
+### `engine.encodingNotes`
+
+Node-side document resolution reads encoding records from the content index
+and glyph codes from the selected font's `fonts.json`. It opens no font encoding
+files and enforces no encoding-file release floor. Diagnostics retain the
+note or font manifest's own source position.
+
+| Export                 | Signature                                      | Returns                              | Use it when                                                   |
+| ---------------------- | ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| `encodingAddress`      | `encodingAddress(value, contentPackage)`       | string or undefined                  | resolving a document Address with default type doc            |
+| `encodingData`         | `encodingData(data)`                           | plain executable data                | separating ordinary document metadata                         |
+| `fontCodes`            | `fontCodes(fonts, font)`                       | code-to-Unicode object               | reading only the selected font's published glyph codes        |
+| `encodingsFromRecords` | `encodingsFromRecords(records, config, fonts)` | `{encodings, definitions, findings}` | compiling addressed documents and preparing serialized inputs |
+
+### `engine.encodingLexicon`
+
+Node-side note projection and validation. `serializeLexicon` emits only word,
+affix, grammar and name-register data read by conversion; the result contains
+no Maps or callbacks.
+
+| Export                  | Signature                                             | Returns                          | Use it when                                                                          |
+| ----------------------- | ----------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------ |
+| `lexiconsFromRecords`   | `lexiconsFromRecords(records, config)`                | Map                              | projecting language words, including nearest complete inherited definitions          |
+| `languageRecordsByName` | `languageRecordsByName(records, config)`              | Map                              | finding each configured language note                                                |
+| `languageNoteFindings`  | `languageNoteFindings(config, records)`               | findings                         | locating configured language notes or Roman inventories that are missing             |
+| `serializeLexicon`      | `serializeLexicon(lexicon)`                           | plain JSON object                | supplying converter input to a browser or another process                            |
+| `encodingFor`           | `encodingFor(context, {enc, font, lang})`             | selected conversion or undefined | choosing an addressed document, its face and optional language lexicon               |
+| `fontProblem`           | `fontProblem(encoding, font)`                         | string or undefined              | explaining an unsupported face choice                                                |
+| `lexiconEntries`        | `lexiconEntries(context, {lang, enc, font, derived})` | entries or problem               | listing authored or derived forms with own, parts or row spellings                   |
+| `checkLexiconNatives`   | `checkLexiconNatives(note, context)`                  | findings                         | validating encoding, face, duplicate slots and visible native code points            |
+| `checkEncodingLexicon`  | `checkEncodingLexicon(note, context)`                 | findings                         | checking every authoritative word and name against its language's encoding documents |
+| `NATIVE_COLUMNS`        | constant                                              | column names                     | reading the natives SQL projection, including its enc column                         |
+| `nativeRows`            | `nativeRows(records)`                                 | rows                             | projecting authored native entries in source order                                   |
+
+## `./convert`
+
+### Browser conversion
+
+`@heroiclands/package-build/convert` exports:
+
+| Export         | Signature                                | Returns                                                    |
+| -------------- | ---------------------------------------- | ---------------------------------------------------------- |
+| `encode`       | `encode(data, language, text, options?)` | Converted text, findings and source pieces for a language. |
+| `decode`       | `decode(data, language, text, options?)` | Roman text and findings.                                   |
+| `validateData` | `validateData(data)`                     | The validated format-2 data.                               |
+
+Its module graph uses no Node built-in and can be bundled for
+a browser without shims. Load the module's [format-2 data file](reference/format-details.md#converter-data-format)
+once and treat it as read-only.
+
+```js
+import { encode, decode, validateData } from "@heroiclands/package-build/convert";
+const data = validateData(await (await fetch("data/converter.json")).json());
+const native = encode(data, "aelw", "say", { enc: "aelwsemaronenc" });
+const roman = decode(data, "aelw", native.text, { enc: "aelwsemaronenc" });
+const inferred = encode(data, null, "say", { enc: "aelwsemaronenc" });
+```
+
+Both functions take `(data, language, text, options?)` and return
+`{text, findings}`; encoding with a language also returns source-positioned
+`pieces`. A language key selects its encoding, face and lexical inputs.
+`options.enc` and `options.font` override the encoding and face; `options.verse`
+asks the encoder to interpret verse structure. With `language: null`, `enc` is
+required and only the encoding's rows apply.
+
+Language conversion uses the same pure `encodeWithLanguage` and
+`decodeWithLanguage` functions as the build. Recorded native writings and
+parts precede encoding rows, and decoding can recover an unmarked word from
+the lexicon. An unknown word gives a positioned finding. A bare refusal
+returns empty text and an error finding. Findings carry `severity`, `message`,
+`offset` (UTF-16), and one-based Unicode-code-point `line` and `column`.
+Invalid data, unknown languages and missing encoding selections throw an
+error before conversion. `validateData(data)` returns the validated data or
+throws; it opens no files.
+
+The Node-side `engine/converter-data.mjs` module prepares these inputs from an
+indexed package:
+
+| Export               | Signature                                              | Returns                                                                       |
+| -------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `buildConverterData` | `buildConverterData(config, records)`                  | Format-1 converter data from the build context.                               |
+| `writeConverterData` | `writeConverterData({config, packageBuild, records?})` | `{path, data}` when the optional output is configured; otherwise `undefined`. |
+
+The content run scanner reports diagnostic columns in Unicode code points.
+Its run offsets, run columns and SQL `runs.column` values retain UTF-16 source
+units. Encoding-file diagnostics retain their own file and position.
+
+An omitted or null language is inferred from the selected encoding document,
+including its lexical native overrides and decoding recovery. Short document
+references resolve in `data.contentPackage`; foreign encodings require their
+full canonical Address. Use the pure engine's `encodeText` and `decodeText`
+when conversion must ignore vocabulary, as the CLI commands do.

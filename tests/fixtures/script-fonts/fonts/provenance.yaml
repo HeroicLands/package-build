@@ -5,3 +5,10 @@
 attribution: Tom Rodriguez
 license: OFL-1.1
 ai: false
+
+# encodings/*.json is the resolved published data from fonts commit
+# 90398d78194dd500140a54826c29ae1e440c513a, under the same OFL-1.1 license.
+
+# Semaron Kuriale's 91 codepoint records are the published @heroiclands/fonts
+# 1.3.0 manifest. Its fixture .ttf/.woff2 files are small asset-copy stubs;
+# glyph/outline validation uses real consumer fonts, not these stub bytes.
