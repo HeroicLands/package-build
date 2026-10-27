@@ -1,5 +1,35 @@
 # @heroiclands/package-build
 
+## 25.2.0
+
+A `.name` span can carry `ref=` to tie a spelling to its note without linking it, so every spelling of a person, place or thing is known to be the same one: `[Tom]{.name ref=being-tomr}`. A `ref` may also be a page-local key such as `ref="#jane"` for a subject with no note. An address that matches no note is an error, and the `names` relation gains a `ref` column.
+
+**Builds and commands**
+
+- `changelog check` now refuses a changeset that is not labelled blocks of bullets: a lead paragraph, an unlabelled bullet, prose between blocks and a label that is not declared are errors.
+- A label must be in `labels` or be `Miscellaneous`, which every repository has and never declares; with no list declared, only `Miscellaneous` is accepted.
+- `changelog check --release` holds a Version Packages section to the same shape.
+- `changelog group` removes the `### … Changes` headings, merges blocks that share a label, orders them as `labels` declares and lists `Miscellaneous` last.
+
+**Upgrading**
+
+- Declare `labels` in the changelog options of `.changeset/config.json`, and rewrite pending changesets as labelled blocks of bullets before upgrading.
+
+**Names and languages**
+
+- A note lists its other names under the code of their language, beside the English `full`: `name: {full: Johnathan Lewis, en: [John], vyla: [juan juis]}`. `aliases` is refused; move each alias under its language's code, or `en`.
+- A note states its language as `data.lang`, a code `languages:` declares or `en`, in place of `data.language`. A culture writes `data.lang: vyla` where it wrote `data.language: skill-vylarilng`.
+- A note that states no language takes its culture's, then its parents', then `en`. A culture that states none, and inherits none from a parent culture, is an error wherever a note names it.
+- Names match whatever their case, so `[arden vale]{.name}` names the note _Arden Vale_.
+
+**Names in prose**
+
+- The first use of each name in a page is bold on the website, in Foundry journals and in the book, and its later uses are plain text.
+- Every spelling tied by one `ref`, every link to one note and every case of one label count as one name, so `[Jane Doe]{.name ref="#jane"}` is bold and a later `[Jane]{.name ref="#jane"}` is not.
+- A wikilink counts as a name when it carries `.name`: `[[place-harbor|the harbor]]{.name}`.
+- Names in headings, tables, captions and runs in another language take no bold and do not count.
+- Lint warns at bold written around a name, such as `**[Jane]{.name}**`; remove it.
+
 ## 25.1.3
 
 **Spelling checks**
