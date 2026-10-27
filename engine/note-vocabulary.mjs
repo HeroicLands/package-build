@@ -773,7 +773,8 @@ const NAMES_FIELD = Object.freeze({
         'builds a name from placeholders such as "{given} {clan}" and literal text, `given` ' +
         "maps a gender to a list of given names, " +
         `${wordList([...requiredGivenGenders()]).replace(" or ", " and ")} required, and ` +
-        "every other key is a list of names a placeholder of the same name draws from. A " +
+        "`en` holds groups of English names, and every other key is a list of names a " +
+        "placeholder of the same name draws from. A " +
         "language skill note only. See [name lists](format-details.md#name-lists).",
     fields: Object.freeze([
         Object.freeze({
@@ -783,7 +784,8 @@ const NAMES_FIELD = Object.freeze({
             shape: 'a pattern such as "{given} {clan}", a list of them, or a map of genders to either',
             describe:
                 "How a name is built: each `{list}` placeholder is filled from the list of " +
-                "that name, `{given.<gender>}` from that gender's given names, and the text " +
+                "that name, `{given.<gender>}` from that gender's given names, `{en.<list>}` from a " +
+                "list of English names, and the text " +
                 "around them is written as it stands. A list states every form a name may " +
                 "take; a map keyed by gender states each gender's forms, and a gender with " +
                 "none takes every pattern stated.",
@@ -819,6 +821,24 @@ const NAMES_FIELD = Object.freeze({
                     kind: "string",
                     shape: "a name",
                     describe: "One name, as written.",
+                }),
+            }),
+        }),
+        Object.freeze({
+            name: "en",
+            kind: "map",
+            shape: "a map of list names to lists of English names",
+            describe:
+                "English names, never encoded in the tongue's script. A pattern draws from one " +
+                "list as `{en.<list>}`, as `{en.epithet}` does.",
+            values: Object.freeze({
+                kind: "list",
+                shape: "a list of English names",
+                describe: "A list of English names a placeholder draws from.",
+                entries: Object.freeze({
+                    kind: "string",
+                    shape: "a name",
+                    describe: "One English name, as written.",
                 }),
             }),
         }),

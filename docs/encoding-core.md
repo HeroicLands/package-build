@@ -125,6 +125,17 @@ abstract roots are excluded. Bound-element edge hyphens mark joining positions.
 These are bare Roman checks, so a native writing cannot bypass spelling rules.
 Different case and multiword names retain their authored spelling.
 
+A **codes-only** encoding accepts no letter: a script written entirely as
+glyph codes, such as `⟦ONE⟧`, with no letter in its `accepts` or mappings. The
+language's Roman words and names are not checked against it, since none of
+them is written in it. Its own native writings are checked as any other
+encoding's are: a code the font does not draw, or a second writing for one
+encoding and face, is an error at the writing. A language holding both kinds of
+encoding has its Roman forms checked against the lettered one only.
+
+English names under a language's `data.names.en` are not encoded and are not
+checked against any encoding.
+
 Every encoding inherits the shared standard's fifteen Roman punctuation
 mappings, verse and name controls, and literal boundaries. `‼` marks an
 imperative and `!` an exclamation. An explicit mapping can give a standard

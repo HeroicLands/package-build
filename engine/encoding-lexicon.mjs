@@ -22,6 +22,7 @@ import { isLanguageRecord, lineageChain, noteAddressOf } from "./word-rows.mjs";
 import { derivedForms, foldWord } from "./word-forms.mjs";
 import { WRITTEN_ENDINGS, RESERVED_TONGUE } from "./language-terms.mjs";
 import { LANGUAGE_SUBTYPE, glossText } from "./word-terms.mjs";
+import { ENGLISH_GROUP } from "./language-names.mjs";
 import { writingsOf } from "./language-writings.mjs";
 import { encodeText, validateSource, EncodingError } from "./encoding.mjs";
 import { encodeWithLanguage } from "./encoding-language.mjs";
@@ -642,7 +643,10 @@ export function checkEncodingLexicon(note, ctx) {
         ...new Map(
             [...(ctx.encodings?.values() ?? [])].map((encoding) => [encoding.name, encoding]),
         ).values(),
-    ].filter((encoding) => aliases.has(encoding.language));
+    ]
+        .filter((encoding) => aliases.has(encoding.language))
+        // A codes-only script accepts no letter, so the roman forms are not written in it.
+        .filter((encoding) => [...encoding.accepted].some((char) => /\p{L}/u.test(char)));
     if (!encodings.length) return [];
     const forms = [],
         data = note.fm.data ?? {};
@@ -653,6 +657,7 @@ export function checkEncodingLexicon(note, ctx) {
         add(word?.form, ["words", i, "form"]);
         listOf(word?.variants).forEach((form, j) => add(form, ["words", i, "variants", j]));
     });
+    // `en` holds English names, which no encoding of the tongue sees.
     const names = (value, keys) => {
         if (Array.isArray(value))
             value.forEach((item, i) =>
@@ -660,7 +665,12 @@ export function checkEncodingLexicon(note, ctx) {
             );
         else if (isMap(value))
             for (const [key, item] of Object.entries(value))
-                if (key !== "pattern" && key !== "metadata") names(item, [...keys, key]);
+                if (
+                    key !== "pattern" &&
+                    key !== "metadata" &&
+                    !(keys.length === 1 && key === ENGLISH_GROUP)
+                )
+                    names(item, [...keys, key]);
     };
     names(data.names, ["names"]);
     listOf(data.elements).forEach((element, i) => {

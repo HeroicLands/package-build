@@ -33,6 +33,10 @@
  *   person's gender's list, or from every given list together where that gender
  *   has none; `{given.<gender>}` draws from that gender's list whatever the
  *   person's gender, as a patronymic draws a father's name.
+ * - `en` — English names, in groups of lists: `en.epithet` is a list a pattern
+ *   draws from as `{en.epithet}`, as `"{given} the {en.epithet}"` does. English
+ *   names are never encoded in the tongue's script or checked against its
+ *   spelling.
  * - every other key — a list of names the pattern draws from by that key:
  *   `clan`, `family`, `place`. A list name is letters, digits and underscores,
  *   beginning with a letter.
@@ -55,13 +59,16 @@ import { nearest } from "./near-miss.mjs";
 /** The `skill` subType whose notes may carry name lists. */
 export const NAMES_SUBTYPE = "language";
 
+/** The key whose groups of lists hold English names. */
+export const ENGLISH_GROUP = "en";
+
 /** The placeholder that draws from the given-name list for a gender. */
 export const GIVEN_LIST = "given";
 
 /** What a list name may be spelled with. */
 const LIST_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 
-/** A placeholder's text: a list name, and for `given` an optional gender. */
+/** A placeholder's text: a list name, and after a dot a gender for `given` or a list for `en`. */
 const PLACEHOLDER = /^([A-Za-z][A-Za-z0-9_]*)(?:\.([A-Za-z][A-Za-z0-9_]*))?$/;
 
 /**
@@ -80,11 +87,12 @@ export function requiredGivenGenders() {
  * One piece of a parsed pattern: literal text, or a placeholder naming a list
  * and, for `given`, the gender whose list it draws from.
  *
- * @typedef {{literal: string} | {list: string, gender?: string}} PatternPart
+ * @typedef {{literal: string} | {list: string, gender?: string, sub?: string}} PatternPart
  */
 
 /** A placeholder as written, without its braces. */
 function placeholderText(part) {
+    if (part.sub !== undefined) return `${part.list}.${part.sub}`;
     return part.gender ? `${part.list}.${part.gender}` : part.list;
 }
 
@@ -126,17 +134,22 @@ export function parsePattern(pattern) {
                 `has the placeholder \`{${text}}\`; a placeholder names a list in letters, ` +
                     "digits and underscores, beginning with a letter",
             );
-        else if (match[2] !== undefined && match[1] !== GIVEN_LIST)
+        else if (match[1] === ENGLISH_GROUP && match[2] === undefined)
+            problems.push(
+                `has the placeholder \`{${text}}\`; \`en\` holds groups of English names, ` +
+                    "so a placeholder names one as `{en.<list>}`",
+            );
+        else if (match[2] !== undefined && match[1] !== GIVEN_LIST && match[1] !== ENGLISH_GROUP)
             problems.push(
                 `has the placeholder \`{${text}}\`; only \`given\` takes a gender after a dot, ` +
-                    "as `{given.male}` does",
+                    "as `{given.male}` does, and `en` a list, as `{en.epithet}` does",
             );
         else {
             if (literal) parts.push({ literal });
             literal = "";
-            parts.push(
-                match[2] === undefined ? { list: match[1] } : { list: match[1], gender: match[2] },
-            );
+            if (match[2] === undefined) parts.push({ list: match[1] });
+            else if (match[1] === ENGLISH_GROUP) parts.push({ list: match[1], sub: match[2] });
+            else parts.push({ list: match[1], gender: match[2] });
         }
         i = close + 1;
     }
@@ -263,7 +276,30 @@ export function namesProblems(names, lookVocabulary) {
         });
     };
 
-    const lists = Object.keys(names).filter((key) => key !== "pattern");
+    const lists = Object.keys(names).filter((key) => key !== "pattern" && key !== ENGLISH_GROUP);
+    const english = names[ENGLISH_GROUP];
+    const englishLists = [];
+    if (english !== undefined && english !== null) {
+        if (!isPlainMap(english))
+            shape(
+                [ENGLISH_GROUP],
+                `\`${label([ENGLISH_GROUP])}\` should be a map of names to lists of English names`,
+            );
+        else
+            for (const key of Object.keys(english)) {
+                if (!LIST_NAME.test(key)) {
+                    problem(
+                        [ENGLISH_GROUP, key],
+                        `"${key}" is not a list name; a list of \`${label([ENGLISH_GROUP])}\` is ` +
+                            "named in letters, digits and underscores, beginning with a letter",
+                        true,
+                    );
+                    continue;
+                }
+                englishLists.push(key);
+                checkList([ENGLISH_GROUP, key]);
+            }
+    }
     for (const key of lists) {
         if (key === GIVEN_LIST) continue;
         if (!LIST_NAME.test(key)) {
@@ -376,6 +412,19 @@ export function namesProblems(names, lookVocabulary) {
         if (parsed.problems.length) unreadable = true;
         for (const part of parsed.parts) {
             if (!("list" in part)) continue;
+            if (part.sub !== undefined) {
+                named.add(placeholderText(part));
+                if (englishLists.includes(part.sub)) continue;
+                const guess = nearest(part.sub, englishLists);
+                problem(
+                    path,
+                    `\`{${placeholderText(part)}}\` in \`${label(path)}\` names no list of ` +
+                        `\`${label([ENGLISH_GROUP])}\`` +
+                        (englishLists.length ? `; the lists are ${englishLists.join(", ")}` : "") +
+                        (guess ? `. Did you mean "{en.${guess}}"?` : ""),
+                );
+                continue;
+            }
             named.add(part.list);
             if (part.gender !== undefined) {
                 if (givenMap[part.gender] === undefined || givenMap[part.gender] === null)
@@ -397,6 +446,15 @@ export function namesProblems(names, lookVocabulary) {
         }
     }
     if (unreadable) return problems;
+    for (const list of englishLists) {
+        if (named.has(`${ENGLISH_GROUP}.${list}`)) continue;
+        problem(
+            [ENGLISH_GROUP, list],
+            `\`${label([ENGLISH_GROUP, list])}\` is never drawn from: no pattern of ` +
+                `\`${label(["pattern"])}\` has \`{${ENGLISH_GROUP}.${list}}\``,
+            true,
+        );
+    }
     for (const list of lists) {
         if (named.has(list)) continue;
         problem(
@@ -490,6 +548,7 @@ export function givenNames(names, gender) {
 
 /** The names one placeholder draws from, for a person of `gender`. */
 function listFor(names, part, gender) {
+    if (part.sub !== undefined) return names[part.list][part.sub];
     if (part.list !== GIVEN_LIST) return names[part.list];
     if (part.gender !== undefined) return names[GIVEN_LIST][part.gender];
     return givenNames(names, gender);

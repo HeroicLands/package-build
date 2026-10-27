@@ -4808,6 +4808,12 @@ language:
   every given list together where that gender has none. `{given.<gender>}`
   draws from that gender's list whatever the person's gender, as a patronymic
   draws a father's name.
+- `en` holds English names, in groups of lists. A group is named by letters,
+  digits and underscores, beginning with a letter, and a pattern reaches it by
+  its dotted path: `{en.epithet}` draws from `en.epithet` as `{given.male}`
+  draws from the male given names. The English names are never encoded in the
+  tongue's script and are never checked against its spelling. A bare `{en}`
+  names no list.
 - Every other key is a list of names that the placeholder of the same name
   draws from. A list name is letters, digits and underscores, beginning with a
   letter.
@@ -4842,6 +4848,25 @@ person's gender: _Agosi ez Zileti_ fits a woman and not a man, and _Aguri ez
 Lut_ fits nobody, because _Lut_ is not in `place`. Names compare in Unicode
 NFC, so a precomposed and a decomposed accent are the same letter.
 
+A tongue whose people carry English bynames states them under `en`:
+
+```yaml
+shortcode: northlng
+name: { full: Northern Language }
+type: skill
+subType: language
+data:
+  names:
+    pattern: "{given} the {en.epithet}"
+    given:
+      female: [Astrid, Gróa]
+      male: [Ulf, Thornak]
+    en:
+      epithet: [cruel, cutthroat, merciless]
+```
+
+A person drawn from these lists is called something like _Ulf the cutthroat_.
+
 A tongue whose people carry a parent's name, with an ending that depends on
 their own gender, keys its patterns by gender:
 
@@ -4869,7 +4894,8 @@ pattern.
 `package-build lint` checks the lists, with a finding at the pattern, list,
 name or key at fault: a pattern with an unmatched brace or no placeholder, a
 placeholder that names no list, a `{given.<gender>}` whose gender has no given
-list, a dotted placeholder on a list other than `given`, a list that no pattern
+list, a dotted placeholder on a list other than `given` or `en`, an
+`{en.<list>}` naming no list of `en`, a bare `{en}`, a list that no pattern
 names, a list name a placeholder cannot spell, an empty list of patterns or of
 names, an empty name, a missing `pattern` or `given`, a missing `female` or
 `male` list, and a `pattern` or `given` key that is not a gender.
@@ -5928,10 +5954,12 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `templatePriority`                         | `number`                                                                                                                       | Template priority, _null_ = not a template                                                                                                                                                     |
 | `masteryLevel`                             | `number`                                                                                                                       | HM3 mastery level                                                                                                                                                                              |
 | `parentSkill`                              | `Address`                                                                                                                      | Parent skill this skill specializes                                                                                                                                                            |
-| `names`                                    | `{ pattern, given, <name>... }`                                                                                                | `language` only: how its speakers are named, for `package-build npc new` — see [name lists](#name-lists)                                                                                       |
+| `names`                                    | `{ pattern, given, en?, <name>... }`                                                                                           | `language` only: how its speakers are named, for `package-build npc new` — see [name lists](#name-lists)                                                                                       |
 | `names.pattern`                            | `string`, `string[]` or map of `gender` words to either, required                                                              | Placeholders such as `{given}`, `{given.male}` and `{clan}`, each naming a list, with literal text around them; a list states several forms, a map each gender's forms                         |
 | `names.given`                              | map of `gender` words to lists of names, required                                                                              | Given names by gender; `female` and `male` are required                                                                                                                                        |
 | `names.given.<name>`                       | `string[]`                                                                                                                     | The given names of one gender                                                                                                                                                                  |
+| `names.en`                                 | map of list names to lists of English names                                                                                    | English names, never encoded in the tongue's script; a pattern draws from one list as `{en.<list>}`                                                                                            |
+| `names.en.<name>`                          | `string[]`                                                                                                                     | A list of English names, such as `epithet`                                                                                                                                                     |
 | `names.<name>`                             | `string[]`                                                                                                                     | A list the placeholder of the same name draws from                                                                                                                                             |
 | `family`                                   | `Address`                                                                                                                      | `language` only: the parent language, naming a skill note with `subType: language`; this language reads the parent's words as its own — see [a language's words](#a-languages-words)           |
 | `abbreviation`                             | `string`                                                                                                                       | `language` only: the tag a dictionary prints for it, as `Prov.`; its full name where unstated — see [dictionaries and glossaries](#dictionaries-and-glossaries)                                |

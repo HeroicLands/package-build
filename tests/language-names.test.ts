@@ -415,3 +415,65 @@ describe("a name whose parts touch", () => {
         expect(nameMisfit("Alax", TOUCHING, "male")).toBeDefined();
     });
 });
+
+describe("an English name list under `en`", () => {
+    const EN = {
+        pattern: "{given} the {en.epithet}",
+        given: { female: ["Rethutê"], male: ["Aguri", "Khelemûr"] },
+        en: { epithet: ["cruel", "cutthroat"], title: ["Lord"] },
+    };
+    const lines = (extra: Record<string, string> = {}) =>
+        namesLines({
+            pattern: '        pattern: "{given} the {en.epithet} {en.title}"',
+            place: [
+                "        en:",
+                "            epithet: [cruel, cutthroat]",
+                "            title: [Lord]",
+            ].join("\n"),
+            ...extra,
+        });
+
+    it("is accepted when a pattern names each list through its dotted path", () => {
+        expect(lint(language(lines()))).toEqual([]);
+    });
+
+    it("refuses a dotted path naming no list of `en`", () => {
+        const findings = lint(
+            language(lines({ pattern: '        pattern: "{given} the {en.epithet} {en.titel}"' })),
+        );
+        expect(findings.map((f: any) => f.message)).toEqual([
+            expect.stringMatching(/`\{en\.titel\}`.*names no list/),
+            expect.stringMatching(/data\.names\.en\.title.*never drawn from/),
+        ]);
+    });
+
+    it("refuses `{en}` with no list after it", () => {
+        const findings = lint(language(lines({ pattern: '        pattern: "{given} {en}"' })));
+        expect(findings.map((f: any) => f.message)).toEqual([
+            expect.stringMatching(/`\{en\}`.*\{en\.<list>\}/),
+        ]);
+    });
+
+    it("refuses an empty list of `en`, at its path", () => {
+        const findings = lint(
+            language(
+                lines({
+                    place: "        en:\n            epithet: []\n            title: [Lord]",
+                }),
+            ),
+        );
+        expect(findings.map((f: any) => f.message)).toEqual([
+            expect.stringMatching(/data\.names\.en\.epithet.*at least one name/),
+        ]);
+    });
+
+    it("is filled by the generator the way `{given.male}` is", () => {
+        expect(drawName(EN, "male", fixed(0.6, 0.9))).toBe("Khelemûr the cutthroat");
+        expect(drawName(EN, "female", fixed(0, 0))).toBe("Rethutê the cruel");
+    });
+
+    it("is matched by a supplied name", () => {
+        expect(nameMisfit("Aguri the cutthroat", EN, "male")).toBeUndefined();
+        expect(nameMisfit("Aguri the kind", EN, "male")).toMatch(/"kind".*en\.epithet list/);
+    });
+});
