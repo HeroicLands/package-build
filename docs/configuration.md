@@ -748,7 +748,12 @@ languages:
 
 **The name** is lowercase letters, digits and single hyphens, starting with a
 letter. Lowercase is part of the rule, so no two names differ only in case. A
-real language needs no entry: `lang=la` is read as its tag.
+real language needs no entry: `lang=la` is read as its tag. The name is the
+language's code everywhere a note names a language: `lang=` on a run, a note's
+[`data.lang`](reference/format-details.md#a-notes-language), and the key a
+note's `name` lists the language's forms under. `en` needs no entry for any of
+these. A name may not be `full`, `sort`, `given` or `clan`, the `name` keys
+that hold a single string.
 
 **`tag`** is the BCP 47 tag the language's text carries. A real language takes
 its own tag (`la`, `grc`). A constructed language takes `art-x-<name>`: `art`
@@ -2004,7 +2009,7 @@ named first in the generated manifest's `styles`.
 The sheet carries what every package's compiled content needs to read in
 Foundry as it does in the preview and on the site: definition lists (an
 infobox and the markdown `Term` / `: definition` syntax both emit one),
-verse, alerts, inline spoilers, marked names in bold, unresolved links and
+verse, alerts, inline spoilers, unresolved links and
 captioned blocks. It is scoped to the journal, enriched-field and editor
 containers so it cannot reach Foundry's own interface, where `.name` and `dl`
 style Foundry's and the system's own elements.

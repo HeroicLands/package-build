@@ -56,8 +56,14 @@ function note(rel: string, ...lines: string[]): string {
 
 /** The two culture notes every case names. */
 function cultures(): void {
-    note("Lore/Vedyari.md", "type: lore", "subType: culture", "shortcode: vedyari");
-    note("Lore/Osket.md", "type: lore", "subType: culture", "shortcode: osket");
+    note(
+        "Lore/Vedyari.md",
+        "type: lore",
+        "subType: culture",
+        "shortcode: vedyari",
+        "data: {lang: en}",
+    );
+    note("Lore/Osket.md", "type: lore", "subType: culture", "shortcode: osket", "data: {lang: en}");
 }
 
 /** A place, its `data:` written as a flow mapping on one line, as thalorna writes it. */
@@ -602,7 +608,15 @@ describe("edges", () => {
         place("west", "{parents: [east]}");
         const problems: any[] = [];
         const records = collect(problems);
-        expect(problems).toEqual([]);
+        // The findings are the language derivation's, one at each edge of the cycle.
+        expect(problems.map((p) => p.message)).toEqual([
+            expect.stringMatching(
+                /^data\.parents\.0 names place-west, which closes a parents cycle/,
+            ),
+            expect.stringMatching(
+                /^data\.parents\.0 names place-east, which closes a parents cycle/,
+            ),
+        ]);
         expect(hasCultureKey(records, "place", "east")).toBe(false);
         expect(hasCultureKey(records, "place", "west")).toBe(false);
     });

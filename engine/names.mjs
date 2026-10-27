@@ -19,7 +19,9 @@ import { formatLocator } from "./diagnostics.mjs";
 import { FOLDER_TYPE } from "./folder-notes.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
+import { readNameRef } from "./name-refs.mjs";
 import { WORD } from "./word-pattern.mjs";
+import { displayName, nameFormsOf, normalizeName } from "./name-forms.mjs";
 
 const compare = (a, b) =>
     a < b ? -1
@@ -32,7 +34,7 @@ const compare = (a, b) =>
  * @property {string} key - Canonical page identity, or the ambiguous label identity.
  * @property {string} full - Declared full name.
  * @property {true} indexed - The identity belongs to the indexed catalog.
- * @property {boolean} [fullUse] - The label is a full-name form rather than an alias.
+ * @property {boolean} [fullUse] - The label is a form of the full name rather than a listed form.
  * @property {string} [type] - The note's type, absent on an ambiguous label identity.
  * @property {string|null} [subType] - The note's subtype, or null.
  * @property {NameMatch[]} [candidates] - Indexed identities sharing the label.
@@ -40,7 +42,7 @@ const compare = (a, b) =>
  */
 
 /**
- * The prepared name and declared-alias lookup.
+ * The prepared lookup of full names and listed forms.
  * @typedef {object} NameCatalog
  * @property {(label: string, preferred?: {key: string}, kind?: NameKind) => NameMatch|undefined} recognize - Match a whole visible label, among notes of `kind` when it supplies a type.
  * @property {(target: string) => NameMatch|undefined} resolve - Resolve an Address target without its anchor to its indexed identity.
@@ -60,6 +62,7 @@ const compare = (a, b) =>
  * @property {string} name - Rendered visible text.
  * @property {string|null} type - Supplied valid type, or null.
  * @property {string|null} subType - Supplied valid subtype, or null.
+ * @property {string|null} ref - The `ref=` as written, a note address or a `#key`, or null.
  * @property {number} line - Original 1-based file line.
  * @property {number} column - Original 1-based UTF-16 file column.
  */
@@ -116,19 +119,14 @@ const compare = (a, b) =>
  * @property {NameConflict[]} conflicts - Labels with incompatible supplied kinds.
  */
 
-/**
- * Normalize a whole visible label without folding its case.
- * @param {string} text - Visible name or declared alias.
- * @returns {string} NFC text with straight apostrophes and single spaces.
- */
-export function normalizeName(text) {
-    return text.normalize("NFC").replaceAll("’", "'").replace(/\s+/g, " ").trim();
-}
+// A label's matching key folds case; its display form keeps it.
+export { displayName, normalizeName } from "./name-forms.mjs";
 
 /**
- * Whole-label possessives and regular plurals; other forms are declared aliases.
- * @param {string} text - Full name or declared alias.
- * @returns {string[]} Supported whole-label forms.
+ * Whole-label possessives and regular plurals, as matching keys; any other
+ * form is one a note's name lists.
+ * @param {string} text - Full name or a listed form.
+ * @returns {string[]} Supported whole-label forms, case folded.
  */
 export function nameForms(text) {
     const value = normalizeName(text);
@@ -150,7 +148,7 @@ function identity(record) {
 }
 
 /**
- * Prepare full names, declared aliases and link identities from captured records.
+ * Prepare full names, every listed form and link identities from captured records.
  * @param {object} options - The invocation's existing corpus and link index.
  * @param {readonly object[]} options.records - Captured local records.
  * @param {ReturnType<typeof import("./content-links.mjs").buildLinkIndex>} options.index - Captured address space.
@@ -160,7 +158,7 @@ export function createNameCatalog({ records, index }) {
     const names = new Map(),
         byFile = new Map(),
         entries = new Map();
-    const addName = (key, full, aliases, type, subType) => {
+    const addName = (key, full, forms, type, subType) => {
         const entry = entries.get(key) ?? {
             key,
             full,
@@ -169,7 +167,7 @@ export function createNameCatalog({ records, index }) {
             subType: typeof subType === "string" && subType ? subType : null,
         };
         entries.set(key, entry);
-        for (const text of [full, ...(aliases ?? [])]) {
+        for (const text of [full, ...(forms ?? [])]) {
             if (typeof text !== "string" || !text.trim()) continue;
             for (const spelling of nameForms(text)) {
                 if (!names.has(spelling)) names.set(spelling, new Map());
@@ -192,7 +190,7 @@ export function createNameCatalog({ records, index }) {
         const entry = addName(
             index.resolve(page) ? page : canonical,
             full,
-            record.name.aliases,
+            nameFormsOf(record.name),
             parts.type,
             record.subType,
         );
@@ -211,7 +209,10 @@ export function createNameCatalog({ records, index }) {
             continue;
         const page = canonicalKey(parts.package, "note", parts.type, parts.shortcode);
         const key = index.foreign.index.has(page) ? page : canonical;
-        entries.set(canonical, addName(key, hit.name, hit.aliases, parts.type, hit.subType));
+        entries.set(
+            canonical,
+            addName(key, hit.name, nameFormsOf(hit.forms), parts.type, hit.subType),
+        );
     }
     return {
         recognize(label, preferred, kind) {
@@ -302,8 +303,9 @@ export function collectUnwrittenNames({ records, catalog }) {
             if (!kinds.has(kind)) kinds.set(kind, { type, subType, names: new Map() });
             const names = kinds.get(kind).names,
                 name = normalizeName(occurrence.name);
-            if (!names.has(name)) names.set(name, []);
-            names.get(name).push(nameUse(record, occurrence));
+            if (!names.has(name))
+                names.set(name, { display: displayName(occurrence.name), uses: [] });
+            names.get(name).uses.push(nameUse(record, occurrence));
         }
     }
     const groups = [...kinds.values()]
@@ -316,7 +318,7 @@ export function collectUnwrittenNames({ records, catalog }) {
             subType,
             names: [...names]
                 .sort(([a], [b]) => compare(a, b))
-                .map(([name, uses]) => ({ name, uses: uses.sort(compareUses) })),
+                .map(([, { display, uses }]) => ({ name: display, uses: uses.sort(compareUses) })),
         }));
     const firstUse = firstNameUse(
         groups.flatMap((group) => group.names.flatMap((name) => name.uses)),
@@ -383,6 +385,7 @@ export function analyzeNameSpans(spans, { file, vocabulary = NOTE_VOCABULARY, ty
             name: span.visible,
             type: kind.type,
             subType: kind.subType,
+            ref: readNameRef(span),
             line: span.line,
             column: span.column,
         });
@@ -401,11 +404,13 @@ export function analyzeNameSpans(spans, { file, vocabulary = NOTE_VOCABULARY, ty
  */
 export function createNamesReport({ package: contentPackage, records, catalog }) {
     const names = new Map();
+    const displays = new Map();
     for (const record of records.filter(isNoteRecord))
         for (const occurrence of record.names ?? []) {
             if (occurrence.type === null) continue;
             const name = normalizeName(occurrence.name);
             if (!names.has(name)) names.set(name, new Map());
+            if (!displays.has(name)) displays.set(name, displayName(occurrence.name));
             const kinds = names.get(name),
                 key = JSON.stringify([occurrence.type, occurrence.subType]);
             if (!kinds.has(key))
@@ -421,7 +426,7 @@ export function createNamesReport({ package: contentPackage, records, catalog })
         }
         if (parents.size < 2 && ![...parents.values()].some((values) => values.size > 1)) continue;
         conflicts.push({
-            name,
+            name: displays.get(name),
             kinds: [...kinds.values()]
                 .sort(
                     (a, b) => compare(a.type, b.type) || compare(a.subType ?? "", b.subType ?? ""),

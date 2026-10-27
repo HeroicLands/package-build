@@ -4,7 +4,7 @@ name: { full: Provenzia }
 type: lore
 subType: culture
 data:
-  language: skill-provnzlng
+  lang: provnz
   glossary:
     - { name: solmère, common: true, pronunciation: sol-MEH-reh }
     - { name: Sworn Knight, definition: a knight bound by oath to a lord }

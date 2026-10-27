@@ -12,7 +12,7 @@ HeroicLands notes begin with YAML frontmatter. A file is recognized as a note wh
 ```yaml
 ---
 shortcode: harbor
-name: { full: Harbor, aliases: [The Harbor] }
+name: { full: Harbor, en: [The Harbor] }
 type: lore
 subType: economy
 description: A sheltered trading port.
@@ -21,7 +21,35 @@ data: {}
 ---
 ```
 
-`name` is a map with a required, nonempty `full` display name. Every note may also use `aliases` for an ordered list of other names, and `sort` for the form the name takes in an index, such as `Black Flame, The` or `Hilvan, Doran`. The note infobox lists aliases directly beneath the full name. `sort` files the note wherever notes are ordered by name — the book index, page lists, generated lists of related notes, and the `nameSort` column of the `entries` relation — and is the note's entry text in the book index. Every other list still displays the `full` name. A note with no `sort` files and indexes by its `full` name. For `name: {full: The Black Flame, sort: "Black Flame, The"}`, the book index prints _Black Flame, The_ under **B**, and a page list prints _The Black Flame_ at the same place.
+`name` is a map with a required, nonempty `full` display name: the English name a page, a compendium entry and an index print. Every other name the subject goes by is listed under the code of its language, a code [`languages:`](../configuration.md#languages) declares, or `en`, which needs no declaration. `full` already counts as an English form, so `en` lists only the other English names and never repeats `full`. The first form in each list is that language's standard form. Any other key under `name` is an error at its line. The note infobox lists every form directly beneath the full name.
+
+`sort` gives the form the name takes in an index, such as `Black Flame, The` or `Hilvan, Doran`. `sort` files the note wherever notes are ordered by name — the book index, page lists, generated lists of related notes, and the `nameSort` column of the `entries` relation — and is the note's entry text in the book index. Every other list still displays the `full` name. A note with no `sort` files and indexes by its `full` name. For `name: {full: The Black Flame, sort: "Black Flame, The"}`, the book index prints _Black Flame, The_ under **B**, and a page list prints _The Black Flame_ at the same place.
+
+A person with nicknames lists them in the language they are said in:
+
+```yaml
+name: { full: Johnathan Lewis, en: [John, Long John], vyla: [juan juis] }
+```
+
+A people with a name of its own gives its English name as `full` and its own name first under its language. Another people's name for it, an exonym, goes under that people's language:
+
+```yaml
+name: { full: Grass People, tenl: [tenlaya], kiic: [kitchek] }
+```
+
+Names match whatever their case: `Harbor`, `harbor` and `HARBOR` all name the note above, and every form is matched the same way. Display keeps the case the note writes. Two notes whose forms differ only by case are one ambiguous name, reported wherever the name is used.
+
+`data.lang` states the language the note is in, as a code `languages:` declares or `en`. Any note may state it. A note that does not takes its language from its `data.culture`'s language, then from its `data.parents`, nearest first, then `en`; see [a note's language](../reference/format-details.md#a-notes-language). A culture note's language is how the notes of its people find their tongue:
+
+```yaml
+---
+shortcode: grassfolk
+name: { full: Grass People, tenl: [tenlaya] }
+type: lore
+subType: culture
+data: { lang: tenl }
+---
+```
 
 `description` is the short page summary. `tags` hold draft state and descriptive labels. The note type's classification belongs in `subType` where it is declared. `data` holds facts about the subject shared by systems. A YAML comment is the place for an author-only note: commented values remain valid YAML but do not enter the content index or generated documents.
 

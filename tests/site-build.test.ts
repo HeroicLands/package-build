@@ -263,7 +263,7 @@ name:
 describe("what a page publishes with", () => {
     const page = {
         kind: "content",
-        fm: { type: "weapongear", aliases: ["a", "b"], custom: 1 },
+        fm: { type: "weapongear", custom: 1 },
         pkg: "demo",
         name: "Dagger",
         slug: "weapongear-dagger",
@@ -288,15 +288,6 @@ describe("what a page publishes with", () => {
         // the package the build derived.
         const stale = { ...page, fm: { ...page.fm, package: "elsewhere" } };
         expect(pageFrontmatter(stale as never, {}).package).toBe("demo");
-    });
-
-    it("drops an authored `aliases`", () => {
-        // The field is retired and refused at compile, so this is a
-        // guard rather than a live path: this build emits no redirects, so an
-        // alias published as authored would point nowhere.
-        const data = pageFrontmatter(page as never, {});
-        expect(data.aliases).toBeUndefined();
-        expect(data.custom).toBe(1);
     });
 
     it("supplies the title, from the note's name", () => {

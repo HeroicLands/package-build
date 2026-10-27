@@ -125,7 +125,7 @@ import {
     requiredHeightGenders,
 } from "./appearance-profile.mjs";
 import { checkExtraFeatures } from "./appearance-features.mjs";
-import { LANGUAGE_FIELD, LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
+import { LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
 import {
     AFFIX_FIELDS,
     GLOSSARY_ENTRY_FIELDS,
@@ -1035,7 +1035,9 @@ export const NOTE_TOP_LEVEL_FIELDS = Object.freeze([
     }),
     Object.freeze({
         name: "name",
-        describe: "The display names — a required `full`, and any `aliases` and `sort`.",
+        describe:
+            "The display names — a required `full`, the English name; the other names, " +
+            "listed under the code of their language; and any `sort`.",
     }),
     Object.freeze({
         name: "type",
@@ -1099,6 +1101,14 @@ export const NOTE_TOP_LEVEL_KEY_SET = Object.freeze(new Set(NOTE_TOP_LEVEL_KEYS)
  * @type {readonly DataFieldSpec[]}
  */
 export const SHARED_DATA_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "lang",
+        kind: "string",
+        shape: "a language code `languages:` declares, or `en`",
+        describe:
+            "The language the note is in. Absent, the content index derives it: the " +
+            "note's culture's language, then its `data.parents`' nearest first, then `en`.",
+    }),
     Object.freeze({
         name: "seeAlso",
         kind: "list",
@@ -1916,13 +1926,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...CULTURE_FIELD,
                 describe: "The people this affiliation belongs to, as a culture lore note.",
             },
-            {
-                ...LANGUAGE_FIELD,
-                describe:
-                    "The trade, temple or order tongue the affiliation keeps, as a language " +
-                    "skill note. A glossary entry that states no `language` is in it. The " +
-                    "affiliation chooses its own common vocabulary and context meanings.",
-            },
             GLOSSARY_FIELD,
             {
                 name: "relations",
@@ -2465,7 +2468,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                 accepts: ["lore"],
                 check: checkCultureParents,
                 describe:
-                    "Culture only: parent culture lore notes, searched in listed depth-first order for omitted language and appearance profile fields.",
+                    "Culture only: parent culture lore notes, searched in listed depth-first order for an omitted appearance profile, and nearest first for an omitted `data.lang`.",
             },
             {
                 ...CULTURE_FIELD,
@@ -2475,7 +2478,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "culture, and states the field only as itself.",
             },
             ...LITERATURE_FIELDS,
-            LANGUAGE_FIELD,
             EVENTS_FIELD,
             APPEARANCE_PROFILE_FIELD,
             {

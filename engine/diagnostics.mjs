@@ -160,7 +160,8 @@ export function positionInBody(body, offset, { bodyLine = 1, bodyColumn = 1, lin
     const upTo = String(body ?? "").slice(0, Math.max(0, offset));
     const nl = upTo.lastIndexOf("\n");
     const scannedLine = upTo.length === 0 ? 0 : upTo.split("\n").length - 1;
-    const column = upTo.length - nl; // 1-based: offset - (nl + 1) + 1
+    // A first-use mark the expansion wrote is no authored character.
+    const column = upTo.slice(nl + 1).replace(/[\uFDD0\uFDD1]/g, "").length + 1;
 
     const mapped = lineMap?.[scannedLine];
     const sourceLine = mapped ? mapped.line : scannedLine;
@@ -201,7 +202,7 @@ export function positionInBody(body, offset, { bodyLine = 1, bodyColumn = 1, lin
  * @param {string} raw - The file's full contents, frontmatter included.
  * @param {string} key - The top-level frontmatter key.
  * @param {string} [value] - When given, prefer the occurrence whose line also
- *   carries this text. A list-valued key (`aliases`) is reported at the entry
+ *   carries this text. A list-valued key (`tags`) is reported at the entry
  *   that is wrong, not at the key that introduces it.
  * @param {object} [options] - Options.
  * @param {boolean} [options.topLevel=false] - Require the key at column 1, so

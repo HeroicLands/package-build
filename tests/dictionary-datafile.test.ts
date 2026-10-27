@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { collectContentIndex, emitContentIndex } from "../engine/content-index.mjs";
 import { openNotesDatabase, runSqlQuery } from "../engine/sql-tables.mjs";
+import { DICTIONARY_LANGUAGES } from "./helpers/dictionary-languages";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TREE = path.join(HERE, "fixtures", "dictionary", "tree");
@@ -30,6 +31,7 @@ const config = () =>
         paths: { content: TREE, contentIndex: path.join(dir, "out") },
         contentPackage: "demo",
         skipDirectories: [],
+        languages: DICTIONARY_LANGUAGES,
         packs: [{ name: "items", type: "Item" }],
     }) as any;
 
@@ -106,7 +108,11 @@ describe("the datafiles", () => {
     it("hold each relation's rows, sorted, with every key sorted", async () => {
         const result = emitContentIndex({ config: config() });
         const db = await openNotesDatabase(
-            collectContentIndex(TREE, { contentPackage: "demo", skipDirectories: [] }),
+            collectContentIndex(TREE, {
+                contentPackage: "demo",
+                skipDirectories: [],
+                languages: DICTIONARY_LANGUAGES,
+            }),
             { dir: path.join(dir, "db") },
         );
         try {

@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { openNotesDatabase, runSqlQuery } from "../engine/sql-tables.mjs";
+import { DICTIONARY_LANGUAGES } from "./helpers/dictionary-languages";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
@@ -33,7 +34,11 @@ let relations: string[];
 
 beforeAll(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), "relations-documented-"));
-    const records = collectContentIndex(TREE, { contentPackage: "demo", skipDirectories: [] });
+    const records = collectContentIndex(TREE, {
+        contentPackage: "demo",
+        skipDirectories: [],
+        languages: DICTIONARY_LANGUAGES,
+    });
     db = await openNotesDatabase(records, { dir: path.join(dir, "db") });
     const result = await runSqlQuery(
         db,

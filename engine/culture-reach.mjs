@@ -38,6 +38,7 @@ import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { AddressLink } from "./address-values.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
+import { languageNotesByCode } from "./note-language.mjs";
 import { parseWordClass, WORD_CLASS_BASES } from "./word-classes.mjs";
 import { glossSenses, LANGUAGE_SUBTYPE } from "./word-terms.mjs";
 
@@ -159,12 +160,20 @@ function languageWords(notes, index) {
  * @returns {import("./glossary-language.mjs").GlossaryLanguageReader}
  */
 function readerOf(index, note) {
+    let notes = languageNotes.get(index);
+    if (!notes) {
+        notes = languageNotesByCode(index.notes ?? [], (each) => ownKey(each, index));
+        languageNotes.set(index, notes);
+    }
     return {
         keyOf: (value, type) => addressKeyOf(value, index, type),
-        lookup: (key) => index.addressHit?.(key),
+        noteOf: (code) => notes.get(code),
         self: ownKey(note, index),
     };
 }
+
+/** Each link index's language notes by code, read once. */
+const languageNotes = new WeakMap();
 
 /**
  * The language a glossary entry on a note resolves to.

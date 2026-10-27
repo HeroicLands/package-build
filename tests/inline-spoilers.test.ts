@@ -136,8 +136,8 @@ describe("inline spoiler presentation", () => {
         const preamble = bookTypstPreamble();
         expect(preamble).not.toContain('classes.contains("secret")');
         expect(preamble).not.toContain("#strong[Secret:]");
-        expect(preamble).toContain('classes.contains("name")');
-        expect(preamble).toContain("box(book-script-text(styled, classes: classes, lang: lang))");
+        expect(preamble).not.toContain('classes.contains("name")');
+        expect(preamble).toContain("box(book-script-text(body, classes: classes, lang: lang))");
     });
     it("retains visible labelled lavender boxes for secret sections and fences", () => {
         const sources = [

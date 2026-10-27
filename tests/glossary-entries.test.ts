@@ -26,6 +26,12 @@ import { GLOSSARY_ENTRY_KEYS } from "../engine/word-terms.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
+/** The configured languages the tree's notes state in `data.lang`. */
+const LANGUAGES = {
+    sinale: { tag: "art-x-sinale", note: "skill-sinalelng" },
+    trade: { tag: "art-x-trade", note: "skill-tradelng" },
+};
+
 const roots: string[] = [];
 afterAll(() => {
     for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
@@ -87,7 +93,7 @@ const SUPPORT: Record<string, string> = {
         "subType: order",
         "data:",
         "  culture: lore-sinaleclt",
-        "  language: skill-tradelng",
+        "  lang: trade",
         "  governance:",
         "    ranks:",
         "      - {level: 0, title: Outcast, description: Cast out.}",
@@ -101,7 +107,7 @@ const SUPPORT: Record<string, string> = {
     "Lore/Road.md":
         "---\nshortcode: road\nname: {full: The Road}\ntype: lore\nsubType: history\n---\nA road.\n",
     "Lore/Far.md":
-        "---\nshortcode: farclt\nname: {full: The Far Folk}\ntype: lore\nsubType: culture\ndata:\n  language: skill-tradelng\n---\nA people.\n",
+        "---\nshortcode: farclt\nname: {full: The Far Folk}\ntype: lore\nsubType: culture\ndata:\n  lang: trade\n---\nA people.\n",
     "Affiliations/Marchers.md": [
         "---",
         "shortcode: marchers",
@@ -138,7 +144,7 @@ function culture(lines: string[], subType = "culture") {
         "type: lore",
         `subType: ${subType}`,
         "data:",
-        "  language: skill-sinalelng",
+        "  lang: sinale",
         "  glossary:",
         ...lines,
         "---",
@@ -162,6 +168,7 @@ function lint(text: string, rel = "Lore/Sinale.md") {
     }
     const problems: any[] = [];
     const records = collectContentIndex(root, {
+        languages: LANGUAGES,
         contentPackage: "sohl",
         skipDirectories: [],
         problems,

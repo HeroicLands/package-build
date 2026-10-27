@@ -31,6 +31,7 @@ const COLUMNS = [
     { column_name: "name", column_type: "VARCHAR" },
     { column_name: "type", column_type: "VARCHAR" },
     { column_name: "subType", column_type: "VARCHAR" },
+    { column_name: "ref", column_type: "VARCHAR" },
     { column_name: "line", column_type: "BIGINT" },
     { column_name: "column", column_type: "BIGINT" },
 ];
@@ -67,22 +68,66 @@ function capturedRecords(root: string, contentPackage: string) {
                             name: "Ravenmoor",
                             type: "place",
                             subType: "settlement",
+                            ref: null,
                             line: 9,
                             column: 4,
                         },
-                        { name: "Aldric Venn", type: "being", subType: null, line: 12, column: 7 },
+                        {
+                            name: "Aldric Venn",
+                            type: "being",
+                            subType: null,
+                            ref: "being-tomr",
+                            line: 12,
+                            column: 7,
+                        },
                     ]
                 : record.shortcode === "token" || record.documents ?
-                    [{ name: "Silver Coin", type: null, subType: null, line: 5, column: 1 }]
+                    [
+                        {
+                            name: "Silver Coin",
+                            type: null,
+                            subType: null,
+                            ref: null,
+                            line: 5,
+                            column: 1,
+                        },
+                    ]
                 : record.shortcode === "hidden" ?
-                    [{ name: "Hidden Hill", type: "place", subType: null, line: 8, column: 2 }]
-                :   [{ name: "Unwritten Road", type: null, subType: null, line: 3, column: 2 }],
+                    [
+                        {
+                            name: "Hidden Hill",
+                            type: "place",
+                            subType: null,
+                            ref: "#hill",
+                            line: 8,
+                            column: 2,
+                        },
+                    ]
+                :   [
+                        {
+                            name: "Unwritten Road",
+                            type: null,
+                            subType: null,
+                            ref: null,
+                            line: 3,
+                            column: 2,
+                        },
+                    ],
         })),
         {
             package: contentPackage,
             type: "image",
             asset: { path: "images/Token.webp" },
-            names: [{ name: "Asset duplicate", type: null, subType: null, line: 1, column: 1 }],
+            names: [
+                {
+                    name: "Asset duplicate",
+                    type: null,
+                    subType: null,
+                    ref: null,
+                    line: 1,
+                    column: 1,
+                },
+            ],
         },
     ];
 }
@@ -96,6 +141,7 @@ function expectedRows(contentPackage: string, audience = "all") {
                     name: "Hidden Hill",
                     type: "place",
                     subType: null,
+                    ref: "#hill",
                     line: 8n,
                     column: 2n,
                 },
@@ -106,6 +152,7 @@ function expectedRows(contentPackage: string, audience = "all") {
             name: "Ravenmoor",
             type: "place",
             subType: "settlement",
+            ref: null,
             line: 9n,
             column: 4n,
         },
@@ -114,6 +161,7 @@ function expectedRows(contentPackage: string, audience = "all") {
             name: "Aldric Venn",
             type: "being",
             subType: null,
+            ref: "being-tomr",
             line: 12n,
             column: 7n,
         },
@@ -122,15 +170,24 @@ function expectedRows(contentPackage: string, audience = "all") {
             name: "Silver Coin",
             type: null,
             subType: null,
+            ref: null,
             line: 5n,
             column: 1n,
         },
-        { owner: null, name: "Unwritten Road", type: null, subType: null, line: 3n, column: 2n },
+        {
+            owner: null,
+            name: "Unwritten Road",
+            type: null,
+            subType: null,
+            ref: null,
+            line: 3n,
+            column: 2n,
+        },
     ];
 }
 
 describe("the authored names SQL relation", () => {
-    it("keeps the same six typed columns in empty local, dependency and stub-inclusive contexts", async () => {
+    it("keeps the same seven typed columns in empty local, dependency and stub-inclusive contexts", async () => {
         const root = scratch();
         const file = path.join(root, "elder-metadata.jsonl");
         fs.writeFileSync(file, serializeContentIndex([]));
@@ -243,7 +300,14 @@ describe("the authored names SQL relation", () => {
             {
                 address: null,
                 names: [
-                    { name: "Élan & the Moon", type: null, subType: null, line: 27, column: 14 },
+                    {
+                        name: "Élan & the Moon",
+                        type: null,
+                        subType: null,
+                        ref: null,
+                        line: 27,
+                        column: 14,
+                    },
                 ],
             },
         ];
@@ -273,6 +337,7 @@ describe("the authored names SQL relation", () => {
             name: `Unwritten ${position}`,
             type: null,
             subType: null,
+            ref: null,
             line: position + 1,
             column: 1,
         }));
@@ -285,6 +350,7 @@ describe("the authored names SQL relation", () => {
                         name: "Late Ravenmoor",
                         type: "place",
                         subType: "settlement",
+                        ref: null,
                         line: 20_501,
                         column: 11,
                     },
@@ -304,6 +370,7 @@ describe("the authored names SQL relation", () => {
                     name: "Late Ravenmoor",
                     type: "place",
                     subType: "settlement",
+                    ref: null,
                     line: 20_501n,
                     column: 11n,
                 },

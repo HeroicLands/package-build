@@ -4,7 +4,7 @@ name: { full: Nordheim }
 type: lore
 subType: culture
 data:
-  language: skill-nordmlng
+  lang: nordm
   glossary:
     - { name: blood-price, definition: the price of a life }
 ---

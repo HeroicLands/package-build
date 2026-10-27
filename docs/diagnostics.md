@@ -254,6 +254,49 @@ problems, listing every conflict at once. Stating `data.culture` on the note
 resolves it. The rules are under
 [Culture in the index](reference/format-details.md#culture-in-the-index).
 
+## A worked case: names and a note's language
+
+A note's `name` lists its other names under language codes. A key that is
+neither `full`, `sort`, a character's `given` or `clan`, nor a code
+`languages:` declares or `en` is an error at the key, `aliases` among them:
+
+```text
+assets/content/Beings/Ada.md:3:21: error: `name.aliases` is not valid for this note: a name lists its forms under a language code `languages:` declares, or `en`
+```
+
+A list that is not a list of nonempty strings is an error at its key, and a form
+under `en` that repeats `full`, ignoring case, is an error at the form:
+
+```text
+assets/content/Beings/Ada.md:3:30: error: `name.en` repeats `name.full` (ada vale); `full` is already an English form, so leave it out
+```
+
+The other three come from deriving each note's language into the content index,
+and each is located at the value that causes it. A `data.lang` naming no
+declared code:
+
+```text
+assets/content/Lore/Tale.md:4:14: error: data.lang vyal names no language: state a code `languages:` declares, or en (en, kiic, tenl, vyl)
+```
+
+A `data.culture` whose culture states no `data.lang` and inherits none from its
+parent cultures:
+
+```text
+assets/content/Beings/Ada.md:5:17: error: data.culture lore-folk resolves to no language: state data.lang on the culture or on a parent culture
+```
+
+Every `data.parents` entry on a cycle, one finding for each note of the cycle,
+at the entry naming the next; a note naming itself is a cycle of one:
+
+```text
+assets/content/Places/West.md:4:19: error: data.parents.0 names place-east, which closes a parents cycle; a note is never its own ancestor
+```
+
+Like a culture conflict, each fails the index and every command that reads it
+without collecting problems. The rules are under
+[a note's language](reference/format-details.md#a-notes-language).
+
 ## A worked case: a verse in columns
 
 A [verse in columns](authoring/links-and-markup.md#verse-in-columns) has a
@@ -311,6 +354,46 @@ opening `[` of the emphasis span:
 a span in non-English language `vyl` holds no `.strong` emphasis
 `vyl` marks emphasis with a word, not a mark; write the word
 a span takes `.emph` or `.strong`, not both
+```
+
+## A name's ref
+
+A `ref` on a `.name` span names the note the span stands for. Each finding is an
+`error` located at the attribute part it concerns:
+
+```text
+ref "being-tomr" names no note in this package or its declared dependencies
+data-type is for a name with no note; the ref states the type
+ref= belongs on a .name span; a wikilink never takes ref
+```
+
+The first points at the `ref` value, the second at `data-type`, the third at
+`ref`. A value beginning `#` is a page-local key and resolves to no note; it is
+a finding only when it is malformed, and then at its value:
+
+```text
+ref "#" must be a note address or a page-local key such as #jane
+```
+
+A wikilink written with `{ref=…}` is an error at the wikilink, stating that its
+address is its ref.
+
+## A name's first use
+
+Two name-marking findings are `warning`s: they report and never fail lint. A
+`.name` span with no `ref` whose label is an indexed note's full name or listed
+form is reported at the span, naming the note to link or tie it to:
+
+```text
+assets/content/Lore/Ferry.md:12:1: warning: first-use/unlinked-name: “Arden” names “Arden Vale”; use a link to “test-note-place-arden”, or tie it with ref=
+```
+
+Authored bold that wraps exactly a `.name` span or a name wikilink is reported
+at the opening `**` or `__`. The renderer bolds each name's first use, so the
+author's bold is redundant on the first use and wrong on any later one:
+
+```text
+assets/content/Lore/Ferry.md:14:1: warning: first-use/authored-bold: “Jane” is wrapped in bold; a name's first use is bold when the page renders, so remove the bold
 ```
 
 ## Native presentation is explicit

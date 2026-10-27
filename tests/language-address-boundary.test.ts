@@ -26,6 +26,7 @@ import { parseMarkdownFile, renderFoundryMarkdown } from "../engine/helpers.mjs"
 import { configFromData } from "../engine/pack-config.mjs";
 import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 import { NOTE_SYSTEM, SYSTEM_SEGMENTS } from "../engine/systems.mjs";
+import { DICTIONARY_LANGUAGES } from "./helpers/dictionary-languages";
 
 const TREE = fileURLToPath(new URL("./fixtures/dictionary/tree", import.meta.url));
 const LANGUAGE = "demo-note-skill-provnzlng";
@@ -54,6 +55,7 @@ function fixture(copy = false) {
             compatibility: { minimum: "14", verified: "14.367" },
             stats: { lastModifiedBy: "languageaddress0" },
             packs: [{ name: "journals", type: "JournalEntry", default: true }],
+            languages: DICTIONARY_LANGUAGES,
         },
         path.join(root, "package-build.config.yaml"),
     );
@@ -72,6 +74,7 @@ function fixture(copy = false) {
             contentPackage: "demo",
             skipDirectories: [],
             addressContext: noteAddressContext(config),
+            languages: config.languages,
             problems,
             parsed,
         });
@@ -108,29 +111,20 @@ function at(raw: string, value: string, from = 0) {
 }
 
 const selectors = [
-    { type: "lore", subType: "culture", glossary: false },
-    { type: "lore", subType: "literature", glossary: false },
-    { type: "affiliation", subType: "order", glossary: false },
-    { type: "lore", subType: "culture", glossary: true },
-    { type: "affiliation", subType: "order", glossary: true },
+    { type: "lore", subType: "culture" },
+    { type: "affiliation", subType: "order" },
 ];
 
 describe("language-note Address fields", () => {
     it.each(selectors)(
-        "refuses the authored Item value in $type/$subType (glossary=$glossary)",
+        "refuses the authored Item value in a glossary entry of $type/$subType",
         (selector) => {
             const source = fixture(true);
-            const raw = note(
-                selector.type,
-                selector.subType,
-                selector.glossary ?
-                    [
-                        "  language: " + SHORT,
-                        "  glossary:",
-                        "    - { name: solmère, language: " + ITEM + " }",
-                    ]
-                :   ["  language: " + ITEM],
-            );
+            const raw = note(selector.type, selector.subType, [
+                "  lang: provnz",
+                "  glossary:",
+                "    - { name: solmère, language: " + ITEM + " }",
+            ]);
             const file = source.write("Refused.md", raw);
             const { records, problems } = source.read();
             const expected = at(raw, ITEM);
@@ -154,7 +148,7 @@ describe("language-note Address fields", () => {
         const source = fixture(true);
         const values = nativeSystems.map((system) => "demo-" + system + "-skill-provnzlng");
         const raw = note("lore", "culture", [
-            "  language: " + ITEM,
+            "  lang: provnz",
             "  glossary:",
             ...values.map(
                 (value) => "    - { name: 😀, definition: a word, language: " + value + " }",
@@ -162,7 +156,7 @@ describe("language-note Address fields", () => {
         ]).replaceAll("\n", "\r\n");
         const file = source.write("Refused.md", raw);
         const { records, problems } = source.read();
-        const written = [ITEM, ...values];
+        const written = values;
         let from = 0;
         expect(problems).toHaveLength(written.length);
         for (const [index, value] of written.entries()) {
@@ -185,13 +179,12 @@ describe("language-note Address fields", () => {
         for (const type of ["lore", "affiliation"]) {
             const make = (language: string) => ({
                 type,
-                data: { language, glossary: [{ name: "solmère", language }] },
+                data: { glossary: [{ name: "solmère", language }] },
                 sohl: { items: [{ model: ITEM }] },
             });
             const short = decodeNoteAddresses(make(SHORT), context);
             const explicit = decodeNoteAddresses(make(LANGUAGE), context);
             expect(short).toEqual(explicit);
-            expect(encodeAddresses(short).data.language).toBe(LANGUAGE);
             expect(encodeAddresses(short).data.glossary[0].language).toBe(LANGUAGE);
             expect(encodeAddresses(short).sohl.items[0].model).toBe(ITEM);
         }
@@ -203,7 +196,7 @@ describe("language-note Address fields", () => {
         expect(renderAddress(typed)).toBe(ITEM);
         const fm = {
             type: "affiliation",
-            data: { language: typed, glossary: [{ name: "solmère", language: typed }] },
+            data: { glossary: [{ name: "solmère", language: typed }] },
         };
         let refusal: any;
         try {
@@ -212,10 +205,8 @@ describe("language-note Address fields", () => {
             refusal = error;
         }
         expect(refusal?.findings?.map((finding: any) => finding.keyPath)).toEqual([
-            ["data", "language"],
             ["data", "glossary", 0, "language"],
         ]);
-        expect(fm.data.language).toBe(typed);
         expect(fm.data.glossary[0].language).toBe(typed);
     });
 
@@ -227,7 +218,7 @@ describe("language-note Address fields", () => {
             package: "foreign",
             type: "affiliation",
             shortcode: "order",
-            data: { language: target, glossary: [{ name: "solmère", language: target }] },
+            data: { glossary: [{ name: "solmère", language: target }] },
         });
         const file = path.join(source.root, "foreign-metadata.jsonl");
         let refusal: any;
@@ -243,13 +234,14 @@ describe("language-note Address fields", () => {
         expect(refusal?.located).toBe(true);
         expect(refusal?.message).toContain(file + ":7:");
         expect(refusal?.message).toContain("affiliation order");
-        expect(refusal?.message).toContain("field data.language");
+        expect(refusal?.message).toContain("field data.glossary");
         expect(refusal?.message).toContain("foreign-note-skill-provnzlng");
         expect(refusal?.cause?.findings?.map((finding: any) => finding.keyPath)).toEqual([
-            ["data", "language"],
             ["data", "glossary", 0, "language"],
         ]);
-        expect(encodeAddresses(cached).data.language).toBe("foreign-sohl-skill-provnzlng");
+        expect(encodeAddresses(cached).data.glossary[0].language).toBe(
+            "foreign-sohl-skill-provnzlng",
+        );
     });
 
     it("retains unrelated lenient failures and native document positions", () => {
@@ -282,7 +274,6 @@ describe("language-note Address fields", () => {
             const cultureFile = path.join(source.config.paths.content, "Lore/Provenzia.md");
             const culture = fs
                 .readFileSync(cultureFile, "utf8")
-                .replace("language: " + SHORT, "language: " + language)
                 .replace(
                     "pronunciation: sol-MEH-reh }",
                     "pronunciation: sol-MEH-reh, language: " + language + " }",
@@ -293,7 +284,6 @@ describe("language-note Address fields", () => {
                 orderFile,
                 fs
                     .readFileSync(orderFile, "utf8")
-                    .replace("data:\n", "data:\n  language: " + language + "\n")
                     .replace(
                         "Carves and serves at the duke's table. }",
                         "Carves and serves at the duke's table., language: " + language + " }",
@@ -313,7 +303,7 @@ describe("language-note Address fields", () => {
             ].join("\n");
             const sqlFile = source.write(
                 "Custom.md",
-                note("lore", "literature", ["  language: " + language])
+                note("lore", "literature", ["  lang: provnz"])
                     .replace("shortcode: refused", "shortcode: custom")
                     .replace("Authored prose.", sqlBody),
             );

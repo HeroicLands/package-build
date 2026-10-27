@@ -42,9 +42,8 @@
  * **Nothing here writes.** A check reports and an author fixes.
  *
  * **There is deliberately no third rule** requiring every note to repeat its
- * own `type-shortcode` address in a top-level `aliases:` list. It would serve
- * no build reader: the resolver and the checker parse the hyphen
- * qualifier themselves.
+ * own `type-shortcode` address in its frontmatter. It would serve no build
+ * reader: the resolver and the checker parse the hyphen qualifier themselves.
  *
  * **What is deliberately absent.** Corpus reachability — "every Rules document
  * is reachable from the book's root" — is a statement about what one package

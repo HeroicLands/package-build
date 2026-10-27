@@ -249,7 +249,7 @@ afterAll(() => fs.rmSync(repo, { recursive: true, force: true }));
 
 /** The fixture read the way the command reads it: through the index. */
 function world() {
-    const records = indexRecordsFor({ contentBase, skipDirectories: [] });
+    const records = indexRecordsFor({ contentBase, skipDirectories: [], problems: [] });
     return placesFromRecords(records, { contentBase });
 }
 
@@ -285,14 +285,20 @@ describe("the places are read from the content index", () => {
     });
 
     it("hyperlinks a place to its page only when a base is given", () => {
-        const unlinked = placesFromRecords(indexRecordsFor({ contentBase, skipDirectories: [] }), {
-            contentBase,
-        });
+        const unlinked = placesFromRecords(
+            indexRecordsFor({ contentBase, skipDirectories: [], problems: [] }),
+            {
+                contentBase,
+            },
+        );
         expect(unlinked.places.get("alpha")!.url).toBeUndefined();
-        const linked = placesFromRecords(indexRecordsFor({ contentBase, skipDirectories: [] }), {
-            contentBase,
-            base: "https://example.org/demo/",
-        });
+        const linked = placesFromRecords(
+            indexRecordsFor({ contentBase, skipDirectories: [], problems: [] }),
+            {
+                contentBase,
+                base: "https://example.org/demo/",
+            },
+        );
         expect(linked.places.get("alpha")!.url).toBe("https://example.org/demo/place-alpha/");
     });
 
@@ -324,7 +330,7 @@ describe("the places are read from the content index", () => {
             },
             relationships: { requires: [{ id: "thalorna", manifest: "https://x/y.json" }] },
         };
-        const loaded = loadMapWorld({ config: config as any, contentBase });
+        const loaded = loadMapWorld({ config: config as any, contentBase, problems: [] });
         const abroadPlace = loaded.places.get("abroad")!;
         expect(abroadPlace).toBeDefined();
         expect(abroadPlace.package).toBe("thalorna");
@@ -457,7 +463,7 @@ describe("the containment tree", () => {
 
     it("links a node to its page when the places carry a URL", () => {
         const { places, polities } = placesFromRecords(
-            indexRecordsFor({ contentBase, skipDirectories: [] }),
+            indexRecordsFor({ contentBase, skipDirectories: [], problems: [] }),
             { contentBase, base: "/demo/" },
         );
         const dot = treeDot({ places, polities, analysis: analyzeContainment(places, polities) });
@@ -496,7 +502,7 @@ describe("the map from a place, as DOT", () => {
 
     it("hyperlinks the names when the places carry a URL", () => {
         const { places } = placesFromRecords(
-            indexRecordsFor({ contentBase, skipDirectories: [] }),
+            indexRecordsFor({ contentBase, skipDirectories: [], problems: [] }),
             {
                 contentBase,
                 base: "/demo/",
@@ -680,7 +686,7 @@ describe("building the maps", () => {
         it("renders the map from a place, with the names as links when a base is known", () => {
             const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
             const linked = placesFromRecords(
-                indexRecordsFor({ contentBase, skipDirectories: [] }),
+                indexRecordsFor({ contentBase, skipDirectories: [], problems: [] }),
                 {
                     contentBase,
                     base: "/demo/",
@@ -807,6 +813,18 @@ describe("`package-build map`", () => {
         });
     }
 
+    /**
+     * The fixture's deliberate `parents` cycle is an error the index reports on
+     * every run, so a drawing run fails on it and on nothing else.
+     */
+    function drawnBesideTheCycle(r: { status: number | null; stderr: string }) {
+        expect(r.stderr.split("\n").filter((line) => /: error: /.test(line))).toEqual([
+            expect.stringMatching(/^assets\/content\/Regions\/Loop_A\.md:.*closes a parents cycle/),
+            expect.stringMatching(/^assets\/content\/Regions\/Loop_B\.md:.*closes a parents cycle/),
+        ]);
+        expect(r.status).toBe(1);
+    }
+
     it(
         "writes under build/map and reports the anomalies as findings",
         () => {
@@ -828,9 +846,9 @@ describe("`package-build map`", () => {
     it(
         "draws the map from a place, and from every place",
         () => {
-            expect(run("--from", "alpha").status).toBe(0);
+            drawnBesideTheCycle(run("--from", "alpha"));
             expect(fs.existsSync(path.join(repo, "build", "map", "from-alpha.svg"))).toBe(true);
-            expect(run("--from", "all").status).toBe(0);
+            drawnBesideTheCycle(run("--from", "all"));
             expect(fs.existsSync(path.join(repo, "build", "map", "from-theta.svg"))).toBe(true);
         },
         subprocessTimeout(2),
@@ -839,11 +857,11 @@ describe("`package-build map`", () => {
     it(
         "draws the chart from a place, at the horizon asked for",
         () => {
-            expect(run("--chart", "alpha").status).toBe(0);
+            drawnBesideTheCycle(run("--chart", "alpha"));
             const chart = path.join(repo, "build", "map", "chart-alpha.svg");
             expect(fs.existsSync(chart)).toBe(true);
             expect(fs.readFileSync(chart, "utf8")).toMatch(/360 d/);
-            expect(run("--chart", "alpha", "--horizon", "30").status).toBe(0);
+            drawnBesideTheCycle(run("--chart", "alpha", "--horizon", "30"));
             expect(fs.readFileSync(chart, "utf8")).not.toMatch(/45 d/);
             const bad = run("--chart", "alpha", "--horizon", "100");
             expect(bad.status).toBe(1);
@@ -855,7 +873,7 @@ describe("`package-build map`", () => {
     it(
         "draws the route graph",
         () => {
-            expect(run("--travel").status).toBe(0);
+            drawnBesideTheCycle(run("--travel"));
             expect(fs.existsSync(path.join(repo, "build", "map", "travel.svg"))).toBe(true);
         },
         SUBPROCESS_TEST_TIMEOUT,

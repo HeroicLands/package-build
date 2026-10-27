@@ -55,7 +55,6 @@ types:
             - lore
             - parents
             - culture
-            - language
             - glossary
             - relations
         subTypes:
@@ -283,7 +282,6 @@ types:
             - culture
             - form
             - subjects
-            - language
             - events
             - appearanceProfile
             - glossary

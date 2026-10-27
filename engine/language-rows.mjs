@@ -68,6 +68,7 @@ import {
     SOUND_CHANGE_STEP_KEYS,
     TONGUE_KEYS,
 } from "./language-terms.mjs";
+import { nameFormsOf } from "./name-forms.mjs";
 
 /** The columns every list relation opens with. */
 const IDENTITY = Object.freeze(["language", "position"]);
@@ -354,7 +355,7 @@ const soundsOf = (data) => (isMap(data.sounds) ? data.sounds : {});
 
 /**
  * Every name a note of the package carries, with the Addresses carrying it:
- * each string of a note's `name`, its aliases, an affiliation's rank and
+ * each string of a note's `name`, its listed forms, an affiliation's rank and
  * office titles, and the name of each anchor, cited with the anchor.
  *
  * @param {Iterable<Record<string, any>>} records - Index records.
@@ -371,12 +372,10 @@ function carriedNames(records) {
     for (const record of records) {
         const address = noteAddressOf(record);
         if (!address || record.documents || record.type === "folder") continue;
-        if (isMap(record.name))
-            for (const [key, value] of Object.entries(record.name)) {
-                if (key === "aliases" && Array.isArray(value))
-                    for (const alias of value) carry(alias, address);
-                else carry(value, address);
-            }
+        if (isMap(record.name)) {
+            for (const value of Object.values(record.name)) carry(value, address);
+            for (const form of nameFormsOf(record.name)) carry(form, address);
+        }
         const governance = isMap(record.data?.governance) ? record.data.governance : {};
         for (const rank of Array.isArray(governance.ranks) ? governance.ranks : [])
             if (isMap(rank)) carry(rank.title, address);

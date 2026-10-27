@@ -242,6 +242,10 @@ export function buildLinkIndex(
         // The calendar the index resolved, which the reckoning context built
         // over these notes hands to every date printed for this note.
         if (record.resolvedCalendar) note.resolvedCalendar = record.resolvedCalendar;
+        // The language the index derived, and the code a language note is the
+        // note of, which the glossary and `npc new` read.
+        if (typeof record.lang === "string") note.lang = record.lang;
+        if (typeof record.languageCode === "string") note.languageCode = record.languageCode;
         const hierarchyProblems = cultureRecordProblems(record);
         note.inheritedCultureFields = cultureInheritedFields(record);
         if (hierarchyProblems)

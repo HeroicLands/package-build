@@ -97,7 +97,7 @@ subType: culture
 shortcode: folk
 name: { full: Folk }
 data:
-    language: skill-tongue
+    lang: tongue
     glossary: [{ name: zethu, common: true }]
 ---
 
@@ -264,6 +264,8 @@ function repo(): string {
             "    sohl:",
             '        compatibility: { verified: "0.9.0" }',
             "itemBuilders: [sohl]",
+            "languages:",
+            "    tongue: { tag: art-x-tongue, note: skill-tongue }",
             "packs:",
             "    - { name: items, label: Items, type: Item, system: sohl, mayBeEmpty: true }",
             "    - { name: journals, label: Journals, type: JournalEntry, default: true }",
@@ -362,6 +364,7 @@ beforeAll(async () => {
         compatibility: { minimum: "14.359" },
         stats: { lastModifiedBy: "demobuilder0000" },
         packs: [{ name: "journals", type: "JournalEntry", default: true }],
+        languages: { tongue: { tag: "art-x-tongue", note: "skill-tongue" } },
     });
     const built = buildSite({
         config,

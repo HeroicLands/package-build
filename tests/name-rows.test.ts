@@ -16,18 +16,48 @@ describe("authored name rows", () => {
             {
                 address: { canonical: "demo-note-lore-border" },
                 names: [
-                    { name: "Ravenmoor", type: "place", subType: "settlement", line: 7, column: 3 },
-                    { name: "Aldric Venn", type: "being", subType: null, line: 11, column: 8 },
-                    { name: "Ravenmoor", type: null, subType: null, line: 19, column: 1 },
+                    {
+                        name: "Ravenmoor",
+                        type: "place",
+                        subType: "settlement",
+                        ref: null,
+                        line: 7,
+                        column: 3,
+                    },
+                    {
+                        name: "Aldric Venn",
+                        type: "being",
+                        subType: null,
+                        ref: null,
+                        line: 11,
+                        column: 8,
+                    },
+                    {
+                        name: "Ravenmoor",
+                        type: null,
+                        subType: null,
+                        ref: null,
+                        line: 19,
+                        column: 1,
+                    },
                 ],
             },
             {
                 address: { canonical: "demo-note-place-elsewhere" },
-                names: [{ name: "Élan & the Moon", type: null, subType: null, line: 4, column: 6 }],
+                names: [
+                    {
+                        name: "Élan & the Moon",
+                        type: null,
+                        subType: null,
+                        ref: null,
+                        line: 4,
+                        column: 6,
+                    },
+                ],
             },
         ];
         const rows = namesRows(records);
-        expect(NAME_COLUMNS).toEqual(["owner", "name", "type", "subType", "line", "column"]);
+        expect(NAME_COLUMNS).toEqual(["owner", "name", "type", "subType", "ref", "line", "column"]);
         expect(rows).toEqual([
             { owner: "demo-note-lore-border", ...records[0].names[0] },
             { owner: "demo-note-lore-border", ...records[0].names[1] },
@@ -38,7 +68,14 @@ describe("authored name rows", () => {
     });
 
     it("uses the canonical NOTE page for typed and encoded native Item records", () => {
-        const occurrence = { name: "Aldric", type: "being", subType: null, line: 8, column: 5 };
+        const occurrence = {
+            name: "Aldric",
+            type: "being",
+            subType: null,
+            ref: null,
+            line: 8,
+            column: 5,
+        };
         expect(
             namesRows([
                 {
@@ -54,7 +91,14 @@ describe("authored name rows", () => {
     });
 
     it("keeps unaddressable occurrences without manufacturing an owner", () => {
-        const occurrence = { name: "Ravenmoor", type: null, subType: null, line: 2, column: 1 };
+        const occurrence = {
+            name: "Ravenmoor",
+            type: null,
+            subType: null,
+            ref: null,
+            line: 2,
+            column: 1,
+        };
         const records = [
             {
                 address: null,
@@ -72,7 +116,9 @@ describe("authored name rows", () => {
     it("excludes documentation mirrors, assets and records without occurrences", () => {
         const record = {
             address: { canonical: "demo-sohl-miscgear-token" },
-            names: [{ name: "Ravenmoor", type: null, subType: null, line: 2, column: 1 }],
+            names: [
+                { name: "Ravenmoor", type: null, subType: null, ref: null, line: 2, column: 1 },
+            ],
         };
         expect(
             namesRows([
@@ -89,6 +135,7 @@ describe("authored name rows", () => {
             name: "Ravenmoor",
             type: null,
             subType: null,
+            ref: null,
             line: 6,
             column: 2,
         });

@@ -16,16 +16,11 @@
  *
  * 1. the entry's own `language`;
  * 2. the note it is written on, when that note is a language;
- * 3. on an affiliation, its own `data.language`, then the nearest parent
- *    affiliation's (breadth first, parents in the order listed), then its
- *    culture's `data.language`;
- * 4. on a culture, its own `data.language`.
+ * 3. the language note of the code the content index derived for the note it
+ *    is written on, its `lang` — see {@link module:engine/note-language}.
  *
- * An affiliation's culture is the one the index resolves for it, its own or
- * one inherited through its parents, and a culture's language includes one it
- * inherits from its parent cultures. The lint and the `glossary` relation both
- * resolve through here, each handing over how it reads an Address and looks a
- * note up.
+ * The lint and the `glossary` relation both resolve through here, each handing
+ * over how it reads an Address, looks a note up and finds a code's note.
  *
  * A leaf module, importing nothing.
  *
@@ -34,12 +29,6 @@
 
 /** A note's parsed frontmatter, whichever shape the caller hands over. */
 const payload = (note) => note?.fm ?? note ?? {};
-
-/** A note's `data`, or an empty map. */
-const dataOf = (note) => {
-    const data = payload(note).data;
-    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
-};
 
 /** A note's type or subType, lowercased. */
 const lower = (value) => String(value ?? "").toLowerCase();
@@ -51,10 +40,21 @@ const lower = (value) => String(value ?? "").toLowerCase();
  * @property {(value: unknown, type: string) => string|undefined} keyOf - A
  *   value's canonical Address in the `note` system, read with `type` as the
  *   default type, or `undefined` where it is no Address.
- * @property {(key: string) => object|undefined} lookup - The note an Address
- *   names, or `undefined` where none is known.
+ * @property {(code: string) => string|undefined} noteOf - The Address of a
+ *   language code's note, or `undefined` where no note is configured for it.
  * @property {string} [self] - The owning note's own Address, for a language.
  */
+
+/**
+ * The language a note is in, as the content index derived it.
+ *
+ * @param {object} note - An index record, or a link-index note carrying it.
+ * @returns {string|undefined} The code.
+ */
+export function noteLang(note) {
+    const lang = note?.lang;
+    return typeof lang === "string" && lang ? lang : undefined;
+}
 
 /**
  * The language a glossary entry resolves to.
@@ -66,34 +66,11 @@ const lower = (value) => String(value ?? "").toLowerCase();
  * @returns {string|undefined} The language's Address, or `undefined` where the
  *   chain finds none.
  */
-export function glossaryLanguage(entry, owner, { keyOf, lookup, self }) {
+export function glossaryLanguage(entry, owner, { keyOf, noteOf, self }) {
     const own = keyOf(entry?.language, "skill");
     if (own) return own;
     const fm = payload(owner);
-    const type = lower(fm.type);
-    if (type === "skill" && lower(fm.subType) === "language") return self;
-    if (type === "lore" && lower(fm.subType) === "culture")
-        return keyOf(dataOf(owner).language, "skill");
-    if (type !== "affiliation") return undefined;
-
-    const seen = new Set();
-    let level = [owner];
-    while (level.length) {
-        const next = [];
-        for (const body of level) {
-            if (seen.has(body)) continue;
-            seen.add(body);
-            const language = keyOf(dataOf(body).language, "skill");
-            if (language) return language;
-            for (const parent of Array.isArray(dataOf(body).parents) ? dataOf(body).parents : []) {
-                const key = keyOf(parent, "affiliation");
-                const target = key ? lookup(key) : undefined;
-                if (target && lower(payload(target).type) === "affiliation") next.push(target);
-            }
-        }
-        level = next;
-    }
-    const culture = keyOf(dataOf(owner).culture, "lore");
-    const target = culture ? lookup(culture) : undefined;
-    return target ? keyOf(dataOf(target).language, "skill") : undefined;
+    if (lower(fm.type) === "skill" && lower(fm.subType) === "language") return self;
+    const code = noteLang(owner);
+    return code ? noteOf(code) : undefined;
 }

@@ -22,6 +22,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { renderAddress } from "../engine/address.mjs";
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { findSqlBlocks, openNotesDatabase, prepareSqlTables } from "../engine/sql-tables.mjs";
+import { DICTIONARY_LANGUAGES } from "./helpers/dictionary-languages";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TREE = path.join(HERE, "fixtures", "dictionary", "tree");
@@ -32,7 +33,7 @@ const PROVENZIA_PAGE = {
     type: "lore",
     subType: "culture",
     shortcode: "provnzclt",
-    data: { language: "skill-provnzlng" },
+    data: { lang: "provnz" },
 };
 const WATCH_PAGE = { type: "affiliation", shortcode: "watch", data: { culture: "lore-nordclt" } };
 const SETTING_PAGE = { type: "doc", shortcode: "tongues" };
@@ -82,7 +83,11 @@ let db: any;
 
 beforeAll(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), "dictionary-layout-"));
-    const records = collectContentIndex(TREE, { contentPackage: "demo", skipDirectories: [] });
+    const records = collectContentIndex(TREE, {
+        contentPackage: "demo",
+        skipDirectories: [],
+        languages: DICTIONARY_LANGUAGES,
+    });
     db = await openNotesDatabase(records, { dir: path.join(dir, "db"), audience: "public" });
 }, 60_000);
 

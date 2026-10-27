@@ -11,9 +11,8 @@
  * 1. the entry's own `language`;
  * 2. the note it is written on, when that note is a language — so a word is in
  *    the language whose note states it;
- * 3. on an affiliation, its own `data.language`, then its parents', then its
- *    culture's;
- * 4. on a culture, its own `data.language`.
+ * 3. the note of the language the content index derives for the note it is
+ *    written on: its own `data.lang`, then its culture's, then its parents'.
  *
  * The resolved language is what the `glossary` relation stores. An entry that
  * resolves to none is an error located at the entry.
@@ -100,6 +99,7 @@ function lint(files: Record<string, string>) {
     const records = collectContentIndex(root, {
         contentPackage: "sohl",
         skipDirectories: [],
+        languages: LANGUAGES,
         problems,
     });
     const index = buildLinkIndex(root, { records, skipDirectories: [] });
@@ -116,6 +116,12 @@ const at = (text: string, finding: { line?: number; column?: number }) => {
     return text.split("\n")[finding.line! - 1].slice(finding.column! - 1);
 };
 
+const LANGUAGES = {
+    common: { tag: "art-x-common", note: "skill-commonlng" },
+    cant: { tag: "art-x-cant", note: "skill-cantlng" },
+    chant: { tag: "art-x-chant", note: "skill-chantlng" },
+};
+
 const WORLD: Record<string, string> = {
     "Skills/Common.md": language("commonlng", [
         "fields:",
@@ -126,14 +132,14 @@ const WORLD: Record<string, string> = {
     "Skills/Cant.md": language("cantlng"),
     "Skills/Chant.md": language("chantlng"),
     "Lore/Folk.md": culture("folkclt", [
-        "language: skill-commonlng",
+        "lang: common",
         "glossary:",
         "  - {name: hearth-oath, definition: an oath sworn at the fire, common: true}",
         "  - {name: kanta, definition: a temple chant, language: skill-chantlng}",
     ]),
     "Affiliations/Guild.md": affiliation("guild", [
         "culture: lore-folkclt",
-        "language: skill-cantlng",
+        "lang: cant",
         "glossary:",
         "  - {name: tally, definition: a reckoning stick}",
         "  - {name: chantword, definition: a word of the chant, language: skill-chantlng}",
@@ -201,7 +207,7 @@ describe("a glossary entry's language, linted", () => {
 
     it("refuses an entry's language that is not a language skill, at the value", () => {
         const text = culture("mutetclt", [
-            "language: skill-commonlng",
+            "lang: common",
             "glossary:",
             "  - {name: hush, definition: silence, language: lore-folkclt}",
         ]);
@@ -221,7 +227,11 @@ describe("a glossary entry's language, stored", () => {
 
     beforeAll(async () => {
         const root = tree(WORLD);
-        const records = collectContentIndex(root, { contentPackage: "sohl", skipDirectories: [] });
+        const records = collectContentIndex(root, {
+            contentPackage: "sohl",
+            skipDirectories: [],
+            languages: LANGUAGES,
+        });
         db = await openNotesDatabase(records, {
             dir: path.join(root, "..", `${path.basename(root)}-db`),
         });
@@ -248,7 +258,7 @@ describe("a glossary entry's language, stored", () => {
         expect(result.rows).toEqual([{ form: "hearth", language: "sohl-note-skill-commonlng" }]);
     });
 
-    it("3. takes an affiliation's own language", () => {
+    it("3. takes an affiliation's own data.lang", () => {
         expect(rows.get("tally")).toEqual({
             note: "sohl-note-affiliation-guild",
             name: "tally",
@@ -256,7 +266,7 @@ describe("a glossary entry's language, stored", () => {
         });
     });
 
-    it("3. then its parent affiliation's, before its culture's", () => {
+    it("3. then, with no culture, its parent affiliation's", () => {
         expect(rows.get("lodge-word")).toEqual({
             note: "sohl-note-affiliation-chapter",
             name: "lodge-word",
@@ -272,7 +282,7 @@ describe("a glossary entry's language, stored", () => {
         });
     });
 
-    it("4. takes a culture's own language", () => {
+    it("3. takes a culture's own data.lang", () => {
         expect(rows.get("hearth-oath")).toEqual({
             note: "sohl-note-lore-folkclt",
             name: "hearth-oath",

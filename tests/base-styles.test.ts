@@ -322,6 +322,7 @@ describe("what the Foundry renderer emits", () => {
         "footnote-item": "an ordinary list item",
         "footnote-ref": "a superscript link, styled as a link",
         "footnote-backref": "an ordinary link",
+        name: "a marked name reads as body text; its first use is bold as written",
     };
     // Font Awesome classes are Foundry's own; figure kinds are styled alike
     // through `.content-figure`, so a kind added later needs no rule.

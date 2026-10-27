@@ -36,6 +36,7 @@
 
 import { renderAddress } from "./address.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
+import { languageNotesByCode } from "./note-language.mjs";
 import {
     AFFIX_KEYS,
     ZERO_AFFIX,
@@ -368,9 +369,10 @@ export function glossaryRows(records, all = records) {
         const key = noteAddressOf(record);
         if (key && !byAddress.has(key)) byAddress.set(key, record);
     }
+    const languageNotes = languageNotesByCode(byAddress.values(), noteAddressOf);
     const reader = {
         keyOf: (value) => (typeof value === "string" && value ? value : undefined),
-        lookup: (key) => byAddress.get(key),
+        noteOf: (code) => languageNotes.get(code),
     };
     const rows = [];
     for (const record of records) {

@@ -14,6 +14,7 @@ import * as indexReader from "../engine/content-index.mjs";
 import * as alerts from "../engine/content-alerts.mjs";
 import * as spans from "../engine/content-spans.mjs";
 import * as blockScans from "../engine/content-blocks.mjs";
+import * as firstUse from "../engine/first-use.mjs";
 import * as sqlPreparations from "../engine/sql-tables.mjs";
 import { auditLinks, buildLinkIndex } from "../engine/content-links.mjs";
 import { prepareContentIndex, emitContentIndex } from "../engine/content-index.mjs";
@@ -98,6 +99,7 @@ describe("one invocation owns the shared content session", () => {
                 vi.spyOn(alerts, "scanAlerts"),
                 vi.spyOn(spans, "scanSpans"),
             ];
+            const firstUseSpy = vi.spyOn(firstUse, "boldFirstUses");
             const sqlSpy = vi.spyOn(sqlPreparations, "prepareTreeSqlTables");
             const session = await create({ config: input.config });
             try {
@@ -136,8 +138,15 @@ describe("one invocation owns the shared content session", () => {
                 for (const body of new Set(
                     [...session.parsed.values()].map((source: any) => source.body),
                 )) {
+                    // Each expansion a target renders reads its own prose for
+                    // first uses, scanning its spans and blocks once.
+                    const passes = firstUseSpy.mock.calls.filter(
+                        ([text]) => text === body && String(text).includes(".name"),
+                    ).length;
                     for (const scan of scannerSpies)
-                        expect(scan.mock.calls.filter(([text]) => text === body)).toHaveLength(1);
+                        expect(scan.mock.calls.filter(([text]) => text === body)).toHaveLength(
+                            1 + (scan === scannerSpies[1] ? 0 : passes),
+                        );
                 }
             } finally {
                 work.stop();

@@ -69,6 +69,7 @@ describe("createRenderer", () => {
             "dictionary-entries",
             "heading-attributes",
             "images",
+            "first-use",
         ];
         for (const plugins of [foundry, preview, indexed, web])
             expect(plugins.filter((name) => shared.includes(name))).toEqual(shared);
@@ -102,6 +103,7 @@ describe("createRenderer", () => {
             "definition-lists",
             "icons",
             "images",
+            "first-use",
         ]);
     });
 

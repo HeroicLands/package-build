@@ -5,7 +5,7 @@ type: affiliation
 subType: faithtradition
 data:
   culture: lore-provnzclt
-  language: skill-litrglng
+  lang: litrg
   glossary:
     - { name: vigil-oath, definition: the oath sworn at the night vigil }
   governance:

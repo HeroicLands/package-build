@@ -71,6 +71,7 @@ function tree(): void {
         "type: lore",
         "subType: culture",
         "description: A culture that omits its own culture.",
+        "data: { lang: en }",
     );
     note(
         "Lore/Osket.md",
@@ -79,7 +80,7 @@ function tree(): void {
         "type: lore",
         "subType: culture",
         "description: A culture that names itself.",
-        "data: { culture: lore-osket }",
+        "data: { culture: lore-osket, lang: en }",
     );
     place("realm", "{ culture: lore-vedyari }");
     place("shire", "{ parents: [realm] }");

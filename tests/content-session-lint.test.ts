@@ -36,7 +36,7 @@ it.each([{ args: ["lint"] }, { args: ["content", "run", "lint", "lint"] }])(
                     type: "lore",
                     subType: "history",
                     shortcode: "n1",
-                    name: { full: "Arden Vale", aliases: ["Arden"] },
+                    name: { full: "Arden Vale", en: ["Arden"] },
                 },
                 "# Here {#here}\n\nWritten prose.",
             ),
@@ -52,7 +52,7 @@ it.each([{ args: ["lint"] }, { args: ["content", "run", "lint", "lint"] }])(
                 "",
                 "[[lore-n1|Arden Vale]] and [Arden][the-vale].\r",
                 "",
-                "[Hidden Hand]{.name} and [Hidden Hand]{.name}.",
+                "**[Hidden Hand]{.name}** and [Hidden Hand]{.name}.",
                 "",
                 "[the-vale]: https://example.invalid/vale",
             ].join("\n"),
@@ -65,16 +65,14 @@ it.each([{ args: ["lint"] }, { args: ["content", "run", "lint", "lint"] }])(
         });
         const expected = expectedChecker({ file, raw });
         expectedSession.dispose();
-        expect(expected).toHaveLength(5);
+        expect(expected).toHaveLength(3);
         expect(new Set(expected.map((finding) => `${finding.line}:${finding.column}`)).size).toBe(
             expected.length,
         );
         expect(expected.map((finding) => finding.rules)).toEqual([
-            ["unlinked-name", "short-before-full"],
-            ["unlinked-name", "repeated-name"],
-            ["repeated-name"],
-            ["repeated-name"],
-            ["repeated-name"],
+            ["unlinked-name"],
+            ["unlinked-name"],
+            ["authored-bold"],
         ]);
         expect(expected.every((finding) => finding.severity === "warning")).toBe(true);
         const plainLine = raw.split("\n").findIndex((line) => line.startsWith("😀 Tongue")) + 1;

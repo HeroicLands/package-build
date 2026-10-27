@@ -62,6 +62,7 @@ import {
 } from "./content-address.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
+import { nameFormLists } from "./name-forms.mjs";
 
 /**
  * Written once a fetch completes, so a half-finished cache is never used.
@@ -448,7 +449,13 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 ...(typeof record.name?.sort === "string" && record.name.sort ?
                     { nameSort: record.name.sort }
                 :   {}),
-                aliases: record.name?.aliases,
+                // Every form the note's name lists, by language, and the
+                // language the publishing package derived for the note.
+                forms:
+                    nameFormLists(record.name).length ?
+                        Object.fromEntries(nameFormLists(record.name))
+                    :   undefined,
+                lang: typeof record.lang === "string" ? record.lang : undefined,
                 // Absent where the package publishes no page for it. A consumer
                 // must tolerate that rather than invent an href, exactly as it
                 // already tolerates an entry with no `uuid`.
@@ -489,15 +496,15 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // walking that parent's own chain.
                 culture: record.data?.culture ?? undefined,
                 ...(parts.type === "lore" && record.subType === "culture" ?
-                    {
-                        data: {
-                            language: record.data?.language,
-                            appearanceProfile: record.data?.appearanceProfile,
-                        },
-                    }
+                    { data: { appearanceProfile: record.data?.appearanceProfile } }
                 :   {}),
                 ...(parts.type === "skill" && record.subType === "language" ?
-                    { data: { names: record.data?.names } }
+                    {
+                        data: { names: record.data?.names },
+                        ...(typeof record.languageCode === "string" ?
+                            { languageCode: record.languageCode }
+                        :   {}),
+                    }
                 :   {}),
                 population: record.data?.population ?? undefined,
                 ...(Object.hasOwn(record.data ?? {}, "government") ?

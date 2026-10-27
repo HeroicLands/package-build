@@ -30,7 +30,7 @@
  * the world. A note reached by more than one path carries every continent and
  * region it reaches, so a being with homes in two regions is found under both.
  *
- * The note's name and its aliases are weighted, so a search for a name finds
+ * The note's name and its listed forms are weighted, so a search for a name finds
  * its note first. A note's tags and its draft state are not filters.
  *
  * @module
@@ -38,6 +38,7 @@
 
 import { placeShortcodes } from "./map-places.mjs";
 import { resolveInfoboxRef } from "./site-index.mjs";
+import { nameFormsOf } from "./name-forms.mjs";
 
 /** The filters a note's page carries, in the order a reader is offered them. */
 export const SEARCH_FILTERS = Object.freeze([
@@ -153,9 +154,6 @@ export function searchMetadata(fm, { geography, index }) {
         values: values[name].filter(Boolean),
     })).filter((filter) => filter.values.length);
     const name = isMapping(fm?.name) ? fm.name : {};
-    const names = [
-        text(name.full),
-        ...(Array.isArray(name.aliases) ? name.aliases.map(text) : []),
-    ].filter(Boolean);
+    const names = [text(name.full), ...nameFormsOf(name).map(text)].filter(Boolean);
     return { filters, names: [...new Set(names)] };
 }

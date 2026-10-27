@@ -9,7 +9,6 @@ import { collectContentIndex, emitContentIndex } from "../engine/content-index.m
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY, BEING_LOOK_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
-import { parseAddress } from "../engine/address.mjs";
 import { profileFindings } from "../engine/appearance-profile.mjs";
 import { cultureHierarchyProblems, cultureFieldSource } from "../engine/culture-parents.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -28,11 +27,26 @@ function tree(entries: Record<string, any>) {
     }
     return root;
 }
+const LANGUAGES = Object.fromEntries(
+    ["one", "two", "own", "deep", "shallow", "good"].map((code) => [
+        code,
+        { tag: `art-x-${code}` },
+    ]),
+);
+const distinct = (name: string) => ({ frame: { [name]: 1 } });
 function records(root: string, problems?: any[]) {
-    return collectContentIndex(root, { contentPackage: "sohl", skipDirectories: [], problems });
+    return collectContentIndex(root, {
+        contentPackage: "sohl",
+        skipDirectories: [],
+        languages: LANGUAGES,
+        problems,
+    });
+}
+function recordAt(entries: any[], shortcode: string) {
+    return entries.find((entry) => entry.shortcode === shortcode && entry.type === "lore");
 }
 function dataAt(entries: any[], shortcode: string) {
-    return entries.find((entry) => entry.shortcode === shortcode && entry.type === "lore").data;
+    return recordAt(entries, shortcode).data;
 }
 function lint(entries: Record<string, any>) {
     const notes = Object.entries(entries).map(([shortcode, fields]) => {
@@ -68,7 +82,7 @@ describe("culture parents", () => {
     });
     it("emits inherited fields as stated canonical JSONL and preserves source", () => {
         const root = tree({
-            parent: { language: "skill-tongue", appearanceProfile: profile },
+            parent: { lang: "en", appearanceProfile: profile },
             child: { parents: ["parent"] },
         });
         const before = fs.readFileSync(path.join(root, "child.md"), "utf8");
@@ -87,31 +101,31 @@ describe("culture parents", () => {
             .map((line) => JSON.parse(line));
         expect(dataAt(output, "child")).toEqual({
             parents: [{ address: "sohl-note-lore-parent", anchor: null, anchorKind: null }],
-            language: { address: "sohl-note-skill-tongue", anchor: null, anchorKind: null },
             appearanceProfile: profile,
             culture: { address: "sohl-note-lore-child", anchor: null, anchorKind: null },
         });
+        expect(recordAt(output, "child").lang).toBe("en");
         expect(fs.readFileSync(path.join(root, "child.md"), "utf8")).toBe(before);
     });
     it("resolves fields independently with first-listed depth-first precedence", () => {
         const root = tree({
-            grand: { language: "skill-deep", appearanceProfile: profile },
+            grand: { lang: "deep", appearanceProfile: profile },
             first: { parents: ["grand"] },
-            second: { language: "skill-shallow" },
+            second: { lang: "shallow" },
             child: { parents: ["first", "second"], appearanceProfile: { frame: { heavy: 1 } } },
         });
-        const result = dataAt(records(root), "child");
-        expect(result.language.shortcode).toBe("deep");
-        expect(result.appearanceProfile).toEqual({ frame: { heavy: 1 } });
+        const result = recordAt(records(root), "child");
+        expect(result.lang).toBe("deep");
+        expect(result.data.appearanceProfile).toEqual({ frame: { heavy: 1 } });
     });
     it("reports same-depth disagreement and withholds that inherited field", () => {
         const root = tree({
-            first: { language: "skill-one" },
-            second: { language: "skill-two" },
+            first: { appearanceProfile: distinct("one") },
+            second: { appearanceProfile: distinct("two") },
             child: { parents: ["first", "second"] },
         });
         const problems: any[] = [];
-        expect(dataAt(records(root, problems), "child").language).toBeUndefined();
+        expect(dataAt(records(root, problems), "child").appearanceProfile).toBeUndefined();
         expect(problems).toContainEqual(
             expect.objectContaining({
                 file: path.join(root, "child.md"),
@@ -124,13 +138,13 @@ describe("culture parents", () => {
     });
     it("does not treat child-owned fields or agreeing parents as conflicts", () => {
         const root = tree({
-            first: { language: "skill-one" },
-            second: { language: "skill-two" },
-            child: { parents: ["first", "second"], language: "skill-own" },
+            first: { appearanceProfile: distinct("one") },
+            second: { appearanceProfile: distinct("two") },
+            child: { parents: ["first", "second"], appearanceProfile: distinct("own") },
             agreed: { parents: ["first", "first"] },
         });
-        expect(dataAt(records(root), "child").language.shortcode).toBe("own");
-        expect(dataAt(records(root), "agreed").language.shortcode).toBe("one");
+        expect(dataAt(records(root), "child").appearanceProfile).toEqual(distinct("own"));
+        expect(dataAt(records(root), "agreed").appearanceProfile).toEqual(distinct("one"));
     });
     it("locates wrong-subtype, unresolved, and wrong-type parents individually", () => {
         const findings = lint({
@@ -158,18 +172,20 @@ describe("culture parents", () => {
     });
     it("ignores a broken parent edge while inheriting through a valid one", () => {
         const root = tree({
-            valid: { language: "skill-good" },
+            valid: { lang: "good", appearanceProfile: profile },
             child: { parents: ["missing", "valid"] },
         });
         const problems: any[] = [];
-        expect(dataAt(records(root, problems), "child").language.shortcode).toBe("good");
+        const output = records(root, problems);
+        expect(recordAt(output, "child").lang).toBe("good");
+        expect(dataAt(output, "child").appearanceProfile).toEqual(profile);
         expect(problems).toContainEqual(
             expect.objectContaining({ message: expect.stringContaining("does not resolve") }),
         );
     });
     it("accepts a diamond and structurally equal profiles regardless of map order", () => {
         const root = tree({
-            grand: { language: "skill-one" },
+            grand: { lang: "one" },
             first: { parents: ["grand"], appearanceProfile: profile },
             second: {
                 parents: ["grand"],
@@ -177,16 +193,15 @@ describe("culture parents", () => {
             },
             child: { parents: ["first", "second"] },
         });
-        expect(dataAt(records(root), "child").language.shortcode).toBe("one");
+        expect(recordAt(records(root), "child").lang).toBe("one");
         expect(dataAt(records(root), "child").appearanceProfile).toEqual(profile);
     });
     it("retains an explicit null child field rather than inheriting it", () => {
         const root = tree({
-            parent: { language: "skill-one", appearanceProfile: profile },
-            child: { parents: ["parent"], language: null },
+            parent: { appearanceProfile: profile },
+            child: { parents: ["parent"], appearanceProfile: null },
         });
-        expect(dataAt(records(root), "child").language).toBeNull();
-        expect(dataAt(records(root), "child").appearanceProfile).toEqual(profile);
+        expect(dataAt(records(root), "child").appearanceProfile).toBeNull();
     });
     it("uses a foreign culture's published resolved fields without walking its parents", () => {
         const root = tree({ child: { parents: ["other-note-lore-parent"] } });
@@ -194,16 +209,8 @@ describe("culture parents", () => {
             type: "lore",
             subType: "culture",
             parents: ["unavailable"],
-            data: {
-                language: parseAddress("other-note-skill-tongue", {
-                    package: "sohl",
-                    system: "note",
-                    type: "skill",
-                    types: new Set(["lore", "skill"]),
-                    packages: new Set(["sohl", "other"]),
-                }),
-                appearanceProfile: profile,
-            },
+            lang: "tongue",
+            data: { appearanceProfile: profile },
         };
         const output = collectContentIndex(root, {
             contentPackage: "sohl",
@@ -211,13 +218,13 @@ describe("culture parents", () => {
             foreignRecord: (key: string) =>
                 key === "other-note-lore-parent" ? foreign : undefined,
         });
-        expect(dataAt(output, "child").language.shortcode).toBe("tongue");
+        expect(recordAt(output, "child").lang).toBe("tongue");
         expect(dataAt(output, "child").appearanceProfile).toEqual(profile);
     });
     it("keeps hierarchy diagnostics scoped to the selected culture and off JSONL", () => {
         const root = tree({
             broken: { parents: ["broken"] },
-            parent: { language: "skill-good" },
+            parent: { lang: "good" },
             child: { parents: ["parent"] },
         });
         const problems: any[] = [];

@@ -17,8 +17,9 @@
  *
  * A `skill` note of `subType: language` states them as `data.names`, and
  * `package-build npc new` draws a person's name from them, or checks a name it
- * is given against them. A culture reaches them through `data.language`, so
- * cultures sharing a tongue share its lists.
+ * is given against them. A culture reaches them through its language, the
+ * note `languages:` names for its `data.lang`, so cultures sharing a tongue
+ * share its lists.
  *
  * - `pattern` — the name's shape: placeholders such as `{given}` and `{clan}`,
  *   each naming a list, with literal text around them or directly against

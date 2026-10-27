@@ -10,7 +10,14 @@ import os from "node:os";
 import path from "node:path";
 import YAML from "yaml";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFirstUseChecker } from "../engine/first-use.mjs";
+import {
+    FIRST_USE_CLOSE,
+    FIRST_USE_OPEN,
+    boldFirstUses,
+    createFirstUseChecker,
+    nameUses,
+} from "../engine/first-use.mjs";
+import { createRenderer } from "../engine/content-render.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import { indexRecordsFor } from "../engine/content-index.mjs";
 import { encodeAddresses } from "../engine/address-values.mjs";
@@ -51,7 +58,7 @@ function fixture(extra: object[] = []) {
         path.join(root, "package-build.config.yaml"),
     );
     const entries = [
-        { type: "place", shortcode: "arden", name: { full: "Arden Vale", aliases: ["Arden"] } },
+        { type: "place", shortcode: "arden", name: { full: "Arden Vale", en: ["Arden"] } },
         { type: "lore", shortcode: "warden", name: { full: "Warden" } },
         { type: "doc", shortcode: "reader", name: { full: "Reader" } },
         ...extra,
@@ -68,7 +75,7 @@ function fixture(extra: object[] = []) {
             package: "pub",
             type: "skill",
             shortcode: "craft",
-            name: { full: "North Craft", aliases: ["Northern Craft"] },
+            name: { full: "North Craft", en: ["Northern Craft"] },
             address: { canonical: "pub-sohl-skill-craft", slug: "skill-craft" },
             anchors: [
                 { slug: "work", kind: "prose" },
@@ -113,7 +120,7 @@ const positions = (raw: string, value: string) => {
     return found;
 };
 
-describe("explicit name occurrences", () => {
+describe("a marked name that names an indexed note", () => {
     it("uses the body's resolved reference text inside an actual marked name", () => {
         const { check } = fixture();
         const raw = "[**Arden** [Vale][person]]{.name}\n\n[person]: https://example.invalid/vale";
@@ -130,7 +137,7 @@ describe("explicit name occurrences", () => {
     it("never searches plain prose or infers names from capitalization and emphasis", () => {
         const { check } = fixture([
             { type: "mysticalability", shortcode: "flame", name: { full: "Flame" } },
-            { type: "lore", shortcode: "king", name: { full: "Konung Rank", aliases: ["King"] } },
+            { type: "lore", shortcode: "king", name: { full: "Konung Rank", en: ["King"] } },
         ]);
         expect(
             check(
@@ -140,143 +147,40 @@ describe("explicit name occurrences", () => {
                     "**Hidden Hand** and **Hidden Hand**. **hidden hand** and **hidden hand**.",
                     "**is part of the Hidden Hand**. **Arden Vale is quiet**.",
                     "- **Mechanics**: paid.\n- **Mechanics**: paid.",
-                ].join("\n\n"),
-            ),
-        ).toEqual([]);
-    });
-
-    it("treats bold that matches an indexed name as emphasis", () => {
-        const { check } = fixture([
-            { type: "lore", shortcode: "strength", name: { full: "Strength" } },
-            { type: "place", shortcode: "olives", name: { full: "Olives" } },
-        ]);
-        expect(
-            check(
-                [
-                    "**Arden Vale** and **Arden** and __Warden__ and **Arden Vale**.",
                     "- **Strength**: physically capable, though not heavily muscled.",
-                    "- **Olives** on the lower slopes, for local use rather than export.",
                     "**[Arden Vale]{.wide}** and **[Arden Vale]**.",
                 ].join("\n\n"),
             ),
         ).toEqual([]);
-        expect(rules(check("**Arden Vale**. [Arden]{.name}"))).toEqual([
-            "unlinked-name",
-            "short-before-full",
-        ]);
     });
 
-    it("requires indexed marked names and aliases to link instead", () => {
+    it("asks for a link or a ref for an indexed name or listed form", () => {
         const { check } = fixture();
         const found = check("[Arden]{.name} awaits [Arden Vale]{.name}.");
         expect(found.map((finding) => finding.rules)).toEqual([
-            ["unlinked-name", "short-before-full"],
-            ["unlinked-name", "repeated-name"],
+            ["unlinked-name"],
+            ["unlinked-name"],
         ]);
         expect(found[0].message).toContain("Arden Vale");
         expect(found[0].message).toContain("test-note-place-arden");
+        expect(found[0].message).toContain("ref=");
         expect(found.every((finding) => finding.severity === "warning")).toBe(true);
     });
 
-    it("uses explicit unindexed names regardless of capitalization", () => {
-        const { check } = fixture();
-        expect(check("[hidden hand]{.name}")).toEqual([]);
-        expect(rules(check("[hidden hand]{.name} and [hidden hand]{.name}."))).toEqual([
-            "repeated-name",
-        ]);
-        expect(
-            rules(
-                check("[Hidden Hand]{.name} and [Hidden Hands]{.name} and [Hidden Hand’s]{.name}."),
-            ),
-        ).toEqual(["repeated-name", "repeated-name"]);
-    });
-
-    it("shares repetition state across marked names, links and aliases", () => {
+    it("leaves unindexed names, repeats and links alone", () => {
         const { check } = fixture();
         for (const raw of [
-            "[Arden Vale]{.name} then [[place-arden|Arden]].",
-            "[[place-arden|Arden Vale]] then [Arden]{.name}.",
-            "[Arden Vale](https://example.invalid) then [[place-arden|Arden]].",
-        ]) {
-            const found = check(raw);
-            expect(found.at(-1).rules).toContain("repeated-name");
-            expect(found.at(-1).rules).not.toContain("short-before-full");
-        }
-        expect(
-            rules(check("[Ravenmoor]{.name} then [Ravenmoor](https://example.invalid).")),
-        ).toEqual(["repeated-name"]);
+            "[hidden hand]{.name} and [Hidden Hand]{.name} and [Hidden Hands]{.name}.",
+            "[Joe]{.name} before [Joe Blow]{.name}, then [Joe]{.name}.",
+            "[[place-arden|Arden]] then [[place-arden|Arden Vale]] and [Arden](https://example.invalid).",
+            "[Arden Vale](https://example.invalid){.name}",
+            String.raw`\[Arden Vale]{.name} \[[place-arden|Arden]]`,
+            "[Wardenship]{.name} [Ardenwood]{.name}",
+        ])
+            expect(check(raw), raw).toEqual([]);
     });
 
-    it("tracks authored Markdown and reference labels as well as wikilinks", () => {
-        const { check } = fixture();
-        const found = check(
-            [
-                "[Arden](https://example.invalid) then [Arden Vale][vale] and [[place-arden|Arden Vale]].",
-                "",
-                "[vale]: https://example.invalid/vale",
-            ].join("\n"),
-        );
-        expect(found.map((finding) => finding.rules)).toEqual([
-            ["short-before-full"],
-            ["repeated-name"],
-            ["repeated-name"],
-        ]);
-        expect(
-            rules(
-                check(
-                    "[Arden Vale][] and [Arden Vale][].\n\n[Arden Vale]: https://example.invalid",
-                ),
-            ),
-        ).toEqual(["repeated-name"]);
-    });
-
-    it("counts names across heading destinations while keeping distinct heading labels independent", () => {
-        const { check } = fixture();
-        expect(
-            rules(check("[[place-arden#east|Arden Vale]] then [[place-arden#west|Arden Vale]].")),
-        ).toEqual(["repeated-name"]);
-        expect(
-            check("[[place-arden#east|Eastern gate]] then [[place-arden#west|Western gate]]."),
-        ).toEqual([]);
-        expect(
-            rules(check("[[place-arden#east|Eastern gate]] then [[lore-warden|Eastern gate]].")),
-        ).toEqual(["repeated-name"]);
-    });
-
-    it("does not invent aliases from arbitrary link labels", () => {
-        const { check } = fixture();
-        expect(
-            check("[[place-arden|the vale]] then [Elsewhere](https://example.invalid)."),
-        ).toEqual([]);
-        expect(rules(check("[[place-arden|the vale]] then [[place-arden|the vale]]."))).toEqual([
-            "repeated-name",
-        ]);
-        expect(rules(check("[[place-arden|]] then [[place-arden|Arden]]."))).toEqual([
-            "repeated-name",
-        ]);
-        expect(check("[[place-arden]] [[place-missing|]]")).toEqual([]);
-    });
-
-    it("extracts a marked name inside bold and other inline emphasis", () => {
-        const { check } = fixture();
-        expect(
-            rules(
-                check("**This is a phrase with [Joe Blow]{.name} in it** then [Joe Blow]{.name}."),
-            ),
-        ).toEqual(["repeated-name"]);
-        for (const raw of [
-            "**[Arden Vale]{.name}**",
-            "[**Arden Vale**]{.name}",
-            "*[Arden **Vale**]{.name}*",
-            "**[[place-arden|Arden Vale]]**",
-            "**[Arden Vale](https://example.invalid)**",
-        ]) {
-            const found = check(raw);
-            expect(rules(found)).toEqual(raw.includes("{.name}") ? ["unlinked-name"] : []);
-        }
-    });
-
-    it("uses the shared parsed name class among multiple classes and attributes", () => {
+    it("reads the name class among other classes and attributes", () => {
         const { check } = fixture();
         expect(
             rules(check('[Arden Vale]{#person .wide .name lang="en" title="The vale"}')),
@@ -285,58 +189,16 @@ describe("explicit name occurrences", () => {
         expect(rules(check("[Arden *Vale*]{.name}"))).toEqual(["unlinked-name"]);
     });
 
-    it("distinguishes shared spans from actual authored links", () => {
+    it("reads a span inside a link as the link's, and a link label never as a name", () => {
         const { check } = fixture();
-        for (const attributes of [".name", '.wide lang="en"', ""]) {
-            const marked = attributes ? `[Arden Vale]{${attributes}}` : "[Arden Vale]";
-            const raw = `[ ${marked}](https://example.invalid) then [Arden Vale](https://example.invalid).`;
-            expect(renderFoundryMarkdown(raw)).toMatch(/<span\b[^>]*>Arden Vale<\/span>/);
-            expect(renderFoundryMarkdown(raw).match(/<a /g) ?? []).toHaveLength(1);
-            expect(rules(check(raw))).toEqual(
-                attributes === ".name" ? ["unlinked-name", "repeated-name"] : [],
-            );
-        }
-        const reference =
-            "[ [Arden Vale]{.wide}][target] then [Arden Vale](https://example.invalid).\n\n[target]: https://example.invalid";
-        expect(renderFoundryMarkdown(reference)).toContain('<span class="wide">Arden Vale</span>');
-        expect(renderFoundryMarkdown(reference).match(/<a /g) ?? []).toHaveLength(2);
-        expect(renderFoundryMarkdown(reference)).toContain(
-            ']<a href="https://example.invalid">target</a>',
-        );
-        expect(check(reference)).toEqual([]);
-        const formattedReference =
-            "[**Arden Vale**][target] then [Arden Vale](https://example.invalid).\n\n[target]: https://example.invalid";
-        expect(renderFoundryMarkdown(formattedReference)).toContain(
-            "<strong>Arden Vale</strong></a>",
-        );
-        expect(rules(check(formattedReference))).toEqual(["repeated-name"]);
+        const raw =
+            "[ [Arden Vale]{.name}](https://example.invalid) then [Arden Vale](https://example.invalid).";
+        expect(renderFoundryMarkdown(raw)).toMatch(/<span\b[^>]*>Arden Vale<\/span>/);
+        expect(rules(check(raw))).toEqual(["unlinked-name"]);
         const literal =
             "[[Arden Vale]{.name}](https://example.invalid) then [Arden Vale](https://example.invalid).";
         expect(renderFoundryMarkdown(literal)).toContain(">[Arden Vale]{.name}</a>");
         expect(check(literal)).toEqual([]);
-    });
-
-    it("decodes authored label escapes once instead of turning literal stars into emphasis", () => {
-        const { check } = fixture();
-        const raw = String.raw`[\*Arden Vale\*](https://example.invalid) then [Arden Vale](https://example.invalid).`;
-        expect(renderFoundryMarkdown(raw)).toContain(">*Arden Vale*</a>");
-        expect(check(raw)).toEqual([]);
-    });
-
-    it("keeps actual inner reference labels and their original CRLF and nested-span offsets", () => {
-        const { check } = fixture();
-        for (const raw of [
-            "- 😀 [ [Arden Vale]{.wide}][target]\r\n\r\n> [target](https://example.invalid)\r\n\r\n[target]: https://example.invalid",
-            "[target](https://example.invalid)\r\n\r\n[ [Arden\r\nVale]{.wide}][target]\r\n\r\n[target]: https://example.invalid",
-            "[target](https://example.invalid)\r\n\r\n[Outer [inner [target](https://example.invalid)]{.wide}]{.wide}",
-        ]) {
-            expect(renderFoundryMarkdown(raw).match(/>target<\/a>/g) ?? []).toHaveLength(2);
-            const found = check(raw);
-            expect(rules(found)).toEqual(["repeated-name"]);
-            expect(found.map(({ line, column }) => ({ line, column }))).toEqual([
-                positions(raw, "[target]")[1],
-            ]);
-        }
     });
 
     it("reads nested span text and entities without losing the explicit outer name", () => {
@@ -352,206 +214,36 @@ describe("explicit name occurrences", () => {
             expect(rules(check(raw))).toEqual(["unlinked-name"]);
     });
 
-    it("gives links priority over span syntax and ignores escaped syntax and literal code", () => {
+    it("recognizes whole indexed possessives and regular plurals", () => {
         const { check } = fixture();
-        expect(check("[Arden Vale](https://example.invalid){.name}")).toEqual([]);
-        expect(check(String.raw`\[Arden Vale]{.name} \[[place-arden|Arden]]`)).toEqual([]);
-        expect(
-            check(
-                "`[Arden]{.name}` `[[place-arden|Arden]]`\n\n```md\n[Arden]{.name}\n[[place-arden|Arden]]\n```",
-            ),
-        ).toEqual([]);
-        expect(
-            check(
-                "![Arden](image.png) ![[place-arden|Arden]] <https://example.invalid> https://example.invalid [^Arden]\n\n[^Arden]: Written prose.",
-            ),
-        ).toEqual([]);
-    });
-
-    it("lets a resolved wikilink introduce its note under any label", () => {
-        const { check } = fixture();
-        expect(check("[[place-arden|Arden]] lies east.")).toEqual([]);
-        expect(check("[[place-arden|the vale]] lies east.")).toEqual([]);
-        expect(check("[[lore-warden|Arden]] keeps the gate.")).toEqual([]);
-        expect(rules(check("[[place-arden|Arden]] then [[place-arden|Arden Vale]]."))).toEqual([
-            "repeated-name",
-        ]);
-        expect(rules(check("[Arden](https://example.invalid) lies east."))).toEqual([
-            "short-before-full",
-        ]);
-    });
-
-    it("keeps declared aliases attached to their indexed names", () => {
-        const { check } = fixture([
-            {
-                type: "lore",
-                shortcode: "watch",
-                name: { full: "Hidden Watch", aliases: ["Hidden"] },
-            },
-        ]);
-        const found = check("[Hidden]{.name} before [Hidden Hand]{.name}.");
-        expect(found).toHaveLength(1);
-        expect(found[0].rules).toEqual(["unlinked-name", "short-before-full"]);
-        expect(found[0].message).toContain("Hidden Watch");
-        expect(found[0].message).not.toContain("Hidden Hand");
-    });
-
-    it("keeps unknown marked names independent instead of inferring a first-word alias", () => {
-        const { check } = fixture();
-        expect(check("[Joe]{.name} before [Joe Blow]{.name}.")).toEqual([]);
-        expect(check("[Joe](https://example.invalid) before [Joe Blow]{.name}.")).toEqual([]);
-        expect(rules(check("[Joe]{.name}, [Joe Blow]{.name}, then [Joe]{.name}."))).toEqual([
-            "repeated-name",
-        ]);
-    });
-
-    it("recognizes whole indexed possessives and regular plurals without matching prefixes", () => {
-        const { check } = fixture();
-        expect(rules(check("[Arden’s]{.name} before [[place-arden|Arden Vale]]."))).toEqual([
+        expect(rules(check("[Arden’s]{.name} and [Wardens]{.name}."))).toEqual([
             "unlinked-name",
-            "short-before-full",
-            "repeated-name",
-        ]);
-        expect(rules(check("[Wardens]{.name} then [Warden’s](https://example.invalid)."))).toEqual([
-            "unlinked-name",
-            "repeated-name",
-        ]);
-        expect(check("[Wardenship]{.name} [Ardenwood]{.name}")).toEqual([]);
-    });
-});
-
-describe("source exclusions and canonical identities", () => {
-    it("skips frontmatter, headings, tables, infoboxes, comments and inline literals", () => {
-        const { check } = fixture();
-        expect(
-            check(
-                [
-                    "---",
-                    'name: "[Arden]{.name}"',
-                    "---",
-                    "",
-                    "# [Arden]{.name} and **Arden Vale**",
-                    "",
-                    "| Name |",
-                    "| --- |",
-                    "| [Arden]{.name} [[place-arden|Arden]] |",
-                    "",
-                    '<aside class="infobox wide">',
-                    "",
-                    "[Arden]{.name}",
-                    "",
-                    "[[place-arden|Arden]]",
-                    "",
-                    "**Arden Vale**",
-                    "",
-                    "</aside>",
-                    "",
-                    "<!-- [Arden]{.name} [[place-arden|Arden]] **Arden Vale** -->",
-                    "",
-                    "{{ref '[[place-arden|Arden]]'}} ![[place-arden|Arden]]",
-                ].join("\n"),
-            ),
-        ).toEqual([]);
-    });
-
-    it("excludes HTML attributes, comments and structural wrappers with quoted brackets", () => {
-        const { check } = fixture();
-        for (const quote of ['"', "'"]) {
-            const opening = `<span title=${quote}gate > [Arden]{.name} [[place-arden|Arden]]${quote}>`;
-            expect(check(`${opening}Written prose.</span>`)).toEqual([]);
-            const raw = `${opening}[Arden Vale]{.name}</span>`;
-            expect(check(raw)).toMatchObject([
-                { line: 1, column: opening.length + 1, rules: ["unlinked-name"] },
-            ]);
-        }
-        expect(
-            check(
-                "<h2>[[place-arden|Arden]]</h2>\n<table><tr><td>[[place-arden|Arden]]</td></tr></table>\n<pre>[[place-arden|Arden]]</pre>",
-            ),
-        ).toEqual([]);
-        expect(rules(check('<!-- <aside class="infobox"> -->\n\n[Arden Vale]{.name}'))).toEqual([
             "unlinked-name",
         ]);
-    });
-
-    it("reports literal UTF-16 positions in CRLF lists and quotations", () => {
-        const { check } = fixture();
-        const raw =
-            "---\r\nname: sample\r\n---\r\n\r\n- 😀 [Arden Vale]{.name}\r\n\r\n> **This has [Arden]{.name} inside.**";
-        const found = check(raw);
-        expect(found.map(({ line, column }) => ({ line, column }))).toEqual([
-            ...positions(raw, "[Arden Vale]"),
-            ...positions(raw, "[Arden]"),
-        ]);
-        expect(found.map((finding) => finding.rules)).toEqual([
-            ["unlinked-name"],
-            ["unlinked-name", "repeated-name"],
-        ]);
-    });
-
-    it("normalizes names for matching without shifting decomposed source positions", () => {
-        const { check } = fixture([
-            { type: "place", shortcode: "renee", name: { full: "Renée Vale" } },
-        ]);
-        const raw = "😀 [Rene\u0301e Vale]{.name} and [Arden Vale]{.name}.";
-        const found = check(raw);
-        expect(found.map(({ line, column }) => ({ line, column }))).toEqual([
-            ...positions(raw, "[Rene\u0301e Vale]"),
-            ...positions(raw, "[Arden Vale]"),
-        ]);
-        expect(found[0].message).toContain("test-note-place-renee");
     });
 
     it("does not select an indexed identity from an ambiguous marked name", () => {
         const { check } = fixture([
-            { type: "place", shortcode: "other", name: { full: "Arden Vale", aliases: ["Arden"] } },
+            { type: "place", shortcode: "other", name: { full: "Arden Vale", en: ["Arden"] } },
         ]);
         const found = check("[Arden Vale]{.name}");
         expect(found).toHaveLength(1);
         expect(found[0].rules).toEqual(["unlinked-name"]);
         expect(found[0].message).toContain("test-note-place-arden");
         expect(found[0].message).toContain("test-note-place-other");
-        expect(check("[[place-arden|Arden Vale]] then [[place-other|Arden Vale]].")).toEqual([]);
     });
 
-    it("uses canonical foreign NOTE identity rather than projected object identity", () => {
-        const { check, index } = fixture();
-        expect(index.foreign.index.get("pub-sohl-skill-craft")).not.toBe(
-            index.foreign.index.get("pub-note-skill-craft"),
-        );
-        expect(
-            rules(
-                check(
-                    "[[pub-sohl-skill-craft|Northern Craft]] then [[pub-note-skill-craft|North Craft]].",
-                ),
-            ),
-        ).toEqual(["repeated-name"]);
-        expect(
-            rules(check("[North Craft]{.name} then [[pub-sohl-skill-craft|North Craft]].")),
-        ).toEqual(["unlinked-name", "repeated-name"]);
-    });
-
-    it("retains fetched aliases and accurate prose/event/native metadata", () => {
+    it("recognizes a fetched note's forms", () => {
         const { check, index } = fixture();
         const foreign = index.foreign.index.get("pub-note-skill-craft");
-        expect(foreign.aliases).toEqual(["Northern Craft"]);
-        expect(foreign.noteAnchors).toEqual([
-            expect.objectContaining({ slug: "work", kind: "prose" }),
-            expect.objectContaining({ slug: "founding", kind: "event" }),
-        ]);
-        expect(foreign.events).toEqual([
-            expect.objectContaining({
-                id: "founding",
-                entry: expect.objectContaining({ summary: "The guild is founded." }),
-            }),
-        ]);
+        expect(foreign.forms).toEqual({ en: ["Northern Craft"] });
         expect(foreign.uuid).toBe("Compendium.pub.journals.JournalEntry.craft");
-        expect(
-            rules(check("[Northern Craft]{.name} before [[pub-note-skill-craft|North Craft]].")),
-        ).toEqual(["unlinked-name", "short-before-full", "repeated-name"]);
+        const found = check("[Northern Craft]{.name} before [[pub-note-skill-craft|North Craft]].");
+        expect(rules(found)).toEqual(["unlinked-name"]);
+        expect(found[0].message).toContain("pub-note-skill-craft");
     });
 
-    it("keeps folder projections out of indexed-name introductions", () => {
+    it("keeps folder projections out of indexed names", () => {
         const source = fixture([{ type: "folder", shortcode: "great", name: { full: "Great" } }]);
         const folder = encodeAddresses(source.records.find((record) => record.type === "folder"));
         fs.appendFileSync(
@@ -580,7 +272,7 @@ describe("source exclusions and canonical identities", () => {
         ).toEqual([]);
     });
 
-    it("keeps corpus inputs immutable and resets all use state for each note", () => {
+    it("keeps corpus inputs immutable", () => {
         const source = fixture();
         const raw = "[Arden]{.name} then [Arden Vale]{.name}.";
         const first = source.check(raw);
@@ -589,5 +281,306 @@ describe("source exclusions and canonical identities", () => {
         expect({ records: encodeAddresses(source.records), parsed: [...source.parsed] }).toEqual(
             source.before,
         );
+    });
+});
+
+describe("authored bold around a name", () => {
+    it("is a warning at the bold, for a span and for a name wikilink", () => {
+        const { check } = fixture();
+        const raw = "**[Hidden Hand]{.name}** meets __[[place-arden|the vale]]{.name}__.";
+        const found = check(raw);
+        expect(found.map((finding) => finding.rules)).toEqual([
+            ["authored-bold"],
+            ["authored-bold"],
+        ]);
+        expect(found.map(({ line, column }) => ({ line, column }))).toEqual([
+            positions(raw, "**[Hidden")[0],
+            positions(raw, "__[[")[0],
+        ]);
+        expect(found[0].message).toContain("Hidden Hand");
+        expect(found[1].message).toContain("the vale");
+        expect(found.every((finding) => finding.severity === "warning")).toBe(true);
+    });
+
+    it("joins the link warning at the same name", () => {
+        const { check } = fixture();
+        const found = check("**[Arden Vale]{.name}**");
+        expect(found.map((finding) => finding.rules)).toEqual([
+            ["authored-bold"],
+            ["unlinked-name"],
+        ]);
+    });
+
+    it("leaves bold that holds more than the name, and a plain link, alone", () => {
+        const { check } = fixture();
+        for (const raw of [
+            "**This is a phrase with [Joe Blow]{.name} in it**",
+            "**[Joe Blow]{.name}'s** boat",
+            "[**Joe Blow**]{.name}",
+            "**[[place-arden|the vale]]**",
+            "**[Arden Vale](https://example.invalid)**",
+            "**Arden Vale**",
+        ])
+            expect(rules(check(raw)), raw).not.toContain("authored-bold");
+    });
+});
+
+describe("source exclusions", () => {
+    it("skips frontmatter, headings, tables, infoboxes, comments and inline literals", () => {
+        const { check } = fixture();
+        expect(
+            check(
+                [
+                    "---",
+                    'name: "[Arden]{.name}"',
+                    "---",
+                    "",
+                    "# [Arden]{.name} and **[Arden]{.name}**",
+                    "",
+                    "| Name |",
+                    "| --- |",
+                    "| [Arden]{.name} **[Arden]{.name}** |",
+                    "",
+                    '<aside class="infobox wide">',
+                    "",
+                    "[Arden]{.name}",
+                    "",
+                    "**[Arden]{.name}**",
+                    "",
+                    "</aside>",
+                    "",
+                    "<!-- [Arden]{.name} **[Arden]{.name}** -->",
+                    "",
+                    "`[Arden]{.name}` {{ref '[[place-arden|Arden]]'}} ![[place-arden|Arden]]",
+                    "",
+                    "```md\n**[Arden]{.name}**\n```",
+                ].join("\n"),
+            ),
+        ).toEqual([]);
+    });
+
+    it("excludes HTML attributes, comments and structural wrappers with quoted brackets", () => {
+        const { check } = fixture();
+        for (const quote of ['"', "'"]) {
+            const opening = `<span title=${quote}gate > [Arden]{.name} [[place-arden|Arden]]${quote}>`;
+            expect(check(`${opening}Written prose.</span>`)).toEqual([]);
+            const raw = `${opening}[Arden Vale]{.name}</span>`;
+            expect(check(raw)).toMatchObject([
+                { line: 1, column: opening.length + 1, rules: ["unlinked-name"] },
+            ]);
+        }
+        expect(rules(check('<!-- <aside class="infobox"> -->\n\n[Arden Vale]{.name}'))).toEqual([
+            "unlinked-name",
+        ]);
+    });
+
+    it("reports literal UTF-16 positions in CRLF lists and quotations", () => {
+        const { check } = fixture();
+        const raw =
+            "---\r\nname: sample\r\n---\r\n\r\n- 😀 [Arden Vale]{.name}\r\n\r\n> **This has [Arden]{.name} inside.**";
+        const found = check(raw);
+        expect(found.map(({ line, column }) => ({ line, column }))).toEqual([
+            ...positions(raw, "[Arden Vale]"),
+            ...positions(raw, "[Arden]"),
+        ]);
+        expect(found.map((finding) => finding.rules)).toEqual([
+            ["unlinked-name"],
+            ["unlinked-name"],
+        ]);
+    });
+
+    it("normalizes names for matching without shifting decomposed source positions", () => {
+        const { check } = fixture([
+            { type: "place", shortcode: "renee", name: { full: "Renée Vale" } },
+        ]);
+        const raw = "😀 [Renée Vale]{.name} and [Arden Vale]{.name}.";
+        const found = check(raw);
+        expect(found.map(({ line, column }) => ({ line, column }))).toEqual([
+            ...positions(raw, "[Renée Vale]"),
+            ...positions(raw, "[Arden Vale]"),
+        ]);
+        expect(found[0].message).toContain("test-note-place-renee");
+    });
+});
+
+describe("a name span's ref", () => {
+    it("ties a span to its note without a link warning, whatever its spelling", () => {
+        const { check } = fixture();
+        expect(check("[Vale]{.name ref=place-arden}")).toEqual([]);
+        expect(check("[Arden Vale]{.name ref=place-arden}")).toEqual([]);
+        expect(check("[North Craft]{.name ref=pub-sohl-skill-craft}")).toEqual([]);
+        expect(rules(check("[Arden]{.name}"))).toContain("unlinked-name");
+    });
+
+    it("ties every spelling of a page-local subject without a finding", () => {
+        const { check } = fixture();
+        expect(
+            check('[Jane Doe]{.name ref="#jane"} and [Miss Gorgeous]{.name ref="#jane"}'),
+        ).toEqual([]);
+    });
+});
+
+/** The keys of a body's uses, in order. */
+const keys = (markdown: string, vocabulary?: object) =>
+    nameUses(markdown, vocabulary as any).map((use) => use.key);
+
+/** A body with its first-use marks written as `<<` and `>>`. */
+const shown = (markdown: string, vocabulary?: object) =>
+    boldFirstUses(markdown, vocabulary as any)
+        .replaceAll(FIRST_USE_OPEN, "<<")
+        .replaceAll(FIRST_USE_CLOSE, ">>");
+
+const VOCABULARY = {
+    types: new Set(["place", "skill", "being"]),
+    packages: new Set(["test", "pub"]),
+    noIndexPackages: new Set(),
+    contentPackage: "test",
+};
+
+describe("the key of a name's use", () => {
+    it("is a span's page-local ref, whatever the span says", () => {
+        expect(
+            keys(
+                '[Jane Doe]{.name ref="#jane"}, [Jane]{.name ref="#jane"} and [Joan]{.name ref="#joan"}.',
+            ),
+        ).toEqual(["local:#jane", "local:#jane", "local:#joan"]);
+    });
+
+    it("is a note's address however it is spelt, from a span's ref or a name wikilink", () => {
+        expect(
+            keys(
+                "[Vale]{.name ref=place-arden}, [Arden Vale]{.name ref=test-note-place-arden}, " +
+                    "[[place-arden|the vale]]{.name}, [Craft]{.name ref=pub-sohl-skill-craft} and " +
+                    "[[pub-note-skill-craft|North Craft]]{.name}.",
+                VOCABULARY,
+            ),
+        ).toEqual([
+            "note:test-place-arden",
+            "note:test-place-arden",
+            "note:test-place-arden",
+            "note:pub-skill-craft",
+            "note:pub-skill-craft",
+        ]);
+    });
+
+    it("is the label, case folded, with its language", () => {
+        expect(
+            keys(
+                "[Old Tam]{.name}, [old  tam]{.name}, [Old Tam]{.name lang=en} and [old tam]{.name lang=vyl}.",
+            ),
+        ).toEqual([
+            "label:en:old tam",
+            "label:en:old tam",
+            "label:en:old tam",
+            "label:vyl:old tam",
+        ]);
+    });
+
+    it("leaves a wikilink without the name class out", () => {
+        expect(keys("[[place-arden|Arden Vale]] and [[place-arden|Arden]]{.wide}.")).toEqual([]);
+    });
+});
+
+describe("the first use of each key", () => {
+    it("is marked once, at its first prose use", () => {
+        expect(
+            shown(
+                '[Jane Doe]{.name ref="#jane"} keeps [[place-arden|the vale]]{.name}. [Jane]{.name ref="#jane"} rows. [Miss Gorgeous]{.name ref="#jane"} sings at [[place-arden|Arden]]{.name}.',
+                VOCABULARY,
+            ),
+        ).toBe(
+            '<<[Jane Doe]{.name ref="#jane"}>> keeps <<[[place-arden|the vale]]{.name}>>. [Jane]{.name ref="#jane"} rows. [Miss Gorgeous]{.name ref="#jane"} sings at [[place-arden|Arden]]{.name}.',
+        );
+    });
+
+    it("is never in a heading, table, caption, run, raw HTML or code", () => {
+        const body = [
+            "# [Tam]{.name}",
+            "",
+            "| [Tam]{.name} |",
+            "| --- |",
+            "| [Tam]{.name} |",
+            "",
+            ": [Tam]{.name} counts the nets",
+            "",
+            "| Net |",
+            "| --- |",
+            "| one |",
+            "",
+            ':::info {title="Nets"}',
+            "Inside the block, [Ada]{.name} works.",
+            ":::",
+            "",
+            "::: {lang=vyl}",
+            "[Tam]{.name} wa",
+            ":::",
+            "",
+            "[wa [Tam]{.name} wa]{lang=vyl}",
+            "",
+            "<div>[Tam]{.name}</div>",
+            "",
+            "`[Tam]{.name}`",
+            "",
+            "```\n[Tam]{.name}\n```",
+            "",
+            "Then [Tam]{.name} speaks, and [Tam]{.name} again.",
+        ].join("\n");
+        expect(nameUses(body).map((use) => body.slice(use.start, use.end))).toEqual([
+            "[Ada]{.name}",
+            "[Tam]{.name}",
+            "[Tam]{.name}",
+        ]);
+        expect(shown(body)).toContain("Then <<[Tam]{.name}>> speaks, and [Tam]{.name} again.");
+        expect(shown(body)).toContain("Inside the block, <<[Ada]{.name}>> works.");
+    });
+
+    it("counts a name a run states the language of, as its own span", () => {
+        expect(shown("[juan]{.name lang=vyl} and [juan]{.name lang=vyl}")).toBe(
+            "<<[juan]{.name lang=vyl}>> and [juan]{.name lang=vyl}",
+        );
+    });
+
+    it("counts inside authored strong text without a second bold", () => {
+        expect(shown("**A phrase with [Joe Blow]{.name} in it** then [Joe Blow]{.name}.")).toBe(
+            "**A phrase with [Joe Blow]{.name} in it** then [Joe Blow]{.name}.",
+        );
+    });
+
+    it("counts in lists, quotations and footnotes, in source order", () => {
+        expect(
+            shown("- [Tam]{.name} rows\n\n> [Tam]{.name} sings.[^1]\n\n[^1]: [Ada]{.name} too."),
+        ).toBe(
+            "- <<[Tam]{.name}>> rows\n\n> [Tam]{.name} sings.[^1]\n\n[^1]: <<[Ada]{.name}>> too.",
+        );
+    });
+
+    it("leaves a body with no name untouched", () => {
+        const body = "Plain prose, **bold**, and [a span]{.wide}.";
+        expect(boldFirstUses(body)).toBe(body);
+    });
+});
+
+describe("the first-use marks", () => {
+    it("render as strong text on every HTML target and in the book's tokens", () => {
+        const marked = boldFirstUses("[Tam]{.name} rows, and [Tam]{.name} sings.");
+        for (const target of ["foundry", "preview"] as const)
+            expect(createRenderer(target).render(marked)).toBe(
+                '<p><strong><span class="name">Tam</span></strong> rows, and <span class="name">Tam</span> sings.</p>\n',
+            );
+        expect(createRenderer("web").render(marked)).toContain(
+            '<strong><span class="name">Tam</span></strong> rows',
+        );
+        const types = createRenderer("book")
+            .md.parse(marked, {})[1]
+            .children.map((token: any) => token.type);
+        expect(types.slice(0, 4)).toEqual(["strong_open", "span_open", "text", "span_close"]);
+        expect(types[4]).toBe("strong_close");
+    });
+
+    it("never reach a reader outside inline text", () => {
+        const stray = `${FIRST_USE_OPEN}<div>raw</div>${FIRST_USE_CLOSE}\n\n\`${FIRST_USE_OPEN}code${FIRST_USE_CLOSE}\``;
+        const html = createRenderer("foundry").render(stray);
+        expect(html).not.toMatch(/[﷐﷑]/);
+        expect(html).toContain("<code>code</code>");
     });
 });

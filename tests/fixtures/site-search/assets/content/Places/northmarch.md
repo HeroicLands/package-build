@@ -4,7 +4,6 @@ subType: region
 shortcode: northmarch
 name:
   full: Northmarch
-  aliases: []
 data:
   parents: [westland]
 ---

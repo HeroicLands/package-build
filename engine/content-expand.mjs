@@ -26,7 +26,10 @@
  *    `[[#id]]` link read the label.
  * 3. **Expressions.** `{{…}}` is evaluated — `sql`, `ref`, dates and the
  *    helpers — see {@link module:engine/markdown-expressions.renderMarkdownExpressions}.
- * 4. **Wikilinks.** Each `[[…]]` outside code is resolved against the index by
+ * 4. **First uses.** The first use of each name in the author's prose is
+ *    marked bold — see {@link module:engine/first-use.boldFirstUses}. The
+ *    generated sections take no mark.
+ * 5. **Wikilinks.** Each `[[…]]` outside code is resolved against the index by
  *    {@link module:engine/wikilinks.resolveWikilinks}, and written in the
  *    target's form.
  *
@@ -55,7 +58,8 @@ import { collectAnchors, eventAnchors } from "./anchors.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { markGenerated, splitGenerated } from "./generated-sections.mjs";
+import { boldFirstUses } from "./first-use.mjs";
+import { GENERATED_BOUNDARY, markGenerated, splitGenerated } from "./generated-sections.mjs";
 import { convertNoteWikilinks } from "./helpers.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
@@ -239,35 +243,32 @@ export function expandContent(
             ]),
     );
 
-    const expressions = renderMarkdownExpressions(
-        web ? markGenerated(tables.markdown, generatedFrom) : tables.markdown,
-        {
-            fm,
-            dates: web ? index.dateContext : reckoningContext(index),
-            file,
-            bodyLine,
-            sqlResults: prepared.inline,
-            events,
-            figures:
-                web ?
-                    {
-                        get: (id) => figuresById.get(id),
-                        // A cross-note `ref` resolves the written address
-                        // exactly as a wikilink does, against every page's
-                        // figures scanned before any page's expressions render.
-                        note: (address) =>
-                            resolveCrossNoteFigures(address, {
-                                contentTypes: index.contentTypes,
-                                packages: index.packages,
-                                noIndexPackages: index.noIndexPackages,
-                                contentPackage: index.contentPackage,
-                                siteIndexMap: index.index,
-                                figuresByAddress,
-                            }),
-                    }
-                :   { get: (id) => figuresById.get(id), link: foundryRefLink },
-        },
-    );
+    const expressions = renderMarkdownExpressions(markGenerated(tables.markdown, generatedFrom), {
+        fm,
+        dates: web ? index.dateContext : reckoningContext(index),
+        file,
+        bodyLine,
+        sqlResults: prepared.inline,
+        events,
+        figures:
+            web ?
+                {
+                    get: (id) => figuresById.get(id),
+                    // A cross-note `ref` resolves the written address
+                    // exactly as a wikilink does, against every page's
+                    // figures scanned before any page's expressions render.
+                    note: (address) =>
+                        resolveCrossNoteFigures(address, {
+                            contentTypes: index.contentTypes,
+                            packages: index.packages,
+                            noIndexPackages: index.noIndexPackages,
+                            contentPackage: index.contentPackage,
+                            siteIndexMap: index.index,
+                            figuresByAddress,
+                        }),
+                }
+            :   { get: (id) => figuresById.get(id), link: foundryRefLink },
+    });
 
     const findings = {
         tables: tables.errors,
@@ -276,11 +277,24 @@ export function expandContent(
         links: [],
     };
 
+    // The first use of each name is counted in the author's prose alone.
+    const sections = splitGenerated(expressions.markdown);
+    const named = {
+        authored: boldFirstUses(sections.authored, {
+            types: web ? index.contentTypes : index.types,
+            packages: index.packages,
+            noIndexPackages: index.noIndexPackages,
+            contentPackage: index.contentPackage,
+        }),
+        generated: sections.generated,
+    };
+
     if (!web) {
+        const marked = named.generated ? `${named.authored}\n${named.generated}` : named.authored;
         let converted;
         let linkError;
         try {
-            converted = convertNoteWikilinks(expressions.markdown, {
+            converted = convertNoteWikilinks(marked, {
                 type: fm.type,
                 id: fm.id,
                 file,
@@ -295,7 +309,7 @@ export function expandContent(
         } catch (error) {
             linkError = error;
         }
-        const body = converted?.markdown ?? expressions.markdown;
+        const body = converted?.markdown ?? marked;
         return {
             markdown: body,
             authored: body,
@@ -338,7 +352,14 @@ export function expandContent(
     // The book resolves the body whole, so a link's occurrence counts across
     // the author's text and the generated sections it prints after it.
     if (book) {
-        const split = splitGenerated(protectCode(expressions.markdown, resolve));
+        const split = splitGenerated(
+            protectCode(
+                named.generated ?
+                    `${named.authored}\n${GENERATED_BOUNDARY}\n${named.generated}`
+                :   named.authored,
+                resolve,
+            ),
+        );
         return {
             markdown: split.generated ? `${split.authored}\n${split.generated}` : split.authored,
             authored: split.authored,
@@ -356,12 +377,11 @@ export function expandContent(
     // The author's text and the generated sections are resolved apart, so a
     // caller can tell the links the author wrote from the ones a section
     // derives.
-    const split = splitGenerated(expressions.markdown);
-    const authored = protectCode(split.authored, resolve);
+    const authored = protectCode(named.authored, resolve);
     const authoredLinks = resolved.length;
-    const generated = split.generated ? protectCode(split.generated, resolve) : "";
+    const generated = named.generated ? protectCode(named.generated, resolve) : "";
     return {
-        markdown: split.generated ? `${authored}\n${generated}` : authored,
+        markdown: named.generated ? `${authored}\n${generated}` : authored,
         authored,
         generated,
         lineMap,

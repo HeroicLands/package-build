@@ -139,7 +139,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     affiliation: {
-        covers: ["events", "governance.ranks", "governance.offices", "culture", "language"],
+        covers: ["events", "governance.ranks", "governance.offices", "culture"],
         fm: () => ({
             type: "affiliation",
             shortcode: "someaffiliation",
@@ -164,19 +164,17 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     },
                 },
                 culture: "cultureone",
-                language: "languageone",
             },
         }),
     },
     lore: {
-        covers: ["culture", "language", "events"],
+        covers: ["culture", "events"],
         fm: () => ({
             type: "lore",
             subType: "literature",
             shortcode: "foundingsaga",
             data: {
                 culture: "cultureone",
-                language: "languageone",
                 events: [
                     {
                         when: "412.1",

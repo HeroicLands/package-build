@@ -78,7 +78,7 @@ describe("span classes in emitted books", () => {
         expect(literal).not.toContain("#book-span");
     });
 
-    it("emits the class-based absolute bold rule with the real rendered book body", () => {
+    it("gives a marked name no weight of its own in the real rendered book body", () => {
         const anchor = "lore-person";
         const body = markdownToTypst(
             "**This is a phrase with [Joe Blow]{#joe .name .quiet} in it**",
@@ -101,10 +101,9 @@ describe("span classes in emitted books", () => {
         });
         expect(book.match(/#let book-span\(/g)).toHaveLength(1);
         expect(book).toContain("#let book-span(body, classes: (), lang: none)");
-        expect(book).toContain(
-            'if classes.contains("name") { text(weight: "bold", body) } else { body }',
-        );
-        expect(book).toContain("box(book-script-text(styled, classes: classes, lang: lang))");
+        // A name takes no weight from its class: its first use is bold as written.
+        expect(book).not.toContain('classes.contains("name")');
+        expect(book).toContain("box(book-script-text(body, classes: classes, lang: lang))");
         expect(book).toContain(
             '#strong[This is a phrase with #book-span(classes: ("name", "quiet"))[Joe Blow] <lore-person--joe> in it]',
         );

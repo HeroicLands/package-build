@@ -345,15 +345,15 @@ describe("the note box's fields are the type's own vocabulary", () => {
         }
     });
 
-    it("shows every alias below the full name in authored order on every output", () => {
+    it("shows every listed form below the full name in authored order on every output", () => {
         for (const type of Object.keys(NOTE_VOCABULARY)) {
             const box = noteInfobox({
                 type,
-                name: { full: "Ada", aliases: ["The Swift", "Night Fox"] },
+                name: { full: "Ada", en: ["The Swift"], vyl: ["Night Fox"] },
             });
             expect(box.sections[0].rows.slice(0, 2)).toEqual([
                 { label: "Name", kind: "text", value: "Ada" },
-                { label: "Aliases", kind: "list", value: ["The Swift", "Night Fox"] },
+                { label: "Other names", kind: "list", value: ["The Swift", "Night Fox"] },
             ]);
             const html = infoboxesToHtml([box]);
             const typst = infoboxesToTypst([box]);

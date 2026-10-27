@@ -62,6 +62,9 @@ export const FENCED_NOTE = "Lore/lore-fenced.md";
 /** The note whose only content is two `scroll` fences the build refuses. */
 export const UNROLLED_NOTE = "Lore/lore-unrolled.md";
 
+/** The note naming three subjects in a heading, a table and prose. */
+export const NAMED_NOTE = "Lore/lore-named.md";
+
 /** One note, rendered by one target. */
 export interface Rendered {
     /** What the target produced for the corpus note. */
@@ -73,6 +76,8 @@ export interface Rendered {
     fenced: string;
     /** What the target produced for the note holding the refused scroll fences. */
     unrolled: string;
+    /** What the target produced for the note naming three subjects. */
+    named: string;
 }
 
 /** Everything the four targets produced. */
@@ -89,6 +94,8 @@ export interface Built {
     fencedSource: string;
     /** The note holding the refused scroll fences, exactly as authored. */
     unrolledSource: string;
+    /** The note naming three subjects, exactly as authored. */
+    namedSource: string;
     foundry: Rendered & { findings: string };
     web: Rendered;
     book: Rendered & { findings: string };
@@ -208,6 +215,7 @@ function buildFoundry(root: string): Rendered & { findings: string } {
         worded: [named("The_Worded_Note_"), ...about(findings, WORDED_NOTE)].join("\n"),
         fenced: [named("The_Fenced_Note_"), ...about(findings, FENCED_NOTE)].join("\n"),
         unrolled: [named("The_Unrolled_Note_"), ...about(findings, UNROLLED_NOTE)].join("\n"),
+        named: named("The_Named_Note_"),
         findings,
     };
 }
@@ -230,6 +238,7 @@ function buildBook(root: string): Rendered & { findings: string } {
         unrolled: [bookEntry(source, "The Unrolled Note"), ...about(findings, UNROLLED_NOTE)].join(
             "\n",
         ),
+        named: bookEntry(source, "The Named Note"),
         findings,
     };
 }
@@ -276,6 +285,7 @@ async function buildWeb(root: string): Promise<Rendered> {
         worded: page("lore-worded"),
         fenced: page("lore-fenced"),
         unrolled: page("lore-unrolled"),
+        named: page("lore-named"),
     };
 }
 
@@ -290,6 +300,7 @@ function buildPreview(root: string): Rendered {
         worded: html(WORDED_NOTE),
         fenced: html(FENCED_NOTE),
         unrolled: html(UNROLLED_NOTE),
+        named: html(NAMED_NOTE),
     };
 }
 
@@ -321,6 +332,7 @@ function buildIndexed(root: string): Rendered {
         worded: html(WORDED_NOTE),
         fenced: html(FENCED_NOTE),
         unrolled: html(UNROLLED_NOTE),
+        named: html(NAMED_NOTE),
     };
 }
 
@@ -348,6 +360,7 @@ export async function buildParity(): Promise<Built> {
             path.join(root, "assets", "content", UNROLLED_NOTE),
             "utf8",
         ),
+        namedSource: fs.readFileSync(path.join(root, "assets", "content", NAMED_NOTE), "utf8"),
         foundry,
         web,
         book,

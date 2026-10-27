@@ -24,15 +24,15 @@ function nameFindings(frontmatter: string) {
 describe("the name contract", () => {
     it("accepts universal names and character components in block and flow YAML", () => {
         for (const name of [
-            "name: {full: Ada, aliases: [The Swift], given: Ada, clan: Vale}",
-            "name:\n  full: Ada\n  aliases: [The Swift]\n  given: Ada\n  clan: Vale",
+            "name: {full: Ada, en: [The Swift], given: Ada, clan: Vale}",
+            "name:\n  full: Ada\n  en: [The Swift]\n  given: Ada\n  clan: Vale",
         ]) {
             expect(nameFindings(`type: being\nsubType: character\n${name}`)).toEqual([]);
         }
         expect(
-            nameFindings("type: being\nsubType: npc\nname: {full: Guard, aliases: [Watchman]}"),
+            nameFindings("type: being\nsubType: npc\nname: {full: Guard, en: [Watchman]}"),
         ).toEqual([]);
-        expect(nameFindings("type: lore\nname: {full: A Legend, aliases: []}")).toEqual([]);
+        expect(nameFindings("type: lore\nname: {full: A Legend, en: []}")).toEqual([]);
     });
 
     it("rejects all undeclared keys at their authored position", () => {
@@ -54,12 +54,10 @@ describe("the name contract", () => {
     });
 
     it("requires a nonempty full name and validates optional values", () => {
-        expect(nameFindings("type: lore\nname: {aliases: []}")).toHaveLength(1);
+        expect(nameFindings("type: lore\nname: {en: []}")).toHaveLength(1);
         expect(nameFindings("type: lore\nname: {full: ''}")).toHaveLength(1);
         expect(nameFindings("type: lore\nname: Legend")).toHaveLength(1);
-        expect(nameFindings("type: lore\nname: {full: Legend, aliases: [Alias, '']}")).toHaveLength(
-            1,
-        );
+        expect(nameFindings("type: lore\nname: {full: Legend, en: [Alias, '']}")).toHaveLength(1);
         expect(
             nameFindings("type: being\nsubType: character\nname: {full: Ada, given: ''}"),
         ).toHaveLength(1);

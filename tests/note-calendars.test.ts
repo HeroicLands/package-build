@@ -96,9 +96,14 @@ function setting(): void {
         type: "lore",
         subType: "culture",
         shortcode: "folk",
-        data: { calendar: "beta" },
+        data: { calendar: "beta", lang: "en" },
     });
-    note("Plainfolk.md", { type: "lore", subType: "culture", shortcode: "plainfolk" });
+    note("Plainfolk.md", {
+        type: "lore",
+        subType: "culture",
+        shortcode: "plainfolk",
+        data: { lang: "en" },
+    });
 }
 
 /** A place with the given `data`. */
@@ -283,7 +288,12 @@ describe("a note's calendar", () => {
         place("ringed", { parents: ["loopa"], culture: "plainfolk" });
         const problems: any[] = [];
         const records = collect(problems, { defaultCalendar: "gamma" });
-        expect(problems).toEqual([]);
+        // The cycles are the language derivation's findings; the calendar adds none.
+        expect(problems.map((p) => p.message)).toEqual([
+            expect.stringMatching(/names place-loopb, which closes a parents cycle/),
+            expect.stringMatching(/names place-loopa, which closes a parents cycle/),
+            expect.stringMatching(/names place-selfish, which closes a parents cycle/),
+        ]);
         for (const shortcode of ["loopa", "loopb", "selfish", "ringed"])
             expect(calendarOf(records, "place", shortcode), shortcode).toBe(GAMMA);
         const none = collect([]);

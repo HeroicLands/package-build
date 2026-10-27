@@ -76,6 +76,10 @@ beforeAll(async () => {
             stats: { lastModifiedBy: "preflightbuild00" },
             itemBuilders: ["sohl"],
             systems: { sohl: { compatibility: { verified: "0.9.0" } } },
+            languages: {
+                tongue: { tag: "art-x-tongue", note: "skill-tongue" },
+                emptydaughter: { tag: "art-x-emptyd", note: "skill-emptydaughter" },
+            },
             packs: [
                 { name: "items", type: "Item", system: "sohl", default: true },
                 { name: "journals", type: "JournalEntry", default: true },
@@ -100,13 +104,20 @@ beforeAll(async () => {
         "Tongue",
         "skill",
         {
+            roman: "abcdefghijklmnopqrstuvwxyz",
             family: key("skill", "parent"),
             words: [word("zethu", "a scribe"), word("alpha", "a letter")],
         },
         "language",
         tongueBody,
     );
-    write("Emptydaughter", "skill", { family: key("skill", "parent") }, "language", "");
+    write(
+        "Emptydaughter",
+        "skill",
+        { roman: "abcdefghijklmnopqrstuvwxyz", family: key("skill", "parent") },
+        "language",
+        "",
+    );
     write("Empty", "skill", { words: [] }, "language");
     write("Absent", "skill", {}, "language");
     write(
@@ -123,7 +134,7 @@ beforeAll(async () => {
     write(
         "Folk",
         "lore",
-        { language: key("skill", "tongue"), glossary: [{ name: "zethu", common: true }] },
+        { lang: "tongue", glossary: [{ name: "zethu", common: true }] },
         "culture",
     );
     write("Otherfolk", "lore", {}, "culture");
@@ -131,7 +142,7 @@ beforeAll(async () => {
         "Order",
         "affiliation",
         {
-            language: key("skill", "tongue"),
+            lang: "tongue",
             governance: {
                 ranks: [{ level: 1, title: "High Scribe", description: "Leads the scribes." }],
             },
@@ -143,7 +154,7 @@ beforeAll(async () => {
         "Namedrank",
         "affiliation",
         {
-            language: key("skill", "tongue"),
+            lang: "tongue",
             governance: {
                 ranks: [{ level: 1, title: "High Scribe", description: "Leads the scribes." }],
             },
@@ -154,7 +165,7 @@ beforeAll(async () => {
     write(
         "Daughterfolk",
         "lore",
-        { language: key("skill", "emptydaughter"), glossary: [{ name: "ancestor" }] },
+        { lang: "emptydaughter", glossary: [{ name: "ancestor" }] },
         "culture",
     );
     write(

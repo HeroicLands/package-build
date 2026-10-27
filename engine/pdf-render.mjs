@@ -2012,11 +2012,9 @@ export function bookTypstPreamble(runs = {}, families = {}) {
             "  }\n" +
             "  if lang != none { text(lang: lang, styled) } else { styled }\n" +
             "}",
-        // Span classes reach the book intact; name styling sets an absolute
-        // weight so it remains bold inside an ordinary strong phrase.
+        // Span classes reach the book intact.
         "#let book-span(body, classes: (), lang: none) = {\n" +
-            '  let styled = if classes.contains("name") { text(weight: "bold", body) } else { body }\n' +
-            "  box(book-script-text(styled, classes: classes, lang: lang))\n" +
+            "  box(book-script-text(body, classes: classes, lang: lang))\n" +
             "}",
         // Use the file's natural measure for auto. Every requested width is
         // bounded by the available measure and by the height of a page.

@@ -43,6 +43,7 @@ import { MARKET_CLASSES, marketClass } from "./market-class.mjs";
 import { hasTag } from "./note-vocabulary.mjs";
 import { shortcodesOf } from "./holdings.mjs";
 import { WIKILINK, parseWikilink } from "./wikilink-syntax.mjs";
+import { nameFormsOf } from "./name-forms.mjs";
 
 /** The heading text a settlements table stands under, at level two. */
 export const SETTLEMENTS_HEADING = "Settlements";
@@ -332,7 +333,7 @@ export function findSettlementTables(raw) {
  * @property {string} shortcode - Lower case.
  * @property {string} subType
  * @property {string} title
- * @property {Set<string>} names - Its name and aliases, lower case.
+ * @property {Set<string>} names - Its name and listed forms, lower case.
  * @property {string[]} parents - Enclosing places' shortcodes.
  * @property {{heading: number, tables: SettlementTable[]}} section
  */
@@ -353,7 +354,7 @@ export function findSettlementTables(raw) {
 const CORPUS = new WeakMap();
 
 /**
- * A note's name and aliases, lower case.
+ * A note's name and listed forms, lower case.
  *
  * @param {object} fm - The frontmatter.
  * @returns {Set<string>} The names.
@@ -367,7 +368,7 @@ function namesOf(fm) {
     if (typeof name === "string") add(name);
     else if (name && typeof name === "object") {
         add(name.full);
-        for (const alias of Array.isArray(name.aliases) ? name.aliases : []) add(alias);
+        for (const form of nameFormsOf(name)) add(form);
     }
     return out;
 }

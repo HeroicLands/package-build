@@ -4,7 +4,6 @@ subType: region
 shortcode: fells
 name:
   full: The Fells
-  aliases: []
 data:
   parents: [northmarch]
 ---

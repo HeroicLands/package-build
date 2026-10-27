@@ -157,6 +157,7 @@ describe("the corpus holds every construct", () => {
             worded: built.wordedSource,
             fenced: built.fencedSource,
             unrolled: built.unrolledSource,
+            named: built.namedSource,
         }[CONSTRUCTS[id].probeIn ?? "corpus"];
         expect(note, `${id}: probe missing from the corpus`).toContain(CONSTRUCTS[id].probe);
     });
@@ -173,6 +174,72 @@ describe.each(RENDERINGS)("the %s rendering", (rendering) => {
         for (const pattern of expectation.absent ?? [])
             expect(output, `${rendering}: ${id} must not show ${pattern}`).not.toMatch(pattern);
     });
+});
+
+/**
+ * The bold each key of the named note takes, as a target writes it: the
+ * subject tied by `ref="#jane"` under three forms, the one keyed by its label
+ * alone in two cases, and the wikilinked harbor. The book keeps no `ref`, so
+ * its pattern names the forms.
+ */
+const FIRST_USES: Record<"foundry" | "web" | "indexed" | "book", Record<string, RegExp>> = {
+    foundry: {
+        jane: /<strong><span class="name" ref="#jane">([^<]*)<\/span><\/strong>/g,
+        tam: /<strong><span class="name">((?:Old|old) Tam)<\/span><\/strong>/gi,
+        harbor: /<strong><span class="name">@UUID\[[^\]]*\]\{(the harbor)\}<\/span><\/strong>/g,
+    },
+    web: {
+        jane: /<strong><span class="name" ref="#jane">([^<]*)<\/span><\/strong>/g,
+        tam: /<strong><span class="name">((?:Old|old) Tam)<\/span><\/strong>/gi,
+        harbor: /<strong><span class="name"><a href="[^"]*place-harbor\/">(the harbor)<\/a><\/span><\/strong>/g,
+    },
+    indexed: {
+        jane: /<strong><span class="name" ref="#jane">([^<]*)<\/span><\/strong>/g,
+        tam: /<strong><span class="name">((?:Old|old) Tam)<\/span><\/strong>/gi,
+        harbor: /<strong><span class="name"><a href="[^"]*place-harbor\/">(the harbor)<\/a><\/span><\/strong>/g,
+    },
+    book: {
+        jane: /#strong\[#book-span\(classes: \("name",\)\)\[(Jane Doe|Jane|Miss Gorgeous)\]\]/g,
+        tam: /#strong\[#book-span\(classes: \("name",\)\)\[((?:Old|old) Tam)\]\]/g,
+        harbor: /#strong\[#book-span\(classes: \("name",\)\)\[#link\(<place-harbor>\)\[(the harbor)\]/g,
+    },
+};
+
+/** The form each key's first prose use is written in. */
+const FIRST_FORMS: Record<string, string> = {
+    jane: "Jane Doe",
+    tam: "Old Tam",
+    harbor: "the harbor",
+};
+
+/** An HTML rendering without its headings and tables, which take no bold. */
+const proseOf = (html: string) =>
+    html.replace(/<h([1-6])\b[\s\S]*?<\/h\1>/g, "").replace(/<table\b[\s\S]*?<\/table>/g, "");
+
+describe("a name's first use in a page is bold", () => {
+    it.each(Object.keys(FIRST_USES) as Array<keyof typeof FIRST_USES>)(
+        "%s bolds each key exactly once, in prose, at its first prose use",
+        (rendering) => {
+            const output = rendered(rendering, "named") ?? "";
+            expect(output.length, `${rendering} produced no named output`).toBeGreaterThan(0);
+            const prose = rendering === "book" ? output : proseOf(output);
+            for (const [key, pattern] of Object.entries(FIRST_USES[rendering])) {
+                const everywhere = [...output.matchAll(pattern)].map((match) => match[1]);
+                const inProse = [...prose.matchAll(pattern)].map((match) => match[1]);
+                expect(everywhere, `${rendering}: ${key} is bolded once`).toEqual([
+                    FIRST_FORMS[key],
+                ]);
+                expect(inProse, `${rendering}: ${key} is bolded in prose`).toEqual([
+                    FIRST_FORMS[key],
+                ]);
+            }
+            const strong = rendering === "book" ? /#strong\[/g : /<strong>/g;
+            expect(
+                output.match(strong) ?? [],
+                `${rendering}: nothing but the three first uses is bold`,
+            ).toHaveLength(3);
+        },
+    );
 });
 
 describe("the corpus exercises every vocabulary the renderers read", () => {
@@ -389,6 +456,7 @@ const RULE_CONSTRUCT: Record<string, string> = {
     "block:hl_preview_container": "secret-block",
     "inline:heroiclands_icon": "icon",
     "inline:bracket_span": "name-marked",
+    "core:first_use": "name-first-use",
     "inline:script_emphasis": "run-emphasis-script",
     "inline:footnote_inline": "footnote-inline",
     "inline:footnote_ref": "footnote",

@@ -28,7 +28,7 @@
  * - A note whose name opens with one of the book's `pdf.indexHeads` is also
  *   filed under the rest of its name, with the head after a comma
  *   (`Targud, Kingdom of`), and that entry carries the note's pages.
- * - An alias (`name.aliases`) and an event's in-world name
+ * - A listed name form (`name.<code>`) and an event's in-world name
  *   (`data.events[].names`) list a cross-reference to the note's name.
  *
  * Terms sort on the ASCII fold the content index derives for names
@@ -42,6 +42,7 @@
  */
 
 import { asciiName, nameSortOf } from "./name-sort.mjs";
+import { nameFormsOf } from "./name-forms.mjs";
 
 /**
  * The marker an entry heading or an authored mention carries.
@@ -153,7 +154,7 @@ export function indexTerms(entries, { owns = () => true, foreign = [], heads = [
             terms.push({ name: inverted, slug, main: false, inverted: true });
         }
         const names = [
-            ...(Array.isArray(entry.record?.name?.aliases) ? entry.record.name.aliases : []),
+            ...nameFormsOf(entry.record?.name),
             ...(Array.isArray(entry.record?.data?.events) ? entry.record.data.events : []).flatMap(
                 (event) => (Array.isArray(event?.names) ? event.names.map((n) => n?.name) : []),
             ),

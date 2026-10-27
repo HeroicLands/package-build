@@ -26,6 +26,7 @@ import { scanBlocks } from "./content-blocks.mjs";
 import { renderDictionary, renderGlossary } from "./dictionary-layout.mjs";
 import { DICTIONARY_COLUMNS, TERM_COLUMNS, dictionaryAndTermRows } from "./dictionary-rows.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
+import { languageNotesByCode } from "./note-language.mjs";
 import { scanHeadingAttributes } from "./heading-attributes.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 
@@ -117,6 +118,7 @@ export function lexicalSectionsFor(records, all = records) {
     const visible = encodeAddresses(records).filter(isNoteRecord);
     const complete = encodeAddresses(all).filter(isNoteRecord);
     const byKey = new Map(visible.map((record) => [keyOf(record), record]));
+    const languageNotes = languageNotesByCode(complete, keyOf);
     const addressContext = {
         types: new Set(complete.map((record) => record.type)),
         packages: new Set(complete.map((record) => record.package)),
@@ -136,7 +138,7 @@ export function lexicalSectionsFor(records, all = records) {
         const pageLanguage = glossaryLanguage(undefined, record, {
             self: key,
             keyOf: (value) => (typeof value === "string" ? value : undefined),
-            lookup: (address) => byKey.get(address),
+            noteOf: (code) => languageNotes.get(code),
         });
         sections.set(key, [
             {

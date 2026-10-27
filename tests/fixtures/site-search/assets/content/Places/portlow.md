@@ -4,7 +4,6 @@ subType: settlement
 shortcode: portlow
 name:
   full: Portlow
-  aliases: []
 data:
   parents: [southreach]
 ---

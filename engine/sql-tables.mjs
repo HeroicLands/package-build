@@ -55,6 +55,7 @@ import { LANGUAGE_COLUMN_TYPES, LANGUAGE_RELATIONS } from "./language-rows.mjs";
 import { VERB_PERSON_FIELDS } from "./language-terms.mjs";
 import { renderDictionary, renderGlossary } from "./dictionary-layout.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
+import { languageNotesByCode } from "./note-language.mjs";
 import { lexicalSectionsFor } from "./lexical-sections.mjs";
 import { eventViewSections } from "./event-views.mjs";
 import { appendGeneratedSections, joinSections } from "./generated-sections.mjs";
@@ -466,6 +467,22 @@ export async function openNotesDatabase(
             system: "note",
         },
         stubsExcluded,
+        // Each language code's note, for a page whose language is read from
+        // its frontmatter.
+        languageNotes: languageNotesByCode(encoded, (record) =>
+            (
+                typeof record.package === "string" &&
+                typeof record.type === "string" &&
+                typeof record.shortcode === "string"
+            ) ?
+                renderAddress({
+                    package: record.package,
+                    system: "note",
+                    type: record.type,
+                    shortcode: record.shortcode,
+                })
+            :   undefined,
+        ),
         async query(sql) {
             const reader = await connection.runAndReadAll(sql);
             return {
@@ -1019,7 +1036,7 @@ function toPlain(value) {
  * DuckDB returns an integer as a `BigInt`, which `String()` renders without its
  * `n` — but a struct or a list would stringify as `[object Object]`, so those
  * are refused rather than printed. A list of scalars is joined, because that is
- * what a `tags` or `aliases` column means.
+ * what a `tags` column means.
  *
  * @param {unknown} value - The cell value.
  * @param {string} column - Its column, named in the message.
@@ -1296,20 +1313,17 @@ async function noteLabels(db) {
 
 /**
  * The language a note's frontmatter says it is in: a language note's own
- * Address, else its `data.language`.
+ * Address, else the note of its language — the code the content index derived
+ * for it where the frontmatter is its record, else its own `data.lang`.
  *
- * @param {object|undefined} frontmatter - The note's authored frontmatter.
- * @param {object} db - From {@link openNotesDatabase}, for its Address context.
+ * @param {object|undefined} frontmatter - The note's frontmatter or record.
+ * @param {object} db - From {@link openNotesDatabase}, for its Address context
+ *   and its language notes.
  * @returns {string|undefined} The language's Address.
  */
 function frontmatterLanguage(frontmatter, db) {
     if (!frontmatter || typeof frontmatter !== "object") return undefined;
     const context = db.addressContext ?? {};
-    const read = (value, type) => {
-        if (typeof value !== "string" || !value) return undefined;
-        const tuple = parseAddress(value, { ...context, system: "note", type }, { declared: true });
-        return tuple.reason ? undefined : renderAddress({ ...tuple, system: "note" });
-    };
     if (
         String(frontmatter.type ?? "").toLowerCase() === "skill" &&
         frontmatter.subType === "language" &&
@@ -1322,7 +1336,8 @@ function frontmatterLanguage(frontmatter, db) {
             type: "skill",
             shortcode: frontmatter.shortcode,
         });
-    return read(frontmatter.data?.language, "skill");
+    const code = frontmatter.lang ?? frontmatter.data?.lang;
+    return typeof code === "string" ? db.languageNotes?.get(code) : undefined;
 }
 
 /** Evaluate scalar SQL calls before synchronous Markdown renderers run. */
@@ -1535,9 +1550,8 @@ async function attachPreparedAnchors(prepared, records, contentBase, parsed, con
 
 /**
  * The language each note of a tree is in, by its file: a language note itself,
- * a culture its `data.language`, its own or one it inherits, and an
- * affiliation the language its glossary resolves to — see
- * {@link module:engine/glossary-language}.
+ * and every other note the note of the language the content index derived for
+ * it — see {@link module:engine/glossary-language}.
  *
  * @param {object[]} records - Content-index records.
  * @param {string} contentBase - Root of the content tree.
@@ -1566,12 +1580,13 @@ function pageLanguages(records, contentBase) {
             .filter((record) => isNoteRecord(record))
             .map((record, i) => [noteFile(contentBase, record), notes[i]]),
     );
+    const languageNotes = languageNotesByCode(byKey.values(), keyOf);
     return (source) => {
         const record = byFile.get(source);
         if (!record) return undefined;
         return glossaryLanguage(undefined, record, {
             keyOf: (value) => (typeof value === "string" && value ? value : undefined),
-            lookup: (key) => byKey.get(key),
+            noteOf: (code) => languageNotes.get(code),
             self: keyOf(record),
         });
     };

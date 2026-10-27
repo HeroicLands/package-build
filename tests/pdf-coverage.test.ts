@@ -245,7 +245,7 @@ describe("buildPdf over several books", () => {
         note(
             dir,
             "Lore/Vedyari.md",
-            "type: lore\nsubType: culture\nshortcode: vedyari\nname:\n  full: Vedyari",
+            "type: lore\nsubType: culture\nshortcode: vedyari\nname:\n  full: Vedyari\ndata: {lang: en}",
         );
         note(
             dir,

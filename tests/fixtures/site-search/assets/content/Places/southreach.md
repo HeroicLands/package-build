@@ -4,7 +4,6 @@ subType: region
 shortcode: southreach
 name:
   full: Southreach
-  aliases: []
 data:
   parents: [westland]
 ---

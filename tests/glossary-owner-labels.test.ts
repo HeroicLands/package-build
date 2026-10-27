@@ -37,6 +37,7 @@ beforeAll(async () => {
             compatibility: { minimum: "14", verified: "14.367" },
             stats: { lastModifiedBy: "preflightbuild00" },
             packs: [{ name: "journals", type: "JournalEntry", default: true }],
+            languages: { prov: { tag: "art-x-prov", note: "skill-provenzal" } },
         },
         path.join(root, "package-build.config.yaml"),
     );
@@ -69,7 +70,7 @@ beforeAll(async () => {
             shortcode: "provenzia",
             name: { full: "Provenzia" },
             data: {
-                language: "skill-provenzal",
+                lang: "prov",
                 glossary: [
                     {
                         name: "solmère",
@@ -99,7 +100,7 @@ beforeAll(async () => {
             name: { full: "Duchy of Aubrac" },
             data: {
                 culture: "lore-provenzia",
-                language: "skill-provenzal",
+                lang: "prov",
                 glossary: [{ name: "blood-field", definition: "ground torn by a battle" }],
                 governance: {
                     ranks: [{ level: 1, title: "High Warden", description: "Leads the order." }],

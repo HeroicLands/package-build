@@ -89,18 +89,18 @@ describe("a finding about an Address", () => {
         expect(made?.message).toMatch(/but reads "forging"$/);
     });
 
-    it("quotes a literature `language` as written", () => {
+    it("quotes a literature `culture` as written", () => {
         const found = lint(
             note({
                 type: "lore",
                 subType: "literature",
                 shortcode: "lay",
                 name: { full: "Lay" },
-                data: { language: "skill-tongue" },
+                data: { culture: "lore-folk" },
             }),
         );
-        const language = found.find((f: any) => f.message.includes("data.language"));
-        expect(language?.message).toMatch(/but reads "skill-tongue"$/);
+        const culture = found.find((f: any) => f.message.includes("data.culture"));
+        expect(culture?.message).toMatch(/but reads "lore-folk"$/);
     });
 
     it("quotes an event's `follows` as written", () => {

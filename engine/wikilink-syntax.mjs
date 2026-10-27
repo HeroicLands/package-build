@@ -104,6 +104,8 @@ export function parseWikilink(rawInner, literal = "") {
     const attributes =
         suffix.startsWith("{") ? parseExtensionAttributes(suffix.slice(1, -1)) : null;
     if (attributes) attributes.problems.push(...refusedAttributes(attributes.values));
+    if (attributes && Object.hasOwn(attributes.values, "ref"))
+        attributes.problems.push("a wikilink never takes ref; its address is its ref");
     return {
         inner: inner.trim(),
         target,

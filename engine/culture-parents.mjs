@@ -15,7 +15,7 @@ import { isDeepStrictEqual } from "node:util";
 import { canonicalKey, parseAddress, renderAddress } from "./address.mjs";
 import { positionOfFrontmatterPath, formatDiagnostic } from "./diagnostics.mjs";
 
-const fields = ["language", "appearanceProfile"];
+const fields = ["appearanceProfile"];
 const payload = (note) => note.fm ?? note;
 const dataOf = (note) => payload(note).data ?? payload(note);
 const culture = (note) => payload(note).type === "lore" && payload(note).subType === "culture";

@@ -128,9 +128,13 @@ jq -r 'select(.type == "affiliation") | .name.full' \
 ```
 
 Each note record carries its authored frontmatter together with derived
-`package`, `file`, `address`, `anchors`, and document destinations. It also has
-ASCII-folded `nameAscii` and `aliasesAscii` for searching names typed without
-diacritics. Asset files under `assets/icons`, `assets/images`, and
+`package`, `file`, `address`, `anchors`, and document destinations. Its `name`
+is the map the note authors, the full name with every other form listed under
+its language's code. It also has ASCII-folded `nameAscii` and `formsAscii`, the
+listed forms by language, for searching names typed without diacritics, and
+`lang`, the language the note is in, derived as
+[a note's language](../reference/format-details.md#a-notes-language) describes.
+A language note that `languages:` names carries its code as `languageCode`. Asset files under `assets/icons`, `assets/images`, and
 `assets/audio` have records in the same index, identified by an `asset` block.
 The index is disposable build output; regenerate it from the authored tree
 when the content changes.

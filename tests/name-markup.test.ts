@@ -41,7 +41,7 @@ describe("the actual authored marked-name inventory", () => {
         const file = [...input.files.keys()][0];
         const raw = note(
             { type: "lore", subType: "history", shortcode: "n0", name: { full: "Reader" } },
-            "[Note 1]{.name} then [[lore-n1|Note 1]] and **Note 1**.",
+            "[Note 1]{.name} then **[[lore-n1|Note 1]]{.name}** and **Note 1**.",
         );
         write(file, raw);
         const session = await createContentSession({ config: input.config });
@@ -49,7 +49,6 @@ describe("the actual authored marked-name inventory", () => {
             const index = await session.audit("lint");
             const catalog = names.createNameCatalog({ records: session.records, index });
             const recognize = vi.spyOn(catalog, "recognize");
-            const resolve = vi.spyOn(catalog, "resolve");
             const create = vi.spyOn(names, "createNameCatalog");
             const checker = createFirstUseChecker({
                 records: session.records,
@@ -60,10 +59,9 @@ describe("the actual authored marked-name inventory", () => {
             } as any);
             expect(checker({ file, raw }).map((finding) => finding.rules)).toEqual([
                 ["unlinked-name"],
-                ["repeated-name"],
+                ["authored-bold"],
             ]);
             expect(recognize).toHaveBeenCalled();
-            expect(resolve).toHaveBeenCalledWith("lore-n1");
             expect(create).not.toHaveBeenCalled();
         } finally {
             session.dispose();
@@ -274,9 +272,9 @@ describe("the actual authored marked-name inventory", () => {
                 });
                 expect(findings[0].message).toContain("Note 1");
                 expect(session.syntax(body).spans).toBe(captured);
-                const changed = checker({ file, raw: "[New]{.name} and [New]{.name}." });
+                const changed = checker({ file, raw: "**[New]{.name}** and [New]{.name}." });
                 expect(scan).toHaveBeenCalledTimes(1);
-                expect(changed.map((finding) => finding.rules)).toEqual([["repeated-name"]]);
+                expect(changed.map((finding) => finding.rules)).toEqual([["authored-bold"]]);
             } finally {
                 session.dispose();
             }

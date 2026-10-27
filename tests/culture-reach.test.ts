@@ -9,8 +9,8 @@
  * **An affiliation reaches a culture.** In a tree that describes peoples — one
  * holding a culture note — an affiliation that reaches no culture, its own or
  * one it inherits, is a warning at the affiliation. An affiliation names a
- * trade, temple or order tongue in its own `data.language`. A language needs
- * no culture and no affiliation: one nothing names is no finding.
+ * trade, temple or order tongue in its own `data.lang`. A language needs no
+ * culture and no affiliation: one nothing names is no finding.
  */
 
 import fs from "node:fs";
@@ -22,7 +22,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
-import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
+import { NOTE_VOCABULARY, SHARED_DATA_FIELDS } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 const roots: string[] = [];
@@ -77,6 +77,7 @@ function lint(files: Record<string, string>) {
     const records = collectContentIndex(root, {
         contentPackage: "sohl",
         skipDirectories: [],
+        languages: LANGUAGES,
         problems,
     });
     const index = buildLinkIndex(root, { records, skipDirectories: [] });
@@ -92,44 +93,42 @@ function lint(files: Record<string, string>) {
 const at = (text: string, finding: { line?: number; column?: number }) =>
     text.split("\n")[finding.line! - 1].slice(finding.column! - 1);
 
+const LANGUAGES = {
+    common: { tag: "art-x-common", note: "skill-commonlng" },
+    cant: { tag: "art-x-cant", note: "skill-cantlng" },
+};
+
 const WORLD = {
     "Skills/Common.md": language("commonlng"),
     "Skills/Cant.md": language("cantlng"),
-    "Lore/Folk.md": culture("folkclt", ["language: skill-commonlng"]),
-    "Affiliations/Guild.md": affiliation("guild", [
-        "culture: lore-folkclt",
-        "language: skill-cantlng",
-    ]),
+    "Lore/Folk.md": culture("folkclt", ["lang: common"]),
+    "Affiliations/Guild.md": affiliation("guild", ["culture: lore-folkclt", "lang: cant"]),
     "Affiliations/Chapter.md": affiliation("chapter", ["parents: [affiliation-guild]"]),
 };
 
-describe("data.language on an affiliation", () => {
+describe("data.lang on an affiliation", () => {
     it("is declared, as the shared language field", () => {
-        const field = dataFields("affiliation").find(
-            (f: { name: string }) => f.name === "language",
-        );
-        expect(field).toMatchObject({ kind: "address", ref: "skill" });
+        const field = SHARED_DATA_FIELDS.find((f: { name: string }) => f.name === "lang");
+        expect(field).toMatchObject({ kind: "string" });
     });
 
     it("lints clean, and counts as naming its language", () => {
         expect(lint(WORLD)).toEqual([]);
     });
 
-    it("names a language skill, as a culture's does", () => {
+    it("names a declared language, as a culture's does", () => {
         const findings = lint({
             ...WORLD,
-            "Skills/Smithing.md":
-                "---\nshortcode: smithing\nname: {full: Smithing}\ntype: skill\nsubType: craft\n---\nA craft.\n",
             "Affiliations/Guild.md": affiliation("guild", [
                 "culture: lore-folkclt",
-                "language: skill-smithing",
+                "lang: smithing",
             ]),
         });
         expect(findings).toContainEqual(
             expect.objectContaining({
                 file: "Affiliations/Guild.md",
                 severity: "error",
-                message: expect.stringContaining("not a skill whose subType is language"),
+                message: expect.stringContaining("data.lang smithing names no language"),
             }),
         );
     });

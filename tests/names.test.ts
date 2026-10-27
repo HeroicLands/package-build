@@ -26,11 +26,15 @@ import {
     collectUnwrittenNames,
     createNameCatalog,
     createNamesReport,
+    displayName,
     nameForms,
     namesReportFinding,
     normalizeName,
 } from "../engine/names.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { scanSpans } from "../engine/content-spans.mjs";
+import { parseWikilink } from "../engine/wikilink-syntax.mjs";
+import { createNameRefChecker, nameRefFindings } from "../engine/name-refs.mjs";
 import { formatDiagnostic } from "../engine/diagnostics.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
 
@@ -63,7 +67,7 @@ function fixture(extra: object[] = []) {
         path.join(root, "package-build.config.yaml"),
     );
     const notes = [
-        { type: "place", shortcode: "arden", name: { full: "Arden Vale", aliases: ["Arden"] } },
+        { type: "place", shortcode: "arden", name: { full: "Arden Vale", en: ["Arden"] } },
         { type: "lore", shortcode: "warden", name: { full: "Warden" } },
         { type: "doc", shortcode: "reader", name: { full: "Reader" } },
         ...extra,
@@ -80,7 +84,7 @@ function fixture(extra: object[] = []) {
             package: "pub",
             type: "skill",
             shortcode: "craft",
-            name: { full: "North Craft", aliases: ["Northern Craft"] },
+            name: { full: "North Craft", en: ["Northern Craft"] },
             address: { canonical: "pub-sohl-skill-craft", slug: "skill-craft" },
             anchors: [{ slug: "work", kind: "prose" }],
             foundry: {
@@ -105,21 +109,22 @@ function frozen<T>(value: T): T {
 }
 
 describe("indexed name catalog", () => {
-    it("keeps whole-label Unicode normalization, case and regular inflections", () => {
-        expect(normalizeName("  Rene\u0301e\tVale’s  ")).toBe("Renée Vale's");
+    it("keeps whole-label Unicode normalization and regular inflections, folding case to match", () => {
+        expect(normalizeName("  Rene\u0301e\tVale’s  ")).toBe("renée vale's");
+        expect(displayName("  Rene\u0301e\tVale’s  ")).toBe("Renée Vale's");
         expect(nameForms("Hidden Hand")).toEqual([
-            "Hidden Hand",
-            "Hidden Hand's",
-            "Hidden Hands",
-            "Hidden Hands's",
-            "Hidden Hands'",
+            "hidden hand",
+            "hidden hand's",
+            "hidden hands",
+            "hidden hands's",
+            "hidden hands'",
         ]);
-        expect(nameForms("Ivory City")).toContain("Ivory Cities");
-        expect(nameForms("North Watch")).toContain("North Watches");
+        expect(nameForms("Ivory City")).toContain("ivory cities");
+        expect(nameForms("North Watch")).toContain("north watches");
         expect(nameForms("?!")).toEqual(["?!"]);
     });
 
-    it("matches full names and declared aliases with the current first-use behavior", () => {
+    it("matches full names and listed forms, ignoring case, with the current first-use behavior", () => {
         const source = fixture([
             { type: "place", shortcode: "renee", name: { full: "Renée Vale" } },
             { type: "place", shortcode: "highking", name: { full: "High King" } },
@@ -130,6 +135,8 @@ describe("indexed name catalog", () => {
             ["Arden Vale", "test-note-place-arden", true],
             ["Arden", "test-note-place-arden", false],
             ["Arden’s", "test-note-place-arden", false],
+            ["arden", "test-note-place-arden", false],
+            ["ARDEN VALE", "test-note-place-arden", true],
             ["Wardens", "test-note-lore-warden", true],
             ["Rene\u0301e  Vale", "test-note-place-renee", true],
         ] as const) {
@@ -139,17 +146,17 @@ describe("indexed name catalog", () => {
             expect(findings[0].rules).toContain("unlinked-name");
             expect(findings[0].message).toContain(key);
         }
-        for (const label of ["arden", "High", "Arden Vale beyond", "", "   "])
+        for (const label of ["High", "Arden Vale beyond", "", "   "])
             expect(catalog.recognize(label)).toBeUndefined();
     });
 
     it("retains all ambiguous candidates and selects only an explicit preferred identity", () => {
         const source = fixture([
-            { type: "place", shortcode: "other", name: { full: "Arden Vale", aliases: ["Arden"] } },
+            { type: "place", shortcode: "other", name: { full: "Arden Vale", en: ["Arden"] } },
         ]);
         const catalog = createNameCatalog(source);
         const ambiguous = catalog.recognize("Arden");
-        expect(ambiguous).toMatchObject({ key: "name:Arden", indexed: true, fullUse: true });
+        expect(ambiguous).toMatchObject({ key: "name:arden", indexed: true, fullUse: true });
         expect(ambiguous.candidates.map((entry) => entry.key)).toEqual([
             "test-note-place-arden",
             "test-note-place-other",
@@ -188,7 +195,7 @@ describe("indexed name catalog", () => {
                 file: "Reader.md",
                 raw: "[[pub-note-skill-craft#work|North Craft]] then [North Craft]{.name}",
             }).at(-1).rules,
-        ).toEqual(["unlinked-name", "repeated-name"]);
+        ).toEqual(["unlinked-name"]);
         expect(catalog.resolve("pub-note-skill-missing")).toBeUndefined();
         expect(catalog.resolve("Undeclared name")).toBeUndefined();
     });
@@ -230,7 +237,7 @@ describe("typed name spans", () => {
                 type: "place",
                 subType: "region",
                 shortcode: "saddle",
-                name: { full: "The Western Saddle", aliases: ["Theinuvael"] },
+                name: { full: "The Western Saddle", en: ["Theinuvael"] },
             },
             { type: "lore", shortcode: "other", name: { full: "Arden" } },
         ]);
@@ -267,12 +274,12 @@ describe("typed name spans", () => {
         ).toBeUndefined();
     });
 
-    it("report a span naming another kind of thing as neither unlinked nor repeated", () => {
+    it("report a span naming another kind of thing as no unlinked name", () => {
         const source = fixture([
             {
                 type: "place",
                 shortcode: "saddle",
-                name: { full: "The Western Saddle", aliases: ["Theinuvael"] },
+                name: { full: "The Western Saddle", en: ["Theinuvael"] },
             },
         ]);
         const check = createFirstUseChecker(source);
@@ -287,10 +294,9 @@ describe("typed name spans", () => {
             rules(
                 '[[place-saddle|]] is held by [Theinuvael]{.name data-type="affiliation/lineage"}, and [Theinuvael]{.name data-type="affiliation/lineage"} again.',
             ),
-        ).toEqual(["repeated-name"]);
+        ).toEqual([]);
         expect(rules('[[place-saddle|]] and [Theinuvael]{.name data-type="place"}')).toEqual([
             "unlinked-name",
-            "repeated-name",
         ]);
     });
 
@@ -299,7 +305,7 @@ describe("typed name spans", () => {
             {
                 type: "place",
                 shortcode: "saddle",
-                name: { full: "The Western Saddle", aliases: ["Theinuvael"] },
+                name: { full: "The Western Saddle", en: ["Theinuvael"] },
             },
         ]);
         const catalog = createNameCatalog(source);
@@ -453,7 +459,7 @@ describe("unwritten marked names", () => {
 
     it("treats ambiguous matches as known, skips non-note records and invents no first site", () => {
         const source = fixture([
-            { type: "place", shortcode: "other", name: { full: "Arden Vale", aliases: ["Arden"] } },
+            { type: "place", shortcode: "other", name: { full: "Arden Vale", en: ["Arden"] } },
         ]);
         const catalog = createNameCatalog(source);
         const names = [{ name: "Arden", type: null, subType: null, line: 1, column: 1 }];
@@ -533,7 +539,7 @@ describe("supplied marked-name kinds", () => {
     it("uses every actual vocabulary declaration, including open and absent subtypes", () => {
         for (const [type, entry] of Object.entries(NOTE_VOCABULARY)) {
             expect(analyzeNameSpans([marker(type)]).names).toEqual([
-                { name: "Ravenmoor", type, subType: null, line: 7, column: 4 },
+                { name: "Ravenmoor", type, subType: null, ref: null, line: 7, column: 4 },
             ]);
             const subtype = Array.isArray(entry.subTypes) ? entry.subTypes[0] : "authoredkind";
             const result = analyzeNameSpans([marker(`${type}/${subtype}`)], { file: "Kinds.md" });
@@ -589,7 +595,9 @@ describe("supplied marked-name kinds", () => {
         const other = marker("not-a-type", "named wide");
         const before = structuredClone([plain, other]);
         expect(analyzeNameSpans(frozen([plain, other]))).toEqual({
-            names: [{ name: "Ravenmoor", type: null, subType: null, line: 7, column: 4 }],
+            names: [
+                { name: "Ravenmoor", type: null, subType: null, ref: null, line: 7, column: 4 },
+            ],
             findings: [],
         });
         expect([plain, other]).toEqual(before);
@@ -778,5 +786,122 @@ describe("one package names report", () => {
         expect(
             namesReportFinding(createNamesReport({ package: "test", records: [], catalog })),
         ).toBeUndefined();
+    });
+});
+
+const refSpans = (raw: string) => scanSpans(raw).spans;
+const at = (raw: string, literal: string) => {
+    const offset = raw.indexOf(literal);
+    expect(offset).toBeGreaterThanOrEqual(0);
+    const before = raw.slice(0, offset);
+    return { line: before.split("\n").length, column: offset - before.lastIndexOf("\n") };
+};
+
+describe("ref on a name span", () => {
+    it("records the ref as written, an address or a page-local key, and null when absent", () => {
+        const raw = [
+            "[Tom Rodriguez]{.name ref=being-tomr}",
+            '[Tom]{.name ref="sohl-note-being-tomr"}',
+            '[Jane]{.name ref="#jane"}',
+            "[Nobody]{.name}",
+        ].join("\n\n");
+        expect(analyzeNameSpans(refSpans(raw)).names.map(({ name, ref }) => [name, ref])).toEqual([
+            ["Tom Rodriguez", "being-tomr"],
+            ["Tom", "sohl-note-being-tomr"],
+            ["Jane", "#jane"],
+            ["Nobody", null],
+        ]);
+    });
+
+    it("reads a ref in prose, in a nested language run, in a div and in verse", () => {
+        const raw = [
+            "[Tom]{.name ref=being-tomr}",
+            "",
+            "[the [Tom]{.name ref=being-tomr} said]{lang=en}",
+            "",
+            "::: {.border}",
+            "[Tom]{.name ref=being-tomr}",
+            ":::",
+            "",
+            "```verse",
+            "[Tom]{.name ref=being-tomr} walks",
+            "```",
+        ].join("\n");
+        const names = analyzeNameSpans(refSpans(raw)).names;
+        expect(names.map((name) => name.ref)).toEqual(Array(4).fill("being-tomr"));
+        expect(nameRefFindings(refSpans(raw))).toEqual([]);
+    });
+
+    it("raises nothing for a page-local key, which resolves to no note", () => {
+        const source = fixture();
+        const check = createNameRefChecker({ catalog: createNameCatalog(source) });
+        expect(
+            check({
+                file: "Jane.md",
+                raw: '[Jane Doe]{.name ref="#jane"} then [Jane]{.name ref=#jane}',
+            }),
+        ).toEqual([]);
+        expect(nameRefFindings(refSpans("[Jane]{.name ref=#jane}"))).toEqual([]);
+    });
+
+    it("refuses a malformed page-local key at its value", () => {
+        for (const value of ["#", "#-x", "#a b"]) {
+            const raw = `[Jane]{.name ref="${value}"}`;
+            expect(nameRefFindings(refSpans(raw), { file: "A.md" })).toMatchObject([
+                { file: "A.md", severity: "error", ...at(raw, value) },
+            ]);
+        }
+    });
+
+    it("resolves an own-package address, its note form and a dependency's address", () => {
+        const source = fixture();
+        const check = createNameRefChecker({ catalog: createNameCatalog(source) });
+        for (const ref of [
+            "place-arden",
+            "test-note-place-arden",
+            "pub-sohl-skill-craft",
+            "pub-note-skill-craft",
+        ])
+            expect(check({ file: "A.md", raw: `[Anything]{.name ref=${ref}}` }), ref).toEqual([]);
+    });
+
+    it("refuses an address that matches nothing at the attribute's value", () => {
+        const source = fixture();
+        const check = createNameRefChecker({ catalog: createNameCatalog(source) });
+        const raw =
+            "Intro.\n\n[Tom]{.name ref=being-tomr} and [Ghost]{.name ref=pub-sohl-skill-ghost}";
+        const found = check({ file: "A.md", raw });
+        expect(found).toHaveLength(2);
+        expect(found[0]).toMatchObject({
+            file: "A.md",
+            severity: "error",
+            ...at(raw, "being-tomr"),
+        });
+        expect(found[0].message).toContain('"being-tomr"');
+        expect(found[1]).toMatchObject(at(raw, "pub-sohl-skill-ghost"));
+    });
+
+    it("refuses ref beside data-type at data-type", () => {
+        const raw = '[Tom]{.name ref=being-tomr data-type="being"}';
+        expect(nameRefFindings(refSpans(raw), { file: "A.md" })).toMatchObject([
+            { file: "A.md", severity: "error", ...at(raw, "data-type") },
+        ]);
+    });
+
+    it("refuses ref on a wikilink", () => {
+        expect(
+            parseWikilink("place-arden|Arden", "[[place-arden|Arden]]{ref=being-tomr}").attributes
+                ?.problems,
+        ).toEqual(["a wikilink never takes ref; its address is its ref"]);
+    });
+
+    it("refuses ref without .name at ref", () => {
+        for (const raw of ["[Tom]{.wide ref=being-tomr}", "[Tom]{ref=being-tomr}"]) {
+            const found = nameRefFindings(refSpans(raw), { file: "A.md" });
+            expect(found, raw).toMatchObject([
+                { file: "A.md", severity: "error", ...at(raw, "ref") },
+            ]);
+            expect(found[0].message).toContain("ref=");
+        }
     });
 });

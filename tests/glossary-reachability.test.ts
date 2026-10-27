@@ -35,6 +35,10 @@ function build(extra: Record<string, string>) {
     const scratch = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "glossary-reach-")));
     made.push(scratch);
     fs.cpSync(FIXTURE, scratch, { recursive: true });
+    fs.appendFileSync(
+        path.join(scratch, "package-build.config.yaml"),
+        "languages:\n    tongue: { tag: art-x-tongue, note: skill-tongue }\n",
+    );
     const content = path.join(scratch, "assets", "content");
     fs.appendFileSync(path.join(content, "homepage.md"), "\nAlso [Folk](lore-folk/).\n");
     for (const [name, text] of Object.entries(extra))
@@ -59,7 +63,7 @@ const language = note(
 const culture = (link: string) =>
     note(
         "type: lore\nsubType: culture\nshortcode: folk\nname:\n  full: Folk\n" +
-            "data:\n  language: reachdemo-note-skill-tongue\n  glossary:\n    - name: zethu\n",
+            "data:\n  lang: tongue\n  glossary:\n    - name: zethu\n",
         link,
     );
 

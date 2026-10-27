@@ -53,6 +53,7 @@ export { pluralOf, pluralByRule } from "./word-inflections.mjs";
 import { createHash } from "node:crypto";
 import { parseAddress, renderAddress } from "./address.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
+import { languageNotesByCode } from "./note-language.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { parseWordClass, WORD_CLASS_BASES } from "./word-classes.mjs";
 import { citationLookup, isLanguageRecord, lineageChain, pieceGlosses } from "./word-rows.mjs";
@@ -229,9 +230,10 @@ export function dictionaryAndTermRows(records, all = records) {
     const ref = (value, pkg, type) => refKey(value, pkg, type, types);
     /** An Address a row may cite: not a note of this package the audience does not see. */
     const citable = (key) => visible.has(key) || !byKey.has(key);
+    const languageNotes = languageNotesByCode(byKey.values(), noteKey);
     const reader = {
         keyOf: (value) => (typeof value === "string" && value ? value : undefined),
-        lookup: (key) => byKey.get(key),
+        noteOf: (code) => languageNotes.get(code),
     };
 
     // ── Languages ────────────────────────────────────────────────────────────

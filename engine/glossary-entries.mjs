@@ -51,6 +51,7 @@ import {
     noteTerms,
 } from "./culture-reach.mjs";
 import { pronunciationProblem } from "./word-terms.mjs";
+import { noteLang } from "./glossary-language.mjs";
 
 /** Whether a value is a plain map. */
 const isMap = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -126,11 +127,10 @@ export function checkGlossary(note, { index } = {}) {
                     [i],
                     "error",
                     `\`${entry.name}\` resolves to no language: the entry states no ` +
-                        "`language`, and " +
-                        (type === "affiliation" ?
-                            "neither the affiliation, its parents nor its culture states one"
-                        :   "the culture states no `data.language`") +
-                        "; state `language` on the entry or `data.language` on the note",
+                        "`language`, and the note's language" +
+                        (noteLang(note) ? ` ${noteLang(note)}` : "") +
+                        " has no `note` in `languages:`; state `language` on the entry, or " +
+                        "`data.lang` on the note naming a language with a note",
                 ),
             );
         const senses = noteTerms(index, note, entry).get(name);

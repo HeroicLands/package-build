@@ -46,7 +46,7 @@ const note = (type: string, shortcode: string, data: object, subType?: string) =
     name: { full: shortcode },
     data,
 });
-const records = [
+const authored = [
     note(
         "skill",
         "grand",
@@ -90,7 +90,7 @@ const records = [
         "lore",
         "folk",
         {
-            language: LANGUAGE,
+            lang: "tongue",
             glossary: [
                 { name: "zethu", common: true, pronunciation: "ze-THU", name_sort: "scribal" },
                 { name: "Zethu", common: true },
@@ -108,7 +108,7 @@ const records = [
         "order",
         {
             culture: CULTURE,
-            language: LANGUAGE,
+            lang: "tongue",
             glossary: [{ name: "zethu", definition: "a clerk sworn to the order" }],
             governance: {
                 ranks: [
@@ -121,6 +121,16 @@ const records = [
         "order",
     ),
 ];
+/**
+ * The notes as the content index records them: each with the language it
+ * derives, and the language note with the code `languages:` gives it.
+ */
+const LANGUAGES = { tongue: { tag: "art-x-tongue", note: "skill-tongue" } };
+const records: any[] = authored.map((record) => ({
+    ...record,
+    lang: (record.data as { lang?: string }).lang ?? "en",
+    ...(record.shortcode === "tongue" ? { languageCode: "tongue" } : {}),
+}));
 const visible = records.filter((record) => !record.tags?.includes("gm"));
 const rows = () => dictionaryAndTermRows(visible, records);
 const own = (terms: any[], owner: string, name: string) =>
@@ -327,10 +337,11 @@ beforeAll(async () => {
             stats: { lastModifiedBy: "preflightbuild00" },
             packs: [{ name: "journals", type: "JournalEntry", default: true }],
             publish: {},
+            languages: LANGUAGES,
         },
         path.join(root, "package-build.config.yaml"),
     );
-    for (const record of records) {
+    for (const record of authored) {
         const { package: _, ...frontmatter } = record;
         const body =
             record.shortcode === "tongue" ? dictionaryBody
@@ -341,7 +352,11 @@ beforeAll(async () => {
             `---\n${YAML.stringify(frontmatter)}---\n\n${body}\n`,
         );
     }
-    indexed = collectContentIndex(content, { contentPackage: "demo", skipDirectories: [] });
+    indexed = collectContentIndex(content, {
+        contentPackage: "demo",
+        skipDirectories: [],
+        languages: LANGUAGES,
+    });
     prepared = await prepareTreeSqlTables(content, {
         config,
         records: indexed,

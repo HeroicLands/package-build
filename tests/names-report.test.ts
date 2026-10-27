@@ -89,7 +89,7 @@ describe("package names advisories through the actual CLI", () => {
                     type: "lore",
                     subType: "history",
                     shortcode: "n1",
-                    name: { full: "Arden Vale", aliases: ["Arden"] },
+                    name: { full: "Arden Vale", en: ["Arden"] },
                 },
                 '[Ravenmoor]{.name data-type="being"}',
             );

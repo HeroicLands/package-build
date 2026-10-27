@@ -22,6 +22,11 @@ import { collectContentIndex, serializeContentIndex } from "../engine/content-in
 import { AFFIX_KEYS, FIELD_KEYS, GLOSSARY_ENTRY_KEYS, WORD_KEYS } from "../engine/word-terms.mjs";
 import { openNotesDatabase, prepareSqlTables, runSqlQuery } from "../engine/sql-tables.mjs";
 
+/** The configured languages the tree's notes state in `data.lang`. */
+const LANGUAGES = {
+    osket: { tag: "art-x-osket", note: "skill-osketlng" },
+};
+
 /** Write a note into `dir`. */
 function write(dir: string, rel: string, text: string) {
     const file = path.join(dir, rel);
@@ -129,7 +134,7 @@ beforeAll(async () => {
             "type: lore",
             "subType: culture",
             "data:",
-            "  language: skill-osketlng",
+            "  lang: osket",
             "  glossary:",
             "    - {name: ghauk, common: true}",
             '    - {name: blood-field, name_sort: bloodfield, definition: "torn ground", pronunciation: BLUD-feeld}',
@@ -174,8 +179,16 @@ beforeAll(async () => {
         ]),
     );
 
-    local = collectContentIndex(own, { contentPackage: "demo", skipDirectories: [] });
-    dependency = collectContentIndex(theirs, { contentPackage: "elder", skipDirectories: [] });
+    local = collectContentIndex(own, {
+        languages: LANGUAGES,
+        contentPackage: "demo",
+        skipDirectories: [],
+    });
+    dependency = collectContentIndex(theirs, {
+        languages: LANGUAGES,
+        contentPackage: "elder",
+        skipDirectories: [],
+    });
     const file = path.join(dir, "elder-metadata.jsonl");
     fs.writeFileSync(file, serializeContentIndex(dependency));
     db = await openNotesDatabase(local, {
@@ -516,6 +529,7 @@ describe("a language with many words", () => {
                 ]),
             );
             const records = collectContentIndex(big, {
+                languages: LANGUAGES,
                 contentPackage: "big",
                 skipDirectories: [],
             });

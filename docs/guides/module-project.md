@@ -800,7 +800,7 @@ each other. One JSON object per note, carrying the note's canonical address, its
 name, its description and the Foundry UUID it compiles to:
 
 ```text
-{"address":{"canonical":"bestiary-none-lore-marshdrake","slug":"lore-marshdrake"},"aliasesAscii":[],"anchors":[],"description":"A wingless drake of the reed flats, hunted for its hide and feared for its patience.","documentation":null,"file":{"folder":"Bestiary","name":"Marsh_Drake","path":"Bestiary/Marsh_Drake.md"},"foundry":{"none":{"uuid":"Compendium.acme-bestiary.journals.JournalEntry.72d497c6a8e57f57"}},"id":"72d497c6a8e57f57","name":{"full":"Marsh Drake"},"nameAscii":"Marsh Drake","package":"bestiary","shortcode":"marshdrake","subType":"bestiary","type":"lore"}
+{"address":{"canonical":"bestiary-none-lore-marshdrake","slug":"lore-marshdrake"},"anchors":[],"description":"A wingless drake of the reed flats, hunted for its hide and feared for its patience.","documentation":null,"file":{"folder":"Bestiary","name":"Marsh_Drake","path":"Bestiary/Marsh_Drake.md"},"formsAscii":{},"foundry":{"none":{"uuid":"Compendium.acme-bestiary.journals.JournalEntry.72d497c6a8e57f57"}},"id":"72d497c6a8e57f57","lang":"en","name":{"full":"Marsh Drake"},"nameAscii":"Marsh Drake","package":"bestiary","shortcode":"marshdrake","subType":"bestiary","type":"lore"}
 ```
 
 A downstream package that declares a dependency on this one fetches this file

@@ -139,6 +139,7 @@ import { stagePackageBuildAssets } from "../engine/build-assets.mjs";
 import { DEPLOYED_ASSET_TYPES } from "../engine/asset-types.mjs";
 import { createContentSession, CONTENT_TARGETS } from "../engine/content-session.mjs";
 import { createFirstUseChecker } from "../engine/first-use.mjs";
+import { createNameRefChecker } from "../engine/name-refs.mjs";
 import { createNameCatalog, createNamesReport, namesReportFinding } from "../engine/names.mjs";
 // The one place a link finding is worded, shared with both builds.
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
@@ -1037,6 +1038,11 @@ function lintCommand() {
                     syntax: session.syntax,
                     catalog,
                 });
+                const nameRefChecker = createNameRefChecker({
+                    catalog,
+                    parsed: session.parsed,
+                    syntax: session.syntax,
+                });
                 const names = namesReportFinding(
                     createNamesReport({ package: config.contentPackage, records, catalog }),
                     { contentBase: root },
@@ -1075,6 +1081,8 @@ function lintCommand() {
                 }
                 const frontmatter = lintFrontmatter(index, {
                     currentDate: config.currentDate,
+                    // The codes a note's `name` lists its forms under.
+                    languages: Object.keys(config.languages ?? {}),
                     schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
                     // The closed frontmatter regions. Passed in rather
                     // than reached for, so the linter stays a checker of
@@ -1300,6 +1308,7 @@ function lintCommand() {
                     ...(runs.encodingFindings ?? []),
                     ...languageNoteFindings({ ...config, configFile: packConfigPath() }, records),
                     ...index.notes.flatMap(firstUseChecker),
+                    ...index.notes.flatMap(nameRefChecker),
                     ...(names ? [names] : []),
                     ...addresses.findings,
                     ...frontmatter.findings,
@@ -3400,16 +3409,16 @@ function newNpc(config, argv) {
         throw new Error(`${key}'s appearance profile has ${profileErrors.length} problem(s)`);
     }
 
-    const tongue = culture.data?.language;
-    if (tongue === undefined || tongue === null)
+    const code = hit.lang;
+    const tongue = typeof code === "string" ? config.languages?.[code]?.note : undefined;
+    if (tongue === undefined)
         throw noteError(
             cultureNote,
-            ["data"],
-            `${key} states no \`data.language\`, so \`npc new\` has no name lists to draw ` +
-                "from; name the language skill note its people speak",
+            Object.hasOwn(culture.data ?? {}, "lang") ? ["data", "lang"] : ["data"],
+            `${key} is in ${code ?? "no language"}, which \`languages:\` names no language ` +
+                "note for, so `npc new` has no name lists to draw from; state the culture's " +
+                "`data.lang` and its language's `note`",
         );
-    const languageSource = cultureFieldSource(records, key, "language") ?? hit;
-    const languageSourceNote = located(languageSource);
     const tuple = parseAddress(tongue, {
         package: index.contentPackage,
         system: "note",
@@ -3420,18 +3429,15 @@ function newNpc(config, argv) {
     const languageKey = tuple.reason ? undefined : renderAddress(tuple);
     const languageHit = languageKey ? index.addressHit(languageKey) : undefined;
     if (!languageHit)
-        throw noteError(
-            languageSourceNote,
-            ["data", "language"],
-            `${key}'s \`data.language\` names no note in this package or its dependencies`,
+        throw new Error(
+            `\`languages.${code}.note\` ${tongue}, ${key}'s language, names no note in this ` +
+                "package or its dependencies",
         );
     const language = languageHit.fm ?? languageHit;
     if (String(language.type ?? languageHit.type) !== "skill" || language.subType !== "language")
-        throw noteError(
-            languageSourceNote,
-            ["data", "language"],
-            `${key}'s \`data.language\` ${languageKey} is not a language: it names a ` +
-                `${language.type ?? languageHit.type ?? "note"} of subType ` +
+        throw new Error(
+            `\`languages.${code}.note\` ${languageKey}, ${key}'s language, is not a language: ` +
+                `it names a ${language.type ?? languageHit.type ?? "note"} of subType ` +
                 `${language.subType ?? "none"}`,
         );
     const languageNote = located(languageHit);

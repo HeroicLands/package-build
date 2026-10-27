@@ -578,9 +578,6 @@ export function tableUniverse(pages) {
 /**
  * The frontmatter a page publishes with.
  *
- * An authored `aliases` is a list of names a reader might call the note. It is
- * dropped: this build emits no redirects.
- *
  * A content page carries the package the build **derived**. No note
  * declares one, so the note's frontmatter alone would publish a page that does
  * not say which package it belongs to. Writing the derived value keeps a page
@@ -589,9 +586,8 @@ export function tableUniverse(pages) {
  *
  * **`related` is derived, never authored.** What links to a page is a fact
  * about every other page, known only once the whole tree has resolved — see
- * {@link module:engine/related-pages} — so an authored value is dropped the
- * way `aliases` is, and {@link renderPages} sets the derived block once it
- * holds the graph.
+ * {@link module:engine/related-pages} — so an authored value is dropped, and
+ * {@link renderPages} sets the derived block once it holds the graph.
  *
  * @param {object} page - The page.
  * @param {object} options
@@ -621,7 +617,6 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
         kbfolder: page.folder,
     };
     if (decorate) decorate(data, page);
-    delete data.aliases;
     delete data.related;
     if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;

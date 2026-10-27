@@ -989,24 +989,41 @@ content and asset scopes preserve their own filtering and order.
 
 Import from `@heroiclands/package-build/engine/first-use`.
 
-| Export                  | Signature                                                               | Returns                  | Use it when                                                                    |
-| ----------------------- | ----------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------ |
-| `createFirstUseChecker` | `createFirstUseChecker({ records, index, catalog?, parsed?, syntax? })` | `checker({ file, raw })` | Checking authored prose against the current corpus's name-marking conventions. |
+| Export                  | Signature                                                               | Returns                  | Use it when                                                                        |
+| ----------------------- | ----------------------------------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------- |
+| `nameUses`              | `nameUses(markdown, vocabulary?)`                                       | `NameUse[]`              | Listing the uses of names a body's prose makes, each with the key it counts under. |
+| `boldFirstUses`         | `boldFirstUses(markdown, vocabulary?)`                                  | `string`                 | Marking the first use of each key in a body's prose before a target renders it.    |
+| `firstUsePlugin`        | `md.use(firstUsePlugin)`                                                | —                        | Rendering the marks as strong text in a markdown-it parser.                        |
+| `FIRST_USE_OPEN`        | constant                                                                | `"\uFDD0"`               | Recognizing where a first use opens in expanded markdown.                          |
+| `FIRST_USE_CLOSE`       | constant                                                                | `"\uFDD1"`               | Recognizing where a first use closes in expanded markdown.                         |
+| `createFirstUseChecker` | `createFirstUseChecker({ records, index, catalog?, parsed?, syntax? })` | `checker({ file, raw })` | Checking a note's marked names against the index and for authored bold.            |
+
+A `NameUse` is `{start, end, key, emphasised}`: the use's UTF-16 range in the
+markdown, the key it counts under, and whether it sits inside authored strong
+text. The key is a name wikilink's address, a span's `ref`, or the span's
+case-folded label with its `lang`. `vocabulary` is `{types, packages,
+noIndexPackages, contentPackage}`, which reads every spelling of an address as
+one note; without it an address is keyed as written. Only prose counts:
+headings, tables, captions, raw HTML, code, verse and runs that state `lang`,
+`font` or `enc` neither take the bold nor count. `boldFirstUses` wraps each
+first use in the two marks, except one already inside authored strong text,
+and `firstUsePlugin` turns each mark in inline text into a `strong` token and
+drops a mark anywhere else. `expandContent` runs `boldFirstUses` on the
+author's prose for every target, and `createRenderer` installs the plugin on
+every target.
 
 Construct one checker with the session's read-only `records` and
 `await session.audit("lint")`. Call it for each existing link-index note.
 It performs no I/O and returns `{file, line, column, severity: "warning",
-rules, message}` diagnostics. `rules` is a list of applicable rule names, merged
-into one warning for each occurrence; the message names the full name or
-explicit label that needs attention. Only `.name` spans and authored link
-labels enter name tracking; plain text is not searched. Indexed full names and
-declared aliases share an identity, while other labels use their whole text.
-Local and captured dependency names and aliases share the same corpus
-context. The command's lint target constructs
-the checker once, uses exact authored `raw` strings and keeps these findings
+rules, message}` diagnostics. `rules` is a list of applicable rule names,
+merged into one warning for each occurrence: `unlinked-name` for a `.name`
+span without `ref` whose label is an indexed full name or listed form, and
+`authored-bold` for authored bold that wraps a `.name` span or a name
+wikilink. Plain text is not searched. The command's lint target constructs the
+checker once, uses exact authored `raw` strings and keeps these findings
 advisory. See the [authoring conventions](authoring/links-and-markup.md#marking-names-in-prose).
 
-Supply the invocation's `catalog` to share its full-name and alias lookup with
+Supply the invocation's `catalog` to share its full-name and form lookup with
 the package names report. Optional `parsed` maps absolute files to captured
 `{raw, body, bodyLine?, bodyColumn?}`; `syntax` is the session's scanner
 projection. When the captured raw text matches, the checker rebases the body's
@@ -1050,7 +1067,7 @@ Import from `@heroiclands/package-build/engine/name-rows`.
 
 | Export         | Signature            | Returns                     | Use it when                                                            |
 | -------------- | -------------------- | --------------------------- | ---------------------------------------------------------------------- |
-| `NAME_COLUMNS` | `const NAME_COLUMNS` | Frozen ordered column names | Reading `owner`, `name`, `type`, `subType`, `line`, `column`.          |
+| `NAME_COLUMNS` | `const NAME_COLUMNS` | Frozen ordered column names | Reading `owner`, `name`, `type`, `subType`, `ref`, `line`, `column`.   |
 | `namesRows`    | `namesRows(records)` | `NameRow[]`                 | Projecting own-note occurrences into SQL rows without I/O or mutation. |
 
 Rows preserve record and occurrence order. `owner` is the canonical NOTE page
@@ -1067,7 +1084,8 @@ Import from `@heroiclands/package-build/engine/names`.
 
 | Export                  | Signature                                                      | Returns                           | Use it when                                                                                  |
 | ----------------------- | -------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `normalizeName`         | `normalizeName(text)`                                          | `string`                          | Normalizing NFC, apostrophes and whitespace while preserving case.                           |
+| `normalizeName`         | `normalizeName(text)`                                          | `string`                          | Normalizing NFC, apostrophes and whitespace and folding case, as names are matched.          |
+| `displayName`           | `displayName(text)`                                            | `string`                          | Normalizing NFC, apostrophes and whitespace while keeping case, as names are displayed.      |
 | `nameForms`             | `nameForms(text)`                                              | `string[]`                        | Enumerating supported whole-label possessives and regular plurals.                           |
 | `createNameCatalog`     | `createNameCatalog({ records, index })`                        | `NameCatalog`                     | Sharing indexed full-name, alias and resolved Address matching across checks.                |
 | `collectUnwrittenNames` | `collectUnwrittenNames({ records, catalog })`                  | `{groups, firstUse}`              | Grouping every unresolved captured occurrence by supplied classification.                    |
@@ -1102,8 +1120,8 @@ at the earliest reported actual use, and returns no warning for an empty report.
 Collecting and publishing this package's content index. Records describe note frontmatter, assets, prose and event anchors, and the document targets those notes produce. Dynamic publication prepares the same generated Markdown and scalar expressions as the rendering surfaces, using each source note's audience.
 
 Own-note records carry derived `names` entries in source order as
-`{name, type, subType, line, column}`. Missing classifications are explicit
-`null`; no occurrences gives `[]`. Positions refer to original authored span
+`{name, type, subType, ref, line, column}`. Missing classifications and an
+absent `ref` are explicit `null`; no occurrences gives `[]`. Positions refer to original authored span
 openings, before generated content. Metadata JSONL transports these entries
 to dependency SQL without an additional artifact. This field is reserved for
 derived data, and is not an authored frontmatter key.
@@ -1120,7 +1138,7 @@ configuration's `itemTypes`.
 | `noteAddress`           | `function noteAddress(frontmatter, contentPackage)`                                                                                                         | {{slug: string, canonical: string}\|null} `slug` is what goes inside `[[…]]` within this package; `canonical` is the fully qualified key the manifest files the note under, carrying the package and the system as well. | The address a wikilink writes to reach a note, or `null` when it has none.                                                                                                                                                                                                          |
 | `sortKeysDeep`          | `function sortKeysDeep(value)`                                                                                                                              | {unknown} The value with every plain object's keys in sorted order.                                                                                                                                                      | Recursively sort an object's keys, so serialization is order-independent.                                                                                                                                                                                                           |
 | `asciiName`             | `function asciiName(name)`                                                                                                                                  | {string\|null} The ASCII form, or `null` when there is no name, or nothing printable survives.                                                                                                                           | A note's display name reduced to printable 7-bit ASCII.                                                                                                                                                                                                                             |
-| `asciiAliases`          | `function asciiAliases(aliases)`                                                                                                                            | {Array<string>} Possibly empty, never null: a note with no aliases has an empty set of them, which is a fact rather than a missing value, and a consumer iterating it should not have to check first.                    | A note's `name.aliases` reduced to printable 7-bit ASCII, in order.                                                                                                                                                                                                                 |
+| `asciiForms`            | `function asciiForms(name)`                                                                                                                                 | {Record<string, string[]>} Possibly empty, never null: a note listing no form has an empty map, which a consumer iterating it need not check first.                                                                      | A note's listed name forms reduced to printable 7-bit ASCII, by language.                                                                                                                                                                                                           |
 | `serializeContentIndex` | `function serializeContentIndex(records)`                                                                                                                   | {string} One compact JSON object per line, newline-terminated.                                                                                                                                                           | Serialize records as JSON Lines.                                                                                                                                                                                                                                                    |
 | `indexRecordsFor`       | `indexRecordsFor({ contentBase, config, skipDirectories, problems, parsed, sources, syntax, foreignIndex, nameTypes? })`                                    | {object[]} One record per note, plus one per documentation entry.                                                                                                                                                        | The index records for a content tree, without writing anything.                                                                                                                                                                                                                     |
 | `indexRecordsForNote`   | `indexRecordsForNote({ frontmatter, body, bodyLine, bodyColumn?, nameTypes?, relPath, absPath, raw, contentPackage, manifest, addressContext })`            | `object[]`                                                                                                                                                                                                               | Derive the note's own record and its documentation record from parsed text.                                                                                                                                                                                                         |
@@ -1181,8 +1199,8 @@ scalar expressions, events or other generated sections require
 `indexRecordsFor` and `collectContentIndex` collect authored records and pure
 lexical sections; use preparation and emission to publish dynamic body targets.
 
-On lore and affiliation notes, `data.language` and `data.glossary[].language`
-require a language NOTE Address. Decoding refuses other recognized system
+On lore and affiliation notes, `data.glossary[].language` requires a
+language NOTE Address. Decoding refuses other recognized system
 segments at the authored value, naming the complete
 `<pkg>-note-skill-<shortcode>` to write. A short local form such as
 `skill-provnzlng` is also accepted. See the [glossary language
@@ -2494,8 +2512,8 @@ focusable inline spoiler: scoped content CSS redacts its text and descendants
 until pointer hover or keyboard focus reveals them. Its focus outline and
 accessible cue identify the reveal interaction. Native Foundry secret sections
 keep their separate controls. Book rendering discards inline `.secret` classes
-and prints their content normally, retaining emphasis, links, anchors and `.name`
-bold styling. Book secret sections and fences retain their visible labelled
+and prints their content normally, retaining emphasis, links, anchors and a
+name's first-use bold. Book secret sections and fences retain their visible labelled
 boxes. The span parser's opaque source tokens retain a `secret` boolean from
 their parsed classes for preview presentation.
 `collectAnchors` includes `secret: true` on secret anchors for destination

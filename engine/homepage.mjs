@@ -355,9 +355,6 @@ export function homepageTitle(fm, config) {
  * **No `url` and no `slug`.** The homepage publishes at the package root, so
  * the page has no address to state.
  *
- * An authored `aliases` is dropped, as it is on every other page: this build
- * emits no redirects.
- *
  * `related` is derived like every other page's — what links to the homepage
  * is a fact about the rest of the tree — so an authored value is dropped and
  * the caller's block, where it has one, is set in its place.
@@ -372,7 +369,6 @@ export function homepageTitle(fm, config) {
  */
 export function homepageFrontmatter(fm, { contentPackage, title, related }) {
     const data = { ...fm, package: contentPackage, title };
-    delete data.aliases;
     delete data.related;
     if (related) data.related = related;
     return data;

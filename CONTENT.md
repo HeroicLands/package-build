@@ -23,6 +23,23 @@ fix is to rename the file: `A_Sílhari_Manual.md` becomes `A_Silhari_Manual.md`,
 and no address changes, because the `shortcode` carries a note's identity. See
 [file and folder names](docs/content-format.md#file-and-folder-names).
 
+A note's `name` is `{full, <code>: [forms]}`. `full` is the English name the
+page, the compendium entry and the index print. Every other name is listed
+under the code of its language: a code `languages:` declares, or `en`. `full`
+counts as an English form, so `en` never repeats it, and the first form of each
+list is that language's standard form. Any other key under `name` is a located
+build error. Names match whatever their case, and two notes whose forms differ
+only by case are one ambiguous name. See
+[frontmatter](docs/authoring/frontmatter.md).
+
+Every note is in one language. `data.lang` states it as a code `languages:`
+declares or `en`; a note that states none takes its culture's language, then
+its parents', nearest first, then `en`. The content index publishes the result
+on every record as `lang`. A `data.lang` naming no declared code, a culture that
+resolves to no language, and each `data.parents` entry on a cycle are located
+build errors.
+See [a note's language](docs/reference/format-details.md#a-notes-language).
+
 An `affiliation` note must declare `data.governance.ranks` with a rung at
 `level: 0` and a rung at `level: 1`. Level 1 is the ordinary member; level 0
 names those the body excludes, in that body's own word for them. Each rung
@@ -53,8 +70,8 @@ of that vocabulary, each with a positive weight, for `frame`, `eye_color`,
 from it. See
 [appearance profiles](docs/reference/format-details.md#appearance-profiles).
 
-A culture may name the tongue its people speak in `data.language`, a `skill`
-note of `subType: language`. That language may state `data.names`: a
+A culture's language is the tongue its people speak, and the note
+`languages:` names for it may state `data.names`: a
 `pattern` such as `"{given} {clan}"` — or a list of them, or a map of genders to
 them — `given` names listed by gender, and every other list the patterns name. `package-build npc new` draws a culture's names
 from them, and checks a name it is given against them. See
@@ -79,9 +96,8 @@ and links to its language entry; an entry's `definition` supplies its meaning
 instead. Common marks belong to the owner's glossary, and a word may be
 common in one glossary and absent from another. Dictionaries and glossaries
 have no setting-wide pages. Every entry resolves to a language: its own
-`language`, else the affiliation's `data.language`, its parents' or its
-culture's, else the culture's `data.language`. An entry that resolves to none
-is a located build error. The `dictionary` relation lists every word under
+`language`, else the note `languages:` names for the language of the note it
+is written on. An entry that resolves to none is a located build error. The `dictionary` relation lists every word under
 each language that has it, inherited words included, and the `terms` relation
 every glossary entry, rank and office with its culture associations; an `sql`
 fence sets a custom view with `layout=dictionary` or `layout=glossary`.

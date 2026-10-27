@@ -71,6 +71,7 @@ import { normalizeCurrentDate } from "./engine/current-date.mjs";
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
 import { isLanguageTag } from "./engine/language-tag.mjs";
+import { NAME_STRING_KEYS } from "./engine/name-forms.mjs";
 import { ASSET_TYPE_NAMES, shippingLicensesProblem } from "./engine/asset-types.mjs";
 import { isReservedPackage } from "./engine/packages.mjs";
 import { EMPTY_ICON_REGISTRY, checkIconRegistry } from "./engine/content-icons.mjs";
@@ -980,6 +981,12 @@ function normalizeLanguages(value) {
                 where,
                 "is not a name: a name is lowercase letters, digits and single hyphens, " +
                     "starting with a letter",
+            );
+        if (NAME_STRING_KEYS.includes(name))
+            fail(
+                where,
+                `is a \`name\` key that holds a single string (${NAME_STRING_KEYS.join(", ")}), ` +
+                    "so a note's forms cannot be listed under it; choose another name",
             );
         if (!isPlainObject(entry)) fail(where, "must be a mapping with `tag`");
         rejectUnknownKeys(entry, ["tag", "note"], `${where}.`);

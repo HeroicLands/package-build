@@ -4,7 +4,6 @@ subType: world
 shortcode: world
 name:
   full: The Small World
-  aliases: []
 data:
   parents: []
 ---

@@ -40,6 +40,7 @@
 import MarkdownIt from "markdown-it";
 
 import { isLanguageRecord, noteAddressOf } from "./word-rows.mjs";
+import { nameFormsOf } from "./name-forms.mjs";
 
 /** The parser marked uses are read with: CommonMark's emphasis and nothing added. */
 const PARSER = new MarkdownIt("commonmark");
@@ -101,7 +102,7 @@ export function markedUses(body) {
 
 /**
  * The names a note carries whole, which cite a word they spell exactly: its
- * full name and aliases, and an affiliation's rank and office titles.
+ * full name and listed forms, and an affiliation's rank and office titles.
  *
  * @param {Record<string, any>} record - An index record.
  * @returns {string[]}
@@ -110,8 +111,7 @@ function namesCarried(record) {
     const out = [];
     const name = isMap(record.name) ? record.name : {};
     if (typeof name.full === "string") out.push(name.full);
-    for (const alias of Array.isArray(name.aliases) ? name.aliases : [])
-        if (typeof alias === "string") out.push(alias);
+    out.push(...nameFormsOf(name));
     const governance = isMap(record.data?.governance) ? record.data.governance : {};
     for (const rank of Array.isArray(governance.ranks) ? governance.ranks : [])
         if (isMap(rank) && typeof rank.title === "string") out.push(rank.title);

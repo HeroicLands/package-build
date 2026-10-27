@@ -4,7 +4,7 @@ subType: npc
 shortcode: wanderer
 name:
   full: Iselde Wanderer
-  aliases: [The Grey Walker]
+  en: [The Grey Walker]
 data:
   icon: image-wanderer
   culture: marchfolk

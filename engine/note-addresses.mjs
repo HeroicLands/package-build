@@ -159,9 +159,6 @@ export function addressPositions(fm, context = {}) {
                 ...(ASSET_TYPE_NAMES.has(field.ref) || field.ref === "folder" ?
                     { system: "none" }
                 :   {}),
-                ...(field.name === "language" && field.ref === "skill" ?
-                    { system: NOTE_SYSTEM, noteOnly: true }
-                :   {}),
             });
     }
     out.push(...STRUCTURED_ADDRESSES.filter((p) => !p.noteType || p.noteType === fm.type));

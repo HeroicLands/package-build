@@ -87,6 +87,8 @@
 
 import { isAddressSegment } from "./address-charset.mjs";
 import { configFileIn, resolveNoteCalendars } from "./note-calendars.mjs";
+import { resolveNoteLanguages } from "./note-language.mjs";
+import { nameFormLists } from "./name-forms.mjs";
 import { cultureInheritance, reportCultureParents } from "./culture-parents.mjs";
 import {
     formatDiagnostic,
@@ -106,6 +108,7 @@ import { AddressLink } from "./address-values.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { rebaseNameSpans } from "./name-markup.mjs";
 import { analyzeNameSpans } from "./names.mjs";
+import { nameRefFindings } from "./name-refs.mjs";
 import { fillEncodingRuns, recordRuns } from "./run-rows.mjs";
 import fs from "node:fs";
 import path from "node:path";
@@ -249,27 +252,31 @@ export function noteAddress(frontmatter, contentPackage) {
 }
 
 /**
- * A note's `name.aliases` reduced to printable 7-bit ASCII, in order.
+ * A note's listed name forms reduced to printable 7-bit ASCII, by language.
  *
- * An alias is the name a reader is at least as likely to reach for as the
- * canonical one — `Killer Whale` for an orca, `Ice Bear` for a polar bear,
- * `Ix'balam` for a jaguar — so anything searching or completing over the index
- * has to match them too, and needs the same keyboard-typeable form
- * {@link asciiName} gives the primary name.
+ * A listed form is a name a reader is at least as likely to reach for as the
+ * full one — `Killer Whale` for an orca, a people's own name for the people —
+ * so anything searching or completing over the index has to match them too,
+ * and needs the same keyboard-typeable form {@link asciiName} gives the full
+ * name.
  *
- * Order is the authored order, so a caller can pair an entry with the alias it
- * came from. An alias that is not a non-empty string, or that leaves nothing
- * printable behind, is dropped rather than left as a hole — the array is a set
- * of names to match, and a null in it is not one.
+ * Each language keeps its authored order, so a caller can pair an entry with
+ * the form it came from. A form that leaves nothing printable behind is
+ * dropped rather than left as a hole, and a language left with no form is
+ * left out.
  *
- * @param {unknown} aliases - The note's `name.aliases`; may be absent or null.
- * @returns {Array<string>} Possibly empty, never null: a note with no aliases
- *   has an empty set of them, which is a fact rather than a missing value, and
- *   a consumer iterating it should not have to check first.
+ * @param {unknown} name - The note's `name`; may be absent or null.
+ * @returns {Record<string, string[]>} Possibly empty, never null: a note
+ *   listing no form has an empty map, which a consumer iterating it need not
+ *   check first.
  */
-export function asciiAliases(aliases) {
-    if (!Array.isArray(aliases)) return [];
-    return aliases.map((alias) => asciiName(alias)).filter((alias) => alias !== null);
+export function asciiForms(name) {
+    const out = {};
+    for (const [code, forms] of nameFormLists(name)) {
+        const folded = forms.map((form) => asciiName(form)).filter((form) => form !== null);
+        if (folded.length) out[code] = folded;
+    }
+    return out;
 }
 
 /**
@@ -423,7 +430,7 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw)
  * Build one index record from a note's frontmatter and its place in the tree.
  *
  * The frontmatter as authored, plus what the index derives from it: the package
- * it compiles as, its address, ASCII folds of its name and aliases, the anchors
+ * it compiles as, its address, ASCII folds of its name and listed forms, the anchors
  * of its body, its Foundry block, the address of its documentation journal, and
  * where the file sits within the tree.
  *
@@ -482,10 +489,20 @@ export function buildIndexRecord({
     assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw);
 
     const source = body ?? "";
-    const spans = syntax ? syntax(source).spans.names : scanSpans(source).names;
-    const marked = analyzeNameSpans(
-        rebaseNameSpans(spans, { raw: raw ?? source, bodyLine, bodyColumn }),
-        { file: absPath ?? relPath, types: nameTypes },
+    const scannedSpans = syntax ? syntax(source).spans : scanSpans(source);
+    const origin = { raw: raw ?? source, bodyLine, bodyColumn };
+    const marked = analyzeNameSpans(rebaseNameSpans(scannedSpans.names, origin), {
+        file: absPath ?? relPath,
+        types: nameTypes,
+    });
+    marked.findings.push(
+        ...nameRefFindings(
+            rebaseNameSpans(
+                scannedSpans.spans.filter((span) => span.attrs.some(([key]) => key === "ref")),
+                origin,
+            ),
+            { file: absPath ?? relPath },
+        ),
     );
     if (marked.findings.length) {
         const findings = marked.findings.map(({ line, column, ...finding }) => ({
@@ -548,7 +565,7 @@ export function buildIndexRecord({
                 runs: recordRuns(source, { context: runContext, bodyLine, bodyColumn, syntax }),
                 address: stub ? null : address,
                 nameAscii: asciiName(frontmatter?.name?.full),
-                aliasesAscii: asciiAliases(frontmatter?.name?.aliases),
+                formsAscii: asciiForms(frontmatter?.name),
                 // Each anchor carries the link that reaches it, so a section is
                 // addressable from the index without anyone re-deriving how an
                 // anchor is spelled — its file line, so an editor can jump
@@ -1279,6 +1296,15 @@ export function collectContentIndex(
         contentPackage,
         defaultCalendar,
         configFile,
+        contentBase,
+        foreignRecord,
+        problems,
+        parsed,
+    });
+    // Languages read the culture a note states, as calendars do.
+    resolveNoteLanguages(records, {
+        contentPackage,
+        languages,
         contentBase,
         foreignRecord,
         problems,

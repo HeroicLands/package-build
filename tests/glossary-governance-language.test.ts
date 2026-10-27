@@ -14,7 +14,13 @@ const TRADE = address("skill", "tradelng");
 const CULTURE = address("lore", "sinaleclt");
 const WARDENS = address("affiliation", "wardens");
 
-function record(type: string, shortcode: string, data: object, subType?: string) {
+function record(
+    type: string,
+    shortcode: string,
+    data: object,
+    subType?: string,
+    derived: object = {},
+) {
     return {
         package: "demo",
         type,
@@ -22,6 +28,7 @@ function record(type: string, shortcode: string, data: object, subType?: string)
         name: { full: shortcode },
         data,
         ...(subType ? { subType } : {}),
+        ...derived,
     };
 }
 
@@ -31,21 +38,22 @@ function corpus(title: string, stated: boolean) {
         "lore",
         "sinaleclt",
         {
-            language: SINALE,
+            lang: "sinale",
             glossary: [{ name: title, common: true, ...(stated ? { language: SINALE } : {}) }],
         },
         "culture",
+        { lang: "sinale" },
     );
     const records = [
-        record("skill", "sinalelng", {}, "language"),
-        record("skill", "tradelng", {}, "language"),
+        record("skill", "sinalelng", {}, "language", { languageCode: "sinale" }),
+        record("skill", "tradelng", {}, "language", { languageCode: "trade" }),
         culture,
         record(
             "affiliation",
             "wardens",
             {
                 culture: CULTURE,
-                language: TRADE,
+                lang: "trade",
                 governance: {
                     ranks: [
                         { level: 0, title: "Outcast", description: "Cast out." },
@@ -54,13 +62,17 @@ function corpus(title: string, stated: boolean) {
                 },
             },
             "order",
+            { lang: "trade" },
         ),
     ];
-    const notes = records.map(({ package: _, ...fm }) => ({
+    // A link-index note carries the derived language beside its frontmatter.
+    const notes = records.map(({ package: _, lang, languageCode, ...fm }: any) => ({
         fm,
         type: fm.type,
         file: `${fm.shortcode}.md`,
         raw: "",
+        ...(lang ? { lang } : {}),
+        ...(languageCode ? { languageCode } : {}),
     }));
     const byAddress = new Map(
         notes.map((note) => [address(note.fm.type, note.fm.shortcode), note]),

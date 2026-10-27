@@ -4,7 +4,7 @@ subType: settlement
 shortcode: highcairn
 name:
   full: Highcairn
-  aliases: [Cairnhold]
+  en: [Cairnhold]
 data:
   parents: [fells]
 ---

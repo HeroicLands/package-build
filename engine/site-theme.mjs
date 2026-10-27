@@ -261,7 +261,7 @@ export function tableOfContents(headings) {
     return lines.join("\n");
 }
 
-/** How much more a page's name and aliases count in a search than a word of its body. */
+/** How much more a page's name and listed forms count in a search than a word of its body. */
 const NAME_WEIGHT = 10;
 
 /** The most `h2` headings a page may have before it gets a contents list. */

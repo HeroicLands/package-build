@@ -41,6 +41,8 @@ The keeper said "not yet" -- it's late... and dark.
 
 [Hidden Hand]{.name data-type="being/npc"} keeps watch, and **a phrase with [Joe Blow]{.name} in it** is emphasised.
 
+[The Hand]{.name ref="#hand"} is the same watcher, and [the watcher]{.name ref="#hand"} is the same again.
+
 The key is [under the **third** stair]{.secret}, and no one has looked.
 
 :::secret {title="For the GM"}

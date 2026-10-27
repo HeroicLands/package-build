@@ -55,6 +55,7 @@
 import { isAddressTuple } from "./address.mjs";
 import { listed, nearest } from "./near-miss.mjs";
 import { checkDataKeys } from "./data-keys.mjs";
+import { FALLBACK_LANGUAGE, normalizeName } from "./name-forms.mjs";
 import {
     authoredNoteKeys,
     CHARACTER_NAME_KEYS,
@@ -1165,6 +1166,9 @@ function checkEmbeddedShortcodes(note, blockName) {
  *   configuration through {@link systemBlocksFor}, and this module states no
  *   system name of its own. See {@link DEFAULT_SYSTEM_BLOCKS} for the fallback.
  * @param {object} [opts.addressContext] - Builder package and Address type vocabulary.
+ * @param {Iterable<string>} [opts.languages] - The language codes the
+ *   configuration's `languages:` declares. A `name` key that is one of them, or
+ *   `en`, is a list of forms; absent, only `en` is.
  * @param {readonly string[]} [opts.packs] - The pack names this package
  *   declares, for a `data:` field whose map is keyed by pack. Supplied by the
  *   caller like `schemas` and `vocabulary`, and absent it no claim is made
@@ -1181,6 +1185,7 @@ export function lintNote(
         packs,
         emittedArt,
         addressContext,
+        languages,
         systems = DEFAULT_SYSTEM_BLOCKS,
     },
 ) {
@@ -1254,15 +1259,17 @@ export function lintNote(
             if (type === "being" && fm.subType === "character") {
                 for (const key of CHARACTER_NAME_KEYS) allowed.add(key);
             }
+            const codes = new Set([FALLBACK_LANGUAGE, ...(languages ?? [])]);
             for (const key of Object.keys(name)) {
-                if (!allowed.has(key)) {
-                    findings.push({
-                        file: note.file,
-                        ...nameAt([key]),
-                        severity: "error",
-                        message: `\`name.${key}\` is not valid for this note`,
-                    });
-                }
+                if (allowed.has(key) || codes.has(key)) continue;
+                findings.push({
+                    file: note.file,
+                    ...nameAt([key]),
+                    severity: "error",
+                    message:
+                        `\`name.${key}\` is not valid for this note: a name lists its forms ` +
+                        `under a language code \`languages:\` declares, or \`${FALLBACK_LANGUAGE}\``,
+                });
             }
             if (typeof name.full !== "string" || !name.full.trim()) {
                 findings.push({
@@ -1272,18 +1279,34 @@ export function lintNote(
                     message: "`name.full` must be a nonempty string",
                 });
             }
-            if (Object.hasOwn(name, "aliases")) {
+            for (const code of Object.keys(name)) {
+                if (!codes.has(code) || allowed.has(code)) continue;
+                const forms = name[code];
                 if (
-                    !Array.isArray(name.aliases) ||
-                    name.aliases.some((alias) => typeof alias !== "string" || !alias.trim())
+                    !Array.isArray(forms) ||
+                    forms.some((form) => typeof form !== "string" || !form.trim())
                 ) {
                     findings.push({
                         file: note.file,
-                        ...nameAt(["aliases"]),
+                        ...nameAt([code]),
                         severity: "error",
-                        message: "`name.aliases` must be a list of nonempty strings",
+                        message: `\`name.${code}\` must be a list of nonempty strings`,
                     });
+                    continue;
                 }
+                if (code !== FALLBACK_LANGUAGE || typeof name.full !== "string") continue;
+                const full = normalizeName(name.full);
+                forms.forEach((form, i) => {
+                    if (normalizeName(form) !== full) return;
+                    findings.push({
+                        file: note.file,
+                        ...positionOfFrontmatterPath(raw(), ["name", code, i]),
+                        severity: "error",
+                        message:
+                            `\`name.${code}\` repeats \`name.full\` (${form}); \`full\` is ` +
+                            "already an English form, so leave it out",
+                    });
+                });
             }
             if (
                 Object.hasOwn(name, "sort") &&
@@ -1738,6 +1761,8 @@ export function lintNote(
  * @param {Readonly<Record<string, SystemBlockSpec>>} [opts.systems]
  *   The system blocks to check; see {@link lintNote} and
  *   {@link systemBlocksFor}.
+ * @param {Iterable<string>} [opts.languages] - The configured language codes,
+ *   which a note's `name` lists its forms under; see {@link lintNote}.
  * @param {readonly string[]} [opts.packs] - The declared pack names; see
  *   {@link lintNote}.
  * @param {(type: string) => {document: string|null, art: readonly string[]}|null} [opts.emittedArt]
@@ -1747,7 +1772,7 @@ export function lintNote(
  */
 export function lintFrontmatter(
     index,
-    { schemas, vocabulary, packs, emittedArt, references = true, systems, currentDate },
+    { schemas, vocabulary, packs, emittedArt, references = true, systems, currentDate, languages },
 ) {
     const findings = [];
     const notes = [...index.notes].sort((a, b) =>
@@ -1763,6 +1788,7 @@ export function lintFrontmatter(
                 currentDate,
                 packs,
                 emittedArt,
+                languages,
                 index: references ? index : undefined,
                 addressContext: {
                     package: index.contentPackage,

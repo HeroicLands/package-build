@@ -23,6 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { DICTIONARY_COLUMNS, TERM_COLUMNS } from "../engine/dictionary-rows.mjs";
 import { openNotesDatabase, runSqlQuery } from "../engine/sql-tables.mjs";
+import { DICTIONARY_LANGUAGES } from "./helpers/dictionary-languages";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TREE = path.join(HERE, "fixtures", "dictionary", "tree");
@@ -66,7 +67,11 @@ async function byOwner(sql: string) {
 
 beforeAll(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), "dictionary-relation-"));
-    records = collectContentIndex(TREE, { contentPackage: "demo", skipDirectories: [] });
+    records = collectContentIndex(TREE, {
+        contentPackage: "demo",
+        skipDirectories: [],
+        languages: DICTIONARY_LANGUAGES,
+    });
     db = await openNotesDatabase(records, { dir: path.join(dir, "db") });
 }, 60_000);
 

@@ -27,7 +27,7 @@ const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 describe("a package with no itemBuilders", () => {
     it(
-        "resolves a literature note's language to its skill note",
+        "resolves a glossary entry's language to its skill note",
         () => {
             const root = fs.mkdtempSync(path.join(os.tmpdir(), "no-item-builders-"));
             try {
@@ -56,8 +56,10 @@ describe("a package with no itemBuilders", () => {
                 );
                 fs.writeFileSync(
                     path.join(content, "Lay.md"),
-                    "---\nshortcode: lay\nname: { full: Lay }\ntype: lore\nsubType: literature\n" +
-                        "data:\n    language: skill-tongue\n---\n\nA lay.\n",
+                    "---\nshortcode: lay\nname: { full: Lay }\ntype: lore\nsubType: culture\n" +
+                        "data:\n    lang: en\n    glossary:\n" +
+                        "        - { name: lay, definition: a song, language: skill-tongue }\n" +
+                        "---\n\nA people.\n",
                 );
                 const run = spawnSync(
                     process.execPath,

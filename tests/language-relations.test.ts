@@ -147,9 +147,10 @@ beforeAll(async () => {
         "Lore/Dunhari.md",
         note([
             "shortcode: dunhariclt",
-            "name: {full: The Dunhari, aliases: [Dunhara]}",
+            "name: {full: The Dunhari, en: [Dunhara]}",
             "type: lore",
             "subType: culture",
+            "data: {lang: en}",
         ]),
     );
     write(
@@ -173,7 +174,7 @@ beforeAll(async () => {
         "Beings/Afrun.md",
         note([
             "shortcode: farazunfrn",
-            "name: {full: Farazûn Afrûn, given: Farazûn, clan: Belgogâr, aliases: []}",
+            "name: {full: Farazûn Afrûn, given: Farazûn, clan: Belgogâr}",
             "type: being",
             "subType: character",
             "data:",
@@ -325,7 +326,7 @@ describe("the `register` relation", () => {
         ).toEqual([{ kind: "given", why: "a short name no element builds" }]);
     });
 
-    it("joins each name to the notes in scope carrying it, as a name, an alias, a name part, a title or an anchor, and never a folder", async () => {
+    it("joins each name to the notes in scope carrying it, as a name, a listed form, a name part, a title or an anchor, and never a folder", async () => {
         expect(
             await rows(
                 `SELECT name, notes FROM register WHERE language = '${DUNHARI}' ORDER BY position`,

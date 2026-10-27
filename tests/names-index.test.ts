@@ -100,6 +100,7 @@ describe("authored marked names in captured records", () => {
             name,
             type,
             subType,
+            ref: null,
             ...located(raw, literal),
         }));
         expect(record.names).toEqual(expected);
@@ -187,6 +188,7 @@ describe("authored marked names in captured records", () => {
                 name: "Ravenmoor",
                 type: "place",
                 subType: "settlement",
+                ref: null,
                 ...located(raw, "[Ravenmoor]"),
             },
         ]);
@@ -197,6 +199,7 @@ describe("authored marked names in captured records", () => {
                 name: "Tongue Guest",
                 type: "being",
                 subType: null,
+                ref: null,
                 ...located(language, "[Tongue Guest]"),
             },
         ]);
@@ -294,11 +297,48 @@ describe("authored marked names in captured records", () => {
                 name: "Sigil",
                 type: "rune",
                 subType: null,
+                ref: null,
                 ...located(raw, "[Sigil]"),
             },
         ]);
         expect(() =>
             buildIndexRecord({ ...options, frontmatter: { ...options.frontmatter, names: [] } }),
         ).toThrow("names");
+    });
+});
+
+describe("ref on a name span in captured records", () => {
+    it("records the ref beside the span and fails the build on a ref defect", () => {
+        const input = typedFixture();
+        const file = [...input.files.keys()][0];
+        const body = [
+            '[Tom]{.name ref=being-tomr} and [Jane]{.name ref="#jane"}.',
+            "",
+            "[Plain]{.name}",
+        ].join("\n");
+        write(file, note({ type: "lore", shortcode: "n0", name: { full: "Reader" } }, body));
+        const problems: unknown[] = [];
+        const records = indexRecordsFor({ config: input.config, parsed: new Map(), problems });
+        expect(problems).toEqual([]);
+        expect(
+            records
+                .find((entry) => entry.shortcode === "n0")
+                .names.map((n: any) => [n.name, n.ref]),
+        ).toEqual([
+            ["Tom", "being-tomr"],
+            ["Jane", "#jane"],
+            ["Plain", null],
+        ]);
+        write(
+            file,
+            note(
+                { type: "lore", shortcode: "n0", name: { full: "Reader" } },
+                "[Tom]{ref=being-tomr}",
+            ),
+        );
+        const bad: any[] = [];
+        indexRecordsFor({ config: input.config, parsed: new Map(), problems: bad });
+        expect(bad).toHaveLength(1);
+        expect(bad[0].message ?? bad[0].error?.message ?? JSON.stringify(bad[0])).toContain("ref=");
     });
 });

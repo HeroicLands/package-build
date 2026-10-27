@@ -21,11 +21,9 @@ export {
     NOTE_TOP_LEVEL_KEY_SET,
 } from "./note-vocabulary.mjs";
 
-/** The name properties every note accepts, in display order. */
-export const NOTE_NAME_KEYS = Object.freeze(["full", "aliases", "sort"]);
-
-/** Additional name components accepted by an individual character. */
-export const CHARACTER_NAME_KEYS = Object.freeze(["given", "clan"]);
+// The single-string name keys, beside the language form lists they are told
+// apart from.
+export { CHARACTER_NAME_KEYS, NOTE_NAME_KEYS } from "./name-forms.mjs";
 
 /** Return authored keys from an opening YAML frontmatter map. */
 export function authoredNoteKeys(markdown) {

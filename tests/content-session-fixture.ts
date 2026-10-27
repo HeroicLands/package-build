@@ -31,6 +31,7 @@ export function fixture(size = 8, pkg = "sessionproof") {
         skipDirectories: ["Templates"],
         systems: { sohl: { compatibility: { verified: "0.9.0" } } },
         itemBuilders: ["sohl"],
+        languages: { tongue: { tag: "art-x-tongue", note: "skill-tongue" } },
         packs: [
             { name: "items", type: "Item", system: "sohl", default: true, mayBeEmpty: true },
             { name: "journals", type: "JournalEntry", default: true },
@@ -49,6 +50,7 @@ export function fixture(size = 8, pkg = "sessionproof") {
                     shortcode: "tongue",
                     name: { full: "Tongue" },
                     data: {
+                        roman: "abcdefghijklmnopqrstuvwxyz",
                         fields: [{ name: "Nature", holds: "Natural things." }],
                         words: [{ form: "men", class: "n", field: "Nature", gloss: "stone" }],
                     },
@@ -60,7 +62,7 @@ export function fixture(size = 8, pkg = "sessionproof") {
                     shortcode: "folk",
                     name: { full: "The Folk" },
                     data: {
-                        language: "skill-tongue",
+                        lang: "tongue",
                         glossary: [{ name: "men", definition: "a stone raised to mark a meeting" }],
                     },
                 }

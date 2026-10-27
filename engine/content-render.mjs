@@ -27,12 +27,13 @@
  * | a heading's id | as authored | as authored, or its text's | as authored | as authored |
  * | quotes, dashes and ellipses | as written | typographic | as written | as written, set by Typst |
  * | raw HTML in a note | passed through | passed through | shown as text | shown as text |
+ * | a name's first use | bold | bold | bold, with an index | bold |
  * | the output | HTML | HTML | HTML | the token stream, for the Typst stage |
  *
  * A target differs from the others only in that table. The shared plugins are
  * footnotes, definition lists, dictionary rows, bracket spans, dictionary
- * entries, heading attributes, icons and body images; each renderer's `plugins`
- * lists what its target installs.
+ * entries, heading attributes, icons, body images and first uses; each
+ * renderer's `plugins` lists what its target installs.
  *
  * ## The stages of a render
  *
@@ -72,6 +73,7 @@ import { dictionaryListPlugin } from "./definition-list.mjs";
 import { alertMarkdownPlugin, renderAlerts, scanAlerts } from "./content-alerts.mjs";
 import { renderBlocks, renderWithheldSections } from "./content-blocks.mjs";
 import { renderFigureBlocks } from "./content-figures.mjs";
+import { firstUsePlugin } from "./first-use.mjs";
 import { iconPlugin } from "./content-icons.mjs";
 import { imagePlugin } from "./content-images.mjs";
 import { renderRuns } from "./content-scripts.mjs";
@@ -390,6 +392,7 @@ export function createRenderer(target, options = {}) {
         use("definition-lists", deflistPlugin);
         use("icons", iconPlugin(options.icons));
         use("images", imagePlugin());
+        use("first-use", firstUsePlugin);
     } else {
         use("cartouche-figures", cartoucheFigures);
         use("definition-lists", deflistPlugin);
@@ -409,6 +412,7 @@ export function createRenderer(target, options = {}) {
         // A buffer with no index has no registry to draw an icon from.
         if (!source) use("icons", iconPlugin(options.icons));
         use("images", imagePlugin(options.images?.resolveSrc, options.images?.lookupAsset));
+        use("first-use", firstUsePlugin);
         footnoteMarkup(md);
         if (preview)
             use("preview-source", previewSourcePlugin, { ...options.sourceContext, source });

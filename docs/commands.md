@@ -2263,20 +2263,24 @@ explicit empty inventory declares no written characters. External tags without
 a language-note association retain their ordinary behavior. Standalone
 `package-build markdown` does not load these inventories.
 
-Name marking is advisory: lint checks explicit `.name` spans and authored link
-labels against the [name-marking
-conventions](authoring/links-and-markup.md#marking-names-in-prose). Plain prose
-is not searched for names. It builds one matcher from the current local and
-dependency names, then
-reports each affected occurrence at its exact source location. These warnings
+Name marking is advisory: lint checks explicit `.name` spans and name
+wikilinks against the [name-marking
+conventions](authoring/links-and-markup.md#marking-names-in-prose). It warns
+when a `.name` span without `ref` names an indexed note, and when authored bold
+wraps a name, whose first use the renderer bolds. Plain prose is not searched
+for names. It builds one matcher from the current local and dependency names,
+then reports each affected occurrence at its exact source location. These warnings
 also appear when `lint` is selected in `content run`; they do not fail the run.
 
 Lint also emits one grouped package advisory for marked names without an
-indexed full-name or alias match, and for conflicting supplied classifications.
+indexed full-name or listed-form match, ignoring case, and for conflicting supplied classifications.
 It lists every source use and is located at the earliest reported span.
 Untyped uses and compatible type/subtype refinements do not conflict.
 An invalid supplied `.name` `data-type` is a located preparation error and
 prevents selected writers. See the same name-marking guide for typed examples.
+A `.name` `ref` that resolves to no note is a located lint error at its value;
+a `ref` on a span without `.name`, a `ref` beside `data-type` and a malformed
+page-local key are located preparation errors.
 
 Content lint computes source positions when it emits findings and shares each
 note's YAML position document across consecutive lookups.
@@ -3524,17 +3528,18 @@ culture missing either, with an error at the culture note:
 - **Its look**, from `data.appearanceProfile`: the words and ranges every
   appearance field is drawn from. See
   [appearance profiles](reference/format-details.md#appearance-profiles).
-- **Its names**, from the language skill note its `data.language` names, whose
+- **Its names**, from the language note `languages:` names for the culture's
+  [language](reference/format-details.md#a-notes-language), whose
   `data.names` holds the pattern and the lists. A language with no
   `data.names` is an error at the language note. See
   [name lists](reference/format-details.md#name-lists).
 
-The content-index JSONL resolves a culture's `data.language` and
-`data.appearanceProfile` before this command reads them. A child culture may
-inherit each omitted field from its `data.parents`, while a stated value keeps
-precedence. The command consumes the resolved values and keeps the selected
-child culture on the generated note. A parent cycle or conflicting inherited
-sources are errors; complete fields on the selected culture do not excuse a
+The content index resolves a culture's language and its
+`data.appearanceProfile` before this command reads them. A child culture
+takes an omitted `data.lang` or profile from its `data.parents`, while a stated
+value keeps precedence. The command consumes the resolved values and keeps the
+selected child culture on the generated note. A parent cycle or conflicting
+inherited profiles are errors; complete fields on the selected culture do not excuse a
 cycle. See [culture parents](reference/format-details.md#culture-parents-and-inherited-fields).
 
 A profile or name lists with problems are refused with a finding at each.
@@ -3645,11 +3650,11 @@ $ package-build npc new --specfile bad.yaml
 bad.yaml:2:9: error: name.full "Aguri ez Lut" does not fit the names of demo-note-skill-khelathilng: "Lut", the {place} part, is not in the place list
 ```
 
-A spec inline, for a culture that names no language:
+A spec inline, for a culture whose language has no language note:
 
 ```
 $ package-build npc new --spec '{"data":{"culture":"plainfolk","gender":"female"}}'
-assets/content/Cultures/Plainfolk.md:6:1: error: demo-note-lore-plainfolk states no `data.language`, so `npc new` has no name lists to draw from; name the language skill note its people speak
+assets/content/Cultures/Plainfolk.md:6:1: error: demo-note-lore-plainfolk is in en, which `languages:` names no language note for, so `npc new` has no name lists to draw from; state the culture's `data.lang` and its language's `note`
 ```
 
 **SEE ALSO**

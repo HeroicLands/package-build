@@ -129,6 +129,7 @@ import {
 } from "./standings.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { noteCalendar } from "./note-calendars.mjs";
+import { nameFormsOf } from "./name-forms.mjs";
 
 /**
  * How a section arranges what it holds.
@@ -288,6 +289,9 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
         withheld: "template machinery, not a fact about the subject",
     }),
     id: Object.freeze({ withheld: "document identity machinery, not a fact about the subject" }),
+    lang: Object.freeze({
+        withheld: "language machinery, a code rather than a fact a reader follows",
+    }),
     pack: Object.freeze({ withheld: "compendium routing machinery, not a fact about the subject" }),
     packFolder: Object.freeze({
         withheld: "compendium routing machinery, not a fact about the subject",
@@ -1040,9 +1044,8 @@ function noteBox(
     const shown = new Set();
     const name = fm?.name?.full;
     if (hasValue(name)) rows.push({ label: "Name", kind: "text", value: String(name) });
-    if (Array.isArray(fm?.name?.aliases) && fm.name.aliases.length) {
-        rows.push({ label: "Aliases", kind: "list", value: fm.name.aliases });
-    }
+    const forms = nameFormsOf(fm?.name);
+    if (forms.length) rows.push({ label: "Other names", kind: "list", value: forms });
     if (fm?.type === "being" && Object.hasOwn(BEING_SUBTYPE_LABELS, fm.subType)) {
         rows.push({ label: "Type", kind: "text", value: BEING_SUBTYPE_LABELS[fm.subType] });
     }

@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { openNotesDatabase, runSqlQuery } from "../engine/sql-tables.mjs";
+import { DICTIONARY_LANGUAGES } from "./helpers/dictionary-languages";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TREE = path.join(HERE, "fixtures", "dictionary", "tree");
@@ -64,7 +65,11 @@ describe("relations built from a file", () => {
 
     it("leave no view that reads a file, in the database or in a dependency's schema", async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sql-tables-views-"));
-        const records = collectContentIndex(TREE, { contentPackage: "demo", skipDirectories: [] });
+        const records = collectContentIndex(TREE, {
+            contentPackage: "demo",
+            skipDirectories: [],
+            languages: DICTIONARY_LANGUAGES,
+        });
         const depFile = path.join(dir, "dep-source.jsonl");
         fs.writeFileSync(depFile, records.map((record) => JSON.stringify(record)).join("\n"));
         const db = await openNotesDatabase(records, {

@@ -4,7 +4,6 @@ subType: region
 shortcode: westland
 name:
   full: Westland
-  aliases: []
 data:
   parents: [world]
 ---

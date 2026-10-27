@@ -37,7 +37,7 @@ export type Rendering = Target | "indexed";
 export const RENDERINGS: readonly Rendering[] = [...TARGETS, "indexed"];
 
 /** Which rendering of the corpus an expectation reads. */
-export type Subject = "corpus" | "lost" | "worded" | "fenced" | "unrolled";
+export type Subject = "corpus" | "lost" | "worded" | "fenced" | "unrolled" | "named";
 
 /** What one target must show for one construct. */
 export interface Expectation {
@@ -314,6 +314,63 @@ export const CONSTRUCTS: Record<string, Construct> = {
             sees: [/<span class="name" data-type="being\/npc">Hidden Hand<\/span>/],
         },
         book: { sees: [/#book-span\(classes: \("name",\)\)\[Hidden Hand\]/] },
+    },
+
+    "name-ref": {
+        summary: "A marked name keeps the ref tying it to its subject.",
+        probe: '[The Hand]{.name ref="#hand"}',
+        foundry: {
+            sees: [/<span class="name" ref="#hand">The Hand<\/span>/],
+        },
+        web: { sees: [/<span class="name" ref="#hand">The Hand<\/span>/] },
+        preview: {
+            sees: [/hl-preview-label">The Hand<\/span>[\s\S]*?\{\.name ref=/],
+            differs: SOURCE_ONLY,
+            bufferOnly: true,
+        },
+        indexed: {
+            sees: [/<span class="name" ref="#hand">The Hand<\/span>/],
+        },
+        book: { sees: [/#book-span\(classes: \("name",\)\)\[The Hand\]/] },
+    },
+
+    "name-first-use": {
+        summary:
+            "A name's first use in a page is bold, and its later uses under the same key are not.",
+        probe: '[the watcher]{.name ref="#hand"}',
+        foundry: {
+            sees: [
+                /<strong><span class="name" ref="#hand">The Hand<\/span><\/strong>/,
+                /[^>]<span class="name" ref="#hand">the watcher<\/span>/,
+            ],
+            absent: [/<strong><span class="name" ref="#hand">the watcher/],
+        },
+        web: {
+            sees: [
+                /<strong><span class="name" ref="#hand">The Hand<\/span><\/strong>/,
+                /[^>]<span class="name" ref="#hand">the watcher<\/span>/,
+            ],
+            absent: [/<strong><span class="name" ref="#hand">the watcher/],
+        },
+        preview: {
+            sees: [/hl-preview-label">the watcher<\/span>[\s\S]*?\{\.name ref=/],
+            differs: SOURCE_ONLY,
+            bufferOnly: true,
+        },
+        indexed: {
+            sees: [
+                /<strong><span class="name" ref="#hand">The Hand<\/span><\/strong>/,
+                /[^>]<span class="name" ref="#hand">the watcher<\/span>/,
+            ],
+            absent: [/<strong><span class="name" ref="#hand">the watcher/],
+        },
+        book: {
+            sees: [
+                /#strong\[#book-span\(classes: \("name",\)\)\[The Hand\]\]/,
+                /[^[]#book-span\(classes: \("name",\)\)\[the watcher\]/,
+            ],
+            absent: [/#strong\[#book-span\(classes: \("name",\)\)\[the watcher\]/],
+        },
     },
 
     "name-in-emphasis": {

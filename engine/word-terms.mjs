@@ -489,8 +489,8 @@ export const GLOSSARY_ENTRY_FIELDS = Object.freeze([
         kind: "address",
         shape: "a language skill Address",
         describe:
-            "The language the term is in. Unstated, it is the affiliation's language, its " +
-            "parents', or its culture's, or the culture's own.",
+            "The language the term is in. Unstated, it is the note of the language the " +
+            "note is in, its `data.lang` as the content index derives it.",
     }),
 ]);
 

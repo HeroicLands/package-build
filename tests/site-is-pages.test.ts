@@ -201,7 +201,7 @@ describe("the homepage is written as the mount's `_index.md`", () => {
 
     it("states no address in `homepageFrontmatter` either", () => {
         const data = homepageFrontmatter(
-            { type: HOMEPAGE_TYPE, shortcode: HOMEPAGE_SHORTCODE, aliases: ["x"] },
+            { type: HOMEPAGE_TYPE, shortcode: HOMEPAGE_SHORTCODE },
             { contentPackage: "demo", title: "Demo" },
         );
         expect(data).toEqual({

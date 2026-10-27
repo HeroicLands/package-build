@@ -22,7 +22,7 @@ import {
     sortKeysDeep,
     noteAddress,
     asciiName,
-    asciiAliases,
+    asciiForms,
     collectAnchors,
     buildIndexRecord,
     collectContentIndex,
@@ -198,29 +198,29 @@ describe("asciiName", () => {
     });
 });
 
-describe("asciiAliases", () => {
-    it("folds every alias, keeping the authored order", () => {
-        expect(asciiAliases(["Killer Whale", "Ærling", "Kèthîra"])).toEqual([
-            "Killer Whale",
-            "AErling",
-            "Kethira",
-        ]);
+describe("asciiForms", () => {
+    it("folds every listed form by language, keeping the authored order", () => {
+        expect(
+            asciiForms({ full: "Orca", en: ["Killer Whale", "Ærling"], vyl: ["Kèthîra"] }),
+        ).toEqual({ en: ["Killer Whale", "AErling"], vyl: ["Kethira"] });
     });
 
-    it("is an empty array when there are no aliases", () => {
-        // Never null: a note with no aliases has an empty set of them, and a
+    it("is an empty map when the name lists no form", () => {
+        // Never null: a note with no forms has an empty map of them, and a
         // consumer iterating should not have to check first.
-        expect(asciiAliases(undefined)).toEqual([]);
-        expect(asciiAliases(null)).toEqual([]);
-        expect(asciiAliases([])).toEqual([]);
+        expect(asciiForms(undefined)).toEqual({});
+        expect(asciiForms(null)).toEqual({});
+        expect(asciiForms({ full: "X", sort: "X", en: [] })).toEqual({});
     });
 
     it("drops an entry that is not a name, rather than leaving a hole", () => {
-        expect(asciiAliases(["Ice Bear", "", null, 42, "   "] as any)).toEqual(["Ice Bear"]);
+        expect(asciiForms({ en: ["Ice Bear", "", null, 42, "   "] } as any)).toEqual({
+            en: ["Ice Bear"],
+        });
     });
 
-    it("is not confused by a non-array", () => {
-        expect(asciiAliases("Killer Whale" as any)).toEqual([]);
+    it("is not confused by a string where a list belongs", () => {
+        expect(asciiForms({ en: "Killer Whale" } as any)).toEqual({});
     });
 });
 
@@ -356,28 +356,28 @@ describe("buildIndexRecord", () => {
         expect(record.name.full).toBe("Kûrbúl Helm");
     });
 
-    it("carries ASCII forms of the note's aliases", () => {
+    it("carries ASCII forms of the note's listed forms", () => {
         const record = buildIndexRecord({
             frontmatter: {
                 type: "being",
                 shortcode: "orca",
-                name: { full: "Orca", aliases: ["Killer Whale", "Ærling"] },
+                name: { full: "Orca", en: ["Killer Whale", "Ærling"] },
             },
             relPath: "A.md",
             contentPackage: "sohl",
         });
-        expect(record.aliasesAscii).toEqual(["Killer Whale", "AErling"]);
-        // The authored aliases are untouched beside them.
-        expect(record.name.aliases).toEqual(["Killer Whale", "Ærling"]);
+        expect(record.formsAscii).toEqual({ en: ["Killer Whale", "AErling"] });
+        // The authored forms are untouched beside them.
+        expect(record.name.en).toEqual(["Killer Whale", "Ærling"]);
     });
 
-    it("states an empty alias set rather than omitting it", () => {
+    it("states an empty form map rather than omitting it", () => {
         const record = buildIndexRecord({
             frontmatter: { type: "being", shortcode: "x", name: { full: "X" } },
             relPath: "A.md",
             contentPackage: "sohl",
         });
-        expect(record.aliasesAscii).toEqual([]);
+        expect(record.formsAscii).toEqual({});
     });
 
     it("keeps the path relative, never absolute", () => {

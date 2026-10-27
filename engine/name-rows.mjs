@@ -22,7 +22,15 @@ import { encodeAddresses } from "./address-values.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 
 /** Every column of the `names` relation, in order. */
-export const NAME_COLUMNS = Object.freeze(["owner", "name", "type", "subType", "line", "column"]);
+export const NAME_COLUMNS = Object.freeze([
+    "owner",
+    "name",
+    "type",
+    "subType",
+    "ref",
+    "line",
+    "column",
+]);
 
 /**
  * @typedef {object} NameRow
@@ -30,6 +38,7 @@ export const NAME_COLUMNS = Object.freeze(["owner", "name", "type", "subType", "
  * @property {string} name - Rendered visible text of the occurrence.
  * @property {string|null} type - Supplied note type, or null.
  * @property {string|null} subType - Supplied subtype, or null.
+ * @property {string|null} ref - The `ref=` as written, a note address or a page-local `#key`, or null.
  * @property {number} line - Original 1-based source line at the opening bracket.
  * @property {number} column - Original 1-based UTF-16 source column at that bracket.
  */
@@ -61,6 +70,7 @@ export function namesRows(records) {
                 name: entry.name,
                 type: entry.type ?? null,
                 subType: entry.subType ?? null,
+                ref: entry.ref ?? null,
                 line: entry.line,
                 column: entry.column,
             });

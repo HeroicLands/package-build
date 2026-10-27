@@ -48,19 +48,18 @@ describe("a work of literature", () => {
         expect(NOTE_VOCABULARY.lore.subTypes).toContain("literature");
     });
 
-    it("declares four optional fields of the shapes the format names", () => {
+    it("declares three optional fields of the shapes the format names", () => {
         const fields = Object.fromEntries(
             dataFields("lore").map((field: { name: string }) => [field.name, field]),
         );
         expect(fields.culture).toMatchObject({ kind: "address", ref: "lore" });
         expect(fields.form).toMatchObject({ kind: "string" });
         expect(fields.subjects).toMatchObject({ kind: "list", entryKind: "address" });
-        expect(fields.language).toMatchObject({ kind: "address", ref: "skill" });
-        for (const name of ["culture", "form", "subjects", "language"])
+        for (const name of ["culture", "form", "subjects"])
             expect(fields[name].required, name).toBeFalsy();
     });
 
-    it("lints clean with no field, and with all four", () => {
+    it("lints clean with no field, and with all three and its language", () => {
         expect(lint(lore("literature", {}))).toEqual([]);
         expect(
             lint(
@@ -68,14 +67,14 @@ describe("a work of literature", () => {
                     culture: "lore-nordmen",
                     form: "saga",
                     subjects: ["being-skrildmyl"],
-                    language: "skill-nordmal",
+                    lang: "en",
                 }),
             ),
         ).toEqual([]);
     });
 
     it("refuses each field on another lore subType, at its own key", () => {
-        const findings = lint(lore("theology", { form: "saga", language: "skill-nordmal" }));
+        const findings = lint(lore("theology", { form: "saga", lang: "en" }));
         expect(findings).toEqual([
             expect.objectContaining({
                 file,
@@ -83,24 +82,7 @@ describe("a work of literature", () => {
                 severity: "error",
                 message: expect.stringContaining("`data.form` describes a work of literature"),
             }),
-            expect.objectContaining({
-                file,
-                line: 6,
-                severity: "error",
-                message: expect.stringContaining("`subType` is neither `literature` nor `culture`"),
-            }),
         ]);
-    });
-
-    it("shares its language with a culture note, which names the tongue its people speak", () => {
-        expect(lint(lore("culture", { language: "skill-nordmal" }))).toEqual([]);
-        expect(lint(lore("culture", { language: "skill-smithing" }))).toContainEqual(
-            expect.objectContaining({
-                line: 5,
-                severity: "error",
-                message: expect.stringContaining("not a skill whose subType is language"),
-            }),
-        );
     });
 
     it("requires its culture to be a culture note", () => {
@@ -113,17 +95,7 @@ describe("a work of literature", () => {
         );
     });
 
-    it("requires its language to be a language skill", () => {
-        expect(lint(lore("literature", { language: "skill-smithing" }))).toContainEqual(
-            expect.objectContaining({
-                line: 5,
-                severity: "error",
-                message: expect.stringContaining("not a skill whose subType is language"),
-            }),
-        );
-    });
-
-    it("shows all four in its infobox, each Address as a link", () => {
+    it("shows all three in its infobox, each Address as a link", () => {
         const resolve = (ref: unknown) => {
             const shortcode = (ref as { shortcode?: string })?.shortcode ?? String(ref);
             return { name: `Named ${shortcode}`, url: `/x/${shortcode}/` };
@@ -137,7 +109,6 @@ describe("a work of literature", () => {
                     culture: "lore-nordmen",
                     form: "saga",
                     subjects: ["being-skrildmyl"],
-                    language: "skill-nordmal",
                 },
             },
             { resolve, contentPackage: "thalorna" },
@@ -149,10 +120,6 @@ describe("a work of literature", () => {
         expect(rows.Culture).toMatchObject({
             kind: "link",
             value: { url: expect.stringContaining("nordmen") },
-        });
-        expect(rows.Language).toMatchObject({
-            kind: "link",
-            value: { url: expect.stringContaining("nordmal") },
         });
         expect(rows.Subjects).toMatchObject({
             kind: "links",

@@ -15,7 +15,7 @@ An Address names content independently of its filename or folder. Its full form 
 ![[icon-harbor|Harbor emblem]]{float=top-left size=medium}
 ```
 
-The part after `|` is the displayed link text or an embed's alternative text. An empty label uses the target's current name in a regular link and marks an embed decorative. A missing pipe is an error. Search may use `name.full` and aliases; authored links use Addresses. The [Address reference](../reference/format-details.md#addresses) explains short forms, package qualification, and ambiguity diagnostics.
+The part after `|` is the displayed link text or an embed's alternative text. An empty label uses the target's current name in a regular link and marks an embed decorative. A missing pipe is an error. Search may use `name.full` and the forms a note's `name` lists; authored links use Addresses. The [Address reference](../reference/format-details.md#addresses) explains short forms, package qualification, and ambiguity diagnostics.
 
 A link to a note tagged `draft` retains its target and carries a visible draft cue. In a book, the cue reads `(draft)` after the link.
 
@@ -61,19 +61,19 @@ destination; see [inline spoilers](#inline-spoilers).
 
 ## Marking names in prose
 
-Use `[Name]{.name}` for a name that has no indexed note. Link a name that has
-one, including a private subject; an empty link label uses the indexed full
-name. Introduce another subject with its full canonical name at its first prose
-use. Keep the note's own subject in plain text, and use plain text for later
-mentions and aliases. Bold is emphasis.
-Plain text, including capitalized words, is not searched for names.
+Mark a name with a link or a `.name` span. Link a name that has a note,
+including a private subject, and add `.name` to the wikilink so it counts as
+the name: `[[place-arden|Arden Vale]]{.name}`. An empty link label uses the
+indexed full name. Use `[Name]{.name}` for a name that has no indexed note.
+Keep the note's own subject in plain text. Plain text, including capitalized
+words, is not searched for names.
 
 Inside a language run, a `.name` child contributes `{` + its text + `}` to the
 chosen encoding. Write `[Name]{.name}` in Markdown; the build supplies the
 standard name boundaries.
 
 ```markdown
-[[place-arden|Arden Vale]] stands beside the river. Arden Vale has two gates.
+[[place-arden|Arden Vale]]{.name} stands beside the river. Arden Vale has two gates.
 [Hidden Hand]{.name} keeps watch over the crossing.
 ```
 
@@ -93,21 +93,74 @@ takes only the bare type. An invalid supplied value is an error at the
 attribute. Site and Foundry spans retain the classes and attribute values;
 the attribute adds no book presentation.
 
-`package-build lint` warns when an indexed name or alias uses `.name`
-instead of a link, when the same name is marked or linked again, or when a
-`.name` span or Markdown link uses a short form before its full name. A
-`.name` span with a `data-type` is compared only with notes of that type (and
-subtype, when it names one), so a lineage that shares its name with a place
-note is marked `[Theinuvael]{.name data-type="affiliation/lineage"}` and
-draws no warning to link the place. Only
-marked names and authored link labels count toward these rules. A wikilink
-introduces its note under whatever label reads naturally, so
-`[[place-arden|Arden]]` needs no earlier `Arden Vale`, and an article
-mid-sentence stays lowercase. A `.name` span introduces the full name before
-an alias such as `Arden`. Later mentions are plain text. Full names and their
-declared aliases count as the same name, including in links to different
-headings. Different labels do not become the same name just because they link
-to the same page.
+A `ref` ties each spelling of a person, place or thing to the one note that
+describes it, without linking it. The address implies the type, so `data-type`
+is only for a name with no note:
+
+```markdown
+[Tom Rodriguez]{.name ref=being-tomr} met [Tom]{.name ref=being-tomr} again.
+[Tom]{.name ref=sohl-note-being-tomr}
+```
+
+The value is a note address: this package's (`being-tomr`) or a declared
+dependency's, written with its package prefix (`sohl-note-being-tomr`). A
+`ref` is not a link, so the span stays plain text and the page links the note
+once, with a wikilink, wherever the author chooses. A `ref` span names the note
+however it is spelled, so it draws no warning to link the name, and it shares
+the note's key for the [first-use bold](#the-first-use-is-bold).
+A `ref` that resolves to no note is an error at its value. `data-type` beside
+`ref` is an error at `data-type`, and `ref` on a span without `.name` is an
+error at `ref`. A wikilink never takes `ref`, because its address is its ref.
+Use `#id` for the HTML anchor only; it is never a ref.
+
+A subject with no note takes a page-local key instead, written with a leading
+`#` and quoted when it stands alone as a value:
+
+```markdown
+[Jane Doe]{.name ref="#jane"} arrives. [Miss Gorgeous]{.name ref="#jane"} is Jane.
+```
+
+The key ties _Jane Doe_ and _Miss Gorgeous_ to one person within the page. It
+resolves to no note and is never a finding for that reason. It is the
+attribute's value, never the span's `{#id}` anchor.
+
+### The first use is bold
+
+The first use of each name in a page is bold when the page renders, on the
+website, in the Foundry journal and in the book. Write no bold around a name:
+the renderer chooses which use is bold, and every later use reads as plain
+text.
+
+Each use of a name is counted under a key:
+
+- a name wikilink, `[[place-harbor|the harbor]]{.name}`, under its address;
+- a `.name` span with a `ref`, under the `ref`, whether an address or a
+  page-local `#key`;
+- any other `.name` span under its label, ignoring case, and its `lang`, which
+  is `en` when the span states none.
+
+Every spelling of one address is one key, so `[[place-arden|the vale]]{.name}`
+and `[Vale]{.name ref=place-arden}` are one name. A `ref` is how a full name,
+a short name and a nickname become one name:
+
+```markdown
+[Jane Doe]{.name ref="#jane"} keeps the ferry to [[place-harbor|the harbor]]{.name}.
+[Jane]{.name ref="#jane"} rows it alone, and the river folk call her
+[Miss Gorgeous]{.name ref="#jane"}. [Old Tam]{.name} mends the nets at
+[[place-harbor|the harbor]]{.name}, and [old tam]{.name} sells them.
+```
+
+Here _Jane Doe_, the first _the harbor_ and _Old Tam_ are bold. _Jane_ and
+_Miss Gorgeous_ share _Jane Doe_'s key, the second _the harbor_ shares the
+first's address, and _old tam_ is _Old Tam_ in another case.
+
+Only body prose counts, in the order it is written: paragraphs, list items,
+quotations and footnotes. A name in a heading, a table, a caption, raw HTML,
+code or verse, in the sections the build generates from frontmatter, or inside
+a run that states `lang`, `font` or `enc` neither takes the bold nor counts, so
+the first use in the prose after a heading or table that names someone is
+still bold. A wikilink without `.name` is a link, not a name: it takes no bold
+and does not count.
 
 A name span can sit inside emphasis:
 
@@ -115,9 +168,24 @@ A name span can sit inside emphasis:
 **This is a phrase with [Joe Blow]{.name} in it**
 ```
 
-The marked name is `Joe Blow`. Sites and books display `.name` text in bold, including
-inside an emphasized phrase. Bold itself is emphasis, never a name: a bold
-label such as `**Strength**:` draws no warning, whatever names the index holds.
+The marked name is `Joe Blow`. Bold around a phrase is emphasis, and a name
+inside it counts as that name's first use without a second bold. Bold itself is
+never a name: a bold label such as `**Strength**:` draws no warning, whatever
+names the index holds.
+
+### What lint reports
+
+`package-build lint` warns when an indexed name or listed form uses a `.name`
+span with no `ref`, which a link or a `ref` ties to its note. A `.name` span
+with a `data-type` is compared only with notes of that type (and subtype, when
+it names one), so a lineage that shares its name with a place note is marked
+`[Theinuvael]{.name data-type="affiliation/lineage"}` and draws no warning to
+link the place. Names match whatever their case, so `[arden]{.name}` names the
+same note as `[Arden]{.name}`.
+
+Lint also warns at authored bold that wraps exactly a name, as in
+`**[Jane]{.name}**` or `**[[place-harbor|the harbor]]{.name}**`. Remove the
+bold; the first use is bold when the page renders.
 
 These are warnings at each occurrence's `file:line:column`; they do not make
 a valid package fail. The check reads authored prose outside headings,
@@ -130,7 +198,7 @@ its visible text, optional type/subtype and source location. Plain prose, bold,
 unmarked link labels and generated content add no rows.
 
 Lint also gives one grouped package advisory for names without a matching
-indexed full name or alias, and for conflicting supplied classifications. It
+indexed full name or listed form, and for conflicting supplied classifications. It
 lists every use and starts at the earliest reported span. Untyped uses do not
 conflict, and `place` agrees with `place/settlement`; different supplied types
 or different supplied subtypes conflict. These advisories do not fail lint.
@@ -267,7 +335,7 @@ hover the span or focus it with the keyboard to reveal its text, links and
 images. A visible focus outline and a spoiler cue identify the interaction.
 This does not change native Foundry secret-section controls. The book ignores
 `.secret` on inline spans and prints their text normally, preserving emphasis,
-links, anchors and `.name` bold styling. Secret sections and `:::secret` fences
+links, anchors and a name's first-use bold. Secret sections and `:::secret` fences
 retain their visible labelled boxes.
 
 Published web HTML contains the spoiler's text. Revealing the spoiler or reading
@@ -1967,8 +2035,7 @@ printing a sense several bodies give once, with all of them:
 
 The layout orders entries by letter, then by `name_sort`. **The language tag
 prints where the entry's language is not the page's own**: a language note's
-own language, a culture's `data.language`, or the language an affiliation's
-glossary resolves to. It is the language note's `data.abbreviation`, or its
+own language, or the note of any other note's [language](../reference/format-details.md#a-notes-language). It is the language note's `data.abbreviation`, or its
 full name where unstated. Etymology never repeats the entry's own language:
 a borrowed word prints `[fr. Élav. _sólmerë_]`, a built word its pieces each
 with its gloss, `[_am-_ "love" + _-ère_ "one who"]`, an inherited word its

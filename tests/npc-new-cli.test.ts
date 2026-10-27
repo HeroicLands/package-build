@@ -54,12 +54,15 @@ function culture(file: string, shortcode: string, data: string) {
     );
 }
 
+/** The letters every fixture language writes its names in. */
+const ROMAN = "abcdefghijklmnopqrstuvwxyzê";
+
 /** A language skill note whose `data:` block adds `data`. */
 function language(file: string, shortcode: string, data: string) {
     note(
         `Skills/${file}.md`,
         `---\nshortcode: ${shortcode}\nname: { full: ${file} Language }\ntype: skill\n` +
-            `subType: language\ndata:\n  pack: skills\n${data}---\n\n${PROSE}`,
+            `subType: language\ndata:\n  pack: skills\n  roman: ${ROMAN}\n${data}---\n\n${PROSE}`,
     );
 }
 
@@ -76,6 +79,10 @@ currentDate: "720.300"
 packageKind: modules
 compatibility: { minimum: "14.359", verified: "14.359" }
 stats: { lastModifiedBy: npcnewbuild00000 }
+languages:
+  khelathi: { tag: art-x-khelathi, note: skill-khelathilng }
+  silent: { tag: art-x-silent, note: skill-silentlng }
+  ownwords: { tag: art-x-ownwords, note: skill-ownwordslng }
 packs:
   - { name: journals, type: JournalEntry, default: true }
   - { name: skills, type: Item }
@@ -87,10 +94,10 @@ packs:
         `---\nshortcode: world\nname: { full: The World }\ntype: place\nsubType: world\n` +
             `data:\n  year: { days: 365 }\n---\n\n${PROSE}`,
     );
-    culture("Khelathi", "khelathi", "  language: skill-khelathilng\n" + PROFILE);
-    culture("Plainfolk", "plainfolk", "  language: skill-khelathilng\n");
+    culture("Khelathi", "khelathi", "  lang: khelathi\n" + PROFILE);
+    culture("Plainfolk", "plainfolk", "  lang: khelathi\n");
     culture("Wordless", "wordless", PROFILE);
-    culture("Unlisted", "unlisted", "  language: skill-silentlng\n" + PROFILE);
+    culture("Unlisted", "unlisted", "  lang: silent\n" + PROFILE);
     language(
         "Khelathi",
         "khelathilng",
@@ -99,6 +106,12 @@ packs:
             `    kin: [Zekar, Lêru, Iqu]\n`,
     );
     language("Silent", "silentlng", "");
+    language(
+        "Ownwords",
+        "ownwordslng",
+        '  names:\n    pattern: "{given} {kin}"\n' +
+            "    given:\n      female: [Nara]\n      male: [Taro]\n    kin: [Mori]\n",
+    );
     note(
         "Customs/Feast.md",
         `---\nshortcode: feast\nname: { full: The Feast }\ntype: lore\nsubType: custom\n---\n\n${PROSE}`,
@@ -267,19 +280,8 @@ describe("package-build npc new", () => {
         "keeps a child culture's own language while inheriting its appearance profile",
         () => {
             const cultureFile = path.join(root, "assets/content/Cultures/Ownwords.md");
-            const languageFile = path.join(root, "assets/content/Skills/Ownwords.md");
             try {
-                culture(
-                    "Ownwords",
-                    "ownwords",
-                    "  parents: [lore-khelathi]\n  language: skill-ownwordslng\n",
-                );
-                language(
-                    "Ownwords",
-                    "ownwordslng",
-                    '  names:\n    pattern: "{given} {kin}"\n' +
-                        "    given:\n      female: [Nara]\n      male: [Taro]\n    kin: [Mori]\n",
-                );
+                culture("Ownwords", "ownwords", "  parents: [lore-khelathi]\n  lang: ownwords\n");
                 const generated = run(
                     "npc",
                     "new",
@@ -302,7 +304,6 @@ describe("package-build npc new", () => {
                 expect(["tawny", "olive", "brown"]).toContain(fm.data.appearance.skin_color);
             } finally {
                 fs.rmSync(cultureFile, { force: true });
-                fs.rmSync(languageFile, { force: true });
             }
         },
         SUBPROCESS_TEST_TIMEOUT,
@@ -316,7 +317,7 @@ describe("package-build npc new", () => {
                 culture(
                     "Loopfolk",
                     "loopfolk",
-                    "  parents: [lore-loopfolk]\n  language: skill-khelathilng\n" + PROFILE,
+                    "  parents: [lore-loopfolk]\n  lang: khelathi\n" + PROFILE,
                 );
                 const generated = run(
                     "npc",
@@ -337,12 +338,12 @@ describe("package-build npc new", () => {
     );
 
     it(
-        "refuses conflicting parent languages instead of generating from the first one",
+        "takes the first parent's language where parents speak different ones",
         () => {
             const cultureFile = path.join(root, "assets/content/Cultures/Dividedfolk.md");
             const parentFile = path.join(root, "assets/content/Cultures/Otherfolk.md");
             try {
-                culture("Otherfolk", "otherfolk", "  language: skill-silentlng\n" + PROFILE);
+                culture("Otherfolk", "otherfolk", "  lang: silent\n" + PROFILE);
                 culture(
                     "Dividedfolk",
                     "dividedfolk",
@@ -354,11 +355,10 @@ describe("package-build npc new", () => {
                     "--spec",
                     JSON.stringify({ data: { culture: "dividedfolk", gender: "female" } }),
                 );
-                expect(generated.status).toBe(1);
-                expect(generated.stdout).toBe("");
-                expect(generated.stderr).toMatch(
-                    /^assets\/content\/Cultures\/Dividedfolk\.md:\d+:\d+: error: .*language/m,
-                );
+                expect(generated.stderr).toBe("");
+                expect(generated.status).toBe(0);
+                const [given] = frontmatterOf(generated.stdout).name.full.split(" ");
+                expect(["Agosi", "Rethutê"]).toContain(given);
             } finally {
                 fs.rmSync(cultureFile, { force: true });
                 fs.rmSync(parentFile, { force: true });
@@ -393,7 +393,7 @@ describe("package-build npc new", () => {
                 culture(
                     "Grandfolk",
                     "grandfolk",
-                    "  language: skill-khelathilng\n" +
+                    "  lang: khelathi\n" +
                         PROFILE.replace("light: 2, medium: 5, heavy: 2", "medium: 0"),
                 );
                 culture("Middlefolk", "middlefolk", "  parents: [lore-grandfolk]\n");
@@ -420,12 +420,21 @@ describe("package-build npc new", () => {
     );
 
     it(
-        "locates a broken inherited language on the parent that states it",
+        "refuses an inherited language whose configured note does not exist",
         () => {
             const parentFile = path.join(root, "assets/content/Cultures/Lostwords.md");
             const childFile = path.join(root, "assets/content/Cultures/Quietfolk.md");
+            const configFile = path.join(root, "package-build.config.yaml");
+            const config = fs.readFileSync(configFile, "utf8");
             try {
-                culture("Lostwords", "lostwords", "  language: skill-missinglng\n" + PROFILE);
+                fs.writeFileSync(
+                    configFile,
+                    config.replace(
+                        "languages:\n",
+                        "languages:\n  missing: { tag: art-x-missing, note: skill-missinglng }\n",
+                    ),
+                );
+                culture("Lostwords", "lostwords", "  lang: missing\n" + PROFILE);
                 culture("Quietfolk", "quietfolk", "  parents: [lore-lostwords]\n");
                 const generated = run(
                     "npc",
@@ -436,10 +445,10 @@ describe("package-build npc new", () => {
                 expect(generated.status).toBe(1);
                 expect(generated.stdout).toBe("");
                 expect(generated.stderr).toMatch(
-                    /^assets\/content\/Cultures\/Lostwords\.md:7:3: error: .*data.language.*names no note/m,
+                    /`languages\.missing\.note` skill-missinglng.*names no note/,
                 );
-                expect(generated.stderr).not.toMatch(/^assets\/content\/Cultures\/Quietfolk\.md:/m);
             } finally {
+                fs.writeFileSync(configFile, config);
                 fs.rmSync(parentFile, { force: true });
                 fs.rmSync(childFile, { force: true });
             }
@@ -499,7 +508,7 @@ describe("package-build npc new", () => {
             );
             expect(noLanguage.status).toBe(1);
             expect(noLanguage.stderr).toMatch(
-                /^assets\/content\/Cultures\/Wordless\.md:\d+:\d+: error: .*data\.language/m,
+                /^assets\/content\/Cultures\/Wordless\.md:\d+:\d+: error: .*data\.lang/m,
             );
         },
         subprocessTimeout(2),

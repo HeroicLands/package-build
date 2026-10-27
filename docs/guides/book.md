@@ -410,7 +410,7 @@ notes the book prints.
 | ------------------------ | ----------------------------- | ---------------------------------------------------------------------------------- |
 | A note's name            | `name.sort`, else `name.full` | the page of the note's entry in **bold**, then the pages of every authored mention |
 | A name without its head  | `name.full`                   | the same pages as the note's entry, filed as `Targud, Kingdom of`                  |
-| An alias                 | `name.aliases`                | _see_ the note's name                                                              |
+| A listed name form       | `name.<code>`                 | _see_ the note's name                                                              |
 | An event's in-world name | `data.events[].names`         | _see_ the name of the note that holds the event                                    |
 
 A name that opens with a generic word a reader would not look under, such as
@@ -538,8 +538,8 @@ keeping the source available for inspection.
 A reference to a GM-only note or secret heading prints normally. GM-only notes
 remain omitted, and references to them print as text without a link. `.show`
 does not add an omitted destination to the book. Inline `[text]{.secret}` spans
-print as ordinary text, preserving emphasis, links, anchors and `.name` bold
-styling; the book ignores their `.secret` class.
+print as ordinary text, preserving emphasis, links, anchors and a name's
+first-use bold; the book ignores their `.secret` class.
 
 Secret sections and `:::secret` fences keep their visible contents in pale
 lavender boxes (`#f2eefb`) with a purple left border and title (`#5c4b8a`). The

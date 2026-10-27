@@ -122,8 +122,8 @@ Item link.
 order** — the very table each `### type:` section below states. There is no
 second list, so a key added to a type appears in the book, on the website and
 in a compendium journal with no further edit. A `Name` row stands first on
-every note, because every note has one. An `Aliases` row follows it when the
-note names any aliases, preserving their authored order.
+every note, because every note has one. An `Other names` row follows it when
+the note's `name` lists any forms, preserving their authored order.
 
 A few keys carry no row, and the reason in each case is one of exactly three —
 the key is **machinery**, steering a build or an interface rather than
@@ -378,8 +378,13 @@ Any other top-level key is an error. To keep an author-only note beside the
 content, comment out its YAML lines with `#`. Comments remain valid YAML text
 and do not become data in the JSONL index, generated pages, or Foundry documents.
 
-`name` is a map with a required nonempty `full` string when present. It may
-also contain `aliases`, an ordered list of nonempty strings, and `sort`, a nonempty
+`name` is a map with a required nonempty `full` string when present: the
+English name a page, a compendium entry and an index print. Every other name
+the subject goes by is an ordered list of nonempty strings under the code of
+its language, a code [`languages:`](../configuration.md#languages) declares or
+`en`. `full` counts as an English form, so a form under `en` that repeats it,
+ignoring case, is an error at the form. The first form in each list is that
+language's standard form. `name` may also contain `sort`, a nonempty
 string giving the form the name takes in an index, such as `Black Flame, The` or
 `Hilvan, Doran`. `sort` files the note wherever notes are ordered by name (page
 lists, generated lists of related notes, the book index, the `nameSort` column)
@@ -387,8 +392,18 @@ and is the note's entry text in the book index; every other list still displays
 `full`. Without `sort`, the note files and indexes by `full`. Ordering compares
 the ASCII fold of the key (`Árdavon` files beside `Ardavon`). A being with
 `subType: character` may additionally contain nonempty `given` and `clan`
-strings. Other keys under `name` are errors. For a character or NPC, the first
-alias is its nickname. A being's homes belong in `data.homes`.
+strings. Other keys under `name` are errors at the key. For a character or
+NPC, the first English form is its nickname. A being's homes belong in
+`data.homes`.
+
+```yaml
+name: { full: Johnathan Lewis, en: [John, Long John], vyla: [juan juis] }
+```
+
+Names match whatever their case: matching folds case, and a page displays a
+name as the note writes it. Two notes whose forms differ only by case are one
+ambiguous name, reported where a span or label uses it, like any other name two
+notes share.
 
 There is no custom site metadata. `description` supplies the page's short
 description; `tags` carries publication and classification tags.
@@ -465,6 +480,76 @@ The calendar decides what a reader sees wherever the note prints a date: the
 infobox's `born` and `died`, `dateformat` with no calendar named, the `events`
 relation's `whenText`, and every date in the [event views](#event-views) the
 note's page shows.
+
+##### A note's language
+
+Every note is in one language, a code
+[`languages:`](../configuration.md#languages) declares or `en`, which needs no
+declaration. It is the first of:
+
+1. its own `data.lang`, which every note type accepts;
+2. its culture's language: the culture note its `data.culture` names,
+   resolved by these same rules;
+3. its parents' language: each note its `data.parents` names, nearest first
+   and in the order the list gives them, resolved by these same rules;
+4. `en`.
+
+Steps 2 and 3 take only a language some note states. A culture or a parent
+that itself falls through to `en` contributes nothing, and the chain goes on to
+the next parent. A culture note's language is its own `data.lang`, else its
+parent cultures'. A culture or parent in another package contributes the
+language its published entry carries. A being, an affiliation or a place with a
+culture takes its culture's language; a place with no culture takes its
+region's.
+
+```yaml
+# package-build.config.yaml
+languages:
+  reed: { tag: art-x-reed, note: skill-reedtongue }
+```
+
+```yaml
+# Cultures/Reedfolk.md
+shortcode: reedfolk
+type: lore
+subType: culture
+data: { lang: reed }
+```
+
+```yaml
+# Places/Marsh.md — takes reed from its culture
+shortcode: marsh
+type: place
+data: { culture: lore-reedfolk }
+```
+
+```yaml
+# Places/Landing.md — takes reed from its parent, the marsh
+shortcode: landing
+type: place
+data: { parents: [place-marsh] }
+```
+
+The content index publishes the result on every note record as `lang`, and
+each language note that `languages:` names carries its code as `languageCode`,
+so a reader holding only the records maps a code to its note. A note whose
+subject has two tongues still has one language; its `name` lists the forms of
+both.
+
+Three things are errors, each at the value that causes it:
+
+- a `data.lang` naming no declared code, nor `en`;
+- a `data.culture` whose culture resolves to no language: the culture states
+  no `data.lang` and inherits none from its parent cultures;
+- every `data.parents` entry on a cycle, whether or not a note's language
+  depends on it: each note of the cycle is reported at the entry naming the
+  next. A cycle among culture notes is the
+  [culture parents](#culture-parents-and-inherited-fields) check's finding
+  instead.
+
+```text
+Places/Landing.md:4:19: error: data.parents.0 names place-marsh, which closes a parents cycle; a note is never its own ancestor
+```
 
 Markdown prose accepts inline `{{...}}` expressions. A property path reads
 the note's frontmatter, and `dateformat` converts a date to the reckoning used by a
@@ -908,6 +993,7 @@ noticed:
 | `seeAlso[].address`    | a note `Address`              | Required; the whole note to read next.                                                     |
 | `seeAlso[].gloss`      | `string`                      | An optional short phrase saying why to follow the reference.                               |
 | `calendar`             | `Address`                     | The calendar note this note's dates print in — see [a note's calendar](#a-notes-calendar). |
+| `lang`                 | language code                 | The language the note is in — see [a note's language](#a-notes-language).                  |
 | `id`                   | `string`                      | A pinned document identity.                                                                |
 | `pack`                 | `string`                      | The shared compendium route.                                                               |
 | `packFolder`           | `Address` or pack map         | The shared compendium folder Address.                                                      |
@@ -1817,8 +1903,9 @@ There is one namespace, and the pipe is required:
 **A link written without a label addresses nothing**, and the correction
 is always the same: write `[[type-shortcode|Text]]`.
 
-The bare form does not resolve by display name or alias. `name.aliases` is
-indexed for search and completion, while an authored link names an Address.
+The bare form does not resolve by display name or listed form. A note's
+listed forms are indexed for search and completion, while an authored link
+names an Address.
 
 Requiring the label is also what makes positional parsing safe. Note names
 contain hyphens — `Grukar-ahk` is a name, not a `Grukar` of type `ahk` — so a
@@ -1866,48 +1953,71 @@ text itself as a spoiler; it declares no destination audience. See
 
 #### Marking names in prose
 
-`package-build lint` reports name-marking warnings in authored body prose.
-The warnings leave a valid package passing. Headings, frontmatter, tables,
-infoboxes, code, comments and embeds are outside this check.
+A name in prose is explicit: a `[Name]{.name}` bracket span or a name
+wikilink, `[[place-arden|Arden Vale]]{.name}`. Plain prose, bold and ordinary
+link labels are never read as names.
 
-A name is explicit: a `[Name]{.name}` bracket span or an authored link label.
-Use typed `.name` spans for unwritten subjects and ordinary wikilinks for
-indexed subjects, including private ones. Mark or link another subject at its
-first prose use, and use plain text for the note's own subject and for later
-mentions and aliases. A wikilink identifies its note, so its label is whatever
-reads naturally in the sentence: `[[place-vedyara|Vedyara]]` for a note whose
-full name is _Vedyara Region_, and a lowercase article mid-sentence
-(`[[place-southwall|the Southern Wall]]`). A `.name` span has no note behind
-it, so it carries the full name.
-Plain prose is not searched for names. Wikilinks, ordinary Markdown links and
-reference links all supply names; a resolved empty wikilink label uses the
-note's full name. Images, code, footnote markers and bare autolinks without
-authored labels supply none.
+##### The first use of a name
 
-1. A `.name` span whose whole text matches an indexed `name.full` or
-   `name.aliases` should be a link. Use `[[place-arden|Arden Vale]]` or
-   `[[place-arden|]]` to introduce that note. A span with a `data-type`
-   matches only notes of that type, and only notes of that subtype when it
-   names one; an untyped span matches a note of any type. One name can
-   belong to two things, so
+The first use of each name in a page is bold when the page renders, on the
+website, in the Foundry journal and in the book. Authors write no bold around
+a name. Each use is keyed, and the first use of each key is the bold one:
+
+1. A name wikilink is keyed by its address. Every spelling of one address is
+   one key, and so is each system's document of one note:
+   `[[place-arden|the vale]]{.name}` and `[Vale]{.name ref=test-note-place-arden}`
+   share a key.
+2. A `.name` span with a `ref` is keyed by the `ref`: a note address, read as a
+   wikilink's is, or a page-local key such as `ref="#jane"`.
+3. Any other `.name` span is keyed by its label, case folded, with its `lang`
+   (`en` when the span states none). `[Old Tam]{.name}` and
+   `[old tam]{.name}` share a key; `[old tam]{.name lang=vyl}` has its own.
+
+Only body prose counts: paragraphs, list items, quotations and footnotes, in
+source order. Headings, tables, captions, the title line of a named block,
+raw HTML, code, verse and the generated sections neither take the bold nor
+count as a use, and neither does a name inside a span or div that states
+`lang`, `font` or `enc`, which is that run's text. A name inside authored
+strong text counts as its key's first use and takes no second bold. A
+wikilink without the `name` class is a link, not a name, and neither takes
+the bold nor counts.
+
+```markdown
+[Jane Doe]{.name ref="#jane"} keeps the ferry to [[place-harbor|the harbor]]{.name}.
+[Jane]{.name ref="#jane"} rows it alone, and the river folk call her
+[Miss Gorgeous]{.name ref="#jane"}. [Old Tam]{.name} mends the nets at
+[[place-harbor|the harbor]]{.name}, and [old tam]{.name} sells them.
+```
+
+_Jane Doe_, the first _the harbor_ and _Old Tam_ are bold; every later use is
+not.
+
+##### Name-marking findings
+
+`package-build lint` reports two name-marking warnings in authored body prose.
+They leave a valid package passing. Headings, frontmatter, tables, infoboxes,
+code, comments and embeds are outside both.
+
+1. A `.name` span without a `ref` whose whole text matches an indexed
+   `name.full` or a form its `name` lists, ignoring case, should be a link or
+   carry a `ref`: `[[place-arden|Arden Vale]]{.name}`,
+   `[[place-arden|]]{.name}` or `[Arden]{.name ref=place-arden}`. A span with
+   a `data-type` matches only notes of that type, and only notes of that
+   subtype when it names one; an untyped span matches a note of any type. One
+   name can belong to two things, so
    `[Theinuvael]{.name data-type="affiliation/lineage"}` draws no warning
-   when _Theinuvael_ is an alias of a place note, while
+   when _Theinuvael_ is a listed form of a place note, while
    `[Theinuvael]{.name data-type="place"}` and `[Theinuvael]{.name}` should
-   be links to it. The same match decides a span's identity for the rules
-   below and for the unwritten-name advisory.
-2. Mark or link each name at most once per note. An indexed full name and its
-   declared aliases share one identity, including across different heading
-   anchors. Other labels use their whole text as their identity: different
-   labels linking to one page are separate names, and a label is not
-   automatically an alias of its destination.
-3. A `.name` span or an ordinary Markdown link introduces the full name
-   before a short form or declared alias. A resolved wikilink introduces its
-   note under any label. Possessives and regular plurals count as uses; other
-   indexed forms can be declared aliases.
+   be linked or tied to it. The same match decides a span's identity for the
+   unwritten-name advisory.
+2. Authored bold that wraps exactly a `.name` span or a name wikilink,
+   `**[Jane]{.name}**`, is a finding at the bold: the renderer bolds a name's
+   first use itself. Bold around a phrase that holds a name is emphasis and
+   draws none.
 
 Bold is emphasis and is never read as a name. A bold label such as
 `**Strength**:` is ordinary emphasis even when its text matches an indexed
-full name or alias, and it supplies no name occurrence or introduction.
+full name or listed form.
 
 Inline Markdown remains active inside name spans, and name spans remain
 valid inside emphasis:
@@ -1916,12 +2026,11 @@ valid inside emphasis:
 **This is a phrase with [Joe Blow]{.name} in it**
 ```
 
-The name is `Joe Blow`; the surrounding phrase is emphasis. Sites and books display
-`.name` text in bold.
+The name is `Joe Blow`; the surrounding phrase is emphasis.
 
-Each affected occurrence produces one warning at its authored
-`file:line:column`, naming the full name or explicit label. A warning
-can describe several marking problems at that occurrence.
+Each finding is one warning at its authored `file:line:column`, naming the
+full name or explicit label. A warning can describe both findings at one
+occurrence.
 
 An optional `data-type` on a `.name` span states what the named thing is:
 
@@ -1938,20 +2047,35 @@ at the `data-type` attribute's file, line and UTF-16 column. The same attribute
 on a span without the exact `name` class is an ordinary attribute. An untyped
 `.name` is valid; its type is not inferred from a matching note.
 
+An optional `ref` on a `.name` span ties the span to its note without linking
+it: a note address such as `being-tomr`, or a declared dependency's with its
+package prefix, `sohl-note-being-tomr`. The address states the type, so
+`data-type` beside `ref` is an error at `data-type`. A `ref` that resolves to
+no note in this package or its declared dependencies is an error at the
+attribute's value, and `ref` on a span without `.name` is an error at `ref`. A
+wikilink never takes `ref`. A value beginning `#` is a page-local key, such as
+`ref="#jane"`, for a subject with no note: it ties every spelling carrying it
+to one subject within the page, resolves to no note and is never a finding for
+that reason. A key is `#` followed by letters, digits, `_` and `-`, starting
+with a letter or digit; it is the attribute's value, never the span's `{#id}`
+anchor. A `ref` span draws no warning to link the name, and its first use is
+bold under the `ref`'s key. Site and Foundry spans retain `ref` as they retain
+`data-type`; the book adds nothing.
+
 The index captures actual `.name` spans throughout the authored body, including
-headings, tables, verse and spans within links. The prose-only marking checks
-above keep their narrower scope. Frontmatter, literal code, escaped syntax,
+headings, tables, verse and spans within links. The first-use bold and the
+prose-only marking checks above keep their narrower scope. Frontmatter, literal code, escaped syntax,
 unmarked link labels, bold, plain prose and generated content add no names.
 The rendered visible text preserves its spelling and inline content.
 
 Each own-note metadata record carries `names` in authored order. Every entry
-has exactly `name`, `type`, `subType`, `line` and `column`; absent
-classifications are explicit `null`, and no occurrences gives an empty array.
+has exactly `name`, `type`, `subType`, `ref`, `line` and `column`; absent
+classifications and an absent `ref` are explicit `null`, and no occurrences gives an empty array.
 This is derived metadata, not frontmatter. Documentation mirrors and assets
 do not duplicate a note's occurrences. The [`names` relation](#content-tables)
 flattens these entries with their containing NOTE Address.
 
-Lint groups names without an indexed full-name or alias match, among notes
+Lint groups names without an indexed full-name or listed-form match, among notes
 of the span's type and subtype when it supplies them, by supplied
 classification and lists all their source uses. It also groups conflicting
 annotations of the same visible name. Untyped uses do not conflict. A bare
@@ -3457,11 +3581,12 @@ row has these columns, including on an empty relation:
 | `name`    | `VARCHAR` | Rendered visible text, preserving its spelling.                                              |
 | `type`    | `VARCHAR` | Supplied note type, or `NULL`.                                                               |
 | `subType` | `VARCHAR` | Supplied subtype, or `NULL`.                                                                 |
+| `ref`     | `VARCHAR` | The span's `ref=` as written, a note address or a page-local `#key`, or `NULL`.              |
 | `line`    | `BIGINT`  | Original 1-based source line at the span's opening `[`.                                      |
 | `column`  | `BIGINT`  | Original 1-based UTF-16 source column at that `[`.                                           |
 
 ```sql
-SELECT owner, name, type, subType, line, "column"
+SELECT owner, name, type, subType, ref, line, "column"
 FROM names
 WHERE type = 'place'
 ORDER BY owner, line, "column"
@@ -3566,16 +3691,18 @@ in `data.parents`. Each entry is an Address naming another culture lore note;
 a missing target, a target of another type or subtype, and a parent cycle are
 errors at the offending list entry. No other lore subtype accepts the key.
 
-A culture inherits `data.language` and `data.appearanceProfile` independently
-when it leaves either field out. A stated value wins for that field. The
+A culture inherits `data.appearanceProfile` when it leaves the field out, and a
+stated value wins. Its language comes down the same parents, as
+[a note's language](#a-notes-language) describes. The
 profile is inherited as one complete object; its weights and ranges are not
 merged with another profile. Parents are searched in listed order, depth-first:
 the first parent's chain is searched before the next parent's chain. Sources
-at the same depth that disagree on a field produce a finding. Nothing is
+at the same depth that disagree on the profile produce a finding. Nothing is
 inherited through a broken parent address.
 
-The emitted content-index JSONL carries the resolved fields in the child's
-`data`, exactly as if the child had stated them. `package-build npc new` and
+The emitted content-index JSONL carries the resolved profile in the child's
+`data`, exactly as if the child had stated it, and the derived language as the
+record's `lang`. `package-build npc new` and
 other consumers read those resolved values; they do not walk culture parents.
 The child's `data.culture` remains its own Address. A being, place or
 affiliation naming the parent in `data.culture` belongs to that named culture;
@@ -3590,7 +3717,7 @@ name: { full: Reedfolk }
 type: lore
 subType: culture
 data:
-  language: skill-reedtongue
+  lang: reed
   appearanceProfile:
     frame: { medium: 1 }
     eye_color: { brown: 1 }
@@ -3622,7 +3749,8 @@ beside the river's deep channels, where their boats carry grain, timber and
 woven reeds between settlements.
 ```
 
-The parent names this language note, whose lists supply generated names:
+The parent's language is `reed`, which `languages:` maps to this language note,
+whose lists supply generated names:
 
 ```markdown
 ---
@@ -3645,17 +3773,14 @@ given name followed by a family name, and carry those names between river
 settlements with their trade.
 ```
 
-In a package named `reedflats`, the Riverfolk index record carries the Reedfolk
-profile and `data.language` as a published Address object:
+In a package named `reedflats` whose configuration maps `reed` to
+`skill-reedtongue`, the Riverfolk index record carries the Reedfolk profile in
+its `data` and the language as `"lang": "reed"`.
 
-```json
-{ "address": "reedflats-note-skill-reedtongue", "anchor": null, "anchorKind": null }
-```
-
-Adding `language: skill-rivertongue` to Riverfolk's `data` selects that language
-instead while retaining the inherited profile, provided the named language
-note exists. Stating an `appearanceProfile` there replaces the inherited
-profile while leaving the inherited tongue in place.
+Adding `lang: river` to Riverfolk's `data` selects that language instead while
+retaining the inherited profile, provided `languages:` declares `river`.
+Stating an `appearanceProfile` there replaces the inherited profile while
+leaving the inherited tongue in place.
 
 ##### Culture in the index
 
@@ -3952,7 +4077,7 @@ The watch wears [a _blue_ sash]{#watch-sash .uniform lang=en}.
 ```
 
 The exact `.name` class marks a name, with optional `data-type="type/subType"`;
-see [marking names in prose](#marking-names-in-prose) for the vocabulary and index.
+see [marking names in prose](#marking-names-in-prose) for the vocabulary, `ref=` and index.
 The exact `.secret` class marks the enclosed text as an inline spoiler:
 
 ```markdown
@@ -3964,8 +4089,8 @@ The website provides an inline show/hide button and preserves interactive links
 inside the revealed content. Foundry renders a focusable, CSS-redacted inline
 span that reveals its text and nested content on hover or keyboard focus.
 Native Foundry secret sections retain their own controls. Books ignore `.secret`
-on inline spans, preserving their text, emphasis, links, anchors and `.name`
-bold styling. Secret sections and `:::secret` fences keep their visible labelled
+on inline spans, preserving their text, emphasis, links, anchors and a name's
+first-use bold. Secret sections and `:::secret` fences keep their visible labelled
 boxes. Published HTML retains the text, so opening the spoiler or inspecting the
 source reveals it.
 
@@ -4783,9 +4908,9 @@ culture note. A culture may obtain the complete profile from its
 `package-build npc new` draws a person's name from it, or checks a name it is
 given against it — see [the command](../commands.md#package-build-npc-new).
 Only a `skill` note of `subType: language` takes the key; on any other skill it
-is an error at the key. A culture reaches the lists through `data.language`,
-which names the language skill note its people speak, so cultures sharing a
-tongue share its lists.
+is an error at the key. A culture reaches the lists through its
+[language](#a-notes-language): the note `languages:` names for its code, so
+cultures sharing a tongue share its lists.
 
 The lists have two required keys, and any number of lists named by the
 language:
@@ -5413,44 +5538,43 @@ rank names the standing, and the standing says.
 
 **Standing**: aligned, unaligned, rival, nemesis
 
-| `data` property                                 | Values                                                                    | Description                                                                                                                           |
-| ----------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `templatePriority`                              | `number`                                                                  | Template priority, _null_ = not a template                                                                                            |
-| `events`                                        | event entries — see [Events](#events)                                     | What happened to or at this subject: dated, attributed events                                                                         |
-| `demonym`                                       | `string`                                                                  | What a member of this affiliation is called (a Vylarian)                                                                              |
-| `epithet`                                       | `string`                                                                  | The by-name it is known by — a god's, an order's, a company's                                                                         |
-| `symbol`                                        | `string`                                                                  | Its emblem in words: a feather atop a golden scale, a chisel carving a star                                                           |
-| `governance.model`                              | `GovernanceModel`                                                         | Type of government structure, if applicable                                                                                           |
-| `governance.summary`                            | `string`                                                                  | summary of the governance situation                                                                                                   |
-| `governance.ranks`                              | `Rank[]`                                                                  | The ranks the affiliation confers; level 0 and level 1 are required                                                                   |
-| `governance.ranks[].level`                      | `integer`, required                                                       | The rung's position on this body's ladder; a member's `rank` names it                                                                 |
-| `governance.ranks[].title`                      | `string`, required                                                        | What the standing is called                                                                                                           |
-| `governance.ranks[].description`                | `string`, required                                                        | What the standing is                                                                                                                  |
-| `governance.ranks[].lore`                       | `Address`                                                                 | The `law` lore note stating what the standing is, shared with every body that confers it                                              |
-| `governance.offices`                            | `Map<name, description \| {description, holders}>`                        | Official offices and their dated holders                                                                                              |
-| `governance.offices.<name>`                     | `string` or `{ description, holders }`                                    | One office, keyed by its name: its description, or a map of description and holders                                                   |
-| `governance.offices.<name>.description`         | `string`, required                                                        | What the office is                                                                                                                    |
-| `governance.offices.<name>.holders`             | `{ being, start?, end?, contested? }[]`, required                         | Who has held the office, each with the dates of the term                                                                              |
-| `governance.offices.<name>.holders[].being`     | `Address`, required                                                       | The `being` who held it                                                                                                               |
-| `governance.offices.<name>.holders[].start`     | `date`                                                                    | When the term began; omitted, it began before anything recorded                                                                       |
-| `governance.offices.<name>.holders[].end`       | `date`                                                                    | When the term ended; omitted, the being holds the office now                                                                          |
-| `governance.offices.<name>.holders[].contested` | `boolean`                                                                 | `true` where the term may overlap another holder's                                                                                    |
-| `seat`                                          | `Address`                                                                 | Where the affiliation's authority sits                                                                                                |
-| `population`                                    | `number`                                                                  | Number of people in the affiliation (precision 2 significant digits).                                                                 |
-| `economy`                                       | `Address[]`                                                               | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default                                                |
-| `lore`                                          | `Address[]`                                                               | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar                                        |
-| `parents`                                       | `Address[]`                                                               | Affiliations that this affiliation is subordinate to                                                                                  |
-| `culture`                                       | `Address`                                                                 | The people this affiliation belongs to, naming a lore note with `subType: culture`                                                    |
-| `language`                                      | `Address`                                                                 | The trade, temple or order tongue it keeps, naming a skill note with `subType: language`                                              |
-| `glossary`                                      | `{ name, name_sort?, common?, definition?, pronunciation?, language? }[]` | Its own glossary terms — see [glossary terms](#glossary-terms)                                                                        |
-| `glossary[].name`                               | `string`, required                                                        | The headword                                                                                                                          |
-| `glossary[].name_sort`                          | `string`                                                                  | Its sort key; the matching word's, else the name, when unstated                                                                       |
-| `glossary[].common`                             | `boolean`                                                                 | `true` for a term in this owner's core vocabulary; `false` when unstated                                                              |
-| `glossary[].definition`                         | `string`                                                                  | Its context meaning or own gloss; unstated, a matching dictionary word supplies its senses                                            |
-| `glossary[].pronunciation`                      | `string`                                                                  | A respelling, as `sol-MEH-reh`: letters, apostrophes and hyphens, at most one syllable in capitals                                    |
-| `glossary[].language`                           | `Address`                                                                 | The language the term is in, naming a skill note with `subType: language`; unstated, the affiliation's, its parents' or its culture's |
-| `relations`                                     | `Map<Address, Standing>`                                                  | Standing with other affiliations, keyed by the other body's Address                                                                   |
-| `relations.<Address>`                           | `aligned`, `unaligned`, `rival` or `nemesis`                              | The standing this body holds toward that one; any other value is an error at the value                                                |
+| `data` property                                 | Values                                                                    | Description                                                                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `templatePriority`                              | `number`                                                                  | Template priority, _null_ = not a template                                                                                  |
+| `events`                                        | event entries — see [Events](#events)                                     | What happened to or at this subject: dated, attributed events                                                               |
+| `demonym`                                       | `string`                                                                  | What a member of this affiliation is called (a Vylarian)                                                                    |
+| `epithet`                                       | `string`                                                                  | The by-name it is known by — a god's, an order's, a company's                                                               |
+| `symbol`                                        | `string`                                                                  | Its emblem in words: a feather atop a golden scale, a chisel carving a star                                                 |
+| `governance.model`                              | `GovernanceModel`                                                         | Type of government structure, if applicable                                                                                 |
+| `governance.summary`                            | `string`                                                                  | summary of the governance situation                                                                                         |
+| `governance.ranks`                              | `Rank[]`                                                                  | The ranks the affiliation confers; level 0 and level 1 are required                                                         |
+| `governance.ranks[].level`                      | `integer`, required                                                       | The rung's position on this body's ladder; a member's `rank` names it                                                       |
+| `governance.ranks[].title`                      | `string`, required                                                        | What the standing is called                                                                                                 |
+| `governance.ranks[].description`                | `string`, required                                                        | What the standing is                                                                                                        |
+| `governance.ranks[].lore`                       | `Address`                                                                 | The `law` lore note stating what the standing is, shared with every body that confers it                                    |
+| `governance.offices`                            | `Map<name, description \| {description, holders}>`                        | Official offices and their dated holders                                                                                    |
+| `governance.offices.<name>`                     | `string` or `{ description, holders }`                                    | One office, keyed by its name: its description, or a map of description and holders                                         |
+| `governance.offices.<name>.description`         | `string`, required                                                        | What the office is                                                                                                          |
+| `governance.offices.<name>.holders`             | `{ being, start?, end?, contested? }[]`, required                         | Who has held the office, each with the dates of the term                                                                    |
+| `governance.offices.<name>.holders[].being`     | `Address`, required                                                       | The `being` who held it                                                                                                     |
+| `governance.offices.<name>.holders[].start`     | `date`                                                                    | When the term began; omitted, it began before anything recorded                                                             |
+| `governance.offices.<name>.holders[].end`       | `date`                                                                    | When the term ended; omitted, the being holds the office now                                                                |
+| `governance.offices.<name>.holders[].contested` | `boolean`                                                                 | `true` where the term may overlap another holder's                                                                          |
+| `seat`                                          | `Address`                                                                 | Where the affiliation's authority sits                                                                                      |
+| `population`                                    | `number`                                                                  | Number of people in the affiliation (precision 2 significant digits).                                                       |
+| `economy`                                       | `Address[]`                                                               | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default                                      |
+| `lore`                                          | `Address[]`                                                               | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar                              |
+| `parents`                                       | `Address[]`                                                               | Affiliations that this affiliation is subordinate to                                                                        |
+| `culture`                                       | `Address`                                                                 | The people this affiliation belongs to, naming a lore note with `subType: culture`                                          |
+| `glossary`                                      | `{ name, name_sort?, common?, definition?, pronunciation?, language? }[]` | Its own glossary terms — see [glossary terms](#glossary-terms)                                                              |
+| `glossary[].name`                               | `string`, required                                                        | The headword                                                                                                                |
+| `glossary[].name_sort`                          | `string`                                                                  | Its sort key; the matching word's, else the name, when unstated                                                             |
+| `glossary[].common`                             | `boolean`                                                                 | `true` for a term in this owner's core vocabulary; `false` when unstated                                                    |
+| `glossary[].definition`                         | `string`                                                                  | Its context meaning or own gloss; unstated, a matching dictionary word supplies its senses                                  |
+| `glossary[].pronunciation`                      | `string`                                                                  | A respelling, as `sol-MEH-reh`: letters, apostrophes and hyphens, at most one syllable in capitals                          |
+| `glossary[].language`                           | `Address`                                                                 | The language the term is in, naming a skill note with `subType: language`; unstated, the note of the affiliation's language |
+| `relations`                                     | `Map<Address, Standing>`                                                  | Standing with other affiliations, keyed by the other body's Address                                                         |
+| `relations.<Address>`                           | `aligned`, `unaligned`, `rival` or `nemesis`                              | The standing this body holds toward that one; any other value is an error at the value                                      |
 
 **An affiliation names the people it belongs to in `data.culture`.** An
 affiliation that names none takes its culture from its `data.parents`. A
@@ -5459,8 +5583,8 @@ together with every place whose `data.government` names it. See
 [Culture in the index](#culture-in-the-index).
 
 **An affiliation may keep a tongue of its own.** A trade cant, a temple
-language or an order's tongue is named in the affiliation's `data.language`, and
-it supplies the language of the affiliation's own
+language or an order's tongue is the affiliation's `data.lang`, and its note
+supplies the language of the affiliation's own
 [glossary terms](#glossary-terms) where an entry names none. A culture can
 select a word of that tongue for its own glossary by naming the language on
 the entry. In a tree that holds at least one culture note, an
@@ -6405,7 +6529,7 @@ note cites a word when its body marks the word in italics, `_amère_` or
 `*amère*`: an italic span holding text alone, no link and no code, whose text
 is the word's form or one of its `variants`, compared with diacritics taken off
 and case folded, so `_Amere_` cites `amère` too. A note also cites a word its
-frontmatter names whole, under the same folding: a full name or an alias that
+frontmatter names whole, under the same folding: a full name or a listed form that
 spells the word, or an affiliation's rank or office title that does. An italic
 span or a name that spells no word cites nothing, and neither does a word
 found only inside a longer name. A language note never cites its own words,
@@ -6665,7 +6789,7 @@ and affixes, its pieces as a word's `built` writes them; `gloss` says what the
 name means where the pages give its sense, and `why` says why a name stands
 outside the pattern. Which notes carry a name is not
 written: the `register` relation derives it from the index — every note in
-`scope` having it as its full name, an alias or a part of its name, every
+`scope` having it as its full name, a listed form or a part of its name, every
 affiliation in `scope` having it as a rank or office title, and every anchor of
 a note in `scope` having it as its name. A folder note carries no name, and a
 language that states no `scope` reads every note of the package.
@@ -7128,57 +7252,56 @@ not a different cultural identity. See
 [Culture parents](#culture-parents-and-inherited-fields) and
 [Culture in the index](#culture-in-the-index).
 
-| `data` property                       | Values                                                                        | Description                                                                                                                                                                                                                                                                                                   |
-| ------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `epoch`                               | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                                                                                                                                                                                                                          |
-| `months`                              | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                                                                                                                                                                                                            |
-| `months[].name`                       | `string`, required                                                            | The month's name                                                                                                                                                                                                                                                                                              |
-| `months[].abbreviation`               | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                                                                                            |
-| `months[].days`                       | `integer`, required                                                           | How many days the month holds                                                                                                                                                                                                                                                                                 |
-| `weekdays`                            | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                                                                                                                                                                                                                  |
-| `weekdays[].name`                     | `string`, required                                                            | The day's name                                                                                                                                                                                                                                                                                                |
-| `weekdays[].abbreviation`             | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                                                                                            |
-| `seasons`                             | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                                                                                                                                                                                                                    |
-| `seasons[].name`                      | `string`, required                                                            | The season's name                                                                                                                                                                                                                                                                                             |
-| `seasons[].abbreviation`              | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                                                                                            |
-| `seasons[].start`                     | `integer`, required                                                           | The one-based day of the year it begins; starts increase down the list                                                                                                                                                                                                                                        |
-| `namedDays`                           | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                                                                                                                                                                                                                      |
-| `namedDays[].name`                    | `string`, required                                                            | The day's name                                                                                                                                                                                                                                                                                                |
-| `namedDays[].abbreviation`            | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                                                                                            |
-| `namedDays[].day`                     | `integer`, required                                                           | The one-based day of the year it names, distinct within the calendar                                                                                                                                                                                                                                          |
-| `eras`                                | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                                                                                                                                                                                                                         |
-| `eras[].shortcode`                    | `string`, required                                                            | The era's own segment of `<calendar>.<era>`, unique within the calendar                                                                                                                                                                                                                                       |
-| `eras[].name`                         | `string`, required                                                            | The era's name                                                                                                                                                                                                                                                                                                |
-| `eras[].marker`                       | `string`                                                                      | Uppercase letters and digits, beginning with a letter, unique across the corpus; an authored date names the era by it                                                                                                                                                                                         |
-| `eras[].abbreviation`                 | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                                                                                            |
-| `eras[].proclaimedBy`                 | `Address`                                                                     | The body that began the reckoning                                                                                                                                                                                                                                                                             |
-| `eras[].start`                        | `null` or `integer`, required                                                 | The calendar year the era begins; `null` for the era before year 1                                                                                                                                                                                                                                            |
-| `eras[].label`                        | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                                                                                                                                                                                                                    |
-| `eras[].label.after`                  | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                                                                                                                                                                                                              |
-| `eras[].label.before`                 | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                                                                                                                                                                                                            |
-| `formats`                             | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                                                                                                                                                                                                            |
-| `culture`                             | `Address`                                                                     | The people this lore belongs to — for a `literature` note, the people whose work it is — naming a lore note with `subType: culture`; not on a `culture` note                                                                                                                                                  |
-| `form`                                | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text                                                                                                                                                                                             |
-| `subjects`                            | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                                                                                                                                                                    |
-| `parents`                             | `Address[]`                                                                   | `culture` only: the larger cultures this one belongs to; each target is a culture lore note — see [culture parents](#culture-parents-and-inherited-fields)                                                                                                                                                    |
-| `language`                            | `Address`                                                                     | `literature` and `culture` only: the tongue a work is composed in, or a culture's people speak, naming a skill note with `subType: language`; `package-build npc new` draws a culture's names from that language's [name lists](#name-lists); glossary entries whose own `language` is unstated resolve to it |
-| `events`                              | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                                                                                                                                                                 |
-| `appearanceProfile`                   | `{ frame, eye_color, hair_color, skin_color, complexion, height }`            | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                                                                                                                                                                      |
-| `appearanceProfile.frame`             | map of `frame` words to positive weights, required                            | How often each frame is drawn                                                                                                                                                                                                                                                                                 |
-| `appearanceProfile.eye_color`         | map of `eye_color` words to positive weights, required                        | How often each eye colour is drawn                                                                                                                                                                                                                                                                            |
-| `appearanceProfile.hair_color`        | map of `hair_color` words to positive weights, required                       | How often each hair colour is drawn                                                                                                                                                                                                                                                                           |
-| `appearanceProfile.skin_color`        | map of `skin_color` words to positive weights, required                       | How often each skin colour is drawn                                                                                                                                                                                                                                                                           |
-| `appearanceProfile.complexion`        | map of `complexion` words to positive weights, required                       | How often each complexion is drawn                                                                                                                                                                                                                                                                            |
-| `appearanceProfile.height`            | map of `gender` words to `{ min, max }`, required                             | Height ranges by gender; `female` and `male` are required                                                                                                                                                                                                                                                     |
-| `appearanceProfile.height.<name>.min` | height in metres or feet and inches, required                                 | The shortest height drawn for that gender                                                                                                                                                                                                                                                                     |
-| `appearanceProfile.height.<name>.max` | height in metres or feet and inches, required                                 | The tallest height drawn for that gender                                                                                                                                                                                                                                                                      |
-| `glossary`                            | `{ name, name_sort?, common?, definition?, pronunciation?, language? }[]`     | `culture` only: the culture's own glossary terms — see [glossary terms](#glossary-terms)                                                                                                                                                                                                                      |
-| `glossary[].name`                     | `string`, required                                                            | The headword                                                                                                                                                                                                                                                                                                  |
-| `glossary[].name_sort`                | `string`                                                                      | Its sort key; the matching word's, else the name, when unstated                                                                                                                                                                                                                                               |
-| `glossary[].common`                   | `boolean`                                                                     | `true` for a term in this owner's core vocabulary; `false` when unstated                                                                                                                                                                                                                                      |
-| `glossary[].definition`               | `string`                                                                      | Its context meaning or own gloss; unstated, a matching dictionary word supplies its senses                                                                                                                                                                                                                    |
-| `glossary[].pronunciation`            | `string`                                                                      | A respelling, as `sol-MEH-reh`: letters, apostrophes and hyphens, at most one syllable in capitals                                                                                                                                                                                                            |
-| `glossary[].language`                 | `Address`                                                                     | The language the term is in, naming a skill note with `subType: language`; unstated, the note's language                                                                                                                                                                                                      |
+| `data` property                       | Values                                                                        | Description                                                                                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `epoch`                               | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                                                                         |
+| `months`                              | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                                                           |
+| `months[].name`                       | `string`, required                                                            | The month's name                                                                                                                                             |
+| `months[].abbreviation`               | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `months[].days`                       | `integer`, required                                                           | How many days the month holds                                                                                                                                |
+| `weekdays`                            | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                                                                 |
+| `weekdays[].name`                     | `string`, required                                                            | The day's name                                                                                                                                               |
+| `weekdays[].abbreviation`             | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `seasons`                             | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                                                                   |
+| `seasons[].name`                      | `string`, required                                                            | The season's name                                                                                                                                            |
+| `seasons[].abbreviation`              | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `seasons[].start`                     | `integer`, required                                                           | The one-based day of the year it begins; starts increase down the list                                                                                       |
+| `namedDays`                           | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                                                                     |
+| `namedDays[].name`                    | `string`, required                                                            | The day's name                                                                                                                                               |
+| `namedDays[].abbreviation`            | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `namedDays[].day`                     | `integer`, required                                                           | The one-based day of the year it names, distinct within the calendar                                                                                         |
+| `eras`                                | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                                                                        |
+| `eras[].shortcode`                    | `string`, required                                                            | The era's own segment of `<calendar>.<era>`, unique within the calendar                                                                                      |
+| `eras[].name`                         | `string`, required                                                            | The era's name                                                                                                                                               |
+| `eras[].marker`                       | `string`                                                                      | Uppercase letters and digits, beginning with a letter, unique across the corpus; an authored date names the era by it                                        |
+| `eras[].abbreviation`                 | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `eras[].proclaimedBy`                 | `Address`                                                                     | The body that began the reckoning                                                                                                                            |
+| `eras[].start`                        | `null` or `integer`, required                                                 | The calendar year the era begins; `null` for the era before year 1                                                                                           |
+| `eras[].label`                        | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                                                                   |
+| `eras[].label.after`                  | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                                                             |
+| `eras[].label.before`                 | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                                                           |
+| `formats`                             | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                                                           |
+| `culture`                             | `Address`                                                                     | The people this lore belongs to — for a `literature` note, the people whose work it is — naming a lore note with `subType: culture`; not on a `culture` note |
+| `form`                                | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text                                            |
+| `subjects`                            | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                   |
+| `parents`                             | `Address[]`                                                                   | `culture` only: the larger cultures this one belongs to; each target is a culture lore note — see [culture parents](#culture-parents-and-inherited-fields)   |
+| `events`                              | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                |
+| `appearanceProfile`                   | `{ frame, eye_color, hair_color, skin_color, complexion, height }`            | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                     |
+| `appearanceProfile.frame`             | map of `frame` words to positive weights, required                            | How often each frame is drawn                                                                                                                                |
+| `appearanceProfile.eye_color`         | map of `eye_color` words to positive weights, required                        | How often each eye colour is drawn                                                                                                                           |
+| `appearanceProfile.hair_color`        | map of `hair_color` words to positive weights, required                       | How often each hair colour is drawn                                                                                                                          |
+| `appearanceProfile.skin_color`        | map of `skin_color` words to positive weights, required                       | How often each skin colour is drawn                                                                                                                          |
+| `appearanceProfile.complexion`        | map of `complexion` words to positive weights, required                       | How often each complexion is drawn                                                                                                                           |
+| `appearanceProfile.height`            | map of `gender` words to `{ min, max }`, required                             | Height ranges by gender; `female` and `male` are required                                                                                                    |
+| `appearanceProfile.height.<name>.min` | height in metres or feet and inches, required                                 | The shortest height drawn for that gender                                                                                                                    |
+| `appearanceProfile.height.<name>.max` | height in metres or feet and inches, required                                 | The tallest height drawn for that gender                                                                                                                     |
+| `glossary`                            | `{ name, name_sort?, common?, definition?, pronunciation?, language? }[]`     | `culture` only: the culture's own glossary terms — see [glossary terms](#glossary-terms)                                                                     |
+| `glossary[].name`                     | `string`, required                                                            | The headword                                                                                                                                                 |
+| `glossary[].name_sort`                | `string`                                                                      | Its sort key; the matching word's, else the name, when unstated                                                                                              |
+| `glossary[].common`                   | `boolean`                                                                     | `true` for a term in this owner's core vocabulary; `false` when unstated                                                                                     |
+| `glossary[].definition`               | `string`                                                                      | Its context meaning or own gloss; unstated, a matching dictionary word supplies its senses                                                                   |
+| `glossary[].pronunciation`            | `string`                                                                      | A respelling, as `sol-MEH-reh`: letters, apostrophes and hyphens, at most one syllable in capitals                                                           |
+| `glossary[].language`                 | `Address`                                                                     | The language the term is in, naming a skill note with `subType: language`; unstated, the note's language                                                     |
 
 `data.events` is available on every `lore` subType, and is described in full under [Events](#events).
 
@@ -7242,22 +7365,16 @@ word.
 **Every entry resolves to a language**, and the first match wins:
 
 1. the entry's own `language`;
-2. on an affiliation, its own `data.language`, then the nearest parent
-   affiliation's, nearest first and parents in the order `data.parents` lists
-   them, then its culture's `data.language`;
-3. on a culture, its own `data.language`.
+2. the note `languages:` names for the [language](#a-notes-language) of the
+   note the entry is written on: its own `data.lang`, its culture's, or its
+   parents'.
 
-On lore and affiliation notes, `data.language` and
-`data.glossary[].language` name language notes. Use `skill-provnzlng` for a
+`data.glossary[].language` names a language note. Use `skill-provnzlng` for a
 language in this package, or `<pkg>-note-skill-provnzlng` for its complete
 NOTE Address. Any other system segment, including `sohl`, is an error at the
 authored value. A SOHL skill Address names a compiled Item.
 
-An affiliation's culture is the one it states or inherits, as
-[Culture in the index](#culture-in-the-index) describes, and a culture's
-`data.language` includes one it inherits from its
-[parent cultures](#culture-parents-and-inherited-fields). An entry in another
-tongue names that language explicitly:
+An entry in another tongue names that language explicitly:
 
 ```yaml
 # Affiliations/Wardens.md — an order with a cant of its own
@@ -7265,7 +7382,7 @@ type: affiliation
 subType: order
 data:
   culture: lore-sinaleclt
-  language: skill-tradelng
+  lang: trade
   glossary:
     - { name: zarq, common: true } # a word of the cant
     - { name: gate-oath, definition: "the oath sworn at the gate" } # in the cant
@@ -7279,7 +7396,8 @@ Each finding is located at the entry's key:
 - Two entries of one name in one glossary are an error at the second. Names are
   compared after NFC normalisation, with case kept.
 - An entry that resolves to no language is an error at the entry: state its
-  `language`, or `data.language` on the note.
+  `language`, or a `data.lang` on the note whose language has a `note` in
+  `languages:`.
 - An entry's `language` that names no language skill is an error at the value.
 - An entry with no `definition` naming neither a word of its resolved
   language, including inherited words, nor a rank or office that reaches its
