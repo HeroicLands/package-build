@@ -1,5 +1,34 @@
 # @heroiclands/package-build
 
+## 25.2.0
+
+**Content and notes**
+
+- A note lists its other names under the code of their language, beside the English `full`: `name: {full: Johnathan Lewis, en: [John], vyla: [juan juis]}`.
+- A note states its language as `data.lang`, a code `languages:` declares or `en`; a note that states none takes its culture's, then its parents', then `en`.
+- A culture that states no language, and inherits none from a parent culture, is an error wherever a note names it.
+- Names match whatever their case, so `[arden vale]{.name}` names the note _Arden Vale_.
+- A `.name` span can carry `ref=` to tie each spelling of a person, place or thing to its note without linking it: `[Tom]{.name ref=being-tomr}`.
+- A `ref` may be a page-local key such as `ref="#jane"` for a subject with no note, and a `ref` that matches no note is an error.
+
+**Rendering and sites**
+
+- The first use of each name in a page is bold on the website, in Foundry journals and in the book, and its later uses are plain text.
+- Every spelling tied by one `ref`, every link to one note and every case of one label count as one name.
+- A wikilink counts as a name when it carries `.name`, such as `[[place-harbor|the harbor]]{.name}`; names in headings, tables, captions and other-language runs take no bold.
+
+**Builds and commands**
+
+- `changelog check` now refuses a changeset that is not labelled blocks of bullets: a lead paragraph, an unlabelled bullet, prose between blocks and a label that is not declared are errors.
+- A label must be in `labels` or be `Miscellaneous`, which every repository has and never declares; with no list declared, only `Miscellaneous` is accepted.
+- `changelog check --release` holds a Version Packages section to the same shape.
+- `changelog group` removes the `### … Changes` headings, merges blocks that share a label, orders them as `labels` declares and lists `Miscellaneous` last.
+
+**Upgrading**
+
+- Declare `labels` in the changelog options of `.changeset/config.json`, and rewrite pending changesets as labelled blocks of bullets before upgrading.
+- Move each `aliases` entry under its language's code, or `en`, and write `data.lang: <code>` in place of `data.language: skill-…`; both old keys are refused.
+
 ## 25.1.3
 
 **Spelling checks**
