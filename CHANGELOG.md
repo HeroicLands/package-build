@@ -1,5 +1,12 @@
 # @heroiclands/package-build
 
+## 25.1.2
+
+**Build speed**
+
+- Content builds and content lint run several times faster on large packages, above all when building the content index and checking text written through a language's encoding.
+- The build log shows how long each stage of the content index takes.
+
 ## 25.1.1
 
 **Language conversion**
