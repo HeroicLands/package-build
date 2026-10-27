@@ -12,29 +12,28 @@
  */
 
 /**
- * Fold a release's changeset blocks together by their bold label.
+ * Turn Changesets' output for the newest release into its final shape.
  *
  * `@heroiclands/package-build/changelog` (`changelog.cjs`) writes each
- * changeset's summary into `CHANGELOG.md` as its own block, verbatim, under
- * `### <Bump> Changes` — one per changeset, in whatever order Changesets
- * happened to read the files. A repository that groups its release prose by
- * subject (`**Compendiums**`, `**Website**`) ends up with the same label
- * opening several scattered blocks instead of one, because nothing ever
- * merges them: three pull requests touching compendium content each write
- * their own `**Compendiums**` block, and the release reads as three
- * unrelated entries rather than one.
+ * changeset's summary into `CHANGELOG.md` verbatim, under a
+ * `### Major Changes`, `### Minor Changes` or `### Patch Changes` heading,
+ * one block per changeset in whatever order Changesets read the files. A
+ * release is read by subject, not by bump, so `groupChangelogText` removes
+ * every one of those headings, merges the blocks that share a label into one,
+ * and orders the labels as the changelog `labels` declares them. A label the list
+ * does not declare follows the declared ones, in order of first appearance,
+ * and `Miscellaneous`, which every repository has without declaring it, is
+ * always last.
  *
- * `groupChangelogText` merges same-label blocks into one, in the display
- * order `changelog.labels` declares, with the unlabelled lead paragraph
- * first and any label absent from that vocabulary last. It reuses
- * {@link module:engine/changelog-lint.topLevelBlocks} — the same block
- * model `changelog check` reads a block's label from — rather than parsing
- * the markdown a second way.
+ * It reuses {@link module:engine/changelog-lint.topLevelBlocks}, the block
+ * model `changelog check` reads a block's label from, rather than parsing the
+ * markdown a second way.
  *
  * @module
  */
 
 import {
+    MISCELLANEOUS,
     codeLineSet,
     lineColOf,
     releaseSectionRange,
@@ -43,43 +42,13 @@ import {
 } from "./changelog-lint.mjs";
 
 /** A `### <Bump> Changes` heading — the generated scaffold, never authored. */
-const CHANGES_HEADING_RE = /^### (?:Major|Minor|Patch) Changes$/gm;
-
-/**
- * A label, its complete opening paragraph and its remaining items.
- *
- * @param {string} blockText - One block, as {@link topLevelBlocks} collects
- *   it — its first line is the label line for a labelled block.
- * @returns {{labelLine: string, introduction: string, rest: string}} The
- *   introduction retains hard wrapping and stops before a bullet or code.
- */
-function splitLabelBlock(blockText) {
-    const lines = blockText.replace(/\s+$/, "").split("\n");
-    const labelLine = /^\*\*[^*]+\*\*/.exec(lines[0])[0];
-    const inline = lines[0].slice(labelLine.length).trimStart();
-    const introduction = inline ? [inline] : [];
-    const codeLines = codeLineSet(blockText);
-    let cursor = 1;
-    while (
-        cursor < lines.length &&
-        lines[cursor].trim() !== "" &&
-        !/^-\s/.test(lines[cursor]) &&
-        !codeLines.has(cursor + 1)
-    )
-        introduction.push(lines[cursor++]);
-    return {
-        labelLine,
-        introduction: introduction.join("\n"),
-        rest: lines.slice(cursor).join("\n").replace(/^\n+/, ""),
-    };
-}
+const CHANGES_HEADING_RE = /^### (?:Major|Minor|Patch) Changes\s*$/;
 
 /**
  * A block's top-level bullets and the prose or code between them, in source
  * order. A bullet retains its indented continuation and nested items.
  *
- * @param {string} text - A block's content, label line already stripped (or
- *   a lead block's whole text).
+ * @param {string} text - A block's content, label line already stripped.
  * @returns {string[]}
  */
 function itemsOf(text) {
@@ -111,7 +80,7 @@ function itemsOf(text) {
 
 /**
  * The first occurrence of each item, exact-duplicate text dropped, order
- * preserved — the "an exact-duplicate bullet once" rule.
+ * preserved.
  *
  * @param {string[]} items
  * @returns {string[]}
@@ -129,66 +98,43 @@ function dedupeItems(items) {
 }
 
 /**
- * Join a merged group's items the way its own shape calls for: bullets
- * adjacent, one to a line; a paragraph or a mix of paragraphs separated by a
- * blank line, the same spacing a changeset's own multi-paragraph summary
- * already uses.
- *
- * @param {string[]} items
- * @returns {string}
- */
-function joinItems(items) {
-    if (items.length === 0) return "";
-    const allBullets = items.every((item) => /^-\s/.test(item));
-    return items.join(allBullets ? "\n" : "\n\n");
-}
-
-/**
- * One label's blocks (or every unlabelled one), folded into the single
- * block `group` writes for it.
- *
- * A single block with no duplicate items retains its own spacing. Merged
- * opening paragraphs form one hard-wrapped introduction before the items,
- * so paragraph boundaries cannot turn labelled text into unlabelled lead.
+ * One label's blocks, folded into the single block `group` writes for it:
+ * the label line, a blank line, then every bullet in file order. Bullets are
+ * adjacent; any other item is separated by a blank line.
  *
  * @param {Array<{label: string|null, text: string}>} blocks - Every block
- *   sharing one label, in file order. All carry the same `label`.
+ *   sharing one label, in file order.
  * @returns {string}
  */
 function mergeGroup(blocks) {
-    if (blocks[0].label === null) {
-        return joinItems(dedupeItems(blocks.flatMap((block) => itemsOf(block.text))));
-    }
-    const parts = blocks.map((block) => splitLabelBlock(block.text));
-    const introductions = dedupeItems(parts.map((part) => part.introduction).filter(Boolean));
-    const originalItems = parts.flatMap((part) => itemsOf(part.rest));
-    const items = dedupeItems(originalItems);
-    if (blocks.length === 1 && items.length === originalItems.length)
-        return blocks[0].text.replace(/\s+$/, "");
-    const heading =
-        parts[0].labelLine + (introductions.length ? ` ${introductions.join("\n")}` : "");
-    return heading + (items.length ? `\n\n${joinItems(items)}` : "");
+    const labelled = blocks[0].label !== null;
+    const items = dedupeItems(
+        blocks.flatMap((block) => {
+            if (!labelled) return itemsOf(block.text);
+            const [, ...rest] = block.text.replace(/\s+$/, "").split("\n");
+            return itemsOf(rest.join("\n"));
+        }),
+    );
+    const joined = items.join(items.every((item) => /^-\s/.test(item)) ? "\n" : "\n\n");
+    if (!labelled) return joined;
+    const labelLine = blocks[0].text.split("\n")[0].trimEnd();
+    return joined ? `${labelLine}\n\n${joined}` : labelLine;
 }
 
 /**
- * Where a group sorts, relative to the others in its section.
+ * Where a group sorts in its release: an unlabelled block first, then the
+ * declared labels in their declared order, then any other label in order of
+ * first appearance, and `Miscellaneous` last. With no vocabulary declared,
+ * every label but `Miscellaneous` keeps its order of first appearance.
  *
- * The unlabelled lead group always sorts first, whether or not
- * `changelog.labels` is declared — it is the summary a changeset writes with
- * no category, and reads like the section's own opening line. A declared
- * vocabulary then orders everything else by its position in that list, with
- * an undeclared label sorted after every declared one; with no vocabulary
- * declared at all, every labelled group keeps the order its label first
- * appeared in.
- *
- * @param {string|null} key - A group's label, or `null` for the lead group.
- * @param {string[]} appearanceOrder - Every key, in the order its first
- *   block appeared in the section.
- * @param {readonly string[]|null} labels - `changelog.labels`, or `null`.
+ * @param {string|null} key - A group's label, or `null` for an unlabelled one.
+ * @param {string[]} appearanceOrder - Every key, in order of first appearance.
+ * @param {readonly string[]|null} labels - the changelog `labels`, or `null`.
  * @returns {[number, number]} `[tier, rank]`, compared tier first.
  */
 function groupRank(key, appearanceOrder, labels) {
     if (key === null) return [-1, 0];
+    if (key === MISCELLANEOUS) return [2, 0];
     if (labels) {
         const configured = labels.indexOf(key);
         return configured === -1 ? [1, appearanceOrder.indexOf(key)] : [0, configured];
@@ -197,67 +143,16 @@ function groupRank(key, appearanceOrder, labels) {
 }
 
 /**
- * Fold one `### <Bump> Changes` section's blocks together by label.
+ * `changelog group`: give the newest release its final shape.
  *
- * @param {string} bodyText - Everything after the heading, up to the next
- *   one or the end of the release section.
- * @param {readonly string[]|null} labels - `changelog.labels`, in display
- *   order, or `null` when the repository declares none.
- * @returns {{text: string, unknown: Array<{label: string, startLine: number}>}}
- *   The regrouped body (no leading or trailing blank lines), and every label
- *   it wrote that `labels` does not declare, each at its merged block's
- *   first-occurring line within `bodyText` — empty when `labels` is `null`,
- *   since nothing is "unknown" against no vocabulary.
- */
-function groupSection(bodyText, labels) {
-    const codeLines = codeLineSet(bodyText);
-    const blocks = topLevelBlocks(bodyText, codeLines);
-    if (blocks.length === 0) return { text: "", unknown: [] };
-
-    /** @type {string[]} */
-    const appearanceOrder = [];
-    /** @type {Map<string|null, Array<{label: string|null, text: string}>>} */
-    const groups = new Map();
-    for (const block of blocks) {
-        if (!groups.has(block.label)) {
-            groups.set(block.label, []);
-            appearanceOrder.push(block.label);
-        }
-        groups.get(block.label).push(block);
-    }
-
-    const sortedKeys = [...appearanceOrder].sort((a, b) => {
-        const [aTier, aRank] = groupRank(a, appearanceOrder, labels);
-        const [bTier, bRank] = groupRank(b, appearanceOrder, labels);
-        return aTier - bTier || aRank - bRank;
-    });
-
-    const unknown =
-        labels === null ?
-            []
-        :   sortedKeys
-                .filter((key) => key !== null && !labels.includes(key))
-                .map((key) => ({ label: key, startLine: groups.get(key)[0].startLine }));
-
-    const text = sortedKeys.map((key) => mergeGroup(groups.get(key))).join("\n\n");
-    return { text, unknown };
-}
-
-/**
- * `changelog group`: fold the newest release's changeset blocks together by
- * their bold label, order them, and file an undeclared one last.
- *
- * Every earlier release section is untouched, byte for byte — only the
- * first `## <version>` section's `### <Bump> Changes` bodies are rewritten,
- * each independently (a label groups within its own bump level, never
- * across one). Running this on its own output is a no-op: a release already
- * in label order, with each label merged to one block, groups to itself.
+ * Every earlier release section is untouched, byte for byte. Running this on
+ * its own output is a no-op.
  *
  * @param {string} text - The changelog's full contents.
  * @param {object} [opts]
- * @param {readonly string[]|null} [opts.labels] - `changelog.labels`, in
- *   display order. `null`/absent orders every group by first appearance
- *   instead, lead paragraph first, and files nothing as unknown.
+ * @param {readonly string[]|null} [opts.labels] - the changelog `labels`, in
+ *   display order. `null`/absent orders by first appearance and reports
+ *   nothing as undeclared.
  * @returns {{text: string, findings: Array<{line: number,
  *   severity: "warning", message: string}>}}
  */
@@ -266,36 +161,52 @@ export function groupChangelogText(text, { labels = null } = {}) {
     if (!range) return { text, findings: [] };
 
     const section = text.slice(range.start, range.end);
-    const codeLines = codeLineSet(section);
-    const headings = [...section.matchAll(CHANGES_HEADING_RE)].filter(
-        (heading) => !codeLines.has(lineColOf(section, heading.index).line),
-    );
-    if (headings.length === 0) return { text, findings: [] };
+    const headingEnd = section.indexOf("\n");
+    if (headingEnd === -1) return { text, findings: [] };
+    const heading = section.slice(0, headingEnd);
 
-    let rebuilt = section.slice(0, headings[0].index);
-    /** @type {Array<{line: number, severity: "warning", message: string}>} */
+    // The scaffold headings become blank lines, so every line keeps its number.
+    const codeLines = codeLineSet(section.slice(headingEnd + 1));
+    const body = section
+        .slice(headingEnd + 1)
+        .split("\n")
+        .map((line, i) => (!codeLines.has(i + 1) && CHANGES_HEADING_RE.test(line) ? "" : line))
+        .join("\n");
+
+    const blocks = topLevelBlocks(body, codeLines);
+    /** @type {Array<string|null>} */
+    const appearanceOrder = [];
+    /** @type {Map<string|null, Array<{startLine: number, label: string|null, text: string}>>} */
+    const groups = new Map();
+    for (const block of blocks) {
+        if (!groups.has(block.label)) {
+            groups.set(block.label, []);
+            appearanceOrder.push(block.label);
+        }
+        groups.get(block.label).push(block);
+    }
+    const sortedKeys = [...appearanceOrder].sort((a, b) => {
+        const [aTier, aRank] = groupRank(a, appearanceOrder, labels);
+        const [bTier, bRank] = groupRank(b, appearanceOrder, labels);
+        return aTier - bTier || aRank - bRank;
+    });
+
+    const { line: bodyFirstLine } = lineColOf(text, range.start + headingEnd + 1);
     const findings = [];
-
-    for (let i = 0; i < headings.length; i++) {
-        const heading = headings[i];
-        const bodyStart = heading.index + heading[0].length;
-        const bodyEnd = i + 1 < headings.length ? headings[i + 1].index : section.length;
-        const { text: grouped, unknown } = groupSection(section.slice(bodyStart, bodyEnd), labels);
-
-        const isVeryLast = i === headings.length - 1 && range.end === text.length;
-        rebuilt += heading[0] + (grouped ? `\n\n${grouped}` : "") + (isVeryLast ? "\n" : "\n\n");
-
-        const { line: bodyFirstLine } = lineColOf(text, range.start + bodyStart);
-        for (const { label, startLine } of unknown) {
+    if (labels)
+        for (const key of sortedKeys) {
+            if (key === null || key === MISCELLANEOUS || labels.includes(key)) continue;
             findings.push({
-                line: bodyFirstLine + (startLine - 1),
-                severity: "warning",
+                line: bodyFirstLine + (groups.get(key)[0].startLine - 1),
+                severity: /** @type {const} */ ("warning"),
                 message:
-                    `changelog-group/unknown-label "${label}" is not declared in ` +
-                    "`changelog.labels` — filed last, in order of first appearance",
+                    `changelog-group/unknown-label "${key}" is not declared in ` +
+                    "the changelog `labels` — filed after the declared labels, in order of first appearance",
             });
         }
-    }
 
+    const grouped = sortedKeys.map((key) => mergeGroup(groups.get(key))).join("\n\n");
+    const rebuilt =
+        heading + (grouped ? `\n\n${grouped}` : "") + (range.end === text.length ? "\n" : "\n\n");
     return { text: text.slice(0, range.start) + rebuilt + text.slice(range.end), findings };
 }

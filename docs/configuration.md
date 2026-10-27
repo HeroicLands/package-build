@@ -54,7 +54,7 @@ around its own evaluation.
 
 ### Quick reference
 
-26 top-level keys. `rootDir` is not one of them — a data configuration never
+25 top-level keys. `rootDir` is not one of them — a data configuration never
 writes it — and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
@@ -86,11 +86,10 @@ authoring.
 | [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                    |
 | [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                      |
 | [`publish`](#publish)                       | object                                                                     | no                                                                                                 | `{address: {prefix: ""}}` |
-| [`changelog`](#changelog)                   | object                                                                     | no                                                                                                 | `{labels: null}`          |
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -201,7 +200,7 @@ build writes its `name` as `params.author`. `null` when `authors` is empty.
 as an unknown key, at the key's own line, because `authors` is the one list a
 package names its people in:
 
-> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog).``
+> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish).``
 
 `package.json`'s own `author` is npm's and is not read.
 
@@ -1830,45 +1829,6 @@ manifest's package homepage also stays at that root. A page staged under
 Any other key under `publish.address` is refused:
 
 > ``package-build config: `publish.address.<key>` is not a recognized option (expected one of: prefix).``
-
-### `changelog`
-
-**Type:** object · **Optional**, default `{labels: null}`.
-
-`changelog check` and `changelog group` both read a release block's bold
-label — `**Compendiums**` — against `changelog.labels`: the vocabulary and
-display order a repository declares for the categories its changesets group
-under. Declaring none is ordinary — a repository that writes plain,
-unlabelled changesets needs nothing here.
-
-| Key                | Type     | Required | Default |
-| ------------------ | -------- | -------- | ------- |
-| `changelog.labels` | string[] | no       | `null`  |
-
-> ``package-build config: `changelog` must be a mapping.``
-
-> ``package-build config: `changelog.<key>` is not a recognized option (expected one of: labels).``
-
-> ``package-build config: `changelog.labels` must be an array.``
-
-> ``package-build config: `changelog.labels[<n>]` must be a non-empty string.``
-
-A repeated label is refused rather than silently deduplicated — it could
-never be told apart from the drift the list exists to catch (`Compendiums`
-written twice swallows a genuine `Character data` beside `Characters`):
-
-> ``package-build config: `changelog.labels` declares `Compendiums` more than once.``
-
-With `changelog.labels` declared, `changelog group` orders a release
-section's blocks by that list — the unlabelled lead paragraph first, then
-every declared label in the order given, then any undeclared label last, in
-the order it first appears, each reported as a warning naming it. With no
-`changelog.labels` declared, `group` orders every block by first
-appearance, lead paragraph first, and warns about nothing. `changelog check`
-warns on a block whose label is not in a declared `changelog.labels`; with
-none declared, it checks nothing. See
-[`package-build changelog check`](commands.md#package-build-changelog-check)
-and [`package-build changelog group`](commands.md#package-build-changelog-group).
 
 ---
 

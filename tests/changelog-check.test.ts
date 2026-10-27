@@ -130,7 +130,7 @@ describe("changelog check — one fixture per finding class", () => {
 
 describe("changelog check — the warning-only case", () => {
     it("keeps accented proper nouns whole when looking for code-like words", () => {
-        const text = `${FRONTMATTER}HârnMaster and ÉlanMaster use familiar names.\n`;
+        const text = `${FRONTMATTER}**Miscellaneous**\n\n- HârnMaster and ÉlanMaster use familiar names.\n`;
         const { findings } = lintChangesetText(text);
         expect(findings.filter((finding) => finding.message.includes("code-like-token"))).toEqual(
             [],
@@ -138,7 +138,7 @@ describe("changelog check — the warning-only case", () => {
     });
 
     it("a code-like token outside a code span is a warning, not a failure", () => {
-        const text = `${FRONTMATTER}Rename \`getFoo\` to getFooBar() across the tree.\n`;
+        const text = `${FRONTMATTER}**Miscellaneous**\n\n- Rename \`getFoo\` to getFooBar() across the tree.\n`;
         const { findings } = lintChangesetText(text);
 
         expect(findings.length).toBeGreaterThan(0);
@@ -149,7 +149,7 @@ describe("changelog check — the warning-only case", () => {
     });
 
     it("the same token inside a code span is not reported at all", () => {
-        const text = `${FRONTMATTER}Rename \`getFooBar()\` across the tree.\n`;
+        const text = `${FRONTMATTER}**Miscellaneous**\n\n- Rename \`getFooBar()\` across the tree.\n`;
         const { findings } = lintChangesetText(text);
         expect(findings).toEqual([]);
     });
@@ -159,8 +159,10 @@ describe("changelog check — the real fixtures", () => {
     const clean = fs.readFileSync(path.join(FIXTURES, "clean.md"), "utf8");
     const dirty = fs.readFileSync(path.join(FIXTURES, "dirty.md"), "utf8");
 
-    it("Song-of-Heroic-Lands-FoundryVTT's rewritten 0.8.6 section passes clean", () => {
-        const { findings } = lintReleaseText(clean);
+    it("a release section in the final shape passes clean", () => {
+        const { findings } = lintReleaseText(clean, {
+            labels: ["Compendiums and content", "Characters and sheets", "Website"],
+        });
         expect(findings).toEqual([]);
     });
 
@@ -194,34 +196,127 @@ describe("changelog check — the real fixtures", () => {
     });
 });
 
-describe("changelog check — `changelog.labels`", () => {
-    const text = `${FRONTMATTER}**Character data**\n\n- A shortcode is folded to lowercase.\n`;
+const TWO_BLOCKS =
+    "**Verse**\n\n- A stanza break renders as a blank line.\n\n" +
+    "**Rendering**\n\n- Every page carries its section in the contents list.\n";
 
-    it("warns on a label absent from a declared `changelog.labels`", () => {
-        const { findings } = lintChangesetText(text, { labels: ["Compendiums", "Characters"] });
-        expect(findings).toHaveLength(1);
-        expect(findings[0].severity).toBe("warning");
-        expect(findings[0].message).toContain("changelog-check/unknown-label");
-        expect(findings[0].message).toContain('"Character data"');
-        expect(findings[0].line).toBe(lineOf(text, "Character data"));
+const SHAPE_LABELS = ["Verse", "Rendering"];
+
+function errorsOf(text: string, ruleId: string, labels: string[] | null = SHAPE_LABELS) {
+    return lintChangesetText(text, { labels }).findings.filter(
+        (f) => f.severity === "error" && f.message.includes(`changelog-check/${ruleId}`),
+    );
+}
+
+describe("changelog check — the shape", () => {
+    it("accepts a valid two-block changeset", () => {
+        expect(lintChangesetText(`${FRONTMATTER}${TWO_BLOCKS}`, { labels: SHAPE_LABELS })).toEqual({
+            findings: [],
+        });
     });
 
-    it("does not warn on a label the declared list does contain", () => {
-        const { findings } = lintChangesetText(text, { labels: ["Character data"] });
-        expect(findings).toEqual([]);
+    it("accepts an empty changeset body", () => {
+        expect(lintChangesetText("---\n---\n", { labels: SHAPE_LABELS })).toEqual({
+            findings: [],
+        });
     });
 
-    it("warns nothing when `changelog.labels` is not declared", () => {
-        const { findings } = lintChangesetText(text);
-        expect(findings).toEqual([]);
+    it("refuses a single paragraph as a lead paragraph", () => {
+        const text = `${FRONTMATTER}Every page now carries its section in the contents list.\n`;
+        const hits = errorsOf(text, "lead-paragraph");
+        expect(hits).toHaveLength(1);
+        expect(hits[0].line).toBe(lineOf(text, "Every page"));
     });
 
-    it("also applies to a `## <version>` release section under --release", () => {
-        const release = `## 0.1.0\n\n### Patch Changes\n\n**Character data**\n\n- A shortcode is folded to lowercase.\n`;
-        const { findings } = lintReleaseText(release, { labels: ["Characters"] });
-        expect(findings.some((f) => f.message.includes("changelog-check/unknown-label"))).toBe(
-            true,
-        );
+    it("refuses bullets that open no labelled block", () => {
+        const text = `${FRONTMATTER}- A bullet with no label above it.\n`;
+        const hits = errorsOf(text, "unlabelled");
+        expect(hits).toHaveLength(1);
+        expect(hits[0].line).toBe(lineOf(text, "A bullet"));
+    });
+
+    it("refuses a `#` heading", () => {
+        const text = `${FRONTMATTER}## Verse\n\n- A stanza break renders as a blank line.\n`;
+        const hits = errorsOf(text, "heading");
+        expect(hits).toHaveLength(1);
+        expect(hits[0].line).toBe(lineOf(text, "## Verse"));
+    });
+
+    it("refuses prose between blocks", () => {
+        const text = `${FRONTMATTER}**Verse**\n\n- A stanza break renders as a blank line.\n\nSome closing remark.\n`;
+        const hits = errorsOf(text, "stray-prose");
+        expect(hits).toHaveLength(1);
+        expect(hits[0].line).toBe(lineOf(text, "closing remark"));
+    });
+
+    it("refuses a label that carries text on its own line", () => {
+        const text = `${FRONTMATTER}**Verse** A stanza break renders.\n\n- A bullet.\n`;
+        expect(errorsOf(text, "label-line")).toHaveLength(1);
+    });
+
+    it("refuses a label with no bullets", () => {
+        const text = `${FRONTMATTER}**Verse**\n\n**Rendering**\n\n- A bullet.\n`;
+        const hits = errorsOf(text, "empty-block");
+        expect(hits).toHaveLength(1);
+        expect(hits[0].line).toBe(lineOf(text, "**Verse**"));
+    });
+
+    it("refuses a nested list under a bullet", () => {
+        const text = `${FRONTMATTER}**Verse**\n\n- A bullet.\n  - Nested.\n`;
+        expect(errorsOf(text, "nested-list")).toHaveLength(1);
+    });
+
+    it("refuses a label outside the declared list, naming the declared labels", () => {
+        const text = `${FRONTMATTER}**Character data**\n\n- A shortcode is folded to lowercase.\n`;
+        const hits = errorsOf(text, "unknown-label");
+        expect(hits).toHaveLength(1);
+        expect(hits[0].line).toBe(lineOf(text, "Character data"));
+        expect(hits[0].message).toContain('"Character data"');
+        expect(hits[0].message).toContain("Verse, Rendering");
+        expect(hits[0].message).toContain("Miscellaneous");
+    });
+
+    it("accepts a declared label", () => {
+        const text = `${FRONTMATTER}**Character data**\n\n- A shortcode is folded to lowercase.\n`;
+        expect(lintChangesetText(text, { labels: ["Character data"] }).findings).toEqual([]);
+    });
+
+    it("accepts Miscellaneous without declaring it", () => {
+        const text = `${FRONTMATTER}**Miscellaneous**\n\n- An empty search no longer fails.\n`;
+        expect(lintChangesetText(text, { labels: SHAPE_LABELS }).findings).toEqual([]);
+        expect(lintChangesetText(text, { labels: null }).findings).toEqual([]);
+        expect(lintChangesetText(text).findings).toEqual([]);
+    });
+
+    it("with no `changelog.labels`, refuses any other label and names the key to declare", () => {
+        const text = `${FRONTMATTER}**Verse**\n\n- A bullet.\n`;
+        for (const options of [{ labels: null }, {}]) {
+            const hits = lintChangesetText(text, options).findings.filter((f) =>
+                f.message.includes("changelog-check/unknown-label"),
+            );
+            expect(hits).toHaveLength(1);
+            expect(hits[0].severity).toBe("error");
+            expect(hits[0].message).toContain(".changeset/config.json");
+        }
+    });
+
+    it("holds a release section to the same shape", () => {
+        const release = `## 0.1.0\n\n${TWO_BLOCKS}`;
+        expect(lintReleaseText(release, { labels: SHAPE_LABELS }).findings).toEqual([]);
+
+        const bad = "## 0.1.0\n\nA lead paragraph.\n\n**Character data**\n\n- A bullet.\n";
+        const { findings } = lintReleaseText(bad, { labels: SHAPE_LABELS });
+        const classes = findings.map((f) => /changelog-check\/([a-z-]+)/.exec(f.message)?.[1]);
+        expect(classes).toContain("lead-paragraph");
+        expect(classes).toContain("unknown-label");
+    });
+
+    it("refuses a `### … Changes` heading left in a release", () => {
+        const release = `## 0.1.0\n\n### Patch Changes\n\n${TWO_BLOCKS}`;
+        const { findings } = lintReleaseText(release, { labels: SHAPE_LABELS });
+        const hit = findings.find((f) => f.message.includes("changelog-check/changes-heading"));
+        expect(hit?.severity).toBe("error");
+        expect(hit?.line).toBe(3);
     });
 });
 

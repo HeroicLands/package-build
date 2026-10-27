@@ -1,6 +1,18 @@
 {
     "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
-    "changelog": "@heroiclands/package-build/changelog",
+    "changelog": [
+        "@heroiclands/package-build/changelog",
+        {
+            "labels": [
+                "Languages and scripts",
+                "Verse",
+                "Content and notes",
+                "Rendering and sites",
+                "Builds and commands",
+                "Upgrading"
+            ]
+        }
+    ],
     "commit": false,
     "baseBranch": "main",
     "access": "public",

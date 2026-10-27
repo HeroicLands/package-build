@@ -92,7 +92,7 @@ import { emitDiagnostic, formatDiagnostic } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments, siteBase } from "../content-config.mjs";
-import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pack-config.mjs";
+import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, resetStage } from "../stage.mjs";
 import {
     CDN_ENV,
@@ -115,6 +115,7 @@ import { validateLangSource } from "../lang.mjs";
 import { lintYaml } from "../engine/yaml-lint.mjs";
 import { lintChangesetText, lintReleaseText } from "../engine/changelog-lint.mjs";
 import { groupChangelogText } from "../engine/changelog-group.mjs";
+import { readChangelogLabels } from "../engine/changelog-labels.mjs";
 import { bumpDependencies } from "../engine/dependency-bump.mjs";
 import {
     analyzeCoverage,
@@ -1066,35 +1067,33 @@ function yamlCommand() {
 }
 
 /**
- * `changelog check` / `changelog group` — release-prose checks, and folding
- * a release's changeset blocks together by their bold label.
+ * `changelog check` / `changelog group` — the changeset shape check, and the
+ * final grouping of a release.
  *
- * `check` answers one question a changeset otherwise goes unheld to — who
- * notices, and what do they see — so a pull-request description pasted into
- * one does not ship verbatim as a release note. Default reads every pending
- * changeset; `--release` reads the first `## <version>` section of
- * `CHANGELOG.md` instead, for the **Version Packages** branch a merge to
- * `main` opens.
+ * `check` holds a changeset to the house shape — labelled blocks of
+ * bullets, labels from `.changeset/config.json` or `Miscellaneous` — and to the
+ * rules that keep a pull-request description out of a release note. Default
+ * reads every pending changeset; `--release` reads the first `## <version>`
+ * section of `CHANGELOG.md` instead, for the **Version Packages** branch a
+ * merge to `main` opens.
  *
- * `group` rewrites that same first `## <version>` section in place: every
- * changeset in it writes its own `**Compendiums**` block, and nothing merges
- * the three a release with three compendium fixes ends up with. It reads
- * `changelog.labels` for the vocabulary and display order, when the
- * repository declares one.
+ * `group` rewrites that same first `## <version>` section in place: it removes
+ * the `### … Changes` headings, merges blocks sharing a label and orders them
+ * as the labels in `.changeset/config.json` declare, `Miscellaneous` last.
  *
  * @returns {object} The yargs command module.
  */
 function changelogCommand() {
     return {
         command: "changelog <action> [paths..]",
-        describe: "Release-prose checks, and folding a release's blocks by label",
+        describe: "Check changesets against the house shape, and group a release's blocks by label",
         builder: (y) =>
             y
                 .positional("action", {
                     choices: ["check", "group"],
                     describe:
                         "check: lint pending changesets, or a release section. " +
-                        "group: fold a release section's blocks together by label",
+                        "group: give the newest release its final shape",
                 })
                 .positional("paths", {
                     describe:
@@ -1135,17 +1134,17 @@ function changelogFiles(args) {
 }
 
 /**
- * `changelog.labels`, when this repository declares a configuration — `null`
- * otherwise, so `check` and `group` both work in a tree with no
- * `package-build.config.yaml` at all, exactly as `check` already does for
- * pending changesets with no configuration to read.
+ * The labels in `.changeset/config.json`, or `null` when it declares none.
+ * An invalid declaration stops the command.
  *
  * @returns {readonly string[]|null}
  */
 function loadChangelogLabels() {
-    const found = resolveConfigFile();
-    if (!found.path) return null;
-    return loadPackConfig().changelog.labels;
+    try {
+        return readChangelogLabels();
+    } catch (error) {
+        return die(`changelog: ${error.message}`);
+    }
 }
 
 /**

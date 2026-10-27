@@ -6,19 +6,15 @@
  */
 
 /**
- * `changelog group` folds a release section's changeset blocks together by
- * their bold label — `@heroiclands/package-build/changelog` writes one
- * block per changeset, so three pull requests each touching compendium
- * content leave three separate `**Compendiums**` blocks instead of one.
+ * `changelog group` turns Changesets' output into the final release section:
+ * no `### <Bump> Changes` headings, one block per label, the order
+ * `changelog.labels` declares, and `**Miscellaneous**` last.
  *
- * The fixture (`tests/fixtures/changelog/ungrouped.md`) carries a newest
- * `## 0.1.0` section with, in file order: three `**Compendiums**` blocks,
- * an unlabelled lead paragraph, one `**Website**` block, one
- * `**Characters**` block, and one `**Scenery**` block — a label
- * `changelog.labels` below never declares. An older `## 0.0.9` section
- * follows, carrying its own `**Compendiums**` bullet that duplicates text
- * in the newest section, to prove `group` never reaches across a release
- * boundary.
+ * The fixture (`tests/fixtures/changelog/changesets-output.md`) is shaped like
+ * real Changesets output — a `## 2.0.0` heading, then `### Major Changes`,
+ * `### Minor Changes` and `### Patch Changes`, each holding the summaries
+ * `changelog.cjs` writes — with labels repeated across all three. An older
+ * `## 1.9.0` section follows and must never be touched.
  */
 
 import fs from "node:fs";
@@ -27,227 +23,126 @@ import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
 
+import { lintReleaseText } from "../engine/changelog-lint.mjs";
 import { groupChangelogText } from "../engine/changelog-group.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const FIXTURES = path.join(ROOT, "tests", "fixtures", "changelog");
+const INPUT = fs.readFileSync(path.join(FIXTURES, "changesets-output.md"), "utf8");
 
-const UNGROUPED = fs.readFileSync(path.join(FIXTURES, "ungrouped.md"), "utf8");
-const GROUPED_WITH_LABELS = fs.readFileSync(path.join(FIXTURES, "grouped-with-labels.md"), "utf8");
-const GROUPED_NO_LABELS = fs.readFileSync(path.join(FIXTURES, "grouped-no-labels.md"), "utf8");
-const WRAPPED_PARAGRAPH_22_4_3 = fs.readFileSync(
-    path.join(FIXTURES, "wrapped-paragraph-22.4.3.md"),
-    "utf8",
-);
-const MIXED_SUMMARIES = fs.readFileSync(path.join(FIXTURES, "mixed-summaries.md"), "utf8");
+const LABELS = ["Verse", "Rendering"];
 
-const LABELS = ["Compendiums", "Characters", "Website"];
-
-/** The `## 0.0.9` section onward — everything `group` must never touch. */
+/** The `## 1.9.0` section onward — everything `group` must never touch. */
 function olderSections(text: string): string {
-    const at = text.indexOf("## 0.0.9");
-    if (at === -1) throw new Error('fixture does not contain "## 0.0.9"');
+    const at = text.indexOf("## 1.9.0");
+    if (at === -1) throw new Error('fixture does not contain "## 1.9.0"');
     return text.slice(at);
 }
 
-describe("changelog group — merges, orders and labels", () => {
-    it("merges the three `**Compendiums**` blocks into one, bullets in file order, an exact duplicate once", () => {
-        const { text } = groupChangelogText(UNGROUPED, { labels: LABELS });
-        const match = /\*\*Compendiums\*\*\n\n((?:- .+\n?)+)/.exec(text);
-        expect(match, "expected one merged `**Compendiums**` block").not.toBeNull();
-        const bullets = match![1].trim().split("\n");
-        expect(bullets).toEqual([
-            "- Adds the Ranger's Lodge pack to the compendium.",
-            "- Fixes a broken link in the Windwatch camp journal.",
-            "- Retitles the Elven ranger set to match the catalog.",
-            "- Adds cover art to three journal entries.",
-        ]);
-        // Only one `**Compendiums**` heading in the newest section — the
-        // three are merged into one, not left as three consecutive blocks.
-        const newest = text.slice(0, text.indexOf("## 0.0.9"));
-        expect(newest.match(/\*\*Compendiums\*\*/g)).toHaveLength(1);
+const EXPECTED_NEWEST = `# acme
+
+## 2.0.0
+
+**Verse**
+
+- A verse fence keeps its line breaks.
+- A stanza break renders as a blank line.
+
+**Rendering**
+
+- Every page carries its section in the contents list.
+- The search page lists the newest notes first.
+- A table of contents appears on long pages.
+- A page without a title keeps its place in the contents list.
+
+**Scenery**
+
+- The harbor map gains a lighthouse marker.
+
+**Miscellaneous**
+
+- The tool prints a notice when a page has no title.
+- An empty search no longer fails.
+
+`;
+
+describe("changelog group — the final shape", () => {
+    it("removes every `### … Changes` heading from the newest release", () => {
+        const { text } = groupChangelogText(INPUT, { labels: LABELS });
+        const newest = text.slice(0, text.indexOf("## 1.9.0"));
+        expect(newest).not.toMatch(/^### /m);
     });
 
-    it("orders [lead, Compendiums, Characters, Website], `**Scenery**` last with a warning naming it", () => {
-        const { text, findings } = groupChangelogText(UNGROUPED, { labels: LABELS });
-        const newest = text.slice(0, text.indexOf("## 0.0.9"));
-        const order = [...newest.matchAll(/^\*\*(\w+)\*\*$/gm)].map((m) => m[1]);
-        expect(order).toEqual(["Compendiums", "Characters", "Website", "Scenery"]);
-        // The lead paragraph sorts ahead of every labelled block.
-        expect(newest.indexOf("This release folds")).toBeLessThan(
-            newest.indexOf("**Compendiums**"),
-        );
+    it("writes one block per label, in declared order, undeclared next, Miscellaneous last", () => {
+        const { text } = groupChangelogText(INPUT, { labels: LABELS });
+        expect(text.slice(0, text.indexOf("## 1.9.0"))).toBe(EXPECTED_NEWEST);
+    });
 
+    it("names the undeclared label in a warning", () => {
+        const { findings } = groupChangelogText(INPUT, { labels: LABELS });
         expect(findings).toHaveLength(1);
         expect(findings[0].severity).toBe("warning");
         expect(findings[0].message).toContain('"Scenery"');
-        expect(findings[0].message).toContain("changelog.labels");
+        expect(findings[0].message).toContain("labels");
     });
 
-    it("matches the rendered fixture byte for byte", () => {
-        const { text } = groupChangelogText(UNGROUPED, { labels: LABELS });
-        expect(text).toBe(GROUPED_WITH_LABELS);
-    });
-
-    it("with no `changelog.labels`, orders every group by first appearance, lead first", () => {
-        const { text, findings } = groupChangelogText(UNGROUPED, {});
-        expect(text).toBe(GROUPED_NO_LABELS);
+    it("never reports Miscellaneous as undeclared", () => {
+        const { findings } = groupChangelogText(INPUT, { labels: [...LABELS, "Scenery"] });
         expect(findings).toEqual([]);
-
-        const newest = text.slice(0, text.indexOf("## 0.0.9"));
-        const order = [...newest.matchAll(/^\*\*(\w+)\*\*$/gm)].map((m) => m[1]);
-        // First appearance in the ungrouped fixture: Compendiums, then
-        // (after the lead paragraph) Website, Characters, Scenery.
-        expect(order).toEqual(["Compendiums", "Website", "Characters", "Scenery"]);
-        expect(newest.indexOf("This release folds")).toBeLessThan(
-            newest.indexOf("**Compendiums**"),
-        );
     });
 
-    it("running group twice is a no-op — byte-identical output", () => {
-        const once = groupChangelogText(UNGROUPED, { labels: LABELS });
+    it("with no labels declared, orders by first appearance and Miscellaneous last", () => {
+        const { text, findings } = groupChangelogText(INPUT, {});
+        const newest = text.slice(0, text.indexOf("## 1.9.0"));
+        const order = [...newest.matchAll(/^\*\*(\w+)\*\*$/gm)].map((m) => m[1]);
+        expect(order).toEqual(["Rendering", "Verse", "Scenery", "Miscellaneous"]);
+        expect(findings).toEqual([]);
+    });
+
+    it("leaves every older release byte for byte as it was", () => {
+        const { text } = groupChangelogText(INPUT, { labels: LABELS });
+        expect(olderSections(text)).toBe(olderSections(INPUT));
+    });
+
+    it("is a no-op on its own output", () => {
+        const once = groupChangelogText(INPUT, { labels: LABELS });
         const twice = groupChangelogText(once.text, { labels: LABELS });
         expect(twice.text).toBe(once.text);
-        // The warning survives the second pass too — `Scenery` is still not
-        // declared — reported at wherever it now sits in the regrouped file.
-        expect(twice.findings).toHaveLength(1);
-        expect(twice.findings[0].message).toBe(once.findings[0].message);
     });
 
-    it("running group twice with no `changelog.labels` is also a no-op", () => {
-        const once = groupChangelogText(UNGROUPED, {});
-        const twice = groupChangelogText(once.text, {});
-        expect(twice.text).toBe(once.text);
+    it("writes a release that `changelog check --release` accepts", () => {
+        const { text } = groupChangelogText(INPUT, { labels: [...LABELS, "Scenery"] });
+        const { findings } = lintReleaseText(text, { labels: [...LABELS, "Scenery"] });
+        expect(findings.filter((f) => f.severity === "error")).toEqual([]);
     });
 
-    it("leaves the older `## 0.0.9` section byte-identical", () => {
-        const { text } = groupChangelogText(UNGROUPED, { labels: LABELS });
-        expect(olderSections(text)).toBe(olderSections(UNGROUPED));
-    });
-
-    it("a changelog with no `## <version>` heading passes through unchanged", () => {
-        const text = "Just some prose, no release section at all.\n";
-        expect(groupChangelogText(text, { labels: LABELS })).toEqual({ text, findings: [] });
-    });
-
-    it("leaves a section of two already-grouped, hard-wrapped blocks byte-identical", () => {
-        // The real `## 22.4.3` section `changeset version` wrote before
-        // `changelog group` ran on it: two bold-label blocks, each a
-        // hard-wrapped paragraph at column 0. Already grouped and ordered —
-        // `group` must not fragment the wrapped lines into blocks of their
-        // own and reorder them.
-        const { text, findings } = groupChangelogText(WRAPPED_PARAGRAPH_22_4_3, {});
-        expect(text).toBe(WRAPPED_PARAGRAPH_22_4_3);
-        expect(findings).toEqual([]);
-    });
-});
-
-describe("changelog group preserves mixed summaries", () => {
-    const release = (body: string) => `# demo\n\n## 1.2.0\n\n${body}\n`;
-
-    it("retains prose before, between and after bullets on repeated grouping", () => {
-        const body = [
-            "### Minor Changes",
-            "",
-            "An opening summary.",
-            "",
-            "- Automatic dictionaries.",
-            "",
-            "Builds refuse missing dependency prose anchors.",
-            "",
-            "- Common vocabulary belongs to glossaries.",
-            "",
-            "A closing summary.",
-        ].join("\n");
-        const input = release(body);
-        const once = groupChangelogText(input);
-        expect(once).toEqual({ text: input, findings: [] });
-        expect(groupChangelogText(once.text)).toEqual(once);
-    });
-
-    it("preserves every summary line in its own bump tier", () => {
-        const once = groupChangelogText(MIXED_SUMMARIES);
-        const section = (text: string, bump: string) => {
-            const heading = `### ${bump} Changes\n\n`;
-            return text.split(heading)[1].split(/\n### |\n## /)[0];
-        };
-        for (const bump of ["Minor", "Patch"])
-            for (const line of section(MIXED_SUMMARIES, bump).split("\n"))
-                if (line.trim()) expect(section(once.text, bump)).toContain(line);
-        expect(once.findings).toEqual([]);
-        expect(groupChangelogText(once.text)).toEqual(once);
-    });
-
-    it("retains inline label prose when merging labelled paragraphs and bullets", () => {
-        const input = release(
-            [
-                "### Patch Changes",
-                "",
-                "**Website** Readers receive a complete page,",
-                "including its `route` introduction.",
-                "",
-                "- A lead entry.",
-                "",
-                "**Compendiums**",
-                "",
-                "- A journal entry.",
-                "",
-                "**Website** Search remembers its filter,",
-                "including the `lastFilter` choice.",
-                "",
-                "- Navigation keeps its labels.",
-            ].join("\n"),
-        );
-        const once = groupChangelogText(input, { labels: ["Compendiums", "Website"] });
-        const website = once.text.split("**Website**")[1];
-        expect(once.text.indexOf("**Compendiums**")).toBeLessThan(once.text.indexOf("**Website**"));
-        expect(once.text.match(/\*\*Website\*\*/g)).toHaveLength(1);
-        expect(website).toBe(
-            " Readers receive a complete page,\nincluding its `route` introduction.\n" +
-                "Search remembers its filter,\nincluding the `lastFilter` choice.\n\n" +
-                "- A lead entry.\n- Navigation keeps its labels.\n",
-        );
-        expect(groupChangelogText(once.text, { labels: ["Compendiums", "Website"] })).toEqual(once);
-    });
-
-    it("keeps an unmerged inline introduction and its items byte-identical", () => {
-        const input = release(
-            "### Patch Changes\n\n**Website** A complete introduction\ncontinues here.\n\n- A page.\n\n- Another page.",
-        );
-        expect(groupChangelogText(input, { labels: ["Website"] })).toEqual({
-            text: input,
-            findings: [],
-        });
-    });
-
-    it("keeps wrapped and nested item content while deduplicating complete items", () => {
-        const bullet =
-            "- A journal keeps its story.\n  A wrapped continuation.\n\n  - A nested detail.\n\n  A second item paragraph.";
-        const paragraph = "A wrapped release summary\ncontinues on this line.";
-        const input = release(
-            `### Patch Changes\n\n${paragraph}\n\n${bullet}\n\n${paragraph}\n\n${bullet}\n\n- A different item.`,
-        );
-        const once = groupChangelogText(input);
-        expect(once.text.split(paragraph)).toHaveLength(2);
-        expect(once.text.split(bullet)).toHaveLength(2);
-        expect(once.text).toContain("- A different item.");
-        expect(groupChangelogText(once.text)).toEqual(once);
-    });
-
-    it("preserves code before bullets without treating literal headings or labels as structure", () => {
-        const code =
-            "```markdown\n## 8.0.0\n### Minor Changes\n**Literal label**\n- A literal bullet.\n```";
-        const older = "## 1.1.0\r\n\r\n### Patch Changes\r\n\r\nAn older summary.  \r\n";
+    it("keeps a wrapped bullet whole", () => {
         const input =
-            release(`### Patch Changes\n\n${code}\n\nA real summary.\n\n- A real bullet.\n`) +
-            "\n" +
-            older;
-        const once = groupChangelogText(input, { labels: [] });
-        expect(once.text).toContain(code);
-        expect(once.text).toContain("A real summary.");
-        expect(once.text).toContain("- A real bullet.");
-        expect(once.text.endsWith(older)).toBe(true);
-        expect(once.findings).toEqual([]);
-        expect(groupChangelogText(once.text, { labels: [] })).toEqual(once);
+            "## 1.0.0\n\n### Patch Changes\n\n**Verse**\n\n- A bullet that wraps\n  onto a second line.\n\n" +
+            "### Minor Changes\n\n**Verse**\n\n- Another.\n";
+        const { text } = groupChangelogText(input, { labels: LABELS });
+        expect(text).toBe(
+            "## 1.0.0\n\n**Verse**\n\n- A bullet that wraps\n  onto a second line.\n- Another.\n",
+        );
+    });
+
+    it("drops an exact-duplicate bullet once", () => {
+        const input =
+            "## 1.0.0\n\n### Patch Changes\n\n**Verse**\n\n- Same.\n\n**Verse**\n\n- Same.\n- Other.\n";
+        const { text } = groupChangelogText(input, { labels: LABELS });
+        expect(text).toBe("## 1.0.0\n\n**Verse**\n\n- Same.\n- Other.\n");
+    });
+
+    it("does not read a `### … Changes` line inside a code fence as a heading", () => {
+        const input =
+            "## 1.0.0\n\n### Patch Changes\n\n**Verse**\n\n- Shows:\n\n  ```\n  ### Patch Changes\n  ```\n";
+        const { text } = groupChangelogText(input, { labels: LABELS });
+        expect(text).toContain("  ### Patch Changes");
+        expect(text.match(/^### /gm) ?? []).toHaveLength(0);
+    });
+
+    it("leaves a changelog with no release section alone", () => {
+        const input = "# acme\n";
+        expect(groupChangelogText(input, { labels: LABELS }).text).toBe(input);
     });
 });

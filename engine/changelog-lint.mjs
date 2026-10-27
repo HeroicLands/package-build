@@ -607,56 +607,173 @@ function checkCodeLikeTokens(text, maskedRegions) {
 }
 
 /**
- * A block's bold label absent from the declared `changelog.labels`
- * vocabulary — the drift `**Character data**` beside `**Characters**`
- * produces, invisible until something reads the declared list against what a
- * changeset actually wrote. A warning, not an error: an undeclared label
- * still ships and still groups (`changelog group` files it last), so nothing
- * here blocks a release — it only says the vocabulary and the prose have
- * drifted apart.
+ * The label every repository may use without declaring it, for the changes
+ * that fit no declared label. `changelog group` writes it last.
+ */
+export const MISCELLANEOUS = "Miscellaneous";
+
+/** A label line that holds the label and nothing else. */
+const LABEL_ONLY_RE = /^\*\*([^*]+)\*\*[ \t]*$/;
+
+/**
+ * Hold a changeset body, or a release section's body, to the house shape:
+ * one or more blocks, each a `**Label**` line on its own followed by bullets
+ * and nothing else.
  *
- * @param {Array<{startLine: number, label: string|null}>} blocks - From
- *   {@link topLevelBlocks}.
- * @param {readonly string[]|null|undefined} labels - `changelog.labels`, or
- *   `null`/`undefined` when the repository declares none, in which case
- *   nothing is checked — there is no vocabulary for a label to drift from.
+ * Findings: a `lead-paragraph` (prose before any label), `unlabelled` (a
+ * bullet before any label), `stray-prose` (prose after a label opens, between
+ * or after its bullets), `label-line` (text sharing the label's line),
+ * `empty-block` (a label with no bullet) and `unknown-label` (a label neither
+ * declared in the changelog `labels` nor {@link MISCELLANEOUS}). Nested lists,
+ * headings and bullet length are separate rules. Code regions are skipped; a
+ * fenced block has its own finding.
+ *
+ * @param {string} text - Section text.
+ * @param {Set<number>} codeLines - Lines inside a code region.
+ * @param {Set<number>} scaffoldLines - Generated lines, never authored.
+ * @param {readonly string[]|null|undefined} labels - the changelog `labels`, or
+ *   `null`/`undefined` when the repository declares none.
  * @returns {RelativeFinding[]}
  */
-function checkUnknownLabels(blocks, labels) {
-    if (!labels) return [];
+function checkShape(text, codeLines, scaffoldLines, labels) {
+    const lines = text.split("\n");
+    const declared = labels ?? [];
     /** @type {RelativeFinding[]} */
     const findings = [];
-    for (const block of blocks) {
-        if (block.label === null || labels.includes(block.label)) continue;
+    /** @type {{line: number, label: string, bullets: number}|null} */
+    let open = null;
+    let reportedLead = false;
+    const closeBlock = () => {
+        if (open && open.bullets === 0)
+            findings.push({
+                line: open.line,
+                column: 1,
+                severity: "error",
+                message:
+                    `changelog-check/empty-block the block labelled "${open.label}" has no ` +
+                    "bullets — a block is a label line, then bullets",
+            });
+        open = null;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const lineNo = i + 1;
+        const raw = lines[i];
+        if (codeLines.has(lineNo) || scaffoldLines.has(lineNo)) continue;
+        if (raw.trim() === "") continue;
+        const atColumnZero = !/^[ \t]/.test(raw);
+        if (!atColumnZero) continue; // a bullet's continuation, or a nested item
+        if (/^#{1,6}\s/.test(raw)) {
+            closeBlock();
+            continue; // reported by the heading rule
+        }
+
+        const label = LABEL_LINE_RE.exec(raw)?.[1];
+        if (label !== undefined) {
+            closeBlock();
+            open = { line: lineNo, label, bullets: 0 };
+            if (!LABEL_ONLY_RE.test(raw))
+                findings.push({
+                    line: lineNo,
+                    column: 1,
+                    severity: "error",
+                    message:
+                        "changelog-check/label-line the label stands on a line of its own, " +
+                        "`**Label**`, with the bullets beneath it",
+                });
+            if (label !== MISCELLANEOUS && !declared.includes(label))
+                findings.push({
+                    line: lineNo,
+                    column: 3, // right after the opening `**`
+                    severity: "error",
+                    message:
+                        `changelog-check/unknown-label "${label}" is not a declared label — ` +
+                        (declared.length > 0 ?
+                            `declared: ${declared.join(", ")}; ${MISCELLANEOUS} is always available`
+                        :   `declare \`labels\` in the changelog options of .changeset/config.json, ` +
+                            `or use ${MISCELLANEOUS}`),
+                });
+            continue;
+        }
+
+        if (TOP_BULLET_RE.test(raw)) {
+            if (open) open.bullets++;
+            else
+                findings.push({
+                    line: lineNo,
+                    column: 1,
+                    severity: "error",
+                    message:
+                        "changelog-check/unlabelled a bullet belongs under a `**Label**` line — " +
+                        `use a declared label, or ${MISCELLANEOUS}`,
+                });
+            continue;
+        }
+
+        if (!open) {
+            if (!reportedLead)
+                findings.push({
+                    line: lineNo,
+                    column: 1,
+                    severity: "error",
+                    message:
+                        "changelog-check/lead-paragraph a changeset is labelled blocks of " +
+                        "bullets; a paragraph before the first `**Label**` has no place",
+                });
+            reportedLead = true;
+            continue;
+        }
         findings.push({
-            line: block.startLine,
-            column: 3, // right after the opening `**`
-            severity: "warning",
+            line: lineNo,
+            column: 1,
+            severity: "error",
             message:
-                `changelog-check/unknown-label "${block.label}" is not declared in ` +
-                "`changelog.labels` (declared: " +
-                `${labels.join(", ")}) — add it there, or correct the label`,
+                "changelog-check/stray-prose only bullets sit under a label — move this " +
+                "into a bullet, or drop it",
         });
     }
+    closeBlock();
     return findings;
 }
 
 /**
  * The 1-based lines a caller drops from the heading rule because they are the
- * generated scaffold, never authored prose: the section's own `## <version>`
- * opening and any `### <Bump> Changes` line.
+ * generated scaffold, never authored prose: a release section's own
+ * `## <version>` opening. Only a release has one.
  *
  * @param {string} text - Section text.
+ * @param {boolean} release - Whether `text` is a release section.
  * @returns {Set<number>}
  */
-function scaffoldLineSet(text) {
-    const lines = text.split("\n");
+function scaffoldLineSet(text, release) {
     const set = new Set();
-    if (RELEASE_HEADING_RE.test(lines[0] ?? "")) set.add(1);
-    for (let i = 0; i < lines.length; i++) {
-        if (CHANGES_HEADING_RE.test(lines[i])) set.add(i + 1);
-    }
+    if (release && RELEASE_HEADING_RE.test(text.split("\n")[0] ?? "")) set.add(1);
     return set;
+}
+
+/**
+ * A `### <Bump> Changes` heading in a release section — the scaffold
+ * `changelog group` removes, so one that remains means group has not run.
+ *
+ * @param {string} text - Release section text.
+ * @param {Set<number>} codeLines
+ * @returns {RelativeFinding[]}
+ */
+function checkChangesHeadings(text, codeLines) {
+    /** @type {RelativeFinding[]} */
+    const findings = [];
+    text.split("\n").forEach((line, i) => {
+        if (codeLines.has(i + 1) || !CHANGES_HEADING_RE.test(line)) return;
+        findings.push({
+            line: i + 1,
+            column: 1,
+            severity: "error",
+            message:
+                "changelog-check/changes-heading a `### … Changes` heading survives in the " +
+                "release — run `package-build changelog group`, which removes it",
+        });
+    });
+    return findings;
 }
 
 /**
@@ -664,16 +781,22 @@ function scaffoldLineSet(text) {
  *
  * @param {string} text - The section, already isolated by the caller.
  * @param {object} [opts]
- * @param {readonly string[]|null} [opts.labels] - `changelog.labels`, for
- *   {@link checkUnknownLabels}. `null`/absent checks nothing.
+ * @param {readonly string[]|null} [opts.labels] - the changelog `labels`, for
+ *   {@link checkShape}.
+ * @param {boolean} [opts.release] - `text` is a release section, whose
+ *   `## <version>` line is scaffold and whose `### … Changes` headings are
+ *   findings.
  * @returns {RelativeFinding[]} Findings with line numbers relative to `text`.
  */
-function lintSection(text, { labels = null } = {}) {
+function lintSection(text, { labels = null, release = false } = {}) {
     const codeLines = codeLineSet(text);
     const maskedRegions = codeRegions(text, { spans: true });
-    const scaffoldLines = scaffoldLineSet(text);
+    const scaffoldLines = scaffoldLineSet(text, release);
+    if (release)
+        text.split("\n").forEach((line, i) => {
+            if (CHANGES_HEADING_RE.test(line)) scaffoldLines.add(i + 1);
+        });
     const bullets = topLevelBullets(text, codeLines);
-    const blocks = topLevelBlocks(text, codeLines, scaffoldLines);
 
     return [
         ...checkCommitHash(text, codeLines, scaffoldLines),
@@ -687,7 +810,8 @@ function lintSection(text, { labels = null } = {}) {
         ...checkTooManyBullets(bullets),
         ...checkTooManyLines(text),
         ...checkCodeLikeTokens(text, maskedRegions),
-        ...checkUnknownLabels(blocks, labels),
+        ...checkShape(text, codeLines, scaffoldLines, labels),
+        ...(release ? checkChangesHeadings(text, codeLines) : []),
     ].sort((a, b) => a.line - b.line || (a.column ?? 0) - (b.column ?? 0));
 }
 
@@ -738,9 +862,9 @@ function extractReleaseSection(text) {
  *
  * @param {string} text - The file's full contents, frontmatter included.
  * @param {object} [opts]
- * @param {readonly string[]|null} [opts.labels] - `changelog.labels`, in
- *   display order, or `null`/absent when the repository declares none —
- *   {@link checkUnknownLabels} checks nothing in that case.
+ * @param {readonly string[]|null} [opts.labels] - the changelog `labels`, in
+ *   display order, or `null`/absent when the repository declares none, in
+ *   which case only {@link MISCELLANEOUS} is accepted.
  * @returns {{findings: Array<{line: number, column?: number,
  *   severity: "error"|"warning", message: string}>}}
  */
@@ -758,9 +882,9 @@ export function lintChangesetText(text, { labels = null } = {}) {
  *
  * @param {string} text - The changelog's full contents.
  * @param {object} [opts]
- * @param {readonly string[]|null} [opts.labels] - `changelog.labels`, in
- *   display order, or `null`/absent when the repository declares none —
- *   {@link checkUnknownLabels} checks nothing in that case.
+ * @param {readonly string[]|null} [opts.labels] - the changelog `labels`, in
+ *   display order, or `null`/absent when the repository declares none, in
+ *   which case only {@link MISCELLANEOUS} is accepted.
  * @returns {{findings: Array<{line?: number, column?: number,
  *   severity: "error"|"warning", message: string}>}}
  */
@@ -776,7 +900,7 @@ export function lintReleaseText(text, { labels = null } = {}) {
             ],
         };
     }
-    const findings = lintSection(section.body, { labels }).map((f) => ({
+    const findings = lintSection(section.body, { labels, release: true }).map((f) => ({
         ...f,
         line: f.line + section.startLine - 1,
     }));

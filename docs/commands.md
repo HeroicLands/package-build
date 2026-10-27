@@ -978,31 +978,52 @@ package-build changelog check [--release] [paths..]
 **DESCRIPTION**
 
 A changeset answers one question — who notices, and what do they see — and
-nothing enforced that, so a pull-request description pasted into one ships
-verbatim as a release note: commit hashes, issue references, code fences,
-"Verified" paragraphs, byte counts and test tallies, a paragraph disguised as
-a bullet, a nested checklist, a `#` heading that outranks the version heading
-above it once wrapped into a list item, or simply too many bullets or too
-many lines for one entry. Each finding names the rule it tripped and says
-what to write instead.
+holds one shape: one or more blocks, each a `**Label**` line on its own,
+then bullets and nothing else. `check` refuses a lead paragraph, a bullet
+under no label (`unlabelled`), prose between or after bullets (`stray-prose`),
+text sharing the label's line (`label-line`), a label with no bullets
+(`empty-block`), a nested list, a `#` heading, and a label that is neither in
+the changelog `labels` nor `Miscellaneous` (`unknown-label`, an error naming
+the declared labels). With no `labels` declared, only
+`Miscellaneous` is accepted, and the finding names the option to declare.
+
+**Labels.** A repository declares its labels, in display order, in the options
+of the changelog entry in `.changeset/config.json`, beside the generator they
+configure:
+
+```json
+"changelog": [
+    "@heroiclands/package-build/changelog",
+    { "labels": ["Verse", "Rendering"] }
+]
+```
+
+`Miscellaneous` is implicit: every repository has it for the changes that fit
+no declared label, it is never declared, and `changelog group` always writes it
+last. A `labels` value that is not an array of distinct non-empty strings, or
+that names `Miscellaneous`, stops `changelog check` and `changelog group`
+with an error naming `.changeset/config.json`.
+
+Under the shape, a changeset that reads like a pull-request description is
+also refused: commit hashes, issue references, code fences, "Verified"
+paragraphs, byte counts and test tallies, a bullet over forty words, or too
+many bullets or lines for one entry. Each finding names the rule it tripped
+and says what to write instead.
 
 Default reads every pending changeset (`.changeset/*.md`; `config.json` and
 `README.md` excluded) and checks each one's body, frontmatter fence dropped.
 `--release` reads the first `## <version>` section of `CHANGELOG.md` instead
-— the section a **Version Packages** branch is about to publish — with its
-generated `## <version>` and `### <Bump> Changes` scaffold lines exempted
-from the heading rule, since neither is authored.
+— the section a **Version Packages** branch is about to publish — and holds
+it to the same shape. Its generated `## <version>` line is exempt, and a
+`### <Bump> Changes` heading that remains is an error (`changes-heading`):
+`changelog group` removes them.
 
 A token that reads as code — `camelCase()`, a `path/with/slashes.ext`,
 `SCREAMING_SNAKE` — outside any code span is a warning, not a failure: a
 user-facing note sometimes needs one (`Compendium.hm3.items.Item.<id>`), but
 rarely. Accented letters keep proper names such as HârnMaster whole, so a
-fragment of one does not trigger a code-token warning. A block's bold label
-absent from a declared `changelog.labels` is
-also a warning — the drift `**Character data**` beside `**Characters**`
-produces — and checks nothing when the repository declares no
-`changelog.labels`. Every other finding is an error. Reads the files given,
-or resolves its own defaults; writes nothing.
+fragment of one does not trigger a code-token warning. Every other finding is
+an error. Reads the files given, or resolves its own defaults; writes nothing.
 
 **OPTIONS**
 
@@ -1024,8 +1045,8 @@ package-build: 1 file(s) checked · 0 error(s) · 0 warning(s)
 ```
 
 ```
-$ package-build changelog check --release
-CHANGELOG.md:5:3: error: changelog-check/commit-hash a commit hash is a commit-log artefact; the changelog generator should not write one — set `changelog` to `@changesets/cli/changelog`
+$ package-build changelog check
+.changeset/stanza-breaks.md:5:3: error: changelog-check/unknown-label "Poems" is not a declared label — declared: Verse, Rendering; Miscellaneous is always available
 package-build: 1 file(s) checked · 1 error(s) · 0 warning(s)
 ```
 
@@ -1037,8 +1058,8 @@ package-build: 1 file(s) checked · 1 error(s) · 0 warning(s)
 
 **NAME**
 
-Fold a release section's changeset blocks together by their bold label
-(`group` is a sibling of `check`, not one of its actions).
+Give the newest release its final shape (`group` is a sibling of `check`,
+not one of its actions).
 
 **SYNOPSIS**
 
@@ -1049,27 +1070,46 @@ package-build changelog group [paths..]
 **DESCRIPTION**
 
 `@heroiclands/package-build/changelog` writes each changeset's summary into
-`CHANGELOG.md` as its own block, verbatim, under `### <Bump> Changes` — one
-per changeset, in whatever order Changesets read the files. Three pull
-requests each touching compendium content each write their own
-`**Compendiums**` block, and nothing merges them: the release reads as three
-scattered entries instead of one.
+`CHANGELOG.md` as its own block, verbatim, under `### Major Changes`,
+`### Minor Changes` or `### Patch Changes` — one block per changeset, in
+whatever order Changesets read the files. `group` rewrites the first
+`## <version>` section of `CHANGELOG.md` in place:
 
-`group` rewrites the first `## <version>` section of `CHANGELOG.md` in
-place. Within each `### <Bump> Changes` body, every block sharing one bold
-label is merged into a single block for that label. Prose and bullets are
-retained, with exact duplicate items kept once. Opening paragraphs from
-merged labels combine in source order before their items. Wrapped
-paragraphs, nested item content and literal code stay intact. The merged
-blocks are reordered: the unlabelled lead paragraph a
-changeset writes with no category first, then every label
-[`changelog.labels`](configuration.md#changelog) declares, in the order
-given, then any label absent from that list last, in the order it first
-appeared — each reported as a warning naming it. With no `changelog.labels`
-declared, every group instead keeps the order its label first appeared in,
-lead paragraph first, and nothing is reported as unknown. Every earlier
-release section is untouched, byte for byte. Running `group` on its own
-output is a no-op.
+- Every `### … Changes` heading is removed.
+- Blocks that share a label merge into one, bullets in file order, an exact
+  duplicate bullet kept once.
+- Blocks are ordered as the `labels` in `.changeset/config.json`
+  declare them. A label the list does not declare follows the declared ones, in the order it first appeared, each reported as a
+  warning naming it.
+- `Miscellaneous` is always last, declared or not.
+
+With no `labels` declared, blocks keep the order their label first
+appeared in, `Miscellaneous` last. Every earlier release section is untouched,
+byte for byte. Running `group` on its own output is a no-op.
+
+For a release of three changesets, `### Major Changes` holding
+`**Rendering**` and `**Miscellaneous**`, `### Minor Changes` holding `**Verse**`
+and `**Rendering**`, and `### Patch Changes` holding `**Miscellaneous**` and
+`**Verse**`, with `labels` of `Verse` then `Rendering`:
+
+```markdown
+## 2.0.0
+
+**Verse**
+
+- A verse fence keeps its line breaks.
+- A stanza break renders as a blank line.
+
+**Rendering**
+
+- Every page carries its section in the contents list.
+- The search page lists the newest notes first.
+
+**Miscellaneous**
+
+- The tool prints a notice when a page has no title.
+- An empty search no longer fails.
+```
 
 **OPTIONS**
 
@@ -1091,14 +1131,14 @@ package-build: 1 file(s) grouped · 0 warning(s)
 
 ```
 $ package-build changelog group
-CHANGELOG.md:12: warning: changelog-group/unknown-label "Scenery" is not declared in `changelog.labels` — filed last, in order of first appearance
+CHANGELOG.md:12: warning: changelog-group/unknown-label "Scenery" is not declared in the changelog `labels` — filed after the declared labels, in order of first appearance
 package-build: 1 file(s) grouped · 1 warning(s)
 ```
 
 **SEE ALSO**
 
 [`changelog check`](#package-build-changelog-check),
-[`changelog.labels`](configuration.md#changelog).
+[`.changeset/config.json` labels](#package-build-changelog-check).
 
 ### `package-build bundle check`
 

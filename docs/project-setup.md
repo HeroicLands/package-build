@@ -473,6 +473,9 @@ need setting, and each is a decision rather than a preference.
 - **`changelog: "@changesets/changelog-git"`** attributes each entry to its
   commit. The GitHub changelog generator wants a token and produces entries
   naming pull requests, which is history the changelog does not need.
+- **`changelog: ["@heroiclands/package-build/changelog", {labels: [...]}]`** is the form
+  that also declares the labels changesets group under; see
+  [`changelog check`](commands.md#package-build-changelog-check).
 - **`privatePackages: {version: true, tag: false}`** is what makes changesets
   work at all here. Every package in the constellation is `private`, because it
   ships as a Foundry release rather than to npm; without `version: true`

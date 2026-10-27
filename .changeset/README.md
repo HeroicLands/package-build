@@ -41,11 +41,72 @@ says so.
 
 The summary becomes the `CHANGELOG.md` entry and the GitHub Release body, so write
 it for someone deciding whether to upgrade — what changed for them, not what the
-patch touched. One to six one-sentence bullets, symptom rather than mechanism, no
-verification, no commit hashes or issue/pull-request numbers — a released package
-has no tracker for its reader to open, and the pull request's own `Closes #<n>`
-line is where that reference belongs. Do not use `#` headings inside a summary: it
-is wrapped into a list item, so a heading breaks the document outline.
+patch touched. Symptom rather than mechanism, no verification, no commit hashes or
+issue/pull-request numbers — a released package has no tracker for its reader to
+open, and the pull request's own `Closes #<n>` line is where that reference
+belongs.
 
-`package-build changelog check` lints a pending changeset against these rules
-before it merges.
+**The shape is enforced.** A summary is one or more blocks. Each block is a
+`**Label**` line on its own, then one to six bullets of one sentence each, and
+nothing else: no lead paragraph, no prose between blocks, no `#` heading, no nested
+list. A label is one of the `labels` in the changelog options of `.changeset/config.json`, or `Miscellaneous`,
+which every repository has for a change that fits none of them and which a release
+always lists last. `package-build changelog group` merges the blocks that share a
+label across a release and removes the `### … Changes` headings Changesets writes,
+so a label never needs to be repeated for fear of splitting a release.
+
+A valid changeset with two blocks:
+
+```markdown
+---
+"@heroiclands/package-build": patch
+---
+
+**Verse**
+
+- A stanza break renders as a blank line.
+
+**Rendering and sites**
+
+- Every page carries its section in the contents list.
+```
+
+Each of these is refused by `package-build changelog check`:
+
+```markdown
+A lead paragraph before any label.
+```
+
+```markdown
+- A bullet with no label above it.
+```
+
+```markdown
+**Verse**
+
+- A bullet.
+
+A closing remark between or after blocks.
+```
+
+```markdown
+**Verse**
+
+- A bullet.
+  - A nested bullet.
+```
+
+```markdown
+## Verse
+
+- A bullet under a heading.
+```
+
+```markdown
+**Poems**
+
+- A bullet under a label the repository does not declare.
+```
+
+`package-build changelog check` lints a pending changeset against these rules before it
+merges; this repository's labels are in `config.json` here.
