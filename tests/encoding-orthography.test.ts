@@ -6,8 +6,9 @@ import path from "node:path";
 import YAML from "yaml";
 import { installEncodingNote, encodingName } from "./helpers/encoding-note.js";
 import { runContext } from "../engine/content-scripts.mjs";
+import { encodeText } from "../engine/encoding.mjs";
 import { checkEncodingLexicon } from "../engine/encoding-lexicon.mjs";
-import { encodeWithLanguage } from "../engine/encoding-language.mjs";
+import { encodeWithLanguage, decodeWithLanguage } from "../engine/encoding-language.mjs";
 it("checks unused authoritative words and names without allowing native entries to bypass Roman rules", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "encoding-orthography-"));
     try {
@@ -109,3 +110,43 @@ it.each([{}, { a: "ANKRON_MIN" }])(
         }
     },
 );
+
+it("excludes English translation labels from own-language orthography and name recovery", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "encoding-translation-register-"));
+    try {
+        const { config, records } = installEncodingNote(root);
+        const language = {
+            ...records[0],
+            data: {
+                ...records[0].data,
+                words: [],
+                register: [
+                    { name: "Say", tongue: "aelw" },
+                    { name: "xil", tongue: "aelw" },
+                    { name: "Long-Watcher's Sayings", tongue: "translation" },
+                    { name: "Bad", tongue: "translation" },
+                ],
+            },
+        };
+        const context = runContext(config, [language, records[1]]);
+        const note = {
+            file: path.join(root, "assets/content/Aelwythi.md"),
+            fm: language,
+            raw: `---\n${YAML.stringify(language)}---\n`,
+        };
+        const findings = checkEncodingLexicon(note, context);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toMatch(/^`xil` is not valid Roman spelling/);
+        const enc = context.encodings.get(encodingName),
+            lexicon = { language: "aelw", data: language.data };
+        expect(decodeWithLanguage(enc, encodeText(enc, "Say"), { lexicon })).toMatchObject({
+            text: "{say}",
+            findings: [],
+        });
+        const translated = decodeWithLanguage(enc, encodeText(enc, "Bad"), { lexicon });
+        expect(translated.text).toBe("Bad");
+        expect(translated.findings).toHaveLength(1);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});

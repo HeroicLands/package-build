@@ -20,7 +20,7 @@ import { isNoteRecord } from "./index-records.mjs";
 import { nearest } from "./near-miss.mjs";
 import { isLanguageRecord, lineageChain, noteAddressOf } from "./word-rows.mjs";
 import { derivedForms, foldWord } from "./word-forms.mjs";
-import { WRITTEN_ENDINGS } from "./language-terms.mjs";
+import { WRITTEN_ENDINGS, RESERVED_TONGUE } from "./language-terms.mjs";
 import { LANGUAGE_SUBTYPE, glossText } from "./word-terms.mjs";
 import { writingsOf } from "./language-writings.mjs";
 import { encodeText, validateSource, EncodingError } from "./encoding.mjs";
@@ -658,7 +658,9 @@ export function checkEncodingLexicon(note, ctx) {
         );
         listOf(element?.examples).forEach((form, j) => add(form, ["elements", i, "examples", j]));
     });
-    listOf(data.register).forEach((name, i) => add(name?.name, ["register", i, "name"]));
+    listOf(data.register).forEach((name, i) => {
+        if (name?.tongue !== RESERVED_TONGUE) add(name?.name, ["register", i, "name"]);
+    });
     const findings = [],
         seen = new Set();
     for (const encoding of encodings)

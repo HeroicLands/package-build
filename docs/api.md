@@ -2799,6 +2799,13 @@ expose their schema `key`.
 | `encodeText`      | `encodeText(encoding, text, {font, verse})` | string               | encoding exactly by rows and inline codes                                           |
 | `decodeText`      | `decodeText(encoding, text, {font})`        | string               | decoding by longest output matches                                                  |
 
+Encoding rules default to exact, uniquely decodable outputs. A note may state
+`rules.roundTrip: canonical` to permit aliases and empty code sequences;
+`decodeText` then returns the authored conventional reading without restoring
+erased Roman characters. Contextual rules accept `before: vowel|consonant`
+and `at: start|end|line-start`; supplied conditions combine with AND. Accent
+permission blocks accept explicit Boolean values. See [Encoding text](encoding-core.md).
+
 ### `engine.encodingLanguage`
 
 Pure language-aware conversion takes a compiled encoding and optional plain

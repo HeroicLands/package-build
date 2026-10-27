@@ -44,6 +44,36 @@ describe("converter build artifact", () => {
             );
         }
     });
+    it("includes configured note-less languages for literal encoding documents", () => {
+        const configured = {
+            ...config,
+            languages: { ...config.languages, zxx: { tag: "zxx" }, en: { tag: "en" } },
+        };
+        const literalNote = {
+            ...records.find((record) => record.type === "doc"),
+            shortcode: "literalenc",
+            data: {
+                language: "zxx",
+                font: "semaron-kuriale",
+                mappings: {},
+                rules: { normalization: "NFC", matching: "longest-first" },
+            },
+        };
+        const generated = buildConverterData(configured, [...records, literalNote]);
+        expect(generated.languages.zxx).toEqual({ name: "zxx" });
+        expect(generated.languages.en).toEqual({ name: "en" });
+        expect(generated.languages.aelw.name).toBe("Aelwythi");
+        expect(generated.languages.aelw.lexicon).toBeDefined();
+        expect(generated.encodings["demo-note-doc-literalenc"].data.language).toBe("zxx");
+        expect(validateData(generated)).toBe(generated);
+        const source = "⟦ANKRON_MIN⟧";
+        const native = encode(generated, "zxx", source, { enc: "literalenc" });
+        expect(native.findings).toEqual([]);
+        expect(decode(generated, "zxx", native.text, { enc: "literalenc" })).toEqual({
+            text: source,
+            findings: [],
+        });
+    });
     it("writes only opted-in snapshots beneath the package stage", () => {
         const packageBuild = resolvePackageBuildConfig({
             ...config,

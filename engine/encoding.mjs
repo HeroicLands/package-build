@@ -322,15 +322,13 @@ function boundary(char) {
     // Python str.isspace also includes the four information separators.
     return SPACE.test(char) || /[\u001C-\u001F]/u.test(char) || BOUNDARY.test(char);
 }
+function beforeHolds(condition, char, vowels) {
+    return Boolean(
+        char && (condition === "vowel" ? vowels.has(char) : !vowels.has(char) && LETTER.test(char)),
+    );
+}
 function holds(row, text, start, end, vowels) {
-    if (row.before) {
-        const char = firstAt(text, end);
-        if (
-            !char ||
-            (row.before === "vowel" ? !vowels.has(char) : vowels.has(char) || !LETTER.test(char))
-        )
-            return false;
-    }
+    if (row.before && !beforeHolds(row.before, firstAt(text, end), vowels)) return false;
     if (row.at === "line-start") {
         const prefix = text.slice(
             Math.max(text.lastIndexOf("\n", start - 1), text.lastIndexOf("/", start - 1)) + 1,
@@ -834,7 +832,7 @@ function decodeRawText(enc, text, { font } = {}) {
 }
 
 /**
- * Decode a note's uniquely decodable output, including nonprefix glyph sequences.
+ * Decode exact output or the conventional reading of an explicitly canonical note.
  * @param {ReturnType<typeof compileEncoding>} enc - Compiled encoding note.
  * @param {string} text - Native text with optional literal spans.
  * @param {{font?: string}} [options] - Selected encoding face.
@@ -845,17 +843,19 @@ export function decodeText(enc, text, options = {}) {
     const readings = tiers(enc, options.font)[0].readings;
     if (typeof text !== "string") throw new EncodingError("Text must be a string");
     if (!templateReaders.has(enc)) {
-        const root = { children: new Map(), row: undefined };
-        for (const group of readings.values())
-            for (const row of group) {
-                let node = root;
-                for (const char of row.to) {
-                    if (!node.children.has(char))
-                        node.children.set(char, { children: new Map(), row: undefined });
-                    node = node.children.get(char);
-                }
-                node.row = row;
+        const root = { children: new Map(), row: undefined, rows: [] };
+        const rows = new Set([...readings.values()].flat().concat(enc.shared.rows));
+        for (const row of rows) {
+            if (!row.to) continue;
+            let node = root;
+            for (const char of row.to) {
+                if (!node.children.has(char))
+                    node.children.set(char, { children: new Map(), row: undefined, rows: [] });
+                node = node.children.get(char);
             }
+            node.row ??= row;
+            node.rows.push(row);
+        }
         templateReaders.set(enc, root);
     }
     const reader = templateReaders.get(enc);
@@ -888,9 +888,15 @@ export function decodeText(enc, text, options = {}) {
             cursor = cursor.children.get(char);
             if (!cursor) break;
             next += char.length;
-            const row = cursor.row;
-            if (!row || !paths.has(next)) continue;
-            if (row.before && !enc.vowels.has(firstAt(paths.get(next).from, 0))) {
+            if (!cursor.row || !paths.has(next)) continue;
+            const following = firstAt(paths.get(next).from, 0);
+            const preferred = cursor.rows.find(
+                (row) => !row.before || beforeHolds(row.before, following, enc.vowels),
+            );
+            // Canonical source can omit the vowel or marker that selected a form.
+            // Prefer applicable aliases, then retain the first authored reading.
+            const row = preferred ?? (enc.roundTrip === "canonical" ? cursor.row : undefined);
+            if (!row) {
                 failedContext = Math.min(failedContext, at);
                 continue;
             }

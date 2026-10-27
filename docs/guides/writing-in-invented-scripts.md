@@ -40,6 +40,13 @@ Language identification alone retains Roman text. `enc=` selects an encoding
 document, which infers its language and font. Unknown source characters are
 errors; a face drawing a character does not make it a spelling mapping.
 
+An encoding uses exact round trips by default. If its script omits Roman
+distinctions, its note can explicitly select `rules.roundTrip: canonical`.
+Decoding then gives an authored conventional spelling; authoritative lexicon
+entries can recover fuller word forms. The encoder adds no invisible metadata
+to restore erased spelling. See the [canonical encoding contract](../encoding-core.md#executable-rules)
+for aliases, inherent vowels and shared word separators.
+
 ## Language and native presentation
 
 `enc=` names an encoding document, with `doc` as its default Address type:

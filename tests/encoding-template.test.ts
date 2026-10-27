@@ -167,7 +167,7 @@ describe("executable encoding note template", () => {
             );
         }
         for (const [name, value] of [
-            ["before", "consonant"],
+            ["before", "end"],
             ["emit", "MISSING"],
             ["extra", true],
         ]) {

@@ -28,7 +28,7 @@ const fixed = (name, value) => ({
 const block = (name, describe, fields) => ({ name, kind: "map", shape: "a map", describe, fields });
 const sequence = {
     kind: "string-or-list",
-    shape: "a glyph code or list of codes",
+    shape: "a glyph code or list of codes (empty only with canonical round trips)",
     entries: {
         kind: "string",
         shape: "a glyph code",
@@ -39,6 +39,25 @@ const sequence = {
 export const ENCODING_RULE_FIELDS = Object.freeze([
     fixed("normalization", "NFC"),
     fixed("matching", "longest-first"),
+    {
+        ...text(
+            "roundTrip",
+            "Exact by default; canonical permits aliases and empty code sequences and decodes an authored conventional spelling.",
+        ),
+        allowed: ["exact", "canonical"],
+    },
+    {
+        name: "word-separators",
+        kind: "list",
+        shape: "a list of nonempty NFC source sequences",
+        entries: {
+            kind: "string",
+            shape: "a word separator",
+            describe: "A source sequence that writes the shared word space.",
+        },
+        describe:
+            "Source word dividers written as shared spaces, after contextual alternatives; cannot also be ordinary mappings or replace shared punctuation.",
+    },
     block("case", "Case handling for letters and consonant groups.", [
         fixed("single-letter", "preserve"),
         fixed("consonant-group", "lowercase-or-initial-uppercase"),
@@ -70,19 +89,37 @@ export const ENCODING_RULE_FIELDS = Object.freeze([
             describe: "The complete authored group inventory.",
         },
     ]),
-    block("diaeresis", "Whether diaeresis mappings are allowed.", [fixed("allowed", false)]),
-    block("grave-accent", "Whether grave-accent mappings are allowed.", [fixed("allowed", false)]),
+    ...["diaeresis", "grave-accent"].map((name) =>
+        block(name, `Whether ${name} mappings are allowed.`, [
+            {
+                name: "allowed",
+                kind: "boolean",
+                shape: "true or false",
+                required: true,
+                describe:
+                    "False forbids the accent; true permits explicitly mapped and accepted characters.",
+            },
+        ]),
+    ),
     {
         name: "contextual-mappings",
         kind: "list",
         shape: "a list of conditional mappings",
-        describe: "Before-vowel alternatives applied before unconditional mappings.",
+        describe:
+            "Alternatives conditioned on the following letter or source position, applied before unconditional mappings.",
         entries: {
             kind: "map",
             shape: "a contextual mapping",
             fields: [
                 text("match", "The source sequence.", true),
-                fixed("before", "vowel"),
+                {
+                    ...text("before", "Match before a declared vowel or another letter."),
+                    allowed: ["vowel", "consonant"],
+                },
+                {
+                    ...text("at", "Match at word start, word end or line start."),
+                    allowed: ["start", "end", "line-start"],
+                },
                 {
                     name: "emit",
                     ...sequence,

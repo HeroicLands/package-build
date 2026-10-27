@@ -61,10 +61,13 @@ export function templateProgram(data, options, fault) {
                 "A glyph code must resolve to nonempty Unicode scalar text",
             );
     }
-    const resolve = (value, key) => {
+    const resolve = (value, key, allowEmpty = false) => {
         const sequence = typeof value === "string" ? [value] : value;
-        if (!Array.isArray(sequence) || !sequence.length)
-            fault(key, "A mapping is a glyph code or a nonempty sequence of glyph codes");
+        if (!Array.isArray(sequence) || (!sequence.length && !allowEmpty))
+            fault(
+                key,
+                "A mapping is a glyph code or a code sequence; an empty sequence requires canonical round trips",
+            );
         return sequence
             .map((name) => {
                 if (
@@ -82,6 +85,8 @@ export function templateProgram(data, options, fault) {
         [
             "normalization",
             "matching",
+            "roundTrip",
+            "word-separators",
             "case",
             "stress",
             "vowel-groups",
@@ -95,6 +100,9 @@ export function templateProgram(data, options, fault) {
     const rules = data.rules;
     exact(rules.normalization, "NFC", "rules.normalization");
     exact(rules.matching, "longest-first", "rules.matching");
+    if (rules.roundTrip !== undefined && !["exact", "canonical"].includes(rules.roundTrip))
+        fault("rules.roundTrip", "roundTrip is exact or canonical");
+    const canonical = rules.roundTrip === "canonical";
     if (rules.case !== undefined)
         fixed(
             rules.case,
@@ -106,7 +114,11 @@ export function templateProgram(data, options, fault) {
             "rules.case",
         );
     for (const key of ["diaeresis", "grave-accent"])
-        if (rules[key] !== undefined) fixed(rules[key], { allowed: false }, `rules.${key}`);
+        if (rules[key] !== undefined) {
+            closed(rules[key], ["allowed"], `rules.${key}`);
+            if (typeof rules[key].allowed !== "boolean")
+                fault(`rules.${key}.allowed`, "allowed must be true or false");
+        }
     const vowels = data.vowels ?? "";
     if (!scalar(vowels)) fault("vowels", "vowels must be a Unicode scalar string");
     const vowelSet = new Set([...vowels].map(base));
@@ -189,8 +201,9 @@ export function templateProgram(data, options, fault) {
         if (/[\p{White_Space}⟦⟧]/u.test(from))
             fault(key, "Whitespace and literal markers belong to the shared standard");
         const decomposed = from.normalize("NFD");
-        if (rules.diaeresis && decomposed.includes("\u0308")) fault(key, "Diaeresis is forbidden");
-        if (rules["grave-accent"] && decomposed.includes("\u0300"))
+        if (rules.diaeresis?.allowed === false && decomposed.includes("\u0308"))
+            fault(key, "Diaeresis is forbidden");
+        if (rules["grave-accent"]?.allowed === false && decomposed.includes("\u0300"))
             fault(key, "Grave accents are forbidden");
     };
     const validateOutput = (from, to, key) => {
@@ -215,9 +228,35 @@ export function templateProgram(data, options, fault) {
     for (const [from, output] of Object.entries(data.mappings)) {
         const key = `mappings.${from}`;
         validateSource(from, key);
-        const to = resolve(output, key);
+        const to = resolve(output, key, canonical);
         validateOutput(from, to, key);
         mappings.push([from, to]);
+    }
+    const separators = [];
+    if (rules["word-separators"] !== undefined) {
+        if (!Array.isArray(rules["word-separators"]))
+            fault("rules.word-separators", "word-separators must be a list");
+        const seen = new Set();
+        for (const [i, from] of rules["word-separators"].entries()) {
+            const key = `rules.word-separators.${i}`;
+            validateSource(from, key);
+            if (
+                [...from].some(
+                    (char) =>
+                        "^/{}".includes(char) || /[\p{Cc}\p{Cf}\u{E0100}-\u{E01EF}]/u.test(char),
+                ) ||
+                STANDARD_ROWS.some((row) => (Array.isArray(row) ? row[0] : row.from) === from)
+            )
+                fault(
+                    key,
+                    "Word separators cannot replace shared punctuation or contain structural controls",
+                );
+            if (seen.has(from)) fault(key, "A word separator is stated twice");
+            if (Object.hasOwn(data.mappings, from))
+                fault(key, "A word separator cannot also have an ordinary mapping");
+            seen.add(from);
+            separators.push({ from, to: STANDARD_CONTROLS.wordSeparator });
+        }
     }
     const contextual = [];
     if (rules["contextual-mappings"] !== undefined) {
@@ -226,21 +265,36 @@ export function templateProgram(data, options, fault) {
         const seen = new Set();
         for (const [i, row] of rules["contextual-mappings"].entries()) {
             const key = `rules.contextual-mappings.${i}`;
-            closed(row, ["match", "before", "emit"], key);
-            if (
-                !scalar(row.match) ||
-                !row.match ||
-                row.match !== row.match.normalize("NFC") ||
-                seen.has(row.match)
-            )
-                fault(`${key}.match`, "A contextual match must be unique nonempty NFC text");
-            exact(row.before, "vowel", `${key}.before`);
-            if (!vowels) fault(`${key}.before`, "Before-vowel mappings require declared vowels");
+            closed(row, ["match", "before", "at", "emit"], key);
+            if (!scalar(row.match) || !row.match || row.match !== row.match.normalize("NFC"))
+                fault(`${key}.match`, "A contextual match must be nonempty NFC text");
+            if (row.before === undefined && row.at === undefined)
+                fault(key, "A contextual mapping requires before or at");
+            if (row.before !== undefined && !["vowel", "consonant"].includes(row.before))
+                fault(`${key}.before`, "before is vowel or consonant");
+            if (row.at !== undefined && !["start", "end", "line-start"].includes(row.at))
+                fault(`${key}.at`, "at is start, end or line-start");
+            if (row.before && !vowels)
+                fault(
+                    `${key}.before`,
+                    "Before-vowel or before-consonant mappings require declared vowels",
+                );
+            const condition = JSON.stringify([row.match, row.before ?? null, row.at ?? null]);
+            if (seen.has(condition))
+                fault(
+                    `${key}.match`,
+                    "A contextual mapping repeats the same source and conditions",
+                );
             validateSource(row.match, `${key}.match`);
-            const to = resolve(row.emit, `${key}.emit`);
+            const to = resolve(row.emit, `${key}.emit`, canonical);
             validateOutput(row.match, to, `${key}.emit`);
-            seen.add(row.match);
-            contextual.push({ from: row.match, to, before: "vowel" });
+            seen.add(condition);
+            contextual.push({
+                from: row.match,
+                to,
+                ...(row.before !== undefined ? { before: row.before } : {}),
+                ...(row.at !== undefined ? { at: row.at } : {}),
+            });
         }
     }
     if (rules.case)
@@ -256,26 +310,32 @@ export function templateProgram(data, options, fault) {
         ...STANDARD_ROWS.filter((row) => !overridden.has(Array.isArray(row) ? row[0] : row.from)),
         ...contextual,
         ...mappings,
+        ...separators,
     ];
-    assertUniqueOutputs(
-        [
-            ...rows.map((row) => {
-                if (Array.isArray(row))
-                    return { from: row[0], to: row[1], key: `mappings.${row[0]}` };
-                const index = contextual.indexOf(row);
-                return {
-                    ...row,
-                    key: index < 0 ? "rules" : `rules.contextual-mappings.${index}.emit`,
-                };
-            }),
-            { from: " ", to: " ", key: "rules" },
-        ],
-        fault,
-    );
+    const sourceKey = (row) => {
+        if (Array.isArray(row)) return `mappings.${row[0]}`;
+        const separator = separators.indexOf(row);
+        if (separator >= 0) return `rules.word-separators.${separator}`;
+        const context = contextual.indexOf(row);
+        return context < 0 ? "rules" : `rules.contextual-mappings.${context}`;
+    };
+    if (!canonical)
+        assertUniqueOutputs(
+            [
+                ...rows.map((row) =>
+                    Array.isArray(row) ?
+                        { from: row[0], to: row[1], key: sourceKey(row) }
+                    :   { ...row, key: sourceKey(row) },
+                ),
+                { from: " ", to: " ", key: "rules" },
+            ],
+            fault,
+        );
     const accepts = data.accepts ?? [
         ...new Set([
             ...Object.keys(data.mappings).join(""),
             ...contextual.map((r) => r.from).join(""),
+            ...separators.map((row) => row.from).join(""),
         ]),
     ];
     if (!Array.isArray(accepts)) fault("accepts", "accepts must be a list of characters or ranges");
@@ -285,17 +345,14 @@ export function templateProgram(data, options, fault) {
             fonts: [data.font],
             accepts: [...accepts, ...STANDARD_ROWS.map((r) => (Array.isArray(r) ? r[0] : r.from))],
             separator: " ",
+            roundTrip: canonical ? "canonical" : "exact",
             vowels,
             rows,
             codes: Object.entries(options.codes),
             controls: STANDARD_CONTROLS,
             ...(rules.case ? { groupCase: "initial" } : {}),
         },
-        rowKeys: rows.map((row) => {
-            if (Array.isArray(row)) return `mappings.${row[0]}`;
-            const index = contextual.indexOf(row);
-            return index < 0 ? "rules" : `rules.contextual-mappings.${index}`;
-        }),
+        rowKeys: rows.map(sourceKey),
         metadata: {
             name: options.name ?? `${data.language}-${data.font}`,
             language: data.language,
@@ -305,8 +362,8 @@ export function templateProgram(data, options, fault) {
                 vowelGroups: Object.freeze(vowelGroups),
                 maxVowelGroup: Math.max(0, ...vowelGroups.map((group) => [...group].length)),
                 stress,
-                diaeresis: !!rules.diaeresis,
-                grave: !!rules["grave-accent"],
+                diaeresis: rules.diaeresis?.allowed === false,
+                grave: rules["grave-accent"]?.allowed === false,
             }),
         },
     };

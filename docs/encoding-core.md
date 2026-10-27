@@ -48,18 +48,75 @@ second behaviour.
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `normalization`       | Required `NFC`; input is normalized before matching, with original source offsets retained.                                                                                                                                                           |
 | `matching`            | Required `longest-first`.                                                                                                                                                                                                                             |
+| `roundTrip`           | Optional `exact` (default) or `canonical`; canonical permits authored aliases and empty code sequences.                                                                                                                                               |
+| `word-separators`     | Optional list of source word dividers that emit shared word spaces after contextual alternatives.                                                                                                                                                     |
 | `case`                | `{single-letter: preserve, consonant-group: lowercase-or-initial-uppercase, other-group-cases: forbidden}`; single letters retain authored case, and groups use lowercase or an initial capital.                                                      |
 | `stress`              | `{modifier, position: after-stressed-vowel, printing: false, effect: stress-only, changes-sound: false, changes-length: false, vowel-group-position: first-vowel}`; `modifier` names a font code and acute mappings append it to the unchanged vowel. |
 | `vowel-groups`        | `{reading: established, allow-splitting: false, unrecognized-adjacent-vowels: separate, groups: [...]}`; the explicit group list determines where an acute belongs on its first vowel.                                                                |
-| `diaeresis`           | `{allowed: false}` forbids diaeresis mappings.                                                                                                                                                                                                        |
-| `grave-accent`        | `{allowed: false}` forbids grave-accent mappings.                                                                                                                                                                                                     |
-| `contextual-mappings` | A list of `{match, before: vowel, emit}`; the contextual mapping precedes an unconditional mapping and `emit` names one code or a sequence.                                                                                                           |
+| `diaeresis`           | `{allowed: boolean}` permits or forbids explicitly mapped diaeresis characters.                                                                                                                                                                       |
+| `grave-accent`        | `{allowed: boolean}` permits or forbids explicitly mapped grave-accent characters.                                                                                                                                                                    |
+| `contextual-mappings` | A list of `{match, emit, before?, at?}`; following-letter or source-position conditions precede unconditional mappings.                                                                                                                               |
 | `y`                   | `{kind: consonant, sound: "y in yes", vowel-reading: false}`; y cannot also appear in `data.vowels`.                                                                                                                                                  |
 
+The accent blocks accept an explicit Boolean `allowed`. False forbids that
+accent; true permits it only where the character is accepted and mapped.
+Omitting the block also permits such explicit mappings. Neither choice invents
+an accent pronunciation or adds a character to the inventory.
+
+`rules.roundTrip` is optional and defaults to `exact`. Exact mappings must be
+uniquely decodable across adjacent mappings and spaces; ambiguous outputs and
+empty code sequences are refused. This remains the default for Aelwythi.
+
+An encoding whose orthography omits distinctions may explicitly state
+`roundTrip: canonical`. Its mappings and conditional emissions may use `[]`
+for an inherent vowel or deleted boundary marker, and different Roman sources
+may name the same output. Decoding returns a conventional spelling. For an output it prefers the first
+authored alias whose following-letter condition matches the decoded suffix,
+with conditional rows before general mappings and longest complete native
+matches first. When none applies, the first authored reading is retained:
+an inherent vowel or deleted marker may have hidden the original condition. It does not invent characters for
+empty outputs or store invisible metadata to restore the original spelling.
+A language's authoritative vocabulary can recover fuller word spellings.
+Shared word spaces remain spaces in both modes.
+
+Contextual entries use `{match, emit, before?, at?}` and require at least one
+condition. `before` is `vowel` or `consonant`; `at` is `start`, `end` or
+`line-start`. `start` and `end` refer to word boundaries. A consonant is a
+letter outside the declared `data.vowels`. Line start follows a newline or
+verse slash and permits preceding indentation carets. Multiple conditions
+combine with AND. Entries for the same source may use different conditions;
+repeating the same source and condition tuple is an error. Equal-length
+contextual matches retain authored order.
+
+```yaml
+rules:
+  normalization: NFC
+  matching: longest-first
+  roundTrip: canonical
+  contextual-mappings:
+    - { match: e, before: consonant, emit: [] }
+    - { match: e, at: end, emit: [] }
+```
+
+Conditions govern forward matching. Inverse following-letter choices use the
+visible decoded suffix; canonical mode keeps its authored fallback when that
+suffix has lost an inherent vowel or marker. Position conditions govern only
+forward matching. No mode invents deleted markers. Exact decoding retains
+strict following-letter checks.
+
+`rules.word-separators` lists source word dividers, such as `['-']`, that emit
+the shared ASCII word space. Contextual rules take priority, so a canonical
+note can emit `[]` for an edge hyphen and a word space for an internal hyphen.
+These sources cannot also be ordinary mappings, replace shared punctuation,
+or contain whitespace, literal markers or structural controls. Separator
+sources participate in inferred `accepts`; no font SPACE code is invented.
+Since a divider and an ordinary space share output, such a note selects
+canonical round trips. Decoding keeps the shared space as a space.
+
 A contextual match cannot contain whitespace, literal markers or forbidden
-accents. Mapping outputs must be uniquely decodable across arbitrary adjacent
-mappings and spaces; ambiguous concatenations are refused. The compiler does
-not infer linguistic vowel groups or silently add missing letter mappings.
+accents. Both modes enforce the same accepted characters, normalization,
+case, stress, accent and literal-control rules. The compiler does not infer
+linguistic vowel groups or silently add missing letter mappings.
 
 Lint checks every authored word, variant and registered name for a language
 with an encoding document, including unused entries. It also checks actual
@@ -110,7 +167,8 @@ fixtures, not an authored input format.
 `EncodingError` and returns no partial text. `offset` is a zero-based UTF-16
 offset into the input, suitable for composing with a Markdown offset map.
 `line` and `column` are one-based Unicode code-point positions; schema errors
-expose their `key`. Decoding resolves the complete unambiguous output sequence.
+expose their `key`. Exact decoding resolves the complete unambiguous output sequence. Canonical
+decoding selects the authored conventional reading.
 
 `encodePieces` uses the same rules and returns `{from, to, start, end, row}`
 records. `start` and exclusive `end` delimit original UTF-16 input, including
