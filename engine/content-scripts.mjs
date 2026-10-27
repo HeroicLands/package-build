@@ -41,6 +41,7 @@
  */
 
 import MarkdownIt from "markdown-it";
+import { blockTokens } from "./markdown-blocks.mjs";
 
 import { scanBlocks, BLOCK_CONTAINERS } from "./content-blocks.mjs";
 import { scanVerse, hasColumns, verseLine, verseGroups, STANZA_BREAK } from "./content-verse.mjs";
@@ -736,9 +737,6 @@ function paragraphRanges(lines, first, last) {
 function codeName(point) {
     return `U+${point.toString(16).toUpperCase().padStart(4, "0")}`;
 }
-
-/** A parser for the block structure of a div's body. */
-const blockParser = new MarkdownIt({ html: true });
 
 /** What a block token is called in a finding. */
 const BLOCK_WHAT = Object.freeze({
@@ -1485,7 +1483,7 @@ function analyseRuns(source, ctx, syntax) {
                     { line: first + line + 1, column: /^ */.exec(body[line])[0].length + 1 },
                     `a div marked \`${marking}\` holds paragraphs and line breaks only, not ${what}`,
                 );
-            for (const token of blockParser.parse(body.join("\n"), {})) {
+            for (const token of blockTokens(body.join("\n"))) {
                 if (token.level !== 0 || !token.map) continue;
                 const [top, past] = token.map;
                 if (token.type === "paragraph_open") {
@@ -1535,7 +1533,14 @@ function analyseRuns(source, ctx, syntax) {
     const boundsOf = (detail) =>
         detail.reference ??
         (detail.run.kind === "span" ? [detail.run.start + 1, detail.contentEnd] : detail.body);
+    // Each run's parent and owner are read many times while ownership is
+    // assigned below, so each is found once.
+    const parents = new Map();
     const parentOf = (detail) => {
+        if (!parents.has(detail)) parents.set(detail, findParent(detail));
+        return parents.get(detail);
+    };
+    const findParent = (detail) => {
         if (detail.run.kind !== "span" || Object.keys(detail.keys).length) return undefined;
         return details
             .filter(
@@ -1547,9 +1552,13 @@ function analyseRuns(source, ctx, syntax) {
             )
             .sort((a, b) => boundsOf(a)[1] - boundsOf(a)[0] - (boundsOf(b)[1] - boundsOf(b)[0]))[0];
     };
+    const owners = new Map();
     const ownerOf = (detail) => {
-        const parent = parentOf(detail);
-        return parent ? ownerOf(parent) : detail;
+        if (!owners.has(detail)) {
+            const parent = parentOf(detail);
+            owners.set(detail, parent ? ownerOf(parent) : detail);
+        }
+        return owners.get(detail);
     };
     const wholeVerseReading = (detail) => {
         if (detail.run.kind === "verse") return true;

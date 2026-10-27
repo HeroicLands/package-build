@@ -12,6 +12,7 @@
  */
 
 import MarkdownIt from "markdown-it";
+import { blockTokens } from "./markdown-blocks.mjs";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { slugify } from "./content-slug.mjs";
 
@@ -48,7 +49,6 @@ export const ALERT_TYPES = Object.freeze({
         ),
     },
 });
-const parser = new MarkdownIt({ html: true });
 const titleParser = new MarkdownIt({ html: false });
 const marker = /^ {0,3}>[ \t]?\[!([^\]\n]+)\](.*)$/;
 /** Read alerts outside code examples, retaining inclusive source line ranges.
@@ -60,7 +60,7 @@ export function scanAlerts(source) {
         blocks = [],
         errors = [];
     let depth = 0;
-    for (const token of parser.parse(text, {})) {
+    for (const token of blockTokens(text)) {
         if (token.type === "blockquote_close") {
             depth--;
             continue;

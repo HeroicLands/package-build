@@ -42,7 +42,7 @@
  * @module
  */
 
-import MarkdownIt from "markdown-it";
+import { blockTokens } from "./markdown-blocks.mjs";
 
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 
@@ -77,8 +77,6 @@ export const BOOK_SCROLL_ROWS = 40;
 
 /** The class every scroll carries. */
 export const SCROLL_CLASS = "scroll";
-
-const structureParser = new MarkdownIt({ html: true });
 
 /**
  * One `scroll` fence.
@@ -129,7 +127,7 @@ export function scanScrolls(source) {
     if (!/^ *(?:`{3,}|~{3,}) *scroll(?:\s|$)/m.test(text)) return { blocks, errors };
     const lines = text.split("\n");
     const literalLines = new Set();
-    for (const token of structureParser.parse(text, {})) {
+    for (const token of blockTokens(text)) {
         if (!token.map || !["blockquote_open", "html_block"].includes(token.type)) continue;
         for (let line = token.map[0]; line < token.map[1]; line++) literalLines.add(line);
     }

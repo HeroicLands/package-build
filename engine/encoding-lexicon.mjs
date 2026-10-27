@@ -389,9 +389,21 @@ export function nativeRows(records) {
     return rows;
 }
 
-/** Project only conversion-readable language data to a JSON-safe object. */
+/** Each lexicon's projection, made once and shared by every conversion that reads it. */
+const serialized = new WeakMap();
+
+/**
+ * Project only conversion-readable language data to a JSON-safe object. The
+ * projection of one lexicon is made once and shared, so it must not be modified.
+ */
 export function serializeLexicon(lexicon) {
     if (!lexicon) return undefined;
+    if (!serialized.has(lexicon)) serialized.set(lexicon, projectLexicon(lexicon));
+    return serialized.get(lexicon);
+}
+
+/** The conversion-readable data of a lexicon, copied. */
+function projectLexicon(lexicon) {
     const select = (value, keys) =>
         Object.fromEntries(
             keys

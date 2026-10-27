@@ -80,8 +80,13 @@ function oneOf(form, candidates) {
     return { ambiguous: { form, glosses: candidates.map(({ gloss }) => gloss) } };
 }
 
+/** Each language data's writings, by encoding and face. */
+const writingsFound = new WeakMap();
+
 /**
- * The writings of a language's words under one encoding in one face.
+ * The writings of a language's words under one encoding in one face. One
+ * `data` yields one set of writings per encoding and face, and each word's
+ * writing is found once, so `data` must not be modified once it is read here.
  *
  * @param {Record<string, any>|undefined} data - The language note's `data`.
  * @param {string} enc - The encoding's name.
@@ -90,6 +95,34 @@ function oneOf(form, candidates) {
  *   The writing of a run's word, and of the `data.words` entry at an index.
  */
 export function writingsOf(data, enc, font) {
+    if (!isMap(data)) return findWritings(data, enc, font);
+    if (!writingsFound.has(data)) writingsFound.set(data, new Map());
+    const byFace = writingsFound.get(data);
+    const key = JSON.stringify([enc, font ?? null]);
+    if (!byFace.has(key)) {
+        const found = findWritings(data, enc, font);
+        const words = new Map();
+        byFace.set(key, {
+            word: (written) => {
+                if (!words.has(written)) words.set(written, found.word(written));
+                return words.get(written);
+            },
+            entry: found.entry,
+        });
+    }
+    return byFace.get(key);
+}
+
+/**
+ * The writings of a language's words under one encoding in one face, found
+ * afresh; see {@link writingsOf}.
+ *
+ * @param {Record<string, any>|undefined} data - The language note's `data`.
+ * @param {string} enc - The encoding's name.
+ * @param {string|undefined} font - The face.
+ * @returns {{word: (word: string) => Writing, entry: (index: number) => Writing}}
+ */
+function findWritings(data, enc, font) {
     const words = listOf(data?.words);
     const affixes = listOf(data?.affixes).filter(isMap);
     const grammar = isMap(data?.grammar) ? data.grammar : undefined;

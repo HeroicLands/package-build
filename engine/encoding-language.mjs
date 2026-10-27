@@ -69,7 +69,14 @@ function capitalWriting(enc, word, native, font) {
             upper.to + native.slice(lower.to.length)
         :   undefined;
 }
+/** Each lexicon's forms, found once; a lexicon is not modified once it is converted with. */
+const formsOf = new WeakMap();
 function entryForms(lexicon) {
+    if (!lexicon) return findEntryForms(lexicon);
+    if (!formsOf.has(lexicon)) formsOf.set(lexicon, findEntryForms(lexicon));
+    return formsOf.get(lexicon);
+}
+function findEntryForms(lexicon) {
     const data = lexicon?.data ?? {};
     const derived = new Map();
     for (const entry of derivedForms(data)) {
@@ -122,6 +129,44 @@ function entryForms(lexicon) {
     ];
 }
 
+/** Each lexicon's phrases of more than one word, with the patterns that find them. */
+const phrasesFound = new WeakMap();
+function phrasesOf(lexicon) {
+    if (!phrasesFound.has(lexicon))
+        phrasesFound.set(
+            lexicon,
+            entryForms(lexicon)
+                .map((entry) => entry.form)
+                .filter((form) => [...form.matchAll(WORD)].length > 1)
+                .map((form) => ({
+                    form,
+                    spaces: form.match(/[\p{Zs}\u0009-\u000D]+/gu) ?? [],
+                    pattern: new RegExp(
+                        form
+                            .split(/[\p{Zs}\u0009-\u000D]+/u)
+                            .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+                            .join("[\\p{Zs}\\u0009-\\u000D]+"),
+                        "iuy",
+                    ),
+                })),
+        );
+    return phrasesFound.get(lexicon);
+}
+
+/** Each lexicon's words' forms and variants, as written. */
+const statedFound = new WeakMap();
+function statedForms(lexicon) {
+    if (!statedFound.has(lexicon)) {
+        const forms = new Set();
+        for (const entry of list(lexicon.data.words)) {
+            forms.add(entry.form);
+            for (const variant of list(entry.variants)) forms.add(variant);
+        }
+        statedFound.set(lexicon, forms);
+    }
+    return statedFound.get(lexicon);
+}
+
 function literalEnd(text, at) {
     let cursor = at + OPEN.length;
     while (cursor < text.length) {
@@ -164,23 +209,7 @@ export function encodeWithLanguage(enc, text, options = {}) {
     }
     const writing =
         options.lexicon ? writingsOf(options.lexicon.data, enc.name, options.font) : undefined;
-    const phrases =
-        options.lexicon ?
-            entryForms(options.lexicon)
-                .map((entry) => entry.form)
-                .filter((form) => [...form.matchAll(WORD)].length > 1)
-                .map((form) => ({
-                    form,
-                    spaces: form.match(/[\p{Zs}\u0009-\u000D]+/gu) ?? [],
-                    pattern: new RegExp(
-                        form
-                            .split(/[\p{Zs}\u0009-\u000D]+/u)
-                            .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-                            .join("[\\p{Zs}\\u0009-\\u000D]+"),
-                        "iuy",
-                    ),
-                }))
-        :   [];
+    const phrases = options.lexicon ? phrasesOf(options.lexicon) : [];
     let at = 0;
     const appendRows = (from, to) => {
         let cursor = from;
@@ -267,9 +296,7 @@ export function encodeWithLanguage(enc, text, options = {}) {
         } else if (own && "text" in own) {
             appendRows(at, start);
             let native = own.text;
-            const exact = list(options.lexicon.data.words).some(
-                (entry) => entry.form === lookup || list(entry.variants).includes(lookup),
-            );
+            const exact = statedForms(options.lexicon).has(lookup);
             if (!exact && match[0] !== match[0].toLowerCase()) {
                 const capital =
                     match[0] === initialCapital(match[0].toLowerCase()) ?

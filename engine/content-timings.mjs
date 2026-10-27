@@ -24,12 +24,15 @@ export function createContentTimings() {
         stages.set(name, (stages.get(name) ?? 0) + now - changed);
         changed = now;
     };
+    // Ending a stage also ends any stage opened inside it and left open.
     const begin = (name) => {
         account();
+        const depth = stack.length;
         stack.push(name);
         return () => {
+            if (stack.length <= depth) return;
             account();
-            stack.pop();
+            stack.length = depth;
         };
     };
     return {
@@ -50,6 +53,15 @@ export function createContentTimings() {
             } finally {
                 stop();
             }
+        },
+        /**
+         * Open a stage that runs until the returned function is called, or
+         * until the stage it was opened in ends.
+         * @param {string} name
+         * @returns {() => void}
+         */
+        start(name) {
+            return begin(name);
         },
         /** @param {string} name */
         hit(name) {

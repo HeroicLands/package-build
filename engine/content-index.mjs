@@ -1087,6 +1087,8 @@ export function resolveCultures(
  * @param {Map<string, {raw: string}>} [options.sources] - Selected captured source strings.
  * @param {import("./content-session.mjs").ContentSyntax} [options.syntax] - Session scanner projections.
  * @param {Iterable<string>} [options.nameTypes] - Additional bare name kinds from configured type declarations.
+ * @param {ReturnType<typeof import("./content-timings.mjs").createContentTimings>} [options.timings] -
+ *   Invocation stage accounting, which records each phase of the derivation.
  * @returns {Array<Record<string, any>>} The records, in a total order that does
  *   not depend on directory-read order.
  */
@@ -1109,8 +1111,16 @@ export function collectContentIndex(
         sources,
         syntax,
         nameTypes,
+        timings,
     },
 ) {
+    // Each phase runs until the next begins; the caller's stage closes the last.
+    let phaseEnd;
+    const phase = (name) => {
+        phaseEnd?.();
+        phaseEnd = timings?.start(name);
+    };
+    phase("index read");
     const records = [];
     // Passed through rather than defaulted away: an absent scope is the
     // caller's omission, and `walkMarkdownTree` says so.
@@ -1175,6 +1185,7 @@ export function collectContentIndex(
     );
 
     // Each recorded note with its body, for the words its prose cites.
+    phase("index notes");
     const bodies = [];
     for (const { frontmatter, body, bodyLine, bodyColumn, raw, absPath } of parsedNotes) {
         // Before the index derives anything onto the frontmatter, so a later
@@ -1251,16 +1262,19 @@ export function collectContentIndex(
 
     // The words each note's prose cites, read once every language's words
     // are recorded; the index keeps the citing Addresses and no text.
+    phase("index citations");
     attachCitations(records, bodies);
 
     // A run marked with a language alone takes its language's script, which
     // is read once every language note is recorded.
+    phase("index encoding runs");
     fillEncodingRuns(records, { languages, contentPackage, rootDir });
 
     // Every note record exists and every Address in it is a tuple, so a parent
     // is found by its canonical address. Before the sort, which reads nothing
     // the pass writes. Calendars first: they read the culture a note states,
     // which the culture pass then replaces with the one it resolves.
+    phase("index calendars and cultures");
     resolveNoteCalendars(records, {
         contentPackage,
         defaultCalendar,
@@ -1298,6 +1312,7 @@ export function collectContentIndex(
     // projection as the surfaces, without making the index emitter async.
     // Public notes resolve providers in their audience, including lineage
     // through hidden languages, just as their build does.
+    phase("index lexical sections");
     const visible = records.filter((record) => !isGmNote(record));
     const publicSections = lexicalSectionsFor(visible, records);
     const allSections = lexicalSectionsFor(records);
@@ -1319,6 +1334,7 @@ export function collectContentIndex(
     // about the content, and the artifact is meant to be byte-identical across
     // two runs over an unchanged tree. Collected above, ahead of the notes —
     // see `resolveRole` — rather than walked a second time here.
+    phase("index order");
     for (const record of assetRecords) {
         records.push(/** @type {Record<string, any>} */ (sortKeysDeep(record)));
     }
@@ -1344,9 +1360,11 @@ export function collectContentIndex(
             ) ||
             String(a.id ?? "").localeCompare(String(b.id ?? ""), "en"),
     );
-    return records.map((record) =>
+    const decoded = records.map((record) =>
         decodeIndexAddresses(record, addressContext ?? { package: contentPackage }),
     );
+    phaseEnd?.();
+    return decoded;
 }
 
 /**
@@ -1465,6 +1483,8 @@ function dependencyAddresses(config) {
  * @param {import("./content-session.mjs").ContentSyntax} [opts.syntax] - Session scanner projections.
  * @param {Iterable<string>} [opts.nameTypes] - Bare name kinds, defaulting to configured item types.
  * @param {Map<string, object>} [opts.foreignIndex] - Captured dependency address view.
+ * @param {ReturnType<typeof import("./content-timings.mjs").createContentTimings>} [opts.timings] -
+ *   Invocation stage accounting.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
 export function indexRecordsFor({
@@ -1478,6 +1498,7 @@ export function indexRecordsFor({
     syntax,
     nameTypes,
     foreignIndex,
+    timings,
 } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = contentBase ?? resolved.paths.content;
@@ -1512,6 +1533,7 @@ export function indexRecordsFor({
         sources,
         syntax,
         nameTypes: nameTypes ?? resolved.itemTypes,
+        timings,
     });
 }
 

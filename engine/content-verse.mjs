@@ -180,11 +180,11 @@ function columnsMarkdown(block, lines, step) {
 }
 
 import MarkdownIt from "markdown-it";
+import { blockTokens } from "./markdown-blocks.mjs";
 import { slugify } from "./content-slug.mjs";
 import { spanMarkdownPlugin } from "./content-spans.mjs";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 
-const structureParser = new MarkdownIt({ html: true });
 const lineParser = new MarkdownIt({ html: true }).use(spanMarkdownPlugin);
 
 /** The structural first span of a line, with its source ranges and keys. */
@@ -223,7 +223,7 @@ export function scanVerse(source) {
         blocks = [],
         errors = [];
     const literalLines = new Set();
-    for (const token of structureParser.parse(String(source ?? ""), {})) {
+    for (const token of blockTokens(source)) {
         if (!token.map || !["blockquote_open", "html_block"].includes(token.type)) continue;
         for (let line = token.map[0]; line < token.map[1]; line++) literalLines.add(line);
     }

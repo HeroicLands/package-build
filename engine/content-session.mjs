@@ -144,6 +144,7 @@ export async function createContentSession({
             problems,
             foreignIndex: foreign.index,
             syntax,
+            timings,
         }),
     );
     const memo = (key, make) => {

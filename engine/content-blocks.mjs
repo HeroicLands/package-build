@@ -52,6 +52,7 @@
 import crypto from "node:crypto";
 import { slugify } from "./content-slug.mjs";
 import MarkdownIt from "markdown-it";
+import { blockTokens } from "./markdown-blocks.mjs";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { scanVerse, renderVerse } from "./content-verse.mjs";
 import { renderScroll, scanScrolls } from "./content-scroll.mjs";
@@ -63,7 +64,6 @@ import { WITHHELD_CLASS, parseHeadingLine, withheldSections } from "./heading-at
  * and a stray `<section>` would close the block early.
  */
 const titleParser = new MarkdownIt({ html: false });
-const structureParser = new MarkdownIt({ html: true });
 
 /** The blocks an author may open, with the heading each takes by default. */
 export const BLOCK_NAMES = Object.freeze({
@@ -108,7 +108,7 @@ export function scanBlocks(source) {
     // A bare fence can belong to a quote through lazy continuation.
     // Parser ranges decide whether it can delimit a container.
     const literalLines = new Set();
-    for (const token of structureParser.parse(String(source ?? ""), {})) {
+    for (const token of blockTokens(source)) {
         if (
             !token.map ||
             !["blockquote_open", "fence", "code_block", "html_block"].includes(token.type)

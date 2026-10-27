@@ -34,15 +34,12 @@
  */
 
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
-import MarkdownIt from "markdown-it";
-
-/** Literal block ranges use the renderer's Markdown grammar. */
-const structureParser = new MarkdownIt({ html: true });
+import { blockTokens } from "./markdown-blocks.mjs";
 
 /** Body lines occupied by code or raw HTML, including comment examples. */
 function literalHeadingLines(source) {
     const lines = new Set();
-    for (const token of structureParser.parse(String(source ?? ""), {})) {
+    for (const token of blockTokens(source)) {
         if (!token.map || !["fence", "code_block", "html_block"].includes(token.type)) continue;
         for (let line = token.map[0]; line < token.map[1]; line++) lines.add(line);
     }

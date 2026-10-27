@@ -464,6 +464,16 @@ export function dictionaryAndTermRows(records, all = records) {
         );
         return hit ? hit.entry[key] : undefined;
     };
+    // One piece lookup per language, shared by every word that language states.
+    const glossers = new Map();
+    const glossesFor = (language) => {
+        if (!glossers.has(language))
+            glossers.set(
+                language,
+                pieceGlosses(...lineage(language).map((key) => languages.get(key).data)),
+            );
+        return glossers.get(language);
+    };
     const etymologyOf = ({ word, statedIn, depth }) => {
         const blank = Object.fromEntries(ETYMOLOGY_KEYS.map((key) => [key, null]));
         if (depth > 0)
@@ -476,13 +486,15 @@ export function dictionaryAndTermRows(records, all = records) {
             };
         const source = isMap(word.source) ? word.source : {};
         const built = Array.isArray(word.built) ? word.built.map(String) : [];
-        const glossOf = pieceGlosses(...lineage(statedIn).map((key) => languages.get(key).data));
         const out = {
             ...blank,
             kind: typeof source.kind === "string" ? source.kind : null,
             language: typeof source.language === "string" ? source.language : null,
             form: typeof source.form === "string" ? source.form : null,
-            parts: built.length ? built.map((form) => ({ form, gloss: glossOf(form) })) : null,
+            parts:
+                built.length ?
+                    built.map((form) => ({ form, gloss: glossesFor(statedIn)(form) }))
+                :   null,
             root: typeof word.root === "string" ? word.root : null,
             frame: typeof word.frame === "string" ? word.frame : null,
         };

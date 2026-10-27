@@ -1912,6 +1912,40 @@ function linksCommand() {
     };
 }
 
+/** The stages that build the content index, in the order they run. */
+const INDEX_STAGES = Object.freeze([
+    "source capture",
+    "dependency indexes",
+    "index read",
+    "index notes",
+    "index citations",
+    "index encoding runs",
+    "index calendars and cultures",
+    "index lexical sections",
+    "index order",
+    "index derivation",
+    "sql:all",
+    "sql:public",
+    "publication",
+    "index emission",
+]);
+
+/**
+ * The content index's stage timings as one line, each stage's own time
+ * excluding the stages inside it.
+ *
+ * @param {Record<string, number>} stages - Exclusive milliseconds by stage.
+ * @returns {string} The line.
+ */
+function indexTimings(stages) {
+    const shown = INDEX_STAGES.filter((name) => name in stages);
+    const total = shown.reduce((sum, name) => sum + stages[name], 0);
+    return (
+        `Index timings: ${shown.map((name) => `${name} ${stages[name].toFixed(1)} ms`).join("; ")}; ` +
+        `total ${total.toFixed(1)} ms.`
+    );
+}
+
 /**
  * `package-build content-index` — emit this package's note index.
  *
@@ -1961,12 +1995,14 @@ function contentIndexCommand() {
                 session.assertContext({ config, contentBase });
                 const publication = await session.publication();
                 const { file, notes, bytes, full, draft, stub, dictionary, terms } =
-                    emitContentIndex({
-                        config,
-                        publication,
-                        ...(argv.root ? { contentBase: argv.root } : {}),
-                        ...(argv.out ? { outDir: argv.out } : {}),
-                    });
+                    session.timings.sync("index emission", () =>
+                        emitContentIndex({
+                            config,
+                            publication,
+                            ...(argv.root ? { contentBase: argv.root } : {}),
+                            ...(argv.out ? { outDir: argv.out } : {}),
+                        }),
+                    );
                 log.info(
                     `${config.contentPackage} → ${path.relative(process.cwd(), file)} ` +
                         `(${notes} notes — ${full} full, ${draft} draft, ` +
@@ -1977,6 +2013,7 @@ function contentIndexCommand() {
                         `${config.contentPackage} → ${path.relative(process.cwd(), written.file)} ` +
                             `(${written.rows} ${relation} rows)`,
                     );
+                log.info(indexTimings(session.timings.snapshot().stages));
                 return true;
             } catch (err) {
                 reportContentFailure(err, argv);
