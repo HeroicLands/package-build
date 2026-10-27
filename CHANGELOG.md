@@ -1,5 +1,12 @@
 # @heroiclands/package-build
 
+## 25.1.3
+
+**Spelling checks**
+
+- A language written in a script made only of glyph codes no longer fails the spelling check on its roman words and names.
+- English names a language uses, such as bynames, go under `data.names.en`, are never checked against the language's encoding, and a name pattern reaches them as `{en.epithet}`.
+
 ## 25.1.2
 
 **Build speed**
