@@ -996,7 +996,7 @@ Import from `@heroiclands/package-build/engine/first-use`.
 | `firstUsePlugin`        | `md.use(firstUsePlugin)`                                                | —                        | Rendering the marks as strong text in a markdown-it parser.                        |
 | `FIRST_USE_OPEN`        | constant                                                                | `"\uFDD0"`               | Recognizing where a first use opens in expanded markdown.                          |
 | `FIRST_USE_CLOSE`       | constant                                                                | `"\uFDD1"`               | Recognizing where a first use closes in expanded markdown.                         |
-| `createFirstUseChecker` | `createFirstUseChecker({ records, index, catalog?, parsed?, syntax? })` | `checker({ file, raw })` | Checking a note's marked names against the index and for authored bold.            |
+| `createFirstUseChecker` | `createFirstUseChecker({ records, index, catalog?, parsed?, syntax? })` | `checker({ file, raw })` | Checking a note's marked names against the index.                                  |
 
 A `NameUse` is `{start, end, key, emphasised}`: the use's UTF-16 range in the
 markdown, the key it counts under, and whether it sits inside authored strong
@@ -1017,9 +1017,8 @@ Construct one checker with the session's read-only `records` and
 It performs no I/O and returns `{file, line, column, severity: "warning",
 rules, message}` diagnostics. `rules` is a list of applicable rule names,
 merged into one warning for each occurrence: `unlinked-name` for a `.name`
-span without `ref` whose label is an indexed full name or listed form, and
-`authored-bold` for authored bold that wraps a `.name` span or a name
-wikilink. Plain text is not searched. The command's lint target constructs the
+span without `ref` whose label is an indexed full name or listed form. Plain
+text is not searched. The command's lint target constructs the
 checker once, uses exact authored `raw` strings and keeps these findings
 advisory. See the [authoring conventions](authoring/links-and-markup.md#marking-names-in-prose).
 

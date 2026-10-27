@@ -42,7 +42,7 @@ For optional writing suggestions, run `npx package-build prose lint assets/conte
 The full Address is `<package>-note-lore-harbor`; `<package>` comes from `contentPackage` in `package-build.config.yaml`. In another note, `[[lore-harbor|Harbor]]` links to it. `[[lore-harbor|]]` asks the renderer to use the target's current name. The pipe is required.
 
 Mark another subject's name with a link or a `.name` span; its first use in
-the page is bold when it renders, so write no bold around it. Keep a note's own
+the page is bold when it renders. Keep a note's own
 subject in plain text. Link indexed subjects even when they are private: the destination's
 audience automatically makes the whole reference a spoiler. Add `.show` only
 to intentionally reveal the reference; it grants no access to the destination.

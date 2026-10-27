@@ -2266,8 +2266,7 @@ a language-note association retain their ordinary behavior. Standalone
 Name marking is advisory: lint checks explicit `.name` spans and name
 wikilinks against the [name-marking
 conventions](authoring/links-and-markup.md#marking-names-in-prose). It warns
-when a `.name` span without `ref` names an indexed note, and when authored bold
-wraps a name, whose first use the renderer bolds. Plain prose is not searched
+when a `.name` span without `ref` names an indexed note. Plain prose is not searched
 for names. It builds one matcher from the current local and dependency names,
 then reports each affected occurrence at its exact source location. These warnings
 also appear when `lint` is selected in `content run`; they do not fail the run.

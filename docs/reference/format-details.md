@@ -1960,8 +1960,8 @@ link labels are never read as names.
 ##### The first use of a name
 
 The first use of each name in a page is bold when the page renders, on the
-website, in the Foundry journal and in the book. Authors write no bold around
-a name. Each use is keyed, and the first use of each key is the bold one:
+website, in the Foundry journal and in the book. Bold an author writes is the
+author's choice, and a name inside authored bold takes no second bold. Each use is keyed, and the first use of each key is the bold one:
 
 1. A name wikilink is keyed by its address. Every spelling of one address is
    one key, and so is each system's document of one note:
@@ -2010,10 +2010,6 @@ code, comments and embeds are outside both.
    `[Theinuvael]{.name data-type="place"}` and `[Theinuvael]{.name}` should
    be linked or tied to it. The same match decides a span's identity for the
    unwritten-name advisory.
-2. Authored bold that wraps exactly a `.name` span or a name wikilink,
-   `**[Jane]{.name}**`, is a finding at the bold: the renderer bolds a name's
-   first use itself. Bold around a phrase that holds a name is emphasis and
-   draws none.
 
 Bold is emphasis and is never read as a name. A bold label such as
 `**Strength**:` is ordinary emphasis even when its text matches an indexed

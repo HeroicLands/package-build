@@ -59,7 +59,6 @@ describe("the actual authored marked-name inventory", () => {
             } as any);
             expect(checker({ file, raw }).map((finding) => finding.rules)).toEqual([
                 ["unlinked-name"],
-                ["authored-bold"],
             ]);
             expect(recognize).toHaveBeenCalled();
             expect(create).not.toHaveBeenCalled();
@@ -274,7 +273,7 @@ describe("the actual authored marked-name inventory", () => {
                 expect(session.syntax(body).spans).toBe(captured);
                 const changed = checker({ file, raw: "**[New]{.name}** and [New]{.name}." });
                 expect(scan).toHaveBeenCalledTimes(1);
-                expect(changed.map((finding) => finding.rules)).toEqual([["authored-bold"]]);
+                expect(changed.map((finding) => finding.rules)).toEqual([]);
             } finally {
                 session.dispose();
             }

@@ -380,20 +380,12 @@ address is its ref.
 
 ## A name's first use
 
-Two name-marking findings are `warning`s: they report and never fail lint. A
+A name-marking finding is a `warning`: it reports and never fails lint. A
 `.name` span with no `ref` whose label is an indexed note's full name or listed
 form is reported at the span, naming the note to link or tie it to:
 
 ```text
 assets/content/Lore/Ferry.md:12:1: warning: first-use/unlinked-name: “Arden” names “Arden Vale”; use a link to “test-note-place-arden”, or tie it with ref=
-```
-
-Authored bold that wraps exactly a `.name` span or a name wikilink is reported
-at the opening `**` or `__`. The renderer bolds each name's first use, so the
-author's bold is redundant on the first use and wrong on any later one:
-
-```text
-assets/content/Lore/Ferry.md:14:1: warning: first-use/authored-bold: “Jane” is wrapped in bold; a name's first use is bold when the page renders, so remove the bold
 ```
 
 ## Native presentation is explicit

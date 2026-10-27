@@ -284,47 +284,6 @@ describe("a marked name that names an indexed note", () => {
     });
 });
 
-describe("authored bold around a name", () => {
-    it("is a warning at the bold, for a span and for a name wikilink", () => {
-        const { check } = fixture();
-        const raw = "**[Hidden Hand]{.name}** meets __[[place-arden|the vale]]{.name}__.";
-        const found = check(raw);
-        expect(found.map((finding) => finding.rules)).toEqual([
-            ["authored-bold"],
-            ["authored-bold"],
-        ]);
-        expect(found.map(({ line, column }) => ({ line, column }))).toEqual([
-            positions(raw, "**[Hidden")[0],
-            positions(raw, "__[[")[0],
-        ]);
-        expect(found[0].message).toContain("Hidden Hand");
-        expect(found[1].message).toContain("the vale");
-        expect(found.every((finding) => finding.severity === "warning")).toBe(true);
-    });
-
-    it("joins the link warning at the same name", () => {
-        const { check } = fixture();
-        const found = check("**[Arden Vale]{.name}**");
-        expect(found.map((finding) => finding.rules)).toEqual([
-            ["authored-bold"],
-            ["unlinked-name"],
-        ]);
-    });
-
-    it("leaves bold that holds more than the name, and a plain link, alone", () => {
-        const { check } = fixture();
-        for (const raw of [
-            "**This is a phrase with [Joe Blow]{.name} in it**",
-            "**[Joe Blow]{.name}'s** boat",
-            "[**Joe Blow**]{.name}",
-            "**[[place-arden|the vale]]**",
-            "**[Arden Vale](https://example.invalid)**",
-            "**Arden Vale**",
-        ])
-            expect(rules(check(raw)), raw).not.toContain("authored-bold");
-    });
-});
-
 describe("source exclusions", () => {
     it("skips frontmatter, headings, tables, infoboxes, comments and inline literals", () => {
         const { check } = fixture();
@@ -544,6 +503,15 @@ describe("the first use of each key", () => {
         expect(shown("**A phrase with [Joe Blow]{.name} in it** then [Joe Blow]{.name}.")).toBe(
             "**A phrase with [Joe Blow]{.name} in it** then [Joe Blow]{.name}.",
         );
+    });
+
+    it("counts a name wrapped exactly in authored bold without a second bold", () => {
+        expect(shown("**[Joe Blow]{.name}** then [Joe Blow]{.name}.")).toBe(
+            "**[Joe Blow]{.name}** then [Joe Blow]{.name}.",
+        );
+        expect(
+            shown("**[[place-arden|the vale]]{.name}** then [[place-arden|the vale]]{.name}."),
+        ).toBe("**[[place-arden|the vale]]{.name}** then [[place-arden|the vale]]{.name}.");
     });
 
     it("counts in lists, quotations and footnotes, in source order", () => {

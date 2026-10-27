@@ -13,8 +13,8 @@
 
 /**
  * **A name's first use.** Each name a page marks is keyed, and the first use
- * of each key in the page's prose is bold when the page renders. Authors write
- * no bold around a name.
+ * of each key in the page's prose is bold when the page renders. Bold an author
+ * writes is the author's choice.
  *
  * The key of a use is, in order:
  *
@@ -505,12 +505,10 @@ export function firstUsePlugin(md) {
  * Prepare indexed names once, then check each note's marked names without
  * reading files.
  *
- * Two rules, each a warning at the occurrence:
+ * One rule, a warning at the occurrence:
  *
  * - `unlinked-name`: a `.name` span with no `ref` names an indexed note, which
  *   a link or a `ref` ties to its note.
- * - `authored-bold`: authored bold wraps a `.name` span or a name wikilink,
- *   whose first use the renderer already bolds.
  *
  * @param {{records: readonly object[], index: object,
  *   catalog?: import("./names.mjs").NameCatalog,
@@ -536,7 +534,7 @@ export function createFirstUseChecker({
                     { raw, bodyLine: authored.bodyLine, bodyColumn: authored.bodyColumn },
                 )
             :   undefined;
-        const { marked, links, strong } = prose(raw, capturedNames);
+        const { marked } = prose(raw, capturedNames);
         const findings = new Map();
         const add = (offset, rule, message) => {
             if (!findings.has(offset)) findings.set(offset, { rules: [], messages: [] });
@@ -559,24 +557,6 @@ export function createFirstUseChecker({
                 "unlinked-name",
                 `“${span.label}” names “${entry.full}”; use a link to “${destinations}”, or tie it with ref=`,
             );
-        }
-        const names = [
-            ...marked.map((span) => ({ start: span.start, end: span.end, label: span.label })),
-            ...links.filter(isNameLink).map((link) => ({
-                start: link.start,
-                end: link.end,
-                label: link.display || link.target,
-            })),
-        ];
-        for (const range of strong) {
-            const inner = { start: range.start + 2, end: range.end - 2 };
-            const name = names.find((one) => one.start === inner.start && one.end === inner.end);
-            if (name)
-                add(
-                    range.start,
-                    "authored-bold",
-                    `“${name.label}” is wrapped in bold; a name's first use is bold when the page renders, so remove the bold`,
-                );
         }
         const lineStarts = [0];
         for (let i = 0; i < raw.length; i++) if (raw[i] === "\n") lineStarts.push(i + 1);

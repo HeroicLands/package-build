@@ -127,9 +127,8 @@ attribute's value, never the span's `{#id}` anchor.
 ### The first use is bold
 
 The first use of each name in a page is bold when the page renders, on the
-website, in the Foundry journal and in the book. Write no bold around a name:
-the renderer chooses which use is bold, and every later use reads as plain
-text.
+website, in the Foundry journal and in the book, and every later use reads as
+plain text. Bold an author writes is the author's choice.
 
 Each use of a name is counted under a key:
 
@@ -168,10 +167,9 @@ A name span can sit inside emphasis:
 **This is a phrase with [Joe Blow]{.name} in it**
 ```
 
-The marked name is `Joe Blow`. Bold around a phrase is emphasis, and a name
-inside it counts as that name's first use without a second bold. Bold itself is
-never a name: a bold label such as `**Strength**:` draws no warning, whatever
-names the index holds.
+The marked name is `Joe Blow`. A name inside authored bold counts as that
+name's first use and takes no second bold. Bold itself is never a name: a bold
+label such as `**Strength**:` draws no warning, whatever names the index holds.
 
 ### What lint reports
 
@@ -183,12 +181,8 @@ it names one), so a lineage that shares its name with a place note is marked
 link the place. Names match whatever their case, so `[arden]{.name}` names the
 same note as `[Arden]{.name}`.
 
-Lint also warns at authored bold that wraps exactly a name, as in
-`**[Jane]{.name}**` or `**[[place-harbor|the harbor]]{.name}**`. Remove the
-bold; the first use is bold when the page renders.
-
-These are warnings at each occurrence's `file:line:column`; they do not make
-a valid package fail. The check reads authored prose outside headings,
+This is a warning at each occurrence's `file:line:column`; it does not make a
+valid package fail. The check reads authored prose outside headings,
 tables, infoboxes, code, frontmatter, comments and embeds. See the
 [complete name-marking rules](../reference/format-details.md#marking-names-in-prose).
 
