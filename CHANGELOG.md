@@ -1,5 +1,19 @@
 # @heroiclands/package-build
 
+## 25.1.0
+
+**Writing and conversion**
+
+- Native writing now requires an encoding note that chooses its language and font, while unencoded text keeps its Roman spelling.
+- Language runs share Roman punctuation and literal glyph codes, preserving typed spelling and case while locating invalid characters.
+- The `encode` and `decode` commands replace `transliterate`; browser conversion can use vocabulary to recover words and names while preserving stress.
+
+**Rendering and preview**
+
+- Nested emphasis follows the surrounding script, using its red ink or overline convention.
+- Indexed previews show source positions for text they cannot render while keeping the readable preview visible.
+- Ch'alish P'ilam Common text no longer triggers a false character warning.
+
 ## 25.0.0
 
 ### Major Changes
