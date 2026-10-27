@@ -1,5 +1,17 @@
 # @heroiclands/package-build
 
+## 25.1.1
+
+**Language conversion**
+
+- Scripts can opt into conventional spellings for unwritten vowels and shared signs without hidden recovery marks; exact conversion remains the default.
+- Signs can vary before consonants or at word and line boundaries, and explicit word dividers can become spaces.
+- Accent settings can explicitly allow or forbid diacritics.
+
+**Spelling checks**
+
+- English translations in name registers no longer trigger spelling errors for the invented language.
+
 ## 25.1.0
 
 **Writing and conversion**
