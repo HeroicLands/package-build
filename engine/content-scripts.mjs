@@ -63,7 +63,12 @@ import { unknownWordMessage, unknownWords, wordBooksFromRecords } from "./run-wo
 import { metreBooksFromRecords, metreFindings, metresFromRecords } from "./verse-metre.mjs";
 import { encodeWithLanguage } from "./encoding-language.mjs";
 import { encodingsFromRecords, encodingAddress } from "./encoding-notes.mjs";
-import { romanInventoriesOf, romanTextProblems } from "./roman-characters.mjs";
+import {
+    romanInventoriesOf,
+    romanPunctuationState,
+    romanTextProblems,
+    romanUnclosedQuotations,
+} from "./roman-characters.mjs";
 import { plainRomanRun } from "./roman-run.mjs";
 import { plainRomanVerse } from "./roman-verse.mjs";
 import { encodeText } from "./encoding.mjs";
@@ -1175,6 +1180,7 @@ function analyseRuns(source, ctx, syntax) {
             rawReferences.push({
                 lang: keys.lang,
                 font: keys.font,
+                enc: keys.enc,
                 from: match.index + 2 + bar + 1,
                 to: match.index + close - 1,
                 where: construct.where,
@@ -1362,24 +1368,6 @@ function analyseRuns(source, ctx, syntax) {
         lang === undefined ? undefined : (
             (ctx.romanInventories?.get(lang) ?? ctx.romanInventories?.get(lang.toLowerCase()))
         );
-
-    /** Check visible source before selection or lexicon-native replacement. */
-    const roman = (parts, detail) => {
-        const inventory = inventoryOf(detail.run.lang);
-        if (!inventory) return;
-        if (!inventory.characters) {
-            report(
-                { line: detail.run.line, column: detail.run.column },
-                `the language note for \`${inventory.language}\` must declare \`data.roman\``,
-            );
-            return;
-        }
-        for (const [from, to] of parts) {
-            const plain = plainRomanRun(text, { from, to });
-            for (const problem of romanTextProblems(plain.text, inventory))
-                report(positionOf(starts, plain.offsets[problem.offset] ?? from), problem.message);
-        }
-    };
 
     /**
      * Give a scroll fence the face it is set in, and report a fence that names
@@ -1646,7 +1634,128 @@ function analyseRuns(source, ctx, syntax) {
             .filter((detail) => detail.run.kind === "span")
             .map((detail) => [detail.run.start, detail]),
     );
-    for (const owner of details.filter((detail) => ownerOf(detail) === detail)) {
+    // Inline runs, spans and labelled links, of one resolved language and
+    // encoding separated only by whitespace form one punctuation stream: a
+    // sentence or a quotation may run through several of them. Each run opens
+    // in the state its predecessor in the stream closed in, and quotations
+    // still open are reported once, where the stream ends. A block (a div,
+    // verse or scroll) is a stream of its own and never joins an inline run,
+    // as a paragraph does not continue a sentence from outside it; it still
+    // separates the runs on either side of it.
+    const ownerDetails = details
+        .filter((detail) => ownerOf(detail) === detail)
+        .sort((a, b) => a.run.start - b.run.start);
+    const streamEntry = (where, lang, enc, checkable, inline) => {
+        const inventory = inventoryOf(lang);
+        // A block's bounds are its opening and closing line indices.
+        const end = Math.min(where.end, lines.length - 1);
+        return {
+            inline,
+            start: inline ? where.start : starts[where.start],
+            end: inline ? where.end : starts[end] + lines[end].length,
+            line: where.line,
+            column: where.column,
+            lang,
+            language: tagOf(lang)?.toLowerCase() ?? lang,
+            enc,
+            inventory,
+            checked: checkable && Boolean(inventory?.characters),
+            previous: undefined,
+            continued: false,
+            state: undefined,
+            problems: undefined,
+        };
+    };
+    const streamRuns = [
+        ...ownerDetails.map((detail) => ({
+            ...streamEntry(
+                detail.run,
+                detail.run.lang,
+                detail.run.enc,
+                Boolean(boundsOf(detail) && detail.checkRoman),
+                detail.run.kind === "span",
+            ),
+            detail,
+        })),
+        ...rawReferences.map((reference) => ({
+            ...streamEntry(reference.where, reference.lang, reference.enc, true, true),
+            reference,
+        })),
+    ].sort((a, b) => a.start - b.start);
+    for (const entry of streamRuns) {
+        if (!entry.checked || !entry.inline) continue;
+        const previous = streamRuns
+            .filter((other) => other.end <= entry.start)
+            .reduce((last, other) => (last && last.end >= other.end ? last : other), undefined);
+        if (
+            previous?.checked &&
+            previous.inline &&
+            previous.inventory === entry.inventory &&
+            previous.language === entry.language &&
+            previous.enc === entry.enc &&
+            /^[\p{Zs}\t\r\n]*$/u.test(text.slice(previous.end, entry.start))
+        ) {
+            entry.previous = previous;
+            previous.continued = true;
+        }
+    }
+    const streamRunOf = new Map(
+        streamRuns.filter((entry) => entry.detail).map((entry) => [entry.detail, entry]),
+    );
+    /** The punctuation state a run opens in, a copy of its predecessor's. */
+    const openingState = (entry) => {
+        const previous = entry.previous && closingState(entry.previous);
+        return previous ?
+                {
+                    sentenceStart: previous.sentenceStart,
+                    quotes: previous.quotes.map((quote) => ({ ...quote })),
+                }
+            :   romanPunctuationState();
+    };
+    /** A run's closing punctuation state, checking a labelled link on demand. */
+    const closingState = (entry) => {
+        if (entry.reference) checkReference(entry);
+        return entry.state;
+    };
+    /**
+     * Check a run's Roman text in its stream, giving findings by source offset.
+     *
+     * @param {any} entry - The run.
+     * @param {string} roman - Its projected Roman text.
+     * @param {(offset: number) => number} source - A text offset's source offset.
+     */
+    const checkStream = (entry, roman, source) => {
+        const state = openingState(entry);
+        const problems = romanTextProblems(roman, entry.inventory, state).map((problem) => ({
+            ...problem,
+            offset: source(problem.offset),
+        }));
+        for (const quote of state.quotes) quote.source ??= source(quote.offset);
+        if (!entry.continued)
+            problems.push(
+                ...romanUnclosedQuotations(
+                    state.quotes.map((quote) => ({ ...quote, offset: quote.source })),
+                ),
+            );
+        entry.state = state;
+        return problems;
+    };
+    /** Check a labelled link's Roman source once, in its stream. */
+    const checkReference = (entry) => {
+        if (entry.problems) return entry.problems;
+        entry.problems = [];
+        if (!entry.checked) return entry.problems;
+        const { reference } = entry;
+        const plain = plainRomanRun(text, { from: reference.from, to: reference.to });
+        entry.problems = checkStream(
+            entry,
+            plain.text,
+            (offset) => plain.offsets[offset] ?? reference.from,
+        );
+        return entry.problems;
+    };
+
+    for (const owner of ownerDetails) {
         const bounds = boundsOf(owner);
         if (!bounds || !owner.checkRoman) continue;
         const owned = details.filter((detail) => ownerOf(detail) === owner);
@@ -1703,12 +1812,15 @@ function analyseRuns(source, ctx, syntax) {
                 { line: owner.run.line, column: owner.run.column },
                 `the language note for \`${inventory.language}\` must declare \`data.roman\``,
             );
-        else if (inventory)
-            for (const problem of romanTextProblems(projection.text, inventory))
-                report(
-                    positionOf(starts, projection.offsets[problem.offset] ?? bounds[0]),
-                    problem.message,
-                );
+        else if (inventory) {
+            const entry = streamRunOf.get(owner);
+            for (const problem of checkStream(
+                entry,
+                projection.text,
+                (offset) => projection.offsets[offset] ?? bounds[0],
+            ))
+                report(positionOf(starts, problem.offset), problem.message);
+        }
         for (const problem of projection.errors ?? [])
             report(positionOf(starts, problem.offset), problem.message);
 
@@ -1830,16 +1942,15 @@ function analyseRuns(source, ctx, syntax) {
         for (const detail of owned) detail.plan = plan;
     }
 
-    for (const reference of rawReferences) {
-        const font = reference.font;
-        roman([[reference.from, reference.to]], {
-            run: {
-                lang: reference.lang,
-
-                ...reference.where,
-            },
-            face: font === undefined ? undefined : faces.get(font),
-        });
+    for (const entry of streamRuns.filter((entry) => entry.reference)) {
+        const inventory = inventoryOf(entry.lang);
+        if (inventory && !inventory.characters)
+            report(
+                { line: entry.line, column: entry.column },
+                `the language note for \`${inventory.language}\` must declare \`data.roman\``,
+            );
+        for (const problem of checkReference(entry))
+            report(positionOf(starts, problem.offset), problem.message);
     }
 
     for (const reference of independentReferences) {

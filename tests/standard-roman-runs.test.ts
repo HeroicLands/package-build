@@ -356,3 +356,126 @@ describe("standard Roman handoff through actual language runs", () => {
         expect(markdownToTypst(source, { runs: ctx })).toContain("«ab», a—");
     });
 });
+
+describe("a sentence across adjacent runs of one language", () => {
+    const two = {
+        ...ctx,
+        languages: { ...ctx.languages, oth: { tag: "art-x-oth" } },
+        romanInventories: new Map([
+            ...ctx.romanInventories,
+            ["oth", { language: "oth", characters: new Set(alphabet) }],
+        ]),
+    };
+    const opening = (source: string, terminal = ".") => [
+        {
+            line: 1,
+            column: [...source.slice(0, source.lastIndexOf(`[${terminal}`) + 1)].length + 1,
+            message: `terminal \`${terminal}\` has no sentence text before it`,
+        },
+    ];
+    it("continues a sentence through spans and links of that language", () => {
+        for (const source of [
+            "[Ab ce]{lang=vyl}[[pa|Mer]]{lang=vyl}[, ]{lang=vyl}[[pb|Ushber]]{lang=vyl}[. Tim narem.]{lang=vyl}",
+            "[Ab ce]{lang=vyl} [. Tim]{lang=vyl}",
+            "[Ab]{lang=vyl}\n[[pb|Ushber]]{lang=vyl}\n[. Tim]{lang=vyl}",
+            `[Ab]{${semaron}}[. Tim]{${semaron}}`,
+        ])
+            expect(scanRuns(source, two).errors, source).toEqual([]);
+    });
+    it("breaks the stream at another language, prose or encoding", () => {
+        for (const source of [
+            "[Ab ce]{lang=vyl}[[pb|Ushber]]{lang=oth}[. Tim]{lang=vyl}",
+            "[Ab ce]{lang=vyl}[Ushber]{lang=oth}[. Tim]{lang=vyl}",
+            "[Ab ce]{lang=vyl} and [. Tim]{lang=vyl}",
+            "[[pb|Ushber]]{lang=vyl} and [. Tim]{lang=vyl}",
+            `[Ab ce]{lang=vyl}[. Tim]{${semaron}}`,
+        ])
+            expect(scanRuns(source, two).errors, source).toEqual(opening(source));
+    });
+    it("still reports a run that opens with a terminal after a finished sentence", () => {
+        for (const source of [
+            "[Ab ce.]{lang=vyl}[. Tim]{lang=vyl}",
+            "[Ab ce]{lang=vyl}[[pb|Ushber.]]{lang=vyl}[! Tim]{lang=vyl}",
+            "[Ab ce.]{lang=vyl}[, ]{lang=vyl}[? Tim]{lang=vyl}",
+        ]) {
+            const terminal = source.match(/\[([.!?]) Tim/)![1];
+            expect(scanRuns(source, two).errors, source).toEqual(opening(source, terminal));
+        }
+    });
+    it("still reports a link label that opens with a terminal after a finished sentence", () => {
+        const source = "[Ab ce.]{lang=vyl}[[pb|. Ushber]]{lang=vyl}";
+        expect(scanRuns(source, two).errors).toEqual([
+            {
+                line: 1,
+                column: source.indexOf("|") + 2,
+                message: "terminal `.` has no sentence text before it",
+            },
+        ]);
+        expect(scanRuns("[Ab ce]{lang=vyl}[[pb|. Ushber]]{lang=vyl}", two).errors).toEqual([]);
+    });
+    it("compares the resolved language, not the authored alias or tag", () => {
+        const tagged = {
+            ...two,
+            romanInventories: new Map([
+                ...two.romanInventories,
+                ["art-x-vyl", two.romanInventories.get("vyl")!],
+            ]),
+        };
+        for (const source of [
+            "[Ab]{lang=vyl}[. Tim]{lang=art-x-vyl}",
+            "[Ab]{lang=art-x-vyl}[[pb|Ushber]]{lang=vyl}[. Tim]{lang=art-x-vyl}",
+        ])
+            expect(scanRuns(source, tagged).errors, source).toEqual([]);
+        const other = "[Ab]{lang=oth}[. Tim]{lang=art-x-vyl}";
+        expect(scanRuns(other, tagged).errors).toEqual(opening(other));
+    });
+    it("carries quotations through the stream and closes them at its end", () => {
+        for (const source of [
+            "[«Ab]{lang=vyl}[[pb|Ushber]]{lang=vyl}[.»]{lang=vyl}",
+            "[«Ab ‹ce]{lang=vyl}[[pb|Ushber]]{lang=vyl}[!› Tim.»]{lang=vyl}",
+            "[Ab «ce]{lang=vyl} [[pb|Ushber.»]]{lang=vyl} [Tim.]{lang=vyl}",
+        ])
+            expect(scanRuns(source, two).errors, source).toEqual([]);
+        expect(
+            scanRuns("[«Ab]{lang=vyl}[[pb|Ushber]]{lang=vyl}[ Tim.]{lang=vyl}", two).errors,
+        ).toEqual([{ line: 1, column: 2, message: "quotation `«` needs its closing `»`" }]);
+        expect(scanRuns("[«Ab]{lang=vyl}[[pb|Ushber]]{lang=vyl}", two).errors).toEqual([
+            { line: 1, column: 2, message: "quotation `«` needs its closing `»`" },
+        ]);
+        expect(scanRuns("[«Ab]{lang=vyl} and [.»]{lang=vyl}", two).errors).toEqual([
+            { line: 1, column: 2, message: "quotation `«` needs its closing `»`" },
+            { line: 1, column: 22, message: "terminal `.` has no sentence text before it" },
+            { line: 1, column: 23, message: "quotation closer `»` has no opening quotation" },
+        ]);
+        expect(scanRuns("[«Ab]{lang=vyl}[Tim]{lang=oth}[.»]{lang=vyl}", two).errors).toEqual([
+            { line: 1, column: 2, message: "quotation `«` needs its closing `»`" },
+            { line: 1, column: 32, message: "terminal `.` has no sentence text before it" },
+            { line: 1, column: 33, message: "quotation closer `»` has no opening quotation" },
+        ]);
+    });
+    it("measures blocks and spans on one position scale", () => {
+        const opens = (line: number, column = 1) => [
+            { line, column, message: "terminal `.` has no sentence text before it" },
+        ];
+        const rosa =
+            "[Ab]{lang=vyl}" + "\n".repeat(20) + "English prose\n\n::: {lang=vyl}\n. Tim\n:::\n";
+        expect(scanRuns(rosa, two).errors).toEqual(opens(24));
+        expect(
+            scanRuns("Pre\n\n::: {lang=vyl}\nAb\n:::\n\nprose\n\n[. Tim]{lang=vyl}\n", two).errors,
+        ).toEqual(opens(9, 2));
+    });
+    it("keeps a block a stream of its own beside a span", () => {
+        const opens = (line: number, column = 1) => [
+            { line, column, message: "terminal `.` has no sentence text before it" },
+        ];
+        expect(scanRuns("[Ab]{lang=vyl}\n\n::: {lang=vyl}\n. Tim\n:::\n", two).errors).toEqual(
+            opens(4),
+        );
+        expect(scanRuns("::: {lang=vyl}\nAb\n:::\n\n[. Tim]{lang=vyl}\n", two).errors).toEqual(
+            opens(5, 2),
+        );
+    });
+    it("accepts a terminal written inside the link label", () => {
+        expect(scanRuns("[[pb|Ushber.]]{lang=vyl}[ Tim narem.]{lang=vyl}", two).errors).toEqual([]);
+    });
+});

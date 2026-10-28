@@ -109,9 +109,14 @@ export function romanInventoriesOf(records, languages = {}) {
  * No punctuation, case or normalization repair is performed.
  * @param {string} text - Visible Roman source.
  * @param {RomanInventory} inventory - Its language's declared characters.
+ * @param {RomanPunctuationState} [stream] - The punctuation state of a stream
+ *   of runs the text continues, from {@link romanPunctuationState}; updated to
+ *   the state the text closes in. Its unclosed quotations are left for
+ *   {@link romanUnclosedQuotations} at the end of the stream. Without it the
+ *   text is a stream of its own and its unclosed quotations are reported.
  * @returns {Array<{offset: number, message: string}>}
  */
-export function romanTextProblems(text, inventory) {
+export function romanTextProblems(text, inventory, stream) {
     const out = [];
     if (!inventory.characters) return out;
     const decomposed = new Map(
@@ -119,8 +124,9 @@ export function romanTextProblems(text, inventory) {
             .filter(({ segment }) => segment !== segment.normalize("NFC"))
             .map(({ segment, index }) => [index, segment]),
     );
-    const quotes = [];
-    let sentenceStart = true;
+    const state = stream ?? romanPunctuationState();
+    const { quotes } = state;
+    let sentenceStart = state.sentenceStart;
     const sentenceText = () => {
         sentenceStart = false;
         if (quotes.length) quotes.at(-1).hasText = true;
@@ -245,10 +251,41 @@ export function romanTextProblems(text, inventory) {
         } else sentenceText();
         offset += char.length;
     }
-    for (const opening of quotes)
-        report(
-            opening.offset,
-            `quotation \`${opening.char}\` needs its closing \`${opening.char === "«" ? "»" : "›"}\``,
-        );
+    state.sentenceStart = sentenceStart;
+    if (!stream) out.push(...romanUnclosedQuotations(quotes));
     return out.sort((a, b) => a.offset - b.offset);
+}
+
+/**
+ * @typedef {object} RomanQuotation
+ * @property {string} char - The opening mark, `«` or `‹`.
+ * @property {number} offset - Its offset in the text that opened it.
+ * @property {boolean} sentenceStart - Whether its sentence had text before it.
+ * @property {boolean} hasText - Whether it holds sentence text.
+ */
+
+/**
+ * @typedef {object} RomanPunctuationState
+ * @property {boolean} sentenceStart - Whether no sentence text precedes the next mark.
+ * @property {RomanQuotation[]} quotes - Open quotations, outermost first.
+ */
+
+/**
+ * The punctuation state at the start of a stream of runs.
+ * @returns {RomanPunctuationState}
+ */
+export function romanPunctuationState() {
+    return { sentenceStart: true, quotes: [] };
+}
+
+/**
+ * Findings for quotations still open at the end of a stream.
+ * @param {ReadonlyArray<RomanQuotation>} quotes - The open quotations.
+ * @returns {Array<{offset: number, message: string}>} At each opening's `offset`.
+ */
+export function romanUnclosedQuotations(quotes) {
+    return quotes.map((opening) => ({
+        offset: opening.offset,
+        message: `quotation \`${opening.char}\` needs its closing \`${opening.char === "«" ? "»" : "›"}\``,
+    }));
 }

@@ -1449,12 +1449,14 @@ The charset authored content is held to, so a book can choose its face. The pack
 Exact permitted Roman source characters for configured languages, before script
 encoding. Inventories come from `data.roman` on each language's own note.
 
-| Export                   | Signature                                | Returns                       | Use it when                                                                                   |
-| ------------------------ | ---------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------- |
-| `isRomanWhitespace`      | `isRomanWhitespace(char)`                | `boolean`                     | recognizing standard spaces and ASCII tab or line whitespace                                  |
-| `romanInventoryProblems` | `romanInventoryProblems(value)`          | `string[]`                    | checking NFC, repeated characters and forbidden whitespace or controls in a literal inventory |
-| `romanInventoriesOf`     | `romanInventoriesOf(records, languages)` | `Map<string, RomanInventory>` | looking up a configured language's own inventory by name or BCP 47 tag                        |
-| `romanTextProblems`      | `romanTextProblems(text, inventory)`     | `{offset, message}[]`         | validating standard Roman punctuation and language additions with exact UTF-16 offsets        |
+| Export                    | Signature                                    | Returns                       | Use it when                                                                                                                                                          |
+| ------------------------- | -------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isRomanWhitespace`       | `isRomanWhitespace(char)`                    | `boolean`                     | recognizing standard spaces and ASCII tab or line whitespace                                                                                                         |
+| `romanInventoryProblems`  | `romanInventoryProblems(value)`              | `string[]`                    | checking NFC, repeated characters and forbidden whitespace or controls in a literal inventory                                                                        |
+| `romanInventoriesOf`      | `romanInventoriesOf(records, languages)`     | `Map<string, RomanInventory>` | looking up a configured language's own inventory by name or BCP 47 tag                                                                                               |
+| `romanTextProblems`       | `romanTextProblems(text, inventory, stream)` | `{offset, message}[]`         | validating standard Roman punctuation and language additions with exact UTF-16 offsets; pass a `stream` state to continue sentences and quotations from earlier runs |
+| `romanPunctuationState`   | `romanPunctuationState()`                    | `{sentenceStart, quotes}`     | starting a stream of runs whose sentences and quotations continue from one run to the next                                                                           |
+| `romanUnclosedQuotations` | `romanUnclosedQuotations(quotes)`            | `{offset, message}[]`         | reporting the quotations still open where a stream of runs ends                                                                                                      |
 
 ### `engine.pathCharset`
 
