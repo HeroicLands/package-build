@@ -116,9 +116,9 @@ function namedBlockLines(markdown, syntax) {
  * code blocks are respected so `# foo` inside ``` or ~~~ blocks doesn't
  * trigger a split. Content before the first H1 (if non-empty) becomes a
  * leading page. Each H1 yields a page whose name is the heading
- * text (with any `{#anchor-id}` suffix stripped out and surfaced as
- * `anchorSlug`). The classes the heading declares come along as `classes`, so
- * a surface that honours one has it without reading the suffix again.
+ * text without inline markup (with any `{#anchor-id}` suffix stripped out and
+ * surfaced as `anchorSlug`). The classes the heading declares come along as
+ * `classes`, so a surface that honours one has it without reading the suffix again.
  *
  * `leadName` names that leading page. A journal note's is "Introduction",
  * because it introduces the pages that follow. An item doc's is the item — a
@@ -220,7 +220,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
                 anchorSlug: null,
                 level: section.level,
                 classes: section.classes,
-                continues: item.slug || item.label || captionPageName(item.caption),
+                continues: item.slug || item.label || pageNameText(item.caption),
                 lines: [],
             };
         }
@@ -231,7 +231,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
         if (figure) {
             closeCurrent();
             current = {
-                name: figure.label || captionPageName(figure.caption),
+                name: figure.label || pageNameText(figure.caption),
                 anchorSlug: figure.id || null,
                 level: 1,
                 classes: section.classes.includes(WITHHELD_CLASS) ? [WITHHELD_CLASS] : [],
@@ -243,7 +243,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
         if (opening) {
             closeCurrent();
             current = {
-                name: opening.text,
+                name: pageNameText(opening.text),
                 anchorSlug: opening.id || null,
                 level: opening.level,
                 classes: opening.classes,
@@ -384,20 +384,20 @@ export function journalPageId(entryId, page) {
 }
 
 /**
- * The name of the page a caption begins: the caption's visible text.
+ * The name of a page a heading or caption begins: its visible text.
  *
- * Foundry shows a page name as plain text, so a caption's markup — emphasis, a
+ * Foundry shows a page name as plain text, so inline markup — emphasis, a
  * code span, a Markdown link, or the `@UUID[...]{label}` a resolved wikilink
  * has already become, inside its wrapping `<span>` — reduces to the text a
  * reader sees, the same text a reference to the caption displays. The markup
  * itself stays in the page's content, where it renders.
  *
- * @param {string} caption - The figure's caption, as the journal pass sees it.
+ * @param {string} markdown - A heading or caption, as the journal pass sees it.
  * @returns {string} Its visible text, whitespace collapsed.
  */
-function captionPageName(caption) {
-    if (!caption) return "";
-    const [inline] = md.parseInline(caption, {});
+function pageNameText(markdown) {
+    if (!markdown) return "";
+    const [inline] = md.parseInline(markdown, {});
     const text = (inline?.children ?? [])
         .map((token) =>
             token.type === "text" || token.type === "code_inline" ? token.content
@@ -501,7 +501,7 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
             // image's own render takes when no configuration resolves it.
         }
         return {
-            name: figure.label || captionPageName(figure.caption),
+            name: figure.label || pageNameText(figure.caption),
             type: "image",
             src,
             image: figure.hasCaption ? { caption: figure.caption } : {},
@@ -520,7 +520,7 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
         runs,
     );
     return {
-        name: figure.label || captionPageName(figure.caption),
+        name: figure.label || pageNameText(figure.caption),
         type: "text",
         text: {
             format: 1,

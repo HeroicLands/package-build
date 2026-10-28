@@ -40,6 +40,13 @@ const MISCGEAR_ART = "systems/sohl/icons/questionmark.svg";
 /** The default a `skill` takes, likewise resolved. */
 const SKILL_ART = "systems/sohl/icons/headgear.svg";
 
+/** Allow package preparation to finish under the suite's usual CPU contention. */
+const COMPILE_TEST_TIMEOUT = 20_000;
+
+function compileTest(name: string, run: () => Promise<void>) {
+    it(name, run, COMPILE_TEST_TIMEOUT);
+}
+
 /**
  * A compile index holding one icon, so an entry naming its address resolves.
  *
@@ -120,7 +127,7 @@ async function withPass(catalogue: object[], run: (pass: any) => void) {
 }
 
 describe("an entry that copies nothing", () => {
-    it("resolves the `icon` address it names into `img`", async () => {
+    compileTest("resolves the `icon` address it names into `img`", async () => {
         await withPass([], (pass) => {
             const doc = pass.buildEntry(
                 being([
@@ -138,7 +145,7 @@ describe("an entry that copies nothing", () => {
         });
     });
 
-    it("reads a bare shortcode as an `icon`, the slot's declared type", async () => {
+    compileTest("reads a bare shortcode as an `icon`, the slot's declared type", async () => {
         await withPass([], (pass) => {
             const doc = pass.buildEntry(
                 being([
@@ -155,7 +162,7 @@ describe("an entry that copies nothing", () => {
         });
     });
 
-    it("takes its type's default art when it names none", async () => {
+    compileTest("takes its type's default art when it names none", async () => {
         // The contrast the defect turned on: an entry copying a `model:`
         // inherited art, an entry copying nothing shipped a document with no
         // `img` at all and Foundry's fallback on the sheet.
@@ -174,7 +181,7 @@ describe("an entry that copies nothing", () => {
         });
     });
 
-    it("takes the default where it writes an empty `icon`", async () => {
+    compileTest("takes the default where it writes an empty `icon`", async () => {
         await withPass([], (pass) => {
             const doc = pass.buildEntry(
                 being([
@@ -191,7 +198,7 @@ describe("an entry that copies nothing", () => {
         });
     });
 
-    it("takes the default where the address it names answers nothing", async () => {
+    compileTest("takes the default where the address it names answers nothing", async () => {
         await withPass([], (pass) => {
             const doc = pass.buildEntry(
                 being([
@@ -212,7 +219,7 @@ describe("an entry that copies nothing", () => {
 });
 
 describe("an entry that copies a `model:`", () => {
-    it("keeps the catalogue document's art when it names none of its own", async () => {
+    compileTest("keeps the catalogue document's art when it names none of its own", async () => {
         await withPass(
             [compiledItem("miscgear", "sack", "systems/sohl/icons/sack.svg")],
             (pass) => {
@@ -223,7 +230,7 @@ describe("an entry that copies a `model:`", () => {
         );
     });
 
-    it("overrides it with the address the entry names", async () => {
+    compileTest("overrides it with the address the entry names", async () => {
         await withPass(
             [compiledItem("miscgear", "sack", "systems/sohl/icons/sack.svg")],
             (pass) => {
@@ -238,7 +245,7 @@ describe("an entry that copies a `model:`", () => {
 });
 
 describe("`data:` reaches no compiled document", () => {
-    it("is held back from a stand-alone entry", async () => {
+    compileTest("is held back from a stand-alone entry", async () => {
         await withPass([], (pass) => {
             const doc = pass.buildEntry(
                 being([
@@ -255,7 +262,7 @@ describe("`data:` reaches no compiled document", () => {
         });
     });
 
-    it("is held back from an entry copying a `model:`", async () => {
+    compileTest("is held back from an entry copying a `model:`", async () => {
         await withPass(
             [compiledItem("miscgear", "sack", "systems/sohl/icons/sack.svg")],
             (pass) => {
@@ -268,7 +275,7 @@ describe("`data:` reaches no compiled document", () => {
         );
     });
 
-    it("leaves nothing behind on the actor either", async () => {
+    compileTest("leaves nothing behind on the actor either", async () => {
         await withPass([], (pass) => {
             const doc = pass.buildEntry(
                 being([{ name: "Whetstone", type: "miscgear", system: { shortcode: "whet" } }]),

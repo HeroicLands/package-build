@@ -67,7 +67,8 @@ export const PREVIEW_HELPERS = Object.freeze({
  */
 export const INERT_BRACKET = "\uE000";
 
-const escapeHtml = new MarkdownIt().utils.escapeHtml;
+const syntax = new MarkdownIt();
+const escapeHtml = syntax.utils.escapeHtml;
 // An authored `<` stands as a private-use character until the HTML is written;
 // source is shown as it was authored.
 const escape = (value) => escapeHtml(String(value ?? "").replaceAll(INERT_BRACKET, "<"));
@@ -185,16 +186,16 @@ function withTrailingAttributes(rest, raw) {
 }
 
 /**
- * The cells of one table row, keeping a pipe inside a wikilink, a code span or
- * an extension's braces in its cell.
+ * The cells of one table row, keeping pipes inside balanced brackets, code
+ * spans and extension braces in their cell.
  *
  * @param {string} line - One table line.
  * @returns {string[]} The trimmed cells, without the empty edges.
  */
 function tableCells(line) {
     const result = [];
+    const state = new syntax.inline.State(line, syntax, {}, []);
     let cell = "",
-        wiki = false,
         code = "",
         quote = false,
         braces = 0;
@@ -204,7 +205,15 @@ function tableCells(line) {
             cell += char + line[++at];
             continue;
         }
-        if (char === "`" && !wiki) {
+        if (char === "[" && !code && !braces) {
+            const end = syntax.helpers.parseLinkLabel(state, at, false);
+            if (end >= 0) {
+                cell += line.slice(at, end + 1);
+                at = end;
+                continue;
+            }
+        }
+        if (char === "`") {
             const marks = /^`+/.exec(line.slice(at))[0];
             if (!code) code = marks;
             else if (code === marks) code = "";
@@ -213,13 +222,11 @@ function tableCells(line) {
             continue;
         }
         if (!code) {
-            if (line.slice(at, at + 2) === "[[") wiki = true;
-            if (line.slice(at - 1, at + 1) === "]]") wiki = false;
             if (char === '"' && braces) quote = !quote;
             if (!quote && char === "{") braces++;
             if (!quote && char === "}" && braces) braces--;
         }
-        if (char === "|" && !wiki && !code && !braces) {
+        if (char === "|" && !code && !braces) {
             result.push(cell.trim());
             cell = "";
         } else cell += char;

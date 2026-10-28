@@ -43,6 +43,21 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
         expect(page.anchorSlug).toBe("shock-state-index");
     });
 
+    it.each(["#", "##"])("names a %s page by its visible heading text", (level) => {
+        const [page] = splitPages(
+            `${level} [Jane Doe]{.name ref="#jane"} and [Old Tam]{.name} {#cast}\n\nbody`,
+        );
+        expect(page.name).toBe("Jane Doe and Old Tam");
+        expect(page.anchorSlug).toBe("cast");
+    });
+
+    it("reduces resolved heading links and emphasis while preserving code and escaped characters", () => {
+        const [page] = splitPages(
+            '# **The** _old_ [quay](https://example.org) and <span class="content-link">@UUID[JournalEntry.abc.JournalEntryPage.def]{the harbor}</span>: `a*b` \\*literal\\* {#harbor}\n\nbody',
+        );
+        expect(page.name).toBe("The old quay and the harbor: a*b *literal*");
+    });
+
     it("ignores a heading inside a fenced code block", () => {
         const pages = splitPages("# Real\n\n```\n# Not a heading {#nope}\n```\n");
         expect(pages).toHaveLength(1);

@@ -216,6 +216,25 @@ const FIRST_FORMS: Record<string, string> = {
 const proseOf = (html: string) =>
     html.replace(/<h([1-6])\b[\s\S]*?<\/h\1>/g, "").replace(/<table\b[\s\S]*?<\/table>/g, "");
 
+describe("a compiled page name", () => {
+    it("uses the visible text of the named heading", () => {
+        expect(built.foundry.named).toContain('<!-- page "Jane Doe and Old Tam" type=text');
+    });
+
+    it("uses the visible text of spans, authored wikilinks and emphasis at each page-opening level", () => {
+        const dir = path.join(built.root, "build", "packs-json", "journals");
+        const file = fs.readdirSync(dir).find((name) => name.startsWith("Heading_Names_"));
+        expect(file, "the heading fixture compiled to a journal").toBeTruthy();
+        const entry = JSON.parse(fs.readFileSync(path.join(dir, file!), "utf8"));
+        const authored = entry.pages.slice(0, 2);
+        expect(authored.map((page: any) => page.name)).toEqual([
+            "The ferryman at the harbor",
+            "A boat for the harbor",
+        ]);
+        expect(authored.map((page: any) => page.title.level)).toEqual([1, 2]);
+    });
+});
+
 describe("a name's first use in a page is bold", () => {
     it.each(Object.keys(FIRST_USES) as Array<keyof typeof FIRST_USES>)(
         "%s bolds each key exactly once, in prose, at its first prose use",

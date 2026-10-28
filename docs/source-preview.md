@@ -37,7 +37,8 @@ source. A host that holds the package's content index builds an index with
 wikilink is a link, a link to a concealed note is concealed, an embed draws its
 picture, marked text is mapped and set in its face, an icon is drawn, and a
 caption is numbered with its asset's role, so a map is a **Map**. A query, which
-a buffer cannot run, stays highlighted source in both views.
+a buffer cannot run, stays highlighted source in both views. Table cells keep
+wikilinks and their labels together, including links inside marked spans.
 
 With an index, a marked-text run that cannot be set produces an error finding
 and sets the result's `ok` to `false`. The preview still returns recoverable

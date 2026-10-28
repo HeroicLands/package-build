@@ -4,14 +4,14 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import * as preview from "../engine/site-preview.mjs";
 import { EXPRESSION_HELPERS } from "../engine/markdown-expressions.mjs";
 import { ALERT_TYPES } from "../engine/content-alerts.mjs";
-import { previewIndexFor } from "./helpers/parity.js";
+import { PARITY_FIXTURE, previewIndexFor } from "./helpers/parity.js";
 import { installEncodingNote } from "./helpers/encoding-note.js";
 
 const { renderPreview, previewStyles } = preview;
@@ -111,6 +111,47 @@ describe("indexed preview run findings", () => {
         expect(result.ok).toBe(true);
         expect(result.findings).toEqual([]);
         expect(textOf(result.html)).toBe(bad + "\n");
+    });
+});
+
+describe("indexed preview tables", () => {
+    const index = previewIndexFor(PARITY_FIXTURE);
+
+    it("renders the named-note fixture's cells without trailing separators", () => {
+        const source = readFileSync(
+            path.join(PARITY_FIXTURE, "assets/content/Lore/lore-named.md"),
+            "utf8",
+        );
+        const result = renderPreview(source, { index, infobox: false });
+        expect(result.ok).toBe(true);
+        const cells = [...result.html.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map((match) =>
+            textOf(match[1]).trim(),
+        );
+        expect(cells).toEqual(["Jane", "the harbor", "Old Tam", "the nets"]);
+    });
+
+    it.each(["", "{.name}", "{.secret}"])(
+        "keeps a rendered link with %s attributes inside its cell",
+        (attributes) => {
+            const source = `| Who | Where | Value |\n| --- | --- | --- |\n| Jane | [[place-harbor|the harbor]]${attributes} | 2 |`;
+            const result = renderPreview(source, { index, infobox: false });
+            expect(result.ok).toBe(true);
+            const cells = [...result.html.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map((match) =>
+                textOf(match[1]).trim(),
+            );
+            expect(cells).toEqual(["Jane", "the harbor", "2"]);
+        },
+    );
+
+    it.each(["|", "\\|"])("keeps a %s wikilink separator inside its cell", (separator) => {
+        const source = `| Who | Where |\n| --- | --- |\n| Jane | [[place-harbor${separator}the harbor]]{.name} |`;
+        const result = renderPreview(source, { index, infobox: false });
+        expect(result.ok).toBe(true);
+        const cells = [...result.html.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map((match) =>
+            textOf(match[1]).trim(),
+        );
+        expect(cells).toEqual(["Jane", "the harbor"]);
+        expect(result.html).toContain('href="/parity/place-harbor/"');
     });
 });
 
@@ -318,6 +359,22 @@ describe("buffer-only preview", () => {
         expect(html).toContain("Verse note.");
         expect(html.match(/class="footnotes"/g)).toHaveLength(1);
     });
+    it("keeps real separators after unmatched literal brackets", () => {
+        const html = sourceHtml("| Label | Value |\n| --- | --- |\n| literal [text | next |");
+        const cells = [...html.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map((match) =>
+            textOf(match[1]).trim(),
+        );
+        expect(cells).toEqual(["literal [text", "next"]);
+    });
+
+    it("keeps code brackets inside a span's label without consuming its next cell", () => {
+        const html = sourceHtml("| Label | Value |\n| --- | --- |\n| [a `]` | b]{.name} | next |");
+        const cells = [...html.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)].map((match) =>
+            textOf(match[1]).trim(),
+        );
+        expect(cells).toEqual(["[a `]` | b]{.name}", "next"]);
+    });
+
     it("preserves wikilink pipes and attribute pipes within table cells", () => {
         const html = sourceHtml(
             '| Link | Value |\n| :--- | ---: |\n| [[place-x|X]]{title="a|b"} | 2 |',

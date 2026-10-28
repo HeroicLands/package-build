@@ -25,7 +25,7 @@ Start with [your first note](authoring/first-note.md). It explains the smallest 
 
 ## The shared note
 
-A nonempty note body creates one system-agnostic Foundry JournalEntry. Content before the first H1 becomes an introduction page; every H1 starts another JournalEntryPage. A lower-level heading with an explicit `{#anchor}` starts a page too, so a link can address it. The same prose becomes a web page and can be selected for a book. The content index records the note and its frontmatter for queries and navigation.
+A nonempty note body creates one system-agnostic Foundry JournalEntry. Content before the first H1 becomes an introduction page; every H1 starts another JournalEntryPage. A lower-level heading with an explicit `{#anchor}` starts a page too, so a link can address it. Each page name is its heading's visible text: spans, links and emphasis contribute their text without their markup. The same prose becomes a web page and can be selected for a book. The content index records the note and its frontmatter for queries and navigation.
 
 Leading `:` captions describe the next supported block; `:@` captions also number it. The optional type accepts `figure`, `table`, `verse`, `code`, `prose`, and `example`. Captions support identifiers, classes and named attributes; unsupported following blocks are errors. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references).
 
