@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 25.5.1
+
+**Builds and commands**
+
+- `package-build markdown` checks a repository of any size, rather than crashing on large ones.
+
 ## 25.5.0
 
 **Languages and scripts**
