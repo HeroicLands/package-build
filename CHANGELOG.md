@@ -1,5 +1,20 @@
 # @heroiclands/package-build
 
+## 25.4.0
+
+**Verse**
+
+- Verse is written as a `.verse` div, or quoted inside prose as a `[…]{.verse}` span. An encoded div sets script beside Roman; an encoded quotation flows in the prose as script only.
+- A canto break can carry a heading and an anchor.
+- The formatter leaves verse untouched.
+- Footnotes in an encoded work appear in its Roman column only, with one number and one definition each.
+- A footnote inside any encoded passage appears after its script text, in the ordinary font.
+
+**Upgrading**
+
+- Rewrite each ```` ```verse ```` fence as `::: {.verse …}` (or `:::verse {…}`) with the same attributes, closed by `:::`. A verse fence is an error.
+- Replace each typed `***` with `--- {.canto}` on its own line after a blank line, with a stanza on both sides. A typed `***` is an error.
+
 ## 25.3.0
 
 **Verse**
