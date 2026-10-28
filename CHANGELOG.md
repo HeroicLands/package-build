@@ -1,5 +1,12 @@
 # @heroiclands/package-build
 
+## 25.2.1
+
+**Rendering and sites**
+
+- Preview tables display linked names cleanly and keep their following columns aligned.
+- Foundry journal page names show the readable text of headings containing names, links or emphasis.
+
 ## 25.2.0
 
 **Content and notes**

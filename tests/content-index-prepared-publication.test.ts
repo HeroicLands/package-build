@@ -401,35 +401,39 @@ describe("prepared content-index publication", () => {
         expect(web).toContain("/lore-websection/#real");
     });
 
-    it("accepts a declared SQL target on the public surface and refuses its absent native target", () => {
-        const body = "Read [[pub-note-lore-register#public-stamp|the public stamp]].";
-        write(
-            path.join(leaf.config.paths.content, "Reader.md"),
-            note({ type: "doc", shortcode: "reader" }, body),
-        );
-        const records = contentIndex.indexRecordsFor({ config: leaf.config });
-        const native = convertWikilinks(body, {
-            type: "doc",
-            id: "reader",
-            index: buildContentLinkIndex(leaf.config.paths.content, undefined, {
-                config: leaf.config,
-                records,
-            }),
-        });
-        expect(native.unresolved).toEqual([
-            expect.objectContaining({ reason: "unknown-anchor", anchor: "public-stamp" }),
-        ]);
-        const errors: any[] = [];
-        const site = buildSiteIndex([], { package: "leaf", foreignIndex: foreign.index });
-        const web = resolveWebWikilinks(body, {
-            ...wikiContext(site, { errors, foreignIndex: foreign.index }),
-            contentPackage: "leaf",
-        });
-        expect(errors, web).toEqual([]);
-        expect(web).toContain("/lore-register/#public-stamp");
-        const checked = run(leaf, "links");
-        expect(checked.status, checked.output).toBe(0);
-    });
+    it(
+        "accepts a declared SQL target on the public surface and refuses its absent native target",
+        () => {
+            const body = "Read [[pub-note-lore-register#public-stamp|the public stamp]].";
+            write(
+                path.join(leaf.config.paths.content, "Reader.md"),
+                note({ type: "doc", shortcode: "reader" }, body),
+            );
+            const records = contentIndex.indexRecordsFor({ config: leaf.config });
+            const native = convertWikilinks(body, {
+                type: "doc",
+                id: "reader",
+                index: buildContentLinkIndex(leaf.config.paths.content, undefined, {
+                    config: leaf.config,
+                    records,
+                }),
+            });
+            expect(native.unresolved).toEqual([
+                expect.objectContaining({ reason: "unknown-anchor", anchor: "public-stamp" }),
+            ]);
+            const errors: any[] = [];
+            const site = buildSiteIndex([], { package: "leaf", foreignIndex: foreign.index });
+            const web = resolveWebWikilinks(body, {
+                ...wikiContext(site, { errors, foreignIndex: foreign.index }),
+                contentPackage: "leaf",
+            });
+            expect(errors, web).toEqual([]);
+            expect(web).toContain("/lore-register/#public-stamp");
+            const checked = run(leaf, "links");
+            expect(checked.status, checked.output).toBe(0);
+        },
+        subprocessTimeout(1),
+    );
 
     it("addresses readable documentation anchors to the NOTE journal in emitted JSON", () => {
         const documentation = recordFor(published, "craft", true);

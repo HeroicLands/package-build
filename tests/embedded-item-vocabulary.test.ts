@@ -38,6 +38,13 @@ import { Actors } from "../sohl/actors.mjs";
 /** This package's own root — where its test fixtures live. */
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
+/** Allow item-pass preparation to finish under the suite's usual CPU contention. */
+const COMPILE_TEST_TIMEOUT = 20_000;
+
+function compileTest(name: string, run: () => Promise<void>) {
+    it(name, run, COMPILE_TEST_TIMEOUT);
+}
+
 /**
  * A **fixture system** whose item rows are deliberately not the identity.
  *
@@ -264,7 +271,7 @@ function beingNote(entry: string): string {
 }
 
 describe("a being's embedded items, end to end through the translation", () => {
-    it("resolves a reference written in the note vocabulary", async () => {
+    compileTest("resolves a reference written in the note vocabulary", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
             beingNote("{ model: armor-hlmt }"),
@@ -301,7 +308,7 @@ describe("a being's embedded items, end to end through the translation", () => {
         );
     });
 
-    it("stamps a stand-alone entry with the subtype too, not the note type", async () => {
+    compileTest("stamps a stand-alone entry with the subtype too, not the note type", async () => {
         // The half with no lookup to fail: an entry carrying no shortcode is
         // built from the reference alone, so the note type would become the
         // document's subtype outright — a document of a subtype the system
@@ -328,7 +335,7 @@ describe("a being's embedded items, end to end through the translation", () => {
         });
     });
 
-    it("refuses a top-level `shortcode` as an entry that stands on no model", async () => {
+    compileTest("refuses a top-level `shortcode` as an entry that stands on no model", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
             beingNote("{ model: armor-hlmt }"),
@@ -353,7 +360,7 @@ describe("a being's embedded items, end to end through the translation", () => {
         );
     });
 
-    it("refuses `type` beside a `model` — the address already names it", async () => {
+    compileTest("refuses `type` beside a `model` — the address already names it", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
             beingNote("{ model: armor-hlmt }"),
@@ -377,7 +384,7 @@ describe("a being's embedded items, end to end through the translation", () => {
         );
     });
 
-    it("reports a `model` that is not an address at all", async () => {
+    compileTest("reports a `model` that is not an address at all", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
             beingNote("{ model: armor-hlmt }"),
@@ -398,46 +405,49 @@ describe("a being's embedded items, end to end through the translation", () => {
         );
     });
 
-    it("reports a reference that resolves to nothing, naming the note and the reference", async () => {
-        await withDemoPass(
-            [compiledItem("armorgear", "hlmt")],
-            beingNote("{ model: armor-brst }"),
-            (pass, said, absPath) => {
-                pass.buildEntry(
-                    {
-                        id: "EEEEEEEEEEEEEEEE",
-                        type: "being",
-                        shortcode: "warr",
-                        name: { full: "Ancient Warrior" },
-                        sohl: {
-                            templatePriority: null,
-                            items: [{ model: "armorgear-brst" }],
+    compileTest(
+        "reports a reference that resolves to nothing, naming the note and the reference",
+        async () => {
+            await withDemoPass(
+                [compiledItem("armorgear", "hlmt")],
+                beingNote("{ model: armor-brst }"),
+                (pass, said, absPath) => {
+                    pass.buildEntry(
+                        {
+                            id: "EEEEEEEEEEEEEEEE",
+                            type: "being",
+                            shortcode: "warr",
+                            name: { full: "Ancient Warrior" },
+                            sohl: {
+                                templatePriority: null,
+                                items: [{ model: "armorgear-brst" }],
+                            },
                         },
-                    },
-                    "",
-                );
-                expect(pass.errorCount).toBe(1);
-                const finding = said.find((line) => line.includes("brst"));
-                expect(finding).toBeTruthy();
-                // `path:line:column: severity: message`, the path first.
-                expect(
-                    finding!.startsWith(absPath) || finding!.includes("Ancient_Warrior.md"),
-                ).toBe(true);
-                expect(finding).toMatch(/error:/);
-                expect(finding).toContain("Ancient Warrior");
-                // The reference as authored. SoHL's note and document
-                // vocabularies spell every row the same word again now that
-                // The rename is reversed, so there is no second spelling to
-                // show here; HM3's `projectilegear` → `missilegear` is where
-                // the two still differ.
-                expect(finding).toContain("armorgear:brst");
-                // Located at the reference, not merely at the note.
-                expect(finding).toMatch(/Ancient_Warrior\.md:\d+/);
-            },
-        );
-    });
+                        "",
+                    );
+                    expect(pass.errorCount).toBe(1);
+                    const finding = said.find((line) => line.includes("brst"));
+                    expect(finding).toBeTruthy();
+                    // `path:line:column: severity: message`, the path first.
+                    expect(
+                        finding!.startsWith(absPath) || finding!.includes("Ancient_Warrior.md"),
+                    ).toBe(true);
+                    expect(finding).toMatch(/error:/);
+                    expect(finding).toContain("Ancient Warrior");
+                    // The reference as authored. SoHL's note and document
+                    // vocabularies spell every row the same word again now that
+                    // The rename is reversed, so there is no second spelling to
+                    // show here; HM3's `projectilegear` → `missilegear` is where
+                    // the two still differ.
+                    expect(finding).toContain("armorgear:brst");
+                    // Located at the reference, not merely at the note.
+                    expect(finding).toMatch(/Ancient_Warrior\.md:\d+/);
+                },
+            );
+        },
+    );
 
-    it("reports a reference whose type this system compiles into no item", async () => {
+    compileTest("reports a reference whose type this system compiles into no item", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
             beingNote("{ model: weapon-swrd }"),
