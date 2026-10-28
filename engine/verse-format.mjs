@@ -15,11 +15,13 @@
 
 import { verseRegions } from "./verse-regions.mjs";
 import { scanSpans } from "./content-spans.mjs";
+import { util } from "prettier";
 
 /**
- * Replace verse markup with opaque placeholders and restore its original bytes.
+ * Replace verse markup with opaque placeholders, retaining container prefixes
+ * and inline display widths. Restoration follows the formatter's line endings.
  * @param {string} source - Complete Markdown source.
- * @returns {{markdown: string, restore: (formatted: string) => string}} Protected source and exact restoration.
+ * @returns {{markdown: string, restore: (formatted: string) => string}} Protected source and restoration.
  */
 export function protectVerseSource(source) {
     const syntax = source.replace(/^\uFEFF?---\r?\n[^]*?\r?\n---(?:\r?\n|$)/, (frontmatter) =>
@@ -28,7 +30,7 @@ export function protectVerseSource(source) {
     const ranges = [
         ...verseRegions(syntax)
             .filter((region) => region.closed)
-            .map((region) => ({ from: region.from, to: region.to, block: true })),
+            .map((region) => ({ from: region.contentStarts[0], to: region.to, block: true })),
         ...scanSpans(syntax)
             .spans.filter((span) =>
                 span.attrs.some(
@@ -43,33 +45,43 @@ export function protectVerseSource(source) {
                 .slice(0, index)
                 .some((parent) => parent.from <= range.from && parent.to >= range.to),
     );
-    let prefix = "VERSEPROTECTEDTOKEN";
-    while (source.includes(prefix)) prefix += "X";
+    let nonce = 0;
+    let prefix = `V${nonce}V`;
+    while (source.includes(prefix)) prefix = `V${++nonce}V`;
     const replacements = outer.map((range, index) => {
         const original = source.slice(range.from, range.to);
-        const marker = range.block ? `<!--${prefix}${index}-->` : `${prefix}${index}END`;
-        return { ...range, original, marker, newline: range.block && /\r?\n$/.test(original) };
+        const key = `${prefix}${index.toString(36)}V`;
+        const marker =
+            range.block ? `<!--${key}-->` : key.padEnd(util.getStringWidth(original), "X");
+        return {
+            ...range,
+            original,
+            marker,
+            newline: range.block ? /(?:\r\n|\r|\n)$/.exec(original)?.[0] : undefined,
+        };
     });
     let markdown = source;
     for (const entry of [...replacements].reverse())
         markdown =
             markdown.slice(0, entry.from) +
             entry.marker +
-            (entry.newline ? "\n" : "") +
+            (entry.newline ?? "") +
             markdown.slice(entry.to);
     return {
         markdown,
         restore(formatted) {
+            const newline = /\r\n|\r|\n/.exec(formatted)?.[0] ?? "\n";
             let restored = formatted;
             for (const entry of replacements) {
                 const escaped = entry.marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                const pattern =
-                    entry.block ?
-                        new RegExp(`^[ \t]*${escaped}${entry.newline ? "\\r?\\n" : ""}`, "m")
-                    :   new RegExp(escaped);
+                const pattern = new RegExp(
+                    `${escaped}${entry.newline ? "(?:\\r\\n|\\r|\\n)" : ""}`,
+                );
                 if (!pattern.test(restored))
                     throw new Error("the formatter changed a protected verse placeholder");
-                restored = restored.replace(pattern, () => entry.original);
+                restored = restored.replace(pattern, () =>
+                    entry.original.replace(/\r\n|\r|\n/g, newline),
+                );
             }
             return restored;
         },

@@ -124,16 +124,19 @@ export function scanVerse(source, { checkWorks = true } = {}) {
         blocks = [],
         errors = [];
     for (const token of blockTokens(text)) {
-        if (token.type === "fence" && /^verse(?:\s|$)/.test(token.info.trim()))
+        if (token.type === "fence" && /^verse(?:\s|$)/.test(token.info.trim())) {
+            const opening = lines[token.map[0]];
+            const marker = opening?.indexOf(token.markup);
             errors.push({
                 line: token.map[0] + 1,
-                column: 1,
+                ...(marker !== undefined && marker >= 0 ? { column: marker + 1 } : {}),
                 message: "verse uses a .verse div: write ::: {.verse …} and a closing :::",
             });
+        }
     }
     const definedFootnotes = footnoteLabels(text);
     for (const region of verseRegions(text)) {
-        const at = { line: region.start + 1, column: region.indent.length + 1 };
+        const at = { line: region.start + 1, column: region.contentStarts[0] - region.from + 1 };
         for (const message of [...region.problems, ...refusedAttributes(region.attributes)])
             errors.push({ ...at, message });
         if (!region.closed) errors.push({ ...at, message: "verse div needs a closing ::: line" });
@@ -164,7 +167,7 @@ export function scanVerse(source, { checkWorks = true } = {}) {
                 message: "tabs are not allowed in verse",
             });
         }
-        blocks.push({ ...region, model });
+        blocks.push({ ...region, column: at.column, model });
     }
     if (checkWorks) {
         const openings = [...pageOpenings(source).keys()];
@@ -176,7 +179,7 @@ export function scanVerse(source, { checkWorks = true } = {}) {
         }
         for (const page of pages.values()) errors.push(...workShapeFindings(page));
     }
-    errors.sort((a, b) => a.line - b.line || a.column - b.column);
+    errors.sort((a, b) => a.line - b.line || (a.column ?? 0) - (b.column ?? 0));
     return { blocks, errors };
 }
 
@@ -237,6 +240,7 @@ function keyColumn(opening, key) {
  * An authored verse div with its parsed logical structure.
  * @typedef {object} VerseBlock
  * @property {number} start - Opening div's zero-based source line.
+ * @property {number} [column] - Opening delimiter's one-based source column, when known.
  * @property {number} end - Closing div's zero-based source line.
  * @property {number} from - Complete div first offset.
  * @property {number} to - Offset past complete div.
@@ -253,7 +257,7 @@ function keyColumn(opening, key) {
  * @property {VerseModel} model - Logical structure relative to the body.
  */
 
-/** @typedef {{line: number, column: number, message: string}} VerseDiagnostic */
+/** @typedef {{line: number, column?: number, message: string}} VerseDiagnostic */
 
 /**
  * An encoded verse's shared display model and native-cell presentation.
@@ -641,6 +645,10 @@ export const stanzaSeparator = (group) => group.length === 1 && STANZA_BREAK.tes
  * @returns {VerseDiagnostic[]} Findings at affected opening divs.
  */
 export function workShapeFindings(blocks) {
+    const location = (block) => ({
+        line: block.start + 1,
+        ...(block.column === undefined ? {} : { column: block.column }),
+    });
     const works = new Map(),
         errors = [];
     for (const block of blocks) {
@@ -652,8 +660,7 @@ export function workShapeFindings(blocks) {
     for (const [key, versions] of works) {
         if (versions.length === 1) {
             errors.push({
-                line: versions[0].start + 1,
-                column: 1,
+                ...location(versions[0]),
                 message: `work=${key} has only one version`,
             });
             continue;
@@ -669,7 +676,7 @@ export function workShapeFindings(blocks) {
                 for (const block of [first, version]) {
                     const identity = `${block.start}:${message}`;
                     if (!seen.has(identity)) {
-                        errors.push({ line: block.start + 1, column: 1, message });
+                        errors.push({ ...location(block), message });
                         seen.add(identity);
                     }
                 }
@@ -680,7 +687,7 @@ export function workShapeFindings(blocks) {
                 for (const block of [first, version]) {
                     const identity = `${block.start}:${message}`;
                     if (!seen.has(identity)) {
-                        errors.push({ line: block.start + 1, column: 1, message });
+                        errors.push({ ...location(block), message });
                         seen.add(identity);
                     }
                 }

@@ -27,6 +27,7 @@ export const STANDARD_ROWS = Object.freeze(
         ["—", "\u{E010A}"],
         ["…", "\u{E010B}"],
         ["/", "\u{E010C}"],
+        ["\\/", "\u{E010F}"],
         ["{", "\u{E0110}"],
         ["}", "\u{E0111}"],
     ].map(Object.freeze),

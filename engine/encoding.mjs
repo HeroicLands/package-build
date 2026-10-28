@@ -256,7 +256,7 @@ export function compileRows(definition, metadata = {}) {
     const prefix = d.separator ? [separatorRow] : [];
     const controlRows = [];
     if (controls.verseStanza) controlRows.push({ from: "\n\n", to: controls.verseStanza });
-    if (controls.verseCanto) controlRows.push({ from: "--- {.canto}", to: controls.verseCanto });
+    if (controls.verseCanto) controlRows.push({ from: "***", to: controls.verseCanto });
     const shared = tier(sharedRows, [], [...prefix, ...controlRows]);
     const faces = new Map();
     if (d.faces !== undefined && !object(d.faces))
@@ -270,7 +270,7 @@ export function compileRows(definition, metadata = {}) {
             tier(
                 rows(face.rows ?? [], `faces.${font}.rows`, vowels, d.roundTrip === "canonical"),
                 sharedRows,
-                prefix,
+                [...prefix, ...controlRows],
             ),
         );
     }
@@ -330,10 +330,10 @@ function beforeHolds(condition, char, vowels) {
 function holds(row, text, start, end, vowels) {
     if (row.before && !beforeHolds(row.before, firstAt(text, end), vowels)) return false;
     if (row.at === "line-start") {
-        const prefix = text.slice(
-            Math.max(text.lastIndexOf("\n", start - 1), text.lastIndexOf("/", start - 1)) + 1,
-            start,
-        );
+        let slash = text.lastIndexOf("/", start - 1);
+        while (slash >= 0 && (/\\+$/.exec(text.slice(0, slash))?.[0].length ?? 0) % 2)
+            slash = text.lastIndexOf("/", slash - 1);
+        const prefix = text.slice(Math.max(text.lastIndexOf("\n", start - 1), slash) + 1, start);
         if (prefix.replaceAll("^", "")) return false;
     }
     if (row.at === "start" && start > 0 && !boundary(previousAt(text, start))) return false;
@@ -514,8 +514,7 @@ function encodeRawPieces(enc, text, { font, verse = false, start = 0, end = text
             out.push(piece(text.slice(at, end), enc.controls.verseCanto, at, end, null));
             at = end;
             if (verse) {
-                if (text.startsWith("\r\n", at)) at += 2;
-                else if (/[\r\n]/.test(text[at] ?? "")) at++;
+                while (at < bound && /[ \t\r\n]/.test(text[at])) at++;
             }
             continue;
         }
@@ -523,10 +522,6 @@ function encodeRawPieces(enc, text, { font, verse = false, start = 0, end = text
             let end = at;
             while (end < bound && /[ \t\r\n]/.test(text[end])) end++;
             const run = text.slice(at, end).replaceAll("\r\n", "\n").replaceAll("\r", "\n");
-            if (text.startsWith("--- {.canto}", end)) {
-                at = end;
-                continue;
-            }
             const row =
                 run.split("\n").length === 2 ?
                     rowAt(enc, groups, "/", 0)
@@ -614,12 +609,22 @@ function sourceProjection(enc, text, options) {
     return { normalized, sourceAt, begin, bound };
 }
 function cantoEnd(enc, text, at, bound) {
-    const source = "--- {.canto}";
+    const source = "***";
     return (
             enc.controls.verseCanto &&
                 at + source.length <= bound &&
                 text.startsWith(source, at) &&
-                !text.slice(text.lastIndexOf("\n", at - 1) + 1, at).trim()
+                !text
+                    .slice(
+                        Math.max(text.lastIndexOf("\n", at - 1), text.lastIndexOf("\r", at - 1)) +
+                            1,
+                        at,
+                    )
+                    .trim() &&
+                !text
+                    .slice(at + source.length, bound)
+                    .split(/[\r\n]/, 1)[0]
+                    .trim()
         ) ?
             at + source.length
         :   undefined;

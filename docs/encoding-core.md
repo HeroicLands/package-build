@@ -136,7 +136,7 @@ encoding has its Roman forms checked against the lettered one only.
 English names under a language's `data.names.en` are not encoded and are not
 checked against any encoding.
 
-Every encoding inherits the shared standard's fifteen Roman punctuation
+Every encoding inherits the shared standard's Roman punctuation
 mappings, verse and name controls, and literal boundaries. `‼` marks an
 imperative and `!` an exclamation. An explicit mapping can give a standard
 source its own font glyph. Other punctuation needs its own mapping.
@@ -195,8 +195,16 @@ of the opening, closing or escape control are quoted with U+E0115; decoding
 unquotes them before reading their codes. Unknown codes, malformed escapes,
 nested markers and unmatched markers are errors.
 
-`{verse: true}` handles authored stanza and canto structure. The Markdown
-renderer additionally writes a boundary after every content line, including
+The shared `\/` row writes the nonprinting U+E010F literal-slash mark and
+decodes it to `\/`; `/` writes the distinct U+E010C line mark. Verse projection
+retains the escape until encoding, including inside inline quotations. A row
+program without a literal-slash row reports a source finding instead of
+substituting a line control. Ordinary mappings cannot emit U+E010F.
+
+`{verse: true}` handles line, stanza and canto structure. The encoder receives
+`***` for a canto and decodes U+E010E back to `***`. Whitespace before the canto
+still writes its stanza mark; following source whitespace adds no line mark.
+The Markdown renderer additionally writes a boundary after every content line, including
 the final line before a stanza or canto. Roman line layout is retained.
 
 The internal row conformance fixtures cover their captured source programs;

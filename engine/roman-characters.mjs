@@ -124,6 +124,12 @@ export function romanTextProblems(text, inventory) {
     const report = (offset, message) => out.push({ offset, message });
     for (let offset = 0; offset < text.length;) {
         const char = String.fromCodePoint(text.codePointAt(offset));
+        // Verse retains this escape so the encoder can distinguish a literal
+        // slash from its line control. The slash itself is standard Roman.
+        if (text.startsWith("\\/", offset)) {
+            offset++;
+            continue;
+        }
         if (char === "⟦") {
             // The encoding validates codage and its boundary grammar. Roman
             // punctuation and language letters never reinterpret its contents.
@@ -147,8 +153,10 @@ export function romanTextProblems(text, inventory) {
             continue;
         }
         if (char === "^") {
-            const start =
-                Math.max(text.lastIndexOf("\n", offset - 1), text.lastIndexOf("/", offset - 1)) + 1;
+            let slash = text.lastIndexOf("/", offset - 1);
+            while (slash >= 0 && (/\\+$/.exec(text.slice(0, slash))?.[0].length ?? 0) % 2)
+                slash = text.lastIndexOf("/", slash - 1);
+            const start = Math.max(text.lastIndexOf("\n", offset - 1), slash) + 1;
             if (/^\^*$/.test(text.slice(start, offset))) {
                 // Indentation is layout and leaves sentence-start ellipsis
                 // semantics intact. The reference encoder uses these bounds.

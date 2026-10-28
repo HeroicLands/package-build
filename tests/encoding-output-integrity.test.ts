@@ -61,6 +61,9 @@ describe("lossless encoding output integrity", () => {
         expect(() => compile({ a: "STANZA" }, { STANZA: "\u{E010D}" })).toThrow(
             expect.objectContaining({ key: "mappings.a" }),
         );
+        expect(() => compile({ a: "SLASH" }, { SLASH: "\u{E010F}" })).toThrow(
+            expect.objectContaining({ key: "mappings.a" }),
+        );
     });
     it("locates the unsupported scalar after a valid nonprefix sequence", () => {
         const enc = compile({ a: "A", b: ["A", "B"], k: ["B", "B"] });

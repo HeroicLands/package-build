@@ -663,8 +663,14 @@ The captain raises the lamp.
 The heading appears once across an encoded div's presentations. Its title is
 heading text, separate from the letters passed to the encoder. A valid break
 supplies the encoder's standard Roman `***` canto control. `package-build format`
-leaves each complete verse div and quotation byte for byte, including its
-delimiters and attributes, while formatting surrounding prose.
+preserves each verse div and quotation's text, spacing, delimiters and
+attributes while formatting surrounding prose. Quote and list
+containers remain intact, table columns use inline verse's authored width, and
+verse follows the same configured line endings as surrounding prose.
+
+The stanza mark before a canto is retained; whitespace after its encoded
+control adds no extra line mark. An encoded literal `\/` uses a separate
+invisible mark and decodes to `\/`, keeping it distinct from a line ending.
 
 #### Directions and speakers
 

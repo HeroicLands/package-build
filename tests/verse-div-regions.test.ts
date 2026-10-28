@@ -3,8 +3,25 @@ import { describe, expect, it } from "vitest";
 import { scanVerse, parseVerse } from "../engine/content-verse.mjs";
 import { blockTokens } from "../engine/markdown-blocks.mjs";
 import { pageOpenings } from "../engine/heading-attributes.mjs";
+import { verseRegions } from "../engine/verse-regions.mjs";
 const div = (body: string, attrs = "") => `::: {.verse ${attrs}}\n${body}\n:::`;
 describe("verse div input regions", () => {
+    it.each(["\n", "\r\n"])(
+        "records parser content offsets inside nested containers with %j endings",
+        (newline) => {
+            const source = ["- Intro.", "", "  > ::: {.verse}", "  > One/", "  > :::", ""].join(
+                newline,
+            );
+            const region = verseRegions(source)[0];
+            expect(region.contentStarts).toEqual([
+                source.indexOf(":::"),
+                source.indexOf("One/"),
+                source.lastIndexOf(":::"),
+            ]);
+            expect(source.slice(region.from, region.contentStarts[0])).toBe("  > ");
+            expect(region.to).toBe(source.length);
+        },
+    );
     it("accepts both div spellings and keeps source ranges", () => {
         for (const source of [div("One/..Two", "lang=en"), ":::verse {lang=en}\nOne/..Two\n:::"]) {
             const result = scanVerse(source);

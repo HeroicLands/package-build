@@ -2574,6 +2574,12 @@ overrides the rules and the ignore list; an option the file cannot mean is
 refused as `file:line:column: error:` and nothing is linted. See
 [Project setup](project-setup.md) for the accepted keys.
 
+Closed `.verse` div bodies and inline `.verse` quotation contents are excluded
+from Markdown rules and inline lint directives. Their authored bytes stay
+unchanged under `--fix`, including their line endings. The div's opening and
+closing lines and surrounding prose are still checked, with diagnostics at
+their original source locations. Verse markup validation remains active.
+
 **OPTIONS**
 
 | Positional | Type      | Default                               | Description                     |

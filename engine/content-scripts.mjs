@@ -1525,8 +1525,15 @@ function analyseRuns(source, ctx, syntax) {
 
         const first = construct.line0 + 1;
         const last = construct.last;
-        const from = starts[first] ?? text.length;
-        const to = last > first ? starts[last] - 1 : from;
+        // Verse regions retain authored UTF-16 bounds, including the full
+        // width of a CRLF terminator. A one-byte closing-line adjustment
+        // would leave CR outside the model and lose verse projection.
+        const from =
+            construct.kind === "verse" ? construct.node.bodyStart : (starts[first] ?? text.length);
+        const to =
+            construct.kind === "verse" ? construct.node.bodyEnd
+            : last > first ? starts[last] - 1
+            : from;
         detail.body = [from, to];
         detail.holes = holesIn(from, to);
 
@@ -1744,12 +1751,25 @@ function analyseRuns(source, ctx, syntax) {
         }
         if (verse) {
             for (const boundary of projection.boundaries) {
-                const target =
-                    boundary.kind === "line" ?
-                        encodeText(owner.selection.encoding, "/", { font: owner.selection.font })
-                    :   owner.selection.encoding.controls[
-                            boundary.kind === "stanza" ? "verseStanza" : "verseCanto"
-                        ];
+                let target;
+                if (boundary.kind === "canto") {
+                    const encoded = encodeWithLanguage(owner.selection.encoding, "***", {
+                        font: owner.selection.font,
+                        lexicon: owner.selection.lexicon,
+                        verse: true,
+                    });
+                    for (const message of new Set(
+                        encoded.findings.map((finding) => finding.message),
+                    ))
+                        report(positionOf(starts, boundary.sourceOffset), message);
+                    target = encoded.text;
+                } else
+                    target =
+                        boundary.kind === "line" ?
+                            encodeText(owner.selection.encoding, "/", {
+                                font: owner.selection.font,
+                            })
+                        :   owner.selection.encoding.controls.verseStanza;
                 if (target === undefined) continue;
                 pieces.push({
                     from: "",
@@ -2469,7 +2489,10 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
         }
         for (const group of model.groups) {
             if (group.cantoBreak) {
-                group.text = detail.selection.encoding.controls.verseCanto ?? "";
+                group.text =
+                    detail.plan?.pieces.find(
+                        (piece) => piece.boundary === "canto" && piece.offset === base + group.from,
+                    )?.to ?? "";
                 continue;
             }
             for (const line of group.lines) {

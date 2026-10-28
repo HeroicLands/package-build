@@ -51,6 +51,7 @@ import {
     printParseErrorCode,
 } from "jsonc-parser";
 import markdownIt from "markdown-it";
+import footnotePlugin from "markdown-it-footnote";
 import { minimatch } from "minimatch";
 import { LineCounter, parse as parseYaml, parseDocument } from "yaml";
 
@@ -62,6 +63,13 @@ import {
     resolveModule,
 } from "../vendor/markdownlint.mjs";
 import { walkFiles } from "./walk-files.mjs";
+import { verseRegions } from "./verse-regions.mjs";
+import { scanSpans, spanMarkdownPlugin } from "./content-spans.mjs";
+import { parseVerse } from "./content-verse.mjs";
+import { footnoteLabels, footnoteReferences } from "./content-footnotes.mjs";
+
+/** References inside verse obey inline Markdown, without block interpretation. */
+const referenceParser = markdownIt({ html: true }).use(footnotePlugin).use(spanMarkdownPlugin);
 
 /** Option-file names, in the order the first existing one is taken. */
 const OPTIONS_FILES = Object.freeze([
@@ -542,12 +550,33 @@ export async function runMarkdownlint(params) {
     for (const [dir, files] of groups) {
         const options = await lintOptions(dir, files);
         const malformed = new Set();
+        const sources = new Map();
         for (const file of files) {
-            const findings = markupFindings(fs.readFileSync(file, "utf8"), file);
+            const source = fs.readFileSync(file, "utf8");
+            sources.set(file, protectLintVerse(source));
+            const findings = markupFindings(source, file);
             if (findings.length) malformed.add(file);
             markup.push(...findings);
         }
-        let results = await lint(options);
+        const lintSources = async (selected) => {
+            const { files: _files, ...shared } = options;
+            const results = await lint({
+                ...shared,
+                strings: Object.fromEntries(selected.map((file) => [file, sources.get(file).text])),
+            });
+            for (const file of selected) {
+                const protectedSource = sources.get(file);
+                results[file] = (results[file] ?? [])
+                    .filter((error) => !protectedSource.containsFinding(error))
+                    .map((error) => {
+                        if (!error.fixInfo || !protectedSource.containsFix(error)) return error;
+                        const { fixInfo: _fixInfo, ...unfixable } = error;
+                        return unfixable;
+                    });
+            }
+            return results;
+        };
+        let results = await lintSources(files);
         if (fix) {
             const toFix = [];
             for (const file of files) {
@@ -555,11 +584,15 @@ export async function runMarkdownlint(params) {
                 const fixable = (results[file] ?? []).filter((error) => error.fixInfo);
                 if (!fixable.length) continue;
                 const original = fs.readFileSync(file, "utf8");
-                fs.writeFileSync(file, applyFixes(original, fixable), "utf8");
+                const fixed =
+                    sources.get(file).protected ?
+                        applyVerseSafeFixes(original, fixable)
+                    :   applyFixes(original, fixable);
+                fs.writeFileSync(file, fixed, "utf8");
+                sources.set(file, protectLintVerse(fixed));
                 toFix.push(file);
             }
-            if (toFix.length)
-                results = { ...results, ...(await lint({ ...options, files: toFix })) };
+            if (toFix.length) results = { ...results, ...(await lintSources(toFix)) };
         }
         for (const [file, errors] of Object.entries(results)) resultsByFile.set(file, errors);
     }
@@ -580,4 +613,156 @@ export async function runMarkdownlint(params) {
             order.get(a) - order.get(b),
     );
     return { results: flat, markup };
+}
+
+/**
+ * Hide verse content from Markdown rules and inline configuration without moving
+ * any authored coordinate. Container prefixes and div delimiters remain visible.
+ * @param {string} source - Original file contents.
+ * @returns {object} Masked text and predicates guarding findings and fixes.
+ */
+function protectLintVerse(source) {
+    const syntax = source.replace(/^\uFEFF?---\r?\n[^]*?\r?\n---(?:\r?\n|$)/, (frontmatter) =>
+        frontmatter.replace(/[^\r\n]/g, " "),
+    );
+    const starts = [0];
+    for (const match of source.matchAll(/\r\n|\r|\n/g)) starts.push(match.index + match[0].length);
+    const endOfLine = (line) => {
+        const past = starts[line + 1] ?? source.length;
+        return past - (/\r\n$|[\r\n]$/.exec(source.slice(starts[line], past))?.[0].length ?? 0);
+    };
+    const ranges = [],
+        masks = [],
+        inlineMasks = [],
+        spanBrackets = [],
+        bodyLines = new Set(),
+        verseLines = [],
+        usedReferences = new Set(),
+        footnotes = footnoteLabels(syntax);
+    const referencesInVerse = (text, model) => {
+        const titles = model.groups
+            .filter((group) => group.cantoBreak && group.title)
+            .map((group) => group.title);
+        for (const fragment of [text, ...titles])
+            for (const reference of footnoteReferences(fragment, {
+                definitions: footnotes,
+                inline: true,
+            }))
+                usedReferences.add(referenceParser.utils.normalizeReference(`^${reference.key}`));
+        for (const group of model.groups) {
+            if (group.cantoBreak) {
+                if (group.title) verseLines.push(group.title);
+            } else for (const line of group.lines) verseLines.push(line.text);
+        }
+    };
+    for (const region of verseRegions(syntax)) {
+        if (!region.closed) continue;
+        referencesInVerse(region.body, parseVerse(region.body, { footnotes }));
+        ranges.push([region.bodyStart, starts[region.end]]);
+        for (let line = region.start + 1; line < region.end; line++) {
+            bodyLines.add(line + 1);
+            masks.push([
+                Math.min(region.contentStarts[line - region.start], endOfLine(line)),
+                endOfLine(line),
+            ]);
+        }
+    }
+    for (const span of scanSpans(syntax).spans) {
+        if (!span.verseModel || source[span.end - 1] !== "}") continue;
+        referencesInVerse(span.text, span.verseModel);
+        ranges.push([span.start + 1, span.contentEnd]);
+        spanBrackets.push(span.start, span.contentEnd);
+        // Inline tokens omit quote/list prefixes. Continuation content ends
+        // at its physical line ending (or the located closing bracket), so
+        // its parsed length gives the content start without parsing prefixes.
+        const contentLines = span.text.replace(/\r\n?/g, "\n").split("\n");
+        for (const [index, content] of contentLines.entries()) {
+            const line = span.line - 1 + index;
+            const to = Math.min(endOfLine(line), span.contentEnd);
+            inlineMasks.push([index === 0 ? span.start + 1 : to - content.length, to]);
+        }
+    }
+    const raw = source.split("");
+    for (const [from, to] of masks)
+        for (let at = from; at < to; at++) if (!/[\r\n]/.test(raw[at])) raw[at] = " ";
+    // A blanked physical span line would split its surrounding paragraph.
+    // Neutralize its bracket delimiters too, so the mask cannot manufacture
+    // a reference shortcut to an unrelated definition with the same label.
+    for (const [from, to] of inlineMasks)
+        for (let at = from; at < to; at++) if (/\S/.test(raw[at])) raw[at] = "x";
+    for (const at of spanBrackets) raw[at] = "x";
+    const masked = raw.join("");
+    if (ranges.length) {
+        const env = {};
+        referenceParser.parse(masked, env);
+        // Reference links and images carry their normalized definition label
+        // on the actual emitted token. Speculative parser lookups do not count.
+        const collect = (tokens) => {
+            for (const token of tokens) {
+                const label = token.meta?.label;
+                if (["link_open", "image"].includes(token.type) && label) usedReferences.add(label);
+                if (token.children) collect(token.children);
+            }
+        };
+        for (const line of verseLines) {
+            const tokens = [];
+            referenceParser.inline.parse(line, referenceParser, env, tokens);
+            collect(tokens);
+        }
+    }
+    const intersects = (from, to) => ranges.some(([start, end]) => from < end && to > start);
+    return {
+        text: masked,
+        protected: ranges.length > 0,
+        containsFinding(error) {
+            if (error.ruleNames.includes("MD053")) {
+                const unused = /^Unused link or image reference definition: "([^]*)"$/.exec(
+                    error.errorDetail ?? "",
+                );
+                if (
+                    unused &&
+                    usedReferences.has(referenceParser.utils.normalizeReference(unused[1]))
+                )
+                    return true;
+            }
+            if (bodyLines.has(error.lineNumber)) return true;
+            if (!error.errorRange) return false;
+            const from = starts[error.lineNumber - 1] + error.errorRange[0] - 1;
+            return intersects(from, from + error.errorRange[1]);
+        },
+        containsFix(error) {
+            const fix = error.fixInfo;
+            const line = (fix.lineNumber || error.lineNumber) - 1;
+            const from = starts[line] + (fix.editColumn || 1) - 1;
+            if (fix.deleteCount === -1)
+                return intersects(starts[line], starts[line + 1] ?? source.length);
+            if (intersects(from, from + (fix.deleteCount ?? 0))) return true;
+            return Boolean(
+                fix.insertText && ranges.some(([start, end]) => from >= start && from <= end),
+            );
+        },
+    };
+}
+
+/**
+ * Apply fixes per original line so fixing prose cannot normalize the untouched
+ * line endings of a verse region elsewhere in a mixed-ending file.
+ * @param {string} source - Original file contents.
+ * @param {object[]} errors - Findings whose fixes do not intersect verse.
+ * @returns {string} Source with only the permitted fixes applied.
+ */
+function applyVerseSafeFixes(source, errors) {
+    const byLine = new Map();
+    for (const error of errors) {
+        const line = error.fixInfo.lineNumber || error.lineNumber;
+        if (!byLine.has(line)) byLine.set(line, []);
+        byLine
+            .get(line)
+            .push({ ...error, lineNumber: 1, fixInfo: { ...error.fixInfo, lineNumber: 1 } });
+    }
+    let line = 0;
+    return source.replace(/[^\r\n]*(?:\r\n|\r|\n|$)/g, (original) => {
+        const fixes = byLine.get(++line);
+        return fixes ? applyFixes(original, fixes) : original;
+    });
 }

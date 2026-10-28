@@ -117,6 +117,9 @@ blank lines or `//` end stanzas, and `--- {.canto}` after a blank line ends a ca
 slash is written `\/`. Indentation at a logical line boundary is layout,
 not a punctuation character added to the encoded words.
 
+An encoded literal slash has its own invisible mark, distinct from the verse
+line mark, and decodes to `\/`. It never ends the logical line.
+
 A `.name` child in a language run reaches the encoding with standard `{…}`
 name boundaries. An `.emph` child contributes the same letters with emphasis
 presentation. Both inherit the surrounding native writing when they state no
@@ -495,8 +498,10 @@ The keys are checked where they sit:
 
 A `.verse` div holds inline Markdown and explicit verse structure. It is opaque
 to lists, headings, quotes and code-block syntax. Its source newlines join unless
-`/` ends a logical line. The authoring formatter preserves the complete div and
-its attributes byte for byte, and also preserves inline `.verse` quotations.
+`/` ends a logical line. The authoring formatter preserves the div's text,
+spacing and attributes, and also preserves inline `.verse` quotations. Quote
+and list containers remain intact, table columns use the quotation's authored
+width, and verse follows the same configured line endings as surrounding prose.
 
 ```markdown
 ::: {.verse lang=vyl font=semaron-kuriale enc=vylsemaronenc}
@@ -525,6 +530,9 @@ The captain answers.
 The title is shown once as heading text; the encoder receives its Roman `***`
 canto control. Authored `***` inside verse is a finding. The canto stays within
 the work and does not open a separate journal page.
+
+The blank line before a canto retains its stanza mark in the encoded text.
+Whitespace after the canto control adds no extra line mark.
 
 ### Versions of a work
 

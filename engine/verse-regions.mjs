@@ -22,6 +22,7 @@ import { parseExtensionAttributes } from "./extension-attributes.mjs";
  * @property {number} end - Closing line, zero based and inclusive.
  * @property {number} from - First offset of the complete region.
  * @property {number} to - Offset past the complete region.
+ * @property {number[]} contentStarts - Original-source content offsets for each region line, after container prefixes.
  * @property {number} bodyStart - First body offset.
  * @property {number} bodyEnd - Offset past body text, excluding its final newline.
  * @property {string} body - Authored body bytes.
@@ -81,6 +82,13 @@ export function verseDivPlugin(md) {
             for (const match of original.matchAll(/\r\n|\r|\n/g))
                 starts.push(match.index + match[0].length);
             const from = starts[first] ?? original.length;
+            const contentStarts = [];
+            for (let number = first; number < (closed ? close + 1 : past); number++) {
+                const normalizedStart = state.src.lastIndexOf("\n", state.bMarks[number] - 1) + 1;
+                contentStarts.push(
+                    starts[number] + state.bMarks[number] + state.tShift[number] - normalizedStart,
+                );
+            }
             const bodyStart = starts[first + 1] ?? original.length;
             let bodyEnd = starts[close] ?? original.length;
             if (bodyEnd > bodyStart) {
@@ -91,6 +99,7 @@ export function verseDivPlugin(md) {
                 start: first,
                 end: closed ? close : past - 1,
                 from,
+                contentStarts,
                 to: starts[closed ? close + 1 : past] ?? original.length,
                 bodyStart,
                 bodyEnd,

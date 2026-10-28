@@ -52,6 +52,7 @@
  * @param {(span: RomanSpan) => string} [options.opaqueSpan] - Placeholder for an independent child. The default empty name keeps sentence state without introducing that child's letters.
  * @param {ReadonlyArray<readonly [number, number]>} [options.exclude] - Absolute source ranges that carry layout or presentation syntax.
  * @param {boolean} [options.markNames] - Whether name children contribute braces.
+ * @param {boolean} [options.preserveSlashEscape] - Keep a literal verse slash distinct from a line control.
  * @returns {{text: string, offsets: number[], spans: ProjectedSpan[]}} Logical text and source locations, with child ranges for presentation.
  */
 export function plainRomanRun(
@@ -64,6 +65,7 @@ export function plainRomanRun(
         opaqueSpan = () => "{}",
         exclude = [],
         markNames = true,
+        preserveSlashEscape = false,
     } = {},
 ) {
     let text = "";
@@ -134,6 +136,7 @@ export function plainRomanRun(
             const escaped =
                 source[at] === "\\" && at + 1 < past && /[!-/:-@[-`{-~]/.test(source[at + 1]);
             const offset = at + (escaped ? 1 : 0);
+            if (escaped && preserveSlashEscape && source[offset] === "/") append("\\", at);
             // A terminal Markdown line-break slash is layout, not Roman.
             if (source[at] === "\\" && !escaped && /[\r\n]/.test(source[at + 1] ?? "")) {
                 at++;

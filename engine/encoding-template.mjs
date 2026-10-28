@@ -207,7 +207,7 @@ export function templateProgram(data, options, fault) {
             fault(key, "Grave accents are forbidden");
     };
     const validateOutput = (from, to, key) => {
-        if (/[\u{E010D}\u{E010E}\u{E0112}\u{E0113}\u{E0115}]/u.test(to))
+        if (/[\u{E010D}-\u{E010F}\u{E0112}\u{E0113}\u{E0115}]/u.test(to))
             fault(key, "Structural controls cannot be mapping outputs");
         if (from.normalize("NFD").includes("\u0301") && stress) {
             const plain = from.normalize("NFD").replaceAll("\u0301", "").normalize("NFC");
@@ -343,7 +343,10 @@ export function templateProgram(data, options, fault) {
         definition: {
             name: "encoding-note",
             fonts: [data.font],
-            accepts: [...accepts, ...STANDARD_ROWS.map((r) => (Array.isArray(r) ? r[0] : r.from))],
+            accepts: [
+                ...accepts,
+                ...STANDARD_ROWS.flatMap((r) => [...(Array.isArray(r) ? r[0] : r.from)]),
+            ],
             separator: " ",
             roundTrip: canonical ? "canonical" : "exact",
             vowels,

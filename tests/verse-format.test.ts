@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { checkFormatting } from "../engine/prose-lint.mjs";
+import { protectVerseSource } from "../engine/verse-format.mjs";
+import { util } from "prettier";
 
 let root: string;
 beforeEach(() => {
@@ -54,15 +56,67 @@ describe("verse source formatting", () => {
         for (const quote of quotes) expect(fs.readFileSync(file, "utf8")).toContain(quote);
         expect((await checkFormatting(root)).findings).toEqual([]);
     });
-    it("protects original CRLF verse bytes and literal code examples", async () => {
+    it("normalizes mixed line endings while preserving verse and literal code content", async () => {
         const verse = "::: {.verse   lang=en}\r\nA   word/\r\n..Another\r\n:::\r\n";
         const literal = "```text\n::: {.verse}\nA   word/\n:::\n```";
         const file = note(`Before   *word*.\n\n${verse}\n${literal}\n`);
         expect((await checkFormatting(root, { write: true })).findings).toEqual([]);
-        expect(fs.readFileSync(file, "utf8")).toContain(verse);
+        expect(fs.readFileSync(file, "utf8")).toContain(verse.replace(/\r\n/g, "\n"));
+        expect(fs.readFileSync(file, "utf8")).not.toContain("\r");
         expect(fs.readFileSync(file, "utf8")).toContain(literal);
         expect((await checkFormatting(root)).findings).toEqual([]);
     });
+    it.each(["> ", "> > ", "  "])(
+        "preserves a verse div inside the %j container",
+        async (prefix) => {
+            const introduction =
+                prefix === "  " ? "- Intro.\n\n" : `${prefix}Intro.\n${prefix.trimEnd()}\n`;
+            const verse = `${prefix}::: {.verse lang=en}\n${prefix}A   *line*/\n${prefix}:::\n`;
+            const source = introduction + verse;
+            const file = note(source);
+            expect((await checkFormatting(root, { write: true })).findings).toEqual([]);
+            expect(fs.readFileSync(file, "utf8")).toBe(source);
+            expect((await checkFormatting(root)).findings).toEqual([]);
+            expect((await checkFormatting(root, { write: true })).written).toEqual([]);
+        },
+    );
+    it("sizes table columns from the protected quotation's authored width", async () => {
+        const source = "| a | b |\n| - | - |\n| [A]{.verse} | x |\n";
+        const expected = "| a           | b   |\n| ----------- | --- |\n| [A]{.verse} | x   |\n";
+        const file = note(source);
+        expect((await checkFormatting(root, { write: true })).findings).toEqual([]);
+        expect(fs.readFileSync(file, "utf8")).toBe(expected);
+        expect((await checkFormatting(root)).findings).toEqual([]);
+        expect((await checkFormatting(root, { write: true })).written).toEqual([]);
+    });
+    it.each(["[界]{.verse}", "[e\u0301]{.verse}", "[👩‍🔬]{.verse}"])(
+        "keeps the displayed width of %s",
+        (quote) => {
+            const protectedSource = protectVerseSource(quote);
+            expect(util.getStringWidth(protectedSource.markdown)).toBe(util.getStringWidth(quote));
+            expect(protectedSource.restore(protectedSource.markdown)).toBe(quote);
+        },
+    );
+    it.each(["lf", "crlf", "auto"])(
+        "uses configured %s endings throughout prose and verse",
+        async (endOfLine) => {
+            fs.writeFileSync(path.join(root, ".prettierrc.json"), JSON.stringify({ endOfLine }));
+            const source =
+                "Before   *word*.\r\n\r\n::: {.verse}\r\nA   line/\r\n:::\r\n\r\nAfter   *word*.\r\n";
+            const file = note(source);
+            expect((await checkFormatting(root, { paths: [file], write: true })).findings).toEqual(
+                [],
+            );
+            const expected = "Before _word_.\n\n::: {.verse}\nA   line/\n:::\n\nAfter _word_.\n";
+            expect(fs.readFileSync(file, "utf8")).toBe(
+                endOfLine === "lf" ? expected : expected.replace(/\n/g, "\r\n"),
+            );
+            expect((await checkFormatting(root, { paths: [file] })).findings).toEqual([]);
+            expect((await checkFormatting(root, { paths: [file], write: true })).written).toEqual(
+                [],
+            );
+        },
+    );
     it("protects verse through every write fixpoint pass and check pass", async () => {
         const quote = "[A   word/..Another]{.verse   lang=en}";
         const file = note(`Before   word ${quote}.\n`);

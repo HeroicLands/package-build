@@ -38,6 +38,7 @@ export function plainRomanVerse(source, options = {}) {
         .filter((boundary) => boundary.sourceOffset >= from && boundary.sourceOffset <= to);
     const projected = plainRomanRun(source, {
         ...options,
+        preserveSlashEscape: true,
         from,
         to,
         exclude: [

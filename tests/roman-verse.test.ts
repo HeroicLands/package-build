@@ -28,7 +28,7 @@ describe("Roman verse layout projection", () => {
     it("interprets typed slashes and leaves escaped and codage slashes literal", () => {
         const result = plainRomanVerse("...a/b \\/ ⟦U+002F⟧");
         expect(result.errors).toEqual([]);
-        expect(result.text).toBe("a\nb / ⟦U+002F⟧");
+        expect(result.text).toBe("a\nb \\/ ⟦U+002F⟧");
         expect(result.boundaries).toEqual([{ kind: "line", at: 1, sourceOffset: 4 }]);
     });
     it("uses whole-fence layout for a partial inline owner", () => {
