@@ -682,7 +682,7 @@ async function createNameRelation(connection, file, records, prefix, audience) {
 }
 
 /**
- * Create the `runs` relation: one row per span, div and verse fence an own
+ * Create the `runs` relation: one row per span, div and verse div an own
  * note marks with `lang=`, `font=` or `enc=`, with the columns
  * {@link module:engine/run-rows.RUN_COLUMNS} names. The columns are declared
  * rather than inferred, so every value stays a string and none becomes a

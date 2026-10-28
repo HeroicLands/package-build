@@ -219,7 +219,7 @@ describe("emphasis in a script run is accepted", () => {
         ["strong emphasis in a span", `[thrima **sorima**]{${SEMARON}}`],
         ["both levels at once", `[***sorima*** thrima]{${SEMARON}}`],
         ["a div", [`::: {${SEMARON}}`, "thrima *sorima*", "", "**thrima**", ":::"].join("\n")],
-        ["a verse", ["```verse {" + QALEZU + "}", "gar *nal*", "  **gar**", "```"].join("\n")],
+        ["a verse", [":::verse {" + QALEZU + "}", "gar *nal*", "  **gar**", ":::"].join("\n")],
         ["a face whose script states no convention", `[*sorima*]{${THURAVARK}}`],
         ["emphasis written with underscores", `[thrima _sorima_]{${SEMARON}}`],
         ["strong emphasis written with underscores", `[thrima __sorima__]{${SEMARON}}`],
@@ -329,7 +329,7 @@ const MIXED = `[*⟦U+F0000 U+F0001⟧* **⟦U+F0000 U+F0001⟧**]{lang=en enc=p
 const PLAIN = `[*sorima* **sorima**]{${THURAVARK}}`;
 const ROMAN = "Roman *stays* **as** written, [and *here*]{lang=en}.";
 const DIV = [`::: {${SEMARON}}`, "thrima *sorima*", ":::"].join("\n");
-const VERSE = ["```verse {" + QALEZU + "}", "gar **nal**", "```"].join("\n");
+const VERSE = [":::verse {" + QALEZU + "}", "gar **nal**", ":::"].join("\n");
 
 describe("renderRuns, goldens", () => {
     const render = (source: string, target = "site") =>

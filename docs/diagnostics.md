@@ -302,27 +302,28 @@ without collecting problems. The rules are under
 [Versions of a work](authoring/links-and-markup.md#versions-and-stanza-labels)
 share a page-local `work=` key and the same stanza shape. For example:
 
-````markdown
-```verse {work=watch lang=en}
+```markdown
+::: {.verse work=watch lang=en}
 The watch arrives.
 
 The harbor wakes.
-```
+:::
 
-```verse {work=watch lang=en}
+::: {.verse work=watch lang=en}
 Another telling has only one stanza.
+:::
 ```
-````
 
 The opening lines receive findings naming canto 1 and its differing stanza
 counts, two and one. The first version is included in the disagreement. A key
-used by only one version is also a finding at that fence's opening line.
+used by only one version is also a finding at that div's opening line.
 
 A concrete `enc=` creates its own script and Roman presentations from one
 original; the display does not add a second authored version. Source newlines
-join unless `/` ends the line. Blank lines and `//` end stanzas. A leading,
-trailing or consecutive `***` without a stanza between is located at the break
-itself. Language and encoding findings retain their positions in the single
+join unless `/` ends the line. Blank lines and `//` end stanzas. A canto uses
+`--- {.canto}` on its own line after a blank line. A leading, trailing or
+consecutive canto separator without a stanza between is located at the break
+itself. Authored `***` is a finding. Language and encoding findings retain their positions in the single
 authored original, including text inside names, directions and speaker labels.
 The content index records that original once in `runs`.
 
@@ -601,8 +602,8 @@ finding naming its `⟦U+XXXX⟧` spelling. Use that notation, or the chosen
 encoding's codage name, inside the literal markers. The encoder checks the
 codes; the Roman validator leaves their contents immutable.
 
-A verse fence uses `/` for logical line endings, `//` or blank lines for
-stanzas, and standalone `***` for cantos. A literal slash is written `\/`.
+A verse div uses `/` for logical line endings, `//` or blank lines for
+stanzas, and `--- {.canto}` after a blank line for cantos. A literal slash is written `\/`.
 Visual indentation at a logical line boundary does not add periods to the
 encoded text; a period on a joined continuation line remains text. Source positions survive Markdown escapes and nested
 `.emph` or `.name` spans.

@@ -8,7 +8,12 @@
 import { describe, it, expect } from "vitest";
 // Fenced-code detection is engine machinery: every content package's wikilink
 // and table passes skip code regions through it.
-import { codeRegions, matchAllOutsideCode, replaceOutsideCode } from "../engine/code-fences.mjs";
+import {
+    codeRegions,
+    matchAllOutsideCode,
+    replaceOutsideCode,
+    protectCode,
+} from "../engine/code-fences.mjs";
 
 /** Stand-in for a rewriter: every `[[…]]` outside code becomes `X`. */
 const LINK = /\[\[([^\]\n]+)\]\]/g;
@@ -152,12 +157,45 @@ describe("matchAllOutsideCode", () => {
 
 describe("verse inline content", () => {
     it("rewrites verse links while protecting inline code and fence attributes", () => {
-        expect(rewrite('```verse {form="[[literal]]"}\n  [[verse]] `[[code]]`\n```')).toBe(
-            '```verse {form="[[literal]]"}\n  X `[[code]]`\n```',
+        expect(rewrite('::: {.verse form="[[literal]]"}\n  [[verse]] `[[code]]`\n:::')).toBe(
+            '::: {.verse form="[[literal]]"}\n  X `[[code]]`\n:::',
         );
+    });
+    it("treats a refused verse code fence as literal code", () => {
+        const source = "```verse\n[[literal]]\n```";
+        expect(rewrite(source)).toBe(source);
     });
     it("protects verse inside an outer code example", () => {
         const src = "````md\n```verse\n[[literal]]\n```\n````";
         expect(rewrite(src)).toBe(src);
     });
+});
+
+it("keeps code ranges disjoint around verse blocks and inline quotations", async () => {
+    const { footnoteLabels } = await import("../engine/content-footnotes.mjs");
+    const source = [
+        "```js",
+        "const before = true;",
+        "```",
+        "",
+        "::: {.verse}",
+        "One `literal` line",
+        ":::",
+        "",
+        "```js",
+        "const after = true;",
+        "```",
+        "",
+        "A [quoted `literal` line/next]{.verse}.",
+        "",
+        ...["a", "b", "c", "d", "e", "f"].map((key) => `[^${key}]: A note.`),
+    ].join("\n");
+    const regions = codeRegions(source);
+    for (let index = 1; index < regions.length; index++)
+        expect(regions[index].start).toBeGreaterThanOrEqual(regions[index - 1].end);
+    const restored = protectCode(source, (masked) => masked);
+    expect(restored).toBe(source);
+    expect(restored.match(/const before/g)).toHaveLength(1);
+    expect(restored.match(/const after/g)).toHaveLength(1);
+    expect(footnoteLabels(restored).size).toBe(6);
 });

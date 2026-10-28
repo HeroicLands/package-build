@@ -109,7 +109,7 @@ index. See
 [glossary terms](docs/reference/format-details.md#glossary-terms) and
 [dictionaries and glossaries](docs/reference/format-details.md#dictionaries-and-glossaries).
 
-A span, div, verse or scroll fence selects an encoding document with `enc=`;
+A span, div or scroll fence selects an encoding document with `enc=`;
 its default Address type is `doc`. The document's language and single font
 supply those defaults, and explicit selections must agree. `enc=default`
 leaves Roman text as written. Language word-book validation applies to both

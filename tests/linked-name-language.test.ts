@@ -299,12 +299,8 @@ describe("language-marked references", () => {
         expect(scanRuns(`[${content}]{lang=vyl}`, ctx).errors.length).toBeGreaterThan(0);
     });
 
-    it("renders split references in a verse column without losing adjacent spaces", () => {
-        const poem =
-            "```verse {lang=en cols=2}\n" +
-            "1 " +
-            source +
-            "\n2 [Marendas]{lang=vyl enc=letters}\n```";
+    it("renders split references in verse text without losing adjacent spaces", () => {
+        const poem = ":::verse {lang=en}\n" + source + "/\n[Marendas]{lang=vyl enc=letters}\n:::";
         const result = renderRuns(resolve(poem, "web"), ctx, undefined, { target: "site" });
         expect(result.errors).toEqual([]);
         expect(result.markdown).toContain(`[${glyph}](/target-only-not-a-word/)`);

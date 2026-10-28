@@ -86,7 +86,7 @@ import { scanSpans } from "./content-spans.mjs";
 import { GENERIC_FONTS, renderRuns, scanRuns } from "./content-scripts.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
-import { rightToLeft, scanVerse } from "./content-verse.mjs";
+import { rightToLeft } from "./content-verse.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { panelRoman, scanScrolls, scrollPanels, scrollParagraphs } from "./content-scroll.mjs";
 import { BOOK_INK, BOOK_RUBRIC, fontOutlines, scrollPanelSvg } from "./font-outlines.mjs";
@@ -499,7 +499,7 @@ export function markdownToTypst(markdown, opts = {}) {
     const given = opts.nested ? String(markdown ?? "") : stripHtmlComments(markdown);
     const separated = opts.footnoteDefinitions === undefined ? separateFootnotes(given) : null;
     const authored = separated?.markdown ?? given;
-    const definitions = opts.footnoteDefinitions ?? separated?.definitions ?? "";
+    let definitions = opts.footnoteDefinitions ?? separated?.definitions ?? "";
     const footnoteState = opts.footnoteState ?? { seen: new Set() };
     const sharedOptions = {
         ...opts,
@@ -513,10 +513,16 @@ export function markdownToTypst(markdown, opts = {}) {
     // Text marked with a language, a font or a map is rewritten once, ahead of
     // every other pass, line for line; the nested calls below read the result,
     // and the scroll fences' layouts the rewrite returns.
+    const markingSource = definitions ? `${authored}\n\n${definitions}` : authored;
     const marked =
-        opts.nested ? undefined : renderRuns(authored, opts.runs, undefined, { target: "book" });
-    const source = marked ? marked.markdown : authored;
+        opts.nested ? undefined : (
+            renderRuns(markingSource, opts.runs, undefined, { target: "book" })
+        );
+    const markedFootnotes = marked && definitions ? separateFootnotes(marked.markdown) : undefined;
+    const source = markedFootnotes?.markdown ?? marked?.markdown ?? authored;
+    if (markedFootnotes) definitions = markedFootnotes.definitions;
     if (marked) {
+        sharedOptions.footnoteDefinitions = definitions;
         sharedOptions.scrolls = marked.scrolls;
         sharedOptions.verses = marked.verses;
     }
@@ -775,22 +781,14 @@ function renderBlock(tokens, i, out, ctx) {
                 out.push(scrollBlock(token, ctx));
                 return 1;
             }
-            if (token.type === "fence" && /^verse(?:\s|$)/.test(token.info?.trim() || "")) {
-                const opening = `${token.markup}${token.info}`;
-                const scanned = scanVerse(`${opening}\n${token.content}${token.markup}`, {
-                    checkWorks: false,
-                });
-                // Findings are collected before rendering. Keep malformed verse
-                // literal rather than assigning invalid parts to display cells.
-                if (scanned.errors.length && !token.meta?.versePaired) {
-                    out.push(rawBlock(token.content, token.info));
-                    return 1;
-                }
-                const poem = scanned.blocks[0];
-                const content = workVerse(token, poem, ctx);
-                const anchor = poem?.id ? ` <${sectionLabel(ctx.anchorPrefix, poem.id)}>` : "";
-                out.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
-            } else out.push(rawBlock(token.content, token.info?.trim() || ""));
+            out.push(rawBlock(token.content, token.info?.trim() || ""));
+            return 1;
+        }
+        case "verse_div": {
+            const poem = token.meta.verse;
+            const content = workVerse(token, poem, ctx);
+            const anchor = poem?.id ? ` <${sectionLabel(ctx.anchorPrefix, poem.id)}>` : "";
+            out.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
             return 1;
         }
         case "hr":
@@ -1286,15 +1284,20 @@ const FONT_CLASSES = Object.freeze(["script", ...Object.values(GENERIC_FONTS)]);
 /** The logical lines of one stanza, with a shared label and paired scripts. */
 function workVerse(token, poem, ctx) {
     const paired = token.meta.versePaired;
-    const labelled = Boolean(poem?.attributes.work);
+    const labelled = token.type !== "verse_inline" && Boolean(poem?.attributes.work);
     const nativeClasses = paired?.classes ?? poem?.classes;
     const nativeAttributes = paired?.attributes ?? poem?.attributes;
-    return (token.meta.verseGroups ?? [])
+    const body = (token.meta.verseGroups ?? [])
         .map((group) => {
             if (group.cantoBreak) {
                 const mark =
                     group.children?.length ? renderInline({ children: group.children }, ctx) : "";
-                return `${mark ? scriptWrapped(mark, nativeClasses, nativeAttributes) + "\n" : ""}#v(0.5em)`;
+                const heading =
+                    group.titleChildren?.length ?
+                        `#heading(level: 3, outlined: false, bookmarked: false)[${renderInline({ children: group.titleChildren }, ctx)}]`
+                    :   "";
+                const anchor = group.id ? ` <${sectionLabel(ctx.anchorPrefix, group.id)}>` : "";
+                return `${mark ? scriptWrapped(mark, nativeClasses, nativeAttributes) + "\n" : ""}#v(0.5em)${heading ? "\n" + heading : ""}${anchor}`;
             }
             const label = labelled ? `#text(size: 0.75em, fill: luma(45%))[${group.label}]` : "";
             const lineText = (line, roman = false) => {
@@ -1328,6 +1331,8 @@ function workVerse(token, poem, ctx) {
             return `#set text(dir: ltr)\n#grid(columns: (${columns}), column-gutter: 1.5em, row-gutter: 0.35em,\n  ${cells.join(",\n  ")}\n)`;
         })
         .join("\n\n");
+    const notes = (token.meta.verseNotes ?? []).map((line) => renderInline(line, ctx)).join("");
+    return body + notes;
 }
 
 /**
@@ -1374,6 +1379,12 @@ function renderInline(token, ctx) {
             case "code_inline":
                 out.push(inlineRaw(child.content));
                 break;
+            case "verse_inline": {
+                const content = workVerse(child, child.meta.verse, ctx);
+                const id = child.attrGet?.("id");
+                out.push(`#box[${content}]${id ? ` <${sectionLabel(ctx.anchorPrefix, id)}>` : ""}`);
+                break;
+            }
             case "span_open": {
                 if (["em", "strong"].includes(child.tag)) {
                     const classes = (child.attrGet?.("class") ?? "").split(/\s+/);

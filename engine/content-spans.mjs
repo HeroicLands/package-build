@@ -14,7 +14,10 @@
 import MarkdownIt from "markdown-it";
 import { alertMarkdownPlugin } from "./content-alerts.mjs";
 import { slugify } from "./content-slug.mjs";
-import { scanVerse } from "./content-verse.mjs";
+import { scanVerse, parseVerse, inlineVerseFindings } from "./content-verse.mjs";
+import { verseDivPlugin } from "./verse-regions.mjs";
+import { codeRegions } from "./code-fences.mjs";
+import { footnoteLabels } from "./content-footnotes.mjs";
 import footnotePlugin from "markdown-it-footnote";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { inlineText } from "./name-markup.mjs";
@@ -25,8 +28,9 @@ import { cartoucheProblems, glyphProblems } from "./content-glyphs.mjs";
  * @param {object} [options] - Surface presentation.
  * @param {boolean} [options.source] - Emit opaque authored source tokens for buffer preview.
  * @param {boolean} [options.spoilers] - Add focusable CSS spoiler wrappers (Foundry).
+ * @param {(token: any, state: any) => void} [options.verseInline] - Populate an opaque quoted-verse token during inline parsing.
  */
-export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}) {
+export function spanMarkdownPlugin(md, { spoilers = false, source = false, verseInline } = {}) {
     {
         md.renderer.rules.span_open = (tokens, index, options, env, renderer) => {
             const token = tokens[index];
@@ -110,7 +114,10 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
             state.src[start - 1] === "[" &&
             !["lang", "font", "enc"].some((key) => Object.hasOwn(parsed.values, key)) &&
             !parsed.classes.some(
-                (name) => name === "script" || /^font-(?:mono|serif|sans)$/.test(name),
+                (name) =>
+                    name === "verse" ||
+                    name === "script" ||
+                    /^font-(?:mono|serif|sans)$/.test(name),
             )
         )
             return false;
@@ -141,7 +148,12 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
             state.pos = finish;
             return true;
         }
-        const token = state.push("span_open", emphasis ?? "span", 1);
+        const verse = parsed.classes.includes("verse") && typeof verseInline === "function";
+        const token = state.push(
+            verse ? "verse_inline" : "span_open",
+            emphasis ?? "span",
+            verse ? 0 : 1,
+        );
         token.meta = {
             span: true,
             start,
@@ -164,6 +176,11 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
         if (parsed.classes.length) token.attrSet("class", parsed.classes.join(" "));
         for (const [key, value] of Object.entries(parsed.values))
             if (!refusedAttributes({ [key]: value }).length) token.attrSet(key, value);
+        if (verse) {
+            verseInline(token, state);
+            state.pos = finish;
+            return true;
+        }
         const nested = [];
         state.md.inline.parse(state.src.slice(start + 1, end), state.md, state.env, nested);
         for (const child of nested)
@@ -184,6 +201,7 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}
 }
 
 const parser = new MarkdownIt({ html: true })
+    .use(verseDivPlugin)
     .use(footnotePlugin)
     .use(alertMarkdownPlugin)
     .use(spanMarkdownPlugin);
@@ -296,8 +314,58 @@ export function scanSpans(source) {
     for (const poem of scanVerse(text, { checkWorks: false }).blocks) {
         const children = [];
         parser.inline.parse(poem.body, parser, env, children);
-        collect(children, (pos) => starts[poem.start + 1] + pos);
+        collect(children, (pos) => poem.bodyStart + pos);
     }
+    const raw = text.split("");
+    for (const region of codeRegions(text))
+        for (let offset = region.start; offset < region.end; offset++)
+            if (!/[\r\n]/.test(raw[offset])) raw[offset] = " ";
+    const rawText = raw.join("");
+    const quoted = [];
+    parser.inline.parse(rawText, parser, env, quoted);
+    const verseTokens = quoted.filter(
+        (token) =>
+            token.meta?.span &&
+            (token.attrGet("class") ?? "").split(/\s+/).includes("verse") &&
+            !spans.some((span) => span.start === token.meta.start && span.end === token.meta.end),
+    );
+    collect(verseTokens, (pos) => pos);
+    for (const match of rawText.matchAll(/\{[^{}\r\n]*(?:\}|$)/gm)) {
+        if (
+            !parseExtensionAttributes(match[0].slice(1).replace(/\}$/, "")).classes.includes(
+                "verse",
+            )
+        )
+            continue;
+        if (rawText[match.index - 1] !== "]") continue;
+        if (
+            spans.some(
+                (span) =>
+                    span.contentEnd + 1 === match.index &&
+                    span.end >= match.index + match[0].length,
+            )
+        )
+            continue;
+        const { line, column } = located(match.index, match.index + match[0].length);
+        errors.push({
+            line,
+            column,
+            message:
+                "an inline .verse quotation needs balanced brackets and closing {…} attributes",
+        });
+    }
+    for (const span of spans)
+        if (
+            span.attrs.some(
+                ([key, value]) => key === "class" && value.split(/\s+/).includes("verse"),
+            )
+        ) {
+            span.verseModel = parseVerse(span.text, {
+                inline: true,
+                footnotes: footnoteLabels(text),
+            });
+            errors.push(...inlineVerseFindings(span, text));
+        }
     spans.sort((a, b) => a.start - b.start);
     errors.sort((a, b) => a.line - b.line || a.column - b.column);
     return {

@@ -18,6 +18,7 @@ import MarkdownIt from "markdown-it";
 import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
 
+import { verseRegions } from "./verse-regions.mjs";
 import { slugify } from "./content-slug.mjs";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
@@ -184,9 +185,20 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
         errors = [],
         ids = new Set();
     const counts = {};
+    const verse = verseRegions(String(source ?? ""));
+    const verseStarts = new Map(verse.map((region) => [region.start, region]));
+    const verseLines = new Set(
+        verse.flatMap((region) =>
+            Array.from(
+                { length: region.end - region.start + 1 },
+                (_, index) => region.start + index,
+            ),
+        ),
+    );
     let codeFence = null;
     const fault = (line, message) => errors.push({ line: line + 1, column: 1, message });
     for (let i = 0; i < lines.length; i++) {
+        if (verseLines.has(i)) continue;
         const fence = FENCE.exec(lines[i]);
         if (codeFence) {
             if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length)
@@ -233,7 +245,11 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
         let bodyEnd;
         const firstLine = lines[bodyStart];
         let kind;
-        if (/^ {0,3}:::(?:[ \t]+\{.*\})?[ \t]*$/.test(firstLine)) {
+        if (verseStarts.has(bodyStart)) {
+            const region = verseStarts.get(bodyStart);
+            bodyEnd = region.end + 1;
+            kind = "poem";
+        } else if (/^ {0,3}:::(?:[ \t]+\{.*\})?[ \t]*$/.test(firstLine)) {
             let depth = 1,
                 literal = null;
             bodyEnd = bodyStart + 1;
@@ -305,10 +321,7 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
                 fault(bodyStart, "this block cannot be captioned");
                 continue;
             }
-            kind =
-                first.type === "fence" && /^verse(?:\s|$)/.test(first.info) ?
-                    "poem"
-                :   figureKind(first, contents.trim(), resolveRole);
+            kind = figureKind(first, contents.trim(), resolveRole);
         }
         if (explicit) kind = explicit === "verse" ? "poem" : explicit;
         const id = attributes.id;
@@ -338,6 +351,7 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
     }
     let literal = null;
     for (let at = 0; at < lines.length; at++) {
+        if (verseLines.has(at)) continue;
         const fence = FENCE.exec(lines[at]);
         if (literal) {
             if (fence && fence[1][0] === literal[0] && fence[1].length >= literal.length)

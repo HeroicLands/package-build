@@ -35,6 +35,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { formatNoteFrontmatter } from "./note-format.mjs";
+import { protectVerseSource } from "./verse-format.mjs";
 
 import {
     MARKDOWNLINT_CONFIG,
@@ -161,6 +162,17 @@ export async function checkFormatting(root, opts = {}) {
             }
         }
 
+        const format = async (input) => {
+            const protectedSource =
+                ["markdown", "mdx"].includes(info.inferredParser) ?
+                    protectVerseSource(input)
+                :   undefined;
+            const output = await prettier.format(protectedSource?.markdown ?? input, options);
+            return formatNoteFrontmatter(
+                protectedSource ? protectedSource.restore(output) : output,
+            );
+        };
+
         // A file Prettier cannot parse is a finding, not a crash. Its own CLI
         // reports the syntax error and carries on to the next file, and a
         // single unparseable file in a large tree must not cost the report on
@@ -172,7 +184,7 @@ export async function checkFormatting(root, opts = {}) {
                 let formatted = source;
                 let converged = false;
                 for (let pass = 0; pass < MAX_FORMAT_PASSES; pass += 1) {
-                    const next = formatNoteFrontmatter(await prettier.format(formatted, options));
+                    const next = await format(formatted);
                     if (next === formatted) {
                         converged = true;
                         break;
@@ -206,7 +218,7 @@ export async function checkFormatting(root, opts = {}) {
                 continue;
             }
 
-            if (formatNoteFrontmatter(await prettier.format(source, options)) !== source) {
+            if ((await format(source)) !== source) {
                 findings.push({
                     file,
                     severity: "error",

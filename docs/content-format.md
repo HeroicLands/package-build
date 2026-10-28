@@ -29,11 +29,11 @@ A nonempty note body creates one system-agnostic Foundry JournalEntry. Content b
 
 Leading `:` captions describe the next supported block; `:@` captions also number it. The optional type accepts `figure`, `table`, `verse`, `code`, `prose`, and `example`. Captions support identifiers, classes and named attributes; unsupported following blocks are errors. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references).
 
-A `verse` fence sets poetry or prose. `/` ends a logical line; source newlines
-otherwise join. Blank lines or `//` end stanzas, and standalone `***` ends a canto.
+A `.verse` div (`::: {.verse ...}` or `:::verse {...}`) sets poetry or prose. `/` ends a logical line; source newlines
+otherwise join. Blank lines or `//` end stanzas, and a standalone `--- {.canto}` after a blank line ends a canto.
 Leading periods indent a logical line, including after `/` within a source line;
 a period on a joined continuation line is text. `\/` writes a literal slash.
-A concrete `enc=` sets the original once in two presentations, script on the left
+A concrete `enc=` on a div sets the original once in two presentations, script on the left
 and Roman on the right, aligned by logical line at full weight. No `enc=`, or
 `enc=default`, produces one Roman column. Inline names, codage, language gaps and
 footnotes retain their meaning. `work=<key>` groups versions within the page,
@@ -44,13 +44,21 @@ side is a finding at that separator. `.direction` and `.speaker` spans identify
 instructions and speakers inside or outside verse, retain plain presentation
 hooks in HTML and Typst, and change neither encoding nor shape. See
 [verse and worked examples](authoring/links-and-markup.md#verse). Its numbered
-caption uses the **Poem** label. Generic `:::` divs and `[inline spans]{.class}`
+caption uses the **Poem** label. Inline quotations use `[text/..line//]{.verse}` with span presentation
+attributes and no work, form, scan, canto or labels. An encoded quotation is
+script-only and flows inside prose, with `/` and `//` drawn through its encoding;
+an unencoded quotation retains Roman verse layout. Footnotes are excluded from
+encoding: an encoded div shows each reference only beside its Roman word, and
+every encoded span restores its references after the span, outside the script
+font. A reference adds no line or stanza and creates no display duplicate. `--- {.canto #id title="Heading"}`
+adds a visible canto heading and anchor inside its work. Authored `***` is a
+finding. The formatter preserves complete verse divs and spans byte for byte. Generic `:::` divs and `[inline spans]{.class}`
 accept attributes; see [fenced divs](authoring/links-and-markup.md#fenced-divs)
 and [inline spans](authoring/links-and-markup.md#inline-spans).
 
-A code fence with language `scroll` sets text in a script whose script note states `direction: vertical-rl` as columns, top to bottom, read from the right. The lines of a paragraph are joined, and each paragraph starts a fresh column. `rows=N` is the characters in a column and `cols=M` the columns in a panel, each a whole number above zero; `lang=`, `font=` and `enc=` mark the text as on a verse fence, an explicit `enc=` selects an encoding document and its language and font. The site, the preview and Foundry set it with `writing-mode: vertical-rl` in a panel that scrolls sideways from the right; the book draws its panels as images from the face's outlines, each with its roman text as alt text. A scroll fence in a script written in lines is an error. See [scrolls](authoring/links-and-markup.md#scrolls).
+A code fence with language `scroll` sets text in a script whose script note states `direction: vertical-rl` as columns, top to bottom, read from the right. The lines of a paragraph are joined, and each paragraph starts a fresh column. `rows=N` is the characters in a column and `cols=M` the columns in a panel, each a whole number above zero; `lang=`, `font=` and `enc=` mark the text as on a verse div, an explicit `enc=` selects an encoding document and its language and font. The site, the preview and Foundry set it with `writing-mode: vertical-rl` in a panel that scrolls sideways from the right; the book draws its panels as images from the face's outlines, each with its roman text as alt text. A scroll fence in a script written in lines is an error. See [scrolls](authoring/links-and-markup.md#scrolls).
 
-A span, generic div, verse or scroll fence uses `enc=default` unless it selects
+A span, generic div, verse div or scroll fence uses `enc=default` unless it selects
 an encoding document. `enc=` is an Address whose default type is `doc`; the
 document names its language and font, and explicit `lang=` or `font=` values
 must agree. Each encoding tries authored native writings, complete parts and

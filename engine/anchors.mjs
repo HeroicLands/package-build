@@ -124,6 +124,20 @@ export function collectAnchors(body, bodyLine = 1, resolveRole, syntax) {
             });
     }
     for (const poem of scanVerse(body).blocks) {
+        for (const group of poem.model.groups)
+            if (group.cantoBreak && group.id)
+                anchors.push({
+                    slug: slugify(group.id),
+                    name: group.title || group.id,
+                    level: 0,
+                    line:
+                        bodyLine +
+                        String(body)
+                            .slice(0, poem.bodyStart + group.from)
+                            .split("\n").length -
+                        1,
+                    kind: "prose",
+                });
         if (poem.id)
             anchors.push({
                 slug: slugify(poem.id),

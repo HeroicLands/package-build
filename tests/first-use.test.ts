@@ -552,3 +552,38 @@ describe("the first-use marks", () => {
         expect(html).toContain("<code>code</code>");
     });
 });
+
+describe("verse regions do not advance prose first use", () => {
+    it("excludes both verse div spellings while retaining the later prose name", () => {
+        for (const verse of [
+            "::: {.verse}\n[Tam]{.name}/returns\n:::",
+            ":::verse\n[Tam]{.name}/returns\n:::",
+        ]) {
+            const source = verse + "\n\n[Tam]{.name} keeps watch.";
+            expect(nameUses(source).map((use) => use.start)).toEqual([source.lastIndexOf("[Tam]")]);
+            expect(shown(source)).toBe(verse + "\n\n<<[Tam]{.name}>> keeps watch.");
+        }
+    });
+    it("keeps literal block markers in verse from swallowing later prose", () => {
+        const verse = "::: {.verse}\n```\n[Tam]{.name}\n:::";
+        expect(shown(verse + "\n\n[Tam]{.name} keeps watch.")).toBe(
+            verse + "\n\n<<[Tam]{.name}>> keeps watch.",
+        );
+    });
+    it("excludes quoted verse inside prose including nested names and name links", () => {
+        const source =
+            "Before [The [Tam]{.name} comes/returns]{.verse}, then [Tam]{.name} keeps watch.";
+        expect(shown(source)).toBe(
+            "Before [The [Tam]{.name} comes/returns]{.verse}, then <<[Tam]{.name}>> keeps watch.",
+        );
+        const linked =
+            "[The [[being-tam|Tam]]{.name} comes/returns]{.verse}, then [Tam]{.name ref=being-tam}.";
+        expect(nameUses(linked)).toHaveLength(1);
+        expect(shown(linked)).toContain("then <<[Tam]{.name ref=being-tam}>>.");
+    });
+    it("does not lint a marked name inside a verse as an unlinked prose name", () => {
+        const source = fixture();
+        expect(source.check("::: {.verse}\n[Arden Vale]{.name}\n:::\n")).toEqual([]);
+        expect(source.check("[The [Arden Vale]{.name} returns]{.verse}")).toEqual([]);
+    });
+});

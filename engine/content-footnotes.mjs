@@ -29,7 +29,8 @@
  * @module
  */
 
-import { matchAllOutsideCode } from "./code-fences.mjs";
+import { inlineSyntaxRanges, verseRegions } from "./verse-regions.mjs";
+import { codeRegions, matchAllOutsideCode } from "./code-fences.mjs";
 
 /**
  * Where a character offset in `source` falls, as a 1-based line and column.
@@ -52,9 +53,15 @@ function lineColumn(source, offset) {
 export function separateFootnotes(source) {
     const lines = String(source ?? "").split("\n");
     const body = [...lines];
+    const verseLines = new Set(
+        verseRegions(String(source ?? "")).flatMap((region) =>
+            Array.from({ length: region.end - region.start + 1 }, (_, i) => region.start + i),
+        ),
+    );
     const definitions = [];
     let fence = null;
     for (let i = 0; i < lines.length; i++) {
+        if (verseLines.has(i)) continue;
         const marker = /^ {0,3}(`{3,}|~{3,})/.exec(lines[i]);
         if (fence) {
             if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length)
@@ -239,4 +246,56 @@ export function footnoteFindings(source) {
     return [...misplaced, ...unresolved, ...unused].sort(
         (a, b) => a.line - b.line || a.column - b.column,
     );
+}
+
+/**
+ * Labels defined at the top level of this note.
+ * @param {string} source - Complete authored note Markdown.
+ * @returns {Set<string>} Same-note footnote labels.
+ */
+export function footnoteLabels(source) {
+    if (!source.includes("[^")) return new Set();
+    return new Set(
+        [...separateFootnotes(source).definitions.matchAll(/^\[\^([^\]\s]+)\]:/gm)].map(
+            (match) => match[1],
+        ),
+    );
+}
+
+/**
+ * Actual defined references, excluding literal code, escapes and metadata.
+ * @param {string} source - Full note or raw inline fragment.
+ * @param {object} [options] - Definition context and source grammar.
+ * @param {ReadonlySet<string>} [options.definitions] - Same-note labels; derived from source when omitted.
+ * @param {boolean} [options.inline] - Treat all source as inline verse/prose.
+ * @returns {Array<{from:number,to:number,key:string,text:string}>} Original UTF-16 source ranges.
+ */
+export function footnoteReferences(
+    source,
+    { definitions = footnoteLabels(source), inline = false } = {},
+) {
+    if (!definitions.size || !source.includes("[^")) return [];
+    const protectedRanges = inlineSyntaxRanges(source).filter(
+        ([from]) => source[from] !== "{" || source[from - 1] === "]",
+    );
+    const code = inline ? [] : codeRegions(source);
+    return [...source.matchAll(/\[\^([^\]\s]+)\]/g)].flatMap((match) => {
+        const from = match.index,
+            to = from + match[0].length;
+        const escapes = /\\+$/.exec(source.slice(0, from))?.[0].length ?? 0;
+        if (
+            !definitions.has(match[1]) ||
+            escapes % 2 ||
+            protectedRanges.some(([first, past]) => from >= first && from < past) ||
+            code.some((range) => from >= range.start && from < range.end)
+        )
+            return [];
+        if (
+            !inline &&
+            source[to] === ":" &&
+            /^[ \t]*$/.test(source.slice(source.lastIndexOf("\n", from - 1) + 1, from))
+        )
+            return [];
+        return [{ from, to, key: match[1], text: match[0] }];
+    });
 }

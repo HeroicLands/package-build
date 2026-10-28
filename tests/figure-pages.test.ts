@@ -112,7 +112,7 @@ describe("a figure followed by prose", () => {
 });
 
 /** A poem captioned mid-section, as a content package writes an excerpt. */
-const POEM = ["```verse {form=epic lang=en}", "Hear now, hearth keepers.", "```"].join("\n");
+const POEM = ["::: {.verse form=epic lang=en}", "Hear now, hearth keepers.", ":::"].join("\n");
 
 describe("a captioned item in the middle of a section", () => {
     const markdown = [

@@ -571,7 +571,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
     "verse-plain": {
         summary:
             "Verse keeps its lines and stanzas and indents a line by two spaces per level; its form is recorded.",
-        probe: "```verse {form=ballad lang=en}",
+        probe: "::: {.verse form=ballad lang=en}",
         foundry: {
             sees: [
                 /<div class="verse" lang="en" data-form="ballad">/,
@@ -599,16 +599,128 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         book: {
             sees: [
-                /The harbor sleeps below\.\]?\n\n#v\(0\.5em\)\n\n#book-script-text[^\n]*?\[The keeper guards/,
+                /The harbor sleeps below\.\]?\n\n#v\(0\.5em\)[\s\S]*?The Night Watch[\s\S]*?The keeper guards/,
                 /The lantern burns beside the gate, \\\n#h\(1\.25em\)The harbor sleeps below\./,
                 /The keeper guards the road till dawn, \\\n#h\(1\.25em\)And keeps a light aglow\./,
             ],
         },
     },
 
+    "verse-quote": {
+        summary:
+            "Roman quotations retain logical layout, while encoded quotations flow as script-only inline text.",
+        probe: "[The shore/..The watch//]{.verse lang=en}",
+        foundry: {
+            sees: [
+                /<p>A reply is <span class="verse verse-inline"/,
+                /class="verse-line i2">The watch/,
+            ],
+        },
+        web: {
+            sees: [
+                /<p>A reply is <span class="verse verse-inline"/,
+                /class="verse-line i2">The watch/,
+            ],
+        },
+        preview: {
+            sees: [
+                /<p>A reply is <span class="verse verse-inline"/,
+                /class="verse-line i2">The watch/,
+            ],
+        },
+        indexed: {
+            sees: [
+                /The original reply is <span class="script hl-semaron-kuriale"/,
+                /class="verse-line i2">The watch/,
+            ],
+            absent: [/The original reply is <span class="verse/],
+        },
+        book: {
+            sees: [
+                /A reply is #box\[/,
+                /#h\(2\.5em\)The watch/,
+                /The original reply is #book-span\(classes: \("script", "hl-semaron-kuriale"\)\)\[/,
+            ],
+        },
+    },
+
+    "encoded-footnote": {
+        summary:
+            "An encoded div shows its reference once beside its Roman word, with one definition and backlink.",
+        probe: "thirun[^original-word] sorima",
+        foundry: {
+            sees: [
+                /class="verse-roman"[\s\S]*?thirun<sup class="footnote-ref">[\s\S]*?<\/sup> sorima/,
+                /A note on the original word\./,
+            ],
+            absent: [/fnref(?:-\w+-)?4:1/],
+        },
+        web: {
+            sees: [
+                /class="verse-roman"[\s\S]*?thirun<sup class="footnote-ref">[\s\S]*?<\/sup> sorima/,
+                /A note on the original word\./,
+            ],
+            absent: [/fnref4:1/],
+        },
+        preview: {
+            sees: [/thirun<sup class="footnote-ref">/, /A note on the original word\./],
+            bufferOnly: true,
+            differs:
+                "The buffer-only view has no encoding context and shows the original Roman source with its ordinary reference.",
+        },
+        indexed: {
+            sees: [
+                /class="verse-roman"[\s\S]*?thirun<sup class="footnote-ref">/,
+                /A note on the original word\./,
+            ],
+            absent: [/fnref4:1/],
+        },
+        book: { sees: [/thirun#footnote\[A note on the original word\.\][\s\S]*? sorima/] },
+    },
+
+    "encoded-span-footnote": {
+        summary:
+            "Ordinary and verse encoded spans keep one ordinary footnote reference outside their script wrapper.",
+        probe: "The annotated inscription is [thirun[^script-word] sorima]{lang=vyl enc=vylsemaronenc}.",
+        foundry: {
+            sees: [
+                /The annotated inscription is <span class="script hl-semaron-kuriale"[^>]*>[^<]*<\/span><sup class="footnote-ref">/,
+                /The annotated reply is <span class="script hl-semaron-kuriale"[^>]*>[^<]*<\/span><sup class="footnote-ref">/,
+            ],
+        },
+        web: {
+            sees: [
+                /The annotated inscription is <span class="script hl-semaron-kuriale"[^>]*>[^<]*<\/span><sup class="footnote-ref">/,
+                /The annotated reply is <span class="script hl-semaron-kuriale"[^>]*>[^<]*<\/span><sup class="footnote-ref">/,
+            ],
+        },
+        preview: {
+            sees: [
+                /The annotated inscription is/,
+                /thirun\[\^script-word\] sorima/,
+                /A note on the quoted word\./,
+            ],
+            bufferOnly: true,
+            differs:
+                "The buffer-only view retains marked span source because no encoding documents are available.",
+        },
+        indexed: {
+            sees: [
+                /The annotated inscription is <span class="script hl-semaron-kuriale"[^>]*>[^<]*<\/span><sup class="footnote-ref">/,
+                /The annotated reply is <span class="script hl-semaron-kuriale"[^>]*>[^<]*<\/span><sup class="footnote-ref">/,
+            ],
+        },
+        book: {
+            sees: [
+                /The annotated inscription is #book-span[^\n]*?\]#footnote\[A note on the script word\.\]/,
+                /The annotated reply is #book-span[^\n]*?\]#footnote\[A note on the quoted word\.\]/,
+            ],
+        },
+    },
+
     "verse-scanned": {
         summary: "A verse that names its metre carries it, and readers see only the verse.",
-        probe: "```verse {scan=trimeter lang=tar}",
+        probe: "::: {.verse scan=trimeter lang=tar}",
         foundry: {
             sees: [
                 /<div class="verse" lang="art-x-tar" data-scan="trimeter">\s*<div class="verse-stanza">\s*<p><span class="verse-line">Taruna velomi sarandi<\/span>/,
@@ -1237,7 +1349,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
     "run-verse": {
         summary:
             "An encoded verse aligns native and Roman logical lines, preserving its chosen face and indentation.",
-        probe: "```verse {form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
+        probe: "::: {.verse form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
         foundry: {
             sees: [
                 /<div class="verse verse-paired" data-form="epic">[\s\S]*?<span class="verse-native script hl-semaron-kuriale" lang="art-x-vyl"><span class="verse-line">\u{F0250}\u{F0237}/u,

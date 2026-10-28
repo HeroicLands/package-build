@@ -192,7 +192,7 @@ describe("a mapped run's words", () => {
         ).toEqual([`3:7: ${unknown("qux")}`]);
         expect(
             findings(
-                "```verse {lang=vyl enc=m font=semaron-kuriale}\nzaron\n  thelmaro quxa\n```\n",
+                ":::verse {lang=vyl enc=m font=semaron-kuriale}\nzaron\n  thelmaro quxa\n:::\n",
             ),
         ).toEqual([`3:12: ${unknown("quxa")}`]);
     });

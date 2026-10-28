@@ -151,9 +151,9 @@ describe("the actual authored marked-name inventory", () => {
             "[literal]{.name}",
             "```",
             "",
-            "```verse",
+            "::: {.verse}",
             "[Verse]{.name}",
-            "```",
+            ":::",
             "",
             "[^aside]: Written aside.",
         ].join("\n");

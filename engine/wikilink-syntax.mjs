@@ -42,22 +42,8 @@ import { parseAddress, isAddressTuple, splitAnchor } from "./address.mjs";
  * @module
  */
 
-/**
- * A wikilink, as authored.
- *
- * **Newlines are excluded deliberately.** A link is written on one line; an
- * unclosed `[[` is a typo, and the alternative is letting it swallow arbitrary
- * prose in search of a closer. Erring towards "not a link" leaves the author's
- * text as written, which is the safe direction for a rewriter.
- *
- * **A leading `!` makes it an embed, not a link**, and the lookbehind is what
- * keeps every reader from seeing one as the other. Stated here rather than in
- * each reader for the reason the rest of this module exists: the checker, the
- * resolver and the embed reader all match on this pattern, and a copy of the
- * exclusion in each is a place for it to be forgotten. An embed's
- * own grammar is {@link module:engine/content-embeds}.
- */
-export const WIKILINK = /(?<!!)\[\[([^\]\n]+)\]\](?:\{(?:[^{}"\n]|"(?:\\.|[^"\\\n])*")*\})?/g;
+import { WIKILINK } from "./wikilink-pattern.mjs";
+export { WIKILINK } from "./wikilink-pattern.mjs";
 
 /**
  * The parts of a wikilink's interior.

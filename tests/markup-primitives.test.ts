@@ -14,24 +14,24 @@ describe("markup primitives", () => {
         expect(result).not.toContain("<summary");
     });
     it("reads verse fences, preserving stanza and period indentation", () => {
-        const source = "```verse {form=ballad}\n    Base  line/\n    .Indented\n\n    Last\n```";
+        const source = "::: {.verse form=ballad}\n    Base  line/\n    .Indented\n\n    Last\n:::";
         expect(scanVerse(source).errors).toEqual([]);
         const result = renderVerse(source).markdown;
         expect(result).toContain('class="verse-line i1"');
         expect(result).toContain("Base  line");
-        expect(scanVerse("~~~verse\nA\tline\n~~~").errors[0]).toMatchObject({
+        expect(scanVerse("::: {.verse}\nA\tline\n:::").errors[0]).toMatchObject({
             line: 2,
             column: 2,
         });
-        expect(scanBlocks(":::verse\nOld\n:::").errors[0].message).toContain("no verse block");
+        expect(scanBlocks(":::verse\nA line\n:::").errors).toEqual([]);
     });
     it("does not read verse inside literal examples", () => {
-        expect(scanVerse("````md\n```verse\nVerse\n```\n````").blocks).toEqual([]);
+        expect(scanVerse("````md\n::: {.verse}\nVerse\n:::\n````").blocks).toEqual([]);
     });
     it("preserves literal headings in a fenced poem inside a div", () => {
-        expect(scanBlocks("::: {.verse}\n```verse\n# Verse {#literal}\n```\n:::").errors).toEqual(
-            [],
-        );
+        expect(
+            scanBlocks("::: {.outer}\n::: {.verse}\n# Verse {#literal}\n:::\n:::").errors,
+        ).toEqual([]);
     });
     it("collects nested spans and leaves wiki and footnote markers alone", () => {
         const source = "[outer [inner]{#nested}]{#outer} [[wiki]] [^note]\n\n[^note]: Note.";
@@ -51,7 +51,7 @@ describe("markup primitives", () => {
     });
     it("finds and renders verse spans with original file locations", () => {
         const source =
-            'Before.\n\n```verse\n  A [bright]{#Light} lantern\n  [bad]{onclick="bad"}\n```\n\n```text\n[literal]{#No}\n```';
+            'Before.\n\n::: {.verse}\n  A [bright]{#Light} lantern\n  [bad]{onclick="bad"}\n:::\n\n```text\n[literal]{#No}\n```';
         const result = scanSpans(source);
         expect(result.spans.map((span) => [span.id, span.line, span.column])).toEqual([
             ["light", 4, 5],
@@ -63,7 +63,7 @@ describe("markup primitives", () => {
     });
     it("renders canonical anchor IDs for every primitive", () => {
         expect(renderBlocks("::: {#SomeId}\nText\n:::", "web").markdown).toContain('id="someid"');
-        expect(renderVerse("```verse {#SomeId}\nText\n```").markdown).toContain('id="someid"');
+        expect(renderVerse("::: {.verse #SomeId}\nText\n:::").markdown).toContain('id="someid"');
         expect(renderSpans("[Text]{#SomeId}").markdown).toContain('id="someid"');
     });
     it("renders nested Markdown spans and preserves link precedence", () => {

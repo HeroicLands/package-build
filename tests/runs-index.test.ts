@@ -100,9 +100,9 @@ function tree(contentPackage = "demo") {
         [
             "The colour is [colour]{lang=en-gb}, and the motto [ad astra]{lang=la}.",
             "",
-            "```verse {form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
+            ":::verse {form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
             "Zaron tholmeza.",
-            "```",
+            ":::",
         ].join("\n"),
     );
     write(
@@ -282,7 +282,42 @@ describe("native presentation metadata", () => {
 });
 
 describe("the runs relation", () => {
-    it("records a fence-level encoded original once in the index and runs relation", async () => {
+    it("indexes each block and inline original once with its encoding in SQL", async () => {
+        tree();
+        const root = roots[0];
+        const content = path.join(root, "demo");
+        write(
+            path.join(content, "Quoted.md"),
+            { type: "lore", shortcode: "quoted" },
+            "A [ka[^sea]/ka]{.verse lang=vyl enc=vylsemaronenc} quotation.\n\n[^sea]: A note.",
+        );
+        const records = collectContentIndex(content, {
+            contentPackage: "demo",
+            skipDirectories: [],
+            languages: LANGUAGES,
+            rootDir: root,
+        });
+        const original = records.find((record) => record.shortcode === "quoted")!;
+        expect(original.runs).toHaveLength(1);
+        expect(original.runs[0]).toMatchObject({
+            kind: "span",
+            lang: "vyl",
+            enc: "demo-note-doc-vylsemaronenc",
+        });
+        const db = await openNotesDatabase(records);
+        try {
+            expect(
+                (
+                    await db.query(
+                        "SELECT kind, lang, enc FROM runs WHERE owner = 'demo-note-lore-quoted'",
+                    )
+                ).rows,
+            ).toEqual([{ kind: "span", lang: "vyl", enc: "demo-note-doc-vylsemaronenc" }]);
+        } finally {
+            await db.close();
+        }
+    });
+    it("records a div-level encoded original once in the index and runs relation", async () => {
         const records = tree();
         const original = records.find((record) => record.shortcode === "lower")!;
         expect(original.runs.filter((run) => run.kind === "verse")).toEqual([

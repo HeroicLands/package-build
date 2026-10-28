@@ -418,7 +418,7 @@ describe("markdownToTypst", () => {
 describe("new block syntax in the printed book", () => {
     it("preserves verse stanzas and period indentation without forcing italics", () => {
         const out = markdownToTypst(
-            "```verse {form=ballad}\nFirst *verse*./\n.Next verse.\n\n***\n\nLast verse.\n```",
+            "::: {.verse form=ballad}\nFirst *verse*./\n.Next verse.\n\n--- {.canto}\n\nLast verse.\n:::",
         );
         expect(out).toContain("First #emph[verse].");
         expect(out).toContain("#h(1.25em)Next verse.");
@@ -442,7 +442,7 @@ describe("new block syntax in the printed book", () => {
 
     it("registers verse and nested inline span identifiers without losing links", () => {
         const out = markdownToTypst(
-            "```verse {#verse}\n[First [word]{#inner}]{#outer} and [link](https://example.org).\n```",
+            "::: {.verse #verse}\n[First [word]{#inner}]{#outer} and [link](https://example.org).\n:::",
             { anchorPrefix: "note" },
         );
         expect(out).toContain("<note--verse>");
@@ -453,7 +453,7 @@ describe("new block syntax in the printed book", () => {
 
     it("shares note footnotes with captioned verse and emits the definition once", () => {
         const out = markdownToTypst(
-            "Before[^shore].\n\n:@ A song.\n\n```verse\nA *quiet* shore[^shore].\n```\n\n[^shore]: Beside the harbor.",
+            "Before[^shore].\n\n:@ A song.\n\n::: {.verse}\nA *quiet* shore[^shore].\n:::\n\n[^shore]: Beside the harbor.",
         );
         expect(out).toContain("#emph[quiet]");
         expect(out).toContain("#footnote(<footnote-body-shore>)");
@@ -463,7 +463,7 @@ describe("new block syntax in the printed book", () => {
 
     it("uses Poem labels and leaves unnumbered poems outside the count", () => {
         const out = markdownToTypst(
-            ": Unnumbered.\n\n```verse\nOne.\n```\n\n:@ Numbered.\n\n```verse\nTwo.\n```",
+            ": Unnumbered.\n\n::: {.verse}\nOne.\n:::\n\n:@ Numbered.\n\n::: {.verse}\nTwo.\n:::",
         );
         expect(out).toContain("Unnumbered.");
         expect(out).toContain("Poem 1: Numbered.");

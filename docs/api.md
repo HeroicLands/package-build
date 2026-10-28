@@ -1339,6 +1339,29 @@ index for checking page links.
 
 `createRenderer(target, options?)` builds the one markdown-it configuration every target renders through. `target` is `"foundry"`, `"web"`, `"preview"` or `"book"`. The renderer holds the configured parser (`md`), the names of the plugins installed (`plugins`), and three functions: `prepare` writes the constructs markdown-it has no syntax for — marked text, captioned items, named blocks, verse and alerts — as HTML between blank lines; `render` prepares and renders to HTML; `renderInline` renders one inline run. The `book` target parses only, and its Typst stage reads the tokens.
 
+Verse blocks are `::: {.verse ...}` or `:::verse {...}`; their raw bodies are
+parsed with inline Markdown through the shared verse structure. Inline
+`[text/..line//]{.verse}` quotations retain span wrappers inside prose. A blank
+line followed by `--- {.canto #id title="Heading"}` supplies a titled canto
+boundary without opening a journal page. `verseDivPlugin` from
+`engine/verse-regions.mjs` emits `verse_div` tokens before Markdown block
+interpretation. `renderVerseQuotes` emits inline-safe HTML from the same logical
+model; the book's `verse_inline` token parses quoted lines in the note's footnote
+environment. A canto title is heading metadata, while its encoder receives the
+standard Roman canto control. Encoded verse divs produce paired
+script and Roman presentations. Encoded verse spans produce ordinary script-only
+inline text with encoded verse controls, while unencoded quotations retain their
+Roman line and stanza layout. Defined footnote references are excluded before
+encoding: divs retain the references only in their Roman presentation; all
+encoded spans restore references after their script wrapper. Display generation
+adds no duplicate reference, number, definition or backlink.
+
+`parseVerse(body, {footnotes})` accepts the same-note set of defined footnote
+labels when parsing a detached body; `scanVerse` obtains that context from the
+complete source. Reference-only positions contribute no work shape. A wholly
+reference-only body carries its references in `model.notes`, rendered once
+outside native-font wrappers without a verse row or label.
+
 | Export           | Signature                          | Returns                                                      | Use it when                                                                              |
 | ---------------- | ---------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `createRenderer` | `createRenderer(target, options?)` | `{ target, md, plugins, prepare, render, renderInline }`     | Rendering a note body for one target with the rules every target shares.                 |
@@ -2497,12 +2520,13 @@ Not a JavaScript module — this subpath entry exists so tooling (bundlers, `imp
 
 The engine wildcard subpath also exposes the body parsers below. Their figure exports operate on leading captions.
 
-| Module                       | Exports                                                                                   | Contract                                                                                                                                                                                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `engine/content-figures.mjs` | `FIGURE_NAMES`, `FIGURE_CLASSES`, `scanFigures`, `numberFigures`, `renderFigureBlocks`    | Scan leading captions and their next supported blocks; `numbered` distinguishes `:` and `:@`. `type` may override inference; `example` is supported. `FIGURE_CLASSES` retains built-in styled classes, not a closed author vocabulary. |
-| `engine/content-blocks.mjs`  | `BLOCK_NAMES`, `BLOCK_CONTAINERS`, `scanBlocks`, `renderBlocks`, `renderWithheldSections` | Read div and secret fences; generic div records have `name: "div"` and no generated title. Scanning includes verse errors.                                                                                                             |
-| `engine/content-verse.mjs`   | `verseLines`, `verseStanzas`, `inlineVerse`, `verseMarkdown`, `scanVerse`, `renderVerse`  | Read `verse` code fences, validate authored metadata and tabs, and preserve relative indent levels and stanzas.                                                                                                                        |
-| `engine/content-spans.mjs`   | `spanMarkdownPlugin`, `scanSpans`, `renderSpans`                                          | Parse bracket spans after recognized links. The scanner returns spans, the exact `.name` inventory and located errors, retaining visible text and attribute positions; rendering preserves inline Markdown and permitted attributes.   |
+| Module                       | Exports                                                                                                                     | Contract                                                                                                                                                                                                                               |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `engine/content-figures.mjs` | `FIGURE_NAMES`, `FIGURE_CLASSES`, `scanFigures`, `numberFigures`, `renderFigureBlocks`                                      | Scan leading captions and their next supported blocks; `numbered` distinguishes `:` and `:@`. `type` may override inference; `example` is supported. `FIGURE_CLASSES` retains built-in styled classes, not a closed author vocabulary. |
+| `engine/content-blocks.mjs`  | `BLOCK_NAMES`, `BLOCK_CONTAINERS`, `scanBlocks`, `renderBlocks`, `renderWithheldSections`                                   | Read div and secret fences; generic div records have `name: "div"` and no generated title. Scanning includes verse errors.                                                                                                             |
+| `engine/content-verse.mjs`   | `verseLines`, `verseStanzas`, `inlineVerse`, `parseVerse`, `verseMarkdown`, `scanVerse`, `renderVerse`, `renderVerseQuotes` | Read `.verse` divs and quotations, validate metadata and source positions, and share logical lines, stanza labels and titled canto headings across targets.                                                                            |
+| `engine/verse-regions.mjs`   | `verseRegions`, `verseDivPlugin`                                                                                            | Locate opaque raw verse div regions and install their block token rule before ordinary Markdown interpretation.                                                                                                                        |
+| `engine/content-spans.mjs`   | `spanMarkdownPlugin`, `scanSpans`, `renderSpans`                                                                            | Parse bracket spans after recognized links. The scanner returns spans, the exact `.name` inventory and located errors, retaining visible text and attribute positions; rendering preserves inline Markdown and permitted attributes.   |
 
 Inline `.secret` spans preserve their inline content, name classes and
 attributes. Site rendering uses a separate show/hide button and content span,

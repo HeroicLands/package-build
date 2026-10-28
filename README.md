@@ -92,7 +92,7 @@ Every icon and image is covered by a provenance record stating `attribution`, `l
 
 `package-build cdn publish --set <file> --name <display name>` uploads every icon and image the package has, shipped or not, to `<site.assets>/<contentPackage>/` in that flat layout, and writes the named set listing the pictures the package leaves out. It reads the bucket from `CDN_ENDPOINT`, `CDN_BUCKET`, `CDN_ACCESS_KEY_ID` and `CDN_SECRET_ACCESS_KEY`, in the environment or `.env.local`. See [publish pictures to the CDN](docs/guides/release-and-deploy.md#publish-pictures-to-the-cdn).
 
-Leading captions, generic fenced divs, inline spans, and verse code fences are described in [links and markup](docs/authoring/links-and-markup.md).
+Leading captions, fenced divs, inline spans, and verse quotations are described in [links and markup](docs/authoring/links-and-markup.md).
 
 Cypress end-to-end suites use pinned Chrome for Testing 155.0.8059.84 by default
 on macOS arm64 and Linux x64, downloaded once into a reusable cache. Select an

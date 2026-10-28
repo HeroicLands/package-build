@@ -76,6 +76,7 @@ import { journalHasContent } from "./note-state.mjs";
 import { hasLexicalEntries } from "./lexical-sections.mjs";
 import { draftNoticeFor } from "./draft-notice.mjs";
 import { scanFigures } from "./content-figures.mjs";
+import { verseRegions } from "./verse-regions.mjs";
 import { separateFootnotes } from "./content-footnotes.mjs";
 import { WITHHELD_CLASS, pageOpenings } from "./heading-attributes.mjs";
 import { imagesIn } from "./content-images.mjs";
@@ -154,6 +155,12 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
         scanFigures(markdown, { resolveRole }).figures.map((figure) => [figure.line - 1, figure]),
     );
     const blockLines = namedBlockLines(markdown, syntax);
+    const verseLines = new Set();
+    for (const region of verseRegions(markdown))
+        for (let line = region.start; line <= region.end; line++) {
+            blockLines.add(line);
+            verseLines.add(line);
+        }
     const openings = pageOpenings(markdown, blockLines);
     const pages = [];
     const beforeFirstH1 = [];
@@ -189,7 +196,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
         // carry a shorter fence of its own as literal content, same as
         // {@link module:engine/content-blocks.scanBlocks} and
         // {@link module:engine/content-figures.scanFigures} track it.
-        const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+        const fence = verseLines.has(lineIndex) ? null : /^ {0,3}(`{3,}|~{3,})/.exec(line);
         if (codeFence) {
             if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length) {
                 codeFence = null;

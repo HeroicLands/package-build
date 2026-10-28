@@ -297,7 +297,7 @@ describe("buffer-only preview", () => {
     });
     it("renders Markdown, footnotes, definitions, verse and containers locally", () => {
         const html = sourceHtml(
-            '# Heading {#heading}\n\nTerm\n: Definition\n\n:::secret {title="Details"}\nText[^one]\n:::\n\n```verse\nFirst *line*/\n.Second\n\nLast\n```\n\n[^one]: A footnote.',
+            '# Heading {#heading}\n\nTerm\n: Definition\n\n:::secret {title="Details"}\nText[^one]\n:::\n\n::: {.verse}\nFirst *line*/\n.Second\n\nLast\n:::\n\n[^one]: A footnote.',
         );
         expect(html).toContain('<h1 id="heading">Heading</h1>');
         expect(html).toContain('<dl class="dictionary">');
@@ -354,7 +354,7 @@ describe("buffer-only preview", () => {
 
     it("collects footnotes from verses in the document", () => {
         const html = sourceHtml(
-            "> [!TIP]\n> Body\n\n```verse\nVerse[^verse]\n```\n\n[^verse]: Verse note.",
+            "> [!TIP]\n> Body\n\n::: {.verse}\nVerse[^verse]\n:::\n\n[^verse]: Verse note.",
         );
         expect(html).toContain("Verse note.");
         expect(html.match(/class="footnotes"/g)).toHaveLength(1);

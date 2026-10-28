@@ -12,7 +12,7 @@
  */
 
 /**
- * **A verse fence declares its metre, and the build counts its beats.** A
+ * **A verse div declares its metre, and the build counts its beats.** A
  * metre is declared once, as an entry of a `doc` note's `data.metres`:
  *
  * ```yaml
@@ -21,7 +21,7 @@
  *     - { name: hexameter, beats: 6, kind: accentual }
  * ```
  *
- * A fence that states `scan=` with the `name` and `lang=` with a language
+ * A div that states `scan=` with the `name` and `lang=` with a language
  * whose note states `data.sounds.stress` is counted line by line, and a line
  * that cannot have the metre's beats is a warning at that line. No `scan=`
  * means no check.
@@ -278,7 +278,7 @@ export function lineBeats(text, book) {
  * The warning for a line that cannot have its metre's beats.
  *
  * @param {{min: number, max: number}} beats - The line's beats.
- * @param {import("./metre-declaration.mjs").Metre} metre - The fence's metre.
+ * @param {import("./metre-declaration.mjs").Metre} metre - The div's metre.
  * @returns {string} The message.
  */
 export function metreMessage({ min, max }, metre) {
@@ -287,13 +287,13 @@ export function metreMessage({ min, max }, metre) {
 }
 
 /**
- * Check the verse fences that state `scan=`.
+ * Check the verse divs that state `scan=`.
  *
  * @param {ReadonlyArray<{start: number, end: number, indent: string, attributes: Record<string, string>, classes: string[]}>} blocks -
- *   The fences, from {@link module:engine/content-verse.scanVerse}.
+ *   The divs, from {@link module:engine/content-verse.scanVerse}.
  * @param {string[]} lines - The source's lines.
  * @param {{languages?: Readonly<Record<string, {tag: string}>>, metres?: ReadonlyMap<string, import("./metre-declaration.mjs").Metre>, metreBooks?: ReadonlyMap<string, MetreBook>, lexicons?: ReadonlyMap<string, unknown>, attributeColumns: (line: string, key: string) => {key: number, value: number}}} ctx -
- *   The metres and books, and how the fence says its columns and where its
+ *   The metres and books, and how the div says its columns and where its
  *   keys sit.
  * @returns {{errors: object[], warnings: object[]}} The findings at 1-based
  *   positions.
@@ -325,7 +325,7 @@ export function metreFindings(blocks, lines, ctx) {
         if (lang === undefined) {
             error(
                 at("scan", "key"),
-                "`scan=` counts beats by a language's stress rule: the fence needs a `lang=`",
+                "`scan=` counts beats by a language's stress rule: the div needs a `lang=`",
             );
             continue;
         }
@@ -351,7 +351,16 @@ export function metreFindings(blocks, lines, ctx) {
         for (const group of model.groups) {
             if (group.cantoBreak) continue;
             for (const reading of group.lines) {
-                const tokens = verseParser.parseInline(reading.text, {})[0]?.children ?? [];
+                const units = reading.text
+                    .split("")
+                    .map((text, index) => ({ text, offset: reading.offsets[index] }))
+                    .filter(
+                        ({ offset }) =>
+                            !model.layout.some(([from, to]) => offset >= from && offset < to),
+                    );
+                const tokens =
+                    verseParser.parseInline(units.map((unit) => unit.text).join(""), {})[0]
+                        ?.children ?? [];
                 const tag = (name) => (ctx.languages?.[name]?.tag ?? name).toLowerCase();
                 const foreign = tokens.find(
                     (token) =>
@@ -361,7 +370,7 @@ export function metreFindings(blocks, lines, ctx) {
                 );
                 if (foreign) {
                     error(
-                        sourcePosition(reading.offsets[foreign.meta.start] ?? reading.from),
+                        sourcePosition(units[foreign.meta.start]?.offset ?? reading.from),
                         "`scan=` counts one language's beats; this verse line contains another language",
                     );
                     continue;

@@ -42,6 +42,7 @@
  * @property {string} visible - Visible text from the actual parsed children.
  * @property {ReadonlyArray<readonly [string, string]>} attrs - Retained permitted HTML attributes.
  * @property {Record<string, SpanAttributePosition>} attributePositions - Authored key/value sites by retained attribute name.
+ * @property {ReturnType<typeof import("./content-verse.mjs").parseVerse>} [verseModel] - Logical model of an inline verse quotation.
  */
 
 /**

@@ -823,9 +823,9 @@ describe("ref on a name span", () => {
             "[Tom]{.name ref=being-tomr}",
             ":::",
             "",
-            "```verse",
+            "::: {.verse}",
             "[Tom]{.name ref=being-tomr} walks",
-            "```",
+            ":::",
         ].join("\n");
         const names = analyzeNameSpans(refSpans(raw)).names;
         expect(names.map((name) => name.ref)).toEqual(Array(4).fill("being-tomr"));

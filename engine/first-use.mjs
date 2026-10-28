@@ -45,6 +45,7 @@ import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import MarkdownIt from "markdown-it";
 import { readQualifier } from "./address.mjs";
+import { verseRegions } from "./verse-regions.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { RUN_KEYS } from "./content-scripts.mjs";
@@ -169,14 +170,37 @@ const overlaps = (values, value) => {
  * Explicit inline occurrences, authored strong text and structural exclusions
  * at original source offsets.
  */
-function prose(source, capturedNames) {
+function prose(source, capturedNames, capturedSpans) {
     const links = [],
         paragraphs = [],
         regions = [],
         excluded = [],
         strong = [],
         html = [];
-    const masked = source
+    const spans = capturedSpans ?? scanSpans(source);
+    const verseMasks = verseRegions(source).map((region) => ({
+        start: region.from,
+        end: region.to,
+        block: true,
+    }));
+    for (const span of spans.spans)
+        if (
+            span.verseModel ||
+            span.attrs.some(
+                ([key, value]) => key === "class" && value.split(/\s+/).includes("verse"),
+            )
+        )
+            verseMasks.push({ start: span.start, end: span.end, block: false });
+    excluded.push(...verseMasks);
+    const verseRanges = verseMasks
+        .sort((a, b) => a.start - b.start || b.end - a.end)
+        .filter(
+            (range, index, all) =>
+                !all
+                    .slice(0, index)
+                    .some((parent) => parent.start <= range.start && parent.end >= range.end),
+        );
+    let masked = source
         .replace(/!\[\[[^\]\n]+\]\]|\{\{[^}\n]+\}\}/g, (text, start) => {
             excluded.push({ start, end: start + text.length });
             return blank(text);
@@ -193,6 +217,11 @@ function prose(source, capturedNames) {
             });
             return "x".repeat(text.length);
         });
+    for (const range of [...verseRanges].reverse())
+        masked =
+            masked.slice(0, range.start) +
+            masked.slice(range.start, range.end).replace(/[^\r\n]/g, range.block ? " " : "x") +
+            masked.slice(range.end);
     const tree = parser.parse(masked);
     const env = { references: Object.create(null) };
     const inline = (node) => {
@@ -285,7 +314,7 @@ function prose(source, capturedNames) {
     });
     const authoredLinks = [...new Map(actualLinks.map((link) => [link.start, link])).values()];
     const linked = ranges(authoredLinks);
-    const marked = (capturedNames ?? scanSpans(source).names)
+    const marked = (capturedNames ?? spans.names)
         .filter((span) => eligible(span) && !contains(linked, span))
         .map((span) => ({
             ...span,
@@ -373,7 +402,7 @@ export function nameUses(markdown, vocabulary) {
     // Every use carries the class, so a body without it is read no further.
     if (!source.includes(".name")) return [];
     const spans = scanSpans(source);
-    const { marked, links, strong, inParagraph } = prose(source, spans.names);
+    const { marked, links, strong, inParagraph } = prose(source, spans.names, spans);
     const starts = [0];
     for (let i = 0; i < source.length; i++) if (source[i] === "\n") starts.push(i + 1);
     // A caption and a named block's opening and closing lines are not prose.
@@ -527,14 +556,16 @@ export function createFirstUseChecker({
     const { recognize } = catalog;
     return ({ file, raw }) => {
         const authored = parsed?.get(file);
-        const capturedNames =
-            authored?.raw === raw && Number.isInteger(authored.bodyLine) ?
-                rebaseNameSpans(
-                    (syntax ? syntax(authored.body).spans : scanSpans(authored.body)).names,
-                    { raw, bodyLine: authored.bodyLine, bodyColumn: authored.bodyColumn },
-                )
-            :   undefined;
-        const { marked } = prose(raw, capturedNames);
+        let captured;
+        if (authored?.raw === raw && Number.isInteger(authored.bodyLine)) {
+            const inventory = syntax ? syntax(authored.body).spans : scanSpans(authored.body);
+            const context = { raw, bodyLine: authored.bodyLine, bodyColumn: authored.bodyColumn };
+            captured = {
+                names: rebaseNameSpans(inventory.names, context),
+                spans: rebaseNameSpans(inventory.spans, context),
+            };
+        }
+        const { marked } = prose(raw, captured?.names, captured);
         const findings = new Map();
         const add = (offset, rule, message) => {
             if (!findings.has(offset)) findings.set(offset, { rules: [], messages: [] });

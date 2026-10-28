@@ -87,7 +87,7 @@ describe("command boundary validation", () => {
         [":::secret\n# Page\n:::\n", "heading that starts a page"],
         ["> [!NOTE]\n", "needs a body"],
         ["> [!NOTE\n", "brackets"],
-        ["```verse\nVerse.\n", "closing code fence"],
+        ["::: {.verse}\nVerse.\n", "closing ::: line"],
     ])("shares the renderer's syntax refusals: %s", async (body, message) => {
         write("example.md", body);
         const result = await lintMarkdown(root);

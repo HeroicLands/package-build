@@ -46,6 +46,7 @@
  * prevent.
  */
 
+import { verseRegions } from "./verse-regions.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
 
 /** A fence line, capturing its indent, its marker, and its info string. */
@@ -104,11 +105,10 @@ function column(space) {
  * @param {object} [options]
  * @param {boolean} [options.spans=true] - Include inline code spans. Set false
  *   to consider only block-level code.
- * @param {boolean} [options.verseAsProse=true] - Treat verse bodies as inline prose.
  * @returns {Array<{start: number, end: number}>} Non-overlapping regions, in
  *   source order. `end` is exclusive.
  */
-export function codeRegions(markdown, { spans = true, verseAsProse = true } = {}) {
+export function codeRegions(markdown, { spans = true } = {}) {
     const src = String(markdown ?? "");
     if (!src) return [];
     const lines = src.split("\n");
@@ -127,6 +127,16 @@ export function codeRegions(markdown, { spans = true, verseAsProse = true } = {}
     });
 
     const regions = [];
+    const verses = verseRegions(src);
+    const verseLines = new Set(
+        verses.flatMap((region) =>
+            Array.from({ length: region.end - region.start + 1 }, (_, i) => region.start + i),
+        ),
+    );
+    for (const verse of verses) {
+        regions.push(through(verse.start, verse.start));
+        if (verse.closed) regions.push(through(verse.end, verse.end));
+    }
     // The content column of the innermost open list item: an indented block
     // has to clear *that*, not column zero, or every list continuation would
     // read as code.
@@ -137,6 +147,7 @@ export function codeRegions(markdown, { spans = true, verseAsProse = true } = {}
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        if (verseLines.has(i)) continue;
 
         const fence = FENCE_LINE.exec(line);
         if (fence) {
@@ -145,10 +156,7 @@ export function codeRegions(markdown, { spans = true, verseAsProse = true } = {}
             let close = i + 1;
             while (close < lines.length && !closer.test(lines[close])) close++;
             // An unclosed fence runs to the end of the document.
-            if (verseAsProse && /^verse(?:\s|$)/.test(fence[3])) {
-                regions.push(through(i, i));
-                if (close < lines.length) regions.push(through(close, close));
-            } else regions.push(through(i, Math.min(close, lines.length - 1)));
+            regions.push(through(i, Math.min(close, lines.length - 1)));
             i = close;
             afterBlank = false;
             continue;
@@ -186,6 +194,7 @@ export function codeRegions(markdown, { spans = true, verseAsProse = true } = {}
         afterBlank = false;
     }
 
+    regions.sort((a, b) => a.start - b.start);
     if (spans) regions.push(...codeSpans(src, regions));
     regions.sort((a, b) => a.start - b.start);
     return regions;

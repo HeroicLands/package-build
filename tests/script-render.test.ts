@@ -11,7 +11,7 @@ import { encodingContext } from "./helpers/encoding.js";
  * **Marked text rendered on every target.** Goldens for `renderRuns` and for
  * what each target makes of its output: a roman run in a language, a run
  * mapped into a left-to-right face, a run mapped into a right-to-left face, a
- * right-to-left block, a verse fence, and the generic families.
+ * right-to-left block, a verse div, and the generic families.
  *
  * The fixture fonts package lists each face's real code points, and the maps
  * here are written out row by row, so every expectation is a literal.
@@ -128,16 +128,16 @@ const BLOCK = [
     ":::",
 ].join("\n");
 const POEM = [
-    "```verse {form=epic lang=vyl font=semaron-kuriale enc=semaron}",
+    ":::verse {form=epic lang=vyl font=semaron-kuriale enc=semaron}",
     "thrima sorima/",
     "  thrima",
-    "```",
+    ":::",
 ].join("\n");
 const RTL_POEM = [
-    "```verse {#lay lang=khel font=qalezu-hand enc=khel-qalezu}",
+    ":::verse {#lay lang=khel font=qalezu-hand enc=khel-qalezu}",
     "anlagh gar/",
     "  zul",
-    "```",
+    ":::",
 ].join("\n");
 const ALL = [ROMAN, "", LTR, "", RTL, "", BLOCK, "", POEM, "", RTL_POEM, ""].join("\n");
 
@@ -215,7 +215,7 @@ describe("renderRuns, goldens", () => {
         );
     });
 
-    it("gives a verse fence native classes and paired logical lines", () => {
+    it("gives a verse div native classes and paired logical lines", () => {
         const result = renderRuns(POEM, ctx);
         expect(result.errors).toEqual([]);
         expect([...result.verses.values()][0].model.groups[0].lines).toMatchObject([
@@ -259,7 +259,7 @@ describe("renderRuns, goldens", () => {
     });
 
     it("is idempotent in what it leaves unmarked", () => {
-        const plain = "Nothing is marked here.\n\n```verse {form=epic}\nA\n```\n";
+        const plain = "Nothing is marked here.\n\n:::verse {form=epic}\nA\n:::\n";
         expect(render(plain)).toBe(plain);
     });
 });
@@ -294,7 +294,7 @@ describe("the site", () => {
         );
     });
 
-    it("sets a verse fence with its class and tag", () => {
+    it("sets a verse div with its class and tag", () => {
         expect(site(POEM)).toContain(
             '<span class="verse-native script hl-semaron-kuriale" lang="art-x-vyl" data-pagefind-ignore="true">',
         );
@@ -329,7 +329,7 @@ describe("Foundry", () => {
         );
     });
 
-    it("sets a right-to-left block and a verse fence", () => {
+    it("sets a right-to-left block and a verse div", () => {
         expect(foundry(BLOCK)).toContain(
             '<div class="note script script-block hl-qalezu-hand" id="verse" lang="art-x-khel" dir="rtl">',
         );
@@ -418,7 +418,7 @@ describe("Typst", () => {
         );
     });
 
-    it("sets a verse fence in its class", () => {
+    it("sets a verse div in its class", () => {
         expect(typst(POEM)).toContain(
             '#book-script-text(classes: ("script", "hl-semaron-kuriale"))[',
         );

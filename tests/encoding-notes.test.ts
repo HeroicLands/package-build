@@ -239,7 +239,7 @@ it("selects a native verse encoding on the fence", () => {
             ],
         ]),
     };
-    expect(scanRuns("```verse {enc=testenc}\nab\n```", ctx).errors).toEqual([]);
+    expect(scanRuns(":::verse {enc=testenc}\nab\n:::", ctx).errors).toEqual([]);
 });
 it("leaves malformed native entries untouched for normal required-field validation", async () => {
     const { lexiconsFromRecords, serializeLexicon } =

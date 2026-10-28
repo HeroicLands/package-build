@@ -111,7 +111,9 @@ export function scanBlocks(source) {
     for (const token of blockTokens(source)) {
         if (
             !token.map ||
-            !["blockquote_open", "fence", "code_block", "html_block"].includes(token.type)
+            !["blockquote_open", "fence", "code_block", "html_block", "verse_div"].includes(
+                token.type,
+            )
         )
             continue;
         for (let line = token.map[0]; line < token.map[1]; line++) literalLines.add(line);
@@ -277,7 +279,7 @@ export function renderBlocks(source, target, { renderInline, verses } = {}) {
         // at every depth, never a rendered fragment.
         const held =
             BLOCK_CONTAINERS.includes(block.name) ?
-                renderBlocks(block.body, target, { renderInline }).markdown
+                renderBlocks(block.body, target, { renderInline, verses }).markdown
             :   block.body;
         if (block.name === "div") {
             output.push("", `<div ${attributes}>`, "", held, "", "</div>", "");

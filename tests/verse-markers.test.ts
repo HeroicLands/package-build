@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import { describe, expect, it } from "vitest";
 import { parseVerse, scanVerse, verseStanzas, renderVerse } from "../engine/content-verse.mjs";
-const fence = (...lines: string[]) => ["```verse", ...lines, "```"].join("\n");
+const fence = (...lines: string[]) => ["::: {.verse}", ...lines, ":::"].join("\n");
 describe("verse line markers and language runs", () => {
     it("takes indentation from periods in the first span and leaves later periods literal", () => {
         const body = "   [..The gate]{lang=en} [..salve]{lang=la}/\n  Plain [..word]{lang=la}";
@@ -26,11 +26,11 @@ describe("verse line markers and language runs", () => {
         expect(verseStanzas("To be,/\n..that is!//")).toEqual(verseStanzas("To be,/..that is!//"));
     });
     it("keeps blank stanza groups and a separate canto break", () => {
-        const source = fence("One", "", "Two", "***", "Three");
+        const source = fence("One", "", "Two", "", "--- {.canto}", "Three");
         expect(scanVerse(source).errors).toEqual([]);
-        expect(parseVerse("One\n\nTwo\n***\nThree").cantos.map((c) => c.stanzas.length)).toEqual([
-            2, 1,
-        ]);
+        expect(
+            parseVerse("One\n\nTwo\n\n--- {.canto}\nThree").cantos.map((c) => c.stanzas.length),
+        ).toEqual([2, 1]);
         expect(renderVerse(source).markdown).toContain('class="verse-canto-break"');
     });
 });

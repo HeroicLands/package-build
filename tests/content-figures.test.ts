@@ -10,7 +10,7 @@ describe("leading captions", () => {
         ["![[place-a]]", "figure", "Figure 1"],
         ["| A | B |\n| --- | --- |\n| a | b |", "table", "Table 1"],
         ["```sql\nSELECT 1;\n```", "table", "Table 1"],
-        ["```verse\nA verse\n```", "poem", "Poem 1"],
+        ["::: {.verse}\nA verse\n:::", "poem", "Poem 1"],
         ["```js\nlet a=1;\n```", "code", "Code 1"],
         ["A paragraph.", "prose", "Prose 1"],
         ["> A quote.", "prose", "Prose 1"],

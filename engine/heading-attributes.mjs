@@ -40,7 +40,8 @@ import { blockTokens } from "./markdown-blocks.mjs";
 function literalHeadingLines(source) {
     const lines = new Set();
     for (const token of blockTokens(source)) {
-        if (!token.map || !["fence", "code_block", "html_block"].includes(token.type)) continue;
+        if (!token.map || !["fence", "code_block", "html_block", "verse_div"].includes(token.type))
+            continue;
         for (let line = token.map[0]; line < token.map[1]; line++) lines.add(line);
     }
     return lines;

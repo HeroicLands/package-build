@@ -260,7 +260,7 @@ The caption attaches to exactly the next supported block:
 | Markdown table                       | `table`       | Table          |
 | Image, Markdown or wikilink          | `figure`      | Figure         |
 | SQL fence, including backtick SQL    | `table`       | Table          |
-| Verse fence                          | `verse`       | Poem           |
+| Verse div                            | `verse`       | Poem           |
 | Any other code fence                 | `code`        | Code           |
 | Paragraph, quote block or fenced div | `prose`       | Prose          |
 
@@ -409,10 +409,10 @@ Foundry renders a secret section; the website renders an expandable spoiler, and
 
 ### Verse
 
-A `verse` fence sets a version of a work, whether poetry or prose. `/` ends a
+A `.verse` div sets a version of a work, whether poetry or prose. `/` ends a
 logical line. Source newlines otherwise join with whitespace, so prose can wrap
 across source lines. A blank line or `//` ends a stanza (a paragraph); a line
-containing only `***` ends a canto (a section). The last line before either
+of `--- {.canto}`, preceded by a blank line, ends a canto (a section). The last line before either
 boundary needs no `/`. A literal slash in text is written `\/`; slashes inside
 Markdown syntax, such as a link destination, remain syntax.
 
@@ -421,33 +421,34 @@ level, and are removed from the display. They may follow `/` on the same source
 line. Leading spaces do not set indentation. A period beginning a continuation
 source line is literal text when the preceding text has no logical line ending.
 Periods inside the first inline span can set indentation; periods in later spans
-are literal. Tabs inside a verse fence are errors.
+are literal. Tabs inside a verse div are errors. The div body is opaque to Markdown block syntax:
+lines beginning `- `, `1. `, `# `, `> ` or four spaces stay verse text.
 
 These two bodies have the same lines and indentation:
 
-````markdown
-```verse {lang=en}
+```markdown
+::: {.verse lang=en}
 To be or not to be,/
 ..that is the question!
-```
+:::
 
-```verse {lang=en}
+::: {.verse lang=en}
 To be or not to be,/..that is the question!
+:::
 ```
-````
 
 Verse is upright by default. English text accepts Markdown emphasis; other
 languages use their declared [script emphasis](#emphasis-in-a-script). Inline
 links, names, language spans and footnotes keep their ordinary meanings.
 The optional `form=` records the author's literary form, `lang=` identifies the
 language, and `font=` selects a face. `enc=` selects an encoding document. An
-optional `#id` addresses the fence. `scan=` checks a declared metre.
+optional `#id` addresses the div. `scan=` checks a declared metre.
 
-A concrete `enc=` draws the original in its script on the left and the same text
+On a div, a concrete `enc=` draws the original in its script on the left and the same text
 in Roman on the right. Write the original once, with no column prefixes. Each
 logical line aligns with its counterpart at full weight; indentation and breaks
 match. `⟦…⟧` codage draws glyphs on the left and remains codage on the right.
-Names, nested language choices and `lang=zxx` gaps retain their scope. A fence
+Names, nested language choices and `lang=zxx` gaps retain their scope. A div
 with no `enc=`, or with `enc=default`, has one Roman column. The content index's
 `runs` relation records the authored original once, in its language and encoding.
 
@@ -467,21 +468,21 @@ the beats of one line, a whole number above zero. `kind` is `accentual`, the
 only kind: a beat falls on a stressed syllable, and the length of a syllable
 is not counted.
 
-A verse fence that states `scan=` with the declared name, and `lang=` with a
+A verse div that states `scan=` with the declared name, and `lang=` with a
 language whose `note` names a language note stating
 [`data.sounds.stress`](../reference/format-details.md#a-languages-register-sounds-and-history),
 is counted line by line. A line that cannot have the metre's beats is a warning
 at that line:
 
-````markdown
-```verse {form=epic scan=hexameter lang=vyl}
+```markdown
+::: {.verse form=epic scan=hexameter lang=vyl}
 Thiruthriman sorimamen, ul alathas kedis alatha valmazor,
+:::
 ```
-````
 
 > ``this line has 4 beats (5 with secondary beats); the metre `hexameter` has 6``
 
-`scan=` uses the fence's one language to count beats. If a verse line contains
+`scan=` uses the div's one language to count beats. If a verse line contains
 a run in another language, the build does not scan that run with the fence
 language's stress rules; it reports an error at the line:
 
@@ -512,76 +513,158 @@ Beats are counted this way:
 - The caesura is not written.
 
 `scan=` is refused where it cannot mean anything: a name no `data.metres`
-declares, a fence with no `lang=`, a language without a stress rule. A fence with no `scan=` is not counted. Readers see nothing of the
-count; the fence carries `data-scan` with the metre's name.
+declares, a div with no `lang=`, a language without a stress rule. A div with no `scan=` is not counted. Readers see nothing of the
+count; the div carries `data-scan` with the metre's name.
 
-To number and caption a poem, put a leading numbered caption before the verse fence:
+To number and caption a poem, put a leading numbered caption before the verse div:
 
-````markdown
+```markdown
 :@ A song sung by the harbor watch. {#watch-song}
 
-```verse {form=ballad}
+::: {.verse form=ballad}
 The watch has gone to sea,/
 The lantern marks the shore.
+:::
 ```
-````
 
 This uses the **Poem** counter, so `{{ref "#watch-song"}}` reads **Poem 1**. Use `:` for a caption without a number.
 
 #### Versions and stanza labels
 
-`work=<key>` names a work within the page. Every fence with that key is a version
+`work=<key>` names a work within the page. Every div with that key is a version
 of the same work. Each stanza opens with its automatically counted label: `1`,
 `2`, and so on for a work with no canto break, or `1:1`, `1:2`, `2:1`, and so on
-when the fence contains cantos. Stanza numbering starts at one in each canto.
+when the div contains cantos. Stanza numbering starts at one in each canto.
 The website, Foundry journals and book show the same labels. A paired original
-has one label shared by both presentations. A fence without `work=` has no label.
+has one label shared by both presentations. A div without `work=` has no label.
 
 Versions must have the same number of cantos and the same number of stanzas in
 each canto. Their line counts can differ. A work with only one version is a
 finding. Shape disagreements are findings at the opening lines of the versions,
-naming the canto and the counts. A `***` at the edge of a fence, or beside another
+naming the canto and the counts. A canto break at the edge of a div, or beside another
 canto break with no intervening stanza, is a finding at the break itself.
+Authored `***` inside verse is a finding.
 
 This poem's English version and Sinale original share stanza `1`. The original
 is authored once and displays as script beside Roman:
 
-````markdown
-```verse {form=lay work=asking lang=en}
+```markdown
+::: {.verse form=lay work=asking lang=en}
 A child comes up the hill at night/
 .and leaves a loaf beneath the birch./
 .She does not wait. She does not search/
 the dark for us. We stand in sight.
-```
+:::
 
-```verse {form=lay work=asking lang=sina enc=sinaveldikkoenc}
+::: {.verse form=lay work=asking lang=sina enc=sinaveldikkoenc}
 irtal nysse auldiho nalduho/
 .penvai onsa tarnevinu halpi polpeho/
 .ahi sennevi onsa ahi syltete onsa/
 ehii nalduho setty ehii nelkis yinserseho
+:::
 ```
-````
 
-Prose uses the same fence and omits line-ending marks. Source lines join into
+Prose uses the same div and omits line-ending marks. Source lines join into
 paragraphs. Both versions below have stanzas `1` and `2`; the original's paragraphs
 also appear beside their Roman text:
 
-````markdown
-```verse {work=walking lang=en}
+```markdown
+::: {.verse work=walking lang=en}
 He walks the oath road.
 
 I walk the oath road.
-```
+:::
 
-```verse {work=walking lang=vyl enc=vylsemaronenc}
+::: {.verse work=walking lang=vyl enc=vylsemaronenc}
 Lokazor lonak zaron.
 
 Lokamen lonak zaron.
+:::
 ```
-````
 
 See [work shape diagnostics](../diagnostics.md#a-worked-case-versions-of-a-work)
 for how findings locate a disagreement.
+
+#### Inline quotations
+
+Quoted verse inside a prose paragraph uses a `.verse` span:
+
+```markdown
+The reply is [to be or not to be/..that is the question!//]{.verse} in the telling.
+```
+
+A quotation uses `/` for line endings and `//` for stanza endings, with the same
+indentation and source-line joining as a div. It takes ordinary span attributes,
+including `lang=` and `enc=`. An unencoded quotation draws Roman text with its
+line and stanza layout. A concrete encoding draws only its script, continuously
+inside the surrounding prose, like any encoded span. Its `/` and `//` reach the
+encoder as verse controls, so a script with verse signs draws them. Only divs
+have paired script and Roman columns.
+Inline verse has no `work=`, `form=`, `scan=`, stanza labels or canto breaks.
+Directions, speaker labels, links, names and shared note footnotes work inside it.
+
+#### Footnotes in works and encoded spans
+
+Footnote references are valid after a line or word inside verse. Their definitions
+sit below the work, as ordinary note footnotes:
+
+```markdown
+::: {.verse work=walking lang=en}
+He walks the oath road.[^image]
+:::
+
+::: {.verse work=walking lang=vyl enc=vylsemaronenc}
+Lokazor lonak[^oath] zaron.
+:::
+
+[^image]: The road names the obligation as well as the route.
+
+[^oath]: This word carries the oath image in the original.
+```
+
+The English reference renders normally. In the encoded original, the reference
+appears only in the Roman column, beside the word it follows. The script column
+has no marker. Displaying a line twice adds no duplicate number, definition or
+backlink. References never add lines, stanzas or labels and never affect work
+shape.
+
+This rule also applies to every encoded span, whether or not it carries
+`.verse`. A footnote marker is removed before encoding and restored after the
+span's text, outside its script font, as an ordinary reference:
+
+```markdown
+The inscription reads [Lokazor lonak[^word] zaron.]{lang=vyl enc=vylsemaronenc}.
+The reply is [Lokazor lonak[^reply] zaron./Lokamen lonak zaron.//]{.verse lang=vyl enc=vylsemaronenc}.
+
+[^word]: A note about the inscription's wording.
+
+[^reply]: A note about the reply's wording.
+```
+
+Markers never reach an encoder, draw a script glyph or cause an encoding finding.
+The website, Foundry journals and book share the note's footnote numbering and
+definitions.
+
+#### Canto headings
+
+A canto break stands alone after a blank line, with a stanza on both sides.
+Its optional `title` appears as a heading and its optional `#id` is an anchor
+within the work, without starting a separate Foundry journal page:
+
+```markdown
+::: {.verse lang=en}
+The watch crosses the shore.
+
+--- {.canto #choosing title="The Choosing"}
+The captain raises the lamp.
+:::
+```
+
+The heading appears once across an encoded div's presentations. Its title is
+heading text, separate from the letters passed to the encoder. A valid break
+supplies the encoder's standard Roman `***` canto control. `package-build format`
+leaves each complete verse div and quotation byte for byte, including its
+delimiters and attributes, while formatting surrounding prose.
 
 #### Directions and speakers
 
@@ -591,29 +674,29 @@ Each version writes its own directions and speaker names in its own language.
 Write ordinary case; these classes do not rewrite the text. The classes are
 valid outside verse as well.
 
-````markdown
-```verse {form=rite work=weighing lang=en}
+```markdown
+::: {.verse form=rite work=weighing lang=en}
 Let the household enter. Let the creditor enter./
 [The reader names the year of the reign, the season, the day, and the dead.]{.direction}/
 One person of this household goes down to the West.
-```
+:::
 
-```verse {form=rite work=weighing lang=khel enc=khelqalezuenc}
+::: {.verse form=rite work=weighing lang=khel enc=khelqalezuenc}
 galun garqen. galun zeqatar./
 [zethul nemar …]{.direction}/
 yarul genar lazen elu garqen nizar ez ithnar.
-```
+:::
 
-```verse {form=roll work=thresholds lang=en}
+::: {.verse form=roll work=thresholds lang=en}
 [The Captain]{.speaker}/
 Is the stone here?
-```
+:::
 
-```verse {form=roll work=thresholds lang=tarv enc=tarvsemaronenc}
+::: {.verse form=roll work=thresholds lang=tarv enc=tarvsemaronenc}
 [thrumar]{.speaker}/
 eza goitsa ared ir denon sedon.
+:::
 ```
-````
 
 Their text is encoded normally. The classes themselves are presentation hooks;
 they add no emphasis, encoding controls or stanza boundaries. A direction alone
@@ -645,7 +728,7 @@ A scroll fence is a real code fence, so Markdown never reformats its body.
 - **`rows=`** is the number of characters in a column, and **`cols=`** the
   number of columns in a panel. Each is a whole number above zero, and either
   may be left out.
-- **`lang=`, `font=` and `enc=`** work as they do on a verse fence. See
+- **`lang=`, `font=` and `enc=`** work as they do on a verse div. See
   [marking language, font and encoding](#marking-language-font-and-encoding).
   The text is encoded before layout. Own and composed lexical spellings precede
   rows; a written separator follows the selected definition. An explicit `enc=`
@@ -733,7 +816,7 @@ Use the guillemet pairs instead of English double quotation marks or `<<` and
 Whitespace is every Unicode space-separator (`Zs`) and U+0009 through U+000D.
 A contiguous run of that whitespace is one word separator, written as the
 chosen encoding specifies. A source newline joins as whitespace. In verse,
-`/` ends a logical line, blank lines or `//` end stanzas, and standalone `***`
+`/` ends a logical line, blank lines or `//` end stanzas, and `--- {.canto}` after a blank line
 ends a canto. Visual indentation at a logical line boundary stays layout,
 outside the encoded letters. Write `\/` for a literal slash.
 
@@ -774,7 +857,7 @@ face. An explicitly authored font remains a font choice.
 
 A name's braces use the shared name controls. Resolved references encode only
 their visible labels, retaining URLs and presentation cues. These keys apply
-to spans, divs, verse fences and scroll fences. A scroll's selected font must
+to spans, divs and scroll fences. A scroll's selected font must
 belong to a script whose note declares `direction: vertical-rl`.
 
 ### A language's script
@@ -1162,7 +1245,7 @@ that `lint` reports and that fails nothing:
 | ``a span in non-English language `vyl` holds no bold or italic markup``                                                                                   | Remove the markup, or escape its delimiter characters.                                                                    |
 | `` `vyl` marks emphasis with a word, not a mark; write the word ``                                                                                        | Remove the emphasis marks and write the word the language stresses with.                                                  |
 | ``a div marked `lang=vyl font=semaron-kuriale enc=vylsemaronenc` holds paragraphs and line breaks only, not a list``                                      | Move the list out of the div.                                                                                             |
-| `` `font=` is read on a span, a div or a verse fence, not on a secret block ``                                                                            | Put a marked div inside the secret block.                                                                                 |
+| `` `font=` is read on a span, a div or a verse div, not on a secret block ``                                                                              | Put a marked div inside the secret block.                                                                                 |
 | `` `vly` is read as a BCP 47 tag; did you mean the declared language `vyl`? `` (a warning)                                                                | Write the declared name, or ignore it when the tag is meant.                                                              |
 
 A character the face does not draw is reported once per run, at its first
@@ -1319,7 +1402,7 @@ const lantern = "lit"; // the harbor light
 ```
 ````
 
-A fence named `sql`, `pagelist` or `verse` is not a listing: a query is replaced by its table, and verse is set as a work.
+A fence named `sql` or `pagelist` is a query. Verse uses a `.verse` div or quotation.
 
 ## SQL generated tables
 
@@ -1341,7 +1424,7 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 | `entries`          | Every note, stubs included.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `events`           | One row per event a `lore`, `place` or `affiliation` note writes in `data.events`, with `whenSort` to order them by date.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `names`            | Each authored `.name` span, with its containing NOTE Address, visible text, optional type/subtype and source line/column.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `runs`             | Each span, div and verse fence marked with `lang=`, `font=` or `enc=`, with its containing NOTE Address, its `kind`, `lang` as written, the `tag` it resolves to, the `font` and `enc` it is set with (its own, inherited, or its language's [script](#a-languages-script)), and source line/column. See [marking language, font and encoding](#marking-language-font-and-encoding).                                                                                                                                                                                                                                                   |
+| `runs`             | Each span, div and verse div marked with `lang=`, `font=` or `enc=`, with its containing NOTE Address, its `kind`, `lang` as written, the `tag` it resolves to, the `font` and `enc` it is set with (its own, inherited, or its language's [script](#a-languages-script)), and source line/column. See [marking language, font and encoding](#marking-language-font-and-encoding).                                                                                                                                                                                                                                                     |
 | `natives`          | One row per native form a language note's word states in `native`, with that note as its `language`, the word's place as `word`, its `form`, the entry's place as `native`, and its `enc`, `font` and `"text"`. See [what `enc=` takes](#what-enc-takes).                                                                                                                                                                                                                                                                                                                                                                              |
 | `words`            | One row per word a language note writes in `data.words`, with that note as its `language`, its `position` and what it is built from.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `affixes`          | One row per affix a language note writes in `data.affixes`, with that note as its `language`, its `position`, and each key the affix states: `form` (`NULL` on a zero affix), `zero`, `kind`, `given`, `"where"`, `gloss`, `attaches`, `replaces`, `attachesTo`, `lengthens`, `front`, `examples`, `barredAfter` and `tones`, then `written`, the form as a table prints it, `∅` for a zero affix.                                                                                                                                                                                                                                     |

@@ -12,7 +12,7 @@
  */
 
 /**
- * Spans, divs and verse fences marked with `lang=`, `font=` or `enc=`, projected
+ * Spans, divs and verse divs and quoted verse spans marked with `lang=`, `font=` or `enc=`, projected
  * from own-note index records into the SQL `runs` relation. Every value is a
  * column value and none is a key, so two notes writing one tag in different
  * case are two rows. Documentation records and assets contribute no rows.

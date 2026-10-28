@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import { describe, expect, it } from "vitest";
 import { parseVerse, scanVerse, renderVerse, VERSE_KEYS } from "../engine/content-verse.mjs";
-const fence = (body: string, attrs = "") => `\`\`\`verse {${attrs}}\n${body}\n\`\`\``;
+const fence = (body: string, attrs = "") => `::: {.verse ${attrs}}\n${body}\n:::`;
 describe("work stanza structure", () => {
     it("joins source lines and reads explicit line and stanza endings", () => {
-        const model = parseVerse("First\ncontinued/..Second//Third\n\nFourth\n***\nLast");
+        const model = parseVerse(
+            "First\ncontinued/..Second//Third\n\nFourth\n\n--- {.canto}\nLast",
+        );
         expect(
             model.cantos.map((c) => c.stanzas.map((s) => s.lines.map((l) => [l.text, l.level]))),
         ).toEqual([
@@ -67,9 +69,9 @@ describe("work stanza structure", () => {
     });
     it("finds empty cantos at their separators", () => {
         for (const [body, offset] of [
-            ["***\nA", 0],
-            ["A\n***", 2],
-            ["A\n***\n***\nB", 6],
+            ["--- {.canto}\nA", 0],
+            ["A\n\n--- {.canto}", 3],
+            ["A\n\n--- {.canto}\n\n--- {.canto}\nB", 17],
         ] as const) {
             expect(parseVerse(body).errors).toEqual([
                 { offset, message: "a canto break needs a stanza before and after it" },
@@ -107,7 +109,7 @@ describe("work stanza structure", () => {
         expect(scanVerse(fence("A", "work=alone"), { checkWorks: false }).errors).toEqual([]);
     });
     it("keeps native canto marks in their script font and direction", () => {
-        const body = "A\n***\nB",
+        const body = "A\n\n--- {.canto}\nB",
             model = parseVerse(body);
         const mark = "\u{F0200}";
         model.groups.find((group) => group.cantoBreak).text = mark;

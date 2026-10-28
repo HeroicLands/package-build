@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 /**
- * **A verse fence declares its metre, and the build counts its beats.** The
+ * **A verse div declares its metre, and the build counts its beats.** The
  * language states its stress rule as data, a `doc` note declares the metre, and
- * a fence with `scan=` and `lang=` is warned at each line that cannot scan.
+ * a div with `scan=` and `lang=` is warned at each line that cannot scan.
  */
 
 import { execFileSync } from "node:child_process";
@@ -90,7 +90,7 @@ const bare = {
 const ctx = runContext(config, [language(RULE), bare, metres]);
 
 const fence = (attrs: string, ...lines: string[]) =>
-    ["```verse {" + attrs + "}", ...lines, "```"].join("\n");
+    ["::: {.verse " + attrs + "}", ...lines, ":::"].join("\n");
 
 /** Every warning of a source, as `line:column: message`. */
 const warnings = (source: string) =>
@@ -258,14 +258,15 @@ describe("the warning", () => {
         const source = fence(
             "scan=trimeter lang=vyl",
             "[..zaros zaros zaros]{lang=vyl}",
-            "***",
+            "",
+            "--- {.canto}",
             ".zaros zaros zaros",
         );
         expect(warnings(source)).toEqual([]);
         expect(errors(source)).toEqual([]);
     });
 
-    it("refuses to scan another language with the fence's beat rules", () => {
+    it("refuses to scan another language with the div's beat rules", () => {
         const source = fence("scan=trimeter lang=vyl", "zaros [a foreign phrase]{lang=en} zaros");
         expect(errors(source)).toContain(
             "2:7: `scan=` counts one language's beats; this verse line contains another language",
@@ -287,7 +288,7 @@ describe("the warning", () => {
         ]);
     });
 
-    it("is positioned on the file's line when the fence sits below other text", () => {
+    it("is positioned on the file's line when the div sits below other text", () => {
         const source = ["Intro", "", fence("scan=trimeter lang=vyl", "zaros zaros")].join("\n");
         expect(warnings(source)).toEqual([
             "4:1: this line has 2 beats; the metre `trimeter` has 3",
@@ -306,7 +307,7 @@ describe("the warning", () => {
                 (e: { line: number; column: number; message: string }) =>
                     `${e.line}:${e.column}: ${e.message}`,
             ),
-        ).toEqual(["1:11: meter= is not a verse attribute"]);
+        ).toEqual(["1:13: meter= is not a verse attribute"]);
     });
 
     it("refuses `metre=` now that `scan=` names the metre", () => {
@@ -315,7 +316,7 @@ describe("the warning", () => {
                 (e: { line: number; column: number; message: string }) =>
                     `${e.line}:${e.column}: ${e.message}`,
             ),
-        ).toEqual(["1:11: metre= is not a verse attribute"]);
+        ).toEqual(["1:13: metre= is not a verse attribute"]);
     });
 
     it("is carried to the page as a plain attribute", async () => {
@@ -328,28 +329,44 @@ describe("the warning", () => {
 describe("a `scan=` that cannot mean anything", () => {
     it("is refused when no declared metre has the name", () => {
         expect(errors(fence("scan=hexamter lang=vyl", "zaros"))).toEqual([
-            "1:16: `hexamter` is not a declared metre: `scan=` names the `name` of a `data.metres` entry of a `doc` note; did you mean `hexameter`?",
+            "1:18: `hexamter` is not a declared metre: `scan=` names the `name` of a `data.metres` entry of a `doc` note; did you mean `hexameter`?",
         ]);
     });
 
     it("is refused without a `lang=`", () => {
         expect(errors(fence("scan=hexameter", "zaros"))).toEqual([
-            "1:11: `scan=` counts beats by a language's stress rule: the fence needs a `lang=`",
+            "1:13: `scan=` counts beats by a language's stress rule: the div needs a `lang=`",
         ]);
     });
 
     it("is refused for a language that states no stress rule", () => {
         expect(errors(fence("scan=hexameter lang=bare", "zaros"))).toEqual([
-            "1:31: the language `bare` states no `data.sounds.stress`, which `scan=` counts beats by",
+            "1:33: the language `bare` states no `data.sounds.stress`, which `scan=` counts beats by",
         ]);
     });
 
     it("is refused for a language that is only a tag", () => {
         expect(errors(fence("scan=hexameter lang=en", "zaros"))).toEqual([
-            "1:31: the language `en` is not a configured language with a `note`, so it has no stress rule for `scan=` to count beats by",
+            "1:33: the language `en` is not a configured language with a `note`, so it has no stress rule for `scan=` to count beats by",
         ]);
     });
 
+    it("does not count a defined footnote label as a word of the verse", () => {
+        const source =
+            fence("scan=trimeter lang=vyl", "zaros zaros zaros[^zaros]") +
+            "\n\n[^zaros]: A translator's note.";
+        expect(warnings(source)).toEqual([]);
+    });
+    it("retains Unicode and CRLF locations after omitting a footnote label", () => {
+        const source = (
+            fence("scan=trimeter lang=vyl", "😀 zaros[^a] [foreign]{lang=en}") + "\n\n[^a]: A note."
+        ).replace(/\n/g, "\r\n");
+        expect(errors(source).filter((message) => message.includes("counts one language"))).toEqual(
+            [
+                "2:13: `scan=` counts one language's beats; this verse line contains another language",
+            ],
+        );
+    });
     it("counts joined source lines as one logical line", () => {
         const source = fence("scan=trimeter lang=vyl", "zaros", "zaros zaros");
         expect(warnings(source)).toEqual([]);

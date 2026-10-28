@@ -74,9 +74,9 @@ describe("emphasis follows a span's effective language", () => {
 
     it("checks only the offending span beside English on a verse line", () => {
         const source = [
-            "```verse {lang=en}",
+            ":::verse {lang=en}",
             "[one *word*]{lang=en} [un **mot**]{lang=fr}",
-            "```",
+            ":::",
         ].join("\n");
         expect(scanRuns(source, ctx).errors).toEqual([
             {
@@ -152,11 +152,11 @@ describe("emphasis follows a span's effective language", () => {
         }
     });
 
-    it("keeps a language-only span Roman inside a native verse fence", () => {
+    it("keeps a language-only span Roman inside a native verse div", () => {
         const source = [
-            "```verse {lang=vyl font=semaron-kuriale enc=letters}",
+            ":::verse {lang=vyl font=semaron-kuriale enc=letters}",
             "one [one]{lang=en}",
-            "```",
+            ":::",
         ].join("\n");
         const pair = [...renderRuns(source, ctx).verses.values()][0];
         expect(pair.model.groups[0].lines[0]).toMatchObject({
@@ -181,10 +181,10 @@ describe("emphasis follows a span's effective language", () => {
 
     it("keeps indentation periods outside mapping while mapping literal later periods", () => {
         const source = [
-            "```verse {lang=vyl font=semaron-kuriale enc=letters}",
+            ":::verse {lang=vyl font=semaron-kuriale enc=letters}",
             "...one/",
             "  [..one]{lang=vyl font=semaron-kuriale enc=letters} [..one]{lang=vyl font=semaron-kuriale enc=letters}",
-            "```",
+            ":::",
         ].join("\n");
         expect(scanRuns(source, ctx).errors).toEqual([]);
         const pair = [...renderRuns(source, ctx).verses.values()][0];
@@ -220,9 +220,9 @@ describe("emphasis follows a span's effective language", () => {
             };
             mixed.faces = testFaces(mixed.encodings);
             const source = [
-                "```verse",
+                ":::verse",
                 `[one [one]{lang=foreign enc=glyphs font=script-other} [one]{lang=vyl}]{${entry}}`,
-                "```",
+                ":::",
             ].join("\n");
             expect(scanRuns(source, mixed).errors).toEqual([]);
             const rendered = renderRuns(source, mixed).markdown;

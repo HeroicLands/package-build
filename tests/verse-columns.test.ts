@@ -28,7 +28,7 @@ const ctx = {
     encodings: new Map([["letters", encoded]]),
 };
 const fence = (body: string, attrs = "lang=vyl enc=letters") =>
-    "```verse {" + attrs + "}\n" + body + "\n```";
+    ":::verse {" + attrs + "}\n" + body + "\n:::";
 const presentation = (source: string) => {
     const result = renderRuns(source, ctx);
     expect(result.errors).toEqual([]);
@@ -80,7 +80,7 @@ describe("encoded verse pairs", () => {
         );
         const line = pair.model.groups[0].lines[0];
         expect(line.text).toContain("[字](https://example.org/a/b)");
-        expect(line.text).toContain("[^one]");
+        expect(line.text).not.toContain("[^one]");
         expect(line.romanText).toContain("[word](https://example.org/a/b)");
         expect(line.romanText).toContain("[^one]");
     });

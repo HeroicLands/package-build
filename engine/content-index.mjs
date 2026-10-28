@@ -1568,7 +1568,7 @@ function dynamicPublicationBody(body) {
     const source = String(body ?? "");
     return (
         [...matchAllOutsideCode(source, EXPRESSION)].length > 0 ||
-        codeRegions(source, { spans: false, verseAsProse: false }).some(({ start, end }) => {
+        codeRegions(source, { spans: false }).some(({ start, end }) => {
             const opener = FENCE_LINE.exec(source.slice(start, end).split("\n", 1)[0]);
             const language = opener && parseHeaderArgs(opener[3]).language;
             return language === "sql" || language === PAGE_LIST_LANGUAGE;

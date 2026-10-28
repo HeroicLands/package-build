@@ -47,7 +47,7 @@
  * 2. **Captioned items** — each figure's wrapper and label. Its number, kind
  *    and role come from the figure scan expansion made, so a figure is
  *    numbered once; see {@link module:engine/content-figures.renderFigureBlocks}.
- * 3. **Named blocks, verse and scrolls** — `:::` blocks, verse fences and
+ * 3. **Named blocks, verse and scrolls** — `:::` blocks, verse divs and
  *    `scroll` fences.
  * 4. **Alerts.**
  * 5. **Spans and withheld sections** — written here on the `web` target; the
@@ -79,7 +79,8 @@ import { imagePlugin } from "./content-images.mjs";
 import { renderRuns } from "./content-scripts.mjs";
 import { renderSpans, spanMarkdownPlugin } from "./content-spans.mjs";
 import { cartoucheFigures, renderSymbolSpans } from "./content-symbols.mjs";
-import { inlineVerse, scanVerse } from "./content-verse.mjs";
+import { inlineVerse, parseVerse, renderVerseQuotes } from "./content-verse.mjs";
+import { verseDivPlugin } from "./verse-regions.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 import { dictionaryEntryPlugin } from "./dictionary-layout.mjs";
 import { headingAttributesPlugin, headingIdsPlugin } from "./heading-attributes.mjs";
@@ -115,48 +116,59 @@ export function highlightCode(code, language) {
     return hljs.highlight(code, { language: name, ignoreIllegals: true }).value;
 }
 
-/**
- * Parse the verse a `verse` fence holds as inline Markdown.
- *
- * A fence is literal to the block parser; a poem's lines are prose with
- * inline Markdown. The lines are parsed before footnote definitions are
- * collected, with the surrounding note's env, so a reference in a verse
- * resolves against definitions written outside the fence.
- *
- * @param {import("markdown-it")} md - Markdown parser to extend.
- */
+/** Parse logical verse lines in the note's shared inline environment. */
+function parseVerseContent(token, md, env, region) {
+    const body = token.type === "verse_inline" ? token.meta.text : token.content;
+    const inline = token.type === "verse_inline";
+    const paired = inline ? undefined : env.verses?.get(body);
+    const footnotes = new Set(Object.keys(env.footnotes?.refs ?? {}).map((key) => key.slice(1)));
+    const model = paired?.model ?? region.model ?? parseVerse(body, { inline, footnotes });
+    token.meta ??= {};
+    token.meta.verse = region;
+    token.meta.versePaired = paired;
+    const parse = (text) => {
+        const children = [];
+        md.inline.parse(inlineVerse(text), md, env, children);
+        return children;
+    };
+    token.meta.verseNotes = (model.notes ?? []).map((line) => ({
+        children: parse(line.romanText ?? line.text),
+    }));
+    token.meta.verseGroups = model.groups.map((group) =>
+        group.cantoBreak ?
+            {
+                ...group,
+                children: group.text ? parse(group.text) : [],
+                titleChildren: group.title ? parse(group.title) : [],
+            }
+        :   {
+                ...group,
+                lines: group.lines.map((line) => ({
+                    ...line,
+                    children: parse(line.text),
+                    ...(paired ? { romanChildren: parse(line.romanText ?? line.text) } : {}),
+                })),
+            },
+    );
+}
+
+/** An opaque quoted verse is parsed once, before footnote collection. */
+function quotedVerse(token, state) {
+    const classes = (token.attrGet("class") ?? "")
+        .split(/\s+/)
+        .filter((name) => name && name !== "verse");
+    const attributes = Object.fromEntries(
+        (token.attrs ?? []).filter(([key]) => !["id", "class"].includes(key)),
+    );
+    parseVerseContent(token, state.md, state.env, { id: token.attrGet("id"), classes, attributes });
+}
+
+/** A verse div's raw body receives inline parsing without block interpretation. */
 function verseInlinePlugin(md) {
     md.core.ruler.after("inline", "verse_inline", (state) => {
         for (const token of state.tokens) {
-            if (token.type !== "fence" || !/^verse(?:\s|$)/.test(token.info?.trim() || ""))
-                continue;
-            token.meta ??= {};
-            const source = `${token.markup}${token.info}\n${token.content}${token.markup}`;
-            const poem = scanVerse(source, { checkWorks: false }).blocks[0];
-            if (!poem) continue;
-            const paired = state.env.verses?.get(token.content.replace(/\n$/, ""));
-            const model = paired?.model ?? poem.model;
-            token.meta.verse = poem;
-            token.meta.versePaired = paired;
-            const parse = (text) => {
-                const children = [];
-                state.md.inline.parse(inlineVerse(text), state.md, state.env, children);
-                return children;
-            };
-            token.meta.verseGroups = model.groups.map((group) =>
-                group.cantoBreak ?
-                    { ...group, children: group.text ? parse(group.text) : [] }
-                :   {
-                        ...group,
-                        lines: group.lines.map((line) => ({
-                            ...line,
-                            children: parse(line.text),
-                            ...(paired ?
-                                { romanChildren: parse(line.romanText ?? line.text) }
-                            :   {}),
-                        })),
-                    },
-            );
+            if (token.type !== "verse_div") continue;
+            parseVerseContent(token, state.md, state.env, token.meta.verseRegion);
         }
     });
 }
@@ -384,7 +396,8 @@ export function createRenderer(target, options = {}) {
     use("footnotes", footnotePlugin);
     if (book) {
         use("alerts", alertMarkdownPlugin);
-        use("spans", spanMarkdownPlugin);
+        use("spans", spanMarkdownPlugin, { verseInline: quotedVerse });
+        use("verse-div", verseDivPlugin);
         use("verse-inline", verseInlinePlugin);
         use("script-emphasis", scriptEmphasisPlugin);
         use("definition-lists", deflistPlugin);
@@ -456,6 +469,7 @@ export function createRenderer(target, options = {}) {
                 renderInline,
             },
         ).markdown;
+        text = renderVerseQuotes(text);
         if (target === "web") text = renderSpans(text).markdown;
         return target === "web" ? renderWithheldSections(text) : text;
     };
@@ -476,6 +490,8 @@ export function createRenderer(target, options = {}) {
                     )
             ),
         renderInline:
-            book ? unsupported : (markdown) => restore(md.renderInline(String(markdown ?? ""))),
+            book ? unsupported : (
+                (markdown) => restore(md.renderInline(renderVerseQuotes(String(markdown ?? ""))))
+            ),
     };
 }

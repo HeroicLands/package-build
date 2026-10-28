@@ -25,9 +25,10 @@
  */
 
 import MarkdownIt from "markdown-it";
+import { verseDivPlugin } from "./verse-regions.mjs";
 
 /** The renderer's block grammar, with inline parsing and its passes switched off. */
-const parser = new MarkdownIt({ html: true });
+const parser = new MarkdownIt({ html: true }).use(verseDivPlugin);
 parser.core.ruler.disable(["inline", "linkify", "replacements", "smartquotes", "text_join"]);
 
 /** How many recent sources keep their tokens. */
@@ -51,7 +52,7 @@ export function blockTokens(source) {
         recent.set(text, hit);
         return hit;
     }
-    const tokens = parser.parse(text, {});
+    const tokens = parser.parse(text, { verseSource: text });
     recent.set(text, tokens);
     if (recent.size > RECENT) recent.delete(recent.keys().next().value);
     return tokens;

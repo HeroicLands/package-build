@@ -4,9 +4,10 @@ import { BLOCK_NAMES, scanBlocks, renderBlocks } from "../engine/content-blocks.
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 describe("secret blocks and general divs", () => {
-    it("keeps secret as the only named fence", () => {
+    it("keeps secret as the named prose block alongside opaque verse", () => {
         expect(BLOCK_NAMES).toEqual({ secret: "Secret" });
-        for (const name of ["info", "warn", "figure", "verse", "caution"])
+        expect(scanBlocks(":::verse\nBody\n:::").errors).toEqual([]);
+        for (const name of ["info", "warn", "figure", "caution"])
             expect(scanBlocks(`:::${name}\nBody\n:::`).errors[0].message).toContain(
                 `no ${name} block`,
             );

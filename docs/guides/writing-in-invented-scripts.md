@@ -72,9 +72,15 @@ keys makes a separate presentation choice. `enc=default` inside an encoded
 parent keeps the inherited language but does not inherit its inferred script
 face. An explicitly authored font remains a font choice.
 
+Footnotes are not letters of the tongue. A defined `[^key]` in any encoded span
+is removed before encoding and restored after the span, outside the script font.
+In an encoded verse div, a reference appears only in the Roman column, beside
+its authored word, with no duplicate number, definition or backlink. Footnotes
+never change verse shape. See [footnotes in works and encoded spans](../authoring/links-and-markup.md#footnotes-in-works-and-encoded-spans).
+
 A name's braces use the shared name controls. Resolved references encode only
 their visible labels, retaining URLs and presentation cues. These keys apply
-to spans, divs, verse fences and scroll fences. A scroll's selected font must
+to spans, divs and scroll fences. A scroll's selected font must
 belong to a script whose note declares `direction: vertical-rl`.
 
 ## Roman source and literal characters
@@ -106,8 +112,8 @@ escapes are removed before encoding, and diagnostics retain the source position.
 
 Every `Zs` space separator and U+0009 through U+000D count as whitespace. A run
 of them is one word separator, which the encoding writes by its own rule.
-Newlines join as whitespace. In a verse fence, `/` ends a logical line,
-blank lines or `//` end stanzas, and standalone `***` ends a canto. A literal
+Newlines join as whitespace. In a verse div, `/` ends a logical line,
+blank lines or `//` end stanzas, and `--- {.canto}` after a blank line ends a canto. A literal
 slash is written `\/`. Indentation at a logical line boundary is layout,
 not a punctuation character added to the encoded words.
 
@@ -485,52 +491,73 @@ The keys are checked where they sit:
 
 ## Verse
 
-### A poem in a verse fence
+### A poem in a verse div
 
-A poem is written in a `verse` fence, whose lines and stanzas the build
-preserves. The keys of the previous sections go on the fence. Prettier leaves
-the contents of a fence byte for byte, which is why a poem is a fence and not
-paragraphs: indentation, line breaks and spans survive formatting untouched.
+A `.verse` div holds inline Markdown and explicit verse structure. It is opaque
+to lists, headings, quotes and code-block syntax. Its source newlines join unless
+`/` ends a logical line. The authoring formatter preserves the complete div and
+its attributes byte for byte, and also preserves inline `.verse` quotations.
 
-````markdown
-```verse {lang=vyl font=semaron-kuriale enc=vylsemaronenc}
+```markdown
+::: {.verse lang=vyl font=semaron-kuriale enc=vylsemaronenc}
 Lokazor lonak./
 .lokamen zaron.
+:::
 ```
-````
+
+Quoted verse is a span within prose, such as
+`[Lokazor lonak zaron./..Lokamen lonak zaron.//]{.verse lang=vyl}`.
+A concrete `enc=` sets a quotation in script only, continuously in the prose.
+Its `/` and `//` become the encoding's verse marks; only a div has paired script
+and Roman columns. An unencoded quotation keeps Roman line and stanza layout.
+Quotations take no `work=`, `form=`, `scan=`, labels or canto breaks.
+A div's canto separator can carry a heading and an anchor:
+
+```markdown
+::: {.verse lang=en}
+The watch arrives.
+
+--- {.canto #choosing title="The Choosing"}
+The captain answers.
+:::
+```
+
+The title is shown once as heading text; the encoder receives its Roman `***`
+canto control. Authored `***` inside verse is a finding. The canto stays within
+the work and does not open a separate journal page.
 
 ### Versions of a work
 
 `form=epic` records the author's literary form without inferring layout or metre.
 
-A `verse` fence with a concrete `enc=` sets one original in its script on the
+A `.verse` div with a concrete `enc=` sets one original in its script on the
 left and Roman on the right. The author writes the text once; the two
 presentations align logical lines at full weight. `/` ends a logical line,
 source newlines otherwise join, a blank line or `//` ends a stanza, and a line
-of only `***` ends a canto. Leading periods at a logical line boundary indent
+of `--- {.canto}`, preceded by a blank line, ends a canto. Leading periods at a logical line boundary indent
 that line. Use `\/` for a literal slash.
 
-````markdown
-```verse {work=walking lang=en}
+```markdown
+::: {.verse work=walking lang=en}
 He walks the oath road.
 
 I walk the oath road.
-```
+:::
 
-```verse {work=walking lang=vyl enc=vylsemaronenc}
+::: {.verse work=walking lang=vyl enc=vylsemaronenc}
 Lokazor lonak zaron.
 
 Lokamen lonak zaron.
+:::
 ```
-````
 
 `work=` groups the versions within the page. Their stanza labels match, and the
 build checks that their canto counts and stanza counts per canto agree. The
-English fence is one column, and `enc=default` also stays one Roman column.
+English div is one column, and `enc=default` also stays one Roman column.
 The original's encoded and Roman presentations share one label per stanza.
 Names, `⟦…⟧` codage, language gaps and other inline spans retain their meaning;
 codage draws its glyphs on the left and appears as codage on the right. The
-content index records the original once with its fence language and encoding.
+content index records the original once with its div language and encoding.
 See [versions and stanza labels](../authoring/links-and-markup.md#versions-and-stanza-labels)
 for poetry and prose examples, and [directions and speakers](../authoring/links-and-markup.md#directions-and-speakers)
 for plain semantic span hooks.
@@ -549,15 +576,15 @@ data:
 `name` is lowercase letters, digits and `-`, unique in the package; `beats` is
 the beats of one line, a whole number above zero; `kind` is `accentual`, the
 only kind: a beat falls on a stressed syllable and the length of a syllable is
-not counted. A fence that states `scan=` with the declared name and a `lang=`
+not counted. A div that states `scan=` with the declared name and a `lang=`
 whose language note states `data.sounds.stress` is counted line by line:
 
-````markdown
-```verse {lang=vyl scan=trimeter}
+```markdown
+::: {.verse lang=vyl scan=trimeter}
 Lokazor lonak zaron./
 Lokamen lonak zaron.
+:::
 ```
-````
 
 **The stress rule** is `data.sounds.stress`, `{ two, longer, mark }`. `two`
 (`first` or `last`) places the stress in a word of two syllables; `longer`
@@ -587,14 +614,14 @@ the second beats and, in brackets, with all of them:
 
 > ``this line has 4 beats (5 with secondary beats); the metre `hexameter` has 6``
 
-**The check is author-side.** Readers see nothing of it: the rendered fence
-carries `data-metre` with the metre's name and nothing a reader sees. A fence
+**The check is author-side.** Readers see nothing of it: the rendered div
+carries `data-metre` with the metre's name and nothing a reader sees. A div
 without `scan=` is not counted. `scan=` is refused where it cannot mean
 anything, each an error:
 
 > `` `hexamter` is not a declared metre: `scan=` names the `name` of a `data.metres` entry of a `doc` note; did you mean `hexameter`? ``
 
-> `` `scan=` counts beats by a language's stress rule: the fence needs a `lang=` ``
+> `` `scan=` counts beats by a language's stress rule: the div needs a `lang=` ``
 
 > ``the language `vyl` states no `data.sounds.stress`, which `scan=` counts beats by``
 
@@ -1144,11 +1171,11 @@ capital `L` of the rows, `zaron` is the exception's long vowel, and each period
 writes the script's pause point.
 
 A work's English and original versions sit on one note. Its original is written
-once and appears beside its Roman presentation; a separate fence checks metre.
+once and appears beside its Roman presentation; a separate div checks metre.
 
 **`assets/content/Lore/Walking.md`**
 
-````markdown
+```markdown
 ---
 shortcode: walking
 name: { full: The Walking }
@@ -1159,23 +1186,23 @@ The walking of the oath road is sung in two settings. The first sets the poem
 beside its translation, and the second keeps the metre that the court keeps, so
 that a line with the wrong count is reported to the author who wrote it.
 
-```verse {work=walking lang=en}
+::: {.verse work=walking lang=en}
 He walks the oath road.
 
 I walk the oath road.
-```
+:::
 
-```verse {work=walking lang=vyl enc=vylsemaronenc}
+::: {.verse work=walking lang=vyl enc=vylsemaronenc}
 Lokazor lonak zaron.
 
 Lokamen lonak zaron.
-```
+:::
 
-```verse {lang=vyl scan=trimeter}
+::: {.verse lang=vyl scan=trimeter}
 Lokazor lonak zaron./
 Lokamen lonak zaron.
+:::
 ```
-````
 
 A script note gives Semaron its emphasis convention, and a run with double stars then
 sets them in red:

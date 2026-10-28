@@ -81,31 +81,35 @@ Janapada
 
 # Verse {#verse}
 
-```verse {form=ballad lang=en}
+::: {.verse form=ballad lang=en}
 The lantern burns beside the gate,/
 .The harbor sleeps below.
 
-***
+--- {.canto #night-watch title="The Night Watch"}
 
 The keeper guards the road till dawn,/
 .And keeps a light aglow.
-```
+:::
 
-```verse {scan=trimeter lang=tar}
+::: {.verse scan=trimeter lang=tar}
 Taruna velomi sarandi
-```
+:::
 
-```verse {work=boundary lang=en}
+::: {.verse work=boundary lang=en}
 the hallowed boundary I sing
 
 and the one who walked it
-```
+:::
 
-```verse {work=boundary lang=vyl enc=vylsemaronenc font=semaron-kuriale}
+::: {.verse work=boundary lang=vyl enc=vylsemaronenc font=semaron-kuriale}
 thirun sorima
 
 mamu anthrasos
-```
+:::
+
+A reply is [The shore/..The watch//]{.verse lang=en} in the telling.
+
+The original reply is [thirun sorima/..mamu anthrasos.]{.verse lang=vyl enc=vylsemaronenc} in its script beside Roman.
 
 # Figures and tables {#figures}
 
@@ -136,10 +140,10 @@ An example paragraph for the numbered example.
 
 :@ A song sung by the harbor watch. {#fig-song}
 
-```verse
+::: {.verse}
 The watch has gone to sea,
 The lantern marks the shore.
-```
+:::
 
 :@ A caption on a quoted passage. {#fig-prose type=prose}
 
@@ -210,10 +214,22 @@ thirun sorima.
 mamu anthrasos.
 :::
 
-```verse {form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}
+::: {.verse form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}
 thirun sorima/
 .mamu anthrasos.
-```
+:::
+
+::: {.verse lang=vyl enc=vylsemaronenc}
+thirun[^original-word] sorima
+:::
+
+::: {.verse lang=en}
+The watch holds the shore.[^english-line]
+:::
+
+The annotated inscription is [thirun[^script-word] sorima]{lang=vyl enc=vylsemaronenc}.
+
+The annotated reply is [thirun[^quoted-word] sorima/..mamu anthrasos.]{.verse lang=vyl enc=vylsemaronenc}.
 
 ```scroll {rows=3 cols=3 lang=tsu font=teng-chou enc=tsutengenc}
 chen teng
@@ -241,3 +257,8 @@ A star :icon star:{size=lg} marks the entry.
 A phrase with an <abbr title="abbreviation">abbr</abbr> tag inline.
 
 <div class="raw-block">A raw block of markup.</div>
+
+[^original-word]: A note on the original word.
+[^english-line]: A note on the English line.
+[^script-word]: A note on the script word.
+[^quoted-word]: A note on the quoted word.

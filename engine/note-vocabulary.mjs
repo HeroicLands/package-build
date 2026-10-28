@@ -2338,7 +2338,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                             ...TEXT,
                             required: true,
                             describe:
-                                "What a verse fence's `scan=` names the metre by: lowercase " +
+                                "What a verse div's `scan=` names the metre by: lowercase " +
                                 "letters, digits and `-`, unique in the package.",
                         },
                         {
@@ -2362,7 +2362,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                     ]),
                 }),
                 describe:
-                    "The metres a verse fence's `scan=` names. A fence that states one is " +
+                    "The metres a verse div's `scan=` names. A div that states one is " +
                     "warned at each line that cannot have its beats. See " +
                     "[metres](../authoring/links-and-markup.md#metre).",
             },

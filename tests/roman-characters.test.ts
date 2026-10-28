@@ -63,12 +63,13 @@ describe("a language's literal Roman characters", () => {
     });
     it("checks paragraphs, verse and scroll text with the same character rule", () => {
         expect(semicolon("::: {lang=vyl}\nka;\n:::")).toHaveLength(1);
-        expect(semicolon("```verse {lang=vyl}\nka;\n```")).toHaveLength(1);
+        expect(semicolon(":::verse {lang=vyl}\nka;\n:::")).toHaveLength(1);
     });
     it("excludes indent periods and explicit verse separators", () => {
-        const source = "```verse {lang=vyl}\n...[ka.]{lang=vyl}/\nka.\n\n***\n\nka./\nka.\n```";
+        const source =
+            ":::verse {lang=vyl}\n...[ka.]{lang=vyl}/\nka.\n\n--- {.canto}\n\nka./\nka.\n:::";
         expect(errors(source)).toEqual([]);
-        expect(errors("```verse {lang=vyl}\n...ka.\n***\nka.\n```")).toEqual([]);
+        expect(errors(":::verse {lang=vyl}\n...ka.\n\n--- {.canto}\nka.\n:::")).toEqual([]);
     });
     it("checks escaped punctuation at the punctuation, without accepting its escape", () => {
         const source = "[ka\\;]{lang=vyl}";

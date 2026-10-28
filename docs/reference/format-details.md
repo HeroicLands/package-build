@@ -2107,7 +2107,7 @@ face. An explicitly authored font remains a font choice.
 
 A name's braces use the shared name controls. Resolved references encode only
 their visible labels, retaining URLs and presentation cues. These keys apply
-to spans, divs, verse fences and scroll fences. A scroll's selected font must
+to spans, divs and scroll fences. A scroll's selected font must
 belong to a script whose note declares `direction: vertical-rl`.
 
 #### Encodings
@@ -2273,7 +2273,7 @@ keeps a lexicon to its exceptions.
 
 #### Metres
 
-A verse fence that states `scan=` is counted against a metre declared in a
+A verse div that states `scan=` is counted against a metre declared in a
 `doc` note's `data.metres`, each entry `{ name, beats, kind }`. `name` is
 lowercase letters, digits and `-`, unique in the package, and a name declared
 twice is an error at the second. `beats` is a whole number above zero. `kind` is
@@ -3592,7 +3592,7 @@ metadata supplies `names` in that package's SQL schema. Public queries exclude
 GM-only owners; all/native contexts retain them. Only authored occurrences
 contribute rows, so generated queries and sections add no further names.
 
-**`runs`** is one row per span, generic div and verse fence an authored note
+**`runs`** is one row per span, generic div and verse div an authored note
 body marks with `lang=`, `font=` or `enc=`. Each row has these columns,
 including on an empty relation:
 
@@ -4033,7 +4033,7 @@ The caption attaches to exactly the next supported block:
 | Markdown table                       | `table`       | Table          |
 | Image, Markdown or wikilink          | `figure`      | Figure         |
 | SQL fence, including backtick SQL    | `table`       | Table          |
-| Verse fence                          | `verse`       | Poem           |
+| Verse div                            | `verse`       | Poem           |
 | Any other code fence                 | `code`        | Code           |
 | Paragraph, quote block or fenced div | `prose`       | Prose          |
 
@@ -6855,7 +6855,7 @@ closed list where its values are words:
   end, `antepenultimate`, `penultimate` or `final`; `mark` is the diacritic, `acute`,
   `grave` or `circumflex`, that marks a stress the rule would not choose and
   moves it to the syllable it sits on. Syllables are vowel groups, a pair listed
-  in `syllables.vowelPairs` counting as one. A verse fence's `scan=` counts
+  in `syllables.vowelPairs` counting as one. A verse div's `scan=` counts
   beats by this rule; see [metres](#metres).
 - `finals`: the syllable finals, each with what it sounds like and, as `ipa`,
   its sound in the International Phonetic Alphabet, for a language whose
@@ -8274,7 +8274,7 @@ Content prepared to be played — a situation with its cast, places, and possibl
 | `concepts[].id`                                   | string                                                                | Required: lowercase letters, digits and `-`, unique in the package                                                                             |
 | `concepts[].gloss`                                | string                                                                | Required: what the concept means, in brief                                                                                                     |
 | `concepts[].group`                                | string                                                                | Required: the group the report lists the concept under                                                                                         |
-| `metres`                                          | `{ name, beats, kind }[]`                                             | The metres a verse fence's `scan=` names; any subType. See [metres](#metres)                                                                   |
+| `metres`                                          | `{ name, beats, kind }[]`                                             | The metres a verse div's `scan=` names; any subType. See [metres](#metres)                                                                     |
 | `metres[].name`                                   | string                                                                | Required: what `scan=` names it by, lowercase letters, digits and `-`, unique in the package                                                   |
 | `metres[].beats`                                  | `integer`, required                                                   | The beats of one line, above zero                                                                                                              |
 | `metres[].kind`                                   | `accentual`                                                           | Required: how the beats are counted                                                                                                            |

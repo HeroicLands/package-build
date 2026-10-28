@@ -1097,7 +1097,7 @@ and `**Rendering**`, and `### Patch Changes` holding `**Miscellaneous**` and
 
 **Verse**
 
-- A verse fence keeps its line breaks.
+- A verse div keeps its line breaks.
 - A stanza break renders as a blank line.
 
 **Rendering**
@@ -2626,7 +2626,7 @@ with visible text, nullable type/subtype and original source line/column.
 Local and dependency SQL schemas expose them through `names`; they travel in
 the metadata artifact.
 
-Metadata includes each own note's spans, divs and verse fences marked with
+Metadata includes each own note's spans, divs and verse divs marked with
 `lang=`, `font=` or `enc=` under `runs`, with the language as written, its
 resolved tag, font, encoding document Address and original source line/column.
 Roman runs use the default encoding and receive no inferred script face.

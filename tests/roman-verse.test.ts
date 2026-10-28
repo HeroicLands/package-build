@@ -21,9 +21,9 @@ describe("Roman verse layout projection", () => {
         expect(result.boundaries.map(({ kind }) => kind)).toEqual(["line"]);
     });
     it("records the standard canto marker without encoding it as letters", () => {
-        const result = plainRomanVerse("a\n***\nb");
-        expect(result.boundaries.map(({ kind }) => kind)).toEqual(["canto"]);
-        expect(result.text).not.toContain("***");
+        const result = plainRomanVerse("a\n\n--- {.canto}\nb");
+        expect(result.boundaries.map(({ kind }) => kind)).toEqual(["stanza", "canto"]);
+        expect(result.text).not.toContain("canto");
     });
     it("interprets typed slashes and leaves escaped and codage slashes literal", () => {
         const result = plainRomanVerse("...a/b \\/ ⟦U+002F⟧");

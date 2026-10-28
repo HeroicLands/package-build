@@ -84,19 +84,18 @@ SELECT '<&>';
 place-demo
 \`\`\`
 
-\`\`\`verse
-A line.
-  Indented line.
-\`\`\`
+::: {.verse}
+A line./
+.Indented line.
+:::
 
-\`\`\`verse {lang=en}
+::: {.verse lang=en}
 [A verse line]{.speaker}/
 [A stage direction]{.direction}
 
-***
-
+--- {.canto}
 Another
-\`\`\`
+:::
 
 \`\`\`scroll {rows=3 cols=2 lang=tsu enc=teng-chou}
 chen teng chou

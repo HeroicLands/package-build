@@ -45,6 +45,7 @@ import { blockTokens } from "./markdown-blocks.mjs";
 import { scanBlocks, BLOCK_CONTAINERS } from "./content-blocks.mjs";
 import { scanVerse } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
+import { footnoteLabels, footnoteReferences } from "./content-footnotes.mjs";
 import { scanScrolls, scrollParagraphs } from "./content-scroll.mjs";
 import { directionsFromRecords } from "./script-direction.mjs";
 import { isLanguageTag } from "./language-tag.mjs";
@@ -126,7 +127,7 @@ const CONFIG = "package-build.config.yaml";
  */
 
 /**
- * One span, div, verse fence or scroll fence carrying run attributes.
+ * One span, div, verse div or scroll fence carrying run attributes.
  * Values combine explicit choices, class-only inheritance, encoding-document
  * language/font defaults and the Roman default encoding.
  *
@@ -232,7 +233,7 @@ function withinOneEdit(a, b) {
 }
 
 /** The word each construct is called in a finding. */
-const CONSTRUCT = Object.freeze({ span: "span", block: "div", verse: "verse fence" });
+const CONSTRUCT = Object.freeze({ span: "span", block: "div", verse: "verse div" });
 
 /** Line starts of a source, for offsets to positions. */
 function lineStarts(text) {
@@ -834,9 +835,7 @@ function analyseRuns(source, ctx, syntax) {
         );
     const errors = [];
     const warnings = [];
-    const footnotes = new Set(
-        [...text.matchAll(/^ {0,3}\[\^([^\]\s]+)\]:/gm)].map((match) => match[1]),
-    );
+    const footnotes = footnoteLabels(text);
     /** @param {{line: number, column: number}} at @param {string} message */
     const report = (at, message) => errors.push({ line: at.line, column: at.column, message });
     /** @param {Record<string, string>} values */
@@ -890,6 +889,7 @@ function analyseRuns(source, ctx, syntax) {
     const collect = (offset, body) => {
         const scanned = offset === 0 && syntax ? syntax(body).blocks : scanBlocks(body);
         for (const block of scanned.blocks) {
+            if (block.name === "verse" || block.classes?.includes("verse")) continue;
             const first = offset + block.start;
             const last = offset + block.end;
             const opening = lines[first];
@@ -911,7 +911,7 @@ function analyseRuns(source, ctx, syntax) {
                 for (const key of Object.keys(keys))
                     report(
                         at(key, "key"),
-                        `\`${key}=\` is read on a span, a div or a verse fence, not on a ${block.name} block`,
+                        `\`${key}=\` is read on a span, a div or a verse div, not on a ${block.name} block`,
                     );
             } else {
                 divs.set(first, block);
@@ -948,7 +948,6 @@ function analyseRuns(source, ctx, syntax) {
     for (const poem of scanVerse(text).blocks) {
         poems.set(poem.start, poem);
         const keys = runKeys(poem.attributes);
-        if (!Object.keys(keys).length && !poem.classes.includes(NATIVEFONT_CLASS)) continue;
         const opening = lines[poem.start];
         constructs.push({
             kind: "verse",
@@ -1196,10 +1195,19 @@ function analyseRuns(source, ctx, syntax) {
     }
 
     const verseMarkers = new Map();
-    const verseContexts = new Map();
-    for (const poem of scanVerse(text, { checkWorks: false }).blocks) {
-        for (let line = poem.start + 1; line < poem.end; line++) verseContexts.set(line, poem);
-        const bodyStart = starts[poem.start + 1];
+    const verseContexts = [
+        ...scanVerse(text, { checkWorks: false }).blocks,
+        ...spans
+            .filter((span) => span.verseModel)
+            .map((span) => ({
+                bodyStart: span.start + 1,
+                bodyEnd: span.contentEnd,
+                body: span.text,
+                model: span.verseModel,
+            })),
+    ];
+    for (const poem of verseContexts) {
+        const bodyStart = poem.bodyStart;
         for (const [from, to] of poem.model.layout)
             verseMarkers.set(bodyStart + from, bodyStart + to);
         for (const match of poem.body.matchAll(WIKILINK)) {
@@ -1227,11 +1235,7 @@ function analyseRuns(source, ctx, syntax) {
             if (poem.body[at] !== "[") continue;
             const end = closing(poem.body, at);
             if (end < 0) continue;
-            const label = poem.body.slice(at + 1, end);
-            if (/^\^[^\s\]]+$/.test(label) && footnotes.has(label.slice(1))) {
-                verseMarkers.set(bodyStart + at, bodyStart + end + 1);
-                at = end;
-            } else if (poem.body[end + 1] === "(" && poem.body[at - 1] !== "!") {
+            if (poem.body[end + 1] === "(" && poem.body[at - 1] !== "!") {
                 const past = closing(poem.body, end + 1);
                 if (past < 0) continue;
                 verseMarkers.set(bodyStart + at, bodyStart + at + 1);
@@ -1240,10 +1244,49 @@ function analyseRuns(source, ctx, syntax) {
         }
     }
 
+    const noteReferences = [
+        ...new Map(
+            [
+                ...footnoteReferences(text, { definitions: footnotes }),
+                ...spans.flatMap((span) => {
+                    const label = referenceLabel(span.text);
+                    if (!label) return [];
+                    const base = span.start + 1 + label[0];
+                    return footnoteReferences(span.text.slice(label[0], label[1]), {
+                        definitions: footnotes,
+                        inline: true,
+                    }).map((reference) => ({
+                        ...reference,
+                        from: base + reference.from,
+                        to: base + reference.to,
+                    }));
+                }),
+                ...verseContexts.flatMap((region) =>
+                    footnoteReferences(region.body, { definitions: footnotes, inline: true }).map(
+                        (reference) => ({
+                            ...reference,
+                            from: reference.from + region.bodyStart,
+                            to: reference.to + region.bodyStart,
+                        }),
+                    ),
+                ),
+            ].map((reference) => [reference.from, reference]),
+        ).values(),
+    ];
+
     /** Nested spans and verse markers excluded from a run, by absolute offset. */
     const holesIn = (from, to) =>
         new Map([
+            ...noteReferences
+                .filter((reference) => reference.from >= from && reference.from < to)
+                .map((reference) => [reference.from, reference.to]),
             ...[...verseMarkers].filter(([start]) => start >= from && start < to),
+            ...verseContexts
+                .filter(
+                    (region) =>
+                        Number.isFinite(region.from) && region.from >= from && region.from < to,
+                )
+                .map((region) => [region.from, Math.min(region.to, to)]),
             ...active
                 .filter(
                     (construct) =>
@@ -1406,6 +1449,7 @@ function analyseRuns(source, ctx, syntax) {
             selection: enc === undefined ? undefined : encodingFor(ctx, { enc, font, lang }),
             holes: new Map(),
             body: undefined,
+            verseModel: construct.kind === "span" ? construct.node.verseModel : undefined,
             contentEnd: construct.kind === "span" ? construct.node.contentEnd : undefined,
             reference: undefined,
             languageEmphasis: lang === undefined ? undefined : ctx.languageEmphases?.get(lang),
@@ -1416,7 +1460,10 @@ function analyseRuns(source, ctx, syntax) {
         detail.conventions = conventionsOf(detail, ctx);
         details.push(detail);
         const nonEnglishSpan =
-            construct.kind === "span" && run.tag !== undefined && !/^en(?:-|$)/i.test(run.tag);
+            construct.kind === "span" &&
+            !construct.node.verseModel &&
+            run.tag !== undefined &&
+            !/^en(?:-|$)/i.test(run.tag);
         const emphasis = construct.own.classes.filter(
             (name) => name === "emph" || name === "strong",
         );
@@ -1447,7 +1494,14 @@ function analyseRuns(source, ctx, syntax) {
                 [from, to] = detail.reference;
             }
             const inline = text.slice(from, to);
-            detail.holes = label ? new Map() : holesIn(from, to);
+            detail.holes =
+                label ?
+                    new Map(
+                        noteReferences
+                            .filter((reference) => reference.from >= from && reference.to <= to)
+                            .map((reference) => [reference.from, reference.to]),
+                    )
+                :   holesIn(from, to);
             if (nonEnglishSpan) {
                 const relative = new Map(
                     [...detail.holes].map(([from, to]) => [
@@ -1507,7 +1561,7 @@ function analyseRuns(source, ctx, syntax) {
                     said(
                         top,
                         token.info.trim().split(/\s/)[0] === "verse" ?
-                            "a verse fence"
+                            "a verse div"
                         :   "a code fence",
                     );
                 else if (Object.hasOwn(BLOCK_WHAT, token.type)) said(top, BLOCK_WHAT[token.type]);
@@ -1572,7 +1626,18 @@ function analyseRuns(source, ctx, syntax) {
         const owned = details.filter((detail) => ownerOf(detail) === owner);
         for (const detail of owned) detail.owner = owner;
         const excluded = [
+            ...noteReferences
+                .filter((reference) => reference.from >= bounds[0] && reference.from < bounds[1])
+                .map((reference) => [reference.from, reference.to]),
             ...[...verseMarkers].filter(([start]) => start >= bounds[0] && start < bounds[1]),
+            ...verseContexts
+                .filter(
+                    (region) =>
+                        Number.isFinite(region.from) &&
+                        region.from >= bounds[0] &&
+                        region.from < bounds[1],
+                )
+                .map((region) => [region.from, Math.min(region.to, bounds[1])]),
             ...owned.flatMap((detail) =>
                 detail.emphasis.map((delimiter) => [
                     delimiter.offset,
@@ -1588,17 +1653,16 @@ function analyseRuns(source, ctx, syntax) {
             includeSpan: (span) =>
                 spanDetails.has(span.start) && ownerOf(spanDetails.get(span.start)) === owner,
         };
-        const poem =
-            owner.run.kind === "verse" ?
-                poems.get(owner.run.start)
-            :   verseContexts.get(owner.run.line - 1);
+        const poem = verseContexts
+            .filter((region) => region.bodyStart <= bounds[0] && region.bodyEnd >= bounds[1])
+            .sort((a, b) => a.bodyEnd - a.bodyStart - (b.bodyEnd - b.bodyStart))[0];
         const verse = poem !== undefined;
         const projection =
             verse ?
                 plainRomanVerse(text, {
                     ...projectionOptions,
                     model: poem.model,
-                    modelOffset: starts[poem.start + 1],
+                    modelOffset: poem.bodyStart,
                 })
             :   plainRomanRun(text, projectionOptions);
         const before = errors.length;
@@ -1776,7 +1840,7 @@ function analyseRuns(source, ctx, syntax) {
     details.sort((a, b) => order(a.run, b.run));
     errors.sort(order);
     warnings.sort(order);
-    return { runs, details, errors, warnings, spans, divs, poems };
+    return { runs, details, errors, warnings, spans, divs, poems, references: noteReferences };
 }
 
 /**
@@ -1802,7 +1866,7 @@ function diagnosticColumns(source, findings) {
 }
 
 /**
- * Find the spans, divs and verse fences marked with `lang=`, `font=` or
+ * Find the spans, divs and verse divs marked with `lang=`, `font=` or
  * `enc=`, and every fault in their markup and their text.
  *
  * @param {string} source - Authored Markdown: a note body, or a whole file
@@ -2033,7 +2097,7 @@ function setRange(text, from, to, detail, lineStart, book) {
  *   scanner projections.
  * @param {{target?: "site"|"foundry"|"book"}} [options] - The target the
  *   Markdown is rendered for; only `site` writes the search marker.
- * @returns {{markdown: string, errors: Array<{file?: string, line: number, column: number, message: string}>, scrolls: Map<string, import("./content-scroll.mjs").ScrollLayout>, verses: Map<string, {model: ReturnType<typeof import("./content-verse.mjs").parseVerse>, classes: string[], attributes: Record<string, string>}>}}
+ * @returns {{markdown: string, errors: Array<{file?: string, line: number, column: number, message: string}>, scrolls: Map<string, import("./content-scroll.mjs").ScrollLayout>, verses: Map<string, {model: ReturnType<typeof import("./content-verse.mjs").parseVerse>, classes: string[], attributes: Record<string, string>, inline: boolean}>}}
  *   The rewritten Markdown, the findings of {@link scanRuns}, and each
  *   rewritten scroll fence's layout, by its rewritten body.
  */
@@ -2046,7 +2110,7 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
     const verses = new Map();
     if (!/\b(?:lang|font|enc)=|\bnativefont\b|\.(?:emph|strong)\b|⟦/.test(text))
         return { markdown: text, errors: [], scrolls, verses };
-    const { details, errors } = analyseRuns(text, ctx, syntax);
+    const { details, errors, references } = analyseRuns(text, ctx, syntax);
     if (!details.length)
         return { markdown: text, errors: diagnosticColumns(text, errors), scrolls, verses };
     const lines = text.split("\n");
@@ -2067,9 +2131,24 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
 
     /** @type {Array<{from: number, to: number, text: string}>} */
     const edits = [];
-    const poems = scanVerse(text, { checkWorks: false }).blocks;
+    const poems = [
+        ...scanVerse(text, { checkWorks: false }).blocks.map((block) => ({
+            ...block,
+            inline: false,
+        })),
+        ...scanSpans(text)
+            .spans.filter((span) => span.verseModel)
+            .map((span) => ({
+                ...span,
+                inline: true,
+                model: span.verseModel,
+                body: span.text,
+                bodyStart: span.start + 1,
+                bodyEnd: span.contentEnd,
+            })),
+    ].sort((a, b) => a.bodyStart - b.bodyStart);
     const logicalRanges = poems.flatMap((poem) => {
-        const base = starts[poem.start + 1];
+        const base = poem.bodyStart;
         return poem.model.groups.flatMap((group) =>
             group.cantoBreak ? [] : group.lines.map((line) => [base + line.from, base + line.to]),
         );
@@ -2260,22 +2339,79 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
         }
     }
 
+    const restoredReferences = new Map();
+    for (const reference of references) {
+        const nativeDiv = details.find(
+            (detail) =>
+                detail.run.kind === "verse" &&
+                detail.selection &&
+                detail.run.enc !== "default" &&
+                detail.body &&
+                reference.from >= detail.body[0] &&
+                reference.to <= detail.body[1] &&
+                !faulted(detail.run),
+        );
+        const nativeSpans = details
+            .filter(
+                (detail) =>
+                    detail.run.kind === "span" &&
+                    detail.selection &&
+                    detail.run.enc !== "default" &&
+                    reference.from > detail.run.start &&
+                    reference.to <= detail.contentEnd &&
+                    !faulted(detail.run),
+            )
+            .sort((a, b) => a.run.start - b.run.start);
+        const outer = nativeSpans[0];
+        if (!nativeDiv && !outer) continue;
+        if (!edits.some((edit) => edit.from <= reference.from && edit.to >= reference.to))
+            edits.push({ from: reference.from, to: reference.to, text: "" });
+        if (nativeDiv) continue;
+        if (!restoredReferences.has(outer.run.end)) restoredReferences.set(outer.run.end, []);
+        restoredReferences.get(outer.run.end).push(reference);
+    }
+    for (const [at, notes] of restoredReferences)
+        edits.push({
+            from: at,
+            to: at,
+            text: notes
+                .sort((a, b) => a.from - b.from)
+                .map((reference) => reference.text)
+                .join(""),
+        });
+
     let markdown = text;
     for (const edit of edits.sort((a, b) => b.from - a.from))
         markdown = markdown.slice(0, edit.from) + edit.text + markdown.slice(edit.to);
     // Models retain authored structure; a native script may draw the boundaries
     // as glyphs which must not be reparsed as Roman delimiters.
-    const rewritten = scanVerse(markdown, { checkWorks: false }).blocks;
+    const rewritten = [
+        ...scanVerse(markdown, { checkWorks: false }).blocks.map((block) => ({
+            ...block,
+            inline: false,
+        })),
+        ...scanSpans(markdown)
+            .spans.filter((span) => span.verseModel)
+            .map((span) => ({
+                ...span,
+                inline: true,
+                body: span.text,
+                bodyStart: span.start + 1,
+                bodyEnd: span.contentEnd,
+            })),
+    ].sort((a, b) => a.bodyStart - b.bodyStart);
     const pairedEdits = [];
     for (const [index, poem] of poems.entries()) {
         const detail = details.find(
-            (detail) => detail.run.kind === "verse" && detail.run.start === poem.start,
+            (detail) =>
+                detail.run.kind === (poem.inline ? "span" : "verse") &&
+                detail.run.start === poem.start,
         );
         if (!detail || detail.run.enc === "default" || !detail.selection || faulted(detail.run))
             continue;
         const block = rewritten[index];
         if (!block) continue;
-        const base = starts[poem.start + 1];
+        const base = poem.bodyStart;
         const applyLine = (line) => {
             const patches = [];
             for (const edit of edits) {
@@ -2327,6 +2463,10 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
                 return true;
             });
         const model = structuredClone(poem.model);
+        for (const note of model.notes ?? []) {
+            note.romanText = romanLine(note.text);
+            note.text = "";
+        }
         for (const group of model.groups) {
             if (group.cantoBreak) {
                 group.text = detail.selection.encoding.controls.verseCanto ?? "";
@@ -2346,21 +2486,43 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
                 });
             }
         }
+        if (poem.inline) {
+            const values = Object.fromEntries(
+                block.attrs.filter(([key]) => !["id", "class"].includes(key)),
+            );
+            const classes = (block.attrs.find(([key]) => key === "class")?.[1] ?? "")
+                .split(/\s+/)
+                .filter((name) => name && name !== "verse");
+            const attributes = attributeText({
+                lang: values.lang,
+                id: block.id,
+                classes,
+                values: Object.entries(values).filter(([key]) => key !== "lang"),
+            });
+            const native = model.groups
+                .flatMap((group) =>
+                    group.cantoBreak ? [group.text ?? ""] : group.lines.map((line) => line.text),
+                )
+                .join("");
+            pairedEdits.push({
+                from: block.start,
+                to: block.end,
+                text: `[${native}]{${attributes}}`,
+            });
+            continue;
+        }
         const classes = [SCRIPT_CLASS, ...(detail.face ? [detail.face.class] : [])];
         const attributes = {
             ...(detail.run.tag ? { lang: detail.run.tag } : {}),
             ...(detail.face?.direction === "rtl" ? { dir: "rtl" } : {}),
             ...(search ? { "data-pagefind-ignore": "true" } : {}),
         };
-        const body = `<!--verse-pair:${verses.size + 1}-->\n${block.body}`;
-        verses.set(body, { model, classes, attributes });
-        const rewrittenStarts = lineStarts(markdown);
-        pairedEdits.push({
-            at: rewrittenStarts[block.start + 1],
-            text: `<!--verse-pair:${verses.size}-->\n`,
-        });
+        const marker = `<!--verse-pair:${verses.size + 1}-->${poem.inline ? "" : "\n"}`;
+        const body = marker + block.body;
+        verses.set(body, { model, classes, attributes, inline: poem.inline });
+        pairedEdits.push({ from: block.bodyStart, to: block.bodyStart, text: marker });
     }
-    for (const edit of pairedEdits.sort((a, b) => b.at - a.at))
-        markdown = markdown.slice(0, edit.at) + edit.text + markdown.slice(edit.at);
+    for (const edit of pairedEdits.sort((a, b) => b.from - a.from))
+        markdown = markdown.slice(0, edit.from) + edit.text + markdown.slice(edit.to);
     return { markdown, errors: diagnosticColumns(text, errors), scrolls, verses };
 }

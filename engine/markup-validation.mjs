@@ -14,6 +14,8 @@
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
 import { scanRuns } from "./content-scripts.mjs";
+import { scanSpans } from "./content-spans.mjs";
+import { verseRegions } from "./verse-regions.mjs";
 import { matchAllOutsideCode } from "./code-fences.mjs";
 
 /** The opening of a shortcode: `{{<` or `{{%`. */
@@ -55,9 +57,24 @@ export function markupFindings(source, file, syntax, runs) {
     );
     const scanned = syntax?.(body);
     const marked = runs ? scanRuns(body, runs, syntax) : undefined;
+    const spans = scanned?.spans ?? scanSpans(body);
+    const verseRanges = [
+        ...verseRegions(body).map((region) => [region.from, region.to]),
+        ...spans.spans.filter((span) => span.verseModel).map((span) => [span.start, span.end]),
+    ];
+    const starts = [0];
+    for (const match of body.matchAll(/\n/g)) starts.push(match.index + 1);
+    const verseErrors = spans.errors.filter((error) => {
+        const offset = (starts[error.line - 1] ?? 0) + error.column - 1;
+        return (
+            error.message.includes(".verse") ||
+            verseRanges.some(([from, to]) => offset >= from && offset < to)
+        );
+    });
     const errors = [
         ...(scanned?.blocks ?? scanBlocks(body)).errors,
         ...(scanned?.alerts ?? scanAlerts(body)).errors,
+        ...verseErrors,
         ...(marked?.errors ?? []),
         ...shortcodeErrors(body),
     ].map((error) => ({

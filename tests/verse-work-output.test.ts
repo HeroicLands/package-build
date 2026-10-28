@@ -6,17 +6,17 @@ import { bookTypstPreamble, markdownToTypst } from "../engine/pdf-render.mjs";
 
 describe("work verse output", () => {
     const source = [
-        "```verse {work=shore lang=en}",
+        "::: {.verse work=shore lang=en}",
         "The shore/..The lamp",
         "",
         "The keeper",
-        "```",
+        ":::",
         "",
-        "```verse {work=shore lang=en}",
+        "::: {.verse work=shore lang=en}",
         "Another telling",
         "",
         "The watch",
-        "```",
+        ":::",
     ].join("\n");
 
     it("shows stanza labels and logical line indentation on every HTML target", () => {
@@ -36,7 +36,7 @@ describe("work verse output", () => {
 
     it("preserves direction and speaker hooks with plain defaults inside and outside verse", () => {
         const content =
-            "[The Captain]{.speaker} [Enter]{.direction}\n\n```verse\n[The Captain]{.speaker}/[Enter]{.direction}\n```";
+            "[The Captain]{.speaker} [Enter]{.direction}\n\n::: {.verse}\n[The Captain]{.speaker}/[Enter]{.direction}\n:::";
         for (const target of ["foundry", "web"] as const) {
             const html = createRenderer(target).render(content);
             expect(html.match(/class="speaker"/g)).toHaveLength(2);

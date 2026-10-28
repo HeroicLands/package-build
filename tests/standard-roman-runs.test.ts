@@ -186,7 +186,7 @@ describe("standard Roman handoff through actual language runs", () => {
         );
     });
     it("draws a verse mark only at explicit line endings", () => {
-        const result = renderRuns(`\`\`\`verse {${qalezu}}\na/\n...b\n\na\n\`\`\``, ctx);
+        const result = renderRuns(`:::verse {${qalezu}}\na/\n...b\n\na\n:::`, ctx);
         expect(result.errors).toEqual([]);
         const line = encodeText(encodings.get("qalezu")!, "/");
         expect(result.markdown.split(line)).toHaveLength(2);
@@ -194,7 +194,7 @@ describe("standard Roman handoff through actual language runs", () => {
         expect(result.markdown).not.toContain(encodeText(encodings.get("qalezu")!, ".").repeat(3));
     });
     it("retains an explicit native line boundary after an independent Roman child", () => {
-        const source = `\`\`\`verse {${qalezu}}\na [b]{lang=en}/\n\`\`\``;
+        const source = `:::verse {${qalezu}}\na [b]{lang=en}/\n:::`;
         const result = renderRuns(source, ctx);
         expect(result.errors).toEqual([]);
         const line = encodeText(encodings.get("qalezu")!, "/");
@@ -204,7 +204,7 @@ describe("standard Roman handoff through actual language runs", () => {
         expect(pair.model.groups[0].lines[0].romanText).toBe("a [b]{lang=en}");
     });
     it("pairs native and Roman readings derived from one fence", () => {
-        const source = `\`\`\`verse {${qalezu}}\n...ab/\nab\n\`\`\``;
+        const source = `:::verse {${qalezu}}\n...ab/\nab\n:::`;
         const result = renderRuns(source, ctx);
         expect(result.errors).toEqual([]);
         const pair = [...result.verses.values()][0];
@@ -217,17 +217,17 @@ describe("standard Roman handoff through actual language runs", () => {
         );
     });
     it("accepts an explicit slash in a native mid-line fragment", () => {
-        const result = renderRuns("```verse\nbefore [a/b]{enc=qalezu} after\n```", ctx);
+        const result = renderRuns(":::verse\nbefore [a/b]{enc=qalezu} after\n:::", ctx);
         expect(result.errors).toEqual([]);
         expect(result.markdown).toContain(encodeText(encodings.get("qalezu")!, "/"));
     });
     it("adds no verse line mark to a native mid-line fragment without a slash", () => {
-        const result = renderRuns("```verse\nbefore [ab]{enc=qalezu} after\n```", ctx);
+        const result = renderRuns(":::verse\nbefore [ab]{enc=qalezu} after\n:::", ctx);
         expect(result.errors).toEqual([]);
         expect(result.markdown).not.toContain(encodeText(encodings.get("qalezu")!, "/"));
     });
     it("keeps explicit line marks and canto controls independent", () => {
-        const result = renderRuns(`\`\`\`verse {${qalezu}}\na/\n***\nb\n\`\`\``, ctx);
+        const result = renderRuns(`:::verse {${qalezu}}\na/\n\n--- {.canto}\nb\n:::`, ctx);
         expect(result.errors).toEqual([]);
         expect(result.markdown.split(definitions[1].controls.verseCanto)).toHaveLength(2);
         expect(result.markdown.split(encodeText(encodings.get("qalezu")!, "/"))).toHaveLength(2);
@@ -237,7 +237,7 @@ describe("standard Roman handoff through actual language runs", () => {
         );
     });
     it("accepts a typed verse slash at its authored location", () => {
-        expect(scanRuns("```verse {lang=vyl}\na/b\n```", ctx).errors).toEqual([]);
+        expect(scanRuns(":::verse {lang=vyl}\na/b\n:::", ctx).errors).toEqual([]);
     });
     it("protects authored catch signs and hyphens from web typography", () => {
         const local = {

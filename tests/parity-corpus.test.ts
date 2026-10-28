@@ -340,7 +340,7 @@ describe("the corpus exercises every vocabulary the renderers read", () => {
         }
     });
 
-    it("states every attribute a verse fence takes", () => {
+    it("states every attribute a verse div takes", () => {
         // `dir` and `data-pagefind-ignore` are written by the rewrite of a fence
         // set in a face, not authored.
         const written = new Set(["dir", "data-pagefind-ignore"]);
@@ -348,7 +348,7 @@ describe("the corpus exercises every vocabulary the renderers read", () => {
             scanVerse(body()).blocks.flatMap((verse: any) => Object.keys(verse.attributes)),
         );
         for (const key of VERSE_KEYS.filter((key: string) => !written.has(key)))
-            expect(used.has(key), `no verse fence states ${key}=`).toBe(true);
+            expect(used.has(key), `no verse div states ${key}=`).toBe(true);
     });
 
     it("states every attribute a scroll fence takes", () => {
@@ -468,6 +468,7 @@ const RULE_CONSTRUCT: Record<string, string> = {
     "core:heroiclands_image": "image-directive",
     "core:alert_markers": "alert-note",
     "core:verse_inline": "verse-plain",
+    "block:verse_div": "verse-plain",
     "core:hl_preview_structure": "figure-code",
     "block:footnote_def": "footnote",
     "block:deflist": "definition-list",

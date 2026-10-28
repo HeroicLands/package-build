@@ -358,9 +358,9 @@ describe("the worked example runs", () => {
     it("renders the guide's original once as native and Roman presentations", () => {
         const files = new Map(blocks.map((block) => [block.file, block.text]));
         const walking = files.get("assets/content/Lore/Walking.md")!;
-        expect(walking).toMatch(/```verse \{[^\n]*work=walking[^\n]*enc=vylsemaronenc/);
+        expect(walking).toMatch(/::: \{\.verse[^\n]*work=walking[^\n]*enc=vylsemaronenc/);
         const poem =
-            /```verse \{[^\n]*work=walking[^\n]*enc=vylsemaronenc[^\n]*\}\n[\s\S]*?\n```/.exec(
+            /::: \{\.verse[^\n]*work=walking[^\n]*enc=vylsemaronenc[^\n]*\}\n[\s\S]*?\n:::/.exec(
                 walking,
             )![0];
         const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "guide-verse-grid-")));

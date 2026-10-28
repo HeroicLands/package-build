@@ -333,32 +333,40 @@ Caption classes are unrestricted. The built-in `border` class draws the block as
 
 ## Verse
 
-A `verse` fence reaches the page as `.verse`, with one `.verse-stanza` per
+A `.verse` div reaches the page as `.verse`, with one `.verse-stanza` per
 stanza and `.verse-line` per logical line. Indentation uses `i1` through `i8`;
 deeper levels carry their complete `--verse-indent`. `.verse-canto-break`
-separates cantos. A work-labelled fence adds `.verse-labelled`, and each stanza
+separates cantos. A work-labelled div adds `.verse-labelled`, and each stanza
 opens with a small `.verse-label` shared across its presentations.
 
-A concrete fence encoding adds `.verse-paired`. Each `.verse-row` aligns one
+A concrete div encoding adds `.verse-paired`. Each `.verse-row` aligns one
 `.verse-native` cell with one `.verse-roman` cell at full weight. The script is
 on the left; its direction applies within its cell. A narrow container stacks
-the native presentation before the Roman presentation. An unencoded fence or
+the native presentation before the Roman presentation. An unencoded div or
 `enc=default` is one Roman column. See [versions of a work](../authoring/links-and-markup.md#versions-and-stanza-labels).
 
-| Class                | Meaning                                        |
-| -------------------- | ---------------------------------------------- |
-| `.verse`             | A version of a work                            |
-| `.verse-stanza`      | One stanza or prose paragraph                  |
-| `.verse-line`        | One logical line                               |
-| `.verse-labelled`    | A version carrying automatic stanza labels     |
-| `.verse-label`       | The stanza number or canto:stanza label        |
-| `.verse-paired`      | Script and Roman presentations of one original |
-| `.verse-row`         | Matching logical lines in both presentations   |
-| `.verse-native`      | Encoded text on the left                       |
-| `.verse-roman`       | Roman text on the right                        |
-| `.verse-canto-break` | A canto boundary                               |
-| `.direction`         | An instruction, inside or outside verse        |
-| `.speaker`           | A speaker label, inside or outside verse       |
+An unencoded quotation uses `.verse-inline` with inline-safe layout wrappers.
+An encoded quotation is a script-only span flowing within prose, with no verse
+grid or Roman companion. Its verse signs come from the encoding. Footnote
+references follow encoded spans outside their script font. In a paired div,
+references occur only in `.verse-roman`, beside their authored words.
+
+| Class                  | Meaning                                           |
+| ---------------------- | ------------------------------------------------- |
+| `.verse`               | A block or unencoded quoted verse                 |
+| `.verse-inline`        | A quotation with inline-safe span wrappers        |
+| `.verse-canto-heading` | A canto title and optional anchor within the work |
+| `.verse-stanza`        | One stanza or prose paragraph                     |
+| `.verse-line`          | One logical line                                  |
+| `.verse-labelled`      | A version carrying automatic stanza labels        |
+| `.verse-label`         | The stanza number or canto:stanza label           |
+| `.verse-paired`        | Script and Roman presentations of one original    |
+| `.verse-row`           | Matching logical lines in both presentations      |
+| `.verse-native`        | Encoded text on the left                          |
+| `.verse-roman`         | Roman text on the right                           |
+| `.verse-canto-break`   | A canto boundary                                  |
+| `.direction`           | An instruction, inside or outside verse           |
+| `.speaker`             | A speaker label, inside or outside verse          |
 
 Direction and speaker classes have plain defaults. The book preserves the same
 classes through `book-span`, with plain `book-direction` and `book-speaker`
