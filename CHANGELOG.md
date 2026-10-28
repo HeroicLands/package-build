@@ -1,5 +1,29 @@
 # @heroiclands/package-build
 
+## 25.5.0
+
+**Languages and scripts**
+
+- A `.`, `?`, `‼` or `!` placed at the start of a sentence in invented-language roman is reported at that mark.
+
+**Verse**
+
+- A `--- {.canto}` break keeps the stanza break before it and decodes back without adding an extra line ending.
+- Inline `[…]{.verse}` keeps repeated and trailing `//` stanza marks alongside its `/` line marks and footnotes, including in files with CRLF line endings.
+- A literal `\/` in verse stays inside its line and decodes with its backslash intact.
+- A link inside verse is written in the link label's own language, not the verse's.
+- A verse line that looks like a footnote definition or a code fence stays ordinary verse text instead of raising a footnote error or swallowing what follows.
+- A scroll placed after verse renders and reports its own findings correctly, whichever line endings the file uses.
+- A nested shorthand verse div takes the language of the verse around it and shows no stray attribute text on the page.
+- Verse findings inside lists and block quotes point to the verse's opening mark, and leave out the column when the position is unknown.
+- `package-build format` keeps block quotes that contain verse, aligns tables that quote verse, and gives each document one consistent line ending.
+- `package-build markdown` leaves verse untouched while still checking and fixing the prose around it.
+- The authoring guide describes verse scansion and the warnings for names as the build applies them.
+
+**Upgrading**
+
+- Move any `.`, `?`, `‼` or `!` that opens a sentence in invented-language roman to the end of that sentence.
+
 ## 25.4.0
 
 **Verse**
