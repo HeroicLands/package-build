@@ -138,7 +138,13 @@ checked against any encoding.
 
 Every encoding inherits the shared standard's Roman punctuation
 mappings, verse and name controls, and literal boundaries. `‼` marks an
-imperative and `!` an exclamation. An explicit mapping can give a standard
+imperative and `!` an exclamation. Configured language runs require sentence
+text before each terminal (`.`, `?`, `‼`, `!`). Validation reports an opening
+terminal at its original source position, including escaped marks. Whitespace,
+indentation and verse boundaries preserve sentence state; opening quotations
+start their own sentence, and closing quotations contribute their enclosed
+text to the surrounding sentence. Names, literal codage and independent
+language children count as text. An explicit mapping can give a standard
 source its own font glyph. Other punctuation needs its own mapping.
 
 ## Conversion API

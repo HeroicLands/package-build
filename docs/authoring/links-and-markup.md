@@ -598,7 +598,8 @@ indentation and source-line joining as a div. It takes ordinary span attributes,
 including `lang=` and `enc=`. An unencoded quotation draws Roman text with its
 line and stanza layout. A concrete encoding draws only its script, continuously
 inside the surrounding prose, like any encoded span. Its `/` and `//` reach the
-encoder as verse controls, so a script with verse signs draws them. Only divs
+encoder as verse controls, so a script with verse signs draws them. Consecutive
+stanza endings and a trailing stanza ending each retain their control. Only divs
 have paired script and Roman columns.
 Inline verse has no `work=`, `form=`, `scan=`, stanza labels or canto breaks.
 Directions, speaker labels, links, names and shared note footnotes work inside it.

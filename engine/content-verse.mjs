@@ -598,15 +598,20 @@ export function parseVerse(body, { inline = false, footnotes = new Set() } = {})
 
 /**
  * Validate a quoted verse span using its original source coordinates.
- * @param {{start: number, text: string, attrs: Array<[string,string]>}} span - Authored span.
+ * @param {{start: number, text: string, attrs: Array<[string,string]>, verseModel?: VerseModel}} span - Authored span.
  * @param {string} source - Complete Markdown source.
  * @returns {VerseDiagnostic[]} Located inline-only findings.
  */
 export function inlineVerseFindings(span, source) {
-    const findings = parseVerse(span.text, {
-        inline: true,
-        footnotes: footnoteLabels(source),
-    }).errors;
+    const findings = [
+        ...(
+            span.verseModel ??
+            parseVerse(span.text, {
+                inline: true,
+                footnotes: footnoteLabels(source),
+            })
+        ).errors,
+    ];
     for (const [key] of span.attrs)
         if (["form", "work", "scan"].includes(key))
             findings.push({ offset: 0, message: `${key}= is not an inline .verse attribute` });

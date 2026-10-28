@@ -50,6 +50,98 @@ const visible = (source: string) =>
         .replace(/<[^>]+>/g, "");
 
 describe("standard Roman handoff through actual language runs", () => {
+    it.each([".", "?", "‼", "!"])("locates opening terminal %s in actual runs", (terminal) => {
+        for (const source of [
+            `😀 [ ${terminal} a]{lang=vyl}`,
+            `[a. \t${terminal} b]{lang=vyl}`,
+            `[«${terminal} a»]{lang=vyl}`,
+            `[a «b ‹${terminal} c›»]{lang=vyl}`,
+            `[ ${terminal} a]{${semaron}}`,
+        ]) {
+            const errors = scanRuns(source, ctx).errors;
+            expect(errors, source).toEqual([
+                expect.objectContaining({
+                    line: 1,
+                    column: [...source.slice(0, source.lastIndexOf(terminal))].length + 1,
+                    message: expect.stringContaining("no sentence text"),
+                }),
+            ]);
+        }
+    });
+    it.each([
+        ["[! a]{lang=vyl}", 1, 2],
+        ["😀 [! a]{lang=vyl}", 1, 4],
+        [`[! a]{${semaron}}`, 1, 2],
+        ["Before\n😀 [! a/b]{.verse lang=vyl}", 2, 4],
+        [`Before\n😀 [! a/b]{.verse ${semaron}}`, 2, 4],
+    ])("locates a bare opening exclamation in %s", (source, line, column) => {
+        expect(scanRuns(source, ctx).errors).toEqual([
+            { line, column, message: "terminal `!` has no sentence text before it" },
+        ]);
+    });
+    it.each(["\n", "\r\n"])(
+        "retains sentence state across physical and logical verse boundaries (%j)",
+        (newline) => {
+            for (const opener of [":::verse {lang=vyl}", "::: {.verse lang=vyl}"])
+                for (const boundary of [
+                    newline,
+                    "/",
+                    "/" + newline,
+                    "//" + newline,
+                    newline + newline,
+                    newline + newline + "--- {.canto}" + newline,
+                ]) {
+                    const source = [opener, "a." + boundary + "! b/", ":::"].join(newline);
+                    const before = source.slice(0, source.indexOf("!"));
+                    expect(scanRuns(source, ctx).errors, source).toEqual([
+                        expect.objectContaining({
+                            line: before.split("\n").length,
+                            column: [...before.slice(before.lastIndexOf("\n") + 1)].length + 1,
+                            message: expect.stringContaining("no sentence text"),
+                        }),
+                    ]);
+                    expect(scanRuns(source.replace("a.", "a"), ctx).errors, source).toEqual([]);
+                }
+        },
+    );
+    it("checks escaped terminals at the mark and excludes code outside runs", () => {
+        const source = "`!` 😀 [\\! a]{lang=vyl}";
+        expect(scanRuns(source, ctx).errors).toEqual([
+            expect.objectContaining({
+                line: 1,
+                column: 9,
+                message: expect.stringContaining("no sentence text"),
+            }),
+        ]);
+        expect(scanRuns("`[! a]{lang=vyl}`", ctx).errors).toEqual([]);
+    });
+    it("preserves names, codage and independent language children as sentence text", () => {
+        for (const source of [
+            "[[ab]{.name}!]{lang=vyl}",
+            "[[ab]{lang=en}!]{lang=vyl}",
+            `[⟦U+E0100⟧!]{${semaron}}`,
+            "[«a ‹b?›!»!]{lang=vyl}",
+            "[a\\!]{lang=vyl}",
+        ]) {
+            expect(scanRuns(source, ctx).errors, source).toEqual([]);
+        }
+    });
+    it("does not count verse indentation or name boundaries as sentence text", () => {
+        expect(scanRuns(":::verse {lang=vyl}\n...! a/\n:::", ctx).errors).toEqual([
+            expect.objectContaining({
+                line: 2,
+                column: 4,
+                message: expect.stringContaining("no sentence text"),
+            }),
+        ]);
+        expect(scanRuns("[[? ab]{.name}]{lang=vyl}", ctx).errors).toEqual([
+            expect.objectContaining({
+                line: 1,
+                column: 3,
+                message: expect.stringContaining("no sentence text"),
+            }),
+        ]);
+    });
     it("selects conversion and the default face from an explicit encoding alone", () => {
         const result = renderRuns("[ab]{enc=semaron}", ctx);
         expect(result.errors).toEqual([]);

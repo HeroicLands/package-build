@@ -114,12 +114,21 @@ const CONTAINER_PREFIX = /^(?:[ \t]{0,3}>[ \t]?|[ \t]{0,3}(?:[-*+]|\d{1,9}[.)])[
  */
 export function misplacedFootnoteDefinitions(source) {
     const lines = String(source ?? "").split("\n");
+    const verseLines = new Set(
+        verseRegions(String(source ?? "")).flatMap((region) =>
+            Array.from({ length: region.end - region.start + 1 }, (_, i) => region.start + i),
+        ),
+    );
     const errors = [];
     let fence = null;
     // Inside the continuation of a genuine top-level definition: a blank
     // line or a four-space indent belongs to it, not to a new mistake.
     let continuation = false;
     for (let i = 0; i < lines.length; i++) {
+        if (verseLines.has(i)) {
+            continuation = false;
+            continue;
+        }
         const line = lines[i];
         const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line);
         if (fence) {

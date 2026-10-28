@@ -180,6 +180,103 @@ describe("the fence's own findings", () => {
     });
 });
 
+describe("verse is opaque to scroll fences", () => {
+    for (const opening of [":::verse", "::: {.verse}"]) {
+        for (const newline of ["\n", "\r\n"]) {
+            for (const prefix of ["", "  ", ">   "]) {
+                const context =
+                    prefix === "  " ? ["- Item"]
+                    : prefix ? ["> - Item"]
+                    : [];
+                const label = JSON.stringify({ opening, newline, prefix });
+
+                it(`ignores scroll-looking lines in closed and unclosed verse ${label}`, () => {
+                    for (const closed of [true, false]) {
+                        const source = [
+                            ...context,
+                            `${prefix}${opening}`,
+                            `${prefix}\`\`\`scroll {rows=0}`,
+                            `${prefix}literal verse`,
+                            ...(closed ? [`${prefix}:::`] : []),
+                        ].join(newline);
+                        expect(scanScrolls(source)).toEqual({ blocks: [], errors: [] });
+                        expect(renderScroll(source).markdown).toBe(source);
+                    }
+                });
+
+                it(`keeps a later real scroll after a literal plain fence ${label}`, () => {
+                    const verse = [
+                        ...context,
+                        `${prefix}${opening}`,
+                        `${prefix}\`\`\``,
+                        `${prefix}literal verse`,
+                        `${prefix}:::`,
+                        "",
+                    ];
+                    const source = [...verse, "```scroll {rows=0}", "chen", "```"].join(newline);
+                    const { blocks, errors } = scanScrolls(source);
+                    expect(blocks).toHaveLength(1);
+                    expect(blocks[0]).toMatchObject({
+                        start: verse.length,
+                        end: verse.length + 2,
+                        invalid: true,
+                    });
+                    expect(errors).toEqual([
+                        {
+                            line: verse.length + 1,
+                            column: 17,
+                            message: expect.stringContaining("`rows=0`"),
+                        },
+                    ]);
+                });
+            }
+        }
+    }
+
+    it("locates and renders real CRLF scrolls on both sides of verse", () => {
+        const verse = ":::verse\r\n```\r\nliteral verse\r\n:::\r\n";
+        const source =
+            "```scroll {rows=0}\r\nchen\r\n```\r\n\r\n" +
+            verse +
+            "\r\n```scroll {cols=0}\r\nteng\r\n```\r\n";
+        expect(scanScrolls(source)).toMatchObject({
+            blocks: [
+                { start: 0, end: 2 },
+                { start: 9, end: 11 },
+            ],
+            errors: [
+                { line: 1, column: 17, message: expect.stringContaining("`rows=0`") },
+                { line: 10, column: 17, message: expect.stringContaining("`cols=0`") },
+            ],
+        });
+        expect(renderScroll(source).markdown).toBe(source);
+        const rendered = renderScroll(
+            source.replace("rows=0", "rows=2").replace("cols=0", "cols=2"),
+        ).markdown;
+        expect(rendered).toContain(verse);
+        expect(rendered.match(/<div class="scroll"/g)).toHaveLength(2);
+        expect(rendered).toContain("<p>chen</p>");
+        expect(rendered).toContain("<p>teng</p>");
+    });
+
+    it("keeps the remainder of an unclosed nested verse opaque", () => {
+        const source = "- Item\n  :::verse\n  ```\n  literal verse\n\n```scroll\nchen\n```";
+        expect(scanScrolls(source)).toEqual({ blocks: [], errors: [] });
+        expect(renderScroll(source).markdown).toBe(source);
+    });
+
+    it("keeps div-looking text inside a real scroll as scroll content", () => {
+        const source = "```scroll\n:::verse\nchen\n```\n\n```scroll\nteng\n```";
+        expect(scanScrolls(source)).toMatchObject({
+            blocks: [
+                { start: 0, end: 3 },
+                { start: 5, end: 7 },
+            ],
+            errors: [],
+        });
+    });
+});
+
 describe("the face and the script", () => {
     it("uses an explicitly chosen native face and map", () => {
         expect(

@@ -1994,9 +1994,9 @@ not.
 
 ##### Name-marking findings
 
-`package-build lint` reports two name-marking warnings in authored body prose.
-They leave a valid package passing. Headings, frontmatter, tables, infoboxes,
-code, comments and embeds are outside both.
+`package-build lint` reports one name-marking warning in authored body prose.
+It leaves a valid package passing. Headings, frontmatter, tables, infoboxes,
+code, comments and embeds are outside this check.
 
 1. A `.name` span without a `ref` whose whole text matches an indexed
    `name.full` or a form its `name` lists, ignoring case, should be a link or
@@ -2025,8 +2025,7 @@ valid inside emphasis:
 The name is `Joe Blow`; the surrounding phrase is emphasis.
 
 Each finding is one warning at its authored `file:line:column`, naming the
-full name or explicit label. A warning can describe both findings at one
-occurrence.
+full name or explicit label.
 
 An optional `data-type` on a `.name` span states what the named thing is:
 

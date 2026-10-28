@@ -121,6 +121,10 @@ export function romanTextProblems(text, inventory) {
     );
     const quotes = [];
     let sentenceStart = true;
+    const sentenceText = () => {
+        sentenceStart = false;
+        if (quotes.length) quotes.at(-1).hasText = true;
+    };
     const report = (offset, message) => out.push({ offset, message });
     for (let offset = 0; offset < text.length;) {
         const char = String.fromCodePoint(text.codePointAt(offset));
@@ -135,7 +139,7 @@ export function romanTextProblems(text, inventory) {
             // punctuation and language letters never reinterpret its contents.
             const close = text.indexOf("⟧", offset + 1);
             offset = close < 0 ? text.length : close + 1;
-            sentenceStart = false;
+            sentenceText();
             continue;
         }
         const cluster = decomposed.get(offset);
@@ -145,10 +149,17 @@ export function romanTextProblems(text, inventory) {
                 `\`${cluster}\` is not NFC spelling in \`${inventory.language}\`; write \`${cluster.normalize("NFC")}\``,
             );
             offset += cluster.length;
-            sentenceStart = false;
+            sentenceText();
             continue;
         }
-        if (isRomanWhitespace(char)) {
+        // An independent language child projects to an opaque empty name.
+        if (text.startsWith("{}", offset)) {
+            offset += 2;
+            sentenceText();
+            continue;
+        }
+        // Layout, pauses and name boundaries supply no sentence text.
+        if (isRomanWhitespace(char) || "/,{}".includes(char)) {
             offset += char.length;
             continue;
         }
@@ -207,7 +218,7 @@ export function romanTextProblems(text, inventory) {
             const expected = quotes.length % 2 === 0 ? "«" : "‹";
             if (char !== expected)
                 report(offset, `a quotation at this depth opens with \`${expected}\``);
-            quotes.push({ char, offset });
+            quotes.push({ char, offset, sentenceStart, hasText: false });
             sentenceStart = true;
         } else if (char === "»" || char === "›") {
             const opening = quotes.at(-1);
@@ -217,7 +228,8 @@ export function romanTextProblems(text, inventory) {
                 if (char !== expected)
                     report(offset, `this quotation closes with \`${expected}\`, not \`${char}\``);
                 quotes.pop();
-                sentenceStart = false;
+                sentenceStart = opening.sentenceStart && !opening.hasText;
+                if (opening.hasText) sentenceText();
             }
         } else if (char === "—" || (char === "…" && !sentenceStart)) {
             const rest = text.slice(offset + char.length);
@@ -226,9 +238,11 @@ export function romanTextProblems(text, inventory) {
                     offset,
                     `\`${char}\` is immediately followed by a terminal (\`.\`, \`?\`, \`‼\` or \`!\`) except at the end of a run`,
                 );
-            sentenceStart = false;
-        } else if (TERMINALS.has(char)) sentenceStart = true;
-        else sentenceStart = false;
+        } else if (TERMINALS.has(char)) {
+            if (sentenceStart)
+                report(offset, `terminal \`${char}\` has no sentence text before it`);
+            sentenceStart = true;
+        } else sentenceText();
         offset += char.length;
     }
     for (const opening of quotes)

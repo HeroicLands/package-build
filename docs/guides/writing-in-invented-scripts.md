@@ -99,8 +99,11 @@ are supplied automatically. A language that lists uppercase letters accepts
 them; the build changes no authored case.
 
 The terminals are `.` for a statement, `?` for a question, `‼` for an imperative
-and `!` for an exclamation. None is required. A comma pauses within a sentence;
-use it instead of `;` or `:`, and use a period between complete sentences.
+and `!` for an exclamation. None is required. A terminal needs preceding text
+in its sentence; `! Vesun` is a finding at `!`, while `Vesun!` is valid.
+Whitespace, indentation, verse boundaries and a preceding terminal do not
+supply sentence text. A comma pauses within a sentence; use it instead of `;`
+or `:`, and use a period between complete sentences.
 Quotation pairs alternate `«…»`, `‹…›`, then `«…»` at successive depths.
 English double quotes, `<<` and `>>` are findings. A closing quote is not a
 terminal for the enclosing sentence.
@@ -510,11 +513,19 @@ Lokazor lonak./
 :::
 ```
 
+Both `:::verse` and `::: {.verse}` inherit the enclosing div's language when
+no `lang=` is stated. A link can select its label's language with trailing
+attributes: `[[lore-longtunnel|Zebra Quartz]]{lang=en}`. This overrides the verse
+language for the label while preserving the destination, including in an encoded
+original's script and Roman columns.
+
 Quoted verse is a span within prose, such as
 `[Lokazor lonak zaron./..Lokamen lonak zaron.//]{.verse lang=vyl}`.
 A concrete `enc=` sets a quotation in script only, continuously in the prose.
 Its `/` and `//` become the encoding's verse marks; only a div has paired script
-and Roman columns. An unencoded quotation keeps Roman line and stanza layout.
+and Roman columns. Each stanza ending contributes its control, including
+consecutive `//` marks and a final `//`. An unencoded quotation keeps Roman
+line and stanza layout.
 Quotations take no `work=`, `form=`, `scan=`, labels or canto breaks.
 A div's canto separator can carry a heading and an anchor:
 
@@ -623,7 +634,7 @@ the second beats and, in brackets, with all of them:
 > ``this line has 4 beats (5 with secondary beats); the metre `hexameter` has 6``
 
 **The check is author-side.** Readers see nothing of it: the rendered div
-carries `data-metre` with the metre's name and nothing a reader sees. A div
+carries `data-scan` with the metre's name and nothing a reader sees. A div
 without `scan=` is not counted. `scan=` is refused where it cannot mean
 anything, each an error:
 

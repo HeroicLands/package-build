@@ -67,7 +67,6 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false, verse
                 state.src[state.src.indexOf("]", start + 2) + 1] === "]") ||
             /@[A-Za-z]+$/.test(state.src.slice(0, start)) ||
             state.src[start + 1] === "^" ||
-            state.src[start + 1] === "!" ||
             ["!", "]"].includes(state.src[start - 1]) ||
             (state.src[start - 1] === "[" && state.linkLevel === 0)
         )
@@ -75,6 +74,7 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false, verse
         const end = state.md.helpers.parseLinkLabel(state, start, false);
         if (
             end < 0 ||
+            (state.src[start + 1] === "!" && state.src[end + 1] !== "{") ||
             ["(", "["].includes(state.src[end + 1]) ||
             (state.src[start + 1] === "[" && state.src[end + 1] !== "{")
         )
@@ -215,6 +215,7 @@ export function scanSpans(source) {
         tokens = parser.parse(text, env),
         spans = [],
         errors = [];
+    const sourcePositions = new Map();
     const lines = text.split("\n"),
         starts = [];
     let offset = 0;
@@ -244,6 +245,14 @@ export function scanSpans(source) {
                 if (children[close].type === "span_open") depth++;
                 if (children[close].type === "span_close" && --depth === 0) break;
             }
+            if ((child.attrGet("class") ?? "").split(/\s+/).includes("verse"))
+                sourcePositions.set(
+                    start,
+                    Array.from(
+                        { length: child.meta.text.length + 1 },
+                        (_, index) => position(child.meta.start + 1 + index) - start - 1,
+                    ),
+                );
             spans.push({
                 id: child.attrGet("id") ?? "",
                 line,
@@ -360,10 +369,34 @@ export function scanSpans(source) {
                 ([key, value]) => key === "class" && value.split(/\s+/).includes("verse"),
             )
         ) {
-            span.verseModel = parseVerse(span.text, {
+            const model = parseVerse(span.text, {
                 inline: true,
                 footnotes: footnoteLabels(text),
             });
+            // The parser removes container prefixes and normalizes CRLF. Map
+            // every logical range back through its original source positions.
+            const positions = sourcePositions.get(span.start);
+            const at = (offset) => positions[offset];
+            const ranges = new Set([
+                ...model.groups,
+                ...model.cantos.flatMap((canto) => canto.stanzas),
+                ...model.groups.flatMap((group) => (group.cantoBreak ? [] : group.lines)),
+                ...model.notes,
+            ]);
+            for (const range of ranges) {
+                range.from = at(range.from);
+                range.to = at(range.to);
+                if ("offsets" in range) range.offsets = range.offsets.map(at);
+            }
+            for (const boundary of model.boundaries)
+                boundary.sourceOffset = at(boundary.sourceOffset);
+            for (const finding of model.errors) finding.offset = at(finding.offset);
+            model.layout = model.layout.map(([from, to]) => [at(from), at(to)]);
+            for (let index = 1; index < positions.length; index++)
+                if (positions[index] > positions[index - 1] + 1)
+                    model.layout.push([positions[index - 1] + 1, positions[index]]);
+            model.layout.sort((a, b) => a[0] - b[0]);
+            span.verseModel = model;
             errors.push(...inlineVerseFindings(span, text));
         }
     spans.sort((a, b) => a.start - b.start);

@@ -20,6 +20,7 @@ import { renderFigureBlocks } from "../engine/content-figures.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 import {
     footnoteFindings,
+    separateFootnotes,
     misplacedFootnoteDefinitions,
     unresolvedFootnoteReferences,
     unusedFootnoteDefinitions,
@@ -224,5 +225,99 @@ describe("a footnote inside a figure's contents resolves", () => {
         const html = foundry(source);
         expect(html.match(/<figcaption\b/g)).toBeNull();
         expect(html).toContain("Figure 1: A figure");
+    });
+});
+
+describe("verse is opaque to block footnote definitions", () => {
+    for (const opening of [":::verse", "::: {.verse}"]) {
+        for (const newline of ["\n", "\r\n"]) {
+            for (const prefix of ["", "  ", ">   "]) {
+                const context =
+                    prefix === "  " ? ["- Item"]
+                    : prefix ? ["> - Item"]
+                    : [];
+                const label = JSON.stringify({ opening, newline, prefix });
+
+                it(`ignores definition-looking lines in closed and unclosed verse ${label}`, () => {
+                    for (const closed of [true, false]) {
+                        const source = [
+                            ...context,
+                            `${prefix}${opening}`,
+                            `${prefix}- [^one]: Literal verse.`,
+                            `${prefix}[^top]: Also verse.`,
+                            `${prefix}Words.[^one]`,
+                            ...(closed ? [`${prefix}:::`] : []),
+                        ].join(newline);
+                        expect(misplacedFootnoteDefinitions(source)).toEqual([]);
+                        expect(separateFootnotes(source)).toEqual({
+                            markdown: source,
+                            definitions: "",
+                        });
+                        expect(unresolvedFootnoteReferences(source)).toEqual([
+                            {
+                                line: context.length + 4,
+                                column: prefix.length + 7,
+                                message: expect.stringContaining("[^one] has no definition"),
+                            },
+                        ]);
+                    }
+                });
+
+                it(`retains real definitions and findings after verse ${label}`, () => {
+                    const verse = [
+                        ...context,
+                        `${prefix}${opening}`,
+                        `${prefix}- [^one]: Literal verse.`,
+                        `${prefix}Words.[^used]`,
+                        `${prefix}\`\`\``,
+                        `${prefix}:::`,
+                        "",
+                    ];
+                    const source = [
+                        ...verse,
+                        "- [^bad]: Misplaced.",
+                        "",
+                        "Body.[^one]",
+                        "",
+                        "[^used]: A real note.",
+                    ].join(newline);
+                    expect(misplacedFootnoteDefinitions(source)).toEqual([
+                        {
+                            line: verse.length + 1,
+                            column: 3,
+                            label: "bad",
+                            message: expect.stringContaining("top level"),
+                        },
+                    ]);
+                    expect(unresolvedFootnoteReferences(source)).toEqual([
+                        {
+                            line: verse.length + 3,
+                            column: 6,
+                            message: expect.stringContaining("[^one] has no definition"),
+                        },
+                    ]);
+                    expect(unusedFootnoteDefinitions(source)).toEqual([]);
+                    expect(separateFootnotes(source).definitions).toBe("[^used]: A real note.");
+                });
+            }
+        }
+    }
+
+    it("keeps the remainder of an unclosed nested verse opaque", () => {
+        const source = "- Item\n  :::verse\n  - [^one]: Literal verse.\n\n> [^bad]: Misplaced.";
+        expect(misplacedFootnoteDefinitions(source)).toEqual([]);
+    });
+
+    it("ends a definition continuation when a verse begins", () => {
+        const source =
+            "[^used]: A real note.\n\n:::verse\n[^literal]: Verse.\n:::\n  - [^bad]: Misplaced.";
+        expect(misplacedFootnoteDefinitions(source)).toEqual([
+            {
+                line: 6,
+                column: 5,
+                label: "bad",
+                message: expect.stringContaining("top level"),
+            },
+        ]);
     });
 });

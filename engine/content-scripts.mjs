@@ -1202,10 +1202,26 @@ function analyseRuns(source, ctx, syntax) {
             .map((span) => ({
                 bodyStart: span.start + 1,
                 bodyEnd: span.contentEnd,
-                body: span.text,
+                body: text.slice(span.start + 1, span.contentEnd),
                 model: span.verseModel,
             })),
     ];
+    // A reference with its own run keys is an independent child, just as
+    // the presentation span produced by the link resolver is. Keep its label
+    // out of the enclosing language and encoder without rewriting its target.
+    const independentReferences = rawReferences.filter(
+        (reference) =>
+            Object.keys(reference.construct.keys).length &&
+            verseContexts.some(
+                (poem) =>
+                    reference.where.start >= poem.bodyStart && reference.where.end <= poem.bodyEnd,
+            ),
+    );
+    const referenceSpans = independentReferences.map((reference) => ({
+        start: reference.where.start,
+        end: reference.where.end,
+        contentEnd: reference.to,
+    }));
     for (const poem of verseContexts) {
         const bodyStart = poem.bodyStart;
         for (const [from, to] of poem.model.layout)
@@ -1281,6 +1297,9 @@ function analyseRuns(source, ctx, syntax) {
                 .filter((reference) => reference.from >= from && reference.from < to)
                 .map((reference) => [reference.from, reference.to]),
             ...[...verseMarkers].filter(([start]) => start >= from && start < to),
+            ...independentReferences
+                .filter((reference) => reference.where.start >= from && reference.where.start < to)
+                .map((reference) => [reference.where.start, reference.where.end]),
             ...verseContexts
                 .filter(
                     (region) =>
@@ -1568,7 +1587,7 @@ function analyseRuns(source, ctx, syntax) {
                     said(
                         top,
                         token.info.trim().split(/\s/)[0] === "verse" ?
-                            "a verse div"
+                            "a code fence named `verse`; write a `::: {.verse}` div"
                         :   "a code fence",
                     );
                 else if (Object.hasOwn(BLOCK_WHAT, token.type)) said(top, BLOCK_WHAT[token.type]);
@@ -1636,7 +1655,12 @@ function analyseRuns(source, ctx, syntax) {
             ...noteReferences
                 .filter((reference) => reference.from >= bounds[0] && reference.from < bounds[1])
                 .map((reference) => [reference.from, reference.to]),
-            ...[...verseMarkers].filter(([start]) => start >= bounds[0] && start < bounds[1]),
+            ...[...verseMarkers].filter(
+                ([start]) =>
+                    start >= bounds[0] &&
+                    start < bounds[1] &&
+                    !referenceSpans.some((span) => start === span.start),
+            ),
             ...verseContexts
                 .filter(
                     (region) =>
@@ -1655,7 +1679,7 @@ function analyseRuns(source, ctx, syntax) {
         const projectionOptions = {
             from: bounds[0],
             to: bounds[1],
-            spans,
+            spans: [...spans, ...referenceSpans],
             exclude: excluded,
             includeSpan: (span) =>
                 spanDetails.has(span.start) && ownerOf(spanDetails.get(span.start)) === owner,
@@ -1816,6 +1840,17 @@ function analyseRuns(source, ctx, syntax) {
             },
             face: font === undefined ? undefined : faces.get(font),
         });
+    }
+
+    for (const reference of independentReferences) {
+        const book = ctx.wordBooks?.get(reference.lang);
+        if (!book) continue;
+        const projection = plainRomanRun(text, { from: reference.from, to: reference.to });
+        for (const problem of unknownWords(projection.text, book))
+            report(
+                positionOf(starts, projection.offsets[problem.offset] ?? reference.from),
+                unknownWordMessage(problem.word, reference.lang),
+            );
     }
 
     const firstEncodingRun =
@@ -2162,7 +2197,7 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
                 ...span,
                 inline: true,
                 model: span.verseModel,
-                body: span.text,
+                body: text.slice(span.start + 1, span.contentEnd),
                 bodyStart: span.start + 1,
                 bodyEnd: span.contentEnd,
             })),
@@ -2322,11 +2357,19 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
         if (attributes !== undefined) {
             const open = lines[run.start].indexOf("{");
             const close = lines[run.start].lastIndexOf("}");
-            edits.push({
-                from: starts[run.start] + open + 1,
-                to: starts[run.start] + close,
-                text: attributes,
-            });
+            if (open < 0 && run.kind === "verse") {
+                const opening = lines[run.start];
+                edits.push({
+                    from: starts[run.start] + opening.indexOf(":::"),
+                    to: starts[run.start] + opening.replace(/\r$/, "").length,
+                    text: `::: {${attributes}}`,
+                });
+            } else
+                edits.push({
+                    from: starts[run.start] + open + 1,
+                    to: starts[run.start] + close,
+                    text: attributes,
+                });
         }
         if (detail.plain && detail.body)
             for (const [from, to] of outsideHoles(detail.body[0], detail.body[1], detail.holes)) {
@@ -2415,7 +2458,7 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
             .map((span) => ({
                 ...span,
                 inline: true,
-                body: span.text,
+                body: markdown.slice(span.start + 1, span.contentEnd),
                 bodyStart: span.start + 1,
                 bodyEnd: span.contentEnd,
             })),
@@ -2522,10 +2565,25 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
                 classes,
                 values: Object.entries(values).filter(([key]) => key !== "lang"),
             });
-            const native = model.groups
-                .flatMap((group) =>
-                    group.cantoBreak ? [group.text ?? ""] : group.lines.map((line) => line.text),
+            const fragments = model.groups.flatMap((group) =>
+                group.cantoBreak ? [{ from: group.from, text: group.text ?? "" }] : group.lines,
+            );
+            // Consecutive boundaries can stand between logical lines. They
+            // still contribute controls even when no line owns their offsets.
+            for (const piece of detail.plan?.pieces ?? []) {
+                if (!piece.boundary || piece.boundary === "canto") continue;
+                const offset = piece.anchor - base;
+                if (
+                    model.groups.some((group) =>
+                        group.lines.some((line) => offset >= line.from && offset <= line.to),
+                    )
                 )
+                    continue;
+                fragments.push({ from: offset, text: escapeRoman(piece.to, false) });
+            }
+            const native = fragments
+                .sort((a, b) => a.from - b.from)
+                .map((fragment) => fragment.text)
                 .join("");
             pairedEdits.push({
                 from: block.start,

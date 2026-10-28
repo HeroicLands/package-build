@@ -43,6 +43,7 @@
  */
 
 import { blockTokens } from "./markdown-blocks.mjs";
+import { verseRegions } from "./verse-regions.mjs";
 
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 
@@ -114,7 +115,7 @@ function keyColumns(line, key) {
  * Read every `scroll` fence in a source, and every fault in its opening.
  *
  * A fence inside a block quote or an HTML block is not read, and neither is a
- * fence quoted inside another fence.
+ * fence quoted inside another fence. Verse lines are inline content.
  *
  * @param {string} source - Markdown.
  * @returns {{blocks: Scroll[], errors: Array<{line: number, column: number, message: string}>}}
@@ -125,8 +126,12 @@ export function scanScrolls(source) {
     const blocks = [];
     const errors = [];
     if (!/^ *(?:`{3,}|~{3,}) *scroll(?:\s|$)/m.test(text)) return { blocks, errors };
-    const lines = text.split("\n");
-    const literalLines = new Set();
+    const lines = text.split(/\r?\n/);
+    const literalLines = new Set(
+        verseRegions(text).flatMap((region) =>
+            Array.from({ length: region.end - region.start + 1 }, (_, i) => region.start + i),
+        ),
+    );
     for (const token of blockTokens(text)) {
         if (!token.map || !["blockquote_open", "html_block"].includes(token.type)) continue;
         for (let line = token.map[0]; line < token.map[1]; line++) literalLines.add(line);

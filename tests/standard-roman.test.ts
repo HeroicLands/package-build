@@ -12,8 +12,77 @@ const problems = (text: string) => romanTextProblems(text, inventory);
 describe("the shared Roman punctuation standard", () => {
     it("adds standard marks and exact whitespace to every language's additions", () => {
         expect(
-            problems("Go, «yes ‹now›».?‼! /^again\u00A0\u2003\t\v\f\r\n{name}. …resume"),
+            problems("Go, «yes ‹now›». Ask? Go‼ Yes! /^again\u00A0\u2003\t\v\f\r\n{name}. …resume"),
         ).toEqual([]);
+    });
+    it.each([".", "?", "‼", "!"])("requires sentence text before terminal %s", (terminal) => {
+        for (const prefix of [
+            "",
+            " \t\r\n",
+            "a. ",
+            "a?",
+            "a‼\n",
+            "a! ",
+            "^",
+            "^^",
+            "a./^",
+            "a.\n^^",
+            ",",
+            "a. ,",
+            "—",
+            "a. —",
+            "{",
+        ]) {
+            const text = prefix + terminal + " a";
+            expect(problems(text), text).toEqual([
+                {
+                    offset: prefix.length,
+                    message: expect.stringContaining("no sentence text"),
+                },
+            ]);
+        }
+        for (const text of [
+            "a" + terminal,
+            "a\n" + terminal,
+            "a/^" + terminal,
+            "«a»" + terminal,
+            "a—" + terminal,
+            "a…" + terminal,
+            "…a" + terminal,
+            "…" + terminal,
+            "{}" + terminal,
+            "{a}" + terminal,
+            "⟦U+F0200⟧" + terminal,
+        ])
+            expect(problems(text), text).toEqual([]);
+    });
+    it("checks each quotation's sentence without treating its closer as a terminal", () => {
+        const text = "a «! b ‹? c. ‼ d›!»!";
+        expect(problems(text).map(({ offset }) => offset)).toEqual([
+            text.indexOf("!"),
+            text.indexOf("?"),
+            text.indexOf("‼"),
+        ]);
+        expect(problems("«a.»! «b ‹c?›!».")).toEqual([]);
+    });
+    it("does not count empty quotations as sentence text", () => {
+        for (const prefix of ["«»", "«‹›»", "a. «»", "a. «‹›»"])
+            expect(
+                problems(prefix + "!").filter(({ message }) =>
+                    message.includes("no sentence text"),
+                ),
+            ).toContainEqual({
+                offset: prefix.length,
+                message: expect.stringContaining("no sentence text"),
+            });
+        expect(problems("a «»! «a. ‹›»!")).toEqual([]);
+    });
+    it("locates a terminal after supplementary sentence text in UTF-16 units", () => {
+        const text = "😀. !";
+        const extended = { ...inventory, characters: new Set([...inventory.characters, "😀"]) };
+        expect(romanTextProblems(text, extended)).toEqual([
+            { offset: 4, message: expect.stringContaining("no sentence text") },
+        ]);
     });
     it.each([",", ";", ":", '"', "“", "”", "«", "⟦"])(
         "refuses %s in the language additions",
