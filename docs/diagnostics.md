@@ -297,36 +297,34 @@ Like a culture conflict, each fails the index and every command that reads it
 without collecting problems. The rules are under
 [a note's language](reference/format-details.md#a-notes-language).
 
-## A worked case: a verse in columns
+## A worked case: versions of a work
 
-A [verse in columns](authoring/links-and-markup.md#verse-in-columns) has a
-positive whole-number `cols` value. Invalid counts are located at their
-value. With multiple columns, every content line needs a numeric prefix and
-one or more spaces. Missing prefixes point to the line's first content
-character; out-of-range or decreasing numbers point to the authored number.
-
-This row has a decreasing column number on its third content line:
+[Versions of a work](authoring/links-and-markup.md#versions-and-stanza-labels)
+share a page-local `work=` key and the same stanza shape. For example:
 
 ````markdown
-```verse {cols=3 lang=en}
-1 The first reading.
-3 A later column.
-2 Out of order within this row.
+```verse {work=watch lang=en}
+The watch arrives.
+
+The harbor wakes.
+```
+
+```verse {work=watch lang=en}
+Another telling has only one stanza.
 ```
 ````
 
-The finding points to `2`. A blank line before it would start another row,
-where the column order begins again. A number above three or below one is
-out of bounds. Skipping a column is valid and leaves an empty cell; repeating
-a number is valid and adds another reading to that column. The first reading
-in every column is foreground and its later readings are grey.
+The opening lines receive findings naming canto 1 and its differing stanza
+counts, two and one. The first version is included in the disagreement. A key
+used by only one version is also a finding at that fence's opening line.
 
-Language and native-font findings retain their authored locations inside a
-reading, including the column prefix and indentation before it. An unknown
-mapping or face points to that run's attribute; an unknown word or a character
-the face cannot draw points to the original word or character. A language-only
-Roman repeat is checked in its own language, independently of a native run.
-The build reports invalid input rather than publishing an inferred layout.
+A concrete `enc=` creates its own script and Roman presentations from one
+original; the display does not add a second authored version. Source newlines
+join unless `/` ends the line. Blank lines and `//` end stanzas. A leading,
+trailing or consecutive `***` without a stanza between is located at the break
+itself. Language and encoding findings retain their positions in the single
+authored original, including text inside names, directions and speaker labels.
+The content index records that original once in `runs`.
 
 ## Emphasis in non-English spans
 
@@ -603,9 +601,10 @@ finding naming its `⟦U+XXXX⟧` spelling. Use that notation, or the chosen
 encoding's codage name, inside the literal markers. The encoder checks the
 codes; the Roman validator leaves their contents immutable.
 
-A verse fence uses its authored line endings for boundaries. A literal `/`
-inside it is an error at that slash. Visual indentation does not add periods
-to the encoded text. Source positions survive Markdown escapes and nested
+A verse fence uses `/` for logical line endings, `//` or blank lines for
+stanzas, and standalone `***` for cantos. A literal slash is written `\/`.
+Visual indentation at a logical line boundary does not add periods to the
+encoded text; a period on a joined continuation line remains text. Source positions survive Markdown escapes and nested
 `.emph` or `.name` spans.
 
 Language-run diagnostic columns count Unicode code points, so a supplementary

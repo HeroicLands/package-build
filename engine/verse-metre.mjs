@@ -60,7 +60,7 @@ import { WORD } from "./word-pattern.mjs";
 
 import MarkdownIt from "markdown-it";
 import { spanMarkdownPlugin } from "./content-spans.mjs";
-import { STANZA_BREAK, verseLine } from "./content-verse.mjs";
+import { parseVerse } from "./content-verse.mjs";
 import { inlineText } from "./name-markup.mjs";
 
 const verseParser = new MarkdownIt().use(spanMarkdownPlugin);
@@ -311,13 +311,6 @@ export function metreFindings(blocks, lines, ctx) {
             column: ctx.attributeColumns(opening, key)[part],
         });
         const error = (position, message) => errors.push({ ...position, message });
-        if (Number(block.attributes.cols ?? 1) > 1) {
-            error(
-                at("scan", "key"),
-                "`scan=` counts the beats of one language's lines; a verse with cols>1 groups independent physical lines",
-            );
-            continue;
-        }
         const metre = metres.get(name);
         if (!metre) {
             const near = nearest(name, [...metres.keys()]);
@@ -346,40 +339,40 @@ export function metreFindings(blocks, lines, ctx) {
             );
             continue;
         }
-        for (let line = block.start + 1; line < block.end; line++) {
-            const text = lines[line];
-            if (!text.trim() || STANZA_BREAK.test(text.trim())) continue;
-            const reading = verseLine(text);
-            const tokens = verseParser.parseInline(reading.text, {})[0]?.children ?? [];
-            const tag = (name) => (ctx.languages?.[name]?.tag ?? name).toLowerCase();
-            const foreign = tokens.find(
-                (token) =>
-                    token.type === "span_open" &&
-                    token.attrGet("lang") &&
-                    tag(token.attrGet("lang")) !== tag(lang),
-            );
-            if (foreign) {
-                error(
-                    {
-                        line: line + 1,
-                        column:
-                            reading.textColumn +
-                            foreign.meta.start +
-                            (reading.markerStart <= reading.textColumn - 1 + foreign.meta.start ?
-                                reading.markerLength
-                            :   0),
-                    },
-                    "`scan=` counts one language's beats; this verse line contains another language",
+        const body = lines.slice(block.start + 1, block.end).join("\n");
+        const model = block.model ?? parseVerse(body);
+        const sourcePosition = (offset) => {
+            const preceding = body.slice(0, offset);
+            return {
+                line: block.start + 2 + preceding.split("\n").length - 1,
+                column: preceding.length - preceding.lastIndexOf("\n"),
+            };
+        };
+        for (const group of model.groups) {
+            if (group.cantoBreak) continue;
+            for (const reading of group.lines) {
+                const tokens = verseParser.parseInline(reading.text, {})[0]?.children ?? [];
+                const tag = (name) => (ctx.languages?.[name]?.tag ?? name).toLowerCase();
+                const foreign = tokens.find(
+                    (token) =>
+                        token.type === "span_open" &&
+                        token.attrGet("lang") &&
+                        tag(token.attrGet("lang")) !== tag(lang),
                 );
-                continue;
+                if (foreign) {
+                    error(
+                        sourcePosition(reading.offsets[foreign.meta.start] ?? reading.from),
+                        "`scan=` counts one language's beats; this verse line contains another language",
+                    );
+                    continue;
+                }
+                const beats = lineBeats(inlineText(tokens), book);
+                if (metre.beats >= beats.min && metre.beats <= beats.max) continue;
+                warnings.push({
+                    ...sourcePosition(reading.from),
+                    message: metreMessage(beats, metre),
+                });
             }
-            const beats = lineBeats(inlineText(tokens), book);
-            if (metre.beats >= beats.min && metre.beats <= beats.max) continue;
-            warnings.push({
-                line: line + 1,
-                column: /^\s*/.exec(text)[0].length + 1,
-                message: metreMessage(beats, metre),
-            });
         }
     }
     return { errors, warnings };

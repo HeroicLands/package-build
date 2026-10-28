@@ -236,7 +236,7 @@ describe("the warning", () => {
     });
 
     it("says how many beats the line has and how many the metre wants, at the line", () => {
-        const source = fence("scan=hexameter lang=vyl", "zaros alatha zaros ul zar", six);
+        const source = fence("scan=hexameter lang=vyl", "zaros alatha zaros ul zar/", six);
         expect(warnings(source)).toEqual([
             "2:1: this line has 4 beats; the metre `hexameter` has 6",
         ]);
@@ -278,7 +278,7 @@ describe("the warning", () => {
             "scan=trimeter lang=vyl",
             "zaros zaros zaros",
             "",
-            "zaros zaros",
+            "zaros zaros/",
             "zaros zaros zaros zaros",
         );
         expect(warnings(source)).toEqual([
@@ -350,14 +350,15 @@ describe("a `scan=` that cannot mean anything", () => {
         ]);
     });
 
-    it("is refused on a verse in columns", () => {
-        const source = fence(
-            "scan=hexameter lang=vyl cols=2",
-            "1 [zaros]{lang=vyl}",
-            "2 [oath]{lang=en}",
-        );
-        expect(errors(source)).toEqual([
-            "1:11: `scan=` counts the beats of one language's lines; a verse with cols>1 groups independent physical lines",
+    it("counts joined source lines as one logical line", () => {
+        const source = fence("scan=trimeter lang=vyl", "zaros", "zaros zaros");
+        expect(warnings(source)).toEqual([]);
+    });
+    it("counts several explicit logical lines on one source line", () => {
+        const source = fence("scan=trimeter lang=vyl", "zaros zaros/zaros zaros zaros zaros");
+        expect(warnings(source)).toEqual([
+            "2:1: this line has 2 beats; the metre `trimeter` has 3",
+            "2:13: this line has 4 beats; the metre `trimeter` has 3",
         ]);
     });
 });

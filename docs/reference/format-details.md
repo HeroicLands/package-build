@@ -2297,7 +2297,6 @@ its count can be the metre's.
 | A `scan=` no `data.metres` entry names, at the value                                            | error    |
 | A `scan=` on a fence with no `lang=`, at the key                                                | error    |
 | A `scan=` on a fence whose language states no stress rule or names no language note, at `lang=` | error    |
-| A `scan=` on a verse in columns, at the key                                                     | error    |
 
 > ``this line has 4 beats (5 with secondary beats); the metre `hexameter` has 6``
 

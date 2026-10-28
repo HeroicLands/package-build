@@ -11,12 +11,15 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/** The authored verse lines, excluding blank lines and stanza separators. */
-export function verseLines(body) {
-    return String(body ?? "")
-        .split("\n")
-        .filter((line) => line.trim() && !STANZA_BREAK.test(line.trim()));
-}
+import MarkdownIt from "markdown-it";
+import { WIKILINK } from "./wikilink-syntax.mjs";
+import { pageOpenings } from "./heading-attributes.mjs";
+import { blockTokens } from "./markdown-blocks.mjs";
+import { slugify } from "./content-slug.mjs";
+import { spanMarkdownPlugin } from "./content-spans.mjs";
+import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
+
+const lineParser = new MarkdownIt({ html: true }).use(spanMarkdownPlugin);
 
 /**
  * Read one verse line. Marker offsets are zero-based in the authored line;
@@ -51,36 +54,12 @@ export function verseLine(line) {
     };
 }
 
-/**
- * Blank lines divide verse groups. A standalone `***` is its own group and
- * separates stanzas. Each text line carries its period-based indentation.
- */
-export function verseStanzas(body) {
-    const groups = [];
-    let group = [];
-    const end = () => {
-        if (group.length) groups.push(group);
-        group = [];
-    };
-    for (const line of String(body ?? "").split("\n")) {
-        if (!line.trim()) {
-            end();
-            continue;
-        }
-        if (STANZA_BREAK.test(line.trim())) {
-            end();
-            groups.push([{ text: "***", level: 0 }]);
-            continue;
-        }
-        const { text, level } = verseLine(line);
-        group.push({ text, level });
-    }
-    end();
-    return groups;
+/** The structural first span of a line, with its source ranges and keys. */
+function leadingSpan(text) {
+    if (!text.startsWith("[")) return undefined;
+    const tokens = lineParser.parseInline(text, {})[0]?.children ?? [];
+    return tokens.find((token) => token.meta?.span && token.meta.start === 0);
 }
-
-/** A stanza separator group, independent of the surrounding verse lines. */
-export const stanzaSeparator = (group) => group.length === 1 && STANZA_BREAK.test(group[0].text);
 
 /** HTML indentation attributes; large levels retain their full authored depth. */
 function indentStyle(level) {
@@ -95,130 +74,48 @@ export function inlineVerse(text) {
 }
 
 /**
- * Keep blank-line verse groups as paragraphs and each text line a hard break.
- * A standalone `***` emits a separate stanza gap.
- * The surrounding renderer still sees the entire note, so links and footnote
- * definitions remain in scope. The span carries the indent for each line.
- */
-export function verseMarkdown(body, step = 0) {
-    let count = 0;
-    return verseStanzas(body)
-        .map((stanza) =>
-            stanzaSeparator(stanza) ?
-                '<span class="verse-stanza-break" aria-hidden="true"></span>'
-            :   stanza
-                    .map(({ text, level }) => {
-                        const number = lineNumber(++count, step);
-                        return `<span class="verse-line${level ? ` i${level}` : ""}"${indentStyle(level)}>${number === undefined || number === "" ? "" : `<span class="verse-number">${number}</span>`}${inlineVerse(text)}</span>`;
-                    })
-                    .join("  \n"),
-        )
-        .join("\n\n");
-}
-
-/**
- * The number a line shows: `undefined` when the verse is not numbered, `""`
- * when this line is not one of every `step`th.
+ * Whether text runs right to left: its first letter is in a right-to-left
+ * block. A face's right-to-left code points sit in U+1E800–U+1EFFF.
  *
- * @param {number} line - The line's number, 1-based across the verse.
- * @param {number} step - The verse's `numstep`.
- * @returns {string|undefined} The number shown.
+ * @param {string} text - Text, after any map.
+ * @returns {boolean} Whether it starts right to left.
  */
-export function lineNumber(line, step) {
-    if (!step) return undefined;
-    return line % step === 0 ? String(line) : "";
+export function rightToLeft(text) {
+    const first = /[\p{L}\p{M}\p{Co}\p{Cn}]/u.exec(
+        String(text)
+            .replace(/<[^>]*>/g, "")
+            .replace(/\{[^}]*\}/g, ""),
+    );
+    return Boolean(
+        first &&
+        /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u.test(
+            first[0],
+        ),
+    );
 }
 
-/**
- * The numbered-column rows, each holding its logical line number and each
- * column’s physical readings stacked in authored order,
- * the first in the normal tone and each later one `verse-secondary`. A part
- * whose text runs right to left carries `dir="rtl"`. A row is a line of a
- * paragraph, and a paragraph a stanza, so each part stays inline Markdown.
- *
- * @param {object} block - A numbered-column verse from {@link scanVerse}.
- * @param {string[]} lines - The source, by line.
- * @param {number} step - The verse's `numstep`.
- * @returns {string} The rows as Markdown with inline HTML.
- */
-function columnsMarkdown(block, lines, step) {
-    const width = verseColumnCount(block);
-    const stanzas = [[]];
-    let count = 0;
-    for (const group of verseGroups(block, lines)) {
-        if (group.stanzaBreak) {
-            stanzas.push(['<span class="verse-stanza-break" aria-hidden="true"></span>'], []);
-            continue;
-        }
-        const number = lineNumber(++count, step);
-        const cells = Array.from({ length: width }, (_, column) => {
-            const parts = group.parts.filter((part) => part.column === column + 1);
-            return (
-                '<span class="verse-column">' +
-                parts
-                    .map(
-                        ({ text, indent }, index) =>
-                            `<span class="verse-part${index ? " verse-secondary" : ""}${indent ? ` i${indent}` : ""}"${indentStyle(indent)}${rightToLeft(text) ? ' dir="rtl"' : ""}>${inlineVerse(text)}</span>`,
-                    )
-                    .join("") +
-                "</span>"
-            );
-        });
-        stanzas
-            .at(-1)
-            .push(
-                '<span class="verse-row">' +
-                    (number === undefined ? "" : `<span class="verse-number">${number}</span>`) +
-                    cells.join("") +
-                    "</span>",
-            );
-    }
-    return stanzas
-        .filter((rows) => rows.length)
-        .map((rows) => rows.join("\n"))
-        .join("\n\n");
-}
-
-import MarkdownIt from "markdown-it";
-import { blockTokens } from "./markdown-blocks.mjs";
-import { slugify } from "./content-slug.mjs";
-import { spanMarkdownPlugin } from "./content-spans.mjs";
-import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
-
-const lineParser = new MarkdownIt({ html: true }).use(spanMarkdownPlugin);
-
-/** The structural first span of a line, with its source ranges and keys. */
-function leadingSpan(text) {
-    if (!text.startsWith("[")) return undefined;
-    const tokens = lineParser.parseInline(text, {})[0]?.children ?? [];
-    return tokens.find((token) => token.meta?.span && token.meta.start === 0);
-}
-
-/** The layout class the build gives a verse whose cols count exceeds one. */
-export const COLUMNS_CLASS = "verse-columns";
-
-/**
- * The keys a verse fence's attribute block takes. `lang`, `font` and `map`
- * are read by `scanRuns` in content-scripts.mjs; `dir`, and on the site
- * `data-pagefind-ignore`, are written by its rewrite of a fence set in one of
- * the faces, and reach the element as they are written.
- */
+/** The authored attributes of a verse fence. */
 export const VERSE_KEYS = Object.freeze([
     "form",
     "scan",
     "lang",
     "font",
     "enc",
-    "numstep",
-    "cols",
+    "work",
     "dir",
     "data-pagefind-ignore",
 ]);
 
+/** A canto separator, including the escaped form produced by a native run. */
+export const STANZA_BREAK = /^(?:\\?\*){3}$/;
+
 /** Read verse code fences; start/end are inclusive zero-based source lines.
  * @param {string} source - Authored Markdown.
+ * @param {object} [options] - Whole-page validation choices.
+ * @param {boolean} [options.checkWorks] - Whether to validate page-local versions.
+ * @returns {{blocks: VerseBlock[], errors: VerseDiagnostic[]}} Located fences and findings.
  */
-export function scanVerse(source) {
+export function scanVerse(source, { checkWorks = true } = {}) {
     const lines = String(source ?? "").split("\n"),
         blocks = [],
         errors = [];
@@ -256,8 +153,16 @@ export function scanVerse(source) {
                             });
                     }
                     const block = { ...opening, end: i, body };
-                    const columned = hasColumns(block);
-                    if (columned) errors.push(...columnFindings(block, lines));
+                    block.model = parseVerse(body);
+                    const bodyOffset = lines.slice(0, opening.start + 1).join("\n").length + 1;
+                    for (const finding of block.model.errors) {
+                        const prefix = String(source).slice(0, bodyOffset + finding.offset);
+                        errors.push({
+                            line: prefix.split("\n").length,
+                            column: prefix.length - prefix.lastIndexOf("\n"),
+                            message: finding.message,
+                        });
+                    }
                     blocks.push(block);
                 }
                 opening = null;
@@ -289,26 +194,17 @@ export function scanVerse(source) {
         for (const message of [...parsed.problems, ...refusedAttributes(parsed.values)])
             errors.push({ ...at, message });
         for (const [key, value] of Object.entries(parsed.values)) {
+            if (key === "work" && !value.trim())
+                errors.push({
+                    line: i + 1,
+                    column: keyColumn(lines[i], key),
+                    message: "work= needs a nonempty page-local key",
+                });
             if (!VERSE_KEYS.includes(key))
                 errors.push({
                     line: i + 1,
                     column: keyColumn(lines[i], key),
                     message: `${key}= is not a verse attribute`,
-                });
-            else if (
-                key === "cols" &&
-                (!/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value)))
-            )
-                errors.push({
-                    line: i + 1,
-                    column: keyColumn(lines[i], key) + key.length + 1,
-                    message: "verse cols= is a positive whole number",
-                });
-            else if (key === "numstep" && !/^\d+$/.test(value))
-                errors.push({
-                    line: i + 1,
-                    column: keyColumn(lines[i], key),
-                    message: "verse numstep= numbers every Nth line: a whole number, 0 for none",
                 });
         }
     }
@@ -318,6 +214,16 @@ export function scanVerse(source) {
             column: 1,
             message: "verse block needs a closing code fence",
         });
+    if (checkWorks) {
+        const openings = [...pageOpenings(source).keys()];
+        const pages = new Map();
+        for (const block of blocks) {
+            const page = openings.findLast((line) => line <= block.start) ?? -1;
+            if (!pages.has(page)) pages.set(page, []);
+            pages.get(page).push(block);
+        }
+        for (const page of pages.values()) errors.push(...workShapeFindings(page));
+    }
     errors.sort((a, b) => a.line - b.line || a.column - b.column);
     return { blocks, errors };
 }
@@ -338,167 +244,462 @@ function keyColumn(opening, key) {
     return (at < 0 ? brace : brace + at) + 1;
 }
 
-/** The number of verse columns; an omitted or invalid count uses the ordinary layout. */
-export function verseColumnCount(block) {
-    const raw = block.attributes?.cols;
-    const value = Number(raw ?? 1);
-    return /^[1-9]\d*$/.test(String(raw ?? 1)) && Number.isSafeInteger(value) ? value : 1;
+/** Source ranges whose slash characters belong to inline syntax. */
+function syntaxRanges(source) {
+    const ranges = [];
+    for (const match of source.matchAll(new RegExp(WIKILINK.source, "g"))) {
+        const separator = match[0].indexOf("|");
+        const close = match[0].indexOf("]]");
+        ranges.push([match.index, match.index + (separator < 0 ? close + 2 : separator + 1)]);
+        ranges.push([match.index + close, match.index + match[0].length]);
+    }
+    for (let at = 0; at < source.length; at++) {
+        if (source[at] === "\\") {
+            at++;
+            continue;
+        }
+        const char = source[at];
+        let past = -1;
+        if (char === "⟦") past = source.indexOf("⟧", at + 1) + 1;
+        else if (char === "`") {
+            const mark = /^`+/.exec(source.slice(at))[0];
+            const close = source.indexOf(mark, at + mark.length);
+            if (close >= 0) past = close + mark.length;
+        } else if (char === "<") past = source.indexOf(">", at + 1) + 1;
+        else if (char === "{") past = source.indexOf("}", at + 1) + 1;
+        else if (char === "(" && source[at - 1] === "]") {
+            let depth = 1;
+            for (let next = at + 1; next < source.length; next++) {
+                if (source[next] === "\\") {
+                    next++;
+                    continue;
+                }
+                if (source[next] === "(") depth++;
+                if (source[next] === ")" && !--depth) {
+                    past = next + 1;
+                    break;
+                }
+            }
+        }
+        if (past > at) {
+            ranges.push([at, past]);
+            at = past - 1;
+        }
+    }
+    return ranges.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
 }
-
-/** Whether a verse uses the numbered multi-column protocol. */
-export function hasColumns(block) {
-    return verseColumnCount(block) > 1;
-}
-
-/** A line separating stanzas, including escaped output from a native run. */
-export const STANZA_BREAK = /^(?:\\?\*){3}$/;
 
 /**
- * Blank-separated multi-column rows with ordered physical parts. Text retains
- * its authored inline markup and spacing after the numeric prefix. All source
- * offsets are measured before prefixes or indentation periods are removed.
- *
- * @param {object} block - A verse from scanVerse.
- * @param {string[]} lines - The complete source, by line.
- * @returns {Array<{stanzaBreak: true, line: number}|{stanzaBreak?: false, parts: Array<{column: number, line: number, sourceColumn: number, textColumn: number, text: string, indent: number, markerStart: number, markerLength: number, prefixLength: number}>}>}
+ * A logical line with its authored UTF-16 coordinates.
+ * @typedef {object} VerseLine
+ * @property {string} text - Inline Markdown in this presentation.
+ * @property {number} level - Leading-period indentation depth.
+ * @property {number} from - First authored offset, including indentation.
+ * @property {number} to - Offset at the line ending.
+ * @property {number[]} offsets - Source offset for each UTF-16 text unit.
+ * @property {string} [romanText] - Roman text paired with an encoded line.
  */
-export function verseGroups(block, lines) {
-    const groups = [];
-    let parts = [];
-    const end = () => {
-        if (parts.length) groups.push({ parts });
-        parts = [];
-    };
-    for (let at = block.start + 1; at < block.end; at++) {
-        const line = lines[at];
-        if (!line.trim()) {
-            end();
-            continue;
-        }
-        if (STANZA_BREAK.test(line.trim())) {
-            end();
-            groups.push({ stanzaBreak: true, line: at });
-            continue;
-        }
-        const spaces = /^ */.exec(line)[0].length;
-        const prefix = hasColumns(block) ? /^(\d+)( +)/.exec(line.slice(spaces)) : undefined;
-        const prefixLength = prefix?.[0].length ?? 0;
-        const contentStart = spaces + prefixLength;
-        const parsed = verseLine(line.slice(contentStart));
-        parts.push({
-            column: prefix ? Number(prefix[1]) : 1,
-            line: at,
-            sourceColumn: spaces + 1,
-            textColumn: contentStart + 1,
-            text: parsed.text,
-            indent: parsed.level,
-            markerStart: contentStart + parsed.markerStart,
-            markerLength: parsed.markerLength,
-            prefixLength,
-        });
-    }
-    end();
-    return groups;
-}
 
-/** Locate an invalid numbered line without changing its authored text. */
-function columnFindings(block, lines) {
-    const errors = [];
-    const width = verseColumnCount(block);
-    const opening = lines[block.start];
-    const report = (line, column, message) => errors.push({ line: line + 1, column, message });
-    if (block.classes.includes(COLUMNS_CLASS))
-        report(
-            block.start,
-            keyColumn(opening, `.${COLUMNS_CLASS}`),
-            `\`.${COLUMNS_CLASS}\` is the class the build gives a verse in columns; leave it out`,
-        );
-    for (const group of verseGroups(block, lines)) {
-        if (group.stanzaBreak) continue;
-        let previous = 0;
-        for (const part of group.parts) {
-            if (!part.prefixLength) {
-                report(
-                    part.line,
-                    part.sourceColumn,
-                    "a verse with cols>1 starts each content line with a column number and spaces",
-                );
+/**
+ * A stanza's logical lines and authored bounds.
+ * @typedef {object} VerseStanza
+ * @property {VerseLine[]} lines - Lines in reading order.
+ * @property {number} from - First authored offset.
+ * @property {number} to - Offset at the stanza ending.
+ */
+
+/**
+ * @typedef {VerseStanza & {canto: number, stanza: number, label: string, cantoBreak?: false}} VerseTextGroup
+ * @typedef {{cantoBreak: true, from: number, to: number, text?: string}} VerseCantoBreak
+ * @typedef {{kind: "line"|"stanza"|"canto", sourceOffset: number}} VerseBoundary
+ * @typedef {{offset: number, message: string}} VerseFinding
+ */
+
+/**
+ * Shared authored verse structure and source locations.
+ * @typedef {object} VerseModel
+ * @property {Array<{stanzas: VerseStanza[]}>} cantos - Cantos in reading order.
+ * @property {Array<VerseTextGroup|VerseCantoBreak>} groups - Stanzas and canto breaks.
+ * @property {VerseBoundary[]} boundaries - Explicit authored boundaries.
+ * @property {Array<[number, number]>} layout - Source ranges omitted from encoded letters.
+ * @property {VerseFinding[]} errors - Findings relative to the fence body.
+ */
+
+/**
+ * An authored verse fence with its parsed logical structure.
+ * @typedef {object} VerseBlock
+ * @property {number} start - Opening fence's zero-based source line.
+ * @property {number} end - Closing fence's zero-based source line.
+ * @property {string} fence - Authored fence delimiter.
+ * @property {"verse"} name - Fence language.
+ * @property {Record<string, string>} attributes - Authored attribute values.
+ * @property {string} id - Authored anchor, or the empty string.
+ * @property {string[]} classes - Authored presentation classes.
+ * @property {string} indent - Opening fence's leading spaces.
+ * @property {string} body - Authored fence body.
+ * @property {VerseModel} model - Logical structure relative to the body.
+ */
+
+/** @typedef {{line: number, column: number, message: string}} VerseDiagnostic */
+
+/**
+ * An encoded verse's shared display model and native-cell presentation.
+ * @typedef {object} VersePresentation
+ * @property {VerseModel} model - Logical structure with paired line text.
+ * @property {string[]} classes - Native script and font classes.
+ * @property {Record<string, string>} attributes - Native language, direction and search attributes.
+ */
+
+/**
+ * Parse logical verse lines, stanzas and cantos without losing authored offsets.
+ * Offsets are UTF-16 positions relative to body. Delimiters and indentation are
+ * layout ranges; source newlines inside a logical line contribute one space.
+ * @param {string} body - Authored fence body.
+ * @returns {VerseModel} The shared structure with offsets relative to the body.
+ */
+export function parseVerse(body) {
+    const source = String(body ?? "");
+    const groups = [],
+        boundaries = [],
+        layout = [],
+        errors = [];
+    const cantos = [{ stanzas: [] }];
+    const protectedRanges = syntaxRanges(source);
+    const spans = (lineParser.parseInline(source, {})[0]?.children ?? [])
+        .filter((token) => token.meta?.span)
+        .map((token) => ({
+            start: token.meta.start,
+            end: token.meta.end,
+            contentEnd: token.meta.start + 1 + token.meta.text.length,
+        }));
+    let protectedIndex = 0;
+    let text = "",
+        offsets = [],
+        from = 0,
+        level = 0,
+        lines = [];
+    let pendingBreak;
+    const append = (value, at) => {
+        text += value;
+        for (let index = 0; index < value.length; index++) offsets.push(at + index);
+    };
+    const finishLine = (at) => {
+        const trimmed = text.trimEnd();
+        if (trimmed.trim()) {
+            let lineText = trimmed,
+                lineOffsets = offsets.slice(0, trimmed.length);
+            for (const span of spans
+                .filter((span) => span.start < from && span.contentEnd >= from)
+                .sort((a, b) => b.start - a.start)) {
+                lineText = "[" + lineText;
+                lineOffsets.unshift(span.start);
+            }
+            for (const span of spans
+                .filter((span) => span.start < at && span.contentEnd >= at)
+                .sort((a, b) => b.start - a.start)) {
+                const suffix = source.slice(span.contentEnd, span.end);
+                lineText += suffix;
+                for (let index = 0; index < suffix.length; index++)
+                    lineOffsets.push(span.contentEnd + index);
+            }
+            const repeatedIds = spans
+                .filter((span) => span.start < from && span.contentEnd >= from)
+                .flatMap((span) => {
+                    const raw = source.slice(span.contentEnd + 2, span.end - 1);
+                    return [...raw.matchAll(/(?:[^\s"]+|"(?:\\.|[^"\\])*")+/g)]
+                        .filter((match) => match[0].startsWith("#"))
+                        .map((match) => [
+                            span.contentEnd + 2 + match.index,
+                            span.contentEnd + 2 + match.index + match[0].length,
+                        ]);
+                });
+            if (repeatedIds.length) {
+                const kept = lineOffsets
+                    .map((offset, index) => ({ offset, char: lineText[index] }))
+                    .filter(
+                        ({ offset }) =>
+                            !repeatedIds.some(([first, past]) => offset >= first && offset < past),
+                    );
+                lineText = kept.map(({ char }) => char).join("");
+                lineOffsets = kept.map(({ offset }) => offset);
+            }
+            lines.push({ text: lineText, level, from, to: at, offsets: lineOffsets });
+        }
+        text = "";
+        offsets = [];
+        level = 0;
+        from = at;
+    };
+    const finishStanza = (at) => {
+        finishLine(at);
+        if (lines.length) {
+            const stanza = { lines, from: lines[0].from, to: at };
+            cantos.at(-1).stanzas.push(stanza);
+            groups.push({
+                ...stanza,
+                canto: cantos.length,
+                stanza: cantos.at(-1).stanzas.length,
+                label: "",
+            });
+            lines = [];
+        }
+    };
+    const event = (kind, at, past) => {
+        if (kind === "line") finishLine(at);
+        else finishStanza(at);
+        layout.push([at, past]);
+        boundaries.push({ kind, sourceOffset: at });
+        from = past;
+    };
+    for (let at = 0; at < source.length;) {
+        const lineStart = at === 0 || /[\r\n]/.test(source[at - 1]);
+        if (lineStart) {
+            const physical = /^[^\r\n]*/.exec(source.slice(at))[0];
+            const newline = /^(?:\r\n|\r|\n)/.exec(source.slice(at + physical.length))?.[0] ?? "";
+            if (!physical.trim()) {
+                event("stanza", at, at + physical.length + newline.length);
+                at += physical.length + newline.length;
                 continue;
             }
-            if (!part.text.trim())
-                report(
-                    part.line,
-                    part.sourceColumn,
-                    "a numbered verse line needs content after its column number",
-                );
-            if (!Number.isSafeInteger(part.column) || part.column < 1 || part.column > width)
-                report(
-                    part.line,
-                    part.sourceColumn,
-                    `column ${part.column} is outside 1..${width}`,
-                );
-            else if (part.column < previous)
-                report(
-                    part.line,
-                    part.sourceColumn,
-                    "column numbers must not decrease within a verse row",
-                );
-            previous = part.column;
+            if (STANZA_BREAK.test(physical.trim())) {
+                event("canto", at, at + physical.length + newline.length);
+                if (!cantos.at(-1).stanzas.length)
+                    errors.push({
+                        offset: at,
+                        message: "a canto break needs a stanza before and after it",
+                    });
+                else {
+                    groups.push({ cantoBreak: true, from: at, to: at + physical.length });
+                    cantos.push({ stanzas: [] });
+                }
+                pendingBreak = at;
+                at += physical.length + newline.length;
+                continue;
+            }
+        }
+        while (protectedRanges[protectedIndex]?.[1] <= at) protectedIndex++;
+        const protectedRange = protectedRanges[protectedIndex];
+        const protectedAt = protectedRange && protectedRange[0] <= at;
+        if (!text && !/\s/.test(source[at])) {
+            if (!level) from = at;
+            const remaining = source.slice(at);
+            const reading = verseLine(remaining.split(/\r?\n/)[0]);
+            if (reading.markerLength) {
+                level = reading.level;
+                const first = at + reading.markerStart;
+                layout.push([first, first + reading.markerLength]);
+                // A leading span keeps its brackets and attributes around the indented text.
+                if (reading.markerStart) append(source.slice(at, first), at);
+                at = first + reading.markerLength;
+                continue;
+            }
+        }
+        if (!protectedAt && source[at] === "\\" && at + 1 < source.length) {
+            append(source.slice(at, at + 2), at);
+            at += 2;
+            continue;
+        }
+        if (!protectedAt && source[at] === "/") {
+            const length = source[at + 1] === "/" ? 2 : 1;
+            event(length === 2 ? "stanza" : "line", at, at + length);
+            at += length;
+            continue;
+        }
+        if (/[\r\n]/.test(source[at])) {
+            const length = source[at] === "\r" && source[at + 1] === "\n" ? 2 : 1;
+            if (text && !/\s$/.test(text)) append(" ", at);
+            at += length;
+            while (source[at] === " ") at++;
+            continue;
+        }
+        if (!text && source[at] === " ") {
+            at++;
+            continue;
+        }
+        append(source[at], at);
+        at++;
+    }
+    finishStanza(source.length);
+    if (pendingBreak !== undefined && !cantos.at(-1).stanzas.length) {
+        if (!errors.some((error) => error.offset === pendingBreak))
+            errors.push({
+                offset: pendingBreak,
+                message: "a canto break needs a stanza before and after it",
+            });
+        cantos.pop();
+        if (groups.at(-1)?.cantoBreak) groups.pop();
+    }
+    const multi = cantos.length > 1;
+    for (const group of groups)
+        if (!group.cantoBreak)
+            group.label = multi ? `${group.canto}:${group.stanza}` : String(group.stanza);
+    return { cantos, groups, boundaries, layout, errors };
+}
+
+/** Logical line text for consumers that do not need source locations. */
+export function verseLines(body) {
+    return parseVerse(body).groups.flatMap((group) =>
+        group.cantoBreak ? [] : group.lines.map((line) => line.text),
+    );
+}
+
+/** Paragraph groups with separate canto gaps. */
+export function verseStanzas(body) {
+    return parseVerse(body).groups.map((group) =>
+        group.cantoBreak ?
+            [{ text: "***", level: 0 }]
+        :   group.lines.map(({ text, level }) => ({ text, level })),
+    );
+}
+
+/** Whether the projected group is a canto gap. */
+export const stanzaSeparator = (group) => group.length === 1 && STANZA_BREAK.test(group[0].text);
+
+/**
+ * Compare the stanza counts of each version of a page-local work.
+ * @param {VerseBlock[]} blocks - Fences belonging to one page.
+ * @returns {VerseDiagnostic[]} Findings at affected opening fences.
+ */
+export function workShapeFindings(blocks) {
+    const works = new Map(),
+        errors = [];
+    for (const block of blocks) {
+        const key = block.attributes.work;
+        if (key === undefined) continue;
+        if (!works.has(key)) works.set(key, []);
+        works.get(key).push(block);
+    }
+    for (const [key, versions] of works) {
+        if (versions.length === 1) {
+            errors.push({
+                line: versions[0].start + 1,
+                column: 1,
+                message: `work=${key} has only one version`,
+            });
+            continue;
+        }
+        const first = versions[0];
+        const shape = (block) => block.model.cantos.map((canto) => canto.stanzas.length);
+        const expected = shape(first);
+        const seen = new Set();
+        for (const version of versions.slice(1)) {
+            const actual = shape(version);
+            if (actual.length !== expected.length) {
+                const message = `work=${key}: ${expected.length} cantos in the first version and ${actual.length} in this version`;
+                for (const block of [first, version]) {
+                    const identity = `${block.start}:${message}`;
+                    if (!seen.has(identity)) {
+                        errors.push({ line: block.start + 1, column: 1, message });
+                        seen.add(identity);
+                    }
+                }
+            }
+            for (let canto = 0; canto < Math.max(expected.length, actual.length); canto++) {
+                if (expected[canto] === actual[canto]) continue;
+                const message = `work=${key}, canto ${canto + 1}: ${expected[canto] ?? 0} stanzas in the first version and ${actual[canto] ?? 0} in this version`;
+                for (const block of [first, version]) {
+                    const identity = `${block.start}:${message}`;
+                    if (!seen.has(identity)) {
+                        errors.push({ line: block.start + 1, column: 1, message });
+                        seen.add(identity);
+                    }
+                }
+            }
         }
     }
     return errors;
 }
 
 /**
- * Whether text runs right to left: its first letter is in a right-to-left
- * block. A face's right-to-left code points sit in U+1E800–U+1EFFF.
- *
- * @param {string} text - Text, after any map.
- * @returns {boolean} Whether it starts right to left.
+ * Render a shared verse structure while preserving surrounding inline Markdown.
+ * @param {string} body - Authored fence body.
+ * @param {object} [options] - Shared structure and display choices.
+ * @param {boolean} [options.labelled] - Whether each stanza carries its label.
+ * @param {VerseModel} [options.model] - Parsed structure; defaults to parsing the body.
+ * @param {VersePresentation} [options.presentation] - Native-cell font and language.
+ * @returns {string} Markdown with verse layout wrappers.
  */
-export function rightToLeft(text) {
-    const first = /[\p{L}\p{M}\p{Co}\p{Cn}]/u.exec(
-        String(text)
-            .replace(/<[^>]*>/g, "")
-            .replace(/\{[^}]*\}/g, ""),
-    );
-    return Boolean(
-        first &&
-        /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u.test(
-            first[0],
-        ),
-    );
-}
-
-/** Replace verse fences with HTML wrappers whose body remains inline Markdown.
- * @param {string} source - Authored Markdown.
- */
-export function renderVerse(source) {
-    const { errors } = scanVerse(source);
-    const { blocks } = scanVerse(source),
-        lines = String(source ?? "").split("\n"),
-        output = [];
-    let cursor = 0;
+export function verseMarkdown(
+    body,
+    { labelled = false, model = parseVerse(body), presentation } = {},
+) {
     const escape = (value) =>
         String(value)
             .replace(/&/g, "&amp;")
             .replace(/"/g, "&quot;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
+    const nativeAttrs = Object.entries(presentation?.attributes ?? {})
+        .filter(([key]) => ["lang", "dir", "data-pagefind-ignore"].includes(key))
+        .map(([key, value]) => ` ${key}="${escape(value)}"`)
+        .join("");
+    const nativeClasses = ["verse-native", ...(presentation?.classes ?? [])].join(" ");
+    return model.groups
+        .map((group) => {
+            if (group.cantoBreak) {
+                const mark = group.text ? inlineVerse(group.text) : "";
+                const content =
+                    mark && presentation ?
+                        `<span class="${escape(nativeClasses)}"${nativeAttrs}${!presentation.attributes?.dir && rightToLeft(group.text) ? ' dir="rtl"' : ""}>${mark}</span>`
+                    :   mark;
+                return `<span class="verse-canto-break" aria-hidden="true">${content}</span>`;
+            }
+            const label = labelled ? `<span class="verse-label">${group.label}</span>` : "";
+            const rows = group.lines
+                .map((line) => {
+                    const content = (text) =>
+                        `<span class="verse-line${line.level ? ` i${line.level}` : ""}"${indentStyle(line.level)}>${inlineVerse(text)}</span>`;
+                    if (line.romanText !== undefined)
+                        return `<span class="verse-row"><span class="${escape(nativeClasses)}"${nativeAttrs}${!presentation?.attributes?.dir && rightToLeft(line.text) ? ' dir="rtl"' : ""}>${content(line.text)}</span><span class="verse-roman">${content(line.romanText)}</span></span>`;
+                    return content(line.text);
+                })
+                .join(group.lines.some((line) => line.romanText !== undefined) ? "\n" : "  \n");
+            return `<div class="verse-stanza">${label}\n\n${rows}\n\n</div>`;
+        })
+        .join("\n\n");
+}
+
+/**
+ * Replace verse fences with wrappers whose bodies remain inline Markdown.
+ * @param {string} source - Markdown containing verse fences.
+ * @param {object} [options] - Encoded display models.
+ * @param {Map<string, VersePresentation>} [options.verses] - Presentations keyed by rewritten body.
+ */
+export function renderVerse(source, { verses = new Map() } = {}) {
+    const { blocks, errors } = scanVerse(source),
+        lines = String(source ?? "").split("\n"),
+        output = [];
+    const escape = (value) =>
+        String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+    let cursor = 0;
     for (const block of blocks) {
         output.push(...lines.slice(cursor, block.start));
-        const step = Number(block.attributes.numstep ?? 0) || 0;
-        const columns = hasColumns(block);
+        const transported = verses.get(block.body);
+        const model = transported?.model ?? block.model;
+        const paired = model.groups.some(
+            (group) =>
+                !group.cantoBreak && group.lines.some((line) => line.romanText !== undefined),
+        );
+        const labelled = block.attributes.work !== undefined;
         const attrs = [
-            `class="${escape(["verse", ...block.classes, ...(columns ? [COLUMNS_CLASS] : []), ...(step ? ["verse-numbered"] : [])].join(" "))}"`,
+            `class="${escape(["verse", ...block.classes.filter((value) => !paired || !transported?.classes?.includes(value)), ...(paired ? ["verse-paired"] : []), ...(labelled ? ["verse-labelled"] : [])].join(" "))}"`,
         ];
-        if (columns) attrs.push(`style="--verse-columns: ${verseColumnCount(block)}"`);
         if (block.id) attrs.push(`id="${escape(slugify(block.id))}"`);
-        for (const [key, value] of Object.entries(block.attributes))
-            if (!refusedAttributes({ [key]: value }).length)
-                attrs.push(
-                    `${["lang", "dir", "data-pagefind-ignore"].includes(key) ? key : `data-${key}`}="${escape(value)}"`,
-                );
+        for (const [key, value] of Object.entries(block.attributes)) {
+            if (
+                !VERSE_KEYS.includes(key) ||
+                refusedAttributes({ [key]: value }).length ||
+                (paired && ["lang", "dir", "data-pagefind-ignore", "font", "enc"].includes(key))
+            )
+                continue;
+            attrs.push(
+                `${["lang", "dir", "data-pagefind-ignore"].includes(key) ? key : `data-${key}`}="${escape(value)}"`,
+            );
+        }
         let indent = block.indent;
         if (
             indent.length >= 4 &&
@@ -509,7 +710,7 @@ export function renderVerse(source) {
             "",
             `${indent}<div ${attrs.join(" ")}>`,
             "",
-            ...(columns ? columnsMarkdown(block, lines, step) : verseMarkdown(block.body, step))
+            ...verseMarkdown(block.body, { labelled, model, presentation: transported })
                 .split("\n")
                 .map((line) => (line ? indent + line : line)),
             "",

@@ -282,6 +282,34 @@ describe("native presentation metadata", () => {
 });
 
 describe("the runs relation", () => {
+    it("records a fence-level encoded original once in the index and runs relation", async () => {
+        const records = tree();
+        const original = records.find((record) => record.shortcode === "lower")!;
+        expect(original.runs.filter((run) => run.kind === "verse")).toEqual([
+            {
+                kind: "verse",
+                lang: "vyl",
+                tag: "art-x-vyl",
+                font: "semaron-kuriale",
+                enc: "demo-note-doc-vylsemaronenc",
+                line: 11,
+                column: 1,
+            },
+        ]);
+        const db = await openNotesDatabase(records);
+        try {
+            expect(
+                (
+                    await db.query(
+                        "SELECT lang, enc FROM runs WHERE owner = 'demo-note-lore-lower' AND kind = 'verse'",
+                    )
+                ).rows,
+            ).toEqual([{ lang: "vyl", enc: "demo-note-doc-vylsemaronenc" }]);
+        } finally {
+            await db.close();
+        }
+    });
+
     it("records each note's runs, at their file positions, as a derived key", () => {
         const records = tree();
         const upper = records.find((record) => record.shortcode === "upper")!;

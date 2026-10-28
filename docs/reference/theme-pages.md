@@ -333,63 +333,36 @@ Caption classes are unrestricted. The built-in `border` class draws the block as
 
 ## Verse
 
-A verse fence reaches the page as a `.verse` block holding a paragraph per
-stanza and a `.verse-line` per line, its indent level as `i1` to `i8`. Its
-keys reach the block as written, `lang` as its language and the rest as
-`data-*` attributes. A numbered verse also carries `.verse-numbered`, and each
-numbered line starts with its `.verse-number`.
+A `verse` fence reaches the page as `.verse`, with one `.verse-stanza` per
+stanza and `.verse-line` per logical line. Indentation uses `i1` through `i8`;
+deeper levels carry their complete `--verse-indent`. `.verse-canto-break`
+separates cantos. A work-labelled fence adds `.verse-labelled`, and each stanza
+opens with a small `.verse-label` shared across its presentations.
 
-A [verse in columns](../authoring/links-and-markup.md#verse-in-columns) also
-carries `.verse-columns`, and each logical row is one `.verse-row`. The
-block carries `data-cols` and `--verse-columns` with its positive column
-count. Every row contains that many `.verse-column` cells, including empty
-ones:
+A concrete fence encoding adds `.verse-paired`. Each `.verse-row` aligns one
+`.verse-native` cell with one `.verse-roman` cell at full weight. The script is
+on the left; its direction applies within its cell. A narrow container stacks
+the native presentation before the Roman presentation. An unencoded fence or
+`enc=default` is one Roman column. See [versions of a work](../authoring/links-and-markup.md#versions-and-stanza-labels).
 
-```html
-<div
-  class="verse verse-columns verse-numbered"
-  lang="art-x-vyl"
-  data-numstep="5"
-  data-cols="3"
-  style="--verse-columns: 3">
-  <p>
-    <span class="verse-row"
-      ><span class="verse-number"></span
-      ><span class="verse-column"
-        ><span class="verse-part"
-          ><span class="script hl-semaron-kuriale" lang="art-x-vyl">…</span></span
-        ></span
-      ><span class="verse-column"></span
-      ><span class="verse-column"
-        ><span class="verse-part"><span lang="en">The hallowed boundary I sing,</span></span
-        ><span class="verse-part verse-secondary"
-          ><span lang="art-x-vyl">Thiruthriman sorimamen,</span></span
-        ></span
-      ></span
-    >
-    …
-  </p>
-</div>
-```
+| Class                | Meaning                                        |
+| -------------------- | ---------------------------------------------- |
+| `.verse`             | A version of a work                            |
+| `.verse-stanza`      | One stanza or prose paragraph                  |
+| `.verse-line`        | One logical line                               |
+| `.verse-labelled`    | A version carrying automatic stanza labels     |
+| `.verse-label`       | The stanza number or canto:stanza label        |
+| `.verse-paired`      | Script and Roman presentations of one original |
+| `.verse-row`         | Matching logical lines in both presentations   |
+| `.verse-native`      | Encoded text on the left                       |
+| `.verse-roman`       | Roman text on the right                        |
+| `.verse-canto-break` | A canto boundary                               |
+| `.direction`         | An instruction, inside or outside verse        |
+| `.speaker`           | A speaker label, inside or outside verse       |
 
-A numbered verse in columns gives every logical row a `.verse-number`, empty
-on rows it does not number, so repeated readings do not advance the counter.
-The grid remains left to right while inline text follows its own script
-direction. Each row has its own grid and aligns all its cells at the top. Below a block width of `32rem` a row stacks
-its columns in order; it is a container query, so a narrow journal window
-stacks as well. The Foundry stylesheet draws the same.
-
-| class              | drawn as                                                      |
-| ------------------ | ------------------------------------------------------------- |
-| `.verse`           | the poem                                                      |
-| `.verse-line`      | one line of a poem without columns                            |
-| `.verse-numbered`  | a numbered poem, with a margin for its numbers                |
-| `.verse-number`    | a line's number, muted                                        |
-| `.verse-columns`   | a poem in columns, and the container its rows are measured by |
-| `.verse-row`       | one logical verse row: its number and its cells               |
-| `.verse-column`    | one numbered cell, possibly empty, with its readings stacked  |
-| `.verse-part`      | one entry's text, in the body serif unless its face sets it   |
-| `.verse-secondary` | every reading after a column's first in that row, grey        |
+Direction and speaker classes have plain defaults. The book preserves the same
+classes through `book-span`, with plain `book-direction` and `book-speaker`
+hooks for their presentation.
 
 ## Emphasis in a script
 

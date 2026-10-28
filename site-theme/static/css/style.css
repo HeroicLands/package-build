@@ -1380,118 +1380,66 @@ a.tag:hover {
   background: var(--bg-card);
 }
 
-/* Verse groups are paragraphs; explicit stanza separators add their own gap. */
+.single-content .verse .verse-stanza p {
+    margin: 0;
+}
+
+/* Logical stanzas share labels across native and Roman presentations. */
 .single-content .verse {
-  margin: 1.5rem 0;
-  line-height: 1.7;
+    margin: 1.5rem 0;
+    line-height: 1.7;
+    container-type: inline-size;
 }
-
-.single-content .verse p {
-  margin: 0;
+.single-content .verse .verse-stanza {
+    position: relative;
+    margin: 0 0 1em;
 }
-
-.single-content .verse p + p {
-  margin-top: 1em;
+.single-content .verse-labelled .verse-stanza {
+    padding-inline-start: 3em;
 }
-
+.single-content .verse .verse-label {
+    position: absolute;
+    inset-inline-start: 0;
+    width: 2.5em;
+    text-align: end;
+    font-size: 0.75em;
+    color: color-mix(in srgb, currentColor 60%, transparent);
+}
 .single-content .verse .verse-line {
-  display: inline-block;
-  margin-inline-start: var(--verse-indent, 0em);
-  white-space: pre-wrap;
+    display: inline-block;
+    margin-inline-start: var(--verse-indent, 0em);
+    white-space: pre-wrap;
 }
-
-.single-content .verse :is(.verse-line, .verse-part).i1 { --verse-indent: 1.25em; }
-.single-content .verse :is(.verse-line, .verse-part).i2 { --verse-indent: 2.5em; }
-.single-content .verse :is(.verse-line, .verse-part).i3 { --verse-indent: 3.75em; }
-.single-content .verse :is(.verse-line, .verse-part).i4 { --verse-indent: 5em; }
-.single-content .verse :is(.verse-line, .verse-part).i5 { --verse-indent: 6.25em; }
-.single-content .verse :is(.verse-line, .verse-part).i6 { --verse-indent: 7.5em; }
-.single-content .verse :is(.verse-line, .verse-part).i7 { --verse-indent: 8.75em; }
-.single-content .verse :is(.verse-line, .verse-part).i8 { --verse-indent: 10em; }
-
-.single-content .verse .verse-stanza-break { display: block; height: 0.5em; }
-
-/* Numbered verse carries its numbers in a margin. A verse in columns is one
-   grid per verse line: its number, then each column's parts stacked, the
-   first in the normal tone and the rest muted, every part in the body serif
-   unless its face sets it. A narrow verse stacks the columns of each line. */
-.single-content .verse.verse-numbered {
-  position: relative;
-  padding-inline-start: 3em;
+.single-content .verse .verse-line.i1 { --verse-indent: 1.25em; }
+.single-content .verse .verse-line.i2 { --verse-indent: 2.5em; }
+.single-content .verse .verse-line.i3 { --verse-indent: 3.75em; }
+.single-content .verse .verse-line.i4 { --verse-indent: 5em; }
+.single-content .verse .verse-line.i5 { --verse-indent: 6.25em; }
+.single-content .verse .verse-line.i6 { --verse-indent: 7.5em; }
+.single-content .verse .verse-line.i7 { --verse-indent: 8.75em; }
+.single-content .verse .verse-line.i8 { --verse-indent: 10em; }
+.single-content .verse .verse-canto-break {
+    display: block;
+    height: 0.5em;
 }
-
-.single-content .verse .verse-number {
-  color: var(--text-muted);
-  font-size: 0.8em;
+.single-content .verse-paired .verse-row {
+    display: grid;
+    direction: ltr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.5rem;
+    align-items: start;
 }
-
-.single-content .verse-numbered .verse-line .verse-number {
-  position: absolute;
-  inset-inline-start: 0;
-  width: 2.2em;
-  text-align: end;
+.single-content .verse-paired :is(.verse-native, .verse-roman) {
+    min-width: 0;
+    white-space: pre-wrap;
 }
-
-.single-content .verse.verse-columns {
-  container-type: inline-size;
+.single-content .verse-paired .verse-roman {
+    font-family: serif;
 }
-
-.single-content .verse-numbered.verse-columns {
-  padding-inline-start: 0;
-}
-
-.single-content .verse-columns .verse-row {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  direction: ltr;
-  grid-template-columns: repeat(var(--verse-columns, 2), minmax(0, 1fr));
-  column-gap: 1.5rem;
-  margin-bottom: 0.5em;
-}
-
-.single-content .verse-numbered.verse-columns .verse-row {
-  grid-template-columns: 2.5em repeat(var(--verse-columns, 2), minmax(0, 1fr));
-}
-
-.single-content .verse-columns .verse-number {
-  text-align: end;
-  padding-top: 0.2em;
-}
-
-.single-content .verse-columns :is(.verse-column, .verse-part) {
-  display: block;
-  white-space: pre-wrap;
-}
-
-.single-content .verse-columns .verse-part {
-  font-family: var(--font-body);
-  padding-inline-start: var(--verse-indent, 0em);
-}
-
-.single-content .verse-columns .verse-secondary {
-  color: var(--text-muted);
-}
-
-.single-content .verse-columns .verse-secondary * {
-  color: inherit;
-}
-
-.single-content .verse-columns .verse-part[dir="rtl"] {
-  text-align: start;
-}
-
 @container (max-width: 32rem) {
-  .single-content .verse-columns .verse-row {
-    grid-auto-flow: row;
-    grid-template-columns: 1fr;
-  }
-  .single-content .verse-numbered.verse-columns .verse-row {
-    grid-template-columns: 2.5em 1fr;
-  }
-  .single-content .verse-numbered.verse-columns .verse-column {
-    grid-column: 2;
-  }
+    .single-content .verse-paired .verse-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Ornamental horizontal rule: thin line flanking a centered gold

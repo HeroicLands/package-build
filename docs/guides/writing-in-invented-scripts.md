@@ -106,10 +106,9 @@ escapes are removed before encoding, and diagnostics retain the source position.
 
 Every `Zs` space separator and U+0009 through U+000D count as whitespace. A run
 of them is one word separator, which the encoding writes by its own rule.
-Newlines in prose are whitespace. In a verse fence, line endings supply line
-boundaries, blank lines supply stanza boundaries, and `--- {.canto}` on its
-own line supplies a canto boundary. Do not type a verse slash `/` inside the
-fence; an inline quotation of verse may use it. Verse indentation is layout,
+Newlines join as whitespace. In a verse fence, `/` ends a logical line,
+blank lines or `//` end stanzas, and standalone `***` ends a canto. A literal
+slash is written `\/`. Indentation at a logical line boundary is layout,
 not a punctuation character added to the encoded words.
 
 A `.name` child in a language run reaches the encoding with standard `{…}`
@@ -495,58 +494,46 @@ paragraphs: indentation, line breaks and spans survive formatting untouched.
 
 ````markdown
 ```verse {lang=vyl font=semaron-kuriale enc=vylsemaronenc}
-Lokazor lonak.
-  lokamen zaron.
+Lokazor lonak./
+.lokamen zaron.
 ```
 ````
 
-### Verse in columns
+### Versions of a work
 
-`form=epic` records the poem's kind without inferring its layout or metre.
-`cols` is a positive whole number, defaulting to `1`. A single-column poem
-uses its physical lines without numeric prefixes. With `cols` above one,
-every content line starts with a column number and one or more spaces.
-Blank lines separate logical verse rows, and `***` separates stanzas.
+`form=epic` records the author's literary form without inferring layout or metre.
 
-Numbers are in `1..cols` and nondecreasing within a row. Skip a number to
-leave that cell empty. Repeat a number for as many readings as the column
-needs: its first reading is foreground, and all its later readings are grey.
-That choice is independent for each column and resets at each new row.
-
-Here is a sparse three-column poem. The first row omits column two. The next
-fills it, and the last row begins a new stanza:
+A `verse` fence with a concrete `enc=` sets one original in its script on the
+left and Roman on the right. The author writes the text once; the two
+presentations align logical lines at full weight. `/` ends a logical line,
+source newlines otherwise join, a blank line or `//` ends a stanza, and a line
+of only `***` ends a canto. Leading periods at a logical line boundary indent
+that line. Use `\/` for a literal slash.
 
 ````markdown
-```verse {numstep=1 lang=vyl cols=3}
-1 [Lokazor lonak zaron.]{lang=vyl enc=vylsemaronenc}
-3 [He walks the oath road.]{lang=en}
-3 [Lokazor lonak zaron.]{lang=vyl enc=default}
+```verse {work=walking lang=en}
+He walks the oath road.
 
-1 [Lokamen lonak zaron.]{lang=vyl enc=vylsemaronenc}
-2 [Nothing to say]{lang=en}
-3 [I walk the oath road.]{lang=en}
-3 [Lokamen lonak zaron.]{lang=vyl enc=default}
+I walk the oath road.
+```
 
-***
+```verse {work=walking lang=vyl enc=vylsemaronenc}
+Lokazor lonak zaron.
 
-1 [alathos lokazor.]{lang=vyl enc=vylsemaronenc}
-3 [That one walks.]{lang=en}
-3 [alathos lokazor.]{lang=vyl enc=default}
+Lokamen lonak zaron.
 ```
 ````
 
-Each native span opts in explicitly and uses the Vylari note's configured
-map and font. Each Roman repeat is authored separately and stays Roman.
-`lang=` identifies the language without choosing a column; number prefixes
-alone place the readings. Inline links, language changes and authored spaces
-remain inside the chosen reading. Leading periods indent that reading.
-
-`numstep=N` counts logical rows, so repeated readings and empty cells do not
-advance its counter. Every target aligns each row's cells at the top, and
-narrow web or Foundry displays stack the cells in numbered order. A
-right-to-left reading stays in its cell and follows its own script's direction.
-Invalid counts and prefixes are located at the authored value or number;
-missing prefixes are located at the line's first content character.
+`work=` groups the versions within the page. Their stanza labels match, and the
+build checks that their canto counts and stanza counts per canto agree. The
+English fence is one column, and `enc=default` also stays one Roman column.
+The original's encoded and Roman presentations share one label per stanza.
+Names, `⟦…⟧` codage, language gaps and other inline spans retain their meaning;
+codage draws its glyphs on the left and appears as codage on the right. The
+content index records the original once with its fence language and encoding.
+See [versions and stanza labels](../authoring/links-and-markup.md#versions-and-stanza-labels)
+for poetry and prose examples, and [directions and speakers](../authoring/links-and-markup.md#directions-and-speakers)
+for plain semantic span hooks.
 
 ### Metre
 
@@ -567,7 +554,7 @@ whose language note states `data.sounds.stress` is counted line by line:
 
 ````markdown
 ```verse {lang=vyl scan=trimeter}
-Lokazor lonak zaron.
+Lokazor lonak zaron./
 Lokamen lonak zaron.
 ```
 ````
@@ -612,8 +599,6 @@ anything, each an error:
 > ``the language `vyl` states no `data.sounds.stress`, which `scan=` counts beats by``
 
 > ``the language `vyl` is not a configured language with a `note`, so it has no stress rule for `scan=` to count beats by``
-
-> `` `scan=` counts the beats of one language's lines; a verse with cols>1 groups independent physical lines ``
 
 A repeated metre name is an error too:
 
@@ -1158,9 +1143,8 @@ where the characters are the code points above: `Lokazor` begins with the
 capital `L` of the rows, `zaron` is the exception's long vowel, and each period
 writes the script's pause point.
 
-A poem in columns and a poem with its metre checked sit on one note. Both parse
-with no finding: the first sets native Vylari in column one and English over Roman
-Vylari in column three, with a sparse middle cell, and the second's lines each carry three beats.
+A work's English and original versions sit on one note. Its original is written
+once and appears beside its Roman presentation; a separate fence checks metre.
 
 **`assets/content/Lore/Walking.md`**
 
@@ -1175,25 +1159,20 @@ The walking of the oath road is sung in two settings. The first sets the poem
 beside its translation, and the second keeps the metre that the court keeps, so
 that a line with the wrong count is reported to the author who wrote it.
 
-```verse {numstep=1 lang=vyl cols=3}
-1 [Lokazor lonak zaron.]{lang=vyl enc=vylsemaronenc}
-3 [He walks the oath road.]{lang=en}
-3 [Lokazor lonak zaron.]{lang=vyl enc=default}
+```verse {work=walking lang=en}
+He walks the oath road.
 
-1 [Lokamen lonak zaron.]{lang=vyl enc=vylsemaronenc}
-2 [Nothing to say]{lang=en}
-3 [I walk the oath road.]{lang=en}
-3 [Lokamen lonak zaron.]{lang=vyl enc=default}
+I walk the oath road.
+```
 
-***
+```verse {work=walking lang=vyl enc=vylsemaronenc}
+Lokazor lonak zaron.
 
-1 [alathos lokazor.]{lang=vyl enc=vylsemaronenc}
-3 [That one walks.]{lang=en}
-3 [alathos lokazor.]{lang=vyl enc=default}
+Lokamen lonak zaron.
 ```
 
 ```verse {lang=vyl scan=trimeter}
-Lokazor lonak zaron.
+Lokazor lonak zaron./
 Lokamen lonak zaron.
 ```
 ````

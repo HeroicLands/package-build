@@ -293,12 +293,10 @@ export function scanSpans(source) {
     }
     // Verse fences preserve inline Markdown even though the block parser
     // normally treats every code fence as literal text.
-    for (const poem of scanVerse(text).blocks) {
-        for (let line = poem.start + 1; line < poem.end; line++) {
-            const children = [];
-            parser.inline.parse(lines[line], parser, env, children);
-            collect(children, (pos) => starts[line] + pos);
-        }
+    for (const poem of scanVerse(text, { checkWorks: false }).blocks) {
+        const children = [];
+        parser.inline.parse(poem.body, parser, env, children);
+        collect(children, (pos) => starts[poem.start + 1] + pos);
     }
     spans.sort((a, b) => a.start - b.start);
     errors.sort((a, b) => a.line - b.line || a.column - b.column);

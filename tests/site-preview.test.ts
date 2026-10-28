@@ -297,7 +297,7 @@ describe("buffer-only preview", () => {
     });
     it("renders Markdown, footnotes, definitions, verse and containers locally", () => {
         const html = sourceHtml(
-            '# Heading {#heading}\n\nTerm\n: Definition\n\n:::secret {title="Details"}\nText[^one]\n:::\n\n```verse\nFirst *line*\n.Second\n\nLast\n```\n\n[^one]: A footnote.',
+            '# Heading {#heading}\n\nTerm\n: Definition\n\n:::secret {title="Details"}\nText[^one]\n:::\n\n```verse\nFirst *line*/\n.Second\n\nLast\n```\n\n[^one]: A footnote.',
         );
         expect(html).toContain('<h1 id="heading">Heading</h1>');
         expect(html).toContain('<dl class="dictionary">');
@@ -308,8 +308,8 @@ describe("buffer-only preview", () => {
         expect(html).toContain("First <em>line</em>");
         expect(html).toContain('class="verse-line i1">Second');
         const verseCss = previewStyles();
-        expect(verseCss).toContain(".verse-stanza-break");
-        expect(verseCss).toMatch(/padding-inline-start:\s*var\(--verse-indent, 0em\)/);
+        expect(verseCss).toContain(".verse-canto-break");
+        expect(verseCss).toMatch(/margin-inline-start:\s*var\(--verse-indent, 0em\)/);
     });
     it("renders dictionary rows while preserving multiple definitions and rich nested content", () => {
         const html = sourceHtml(

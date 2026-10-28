@@ -3,152 +3,16 @@
 import { describe, expect, it } from "vitest";
 import { scanRuns, renderRuns } from "../engine/content-scripts.mjs";
 import { compileTestEncoding } from "./helpers/encoding.js";
-import * as verse from "../engine/content-verse.mjs";
 
-const poem = (attrs: string, ...lines: string[]) =>
-    [`\`\`\`verse {${attrs}}`, ...lines, "```"].join("\n");
-const groups = (source: string) =>
-    verse.verseGroups(verse.scanVerse(source).blocks[0], source.split("\n"));
-
-describe("numbered verse columns", () => {
-    it("groups sparse columns and unlimited ordered repeats into logical rows", () => {
-        const source = poem(
-            "cols=3 numstep=2",
-            "1 First",
-            "1 Again",
-            "1 Third reading",
-            "3 Last",
-            "",
-            "2 Middle",
-            "2 Echo",
-            "",
-            "***",
-            "",
-            "1 New stanza",
-        );
-        expect(verse.scanVerse(source).errors).toEqual([]);
-        expect(verse.verseColumnCount(verse.scanVerse(source).blocks[0])).toBe(3);
-        const rows = groups(source);
-        expect(rows[0].parts.map(({ column, text }) => [column, text])).toEqual([
-            [1, "First"],
-            [1, "Again"],
-            [1, "Third reading"],
-            [3, "Last"],
-        ]);
-        expect(rows[1].parts.map(({ column, text }) => [column, text])).toEqual([
-            [2, "Middle"],
-            [2, "Echo"],
-        ]);
-        expect(rows[2]).toEqual({ stanzaBreak: true, line: 9 });
-        expect(rows[3].parts[0].column).toBe(1);
-    });
-
-    it.each(["0", "-1", "1.5", "two", "9007199254740992"])(
-        "rejects invalid cols=%s at its value",
-        (cols) => {
-            expect(verse.scanVerse(poem(`cols=${cols}`, "text")).errors).toContainEqual({
-                line: 1,
-                column: 16,
-                message: "verse cols= is a positive whole number",
-            });
-        },
-    );
-
-    it.each([
-        [
-            "no prefix",
-            1,
-            "a verse with cols>1 starts each content line with a column number and spaces",
-        ],
-        ["1\ttext", 2, "tabs are not allowed in verse"],
-        ["0 text", 1, "column 0 is outside 1..3"],
-        ["4 text", 1, "column 4 is outside 1..3"],
-        ["1 ", 1, "a numbered verse line needs content after its column number"],
-    ])("locates malformed or out-of-range physical line %s", (line, column, message) => {
-        expect(verse.scanVerse(poem("cols=3", line)).errors).toContainEqual({
-            line: 2,
-            column,
-            message,
-        });
-    });
-
-    it("locates decreasing columns and resets order at each blank row", () => {
-        expect(verse.scanVerse(poem("cols=3", "2 middle", "  1 back")).errors).toContainEqual({
-            line: 3,
-            column: 3,
-            message: "column numbers must not decrease within a verse row",
-        });
-        expect(verse.scanVerse(poem("cols=3", "3 last", "", "1 first")).errors).toEqual([]);
-    });
-
-    it("preserves authored runs, links, spacing and marker source offsets", () => {
-        const source = poem(
-            "cols=3",
-            "  1   [..Before ]{lang=en}[[place-x|Name]]{lang=vyl}[ after]{lang=en}",
-            "3 .Other",
-        );
-        expect(verse.scanVerse(source).errors).toEqual([]);
-        expect(groups(source)[0].parts[0]).toMatchObject({
-            column: 1,
-            line: 1,
-            sourceColumn: 3,
-            textColumn: 7,
-            indent: 2,
-            markerStart: 7,
-            markerLength: 2,
-            text: "[Before ]{lang=en}[[place-x|Name]]{lang=vyl}[ after]{lang=en}",
-        });
-        expect(groups(source)[0].parts[1]).toMatchObject({ column: 3, text: "Other", indent: 1 });
-    });
-
-    it("renders empty cells, foreground first parts, grey repeats and logical-row numbering", () => {
-        const source = poem(
-            "cols=3 numstep=2",
-            "1 First",
-            "1 Repeat",
-            "3 Last",
-            "",
-            "2 Middle",
-            "",
-            "***",
-            "1 Next",
-        );
-        const html = verse.renderVerse(source).markdown;
-        expect(html).toContain('class="verse verse-columns verse-numbered"');
-        expect(html).toContain('<span class="verse-column"></span>');
-        expect(html).toContain('<span class="verse-part verse-secondary">Repeat</span>');
-        expect(html).toContain('<span class="verse-number">2</span>');
-        expect(html.match(/class="verse-row"/g)).toHaveLength(3);
-        expect(html).toContain('class="verse-stanza-break"');
-        expect(html).not.toContain("1 First");
-    });
-
-    it("keeps ordinary one-column verse physical lines foreground and unprefixed", () => {
-        for (const attrs of ["", "cols=1"]) {
-            const source = poem(attrs, "One", "Two", "", "Three");
-            expect(verse.scanVerse(source).errors).toEqual([]);
-            expect(verse.verseColumnCount(verse.scanVerse(source).blocks[0])).toBe(1);
-            const html = verse.renderVerse(source).markdown;
-            expect(html.match(/class="verse-line"/g)).toHaveLength(3);
-            expect(html).not.toContain("verse-secondary");
-            expect(html).not.toContain("verse-columns");
-        }
-    });
-
-    it("requires native opt-in per run while allowing a generic fence font", () => {
-        expect(verse.scanVerse(poem("cols=2 lang=en font=serif", "1 One", "2 Two")).errors).toEqual(
-            [],
-        );
-        const source = poem("cols=2 lang=vyl enc=letters", "1 One");
-        expect(scanRuns(source, nativeContext).errors).toContainEqual({
-            line: 1,
-            column: source.indexOf("letters") + 1,
-            message: "a verse with cols>1 selects encoding on individual runs, not the fence",
-        });
-    });
+const encoded = compileTestEncoding({
+    name: "letters",
+    fonts: [{ font: "script" }],
+    rows: [
+        ["word", "字"],
+        [".", "。"],
+    ],
 });
-
-const nativeContext = {
+const ctx = {
     languages: { vyl: { tag: "art-x-vyl" } },
     faces: new Map([
         [
@@ -157,74 +21,112 @@ const nativeContext = {
                 slug: "script",
                 family: "Test",
                 class: "hl-script",
-                draws: new Set(["字".codePointAt(0), "。".codePointAt(0)]),
+                draws: new Set([..."字。 \u{E010C}"].map((char) => char.codePointAt(0))),
             },
         ],
     ]),
-    encodings: new Map([
-        [
-            "letters",
-            compileTestEncoding({
-                name: "letters",
-                fonts: [{ font: "script" }],
-                rows: [
-                    ["word", "字"],
-                    [".", "。"],
-                ],
-            }),
-        ],
-    ]),
-    wordBooks: new Map([
-        ["vyl", { language: "vyl", accepts: (word: string) => word.toLowerCase() === "word" }],
-    ]),
+    encodings: new Map([["letters", encoded]]),
+};
+const fence = (body: string, attrs = "lang=vyl enc=letters") =>
+    "```verse {" + attrs + "}\n" + body + "\n```";
+const presentation = (source: string) => {
+    const result = renderRuns(source, ctx);
+    expect(result.errors).toEqual([]);
+    expect(result.verses.size).toBe(1);
+    return [...result.verses.values()][0];
 };
 
-describe("numbered columns retain authored language runs", () => {
-    it("maps only opted native runs and keeps Roman repeats, prefixes and nested markers intact", () => {
-        const source = poem(
-            "cols=3 lang=en",
-            "1 [..word]{lang=vyl enc=letters}",
-            "2 A translation",
-            "2 [word]{lang=vyl}",
-            "3 [word]{lang=vyl}",
+describe("encoded verse pairs", () => {
+    it("derives aligned native and Roman lines from one original", () => {
+        const pair = presentation(fence("word/..word\nword"));
+        expect(pair.model.groups[0].lines).toMatchObject([
+            { text: "字\u{E010C}", romanText: "word", level: 0 },
+            { text: "字 字", romanText: "word word", level: 2 },
+        ]);
+        expect(pair.classes).toContain("hl-script");
+    });
+    it("keeps enc=default and omitted enc as single-column verse", () => {
+        for (const attrs of ["lang=vyl", "lang=vyl enc=default"])
+            expect(renderRuns(fence("word/word", attrs), ctx).verses.size).toBe(0);
+    });
+    it("retains codage on the Roman side and semantic span hooks on both", () => {
+        const pair = presentation(fence("[word]{.speaker}/[⟦U+5B57⟧]{.direction}"));
+        expect(pair.model.groups[0].lines[0]).toMatchObject({ romanText: "[word]{.speaker}" });
+        expect(pair.model.groups[0].lines[0].text).toContain(".speaker");
+        expect(pair.model.groups[0].lines[1].romanText).toContain("⟦U+5B57⟧");
+        expect(pair.model.groups[0].lines[1].text).toContain(".direction");
+    });
+    it("balances semantic spans across explicit line boundaries", () => {
+        const pair = presentation(fence("[word/word]{.direction}"));
+        expect(pair.model.groups[0].lines.map((line) => line.text)).toEqual([
+            "[字\u{E010C}]{lang=art-x-vyl .direction .script .hl-script}",
+            "[字]{lang=art-x-vyl .direction .script .hl-script}",
+        ]);
+    });
+    it("keeps inline language and encoding choices scoped to the native presentation", () => {
+        const pair = presentation(fence("[word]{lang=vyl enc=letters}/word"));
+        expect(pair.model.groups[0].lines[0].romanText).toBe("[word]{lang=art-x-vyl}");
+    });
+    it("joins a semantic span written across source lines", () => {
+        const pair = presentation(fence("[word\nword]{.direction}"));
+        const line = pair.model.groups[0].lines[0];
+        expect(line.romanText).toBe("[word word]{.direction}");
+        expect(line.text).toContain("字 字");
+        expect(line.text).toContain(".direction");
+    });
+    it("preserves link destinations and shared footnote syntax while encoding labels", () => {
+        const pair = presentation(
+            fence("[word](https://example.org/a/b) word[^one]/word") + "\n\n[^one]: Shared note.",
         );
-        const result = renderRuns(source, nativeContext);
-        expect(result.errors).toEqual([]);
-        expect(result.markdown).toContain("1 [..字\u{E010C}]{lang=art-x-vyl .script .hl-script}");
-        expect(result.markdown).toContain("2 [word]{lang=art-x-vyl}");
-        expect(result.markdown).toContain("3 [word]{lang=art-x-vyl}");
-        const html = verse.renderVerse(result.markdown).markdown;
-        expect(html).toContain('class="verse-part i2">[字\u{E010C}]');
-        expect(html).toContain('class="verse-part verse-secondary">[word]');
-        expect(html).not.toContain("1 [");
+        const line = pair.model.groups[0].lines[0];
+        expect(line.text).toContain("[字](https://example.org/a/b)");
+        expect(line.text).toContain("[^one]");
+        expect(line.romanText).toContain("[word](https://example.org/a/b)");
+        expect(line.romanText).toContain("[^one]");
     });
-    it("reports lexical faults at the original authored word after its numeric prefix", () => {
-        const source = poem("cols=3 lang=vyl", "  3 [unknown]{lang=vyl}");
-        expect(scanRuns(source, nativeContext).errors).toContainEqual({
-            line: 2,
-            column: 6,
-            message: expect.stringContaining("`unknown` is not a word"),
-        });
+    it("normalizes nested Roman attributes without moving outer span boundaries", () => {
+        const pair = presentation(fence("[word [word]{lang=vyl enc=letters}]{.direction}/word"));
+        expect(pair.model.groups[0].lines[0].romanText).toBe(
+            "[word [word]{lang=art-x-vyl}]{.direction}",
+        );
     });
-    it("reports unmapped characters at their authored position without treating the prefix as text", () => {
-        const source = poem("cols=3", "  3 [word7]{lang=en font=script enc=letters}");
-        expect(scanRuns(source, nativeContext).errors).toEqual([
-            {
-                line: 2,
-                column: 10,
-                message:
-                    "`7` encodes to U+0037 in `letters`, which the font `script` does not draw",
-            },
+    it("keeps an authored anchor only in the native presentation", () => {
+        const pair = presentation(fence("[word]{#cue .speaker}"));
+        expect(pair.model.groups[0].lines[0].text).toContain("#cue");
+        expect(pair.model.groups[0].lines[0].romanText).toBe("[word]{.speaker}");
+    });
+    it("emits one native anchor when an anchored speaker spans explicit lines", () => {
+        const pair = presentation(fence("[word/word]{#cue .speaker}"));
+        const lines = pair.model.groups[0].lines;
+        expect(
+            lines
+                .map((line) => line.text)
+                .join("")
+                .match(/#cue/g),
+        ).toHaveLength(1);
+        expect(lines.map((line) => line.romanText).join("")).not.toContain("#cue");
+    });
+    it("normalizes sibling Roman attributes without shifting their source positions", () => {
+        const pair = presentation(fence("[word]{enc=letters} [word]{lang=vyl enc=letters}"));
+        expect(pair.model.groups[0].lines[0].romanText).toBe("[word]{} [word]{lang=art-x-vyl}");
+    });
+    it("preserves wikilink addresses while encoding their visible labels", () => {
+        const pair = presentation(fence("word [[lore-destination/path|word]]/word"));
+        expect(pair.model.groups[0].lines[0].text).toContain("[[lore-destination/path|字]]");
+        expect(pair.model.groups[0].lines[0].romanText).toContain("[[lore-destination/path|word]]");
+    });
+    it("records one fence run without per-line marked spans", () => {
+        const source = fence("word/word\n\nword");
+        expect(scanRuns(source, ctx).errors).toEqual([]);
+        expect(scanRuns(source, ctx).runs).toMatchObject([
+            { kind: "verse", lang: "vyl", enc: "letters", font: "script" },
         ]);
+        expect(scanRuns(source, ctx).runs).toHaveLength(1);
+        expect(renderRuns(source, ctx).verses.size).toBe(1);
     });
-    it("keeps located encoding diagnostics on authored runs", () => {
-        const source = poem("cols=2", "1 [word]{font=script enc=missing}");
-        expect(scanRuns(source, nativeContext).errors).toEqual([
-            {
-                line: 2,
-                column: source.split("\n")[1].indexOf("missing") + 1,
-                message: "`missing` does not resolve to an encoding document",
-            },
-        ]);
+    it("does not collapse distinct originals with identical encoded output", () => {
+        const source = fence("word") + "\n\n" + fence("word ");
+        const result = renderRuns(source, ctx);
+        expect(result.verses.size).toBe(2);
     });
 });

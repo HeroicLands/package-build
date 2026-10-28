@@ -124,167 +124,116 @@
  * the two markers are also the editor preview's stylesheet, with the content
  * roots replaced by the preview's own. */
 
-/* Verse groups are paragraphs; explicit stanza separators add their own gap. */
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse {
-    margin: 1.5rem 0;
-    line-height: 1.7;
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse p {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-stanza
+    p {
     margin: 0;
 }
 
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse p + p {
-    margin-top: 1em;
+/* Logical stanzas share labels across native and Roman presentations. */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse {
+    margin: 1.5rem 0;
+    line-height: 1.7;
+    container-type: inline-size;
 }
-
-.verse .verse-line {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-stanza {
+    position: relative;
+    margin: 0 0 1em;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-labelled
+    .verse-stanza {
+    padding-inline-start: 3em;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-label {
+    position: absolute;
+    inset-inline-start: 0;
+    width: 2.5em;
+    text-align: end;
+    font-size: 0.75em;
+    color: color-mix(in srgb, currentColor 60%, transparent);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse .verse-line {
     display: inline-block;
     margin-inline-start: var(--verse-indent, 0em);
     white-space: pre-wrap;
 }
-
-.verse :is(.verse-line, .verse-part).i1 {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-line.i1 {
     --verse-indent: 1.25em;
 }
-.verse :is(.verse-line, .verse-part).i2 {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-line.i2 {
     --verse-indent: 2.5em;
 }
-.verse :is(.verse-line, .verse-part).i3 {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-line.i3 {
     --verse-indent: 3.75em;
 }
-.verse :is(.verse-line, .verse-part).i4 {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-line.i4 {
     --verse-indent: 5em;
 }
-.verse :is(.verse-line, .verse-part).i5 {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-line.i5 {
     --verse-indent: 6.25em;
 }
-.verse :is(.verse-line, .verse-part).i6 {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-line.i6 {
     --verse-indent: 7.5em;
 }
-.verse :is(.verse-line, .verse-part).i7 {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-line.i7 {
     --verse-indent: 8.75em;
 }
-.verse :is(.verse-line, .verse-part).i8 {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-line.i8 {
     --verse-indent: 10em;
 }
-
-.verse .verse-stanza-break {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-canto-break {
     display: block;
     height: 0.5em;
 }
-
-/* Numbered verse carries its numbers in a margin. A verse in columns is one
- * grid per verse line: its number, then each column's parts stacked, the
- * first in the normal tone and the rest muted, every part in the serif unless
- * its face sets it. A narrow journal stacks the columns of each line. */
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse.verse-numbered {
-    position: relative;
-    padding-inline-start: 3em;
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse
-    .verse-number {
-    color: color-mix(in srgb, currentColor 60%, transparent);
-    font-size: 0.8em;
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-numbered
-    .verse-line
-    .verse-number {
-    position: absolute;
-    inset-inline-start: 0;
-    width: 2.2em;
-    text-align: end;
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse.verse-columns {
-    container-type: inline-size;
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-numbered.verse-columns {
-    padding-inline-start: 0;
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-columns
+    .verse-paired
     .verse-row {
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
     direction: ltr;
-    grid-template-columns: repeat(var(--verse-columns, 2), minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 1.5rem;
-    margin-bottom: 0.5em;
+    align-items: start;
 }
-
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-numbered.verse-columns
-    .verse-row {
-    grid-template-columns: 2.5em repeat(var(--verse-columns, 2), minmax(0, 1fr));
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-columns
-    .verse-number {
-    text-align: end;
-    padding-top: 0.2em;
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-columns
-    :is(.verse-column, .verse-part) {
-    display: block;
+    .verse-paired
+    :is(.verse-native, .verse-roman) {
+    min-width: 0;
     white-space: pre-wrap;
 }
-
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-columns
-    .verse-part {
+    .verse-paired
+    .verse-roman {
     font-family: serif;
-    padding-inline-start: var(--verse-indent, 0em);
 }
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-columns
-    .verse-secondary {
-    color: color-mix(in srgb, currentColor 60%, transparent);
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-columns
-    .verse-secondary
-    * {
-    color: inherit;
-}
-
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-    .verse-columns
-    .verse-part[dir="rtl"] {
-    text-align: start;
-}
-
 @container (max-width: 32rem) {
     :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-        .verse-columns
+        .verse-paired
         .verse-row {
-        grid-auto-flow: row;
         grid-template-columns: 1fr;
-    }
-    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-        .verse-numbered.verse-columns
-        .verse-row {
-        grid-template-columns: 2.5em 1fr;
-    }
-    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
-        .verse-numbered.verse-columns
-        .verse-column {
-        grid-column: 2;
     }
 }
 

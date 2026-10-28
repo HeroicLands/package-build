@@ -14,7 +14,7 @@ describe("markup primitives", () => {
         expect(result).not.toContain("<summary");
     });
     it("reads verse fences, preserving stanza and period indentation", () => {
-        const source = "```verse {form=ballad}\n    Base  line\n    .Indented\n\n    Last\n```";
+        const source = "```verse {form=ballad}\n    Base  line/\n    .Indented\n\n    Last\n```";
         expect(scanVerse(source).errors).toEqual([]);
         const result = renderVerse(source).markdown;
         expect(result).toContain('class="verse-line i1"');

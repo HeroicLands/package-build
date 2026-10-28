@@ -34,9 +34,8 @@
  *
  * Span, div, verse and scroll scanners retain original UTF-16 source offsets.
  * Public diagnostics count Unicode code-point columns. A scroll's face must
- * belong to a script written vertically, and parallel verse selects encoding
- * on each reading rather than the fence. Every native content line retains
- * its line boundary before a stanza or canto.
+ * belong to a script written vertically. An encoded verse derives native and
+ * Roman presentations from one authored text and retains explicit boundaries.
  * @module
  */
 
@@ -44,7 +43,7 @@ import MarkdownIt from "markdown-it";
 import { blockTokens } from "./markdown-blocks.mjs";
 
 import { scanBlocks, BLOCK_CONTAINERS } from "./content-blocks.mjs";
-import { scanVerse, hasColumns, verseLine, verseGroups, STANZA_BREAK } from "./content-verse.mjs";
+import { scanVerse } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { scanScrolls, scrollParagraphs } from "./content-scroll.mjs";
 import { directionsFromRecords } from "./script-direction.mjs";
@@ -1055,11 +1054,6 @@ function analyseRuns(source, ctx, syntax) {
                 nativeAt(construct),
                 "`.nativefont` is not an accepted class; select an encoding with `enc=`",
             );
-        if (native(construct) && construct.kind === "verse" && hasColumns(construct.node))
-            report(
-                construct.at("enc", "value"),
-                "a verse with cols>1 selects encoding on individual runs, not the fence",
-            );
 
         if (lang !== undefined && !Object.hasOwn(languages, lang)) {
             if (isLanguageTag(lang)) {
@@ -1203,41 +1197,47 @@ function analyseRuns(source, ctx, syntax) {
 
     const verseMarkers = new Map();
     const verseContexts = new Map();
-    const verseReadings = new Map();
-    for (const poem of scanVerse(text).blocks) {
+    for (const poem of scanVerse(text, { checkWorks: false }).blocks) {
         for (let line = poem.start + 1; line < poem.end; line++) verseContexts.set(line, poem);
-        for (let line = poem.start + 1; line < poem.end; line++)
-            if (
-                STANZA_BREAK.test(lines[line].trim()) ||
-                /^---\s+\{\.canto\}$/.test(lines[line].trim())
-            )
-                verseMarkers.set(starts[line], starts[line] + lines[line].length);
-        if (hasColumns(poem)) {
-            for (const group of verseGroups(poem, lines)) {
-                if (group.stanzaBreak) continue;
-                for (const part of group.parts) {
-                    verseReadings.set(part.line, part);
-                    const start = starts[part.line];
-                    if (part.prefixLength)
-                        verseMarkers.set(
-                            start + part.sourceColumn - 1,
-                            start + part.textColumn - 1,
-                        );
-                    if (part.markerLength)
-                        verseMarkers.set(
-                            start + part.markerStart,
-                            start + part.markerStart + part.markerLength,
-                        );
-                }
+        const bodyStart = starts[poem.start + 1];
+        for (const [from, to] of poem.model.layout)
+            verseMarkers.set(bodyStart + from, bodyStart + to);
+        for (const match of poem.body.matchAll(WIKILINK)) {
+            const bar = match[1].indexOf("|");
+            if (bar < 0) {
+                verseMarkers.set(
+                    bodyStart + match.index,
+                    bodyStart + match.index + match[0].length,
+                );
+                continue;
             }
-        } else
-            for (let line = poem.start + 1; line < poem.end; line++) {
-                const { markerStart, markerLength } = verseLine(lines[line]);
-                if (markerLength) {
-                    const from = starts[line] + markerStart;
-                    verseMarkers.set(from, from + markerLength);
-                }
+            verseMarkers.set(bodyStart + match.index, bodyStart + match.index + 3 + bar);
+            verseMarkers.set(
+                bodyStart + match.index + match[0].indexOf("]]"),
+                bodyStart + match.index + match[0].length,
+            );
+        }
+        // Link destinations and footnote references remain Markdown; only a
+        // link's visible label contributes text to the encoding projection.
+        for (let at = 0; at < poem.body.length; at++) {
+            if (poem.body[at] === "\\") {
+                at++;
+                continue;
             }
+            if (poem.body[at] !== "[") continue;
+            const end = closing(poem.body, at);
+            if (end < 0) continue;
+            const label = poem.body.slice(at + 1, end);
+            if (/^\^[^\s\]]+$/.test(label) && footnotes.has(label.slice(1))) {
+                verseMarkers.set(bodyStart + at, bodyStart + end + 1);
+                at = end;
+            } else if (poem.body[end + 1] === "(" && poem.body[at - 1] !== "!") {
+                const past = closing(poem.body, end + 1);
+                if (past < 0) continue;
+                verseMarkers.set(bodyStart + at, bodyStart + at + 1);
+                verseMarkers.set(bodyStart + end, bodyStart + past + 1);
+            }
+        }
     }
 
     /** Nested spans and verse markers excluded from a run, by absolute offset. */
@@ -1560,23 +1560,7 @@ function analyseRuns(source, ctx, syntax) {
         }
         return owners.get(detail);
     };
-    const wholeVerseReading = (detail) => {
-        if (detail.run.kind === "verse") return true;
-        if (detail.run.kind !== "span") return false;
-        const line = detail.run.line - 1;
-        const poem = verseContexts.get(line);
-        if (!poem) return false;
-        const end = starts[line] + lines[line].length;
-        if (detail.run.end > end) return false;
-        const reading = verseReadings.get(line);
-        const from =
-            hasColumns(poem) ? starts[line] + (reading?.textColumn ?? 1) - 1 : starts[line];
-        return (
-            from <= detail.run.start &&
-            /^[ \t.]*$/.test(text.slice(from, detail.run.start)) &&
-            /^[ \t\r]*$/.test(text.slice(detail.run.end, end))
-        );
-    };
+
     const spanDetails = new Map(
         details
             .filter((detail) => detail.run.kind === "span")
@@ -1604,13 +1588,17 @@ function analyseRuns(source, ctx, syntax) {
             includeSpan: (span) =>
                 spanDetails.has(span.start) && ownerOf(spanDetails.get(span.start)) === owner,
         };
-        const verse = wholeVerseReading(owner);
+        const poem =
+            owner.run.kind === "verse" ?
+                poems.get(owner.run.start)
+            :   verseContexts.get(owner.run.line - 1);
+        const verse = poem !== undefined;
         const projection =
             verse ?
                 plainRomanVerse(text, {
                     ...projectionOptions,
-                    isCantoLine: (line) =>
-                        STANZA_BREAK.test(line.trim()) || /^---\s+\{\.canto\}$/.test(line.trim()),
+                    model: poem.model,
+                    modelOffset: starts[poem.start + 1],
                 })
             :   plainRomanRun(text, projectionOptions);
         const before = errors.length;
@@ -1628,18 +1616,7 @@ function analyseRuns(source, ctx, syntax) {
                 );
         for (const problem of projection.errors ?? [])
             report(positionOf(starts, problem.offset), problem.message);
-        if (!verse && verseContexts.has(owner.run.line - 1))
-            for (const match of projection.text.matchAll(/\//g)) {
-                if (
-                    projection.text.lastIndexOf("⟦", match.index) >
-                    projection.text.lastIndexOf("⟧", match.index)
-                )
-                    continue;
-                report(
-                    positionOf(starts, projection.offsets[match.index]),
-                    "a verse fence uses authored line endings for verse boundaries; write no literal `/` inside it",
-                );
-            }
+
         const book = ctx.wordBooks?.get(owner.run.lang);
         if (book) {
             const mask = projection.text.split("");
@@ -2026,11 +2003,10 @@ function setRange(text, from, to, detail, lineStart, book) {
 
 /**
  * Rewrite text marked with `lang=`, `font=` and `enc=` into the plain span,
- * div and verse grammar the rest of each chain renders, one line for one line.
+ * div and verse grammar the rest of each chain renders.
  *
- * - **Numbered verse prefixes and indentation markers** stay outside run text.
- *   Each authored run chooses its own language and presentation; physical
- *   lines and source positions remain unchanged.
+ * - **Verse layout markers** stay outside encoded text. A shared logical
+ *   structure retains authored source positions and both presentations.
  * - **The enc, if any, is applied first.** Characters Markdown would read are
  *   then backslash-escaped, so they reach every later pass as characters.
  * - **Emphasis in a face** becomes an `<em>` or a `<strong>` carrying its
@@ -2057,7 +2033,7 @@ function setRange(text, from, to, detail, lineStart, book) {
  *   scanner projections.
  * @param {{target?: "site"|"foundry"|"book"}} [options] - The target the
  *   Markdown is rendered for; only `site` writes the search marker.
- * @returns {{markdown: string, errors: Array<{file?: string, line: number, column: number, message: string}>, scrolls: Map<string, import("./content-scroll.mjs").ScrollLayout>}}
+ * @returns {{markdown: string, errors: Array<{file?: string, line: number, column: number, message: string}>, scrolls: Map<string, import("./content-scroll.mjs").ScrollLayout>, verses: Map<string, {model: ReturnType<typeof import("./content-verse.mjs").parseVerse>, classes: string[], attributes: Record<string, string>}>}}
  *   The rewritten Markdown, the findings of {@link scanRuns}, and each
  *   rewritten scroll fence's layout, by its rewritten body.
  */
@@ -2067,11 +2043,12 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
     const text = String(source ?? "");
     /** @type {Map<string, import("./content-scroll.mjs").ScrollLayout>} */
     const scrolls = new Map();
+    const verses = new Map();
     if (!/\b(?:lang|font|enc)=|\bnativefont\b|\.(?:emph|strong)\b|⟦/.test(text))
-        return { markdown: text, errors: [], scrolls };
+        return { markdown: text, errors: [], scrolls, verses };
     const { details, errors } = analyseRuns(text, ctx, syntax);
     if (!details.length)
-        return { markdown: text, errors: diagnosticColumns(text, errors), scrolls };
+        return { markdown: text, errors: diagnosticColumns(text, errors), scrolls, verses };
     const lines = text.split("\n");
     const starts = lineStarts(text);
 
@@ -2090,6 +2067,18 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
 
     /** @type {Array<{from: number, to: number, text: string}>} */
     const edits = [];
+    const poems = scanVerse(text, { checkWorks: false }).blocks;
+    const logicalRanges = poems.flatMap((poem) => {
+        const base = starts[poem.start + 1];
+        return poem.model.groups.flatMap((group) =>
+            group.cantoBreak ? [] : group.lines.map((line) => [base + line.from, base + line.to]),
+        );
+    });
+    const rangesWithin = (from, to) => {
+        const cuts = logicalRanges.flat().filter((at) => at > from && at < to);
+        const points = [from, ...new Set(cuts.sort((a, b) => a - b)), to];
+        return points.slice(1).map((past, index) => [points[index], past]);
+    };
 
     /**
      * A scroll fence's body set as one line per paragraph, and its layout.
@@ -2207,8 +2196,11 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
                 for (const [from, to] of detail.reference ?
                     [detail.reference]
                 :   outsideHoles(run.start + 1, contentEnd, detail.holes)) {
-                    const set = setRange(text, from, to, detail, false, book);
-                    if (set !== text.slice(from, to)) edits.push({ from, to, text: set });
+                    for (const [first, past] of rangesWithin(from, to)) {
+                        const set = setRange(text, first, past, detail, false, book);
+                        if (set !== text.slice(first, past))
+                            edits.push({ from: first, to: past, text: set });
+                    }
                 }
             continue;
         }
@@ -2239,9 +2231,12 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
         }
         if (detail.plain && detail.body)
             for (const [from, to] of outsideHoles(detail.body[0], detail.body[1], detail.holes)) {
-                const lineStart = from === 0 || text[from - 1] === "\n";
-                const set = setRange(text, from, to, detail, lineStart, book);
-                if (set !== text.slice(from, to)) edits.push({ from, to, text: set });
+                for (const [first, past] of rangesWithin(from, to)) {
+                    const lineStart = first === 0 || text[first - 1] === "\n";
+                    const set = setRange(text, first, past, detail, lineStart, book);
+                    if (set !== text.slice(first, past))
+                        edits.push({ from: first, to: past, text: set });
+                }
             }
     }
 
@@ -2268,5 +2263,104 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
     let markdown = text;
     for (const edit of edits.sort((a, b) => b.from - a.from))
         markdown = markdown.slice(0, edit.from) + edit.text + markdown.slice(edit.to);
-    return { markdown, errors: diagnosticColumns(text, errors), scrolls };
+    // Models retain authored structure; a native script may draw the boundaries
+    // as glyphs which must not be reparsed as Roman delimiters.
+    const rewritten = scanVerse(markdown, { checkWorks: false }).blocks;
+    const pairedEdits = [];
+    for (const [index, poem] of poems.entries()) {
+        const detail = details.find(
+            (detail) => detail.run.kind === "verse" && detail.run.start === poem.start,
+        );
+        if (!detail || detail.run.enc === "default" || !detail.selection || faulted(detail.run))
+            continue;
+        const block = rewritten[index];
+        if (!block) continue;
+        const base = starts[poem.start + 1];
+        const applyLine = (line) => {
+            const patches = [];
+            for (const edit of edits) {
+                const positions = line.offsets.flatMap((offset, index) => {
+                    const sourceOffset = base + offset;
+                    return sourceOffset >= edit.from && sourceOffset < edit.to ? [index] : [];
+                });
+                if (positions.length)
+                    patches.push({ from: positions[0], to: positions.at(-1) + 1, text: edit.text });
+                else if (edit.from === edit.to && edit.from === base + line.to)
+                    patches.push({ from: line.text.length, to: line.text.length, text: edit.text });
+            }
+            let result = line.text;
+            for (const edit of patches.sort((a, b) => b.from - a.from))
+                result = result.slice(0, edit.from) + edit.text + result.slice(edit.to);
+            return result.replace(/\r?\n[ ]*/g, "").trim();
+        };
+        const rewriteSpanAttributes = (source, rewrite) => {
+            const changes = scanSpans(source).spans.flatMap((span) => {
+                const attrs = parseExtensionAttributes(
+                    source.slice(span.contentEnd + 2, span.end - 1),
+                );
+                if (!rewrite(attrs, span)) return [];
+                return [
+                    {
+                        from: span.contentEnd + 2,
+                        to: span.end - 1,
+                        text: attributeText({
+                            lang: attrs.values.lang,
+                            id: attrs.id,
+                            classes: attrs.classes,
+                            values: Object.entries(attrs.values).filter(([key]) => key !== "lang"),
+                        }),
+                    },
+                ];
+            });
+            let result = source;
+            for (const change of changes.sort((a, b) => b.from - a.from))
+                result = result.slice(0, change.from) + change.text + result.slice(change.to);
+            return result;
+        };
+        const romanLine = (source) =>
+            rewriteSpanAttributes(source, (attrs) => {
+                const lang = attrs.values.lang;
+                if (lang !== undefined) attrs.values.lang = ctx.languages?.[lang]?.tag ?? lang;
+                delete attrs.values.enc;
+                delete attrs.values.font;
+                attrs.id = "";
+                return true;
+            });
+        const model = structuredClone(poem.model);
+        for (const group of model.groups) {
+            if (group.cantoBreak) {
+                group.text = detail.selection.encoding.controls.verseCanto ?? "";
+                continue;
+            }
+            for (const line of group.lines) {
+                line.romanText = romanLine(line.text);
+                const ids = new Set(
+                    scanSpans(line.text)
+                        .spans.map((span) => span.id)
+                        .filter(Boolean),
+                );
+                line.text = rewriteSpanAttributes(applyLine(line), (attrs, span) => {
+                    if (!span.id || ids.has(span.id)) return false;
+                    attrs.id = "";
+                    return true;
+                });
+            }
+        }
+        const classes = [SCRIPT_CLASS, ...(detail.face ? [detail.face.class] : [])];
+        const attributes = {
+            ...(detail.run.tag ? { lang: detail.run.tag } : {}),
+            ...(detail.face?.direction === "rtl" ? { dir: "rtl" } : {}),
+            ...(search ? { "data-pagefind-ignore": "true" } : {}),
+        };
+        const body = `<!--verse-pair:${verses.size + 1}-->\n${block.body}`;
+        verses.set(body, { model, classes, attributes });
+        const rewrittenStarts = lineStarts(markdown);
+        pairedEdits.push({
+            at: rewrittenStarts[block.start + 1],
+            text: `<!--verse-pair:${verses.size}-->\n`,
+        });
+    }
+    for (const edit of pairedEdits.sort((a, b) => b.at - a.at))
+        markdown = markdown.slice(0, edit.at) + edit.text + markdown.slice(edit.at);
+    return { markdown, errors: diagnosticColumns(text, errors), scrolls, verses };
 }

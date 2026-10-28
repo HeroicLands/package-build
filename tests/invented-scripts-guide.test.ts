@@ -355,11 +355,14 @@ function lintProject(files: Map<string, string>): { status: number | null; lines
 describe("the worked example runs", () => {
     const blocks = labelled();
 
-    it("renders the guide's sparse three-column example with native and Roman readings", () => {
+    it("renders the guide's original once as native and Roman presentations", () => {
         const files = new Map(blocks.map((block) => [block.file, block.text]));
         const walking = files.get("assets/content/Lore/Walking.md")!;
-        expect(walking).toMatch(/```verse \{[^\n]*cols=3/);
-        const poem = /```verse \{[^\n]*cols=3[^\n]*\}\n[\s\S]*?\n```/.exec(walking)![0];
+        expect(walking).toMatch(/```verse \{[^\n]*work=walking[^\n]*enc=vylsemaronenc/);
+        const poem =
+            /```verse \{[^\n]*work=walking[^\n]*enc=vylsemaronenc[^\n]*\}\n[\s\S]*?\n```/.exec(
+                walking,
+            )![0];
         const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "guide-verse-grid-")));
         made.push(root);
         fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "demo" }));
@@ -383,16 +386,16 @@ describe("the worked example runs", () => {
         expect(scanRuns(poem, runs).errors).toEqual([]);
         for (const target of ["web", "foundry"] as const) {
             const html = createRenderer(target).render(poem, { runs });
-            expect(html.match(/class="verse-row"/g)).toHaveLength(3);
-            expect(html.match(/class="verse-column"/g)).toHaveLength(9);
-            expect(html.match(/verse-secondary/g)).toHaveLength(3);
-            expect(html).toContain('<span class="verse-column"></span>');
-            expect(html).toContain('class="script hl-semaron-kuriale"');
-            expect(html).toContain('<span lang="art-x-vyl">Lokazor lonak zaron.</span>');
-            expect(html).not.toContain(">1 [");
+            expect(html.match(/class="verse-row"/g)).toHaveLength(2);
+            expect(html.match(/class="verse-native [^"]*"/g)).toHaveLength(2);
+            expect(html.match(/class="verse-roman"/g)).toHaveLength(2);
+            expect(html.match(/class="verse-label"/g)).toHaveLength(2);
+            expect(html).toContain("hl-semaron-kuriale");
+            expect(html).toContain('<span class="verse-line">Lokazor lonak zaron.</span>');
+            expect(html).not.toContain("verse-secondary");
         }
         const book = markdownToTypst(poem, { runs });
-        expect(book).toContain("#grid(columns: (2.5em, 1fr, 1fr, 1fr)");
+        expect(book).toContain("#grid(columns: (2.5em, 1fr, 1fr)");
         expect(book).toContain("Lokazor lonak zaron.");
         expect(book).toContain('"hl-semaron-kuriale"');
     });

@@ -409,65 +409,47 @@ Foundry renders a secret section; the website renders an expandable spoiler, and
 
 ### Verse
 
-Use a code fence with the language `verse` to preserve verse lines and stanzas.
-Each nonblank source line is one verse line. A blank line separates verse units;
-`***` on a line by itself separates stanzas. Neither separator is numbered.
-The fence itself adds no title, caption or number.
+A `verse` fence sets a version of a work, whether poetry or prose. `/` ends a
+logical line. Source newlines otherwise join with whitespace, so prose can wrap
+across source lines. A blank line or `//` ends a stanza (a paragraph); a line
+containing only `***` ends a canto (a section). The last line before either
+boundary needs no `/`. A literal slash in text is written `\/`; slashes inside
+Markdown syntax, such as a link destination, remain syntax.
 
-Leading periods set indentation: one `.` per level. They are removed
-from the displayed line. Leading spaces are ignored and do not set indentation.
-Periods inside the first inline span also set indentation when that span begins
-the line; periods in later spans are literal text. Interior spaces between text
-and spans are preserved. Tabs anywhere in the poem are an error. Each medium
-sets the actual width of an indent level, with every higher level wider than the
-preceding one.
+Leading periods at the beginning of a logical line set indentation, one `.` per
+level, and are removed from the display. They may follow `/` on the same source
+line. Leading spaces do not set indentation. A period beginning a continuation
+source line is literal text when the preceding text has no logical line ending.
+Periods inside the first inline span can set indentation; periods in later spans
+are literal. Tabs inside a verse fence are errors.
 
-Levels 1 through 8 use the `i1`–`i8` indent classes. Deeper levels retain
-their full depth in the generated indent width.
-
-For example, `.A line` is indented one level, while `  ..A line` is indented
-two levels: the spaces do not count. Verse is upright by default. English text
-can use Markdown emphasis; emphasis inside a span whose effective language is
-not English is an error. See [emphasis in a script](#emphasis-in-a-script).
-
-A verse line can mix plain English, language-marked spans and more English on
-one authored line. Spaces are kept exactly as written between those runs; the
-spans add no spaces of their own. A period at the start of the first span also
-sets that line's indentation:
+These two bodies have the same lines and indentation:
 
 ````markdown
 ```verse {lang=en}
-..The [boundary]{lang=en} is [thiruthriman]{lang=vyl} again.
-[.The boundary]{lang=en} is [thiruthriman]{lang=vyl} again.
+To be or not to be,/
+..that is the question!
+```
+
+```verse {lang=en}
+To be or not to be,/..that is the question!
 ```
 ````
 
-Both lines have one verse number apiece when numbering is enabled. In the
-second, the leading period inside the first span is removed and indents the
-whole line.
+Verse is upright by default. English text accepts Markdown emphasis; other
+languages use their declared [script emphasis](#emphasis-in-a-script). Inline
+links, names, language spans and footnotes keep their ordinary meanings.
+The optional `form=` records the author's literary form, `lang=` identifies the
+language, and `font=` selects a face. `enc=` selects an encoding document. An
+optional `#id` addresses the fence. `scan=` checks a declared metre.
 
-````markdown
-```verse {form=ballad lang=en}
-The lantern burns beside the gate,
-The harbor sleeps below.
-
-***
-
-The keeper guards the road till dawn,
-And keeps a light aglow.
-```
-````
-
-The optional `form` attribute records the author's intent; the build does not
-infer stress, rhyme or pronunciation. `numstep` numbers the logical rows, and `cols`
-sets the poem's column count; see below. `lang` names the poem's language,
-`font` the font it is set in and `map` the mapping its text is rewritten by; see
-[marking language, font and encoding](#marking-language-font-and-encoding). An optional `#id`
-addresses the poem itself. There are no `title` or `lines` attributes, and no
-special punctuation for stress, pauses or refrains. A poem's metre, rhyme or
-syllable pattern is described in the note's prose. `scan` names a metre the
-package declares, and the build counts the poem's beats against it, as the next
-section describes.
+A concrete `enc=` draws the original in its script on the left and the same text
+in Roman on the right. Write the original once, with no column prefixes. Each
+logical line aligns with its counterpart at full weight; indentation and breaks
+match. `⟦…⟧` codage draws glyphs on the left and remains codage on the right.
+Names, nested language choices and `lang=zxx` gaps retain their scope. A fence
+with no `enc=`, or with `enc=default`, has one Roman column. The content index's
+`runs` relation records the authored original once, in its language and encoding.
 
 #### Metre
 
@@ -530,8 +512,7 @@ Beats are counted this way:
 - The caesura is not written.
 
 `scan=` is refused where it cannot mean anything: a name no `data.metres`
-declares, a fence with no `lang=`, a language without a stress rule, and a verse
-in columns. A fence with no `scan=` is not counted. Readers see nothing of the
+declares, a fence with no `lang=`, a language without a stress rule. A fence with no `scan=` is not counted. Readers see nothing of the
 count; the fence carries `data-scan` with the metre's name.
 
 To number and caption a poem, put a leading numbered caption before the verse fence:
@@ -540,81 +521,105 @@ To number and caption a poem, put a leading numbered caption before the verse fe
 :@ A song sung by the harbor watch. {#watch-song}
 
 ```verse {form=ballad}
-The watch has gone to sea,
+The watch has gone to sea,/
 The lantern marks the shore.
 ```
 ````
 
 This uses the **Poem** counter, so `{{ref "#watch-song"}}` reads **Poem 1**. Use `:` for a caption without a number.
 
-#### Line numbers
+#### Versions and stanza labels
 
-`numstep=N` numbers the poem's lines, counting every verse line from the first
-to the last across stanzas. `numstep=1` numbers every line, `numstep=5` every
-fifth line, and `numstep=0`, the default, numbers none. The numbers sit in a
-margin beside the lines, in a muted tone.
+`work=<key>` names a work within the page. Every fence with that key is a version
+of the same work. Each stanza opens with its automatically counted label: `1`,
+`2`, and so on for a work with no canto break, or `1:1`, `1:2`, `2:1`, and so on
+when the fence contains cantos. Stanza numbering starts at one in each canto.
+The website, Foundry journals and book show the same labels. A paired original
+has one label shared by both presentations. A fence without `work=` has no label.
+
+Versions must have the same number of cantos and the same number of stanzas in
+each canto. Their line counts can differ. A work with only one version is a
+finding. Shape disagreements are findings at the opening lines of the versions,
+naming the canto and the counts. A `***` at the edge of a fence, or beside another
+canto break with no intervening stanza, is a finding at the break itself.
+
+This poem's English version and Sinale original share stanza `1`. The original
+is authored once and displays as script beside Roman:
 
 ````markdown
-```verse {numstep=5 lang=en}
-The lantern burns beside the gate,
-…
+```verse {form=lay work=asking lang=en}
+A child comes up the hill at night/
+.and leaves a loaf beneath the birch./
+.She does not wait. She does not search/
+the dark for us. We stand in sight.
+```
+
+```verse {form=lay work=asking lang=sina enc=sinaveldikkoenc}
+irtal nysse auldiho nalduho/
+.penvai onsa tarnevinu halpi polpeho/
+.ahi sennevi onsa ahi syltete onsa/
+ehii nalduho setty ehii nelkis yinserseho
 ```
 ````
 
-#### Verse in columns
-
-`cols=N` sets a positive whole number of columns and defaults to `1`. A
-single-column poem keeps its physical lines without column prefixes. For
-`cols` above one, every content line starts with its column number and one
-or more spaces. The prefix selects its cell and is not displayed.
-
-A blank line ends a **logical verse row**. Within that row, numbers must be
-in `1..cols` and nondecreasing: finish one column before starting a higher
-one. Any column may be omitted; its empty cell remains in the grid. A column
-may hold any number of readings. Its first line uses the foreground color,
-and every subsequent line in that same column is grey. Each column starts
-its own foreground line, and the choice resets in the next row.
-
-This sparse three-column poem leaves the middle cell empty in its first row:
+Prose uses the same fence and omits line-ending marks. Source lines join into
+paragraphs. Both versions below have stanzas `1` and `2`; the original's paragraphs
+also appear beside their Roman text:
 
 ````markdown
-```verse {form=epic lang=en numstep=5 cols=3}
-1 [Thiruthriman sorimamen,]{lang=vyl}
-3 [The hallowed boundary I sing,]{lang=en}
-3 [Thiruthriman sorimamen,]{lang=vyl}
+```verse {work=walking lang=en}
+He walks the oath road.
 
-1 [ul alathas kedis alatha valmazor, ul talothoi]{lang=vyl}
-2 [Nothing to say]{lang=en}
-3 [and the one who walked it, and the stones]{lang=en}
-3 [ul alathas kedis alatha valmazor, ul talothoi]{lang=vyl}
+I walk the oath road.
+```
+
+```verse {work=walking lang=vyl enc=vylsemaronenc}
+Lokazor lonak zaron.
+
+Lokamen lonak zaron.
 ```
 ````
 
-The left cell uses Vylari's configured native script. The third cell contains
-an English reading in foreground and a separately authored Roman Vylari
-reading in grey. Language labels identify words; column numbers alone place
-them. `lang=`, `font=` and `enc=` are written on the actual
-runs, so a Roman repeat makes its own presentation choice. Inline links and
-mixed-language spans stay in their authored order with their spaces intact.
+See [work shape diagnostics](../diagnostics.md#a-worked-case-versions-of-a-work)
+for how findings locate a disagreement.
 
-`numstep=N` counts logical rows, not their individual readings. A standalone
-`***` separates stanzas, and column order resets after it as after a blank
-line. Leading periods after the number and its separating spaces set a
-reading's indent. Periods at the start of its first span also count; periods
-inside later spans remain text. For example:
+#### Directions and speakers
 
-```markdown
-1 [.Thiruthriman [the boundary]{lang=en} sorimamen]{lang=vyl}
-3 [The hallowed boundary I sing,]{lang=en}
+A `.direction` span identifies an instruction or stage direction; `.speaker`
+identifies the person speaking. Either can fill a logical line or sit within it.
+Each version writes its own directions and speaker names in its own language.
+Write ordinary case; these classes do not rewrite the text. The classes are
+valid outside verse as well.
+
+````markdown
+```verse {form=rite work=weighing lang=en}
+Let the household enter. Let the creditor enter./
+[The reader names the year of the reign, the season, the day, and the dead.]{.direction}/
+One person of this household goes down to the West.
 ```
 
-Every target aligns a logical row's cells at the top, including empty ones.
-On a narrow screen or journal, cells stack in their numbered order. A reading
-in a right-to-left face stays in its chosen cell and runs right to left
-within it. The book uses the same row and cell order.
+```verse {form=rite work=weighing lang=khel enc=khelqalezuenc}
+galun garqen. galun zeqatar./
+[zethul nemar …]{.direction}/
+yarul genar lazen elu garqen nizar ez ithnar.
+```
 
-Findings point to the authored `cols` value, column prefix or inline run;
-see [a verse in columns](../diagnostics.md#a-worked-case-a-verse-in-columns).
+```verse {form=roll work=thresholds lang=en}
+[The Captain]{.speaker}/
+Is the stone here?
+```
+
+```verse {form=roll work=thresholds lang=tarv enc=tarvsemaronenc}
+[thrumar]{.speaker}/
+eza goitsa ared ir denon sedon.
+```
+````
+
+Their text is encoded normally. The classes themselves are presentation hooks;
+they add no emphasis, encoding controls or stanza boundaries. A direction alone
+between blank lines is a stanza like any other. HTML preserves `direction` and
+`speaker` classes. Typst preserves those classes through `book-span` and provides
+plain `book-direction` and `book-speaker` hooks. The default appearance is plain.
 
 ### Scrolls
 
@@ -727,10 +732,10 @@ Use the guillemet pairs instead of English double quotation marks or `<<` and
 
 Whitespace is every Unicode space-separator (`Zs`) and U+0009 through U+000D.
 A contiguous run of that whitespace is one word separator, written as the
-chosen encoding specifies. A newline in prose is whitespace. In verse, line
-endings and blank lines supply line and stanza boundaries; a line of only
-`--- {.canto}` supplies a canto boundary. Visual verse indentation stays
-layout, outside the encoded letters. Do not type `/` inside a verse fence.
+chosen encoding specifies. A source newline joins as whitespace. In verse,
+`/` ends a logical line, blank lines or `//` end stanzas, and standalone `***`
+ends a canto. Visual indentation at a logical line boundary stays layout,
+outside the encoded letters. Write `\/` for a literal slash.
 
 Native characters in a language run are written through literal codage:
 `⟦U+F0230⟧`, or a name the encoding defines between `⟦` and `⟧`. Directly
@@ -1314,7 +1319,7 @@ const lantern = "lit"; // the harbor light
 ```
 ````
 
-A fence named `sql`, `pagelist` or `verse` is not a listing: a query is replaced by its table, and verse is set as a poem.
+A fence named `sql`, `pagelist` or `verse` is not a listing: a query is replaced by its table, and verse is set as a work.
 
 ## SQL generated tables
 

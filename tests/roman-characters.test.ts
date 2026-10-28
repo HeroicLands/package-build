@@ -65,9 +65,8 @@ describe("a language's literal Roman characters", () => {
         expect(semicolon("::: {lang=vyl}\nka;\n:::")).toHaveLength(1);
         expect(semicolon("```verse {lang=vyl}\nka;\n```")).toHaveLength(1);
     });
-    it("excludes column numbers, indent periods and stanza separators", () => {
-        const source =
-            "```verse {cols=2 lang=vyl}\n1 ...[ka.]{lang=vyl}\n2 ka.\n\n***\n\n1 ka.\n2 ka.\n```";
+    it("excludes indent periods and explicit verse separators", () => {
+        const source = "```verse {lang=vyl}\n...[ka.]{lang=vyl}/\nka.\n\n***\n\nka./\nka.\n```";
         expect(errors(source)).toEqual([]);
         expect(errors("```verse {lang=vyl}\n...ka.\n***\nka.\n```")).toEqual([]);
     });

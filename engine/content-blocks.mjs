@@ -256,11 +256,12 @@ function attributeText(block, target, classes) {
  * @param {object} [options]
  * @param {(markdown: string) => string} [options.renderInline] - How a title
  *   is rendered; omitted, a title is plain inline Markdown.
+ * @param {Map<string, object>} [options.verses] - Shared encoded verse presentations.
  * @returns {{markdown: string, errors: Array<{line: number, column: number, message: string}>}}
  */
-export function renderBlocks(source, target, { renderInline } = {}) {
+export function renderBlocks(source, target, { renderInline, verses } = {}) {
     const { errors } = scanBlocks(source);
-    source = renderScroll(renderVerse(source).markdown).markdown;
+    source = renderScroll(renderVerse(source, { verses }).markdown).markdown;
     const renderedBlocks = scanBlocks(source).blocks;
     if (!renderedBlocks.length) return { markdown: String(source ?? ""), errors };
     const lines = String(source ?? "").split("\n");

@@ -103,7 +103,7 @@ describe("span classes in emitted books", () => {
         expect(book).toContain("#let book-span(body, classes: (), lang: none)");
         // A name takes no weight from its class: its first use is bold as written.
         expect(book).not.toContain('classes.contains("name")');
-        expect(book).toContain("box(book-script-text(body, classes: classes, lang: lang))");
+        expect(book).toContain("box(styled)");
         expect(book).toContain(
             '#strong[This is a phrase with #book-span(classes: ("name", "quiet"))[Joe Blow] <lore-person--joe> in it]',
         );
@@ -418,7 +418,7 @@ describe("markdownToTypst", () => {
 describe("new block syntax in the printed book", () => {
     it("preserves verse stanzas and period indentation without forcing italics", () => {
         const out = markdownToTypst(
-            "```verse {form=ballad}\nFirst *verse*.\n.Next verse.\n\n***\n\nLast verse.\n```",
+            "```verse {form=ballad}\nFirst *verse*./\n.Next verse.\n\n***\n\nLast verse.\n```",
         );
         expect(out).toContain("First #emph[verse].");
         expect(out).toContain("#h(1.25em)Next verse.");

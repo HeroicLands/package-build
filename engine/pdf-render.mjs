@@ -86,13 +86,7 @@ import { scanSpans } from "./content-spans.mjs";
 import { GENERIC_FONTS, renderRuns, scanRuns } from "./content-scripts.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
-import {
-    hasColumns,
-    lineNumber,
-    rightToLeft,
-    scanVerse,
-    verseColumnCount,
-} from "./content-verse.mjs";
+import { rightToLeft, scanVerse } from "./content-verse.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { panelRoman, scanScrolls, scrollPanels, scrollParagraphs } from "./content-scroll.mjs";
 import { BOOK_INK, BOOK_RUBRIC, fontOutlines, scrollPanelSvg } from "./font-outlines.mjs";
@@ -522,7 +516,10 @@ export function markdownToTypst(markdown, opts = {}) {
     const marked =
         opts.nested ? undefined : renderRuns(authored, opts.runs, undefined, { target: "book" });
     const source = marked ? marked.markdown : authored;
-    if (marked) sharedOptions.scrolls = marked.scrolls;
+    if (marked) {
+        sharedOptions.scrolls = marked.scrolls;
+        sharedOptions.verses = marked.verses;
+    }
     // One map for the whole body, not one per block: a heading inside a
     // blockquote or a list item shares the entry's anchor namespace with every
     // other heading in the same body, because `sectionLabel` scopes by entry
@@ -543,6 +540,7 @@ export function markdownToTypst(markdown, opts = {}) {
         footnoteState,
         footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
         scrolls: marked?.scrolls ?? opts.scrolls ?? new Map(),
+        verses: marked?.verses ?? opts.verses ?? new Map(),
     };
     // A withheld section is set in the box a `:::secret` is set in, and its
     // heading is set inside it: a printed page honours no reader permission, so
@@ -691,7 +689,7 @@ export function markdownToTypst(markdown, opts = {}) {
 /** Render one fragment with the note's footnote definitions available. */
 function renderMarkdownSegment(source, md, ctx, definitions) {
     const input = definitions ? `${source}\n\n${definitions}` : source;
-    const tokens = md.parse(input, {});
+    const tokens = md.parse(input, { verses: ctx.verses });
     const footnoteStart = tokens.findIndex((token) => token.type === "footnote_block_open");
     const visible = footnoteStart < 0 ? tokens : tokens.slice(0, footnoteStart);
     const footnotes = new Map();
@@ -779,34 +777,19 @@ function renderBlock(tokens, i, out, ctx) {
             }
             if (token.type === "fence" && /^verse(?:\s|$)/.test(token.info?.trim() || "")) {
                 const opening = `${token.markup}${token.info}`;
-                const scanned = scanVerse(`${opening}\n${token.content}${token.markup}`);
+                const scanned = scanVerse(`${opening}\n${token.content}${token.markup}`, {
+                    checkWorks: false,
+                });
                 // Findings are collected before rendering. Keep malformed verse
                 // literal rather than assigning invalid parts to display cells.
-                if (scanned.errors.length) {
+                if (scanned.errors.length && !token.meta?.versePaired) {
                     out.push(rawBlock(token.content, token.info));
                     return 1;
                 }
                 const poem = scanned.blocks[0];
-                const step = Number(poem?.attributes.numstep ?? 0) || 0;
-                const content =
-                    hasColumns(poem) ? verseGrid(token, poem, step, ctx)
-                    : step ? numberedVerse(token, step, ctx)
-                    : token.meta.verseStanzas
-                            .map((stanza) =>
-                                stanza[0]?.stanzaBreak ?
-                                    "#v(0.5em)"
-                                :   stanza
-                                        .map(({ children, level }) => {
-                                            const verse = renderInline({ children }, ctx);
-                                            return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
-                                        })
-                                        .join(" \\\n"),
-                            )
-                            .join("\n\n");
+                const content = workVerse(token, poem, ctx);
                 const anchor = poem?.id ? ` <${sectionLabel(ctx.anchorPrefix, poem.id)}>` : "";
-                out.push(
-                    `\n#block(width: 100%)[${scriptWrapped(content, poem?.classes, poem?.attributes)}]${anchor}\n`,
-                );
+                out.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
             } else out.push(rawBlock(token.content, token.info?.trim() || ""));
             return 1;
         }
@@ -1300,90 +1283,51 @@ function typstLanguage(tag) {
 /** The classes that set a run in a font: a face's run carries `script`. */
 const FONT_CLASSES = Object.freeze(["script", ...Object.values(GENERIC_FONTS)]);
 
-/** A line number in the book: muted, as on the page. */
-const typstNumber = (number) => (number ? `[#text(fill: luma(45%))[${number}]]` : "[]");
-
-/**
- * A numbered verse without columns: a grid of each line's number and the
- * line, with a row of space between stanzas.
- *
- * @param {object} token - The verse's fence token.
- * @param {number} step - Its `numstep`.
- * @param {object} ctx - Render context.
- * @returns {string} Typst markup.
- */
-function numberedVerse(token, step, ctx) {
-    let count = 0;
-    const stanzas = token.meta.verseStanzas.map((stanza) =>
-        stanza[0]?.stanzaBreak ?
-            "  grid.cell(colspan: 2)[#v(0.5em)],"
-        :   stanza
-                .map(({ children, level }) => {
-                    const verse = renderInline({ children }, ctx);
-                    return `  ${typstNumber(lineNumber(++count, step))}, [${level ? `#h(${level * 1.25}em)` : ""}${verse}],`;
-                })
-                .join("\n"),
-    );
-    return [
-        "#grid(columns: (2.5em, 1fr), column-gutter: 1em, row-gutter: 0.35em,",
-        stanzas.join("\n  grid.cell(colspan: 2)[#v(0.5em)],\n"),
-        ")",
-    ].join("\n");
-}
-
-/**
- * A verse in columns: a grid with a row per verse line, its number first when
- * the verse is numbered, then each column's entries stacked, the first in the
- * normal tone and each later one grey. A part whose text runs right to left
- * is set right to left inside its cell; the grid stays left to right so
- * numbered columns retain their authored order. A `***` line is a row of space
- * across the grid.
- *
- * @param {object} token - The verse's fence token with parsed logical rows.
- * @param {object} poem - The verse, from `scanVerse`.
- * @param {number} step - Its `numstep`.
- * @param {object} ctx - Render context.
- * @returns {string} Typst markup.
- */
-function verseGrid(token, poem, step, ctx) {
-    const count = verseColumnCount(poem);
-    const width = count + (step ? 1 : 0);
-    const columns = [...(step ? ["2.5em"] : []), ...Array(count).fill("1fr")];
-    const rows = [];
-    let row = 0;
-    for (const group of token.meta.verseGroups) {
-        if (group.stanzaBreak) {
-            rows.push(`  grid.cell(colspan: ${width})[#v(0.5em)],`);
-            continue;
-        }
-        const cells = Array.from({ length: count }, () => []);
-        for (const part of group.parts) {
-            const rtl = rightToLeft(part.text);
-            const secondary = cells[part.column - 1].length > 0;
-            const text = renderInline(
-                { children: part.children },
-                secondary ? { ...ctx, textFill: "luma(45%)" } : ctx,
+/** The logical lines of one stanza, with a shared label and paired scripts. */
+function workVerse(token, poem, ctx) {
+    const paired = token.meta.versePaired;
+    const labelled = Boolean(poem?.attributes.work);
+    const nativeClasses = paired?.classes ?? poem?.classes;
+    const nativeAttributes = paired?.attributes ?? poem?.attributes;
+    return (token.meta.verseGroups ?? [])
+        .map((group) => {
+            if (group.cantoBreak) {
+                const mark =
+                    group.children?.length ? renderInline({ children: group.children }, ctx) : "";
+                return `${mark ? scriptWrapped(mark, nativeClasses, nativeAttributes) + "\n" : ""}#v(0.5em)`;
+            }
+            const label = labelled ? `#text(size: 0.75em, fill: luma(45%))[${group.label}]` : "";
+            const lineText = (line, roman = false) => {
+                const text = renderInline(
+                    { children: roman ? line.romanChildren : line.children },
+                    ctx,
+                );
+                const padded = `${line.level ? `#h(${line.level * 1.25}em)` : ""}${text}`;
+                if (roman || !paired) return padded;
+                const wrapped = scriptWrapped(padded, nativeClasses, nativeAttributes);
+                return rightToLeft(line.text) ? `#set text(dir: rtl)\n${wrapped}` : wrapped;
+            };
+            if (!paired) {
+                const lines = scriptWrapped(
+                    group.lines.map((line) => lineText(line)).join(" \\\n"),
+                    nativeClasses,
+                    nativeAttributes,
+                );
+                return labelled ?
+                        `#grid(columns: (2.5em, 1fr), column-gutter: 0.5em, [${label}], [${lines}])`
+                    :   lines;
+            }
+            const cells = group.lines.map((line, index) =>
+                [
+                    ...(labelled ? [index === 0 ? `[${label}]` : "[]"] : []),
+                    `[${lineText(line)}]`,
+                    `[${lineText(line, true)}]`,
+                ].join(", "),
             );
-            const padded =
-                part.indent ?
-                    `#pad(${rtl ? "right" : "left"}: ${part.indent * 1.25}em)[${text}]`
-                :   text;
-            cells[part.column - 1].push(rtl ? `#set text(dir: rtl)\n${padded}` : padded);
-        }
-        const rendered = cells.map((stacked) => {
-            if (!stacked.length) return "[]";
-            if (stacked.length === 1) return `[${stacked[0]}]`;
-            return `[#stack(dir: ttb, spacing: 0.3em, ${stacked.map((part, k) => (k ? `[#text(fill: luma(45%))[${part}]]` : `[${part}]`)).join(", ")})]`;
-        });
-        const number = step ? [typstNumber(lineNumber(++row, step))] : [];
-        rows.push(`  ${[...number, ...rendered].join(", ")},`);
-    }
-    return [
-        "#set text(dir: ltr)",
-        `#grid(columns: (${columns.join(", ")}), column-gutter: 1.5em, row-gutter: 0.65em,`,
-        ...rows,
-        ")",
-    ].join("\n");
+            const columns = labelled ? "2.5em, 1fr, 1fr" : "1fr, 1fr";
+            return `#set text(dir: ltr)\n#grid(columns: (${columns}), column-gutter: 1.5em, row-gutter: 0.35em,\n  ${cells.join(",\n  ")}\n)`;
+        })
+        .join("\n\n");
 }
 
 /**
@@ -1719,8 +1663,7 @@ function pageOfLabel(label) {
  * @returns {string} Typst markup.
  */
 function renderLink(href, inner, ctx, { bracketed = false } = {}) {
-    // A secondary verse reading keeps its label gray inside the global blue
-    // link presentation, including any native spans or emphasis in that label.
+    // A caller's explicit text fill applies inside the link's label.
     if (ctx.textFill) inner = `#text(fill: ${ctx.textFill})[${inner}]`;
     const url = String(href ?? "");
     const fragment = /#([^?]*)/.exec(url)?.[1] ?? "";
@@ -2012,9 +1955,14 @@ export function bookTypstPreamble(runs = {}, families = {}) {
             "  }\n" +
             "  if lang != none { text(lang: lang, styled) } else { styled }\n" +
             "}",
-        // Span classes reach the book intact.
+        // Plain semantic hooks retain the span classes without choosing their appearance.
+        "#let book-direction(body) = body",
+        "#let book-speaker(body) = body",
         "#let book-span(body, classes: (), lang: none) = {\n" +
-            "  box(book-script-text(body, classes: classes, lang: lang))\n" +
+            "  let styled = book-script-text(body, classes: classes, lang: lang)\n" +
+            '  if "direction" in classes { styled = book-direction(styled) }\n' +
+            '  if "speaker" in classes { styled = book-speaker(styled) }\n' +
+            "  box(styled)\n" +
             "}",
         // Use the file's natural measure for auto. Every requested width is
         // bounded by the available measure and by the height of a page.

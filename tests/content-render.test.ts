@@ -40,8 +40,8 @@ const BODY = [
     "The harbor master is a smuggler.",
     ":::",
     "",
-    "```verse {numstep=1}",
-    "First line",
+    "```verse",
+    "First line/",
     "  Second line",
     "```",
     "",
@@ -197,7 +197,7 @@ describe("the preview's two views", () => {
         const html = renderPreview(BODY, { infobox: false }).html;
         expect(html).toContain('<aside class="alert alert-note">');
         expect(html).toContain('<details class="secret"><summary>For the GM</summary>');
-        expect(html).toContain('<div class="verse verse-numbered" data-numstep="1">');
+        expect(html).toContain('<div class="verse">');
         expect(html).toMatch(
             /<div id="listing" class="content-figure content-figure-code">[\s\S]*?<p class="content-figure-label">Code 1: A listing\.<\/p>\s*<\/div>/,
         );

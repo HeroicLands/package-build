@@ -8,10 +8,10 @@ import { markdownToTypst } from "../engine/pdf-render.mjs";
 
 const poem = [
     "```verse {form=ballad lang=en}",
-    "The lantern burns beside the gate,",
+    "The lantern burns beside the gate,/",
     "The harbor sleeps below.",
     "",
-    "The keeper guards the road till dawn,",
+    "The keeper guards the road till dawn,/",
     "And keeps a light aglow.",
     "```",
 ].join("\n");
@@ -24,7 +24,7 @@ describe("verse blocks", () => {
         const html = renderFoundryMarkdown(poem);
         expect(html).toContain('class="verse"');
         expect(html).toMatch(/gate,<\/span><br\s*\/?>(?:\n)?<span class="verse-line">The harbor/);
-        expect(html).toMatch(/<\/p>\s*<p><span class="verse-line">The keeper/);
+        expect(html).toMatch(/<div class="verse-stanza">\s*<p><span class="verse-line">The keeper/);
         const typst = markdownToTypst(poem);
         expect(typst).toContain("gate, \\\nThe harbor");
         expect(typst).toContain("#block(width: 100%)");
@@ -68,7 +68,7 @@ describe("verse blocks", () => {
     });
 
     it("treats Markdown block markers at the start of a verse as text", () => {
-        const source = ["~~~~verse", "# A summons", "- A road", "```", "~~~~"].join("\n");
+        const source = ["~~~~verse", "# A summons/", "- A road/", "```", "~~~~"].join("\n");
         expect(scanBlocks(source).errors).toEqual([]);
         const html = renderFoundryMarkdown(source);
         expect(html).toContain("# A summons</span><br>");
@@ -105,9 +105,9 @@ describe("verse blocks", () => {
     it("counts periods independently of leading spaces", () => {
         const source = [
             "```verse",
-            "    Base  line",
-            "     Plain line",
-            "      .One level",
+            "    Base  line/",
+            "     Plain line/",
+            "      .One level/",
             "       ..Two levels",
             "***",
             "    Next stanza",
@@ -119,7 +119,7 @@ describe("verse blocks", () => {
         expect(html).toContain('<span class="verse-line">Plain line</span>');
         expect(html).toContain('<span class="verse-line i1">One level</span>');
         expect(html).toContain('<span class="verse-line i2">Two levels</span>');
-        expect(html).toContain('class="verse-stanza-break"');
+        expect(html).toContain('class="verse-canto-break"');
         const typst = markdownToTypst(source);
         expect(typst).toContain("#h(1.25em)One level");
         expect(typst).toContain("#h(2.5em)Two levels");
@@ -127,7 +127,7 @@ describe("verse blocks", () => {
     });
 
     it("keeps deep indentation and accepts an indented fence", () => {
-        const source = ["  ```verse", "    Base", "    .........Far line", "  ```"].join("\n");
+        const source = ["  ```verse", "    Base/", "    .........Far line", "  ```"].join("\n");
         expect(scanBlocks(source).errors).toEqual([]);
         expect(renderFoundryMarkdown(source)).toContain(
             'class="verse-line i9" style="--verse-indent: 11.25em"',
@@ -140,7 +140,7 @@ describe("verse blocks", () => {
             "- Song:",
             "",
             "  ```verse",
-            "    First",
+            "    First/",
             "      .Second",
             "  ```",
             "",
@@ -153,7 +153,7 @@ describe("verse blocks", () => {
     });
 
     it("renders a standalone fence indented four spaces as verse", () => {
-        const source = ["    ```verse", "      First", "        .Second", "    ```"].join("\n");
+        const source = ["    ```verse", "      First/", "        .Second", "    ```"].join("\n");
         const html = renderFoundryMarkdown(source);
         expect(html).toContain('<div class="verse">');
         expect(html).toContain('class="verse-line i1"');

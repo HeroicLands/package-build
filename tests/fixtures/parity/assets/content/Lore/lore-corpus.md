@@ -82,12 +82,12 @@ Janapada
 # Verse {#verse}
 
 ```verse {form=ballad lang=en}
-The lantern burns beside the gate,
+The lantern burns beside the gate,/
 .The harbor sleeps below.
 
 ***
 
-The keeper guards the road till dawn,
+The keeper guards the road till dawn,/
 .And keeps a light aglow.
 ```
 
@@ -95,14 +95,16 @@ The keeper guards the road till dawn,
 Taruna velomi sarandi
 ```
 
-```verse {numstep=2 lang=vyl cols=3}
-1 [thirun sorima]{lang=vyl enc=vylsemaronenc font=semaron-kuriale}
-3 [the hallowed boundary I sing]{lang=en}
-3 [thirun sorima]{lang=vyl}
+```verse {work=boundary lang=en}
+the hallowed boundary I sing
 
-1 [mamu anthrasos]{lang=vyl enc=vylsemaronenc font=semaron-kuriale}
-2 [and the one who walked it]{lang=en}
-3 [mamu anthrasos]{lang=vyl}
+and the one who walked it
+```
+
+```verse {work=boundary lang=vyl enc=vylsemaronenc font=semaron-kuriale}
+thirun sorima
+
+mamu anthrasos
 ```
 
 # Figures and tables {#figures}
@@ -209,7 +211,7 @@ mamu anthrasos.
 :::
 
 ```verse {form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}
-thirun sorima
+thirun sorima/
 .mamu anthrasos.
 ```
 

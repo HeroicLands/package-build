@@ -79,7 +79,7 @@ import { imagePlugin } from "./content-images.mjs";
 import { renderRuns } from "./content-scripts.mjs";
 import { renderSpans, spanMarkdownPlugin } from "./content-spans.mjs";
 import { cartoucheFigures, renderSymbolSpans } from "./content-symbols.mjs";
-import { hasColumns, inlineVerse, scanVerse, verseGroups, verseStanzas } from "./content-verse.mjs";
+import { inlineVerse, scanVerse } from "./content-verse.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 import { dictionaryEntryPlugin } from "./dictionary-layout.mjs";
 import { headingAttributesPlugin, headingIdsPlugin } from "./heading-attributes.mjs";
@@ -132,32 +132,30 @@ function verseInlinePlugin(md) {
                 continue;
             token.meta ??= {};
             const source = `${token.markup}${token.info}\n${token.content}${token.markup}`;
-            const poem = scanVerse(source).blocks[0];
-            if (hasColumns(poem)) {
-                token.meta.verseGroups = verseGroups(poem, source.split("\n")).map((group) => {
-                    if (group.stanzaBreak) return group;
-                    return {
+            const poem = scanVerse(source, { checkWorks: false }).blocks[0];
+            if (!poem) continue;
+            const paired = state.env.verses?.get(token.content.replace(/\n$/, ""));
+            const model = paired?.model ?? poem.model;
+            token.meta.verse = poem;
+            token.meta.versePaired = paired;
+            const parse = (text) => {
+                const children = [];
+                state.md.inline.parse(inlineVerse(text), state.md, state.env, children);
+                return children;
+            };
+            token.meta.verseGroups = model.groups.map((group) =>
+                group.cantoBreak ?
+                    { ...group, children: group.text ? parse(group.text) : [] }
+                :   {
                         ...group,
-                        parts: group.parts.map((part) => {
-                            const children = [];
-                            state.md.inline.parse(
-                                inlineVerse(part.text),
-                                state.md,
-                                state.env,
-                                children,
-                            );
-                            return { ...part, children };
-                        }),
-                    };
-                });
-                continue;
-            }
-            token.meta.verseStanzas = verseStanzas(token.content).map((stanza) =>
-                stanza.map(({ text, level }) => {
-                    const children = [];
-                    state.md.inline.parse(inlineVerse(text), state.md, state.env, children);
-                    return { children, level, stanzaBreak: /^\*{3}$/.test(text) };
-                }),
+                        lines: group.lines.map((line) => ({
+                            ...line,
+                            children: parse(line.text),
+                            ...(paired ?
+                                { romanChildren: parse(line.romanText ?? line.text) }
+                            :   {}),
+                        })),
+                    },
             );
         }
     });
@@ -433,8 +431,12 @@ export function createRenderer(target, options = {}) {
     const prepare = (markdown, env = {}) => {
         let text = String(markdown ?? "");
         if (preview) text = sourceMalformedAlerts(text);
-        if (env.runs)
-            text = renderRuns(text, env.runs, undefined, { target: RUN_TARGET[target] }).markdown;
+        let verses = env.verses;
+        if (env.runs) {
+            const marked = renderRuns(text, env.runs, undefined, { target: RUN_TARGET[target] });
+            text = marked.markdown;
+            verses = marked.verses;
+        }
         // A glyph and a cartouche are pictures on every target that draws
         // HTML, so they are written before any stage renders a fragment. The
         // buffer-only preview shows a glyph as the source it was written in
@@ -448,7 +450,7 @@ export function createRenderer(target, options = {}) {
             { resolveRole: env.resolveRole, renderInline },
         );
         text = renderAlerts(
-            renderBlocks(figured.markdown, target, { renderInline }).markdown,
+            renderBlocks(figured.markdown, target, { renderInline, verses }).markdown,
             target,
             {
                 renderInline,

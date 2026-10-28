@@ -374,13 +374,13 @@ describe("renderRuns, goldens", () => {
                 ":::",
             ].join("\n"),
         );
-        expect(render(VERSE, "foundry")).toBe(
-            [
-                "```verse {lang=en .script .hl-qalezu-hand dir=rtl}",
-                `${GAR} <strong class="emph-overline">${NL}</strong>\u{E010C}`,
-                "```",
-            ].join("\n"),
-        );
+        const pair = [
+            ...renderRuns(VERSE, ctx, undefined, { target: "foundry" }).verses.values(),
+        ][0];
+        expect(pair.model.groups[0].lines[0]).toMatchObject({
+            text: `${GAR} <strong class="emph-overline">${NL}</strong>`,
+            romanText: "gar **nal**",
+        });
     });
 
     it("drops a classless emphasis in the book, where the face has only its Regular", () => {

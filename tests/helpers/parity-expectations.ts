@@ -599,7 +599,7 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
         book: {
             sees: [
-                /The harbor sleeps below\.\n\n#v\(0\.5em\)\n\nThe keeper guards/,
+                /The harbor sleeps below\.\]?\n\n#v\(0\.5em\)\n\n#book-script-text[^\n]*?\[The keeper guards/,
                 /The lantern burns beside the gate, \\\n#h\(1\.25em\)The harbor sleeps below\./,
                 /The keeper guards the road till dawn, \\\n#h\(1\.25em\)And keeps a light aglow\./,
             ],
@@ -611,22 +611,22 @@ export const CONSTRUCTS: Record<string, Construct> = {
         probe: "```verse {scan=trimeter lang=tar}",
         foundry: {
             sees: [
-                /<div class="verse" lang="art-x-tar" data-scan="trimeter">\s*<p><span class="verse-line">Taruna velomi sarandi<\/span><\/p>/,
+                /<div class="verse" lang="art-x-tar" data-scan="trimeter">\s*<div class="verse-stanza">\s*<p><span class="verse-line">Taruna velomi sarandi<\/span>/,
             ],
         },
         web: {
             sees: [
-                /<div class="verse" lang="art-x-tar" data-scan="trimeter">\s*<p><span class="verse-line">Taruna velomi sarandi<\/span><\/p>/,
+                /<div class="verse" lang="art-x-tar" data-scan="trimeter">\s*<div class="verse-stanza">\s*<p><span class="verse-line">Taruna velomi sarandi<\/span>/,
             ],
         },
         preview: {
             sees: [
-                /<div class="verse" data-scan="trimeter" lang="tar">\s*<p><span class="verse-line">Taruna velomi sarandi<\/span><\/p>/,
+                /<div class="verse" data-scan="trimeter" lang="tar">\s*<div class="verse-stanza">\s*<p><span class="verse-line">Taruna velomi sarandi<\/span>/,
             ],
         },
         indexed: {
             sees: [
-                /<div class="verse" lang="art-x-tar" data-scan="trimeter">\s*<p><span class="verse-line">Taruna velomi sarandi<\/span><\/p>/,
+                /<div class="verse" lang="art-x-tar" data-scan="trimeter">\s*<div class="verse-stanza">\s*<p><span class="verse-line">Taruna velomi sarandi<\/span>/,
             ],
         },
         book: {
@@ -635,51 +635,44 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
     },
 
-    "verse-columns": {
+    "verse-paired": {
         summary:
-            "A sparse three-column verse preserves empty cells and explicit native, translated and Roman readings, numbered by logical rows.",
-        probe: "numstep=2 lang=vyl cols=3",
+            "One original is displayed as aligned script and Roman text with shared stanza labels.",
+        probe: "work=boundary lang=vyl enc=vylsemaronenc",
         foundry: {
             sees: [
-                /<div class="verse verse-columns verse-numbered" style="--verse-columns: 3" lang="art-x-vyl" data-numstep="2" data-cols="3"/,
-                /<span class="verse-number">2<\/span>/,
-                /<span class="verse-column"><\/span>/,
-                /<span class="verse-part"><span lang="en">the hallowed boundary I sing<\/span><\/span><span class="verse-part verse-secondary"><span lang="art-x-vyl">thirun sorima<\/span>/,
+                /class="verse[^"\n]*verse-paired/,
+                /class="verse-label">1<\/span>/,
+                /class="verse-native[^"\n]*"/,
+                /class="verse-roman"[\s\S]*?thirun sorima/,
             ],
+            absent: [/verse-secondary/],
         },
         web: {
             sees: [
-                /<div class="verse verse-columns verse-numbered" style="--verse-columns: 3" lang="art-x-vyl" data-numstep="2" data-cols="3"/,
-                /<span class="verse-number">2<\/span>/,
-                /<span class="verse-column"><\/span>/,
-                /<span class="verse-part"><span lang="en">the hallowed boundary I sing<\/span><\/span><span class="verse-part verse-secondary"><span lang="art-x-vyl">thirun sorima<\/span>/,
+                /class="verse[^"\n]*verse-paired/,
+                /class="verse-label">2<\/span>/,
+                /class="verse-roman"[\s\S]*?mamu anthrasos/,
             ],
         },
         preview: {
-            sees: [
-                /<div class="verse verse-columns verse-numbered" style="--verse-columns: 3" data-numstep="2" lang="vyl" data-cols="3"/,
-                /<span class="verse-number">2<\/span>/,
-                /<span class="verse-column"><\/span>/,
-                /<span class="verse-part"><span class="hl-preview-span">[\s\S]*?the hallowed boundary I sing[\s\S]*?\{lang=en\}/,
-            ],
+            sees: [/thirun sorima/, /class="verse-label">1<\/span>/],
             differs:
-                "The buffer-only preview sets the columns in their grid with their numbers, but shows each entry's span as source: it has no script notes to map the code points from.",
+                "The buffer-only preview has no encoding documents and shows the authored Roman original in one column.",
             bufferOnly: true,
         },
         indexed: {
             sees: [
-                /<div class="verse verse-columns verse-numbered" style="--verse-columns: 3" lang="art-x-vyl" data-numstep="2" data-cols="3"/,
-                /<span class="verse-number">2<\/span>/,
-                /<span class="verse-column"><\/span>/,
-                /<span class="verse-part"><span lang="en">the hallowed boundary I sing<\/span><\/span><span class="verse-part verse-secondary"><span lang="art-x-vyl">thirun sorima<\/span>/,
-                /<span class="script hl-semaron-kuriale" lang="art-x-vyl">\u{F0250}\u{F0237}\u{F023F}\u{F0242}\u{F023C} \u{F0240}\u{F023D}\u{F023F}\u{F0237}\u{F023B}\u{F0230}<\/span>/u,
+                /class="verse[^"\n]*verse-paired/,
+                /class="verse-native[^"\n]*"/,
+                /class="verse-roman"[\s\S]*?thirun sorima/,
             ],
         },
         book: {
             sees: [
-                /#grid\(columns: \(2\.5em, 1fr, 1fr, 1fr\)/,
-                /#text\(fill: luma\(45%\)\)\[2\]/,
-                /\[#book-span\(classes: \(\), lang: "en"\)\[the hallowed boundary I sing\]\], \[#text\(fill: luma\(45%\)\)\[#box\[thirun sorima\]\]\]/,
+                /#grid\(columns: \(2\.5em, 1fr, 1fr\)/,
+                /#text\(size: 0\.75em, fill: luma\(45%\)\)\[1\]/,
+                /\[thirun sorima\]/,
             ],
         },
     },
@@ -1242,29 +1235,34 @@ export const CONSTRUCTS: Record<string, Construct> = {
         },
     },
     "run-verse": {
-        summary: "A verse fence marked with a font and a map sets its lines in the face.",
+        summary:
+            "An encoded verse aligns native and Roman logical lines, preserving its chosen face and indentation.",
         probe: "```verse {form=epic lang=vyl font=semaron-kuriale enc=vylsemaronenc}",
         foundry: {
             sees: [
-                /<div class="verse script hl-semaron-kuriale" lang="art-x-vyl" data-form="epic">\s*<p><span class="verse-line">\u{F0250}\u{F0237}/u,
+                /<div class="verse verse-paired" data-form="epic">[\s\S]*?<span class="verse-native script hl-semaron-kuriale" lang="art-x-vyl"><span class="verse-line">\u{F0250}\u{F0237}/u,
+                /class="verse-roman"><span class="verse-line i1">mamu anthrasos\.<\/span>/,
             ],
         },
         web: {
             sees: [
-                /<div class="verse script hl-semaron-kuriale" lang="art-x-vyl" data-form="epic" data-pagefind-ignore="true">\s*<p><span class="verse-line">\u{F0250}\u{F0237}/u,
+                /<div class="verse verse-paired" data-form="epic">[\s\S]*?<span class="verse-native script hl-semaron-kuriale" lang="art-x-vyl" data-pagefind-ignore="true"><span class="verse-line">\u{F0250}\u{F0237}/u,
+                /class="verse-roman"><span class="verse-line i1">mamu anthrasos\.<\/span>/,
             ],
         },
         preview: {
             sees: [
-                /<div class="verse" data-form="epic" lang="vyl" data-font="semaron-kuriale" data-enc="vylsemaronenc">\s*<p><span class="verse-line">thirun sorima<\/span><br>\s*<span class="verse-line i1">mamu anthrasos\.<\/span>/,
+                /<div class="verse" data-form="epic" lang="vyl" data-font="semaron-kuriale" data-enc="vylsemaronenc">[\s\S]*?<span class="verse-line">thirun sorima<\/span><br>\s*<span class="verse-line i1">mamu anthrasos\.<\/span>/,
             ],
             differs:
-                "The buffer-only preview has no script notes: it sets the verse's roman text unmapped and in no face.",
+                "The buffer-only preview has no encoding documents: it shows the original in Roman in one column.",
             bufferOnly: true,
         },
         book: {
             sees: [
-                /#book-script-text\(classes: \("script", "hl-semaron-kuriale"\)\)\[\u{F0250}\u{F0237}[\s\S]*? \\\n#h\(1\.25em\)/u,
+                /#grid\(columns: \(1fr, 1fr\)/,
+                /#book-script-text\(classes: \("script", "hl-semaron-kuriale"\)\)\[\u{F0250}\u{F0237}/u,
+                /\[#h\(1\.25em\)mamu anthrasos\.\]/,
             ],
         },
     },

@@ -129,13 +129,13 @@ const BLOCK = [
 ].join("\n");
 const POEM = [
     "```verse {form=epic lang=vyl font=semaron-kuriale enc=semaron}",
-    "thrima sorima",
+    "thrima sorima/",
     "  thrima",
     "```",
 ].join("\n");
 const RTL_POEM = [
     "```verse {#lay lang=khel font=qalezu-hand enc=khel-qalezu}",
-    "anlagh gar",
+    "anlagh gar/",
     "  zul",
     "```",
 ].join("\n");
@@ -215,26 +215,23 @@ describe("renderRuns, goldens", () => {
         );
     });
 
-    it("gives a verse fence the tag and the class, and maps each verse", () => {
-        expect(render(POEM)).toBe(
-            [
-                "```verse {lang=art-x-vyl .script .hl-semaron-kuriale form=epic}",
-                `${THRIMA} ${SORIMA}\u{E010C}`,
-                `${THRIMA}\u{E010C}`,
-                "```",
-            ].join("\n"),
-        );
+    it("gives a verse fence native classes and paired logical lines", () => {
+        const result = renderRuns(POEM, ctx);
+        expect(result.errors).toEqual([]);
+        expect([...result.verses.values()][0].model.groups[0].lines).toMatchObject([
+            { text: `${THRIMA} ${SORIMA}\u{E010C}`, romanText: "thrima sorima" },
+            { text: THRIMA, romanText: "thrima" },
+        ]);
     });
 
-    it("maps a right-to-left verse fence and marks it right to left", () => {
-        expect(render(RTL_POEM)).toBe(
-            [
-                "```verse {lang=art-x-khel #lay .script .hl-qalezu-hand dir=rtl}",
-                ANLAGH + "\u{E010C}",
-                ZUL + "\u{E010C}",
-                "```",
-            ].join("\n"),
-        );
+    it("marks the native cells of a paired right-to-left verse", () => {
+        const result = renderRuns(RTL_POEM, ctx);
+        const paired = [...result.verses.values()][0];
+        expect(paired.attributes).toMatchObject({ lang: "art-x-khel", dir: "rtl" });
+        expect(paired.model.groups[0].lines).toMatchObject([
+            { text: ANLAGH + "\u{E010C}", romanText: "anlagh gar" },
+            { text: ZUL, romanText: "zul" },
+        ]);
     });
 
     it("sets the generic families in their classes, unchecked", () => {
@@ -248,9 +245,11 @@ describe("renderRuns, goldens", () => {
         expect(render(faulty)).toBe(faulty);
     });
 
-    it("keeps every line, whatever it rewrites", () => {
-        const out = render(ALL);
-        expect(out.split("\n")).toHaveLength(ALL.split("\n").length);
+    it("keeps multiline inline spans and each verse's logical structure", () => {
+        const result = renderRuns(ALL, ctx);
+        expect(result.verses.size).toBe(2);
+        for (const pair of result.verses.values())
+            expect(pair.model.groups[0].lines).toHaveLength(2);
         const multi = "[gar\nnal\nzul]{lang=khel font=qalezu-hand enc=khel-qalezu}";
         expect(render(multi).split("\n")).toHaveLength(3);
     });
@@ -266,11 +265,11 @@ describe("renderRuns, goldens", () => {
 });
 
 describe("the site", () => {
-    const site = (source: string) =>
-        renderSpans(
-            renderBlocks(renderRuns(source, ctx, undefined, { target: "site" }).markdown, "web")
-                .markdown,
-        ).markdown;
+    const site = (source: string) => {
+        const marked = renderRuns(source, ctx, undefined, { target: "site" });
+        return renderSpans(renderBlocks(marked.markdown, "web", { verses: marked.verses }).markdown)
+            .markdown;
+    };
 
     it("tags a roman run", () => {
         expect(site(ROMAN)).toContain('<span lang="art-x-vyl">Daimela, helthos.</span>');
@@ -297,10 +296,10 @@ describe("the site", () => {
 
     it("sets a verse fence with its class and tag", () => {
         expect(site(POEM)).toContain(
-            '<div class="verse script hl-semaron-kuriale" lang="art-x-vyl" data-form="epic" data-pagefind-ignore="true">',
+            '<span class="verse-native script hl-semaron-kuriale" lang="art-x-vyl" data-pagefind-ignore="true">',
         );
         expect(site(RTL_POEM)).toContain(
-            '<div class="verse script hl-qalezu-hand" id="lay" lang="art-x-khel" dir="rtl" data-pagefind-ignore="true">',
+            '<span class="verse-native script hl-qalezu-hand" lang="art-x-khel" dir="rtl" data-pagefind-ignore="true">',
         );
     });
 
@@ -335,7 +334,7 @@ describe("Foundry", () => {
             '<div class="note script script-block hl-qalezu-hand" id="verse" lang="art-x-khel" dir="rtl">',
         );
         expect(foundry(POEM)).toContain(
-            '<div class="verse script hl-semaron-kuriale" lang="art-x-vyl" data-form="epic">',
+            '<span class="verse-native script hl-semaron-kuriale" lang="art-x-vyl">',
         );
     });
 
@@ -421,7 +420,7 @@ describe("Typst", () => {
 
     it("sets a verse fence in its class", () => {
         expect(typst(POEM)).toContain(
-            '#block(width: 100%)[#book-script-text(classes: ("script", "hl-semaron-kuriale"))[',
+            '#book-script-text(classes: ("script", "hl-semaron-kuriale"))[',
         );
         expect(typst(RTL_POEM)).toContain("#set text(dir: rtl)");
     });

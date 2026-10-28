@@ -228,7 +228,7 @@ it("keeps default English runs in the ordinary Markdown grammar", () => {
     expect(renderRuns("[*hello*]{lang=en}", ctx).markdown).toContain("*hello*");
 });
 
-it("requires native parallel verse readings to select their own encoding", () => {
+it("selects a native verse encoding on the fence", () => {
     const ctx: any = {
         ...config,
         encodings: loaded().encodings,
@@ -239,12 +239,7 @@ it("requires native parallel verse readings to select their own encoding", () =>
             ],
         ]),
     };
-    expect(scanRuns("```verse {cols=2 enc=testenc}\n1 ab\n```", ctx).errors).toEqual([
-        expect.objectContaining({
-            line: 1,
-            message: "a verse with cols>1 selects encoding on individual runs, not the fence",
-        }),
-    ]);
+    expect(scanRuns("```verse {enc=testenc}\nab\n```", ctx).errors).toEqual([]);
 });
 it("leaves malformed native entries untouched for normal required-field validation", async () => {
     const { lexiconsFromRecords, serializeLexicon } =

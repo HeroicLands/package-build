@@ -29,7 +29,24 @@ A nonempty note body creates one system-agnostic Foundry JournalEntry. Content b
 
 Leading `:` captions describe the next supported block; `:@` captions also number it. The optional type accepts `figure`, `table`, `verse`, `code`, `prose`, and `example`. Captions support identifiers, classes and named attributes; unsupported following blocks are errors. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references).
 
-A code fence with language `verse` keeps verse lines, stanza breaks and relative indentation. Leading periods set indent levels and are removed from the text; leading spaces do not count. Blank lines separate verse units and `***` separates stanzas. Its numbered caption uses the **Poem** label. Generic `:::` divs and `[inline spans]{.class}` accept attributes. See [verse](authoring/links-and-markup.md#verse), [fenced divs](authoring/links-and-markup.md#fenced-divs) and [inline spans](authoring/links-and-markup.md#inline-spans). `numstep=N` numbers every Nth line. `cols=N` sets a positive whole number of columns and defaults to one. With `cols` above one, each content line starts with an integer and one or more spaces; numbers lie in `1..cols` and are nondecreasing within each blank-separated logical row. Any column may be omitted and keeps an empty cell. A column may repeat without limit: its first reading is foreground and its later readings are grey, independently for every column and row. Number prefixes are not displayed; `numstep` counts logical rows. `***` separates stanzas. Inline language and native presentation are explicit on each authored run. See [verse in columns](authoring/links-and-markup.md#verse-in-columns).
+A `verse` fence sets poetry or prose. `/` ends a logical line; source newlines
+otherwise join. Blank lines or `//` end stanzas, and standalone `***` ends a canto.
+Leading periods indent a logical line, including after `/` within a source line;
+a period on a joined continuation line is text. `\/` writes a literal slash.
+A concrete `enc=` sets the original once in two presentations, script on the left
+and Roman on the right, aligned by logical line at full weight. No `enc=`, or
+`enc=default`, produces one Roman column. Inline names, codage, language gaps and
+footnotes retain their meaning. `work=<key>` groups versions within the page,
+labels each stanza with its number (or canto:stanza), and requires matching canto
+and per-canto stanza counts; line counts may differ. Singleton work keys and
+shape disagreements are findings. A canto separator with no stanza on either
+side is a finding at that separator. `.direction` and `.speaker` spans identify
+instructions and speakers inside or outside verse, retain plain presentation
+hooks in HTML and Typst, and change neither encoding nor shape. See
+[verse and worked examples](authoring/links-and-markup.md#verse). Its numbered
+caption uses the **Poem** label. Generic `:::` divs and `[inline spans]{.class}`
+accept attributes; see [fenced divs](authoring/links-and-markup.md#fenced-divs)
+and [inline spans](authoring/links-and-markup.md#inline-spans).
 
 A code fence with language `scroll` sets text in a script whose script note states `direction: vertical-rl` as columns, top to bottom, read from the right. The lines of a paragraph are joined, and each paragraph starts a fresh column. `rows=N` is the characters in a column and `cols=M` the columns in a panel, each a whole number above zero; `lang=`, `font=` and `enc=` mark the text as on a verse fence, an explicit `enc=` selects an encoding document and its language and font. The site, the preview and Foundry set it with `writing-mode: vertical-rl` in a panel that scrolls sideways from the right; the book draws its panels as images from the face's outlines, each with its roman text as alt text. A scroll fence in a script written in lines is an error. See [scrolls](authoring/links-and-markup.md#scrolls).
 
@@ -41,7 +58,7 @@ then its mappings. Unknown characters, undefined glyph codes and conflicting
 selections are located errors. `⟦…⟧` reads the selected font's glyph codes or
 strict Unicode scalars. See [encodings](reference/format-details.md#encodings).
 Language word-book validation applies to both Roman and native runs. Parallel
-verse retains independent authored readings and their column numbers.
+verse keeps one authored original with its language and selected encoding.
 
 Mark a name without a note as `[Name]{.name data-type="being"}`; the optional
 classification uses the declared note vocabulary. The [name-marking

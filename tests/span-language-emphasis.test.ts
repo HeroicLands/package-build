@@ -158,13 +158,11 @@ describe("emphasis follows a span's effective language", () => {
             "one [one]{lang=en}",
             "```",
         ].join("\n");
-        expect(renderRuns(source, ctx).markdown).toBe(
-            [
-                "```verse {lang=art-x-vyl .script .hl-semaron-kuriale}",
-                "uno [one]{lang=en .font-serif}\u{E010C}",
-                "```",
-            ].join("\n"),
-        );
+        const pair = [...renderRuns(source, ctx).verses.values()][0];
+        expect(pair.model.groups[0].lines[0]).toMatchObject({
+            text: "uno [one]{lang=en .font-serif}",
+            romanText: "one [one]{lang=en}",
+        });
     });
 
     it("keeps a same-tag child Roman unless it opts in", () => {
@@ -184,26 +182,26 @@ describe("emphasis follows a span's effective language", () => {
     it("keeps indentation periods outside mapping while mapping literal later periods", () => {
         const source = [
             "```verse {lang=vyl font=semaron-kuriale enc=letters}",
-            "...one",
+            "...one/",
             "  [..one]{lang=vyl font=semaron-kuriale enc=letters} [..one]{lang=vyl font=semaron-kuriale enc=letters}",
             "```",
         ].join("\n");
         expect(scanRuns(source, ctx).errors).toEqual([]);
-        expect(renderRuns(source, ctx).markdown).toBe(
-            [
-                "```verse {lang=art-x-vyl .script .hl-semaron-kuriale}",
-                "...uno\u{E010C}",
-                "[..uno]{lang=art-x-vyl .script .hl-semaron-kuriale} [XXuno]{lang=art-x-vyl .script .hl-semaron-kuriale}\u{E010C}",
-                "```",
-            ].join("\n"),
-        );
+        const pair = [...renderRuns(source, ctx).verses.values()][0];
+        expect(pair.model.groups[0].lines).toMatchObject([
+            { text: "uno\u{E010C}", level: 3 },
+            {
+                text: "[uno]{lang=art-x-vyl .script .hl-semaron-kuriale} [XXuno]{lang=art-x-vyl .script .hl-semaron-kuriale}",
+                level: 2,
+            },
+        ]);
     });
 
     it.each([
         ["lang=vyl", "one", "one"],
         ["lang=vyl enc=letters font=semaron-kuriale", "uno", "one"],
     ])(
-        "keeps each authored column reading's script while inline languages choose their own in %s",
+        "keeps an inline reading's script while nested languages choose their own in %s",
         (entry, outer, same) => {
             const mixed = {
                 ...ctx,
@@ -222,8 +220,8 @@ describe("emphasis follows a span's effective language", () => {
             };
             mixed.faces = testFaces(mixed.encodings);
             const source = [
-                "```verse {cols=2}",
-                `1 [one [one]{lang=foreign enc=glyphs font=script-other} [one]{lang=vyl}]{${entry}}`,
+                "```verse",
+                `[one [one]{lang=foreign enc=glyphs font=script-other} [one]{lang=vyl}]{${entry}}`,
                 "```",
             ].join("\n");
             expect(scanRuns(source, mixed).errors).toEqual([]);
