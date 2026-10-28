@@ -451,6 +451,9 @@ function gitignoreHooks(root) {
     };
 }
 
+/** Sources per markdownlint call: it lints `strings` by recursing once per entry, so a large set overflows the stack. */
+const LINT_BATCH_SIZE = 200;
+
 /**
  * Lint markdown under a root with the `markdownlint` library.
  *
@@ -560,10 +563,19 @@ export async function runMarkdownlint(params) {
         }
         const lintSources = async (selected) => {
             const { files: _files, ...shared } = options;
-            const results = await lint({
-                ...shared,
-                strings: Object.fromEntries(selected.map((file) => [file, sources.get(file).text])),
-            });
+            const results = {};
+            for (let start = 0; start < selected.length; start += LINT_BATCH_SIZE) {
+                const batch = selected.slice(start, start + LINT_BATCH_SIZE);
+                Object.assign(
+                    results,
+                    await lint({
+                        ...shared,
+                        strings: Object.fromEntries(
+                            batch.map((file) => [file, sources.get(file).text]),
+                        ),
+                    }),
+                );
+            }
             for (const file of selected) {
                 const protectedSource = sources.get(file);
                 results[file] = (results[file] ?? [])
