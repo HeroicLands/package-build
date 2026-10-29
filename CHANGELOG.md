@@ -1,5 +1,16 @@
 # @heroiclands/package-build
 
+## 25.5.3
+
+**Verse**
+
+- Every `--- {.canto}` break draws a short centred rule on the site, in Foundry journals and in the book, whether or not it carries a title.
+- Decoded verse ends each canto mark with a line break, so the decoded text can be encoded again without the next word running into the mark.
+- Metre checks count only the verse itself, skipping speaker labels and stage directions.
+- Metre checks read a word's inherited word class, and accept every beat count a word with several senses can take.
+- A stanza ending in a footnote reference keeps its stanza mark in the native script, and the reference stays on the roman reading.
+- A line holding only spaces ends a verse stanza, just as an empty line does.
+
 ## 25.5.2
 
 **Languages and scripts**
