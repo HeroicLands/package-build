@@ -569,7 +569,8 @@ export function parseVerse(body, { inline = false, footnotes = new Set() } = {})
             const length = source[at] === "\r" && source[at + 1] === "\n" ? 2 : 1;
             if (text && !/\s$/.test(text)) append(" ", at);
             at += length;
-            while (source[at] === " ") at++;
+            // Leave blank physical lines at their start so they end the stanza.
+            if (!/^[ \t]*(?:\r\n|\r|\n|$)/.test(source.slice(at))) while (source[at] === " ") at++;
             continue;
         }
         if (!text && source[at] === " ") {

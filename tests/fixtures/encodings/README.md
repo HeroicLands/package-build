@@ -7,8 +7,10 @@ The JSON definitions and conformance vectors are published encoding files from
 carry the accompanying SIL Open Font License in [LICENSE](LICENSE).
 
 The engine-contract canto cases in `vectors.json` use the current `***` source
-and decode the canto control to that same source. The captured definitions
-remain unchanged.
+and decode the canto control to `***` followed by an LF newline, so subsequent
+text remains on a separate line when encoded again. Those expected readings
+follow the engine contract; `SOURCE-SHA256SUMS` records the original captured
+source bytes. The captured encoding definitions remain unchanged.
 
 The conformance test copies each definition alone to an empty directory. Its
 compiler receives only the parsed file, and cannot read a standard, codage,

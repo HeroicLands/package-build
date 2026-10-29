@@ -423,7 +423,10 @@ describe("new block syntax in the printed book", () => {
         expect(out).toContain("First #emph[verse].");
         expect(out).toContain("#h(1.25em)Next verse.");
         expect(out).toContain("Last verse.");
-        expect(out).toContain("#v(0.5em)");
+        expect(out).toContain(
+            "#v(0.75em)\n#align(center)[#line(length: 25%, stroke: 0.4pt)]\n#v(0.75em)",
+        );
+        expect(out.match(/#line\(/g)).toHaveLength(1);
         expect(out).not.toContain("#raw(");
         expect(out).not.toContain("#emph[First");
     });

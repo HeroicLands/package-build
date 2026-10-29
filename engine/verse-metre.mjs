@@ -52,7 +52,7 @@
 import { nearest } from "./near-miss.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { METRE_KINDS, METRE_NAME } from "./metre-declaration.mjs";
-import { languageRecordsByName } from "./encoding-lexicon.mjs";
+import { lexiconsFromRecords } from "./encoding-lexicon.mjs";
 import { STRESS_LONGER, STRESS_MARKS, STRESS_TWO } from "./language-terms.mjs";
 import { parseWordClass } from "./word-classes.mjs";
 import { derivedForms, foldWord } from "./word-forms.mjs";
@@ -169,8 +169,8 @@ const isRule = (stress) =>
  */
 export function metreBooksFromRecords(records, config = {}) {
     const books = new Map();
-    for (const [language, record] of languageRecordsByName([...(records ?? [])], config)) {
-        const data = isMap(record.data) ? record.data : {};
+    for (const [language, lexicon] of lexiconsFromRecords(records, config)) {
+        const data = lexicon.data;
         const sounds = isMap(data.sounds) ? data.sounds : {};
         if (!isRule(sounds.stress)) continue;
         const syllables = isMap(sounds.syllables) ? sounds.syllables : {};
@@ -358,9 +358,29 @@ export function metreFindings(blocks, lines, ctx) {
                         ({ offset }) =>
                             !model.layout.some(([from, to]) => offset >= from && offset < to),
                     );
-                const tokens =
+                const parsed =
                     verseParser.parseInline(units.map((unit) => unit.text).join(""), {})[0]
                         ?.children ?? [];
+                let presentationDepth = 0;
+                const tokens = parsed.filter((token) => {
+                    if (presentationDepth) {
+                        presentationDepth += token.nesting;
+                        return false;
+                    }
+                    if (
+                        token.type === "span_open" &&
+                        token
+                            .attrGet("class")
+                            ?.split(/\s+/)
+                            .some((name) => name === "speaker" || name === "direction")
+                    ) {
+                        presentationDepth = 1;
+                        return false;
+                    }
+                    return true;
+                });
+                const text = inlineText(tokens);
+                if (!text.trim()) continue;
                 const tag = (name) => (ctx.languages?.[name]?.tag ?? name).toLowerCase();
                 const foreign = tokens.find(
                     (token) =>
@@ -375,7 +395,7 @@ export function metreFindings(blocks, lines, ctx) {
                     );
                     continue;
                 }
-                const beats = lineBeats(inlineText(tokens), book);
+                const beats = lineBeats(text, book);
                 if (metre.beats >= beats.min && metre.beats <= beats.max) continue;
                 warnings.push({
                     ...sourcePosition(reading.from),

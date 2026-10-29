@@ -177,6 +177,57 @@ describe("authored native entry validation", () => {
         };
         expect(languageNoteFindings(config, [record])[0].message).toMatch(/data.roman/);
     });
+    it("preserves nearest-generation homographs while the first keeps its native spelling", () => {
+        const record = (shortcode: string, data: object) => ({
+            type: "skill",
+            subType: "language",
+            shortcode,
+            data,
+        });
+        const native = (text: string) => [{ enc: "letters", text }];
+        const child = record("child", {
+            family: "skill-parent",
+            words: [
+                { form: "sa", class: "n", native: native("α") },
+                { form: "e\u0301", class: "n", native: native("χ") },
+                { form: "sa", class: "part", native: native("β") },
+            ],
+        });
+        const parent = record("parent", {
+            family: "skill-root",
+            words: [
+                { form: "sa", class: "v", native: native("χ") },
+                { form: "é", class: "part", native: native("β") },
+                { form: "Sa", class: "v", native: native("Β") },
+                { form: "ol", class: "n", native: native("Α") },
+                { form: "ol", class: "part", native: native("Β") },
+            ],
+        });
+        const ancestor = record("root", {
+            words: [
+                { form: "ol", class: "adj", native: native("χ") },
+                { form: "ir", class: "conj", native: native("β") },
+            ],
+        });
+        const config = {
+            contentPackage: "demo",
+            languages: { child: { tag: "art-x-child", note: "skill-child" } },
+        };
+        const lexicon = lexiconsFromRecords([ancestor, parent, child], config).get("child");
+        expect(lexicon.words.map(({ form, class: wordClass }) => [form, wordClass])).toEqual([
+            ["sa", "n"],
+            ["e\u0301", "n"],
+            ["sa", "part"],
+            ["Sa", "v"],
+            ["ol", "n"],
+            ["ol", "part"],
+            ["ir", "conj"],
+        ]);
+        expect(lexicon.byForm.get("sa")[0].text).toBe("α");
+        expect(lexicon.byForm.get("ol")[0].text).toBe("Α");
+        expect(lexicon.byForm.get("é")[0].text).toBe("χ");
+    });
+
     it("lists source-ordered meanings and own or row spellings with structured error choices", () => {
         const record = {
             type: "skill",

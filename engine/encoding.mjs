@@ -256,7 +256,7 @@ export function compileRows(definition, metadata = {}) {
     const prefix = d.separator ? [separatorRow] : [];
     const controlRows = [];
     if (controls.verseStanza) controlRows.push({ from: "\n\n", to: controls.verseStanza });
-    if (controls.verseCanto) controlRows.push({ from: "***", to: controls.verseCanto });
+    if (controls.verseCanto) controlRows.push({ from: "***\n", to: controls.verseCanto });
     const shared = tier(sharedRows, [], [...prefix, ...controlRows]);
     const faces = new Map();
     if (d.faces !== undefined && !object(d.faces))

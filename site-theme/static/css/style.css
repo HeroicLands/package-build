@@ -1444,7 +1444,9 @@ a.tag:hover {
 .single-content .verse .verse-line.i8 { --verse-indent: 10em; }
 .single-content .verse .verse-canto-break {
     display: block;
-    height: 0.5em;
+    width: 25%;
+    margin: 1.5em auto;
+    border-block-start: 1px solid currentColor;
 }
 .single-content .verse-paired .verse-row {
     display: grid;

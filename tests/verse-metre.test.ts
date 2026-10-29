@@ -221,6 +221,79 @@ describe("the beats of a line", () => {
         expect([...(derivedBook?.classes.get("zars") ?? [])]).toEqual(["n"]);
     });
 
+    it("inherits family word classes and derives forms with the child's rules", () => {
+        const child = {
+            ...language(RULE, {
+                family: "skill-vylarilng",
+                words: [{ form: "ul", class: "n", gloss: "an ember" }],
+                grammar: { plural: [{ ending: "", becomes: "en" }] },
+            }),
+            shortcode: "childlng",
+            address: { canonical: "demo-note-skill-childlng" },
+        };
+        const inheritedConfig = {
+            ...config,
+            languages: { child: { tag: "art-x-child", note: "skill-childlng" } },
+        };
+        const inherited = metreBooksFromRecords([child, language(RULE)], inheritedConfig).get(
+            "child",
+        );
+        expect(lineBeats("pra ir", inherited)).toEqual({ min: 0, max: 0 });
+        expect(lineBeats("ul", inherited)).toEqual({ min: 1, max: 1 });
+        expect([...(inherited?.classes.get("zaren") ?? [])]).toEqual(["n"]);
+        expect(inherited?.classes.has("zars")).toBe(false);
+    });
+
+    it.each(["sa", "ol"])(
+        "keeps every nearest-generation class of the local or inherited homograph %s",
+        (homograph) => {
+            const ancestor = {
+                ...language(RULE, {
+                    words: [
+                        { form: "sa", class: "adj" },
+                        { form: "ol", class: "v" },
+                        { form: "ir", class: "conj" },
+                    ],
+                }),
+                shortcode: "rootlng",
+                address: { canonical: "demo-note-skill-rootlng" },
+            };
+            const parent = language(RULE, {
+                family: "skill-rootlng",
+                words: [
+                    { form: "sa", class: "v" },
+                    { form: "ol", class: "n" },
+                    { form: "ol", class: "part" },
+                ],
+            });
+            const child = {
+                ...language(RULE, {
+                    family: "skill-vylarilng",
+                    words: [
+                        { form: "sa", class: "n" },
+                        { form: "sa", class: "part" },
+                    ],
+                    grammar: { plural: [{ ending: "", becomes: "s" }] },
+                }),
+                shortcode: "childlng",
+                address: { canonical: "demo-note-skill-childlng" },
+            };
+            const familyConfig = {
+                ...config,
+                languages: { child: { tag: "art-x-child", note: "skill-childlng" } },
+            };
+            const inherited = metreBooksFromRecords([ancestor, child, parent], familyConfig).get(
+                "child",
+            );
+            expect([...inherited.classes.get(homograph)]).toEqual(["n", "part"]);
+            expect(lineBeats(homograph, inherited)).toEqual({ min: 0, max: 1 });
+            expect([...inherited.classes.get("ir")]).toEqual(["conj"]);
+            expect(lineBeats("ir", inherited)).toEqual({ min: 0, max: 0 });
+            for (const form of ["sas", "ols"])
+                expect([...inherited.classes.get(form)]).toEqual(["n"]);
+        },
+    );
+
     it("reads each part of a compound and ignores the caesura it is not written with", () => {
         expect(beats("zar-zaros ul")).toEqual([2, 2]);
     });
@@ -261,6 +334,18 @@ describe("the warning", () => {
             "",
             "--- {.canto}",
             ".zaros zaros zaros",
+        );
+        expect(warnings(source)).toEqual([]);
+        expect(errors(source)).toEqual([]);
+    });
+
+    it("skips speaker and direction labels and counts only verse text beside them", () => {
+        const source = fence(
+            "scan=trimeter lang=vyl",
+            "[zaros]{.speaker}/",
+            "[zaros [quietly]{lang=en}]{.direction}/",
+            "[zaros]{.speaker} zaros [zaros zaros]{.direction} zaros zaros/",
+            "[zaros [zaros]{.speaker} zaros]{lang=vyl} zaros",
         );
         expect(warnings(source)).toEqual([]);
         expect(errors(source)).toEqual([]);

@@ -336,7 +336,7 @@ Caption classes are unrestricted. The built-in `border` class draws the block as
 A `.verse` div reaches the page as `.verse`, with one `.verse-stanza` per
 stanza and `.verse-line` per logical line. Indentation uses `i1` through `i8`;
 deeper levels carry their complete `--verse-indent`. `.verse-canto-break`
-separates cantos. A work-labelled div adds `.verse-labelled`, and each stanza
+draws a short centred rule between cantos. A work-labelled div adds `.verse-labelled`, and each stanza
 opens with a small `.verse-label` shared across its presentations.
 
 A concrete div encoding adds `.verse-paired`. Each `.verse-row` aligns one

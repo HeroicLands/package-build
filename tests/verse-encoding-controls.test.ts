@@ -7,7 +7,7 @@ import {
     encodePieces,
     encodeText,
 } from "../engine/encoding.mjs";
-import { encodeWithLanguage } from "../engine/encoding-language.mjs";
+import { encodeWithLanguage, decodeWithLanguage } from "../engine/encoding-language.mjs";
 import { renderRuns, scanRuns } from "../engine/content-scripts.mjs";
 import { plainRomanVerse } from "../engine/roman-verse.mjs";
 import { STANDARD_CONTROLS } from "../engine/encoding-standard.mjs";
@@ -126,9 +126,42 @@ describe("verse encoding controls", () => {
                 text: `字${stanza}${canto}字`,
                 findings: [],
             });
-            expect(decodeText(enc, canto)).toBe("***");
-            expect(decodeText(enc, `字${stanza}${canto}字`)).toBe("word\n\n***word");
+            expect(decodeText(enc, canto)).toBe("***\n");
+            expect(decodeText(enc, `字${stanza}${canto}字`)).toBe("word\n\n***\nword");
             expect(() => encodeText(enc, "--- {.canto}", { verse: true })).toThrow();
+        },
+    );
+
+    it.each(["\n", "\r\n"])(
+        "round trips decoded canto delimiters with %j input endings",
+        (newline) => {
+            const lexicon = { language: "vyl", data: { words: [{ form: "word", class: "n" }] } };
+            const rowEncoding = compileRows({
+                name: "letters",
+                fonts: ["script"],
+                accepts: ["a-z", "/"],
+                separator: " ",
+                controls: STANDARD_CONTROLS,
+                rows: [
+                    ["word", "字"],
+                    ["/", line],
+                ],
+            });
+            for (const enc of [encoding(), rowEncoding]) {
+                const source = `word${newline}${newline}***${newline}word`;
+                const native = encodeText(enc, source, { verse: true });
+                expect(native).toBe(`字${stanza}${canto}字`);
+                const roman = decodeText(enc, native);
+                expect(roman).toBe("word\n\n***\nword");
+                expect(encodeText(enc, roman, { verse: true })).toBe(native);
+                for (const options of [{}, { lexicon }]) {
+                    const decoded = decodeWithLanguage(enc, native, options);
+                    expect(decoded).toEqual({ text: roman, findings: [] });
+                    expect(
+                        encodeWithLanguage(enc, decoded.text, { ...options, verse: true }),
+                    ).toMatchObject({ text: native, findings: [] });
+                }
+            }
         },
     );
 
@@ -177,6 +210,41 @@ describe("verse encoding controls", () => {
         expect(results[1].markdown.replaceAll("\r\n", "\n")).toBe(results[0].markdown);
     });
 
+    it.each(["\n", "\r\n"])(
+        "keeps stanza controls after terminal footnotes with %j endings",
+        (newline) => {
+            for (const [first, separator, nextControl] of [
+                ["word[^note]", "--- {.canto}", canto],
+                ["word[^note]word", "--- {.canto}", canto],
+                ["word[^note]", "", ""],
+                ["word[^note]word", "", ""],
+            ]) {
+                const source = [
+                    "::: {.verse lang=vyl enc=letters}",
+                    first,
+                    "",
+                    ...(separator ? [separator] : []),
+                    "word",
+                    ":::",
+                    "",
+                    "[^note]: A note.",
+                ].join(newline);
+                const result = renderRuns(source, context());
+                expect(result.errors).toEqual([]);
+                const model = [...result.verses.values()][0].model;
+                const nativeLine = model.groups.find((group) => !group.cantoBreak).lines[0];
+                const expected = (first === "word[^note]" ? "字" : "字字") + stanza;
+                expect(nativeLine.text).toBe(expected);
+                expect(nativeLine.romanText).toBe(first);
+                expect(nativeLine.text).not.toContain("[^note]");
+                expect(result.markdown.replaceAll(/\r?\n/g, "")).toContain(
+                    expected + nextControl + "字",
+                );
+                expect(result.markdown).toContain(stanza);
+            }
+        },
+    );
+
     it("preserves literal slashes, Roman footnotes and located findings in CRLF verse", () => {
         const source = [
             "::: {.verse lang=vyl enc=letters}",
@@ -222,7 +290,7 @@ describe("verse encoding controls", () => {
             `B${slash}B${stanza}${canto}B`,
         );
         expect(decodeText(enc, `B${slash}B${stanza}${canto}B`, { font: "other" })).toBe(
-            "a\\/a\n\n***a",
+            "a\\/a\n\n***\na",
         );
     });
 

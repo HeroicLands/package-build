@@ -542,8 +542,11 @@ The title is shown once as heading text; the encoder receives its Roman `***`
 canto control. Authored `***` inside verse is a finding. The canto stays within
 the work and does not open a separate journal page.
 
-The blank line before a canto retains its stanza mark in the encoded text.
-Whitespace after the canto control adds no extra line mark.
+The blank line before a canto retains its stanza mark in the encoded text,
+including when the last word has a footnote reference.
+Whitespace after the canto control adds no extra line mark. Decoding writes
+`***` followed by an LF newline, so the next word starts on a new line and
+the decoded Roman text can be encoded again.
 
 ### Versions of a work
 

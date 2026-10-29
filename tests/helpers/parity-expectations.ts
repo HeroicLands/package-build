@@ -570,36 +570,40 @@ export const CONSTRUCTS: Record<string, Construct> = {
 
     "verse-plain": {
         summary:
-            "Verse keeps its lines and stanzas and indents a line by two spaces per level; its form is recorded.",
+            "Verse keeps its lines and stanzas and indents a line by one leading period per level; its form is recorded.",
         probe: "::: {.verse form=ballad lang=en}",
         foundry: {
             sees: [
                 /<div class="verse" lang="en" data-form="ballad">/,
+                /class="verse-canto-break"/,
                 /<span class="verse-line">The lantern burns beside the gate,<\/span><br>\s*<span class="verse-line i1">The harbor sleeps below\.<\/span>/,
             ],
         },
         web: {
             sees: [
                 /<div class="verse" lang="en" data-form="ballad">/,
+                /class="verse-canto-break"/,
                 /<span class="verse-line">The lantern burns beside the gate,<\/span><br>\s*<span class="verse-line i1">The harbor sleeps below\.<\/span>/,
             ],
         },
         preview: {
             sees: [
                 /<div class="verse" data-form="ballad" lang="en">/,
+                /class="verse-canto-break"/,
                 /<span class="verse-line">The lantern burns beside the gate,<\/span><br>\s*<span class="verse-line i1">The harbor sleeps below\.<\/span>/,
             ],
-            absent: [/verse-line i0/],
+            absent: [/verse-line i0/, /verse-stanza-break/],
         },
         indexed: {
             sees: [
                 /<div class="verse" lang="en" data-form="ballad">/,
+                /class="verse-canto-break"/,
                 /<span class="verse-line">The lantern burns beside the gate,<\/span><br>\s*<span class="verse-line i1">The harbor sleeps below\.<\/span>/,
             ],
         },
         book: {
             sees: [
-                /The harbor sleeps below\.\]?\n\n#v\(0\.5em\)[\s\S]*?The Night Watch[\s\S]*?The keeper guards/,
+                /The harbor sleeps below\.\]?\n\n#v\(0\.75em\)\n#align\(center\)\[#line\([\s\S]*?The Night Watch[\s\S]*?The keeper guards/,
                 /The lantern burns beside the gate, \\\n#h\(1\.25em\)The harbor sleeps below\./,
                 /The keeper guards the road till dawn, \\\n#h\(1\.25em\)And keeps a light aglow\./,
             ],

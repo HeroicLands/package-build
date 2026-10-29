@@ -1297,7 +1297,9 @@ function workVerse(token, poem, ctx) {
                         `#heading(level: 3, outlined: false, bookmarked: false)[${renderInline({ children: group.titleChildren }, ctx)}]`
                     :   "";
                 const anchor = group.id ? ` <${sectionLabel(ctx.anchorPrefix, group.id)}>` : "";
-                return `${mark ? scriptWrapped(mark, nativeClasses, nativeAttributes) + "\n" : ""}#v(0.5em)${heading ? "\n" + heading : ""}${anchor}`;
+                const rule =
+                    "#v(0.75em)\n#align(center)[#line(length: 25%, stroke: 0.4pt)]\n#v(0.75em)";
+                return `${mark ? scriptWrapped(mark, nativeClasses, nativeAttributes) + "\n" : ""}${rule}${heading ? "\n" + heading : ""}${anchor}`;
             }
             const label = labelled ? `#text(size: 0.75em, fill: luma(45%))[${group.label}]` : "";
             const lineText = (line, roman = false) => {

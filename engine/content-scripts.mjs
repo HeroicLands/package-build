@@ -2595,7 +2595,13 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
                 });
                 if (positions.length)
                     patches.push({ from: positions[0], to: positions.at(-1) + 1, text: edit.text });
-                else if (edit.from === edit.to && edit.from === base + line.to)
+                else if (
+                    (edit.from === edit.to && edit.from === base + line.to) ||
+                    (edit.from > base + (line.offsets.at(-1) ?? line.from) &&
+                        edit.to <= base + line.to)
+                )
+                    // Trailing source whitespace has no logical-text offsets.
+                    // It may still carry a stanza control after a footnote hole.
                     patches.push({ from: line.text.length, to: line.text.length, text: edit.text });
             }
             let result = line.text;

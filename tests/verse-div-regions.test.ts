@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import { describe, expect, it } from "vitest";
-import { scanVerse, parseVerse } from "../engine/content-verse.mjs";
+import { scanVerse, parseVerse, workShapeFindings } from "../engine/content-verse.mjs";
+import { createRenderer } from "../engine/content-render.mjs";
 import { blockTokens } from "../engine/markdown-blocks.mjs";
 import { pageOpenings } from "../engine/heading-attributes.mjs";
 import { verseRegions } from "../engine/verse-regions.mjs";
@@ -36,6 +37,54 @@ describe("verse div input regions", () => {
             ]);
         }
     });
+    it.each(["\n", "\r\n"])("separates whitespace-only stanza lines with %j endings", (newline) => {
+        for (const blank of [" ", "  ", "    "]) {
+            const body = ["One", blank, "..Two"].join(newline);
+            const model = parseVerse(body);
+            expect(model.errors).toEqual([]);
+            expect(
+                model.cantos[0].stanzas.map((stanza) => stanza.lines.map((line) => line.text)),
+            ).toEqual([["One"], ["Two"]]);
+            const second = model.cantos[0].stanzas[1].lines[0];
+            expect(second.level).toBe(2);
+            expect(second.from).toBe(body.indexOf("..Two"));
+            expect(second.offsets[0]).toBe(body.indexOf("Two"));
+            expect(second.to).toBe(body.length);
+            const nested = [
+                "- Intro.",
+                "",
+                "  ::: {.verse work=w}",
+                "  One",
+                `  ${blank}`,
+                "  ..Two",
+                "  :::",
+                "",
+                "::: {.verse work=w}",
+                "Other",
+                "",
+                "Last",
+                ":::",
+            ].join(newline);
+            const scanned = scanVerse(nested);
+            expect(scanned.errors).toEqual([]);
+            expect(workShapeFindings(scanned.blocks)).toEqual([]);
+            expect(
+                scanned.blocks[0].model.cantos[0].stanzas.map((stanza) =>
+                    stanza.lines.map((line) => line.text),
+                ),
+            ).toEqual([["One"], ["Two"]]);
+            expect(
+                scanned.blocks[0].bodyStart +
+                    scanned.blocks[0].model.cantos[0].stanzas[1].lines[0].offsets[0],
+            ).toBe(nested.indexOf("Two"));
+            for (const target of ["web", "foundry", "preview"] as const) {
+                const html = createRenderer(target).render(div(body));
+                expect(html.match(/class="verse-stanza"/g)).toHaveLength(2);
+                expect(html).toContain('class="verse-line i2">Two');
+            }
+        }
+    });
+
     it("keeps CRLF span source positions through logical-line balancing", () => {
         const lf = "[One\ncontinued/..Two]{.direction #cue}";
         const body = lf.replace(/\n/g, "\r\n");

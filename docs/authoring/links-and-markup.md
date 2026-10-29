@@ -411,7 +411,7 @@ Foundry renders a secret section; the website renders an expandable spoiler, and
 
 A `.verse` div sets a version of a work, whether poetry or prose. `/` ends a
 logical line. Source newlines otherwise join with whitespace, so prose can wrap
-across source lines. A blank line or `//` ends a stanza (a paragraph); a line
+across source lines. A blank line, including one containing only spaces, or `//` ends a stanza (a paragraph); a line
 of `--- {.canto}`, preceded by a blank line, ends a canto (a section). The last line before either
 boundary needs no `/`. A literal slash in text is written `\/`; slashes inside
 Markdown syntax, such as a link destination, remain syntax.
@@ -488,6 +488,9 @@ language's stress rules; it reports an error at the line:
 
 > `` `scan=` counts one language’s beats; this verse line contains another language ``
 
+Speaker labels and stage directions (`.speaker` and `.direction`) are presentation
+only: their text is not scanned, and a line containing only those spans is skipped.
+
 Beats are counted this way:
 
 - **Syllables** are vowel groups. A vowel is a letter whose base is `a`, `e`,
@@ -500,8 +503,10 @@ Beats are counted this way:
 - **A one-syllable noun, verb, adjective, numeral or name has a beat.** A
   one-syllable particle, preposition, conjunction, adverb or pronoun has none.
   The `class` of the lexicon entry decides, so the language's lexicon is read
-  through `lang=` as it is for the word check, and a form the language's rules
-  derive takes its word's class. A word whose entries differ in class is a
+  through `lang=` as it is for the word check, including words inherited from
+  its family. All entries for a spelling in the nearest lexicon supply their
+  classes. A form the
+  language's own rules derive takes its word's class. A word whose entries differ in class is a
   beat that may be left out.
 - **A one-syllable word the lexicon does not hold is a content word** and has a
   beat. The word check reports the word separately.
@@ -649,6 +654,8 @@ definitions.
 #### Canto headings
 
 A canto break stands alone after a blank line, with a stanza on both sides.
+It draws a short centred rule on the site, in Foundry journals and in the book,
+with extra space above and below to distinguish it from a stanza break.
 Its optional `title` appears as a heading and its optional `#id` is an anchor
 within the work, without starting a separate Foundry journal page:
 

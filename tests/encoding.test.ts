@@ -201,7 +201,7 @@ describe("encoding semantics", () => {
             }),
         );
         expect(encodeText(e, "a\r\nb\n\n a\n\n***\r\nb", { verse: true })).toBe("ALBSASKB");
-        expect(decodeText(e, "ALBSASKB")).toBe("a/b\n\na\n\n***b");
+        expect(decodeText(e, "ALBSASKB")).toBe("a/b\n\na\n\n***\nb");
         expect(encodeText(e, "a\nb")).toBe("A B");
     });
     it("rejects unresolved references and malformed schema at its key without mutating input", () => {

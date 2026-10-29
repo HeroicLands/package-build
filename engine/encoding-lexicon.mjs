@@ -229,8 +229,9 @@ function languageNotes(languages, contentPackage, records) {
 
 /**
  * Each configured language's lexicon, read from the language note its `note`
- * names and its family chain. The nearest exact NFC form supplies the whole
- * word; grammar, registers and other settings remain the daughter's own.
+ * names and its family chain. All entries for an exact NFC form come from
+ * the nearest lexicon declaring it; grammar, registers and other settings
+ * remain the daughter's own.
  * A language with no `note`, or one naming no language note, has none.
  *
  * @param {Iterable<Record<string, any>>|undefined} records - Index records.
@@ -259,8 +260,10 @@ export function lexiconsFromRecords(records, config = {}) {
         const chain = lineageChain(key, lineage);
         let data = resolvedNativeData(record.data, record.package ?? config.contentPackage);
         if (chain.length > 1) {
-            const words = new Map();
-            for (const ancestor of chain)
+            const words = [];
+            const inherited = new Set();
+            for (const ancestor of chain) {
+                const forms = new Set();
                 for (const word of listOf(
                     resolvedNativeData(
                         byKey.get(ancestor).data,
@@ -268,12 +271,15 @@ export function lexiconsFromRecords(records, config = {}) {
                     )?.words,
                 )) {
                     if (!isMap(word) || typeof word.form !== "string") continue;
-                    // The nearest complete definition wins before word matching
-                    // folds case or splits compounds. Only words are inherited.
                     const form = word.form.normalize("NFC");
-                    if (!words.has(form)) words.set(form, word);
+                    // Retain every sense in the nearest generation, in authored
+                    // order, before hiding that form in more distant ancestors.
+                    if (!inherited.has(form)) words.push(word);
+                    forms.add(form);
                 }
-            data = { ...data, words: [...words.values()] };
+                for (const form of forms) inherited.add(form);
+            }
+            data = { ...data, words };
         }
         lexicons.set(name, lexiconOf(name, data));
     }

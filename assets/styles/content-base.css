@@ -239,7 +239,9 @@
     .verse
     .verse-canto-break {
     display: block;
-    height: 0.5em;
+    width: 25%;
+    margin: 1.5em auto;
+    border-block-start: 1px solid currentColor;
 }
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
     .verse-paired
