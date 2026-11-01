@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { afterAll, describe, expect, it } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import {
+    mkdtempSync,
+    readFileSync,
+    readdirSync,
+    rmSync,
+    writeFileSync,
+    mkdirSync,
+    existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,14 +115,23 @@ it("allows the canonical repository hook to opt out", () => {
 });
 
 it("ships every hook dependency and runs the installed hook in a consumer", () => {
+    // The artifact contract is one .tgz with package/-prefixed members, inspected
+    // with tar. npm pack's stdout and JSON formats are not part of this contract.
+    const destination = mkdtempSync(path.join(scratch, "pack-"));
     const packed = spawnSync(
         "npm",
-        ["pack", "--ignore-scripts", "--json", "--pack-destination", scratch],
+        ["pack", "--ignore-scripts", "--pack-destination", destination],
         { cwd: root, env, encoding: "utf8" },
     );
     expect(packed.status, packed.stderr).toBe(0);
-    const [manifest] = JSON.parse(packed.stdout);
-    const shipped = new Set(manifest.files.map((file: { path: string }) => file.path));
+    const archives = readdirSync(destination).filter((file) => file.endsWith(".tgz"));
+    expect(archives).toHaveLength(1);
+    const archive = path.join(destination, archives[0]);
+    const listed = spawnSync("tar", ["-tzf", archive], { encoding: "utf8" });
+    expect(listed.status, listed.stderr).toBe(0);
+    const members = listed.stdout.trimEnd().split("\n");
+    for (const member of members) expect(member.startsWith("package/"), member).toBe(true);
+    const shipped = new Set(members.map((member) => member.slice("package/".length)));
     const visited = new Set<string>();
     function visit(relative: string) {
         if (visited.has(relative)) return;
@@ -131,11 +148,9 @@ it("ships every hook dependency and runs the installed hook in a consumer", () =
     visit("githooks/commit-msg");
     const install = path.join(consumer, "node_modules", "@heroiclands", "package-build");
     mkdirSync(install, { recursive: true });
-    const extracted = spawnSync(
-        "tar",
-        ["-xzf", path.join(scratch, manifest.filename), "--strip-components=1", "-C", install],
-        { encoding: "utf8" },
-    );
+    const extracted = spawnSync("tar", ["-xzf", archive, "--strip-components=1", "-C", install], {
+        encoding: "utf8",
+    });
     expect(extracted.status, extracted.stderr).toBe(0);
     for (const relative of visited) expect(existsSync(path.join(install, relative))).toBe(true);
     const hook = path.join(install, "githooks/commit-msg");

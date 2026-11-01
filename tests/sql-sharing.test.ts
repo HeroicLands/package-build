@@ -171,12 +171,17 @@ it.each([false, true])(
             const create = vi.spyOn(DuckDBInstance, "create");
             const instanceClose = vi.spyOn(DuckDBInstance.prototype, "closeSync");
             const connectionClose = vi.spyOn(DuckDBConnection.prototype, "closeSync");
-            if (concurrent)
-                await Promise.all([session.sqlTables("public"), session.sqlTables("all")]);
-            else {
-                await session.sqlTables("all");
-                await session.sqlTables("public");
-            }
+            const results =
+                concurrent ?
+                    await Promise.all([session.sqlTables("all"), session.sqlTables("public")])
+                :   [await session.sqlTables("all"), await session.sqlTables("public")];
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(instanceClose).toHaveBeenCalledTimes(1);
+            expect(connectionClose).toHaveBeenCalledTimes(2);
+            const readsAfterPreparation = read.mock.calls.length;
+            const runsAfterPreparation = run.mock.calls.length;
+            for (const [index, audience] of (["all", "public"] as const).entries())
+                expect(await session.sqlTables(audience)).toBe(results[index]);
             for (const audience of ["all", "public"] as const)
                 expect(rendered(await session.sqlTables(audience))).toEqual(
                     rendered(baseline.get(audience)),
@@ -208,8 +213,8 @@ it.each([false, true])(
                 ).toHaveLength(1);
             }
             expect(create).toHaveBeenCalledTimes(1);
-            expect(instanceClose).not.toHaveBeenCalled();
-            expect(connectionClose).not.toHaveBeenCalled();
+            expect(read).toHaveBeenCalledTimes(readsAfterPreparation);
+            expect(run).toHaveBeenCalledTimes(runsAfterPreparation);
             session.dispose();
             await new Promise<void>((resolve) => setImmediate(resolve));
             expect(instanceClose).toHaveBeenCalledTimes(1);
@@ -293,9 +298,14 @@ function deferred() {
     return { promise, resolve };
 }
 
-it.each([false, true])(
-    "drains preparation before releasing native resources (second opening fails: %s)",
-    async (secondFails) => {
+it.each([
+    [false, false],
+    [true, false],
+    [false, true],
+    [true, true],
+])(
+    "drains preparation before releasing native resources (second opening fails: %s, explicit dispose: %s)",
+    async (secondFails, dispose) => {
         const input = fixture(2);
         const source = [...input.files.keys()][0];
         const query = "SELECT 'held preparation' AS Held";
@@ -308,13 +318,15 @@ it.each([false, true])(
         );
         const entered = deferred();
         const release = deferred();
+        let enteredOnce = false;
         const read = DuckDBConnection.prototype.runAndReadAll;
         vi.spyOn(DuckDBConnection.prototype, "runAndReadAll").mockImplementation(async function (
             sql,
             ...args
         ) {
             const result = await read.call(this, sql, ...args);
-            if (sql === query) {
+            if (sql === query && !enteredOnce) {
+                enteredOnce = true;
                 entered.resolve();
                 await release.promise;
             }
@@ -335,8 +347,11 @@ it.each([false, true])(
             await entered.promise;
             if (secondFails)
                 await expect(session.sqlTables("public")).rejects.toThrow("public opening failed");
-            session.dispose();
-            session.dispose();
+            else await session.sqlTables("public");
+            if (dispose) {
+                session.dispose();
+                session.dispose();
+            }
             await new Promise<void>((resolve) => setImmediate(resolve));
             expect(closed).not.toHaveBeenCalled();
             expect(connectionClosed).toHaveBeenCalledTimes(secondFails ? 1 : 0);
@@ -345,11 +360,139 @@ it.each([false, true])(
             await work.catch((error) => {
                 expect(error.message).toMatch(/disposed/);
             });
-            session.dispose();
             // Flush the promise drain, without timing-dependent sleeps.
             await new Promise<void>((resolve) => setImmediate(resolve));
             expect(closed).toHaveBeenCalledTimes(1);
-            expect(connectionClosed).toHaveBeenCalledTimes(secondFails ? 2 : 1);
+            expect(connectionClosed).toHaveBeenCalledTimes(2);
+            if (!dispose) {
+                if (secondFails)
+                    await expect(session.sqlTables("public")).rejects.toThrow(
+                        "public opening failed",
+                    );
+                const result = await work;
+                expect(await session.sqlTables("all")).toBe(result);
+            }
+            session.dispose();
+            session.dispose();
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(closed).toHaveBeenCalledTimes(1);
+            expect(connectionClosed).toHaveBeenCalledTimes(2);
+            fs.rmSync(input.root, { recursive: true, force: true });
+        }
+    },
+);
+
+it.each(["all", "public"] as const)(
+    "keeps a lone %s preparation usable for a lazy second audience",
+    async (first) => {
+        const input = fixture();
+        const create = vi.spyOn(DuckDBInstance, "create");
+        const connect = vi.spyOn(DuckDBInstance.prototype, "connect");
+        const closed = vi.spyOn(DuckDBInstance.prototype, "closeSync");
+        const connectionClosed = vi.spyOn(DuckDBConnection.prototype, "closeSync");
+        const session = await createContentSession({ config: input.config });
+        try {
+            const result = await session.sqlTables(first);
+            expect(await session.sqlTables(first)).toBe(result);
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(create).toHaveBeenCalledTimes(1);
+            expect(connect).toHaveBeenCalledTimes(1);
+            expect(closed).not.toHaveBeenCalled();
+            expect(connectionClosed).not.toHaveBeenCalled();
+            const second = first === "all" ? "public" : "all";
+            const other = await session.sqlTables(second);
+            expect(await session.sqlTables(second)).toBe(other);
+            expect(await session.sqlTables(first)).toBe(result);
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(create).toHaveBeenCalledTimes(1);
+            expect(connect).toHaveBeenCalledTimes(2);
+            expect(closed).toHaveBeenCalledTimes(1);
+            expect(connectionClosed).toHaveBeenCalledTimes(2);
+        } finally {
+            session.dispose();
+            fs.rmSync(input.root, { recursive: true, force: true });
+        }
+    },
+);
+
+it.each([false, true])(
+    "disposes a single audience after draining work (initialization fails: %s)",
+    async (fails) => {
+        const input = fixture();
+        const entered = deferred();
+        const release = deferred();
+        const connect = DuckDBInstance.prototype.connect;
+        vi.spyOn(DuckDBInstance.prototype, "connect").mockImplementation(async function () {
+            entered.resolve();
+            await release.promise;
+            if (fails) throw new Error("held connection failed");
+            return connect.call(this);
+        });
+        const closed = vi.spyOn(DuckDBInstance.prototype, "closeSync");
+        const connectionClosed = vi.spyOn(DuckDBConnection.prototype, "closeSync");
+        const session = await createContentSession({ config: input.config });
+        const work = session.sqlTables("all");
+        // Attach the rejection handler while the native opening is held.
+        const settled = Promise.allSettled([work]);
+        try {
+            await entered.promise;
+            session.dispose();
+            session.dispose();
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(closed).not.toHaveBeenCalled();
+            expect(connectionClosed).not.toHaveBeenCalled();
+        } finally {
+            release.resolve();
+            const [result] = await settled;
+            expect(result.status).toBe("rejected");
+            if (result.status === "rejected")
+                expect(result.reason.message).toMatch(
+                    fails ? /held connection failed/ : /disposed/,
+                );
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(closed).toHaveBeenCalledTimes(1);
+            expect(connectionClosed).toHaveBeenCalledTimes(fails ? 0 : 1);
+            session.dispose();
+            fs.rmSync(input.root, { recursive: true, force: true });
+        }
+    },
+);
+
+it.each([false, true])(
+    "settles undefined audience maps without opening an unused database (GM query: %s)",
+    async (gmQuery) => {
+        const input = fixture(2);
+        const files = [...input.files.keys()];
+        write(files[0], note({ type: "lore", subType: "history", shortcode: "plain" }));
+        write(
+            files[1],
+            note(
+                { type: "lore", subType: "history", shortcode: "hidden", tags: ["gm"] },
+                gmQuery ? "```sql\nSELECT 'private' AS Audience\n```" : "Written prose.",
+            ),
+        );
+        const create = vi.spyOn(DuckDBInstance, "create");
+        const closed = vi.spyOn(DuckDBInstance.prototype, "closeSync");
+        const connectionClosed = vi.spyOn(DuckDBConnection.prototype, "closeSync");
+        const session = await createContentSession({ config: input.config });
+        try {
+            expect(await session.sqlTables("public")).toBeUndefined();
+            expect(create).not.toHaveBeenCalled();
+            const result = await session.sqlTables("all");
+            if (gmQuery) expect(result!.get(files[1])![0].markdown).toContain("private");
+            else expect(result).toBeUndefined();
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(closed).toHaveBeenCalledTimes(gmQuery ? 1 : 0);
+            expect(connectionClosed).toHaveBeenCalledTimes(gmQuery ? 1 : 0);
+            expect(await session.sqlTables("public")).toBeUndefined();
+            expect(await session.sqlTables("all")).toBe(result);
+            expect(create).toHaveBeenCalledTimes(gmQuery ? 1 : 0);
+            session.dispose();
+            session.dispose();
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(closed).toHaveBeenCalledTimes(gmQuery ? 1 : 0);
+        } finally {
+            session.dispose();
             fs.rmSync(input.root, { recursive: true, force: true });
         }
     },

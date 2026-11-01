@@ -24,7 +24,9 @@ Public and complete preparations share those base tables, with separate
 connections and catalogs preserving unqualified, `main.*` and dependency
 schema names. Each audience derives its event, generator and lexical relations
 separately: public inheritance can skip a GM-only ancestor's definition.
-The session releases its database when disposed.
+The session releases its database after both audience preparations settle,
+or when disposed after pending preparations drain. A session preparing only
+one audience keeps the database available for a later second audience.
 
 Nonempty `data.words` on a language note, or `data.glossary` on a culture or
 affiliation, supplies page content without an authored body. Every other

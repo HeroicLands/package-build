@@ -69,7 +69,7 @@ export const CONTENT_TARGETS = Object.freeze(["index", "lint", "links", "compile
 /**
  * Capture one source tree for index, lint, links and compilation.
  * No source or parser state is persisted or reused by another invocation.
- * Session-owned SQL resources close after pending preparations drain on dispose.
+ * Session-owned SQL resources close after both audiences settle, or on dispose.
  * @param {object} [options]
  * @param {import("../content-config.mjs").ContentBuildConfig} [options.config] - Exact resolved configuration.
  * @param {string} [options.contentBase] - Content root, defaulting to configuration.
@@ -118,8 +118,13 @@ export async function createContentSession({
     );
     const syntaxCache = new Map();
     const prepared = new Map();
+    const settledSqlAudiences = new Set();
     let disposed = false;
     let sqlScope;
+    const releaseSqlScope = () => {
+        sqlScope?.dispose();
+        sqlScope = undefined;
+    };
     const active = () => {
         if (disposed) throw new Error("Content session has been disposed");
     };
@@ -201,29 +206,36 @@ export async function createContentSession({
         async sqlTables(audience = "all") {
             if (audience !== "all" && audience !== "public")
                 throw new Error(`Unknown SQL audience: ${audience}`);
-            return memo(`sql:${audience}`, () =>
-                sql.prepareTreeSqlTables(tree, {
-                    config,
-                    records,
-                    parsed,
-                    audience,
-                    skipDirectories: scope,
-                    foreignIndex: foreign.index,
-                    syntax,
-                    database: async () => {
-                        active();
-                        if (!sqlScope) {
-                            const dependencies = await sql.cachedDependencies(config);
+            return memo(`sql:${audience}`, async () => {
+                try {
+                    return await sql.prepareTreeSqlTables(tree, {
+                        config,
+                        records,
+                        parsed,
+                        audience,
+                        skipDirectories: scope,
+                        foreignIndex: foreign.index,
+                        syntax,
+                        database: async () => {
                             active();
-                            sqlScope ??= sql.createNotesDatabaseScope(records, {
-                                dependencies,
-                                contentBase: tree,
-                            });
-                        }
-                        return sqlScope.database(audience);
-                    },
-                }),
-            );
+                            if (!sqlScope) {
+                                const dependencies = await sql.cachedDependencies(config);
+                                active();
+                                sqlScope ??= sql.createNotesDatabaseScope(records, {
+                                    dependencies,
+                                    contentBase: tree,
+                                });
+                            }
+                            return sqlScope.database(audience);
+                        },
+                    });
+                } finally {
+                    // Each audience has one cached preparation. Both settling
+                    // drains every query while retaining the rendered results.
+                    settledSqlAudiences.add(audience);
+                    if (settledSqlAudiences.size === 2) releaseSqlScope();
+                }
+            });
         },
         async linkTables() {
             return memo("link-tables", () =>
@@ -309,7 +321,7 @@ export async function createContentSession({
             // both successful and failed work before closing native resources.
             const pending = [...prepared.values()];
             void Promise.allSettled(pending).then(() => {
-                sqlScope?.dispose();
+                releaseSqlScope();
                 syntaxCache.clear();
             });
             prepared.clear();
