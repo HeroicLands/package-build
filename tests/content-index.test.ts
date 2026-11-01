@@ -65,6 +65,7 @@ beforeEach(() => {
 
 afterEach(() => {
     fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(`${tmp}-out`, { recursive: true, force: true });
 });
 
 describe("sortKeysDeep", () => {
@@ -594,7 +595,7 @@ describe("serializeContentIndex", () => {
 
 describe("emitContentIndex", () => {
     const config = (root: string) => ({
-        paths: { content: root, contentIndex: path.join(root, "..", "out") },
+        paths: { content: root, contentIndex: `${root}-out` },
         contentPackage: "sohl",
         skipDirectories: [],
         packs: [{ name: "items", type: "Item" }],
@@ -729,7 +730,7 @@ describe("emitContentIndex", () => {
 describe("a note that is in no one pack, or in none", () => {
     const packedConfig = (root: string) =>
         ({
-            paths: { content: root, contentIndex: path.join(root, "..", "out") },
+            paths: { content: root, contentIndex: `${root}-out` },
             contentPackage: "sohl",
             foundryPackage: "sohl",
             skipDirectories: [],
@@ -813,7 +814,7 @@ describe("an item note is two records: the item, and its documentation", () => {
     /** A config whose Foundry identities let a UUID be derived. */
     const foundryConfig = (root: string) =>
         ({
-            paths: { content: root, contentIndex: path.join(root, "..", "out") },
+            paths: { content: root, contentIndex: `${root}-out` },
             contentPackage: "sohl",
             foundryPackage: "sohl",
             skipDirectories: [],
@@ -962,7 +963,7 @@ describe("configured Actor targets", () => {
     it("indexes each system's emitted pack for a dual-system being", () => {
         note("Actor.md", "type: being\nshortcode: actor\nname: { full: Actor }\nsohl: {}\nhm3: {}");
         const config = {
-            paths: { content: tmp, contentIndex: path.join(tmp, "..", "out") },
+            paths: { content: tmp, contentIndex: `${tmp}-out` },
             contentPackage: "ensemble",
             foundryPackage: "harn-ensemble",
             skipDirectories: [],
@@ -982,7 +983,7 @@ describe("configured Actor targets", () => {
 describe("a note may declare more than one system", () => {
     const cfg = (root: string) =>
         ({
-            paths: { content: root, contentIndex: path.join(root, "..", "out") },
+            paths: { content: root, contentIndex: `${root}-out` },
             contentPackage: "sohl",
             foundryPackage: "sohl",
             skipDirectories: [],

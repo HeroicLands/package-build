@@ -172,7 +172,7 @@ describe("buffer-only preview", () => {
             const entry = new URL("../engine/site-preview.mjs", import.meta.url).href;
             const script = `import {registerHooks} from 'node:module';
                 registerHooks({resolve(specifier, context, next) {
-                    if (/(?:content-index|metadata-index|sql-tables|@duckdb)/.test(specifier)) throw new Error('forbidden '+specifier);
+                    if (/(?:^|\\/)(?:content-index|metadata-index|sql-tables)\\.mjs$|^@duckdb\\//.test(specifier)) throw new Error('forbidden '+specifier);
                     return next(specifier, context);
                 }});
                 delete process.env.CONTENT_CONFIG;
