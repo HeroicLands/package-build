@@ -46,6 +46,7 @@ beforeAll(async () => {
         year: 2026,
         report: (event) => events.push(event.kind),
     });
+    await served.settled();
     stream = new AbortController();
     const res = await fetch(new URL(RELOAD_PATH, served.url), { signal: stream.signal });
     const reader = res.body!.getReader();

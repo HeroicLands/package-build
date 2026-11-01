@@ -2346,7 +2346,11 @@ function siteBuildCommand() {
                 const config = argv[CONTENT_CONFIG] ?? loadPackConfig();
                 const root = path.resolve(config.rootDir, argv.out ?? DEPLOY_ROOT);
                 const out = siteDirectory(config, root);
-                const result = await buildPackageSite({ config, out });
+                const result = await buildPackageSite({
+                    config,
+                    out,
+                    progress: (message) => log.info(message),
+                });
                 // A note in error is written as its page shows it, and the
                 // build fails without indexing a site that is not to be
                 // deployed.
@@ -2374,6 +2378,7 @@ function siteBuildCommand() {
                     base: siteBase(config),
                     out: root,
                     search: config.site.search,
+                    progress: (message) => log.info(message),
                 });
                 if (search) {
                     log.info(
@@ -2429,8 +2434,10 @@ function siteServeCommand() {
                     host: argv.host,
                     port: argv.port,
                     report: (event) => {
-                        if (event.kind === "error") reportFailure(event.error);
-                        else if (event.kind === "failed") {
+                        if (event.kind === "progress") log.info(event.message);
+                        else if (event.kind === "error") {
+                            if (!event.fatal) reportFailure(event.error);
+                        } else if (event.kind === "failed") {
                             if (event.built) reportSiteBuild(event.built);
                             for (const finding of event.findings ?? []) emitDiagnostic(finding);
                         } else {
@@ -2444,11 +2451,22 @@ function siteServeCommand() {
                     },
                 });
                 log.info(`serving ${served.url} — interrupt to stop`);
-                await new Promise((resolve) => {
-                    process.once("SIGINT", resolve);
-                    process.once("SIGTERM", resolve);
+                let interrupt;
+                const interrupted = new Promise((resolve) => {
+                    interrupt = resolve;
+                    process.once("SIGINT", interrupt);
+                    process.once("SIGTERM", interrupt);
                 });
-                await served.close();
+                try {
+                    await Promise.race([interrupted, served.done]);
+                } catch (err) {
+                    reportFailure(err);
+                    process.exitCode = 1;
+                } finally {
+                    process.removeListener("SIGINT", interrupt);
+                    process.removeListener("SIGTERM", interrupt);
+                    await served.close();
+                }
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

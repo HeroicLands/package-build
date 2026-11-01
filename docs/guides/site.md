@@ -302,12 +302,22 @@ index inside it. Nothing else renders the pages: the body of each is the same
 HTML the Foundry journals and the editor preview read, drawn into the site
 theme's layouts and minified.
 
+The terminal reports indexing, rendering, writing and search indexing as they
+start, including page counts where available. Progress is on stdout;
+diagnostics retain their file, line and column on stderr.
+
 ```bash
 package-build site serve
 ```
 
-`package-build site serve` builds the site the same way and serves it at
-`http://127.0.0.1:1313/<contentPackage>/`. Edit a note and its page is written
+`package-build site serve` prints its address as soon as HTTP starts, before
+building the site: `http://127.0.0.1:1313/<contentPackage>/`. Existing output
+remains available during the build. Successful whole builds replace the pages
+and search index together; failed builds leave the last successful output in
+place. A first run with no output answers HTTP 503 until a build succeeds, with
+a message pointing to progress and diagnostics in the terminal.
+
+Edit a note and its page is written
 again and the browser reloads; edit the theme and every page is drawn again.
 A change that moves, renames or adds a note builds the whole site again. See
 [`site serve`](../commands.md#package-build-site-serve) for the whole table.

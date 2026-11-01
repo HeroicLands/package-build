@@ -1329,11 +1329,29 @@ content tree can also compile into Foundry compendium packs.
 | `renderPages`         | `function renderPages(pages, options)`           | `{{written: number, byKind: Record<string, number>, tableErrors: object[], wikiErrors: object[]}}`                                                   | Renders every page.                                                                                                        |
 | `resolveSitePass`     | `function resolveSitePass(name, options)`        | `{{beforeLinks?: Function}}` The bundle.                                                                                                             | Resolves `site.pass` to its bundle.                                                                                        |
 | `sitePageDecorator`   | `sitePageDecorator(config, index)`               | Function                                                                                                                                             | Add the site's infobox and being metadata to a rendered page.                                                              |
-| `buildSite`           | `buildSite({ config, sqlTables })`               | `{{gates: object, stats: object\|null, tableErrors: object[], wikiErrors: object[], mapFindings: object[], manifests: object\|null, site?: object}}` | Collects, checks and renders a content tree's pages, and reports what it found; returns each page for the site's renderer. |
+| `buildSite`           | `buildSite({ config, sqlTables, progress })`     | `{{gates: object, stats: object\|null, tableErrors: object[], wikiErrors: object[], mapFindings: object[], manifests: object\|null, site?: object}}` | Collects, checks and renders a content tree's pages, and reports what it found; returns each page for the site's renderer. |
 
 `siteGates` takes `{ config, records, sqlTables? }`. Pass the prepared
 `sqlTables` map so anchors emitted by automatic dictionary sections are present in the
 index for checking page links.
+
+`buildSite`, `engine/site-render.mjs`'s `buildPackageSite` and `writeSite`, and
+`engine/site-root.mjs`'s `writeSiteRoot` accept an optional `progress(message)`
+callback for phase summaries. It receives prose, independently of findings.
+
+`engine/site-serve.mjs`'s `serveSite({ config, out, root?, host?, port?, search?,
+year?, report? })` resolves with `{ url, settled, close, done }` when HTTP listens,
+before the initial build. Await `settled()` to wait for that build and queued
+edits, and `close()` to stop watching and serving. `done` resolves on close;
+an unexpected HTTP failure rejects it and stops the watchers. Its `report` callback
+receives `progress` events with a `message`, alongside `built`, `page`,
+`theme`, `failed` and `error` events; a fatal HTTP error has `fatal: true`.
+Failed builds are reported through that
+callback and leave the previous output in service. HTTP runs in a separate
+thread so synchronous rendering does not stall requests; the resolved
+configuration and incremental render state stay in the calling thread. Every
+update is prepared in a separate output tree, then installed between HTTP
+requests so readers receive complete files.
 
 ### `engine.contentRender`
 

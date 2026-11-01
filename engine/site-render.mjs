@@ -312,18 +312,30 @@ export function writeThemeFiles(out, staticDir = SITE_STATIC_DIR) {
  * @param {string} [options.staticDir] - The theme's own files, copied first.
  * @param {ReadonlySet<string>} [options.only] - The addresses of the pages to
  *   draw again into a site already written. Nothing else is touched.
+ * @param {(message: string) => void} [options.progress] - Build phase summaries.
  * @returns {{files: string[], pages: string[], reachable: string[],
  *   findings: object[]}} Every file written, the address of every page, the
  *   address of each page reachable from the homepage, and the layouts' findings.
  * @throws {Error} When a page's address is outside the site, or a site served
  *   under a path asks for a sitemap index.
  */
-export function writeSite({ site, pages, out, report, staticDir = SITE_STATIC_DIR, only }) {
+export function writeSite({
+    site,
+    pages,
+    out,
+    report,
+    staticDir = SITE_STATIC_DIR,
+    only,
+    progress = () => {},
+}) {
     if (site.sitemaps && basePath(site) !== "/")
         throw new Error(
             `a sitemap index and robots.txt belong at the root of an origin, and this site is served under ${basePath(site)}`,
         );
     const tree = siteTree(site, pages);
+    progress(
+        `writing ${only ? tree.filter((page) => only.has(page.url)).length : tree.length} page(s)`,
+    );
     const published = new Set(tree.map((page) => page.url));
     const feedUrl = site.feed ? relUrl(site, `${site.feed.section}/atom.xml`) : "";
     const base = basePath(site);
@@ -659,6 +671,7 @@ export function deliverSiteFonts(config, out) {
  * @param {string} options.out - The directory the site is written to, which
  *   is the package's own directory under the deployed root.
  * @param {number} [options.year] - The year the footer states.
+ * @param {(message: string) => void} [options.progress] - Build phase summaries.
  * @returns {Promise<{built: object, written: object|null, fonts: object|null,
  *   site?: object, pages?: object[], pageOf?: (entry: object) => object}>}
  *   What the build found, and, when it found nothing that stops it, what was
@@ -666,18 +679,19 @@ export function deliverSiteFonts(config, out) {
  *   becomes its page. `written` is `null` when a gate fired.
  * @throws {Error} When the site's settings or its cached menu cannot be read.
  */
-export async function buildPackageSite({ config, out, year }) {
+export async function buildPackageSite({ config, out, year, progress = () => {} }) {
     const settings = siteSettings({ config });
     const navigation = readCachedNavigation(config);
+    progress("indexing content");
     const sqlTables = await prepareTreeSqlTables(config.paths.content, {
         skipDirectories: config.skipDirectories,
         config,
         audience: "public",
     });
-    const built = buildSite({ config, sqlTables, write: false });
+    const built = buildSite({ config, sqlTables, progress });
     if (gatesFailed(built.gates)) return { built, written: null, fonts: null };
     const { site, pages, pageOf } = packageSite({ config, built, settings, navigation, year });
-    const written = writeSite({ site, pages, out });
+    const written = writeSite({ site, pages, out, progress });
     const fonts = deliverSiteFonts(config, out);
     return { built, written, fonts, site, pages, pageOf };
 }

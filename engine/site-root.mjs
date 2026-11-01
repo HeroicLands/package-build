@@ -300,6 +300,7 @@ export async function indexSite({ site, output, base }) {
  *   `site.search` in the configuration. Default `true`.
  * @param {SiteIndexer} [options.indexer] - What builds it. Default
  *   {@link indexSite}.
+ * @param {(message: string) => void} [options.progress] - Build phase summaries.
  * @returns {Promise<{files: string[], search: {dir: string, pages: number}|null}>}
  *   The files written, and the index — where it is and how many pages it
  *   holds — or `null` when none was built.
@@ -308,7 +309,14 @@ export async function indexSite({ site, output, base }) {
  *   under the prefix; or, located at the rendered site, when the indexer
  *   fails.
  */
-export async function writeSiteRoot({ pkg, base, out, search = true, indexer = indexSite }) {
+export async function writeSiteRoot({
+    pkg,
+    base,
+    out,
+    search = true,
+    indexer = indexSite,
+    progress = () => {},
+}) {
     const root = path.resolve(out);
     const prefix = base ?? `/${pkg}/`;
     const rendered = path.join(root, ...prefix.split("/").filter(Boolean));
@@ -331,6 +339,7 @@ export async function writeSiteRoot({ pkg, base, out, search = true, indexer = i
     }
     let pages;
     try {
+        progress("building the search index");
         ({ pages } = await indexer({ site: rendered, output: dir, base: prefix }));
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

@@ -1141,6 +1141,7 @@ export function sitePageDecorator(config, index) {
  * @param {object} [options] - Options.
  * @param {object} [options.config] - A resolved configuration; loaded when
  *   omitted.
+ * @param {(message: string) => void} [options.progress] - Build phase summaries.
  * @param {Map<string, object[]>} [options.sqlTables] - Prepared `sql` results,
  *   keyed by the note's absolute file, from
  *   {@link module:engine/sql-tables.prepareSqlTables}. A page authoring an
@@ -1157,7 +1158,7 @@ export function sitePageDecorator(config, index) {
  *   against the rest of the build, or returns `null` when its address, name
  *   or type changed and the whole site must be built again.
  */
-export function buildSite({ config, sqlTables } = {}) {
+export function buildSite({ config, sqlTables, progress = () => {} } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
@@ -1247,6 +1248,7 @@ export function buildSite({ config, sqlTables } = {}) {
     // the content tree for pages, so `sohl-kethira-basic` and `harn-adventures`
     // cannot publish one whatever else their `site:` block declares.
     if (!publishesContent) {
+        progress(`rendering ${homepages.length} page(s)`);
         return {
             gates: emptyGates(),
             manifests: null,
@@ -1322,6 +1324,7 @@ export function buildSite({ config, sqlTables } = {}) {
         };
     }
 
+    progress(`rendering ${pages.length + homepages.length} page(s)`);
     const pass = resolveSitePass(site.pass, {
         ...site.passOptions,
         repoRoot: resolved.rootDir,

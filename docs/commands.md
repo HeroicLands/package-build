@@ -2698,6 +2698,11 @@ links, tables, expressions, generated sections, maps — and rendered by the
 same renderer the Foundry journals and the editor preview use, then drawn by
 the site theme's layouts.
 
+Progress goes to stdout as each phase starts: indexing content, rendering
+pages, writing pages, and building the search index. Rendering and writing
+include page counts; the search summary gives the number indexed. Diagnostics
+remain on stderr in `file:line:column: severity: message` form.
+
 **A site is its homepage and its pages.** The `type: homepage` note is the
 package's front page at `/<contentPackage>/`; every other note is one page at
 `/<contentPackage>/<type>-<shortcode>/`. Nothing is generated between them
@@ -2770,8 +2775,12 @@ findings of severity `warning` included.
 
 ```
 $ package-build site build
+[…] indexing content
+[…] rendering 4306 page(s)
+[…] writing 4306 page(s)
 package-build.config.yaml:38:24: warning: the page-not-found links to /thalorna/polity/, which the site does not publish, so the link is left out
 […] wrote 4306 page(s) to build/site/thalorna
+[…] building the search index
 […] indexed 4307 page(s) for search into build/site/thalorna/pagefind
 ```
 
@@ -2794,12 +2803,24 @@ package-build site serve [--port <port>] [--host <address>] [--out <dir>]
 
 **DESCRIPTION**
 
-Builds the site as `package-build site build` does, indexes it for search once,
-and serves the deployed directory over HTTP, so every page is at the address it
+Starts HTTP and prints the listening address before the first build begins.
+Builds the site as `package-build site build` does and indexes it for search,
+while serving the deployed directory, so every page is at the address it
 is deployed at: `http://127.0.0.1:1313/<contentPackage>/`, or the path
 `site.base` states. An address the site does not publish is answered with its
 `404.html`. A search index `site.mergeIndexes` names is not served, since it is
 another site's; the site's own index is.
+
+Existing output stays available while a whole build runs. Incremental page and
+theme updates also prepare their files separately before replacing the served
+tree, so requests receive complete pages and styles. The new pages and
+search index replace it together after a successful build. A failed render,
+font delivery or search build leaves the previous site available. Without
+existing output, requests receive HTTP 503 with a message pointing to the
+terminal until a build succeeds; reload the page after the build completes.
+The build's indexing, rendering, writing and search phases print to stdout,
+with page counts where available. Diagnostics keep their located format on
+stderr. Whole rebuilds also refresh the search index.
 
 The content tree and the theme are watched. A change to a note's body or
 frontmatter writes that note's page again; a note whose name, type or
@@ -2825,15 +2846,21 @@ running. Interrupt it to stop.
 
 **EXIT STATUS**
 
-1 when the site's settings or its cached menu cannot be read. Otherwise 0 once
-interrupted.
+1 when the site's settings or its cached menu cannot be read, or HTTP cannot
+start or stops unexpectedly. Build failures are reported while the server keeps running. Otherwise
+0 once interrupted.
 
 **EXAMPLES**
 
 ```
 $ package-build site serve
-[…] built the site
 […] serving http://127.0.0.1:1313/thalorna/ — interrupt to stop
+[…] indexing content
+[…] rendering 4306 page(s)
+[…] writing 4306 page(s)
+[…] building the search index
+[…] indexed 4307 page(s) for search
+[…] built the site
 […] wrote build/site/thalorna/place-vedyara/index.html
 ```
 
