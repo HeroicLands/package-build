@@ -25,6 +25,7 @@ import { captureContentSources } from "./content-sources.mjs";
 import { buildLinkIndex } from "./content-links.mjs";
 import { buildContentLinkIndex } from "./helpers.mjs";
 import { runContext } from "./content-scripts.mjs";
+import { resolveReference } from "./wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
@@ -273,19 +274,22 @@ export async function createContentSession({
         async compileCorpus() {
             return memo("compile", async () => {
                 const sqlTables = await session.sqlTables("all");
+                const linkIndex = buildContentLinkIndex(tree, router, {
+                    config,
+                    records,
+                    sqlTables,
+                    foreign,
+                });
                 return {
-                    runs: runContext(config, records),
+                    runs: runContext(config, records, {
+                        referenceName: (target) => resolveReference(linkIndex, target)?.name,
+                    }),
                     records,
                     parsed,
                     problems,
                     sqlTables,
                     syntax,
-                    linkIndex: buildContentLinkIndex(tree, router, {
-                        config,
-                        records,
-                        sqlTables,
-                        foreign,
-                    }),
+                    linkIndex,
                 };
             });
         },

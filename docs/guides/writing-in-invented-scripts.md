@@ -618,11 +618,14 @@ that the language lists in `data.sounds.syllables.vowelPairs` is one syllable.
 
 **The beat convention, in plain words:**
 
-- Every word of two or more syllables has one beat, on its stressed syllable.
+- A word of two or more syllables has one beat, on its stressed syllable,
+  but may go unstressed when every lexicon class is a function class: any base
+  other than `n`, `v`, `adj`, `num` or `name`. A word with any content class,
+  or no lexicon entry, keeps its beat.
 - A one-syllable noun, verb, adjective, numeral or name has a beat. A
   one-syllable particle, preposition, conjunction, adverb or pronoun has none.
   The lexicon entry's class decides, and a form that the language's rules derive
-  takes its word's class. A word whose entries differ in class is a beat that
+  takes its word's class. A one-syllable word with both content and function classes has a beat that
   may be left out.
 - A one-syllable word the lexicon does not hold is a content word and has a
   beat; the word check reports the word separately.

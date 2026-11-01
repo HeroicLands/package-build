@@ -15,6 +15,13 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
+import {
+    buildWikilinkIndex,
+    resolveReference,
+    packLinkView,
+    resolveWikilinks,
+} from "../engine/wikilinks.mjs";
+import { previewIndex } from "../engine/preview-index.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -51,6 +58,11 @@ const language = (stress: object | undefined, extra: object = {}) => ({
             { form: "ir", class: "conj", gloss: "or" },
             { form: "ol", class: "n", gloss: "a hand" },
             { form: "ol", class: "part", gloss: "of" },
+            { form: "inwe", class: "part", gloss: "and then" },
+            { form: "virwe", class: "pron", gloss: "with them" },
+            { form: "howra", class: "n", gloss: "a measure" },
+            { form: "howra", class: "part", gloss: "until" },
+            { form: "inwevirwe", class: "part", gloss: "even then" },
             { form: "zaros", class: "n", gloss: "an oath-giver" },
             { form: "alatha", class: "n", gloss: "a hill" },
             { form: "malkothoi", class: "n", gloss: "stones" },
@@ -176,9 +188,19 @@ describe("the beats of a line", () => {
         return [min, max];
     };
 
-    it("gives a word of two or more syllables one beat", () => {
+    it("gives a content word of two or more syllables one beat", () => {
         expect(beats("zaros")).toEqual([1, 1]);
         expect(beats("alatha")).toEqual([1, 1]);
+    });
+
+    it("allows multi-syllable function words to go unstressed", () => {
+        expect(beats("zaros zaros zaros zaros inwe virwe")).toEqual([4, 6]);
+        expect(beats("inwevirwe")).toEqual([0, 2]);
+    });
+
+    it("keeps a beat for multi-syllable words with any content class or no entry", () => {
+        expect(beats("howra")).toEqual([1, 1]);
+        expect(beats("quxar")).toEqual([1, 1]);
     });
 
     it("gives a one-syllable noun, verb, adjective or numeral a beat", () => {
@@ -306,6 +328,149 @@ describe("the warning", () => {
         expect(
             warnings(fence("scan=hexameter lang=vyl", "zaros zaros zaros zaros zaros zaros")),
         ).toEqual([]);
+    });
+
+    it.each([
+        "[[place-ashkarad|zaros]] zaros zaros",
+        "[[lore-hndrdbnnrs#old|zaros]]{.name} zaros zaros",
+        "[[place-ashkarad|*zaros*]] zaros zaros",
+    ])("counts only a wikilink's visible label in %s", (line) => {
+        expect(warnings(fence("scan=trimeter lang=vyl", line))).toEqual([]);
+    });
+
+    it("counts an empty wikilink label by its indexed target name", () => {
+        const place = {
+            package: "demo",
+            type: "place",
+            shortcode: "ashkarad",
+            name: { full: "zaros" },
+            address: { canonical: "demo-note-place-ashkarad" },
+        };
+        const withNames = runContext(config, [language(RULE), metres, place]);
+        const source = fence("scan=trimeter lang=vyl", "[[place-ashkarad|]] zaros zaros");
+        expect(scanRuns(source, withNames).warnings).toEqual([]);
+    });
+
+    it("counts an empty foreign label through the compile's reference view", () => {
+        const foreign = new Map([
+            [
+                "sohl-note-place-ashkarad",
+                {
+                    name: "zaros zaros",
+                    type: "place",
+                    package: "sohl",
+                    uuid: "Compendium.sohl.journals.JournalEntry.foreignplace",
+                },
+            ],
+        ]);
+        const index = buildWikilinkIndex([], "demo", foreign, "demo", {
+            referenceTargets: new Map(),
+            foreignReferences: foreign,
+        });
+        const withNames = runContext(config, [language(RULE), metres], {
+            referenceName: (target) => resolveReference(index, target)?.name,
+        });
+        const source = fence("scan=trimeter lang=vyl", "[[sohl-note-place-ashkarad|]] zaros");
+        expect(scanRuns(source, withNames).warnings).toEqual([]);
+    });
+
+    it("uses the indexed preview's foreign target name for both display and metre", () => {
+        const foreign = new Map([
+            [
+                "sohl-note-place-ashkarad",
+                {
+                    name: "zaros zaros",
+                    type: "place",
+                    package: "sohl",
+                    url: "/sohl/place-ashkarad/",
+                },
+            ],
+        ]);
+        const preview = previewIndex({
+            config: { ...config, site: { base: "/demo/" } },
+            records: [language(RULE), metres],
+            foreign: { index: foreign, references: foreign },
+        });
+        const source = fence("scan=trimeter lang=vyl", "[[sohl-note-place-ashkarad#hill|]] zaros");
+        expect(scanRuns(source, preview.runs).warnings).toEqual([]);
+        expect(preview.runs.referenceName("sohl-note-place-ashkarad")).toBe("zaros zaros");
+        const expanded = preview.expand(source.replace("#hill", ""), {
+            fm: { type: "lore" },
+            file: "Verse.md",
+        });
+        expect(expanded.markdown).toContain("[zaros zaros](/sohl/place-ashkarad/)");
+    });
+
+    it("retains the link resolver's own missing-target finding for an unscannable line", () => {
+        const index = buildWikilinkIndex([], "demo", new Map(), "demo");
+        const source = fence("scan=trimeter lang=vyl", "[[place-nowhere|]] zaros zaros");
+        expect(warnings(source)).toEqual([]);
+        const resolved = resolveWikilinks(source, {
+            view: packLinkView(
+                { ...index, types: new Set(["place"]) },
+                { type: "lore", id: "verse" },
+            ),
+            write: (link) => link.text,
+        });
+        expect(resolved.findings).toEqual([
+            expect.objectContaining({ target: "place-nowhere", reason: "unresolved" }),
+        ]);
+    });
+
+    it("keeps a supplied reference view authoritative over cached local names", () => {
+        const place = {
+            package: "demo",
+            type: "place",
+            shortcode: "ashkarad",
+            name: { full: "zaros" },
+        };
+        const records = [language(RULE), metres, place];
+        const source = fence("scan=trimeter lang=vyl", "[[place-ashkarad|]] zaros");
+        const shorter = runContext(config, records, { referenceName: () => "zaros" });
+        const longer = runContext(config, records, { referenceName: () => "zaros zaros" });
+        expect(scanRuns(source, shorter).warnings[0].message).toContain("2 beats");
+        expect(scanRuns(source, longer).warnings).toEqual([]);
+        expect(scanRuns(source, shorter).warnings[0].message).toContain("2 beats");
+    });
+
+    it.each(["[[place-nowhere|]]", "[[#figure|]]", "[[place-nowhere]]"])(
+        "leaves a line unscanned when the empty label has no resolved spoken text: %s",
+        (link) => {
+            const source = fence("scan=trimeter lang=vyl", `${link} zaros zaros`);
+            expect(warnings(source)).toEqual([]);
+        },
+    );
+
+    it("keeps an unresolved presentation-only reference out of the spoken scan", () => {
+        const source = fence(
+            "scan=trimeter lang=vyl",
+            "[Speaker [[place-nowhere|]]]{.speaker} zaros zaros",
+        );
+        expect(warnings(source)).toEqual([
+            "2:1: this line has 2 beats; the metre `trimeter` has 3",
+        ]);
+    });
+
+    it("retains the original location of a foreign run after a wikilink", () => {
+        const source = fence(
+            "scan=trimeter lang=vyl",
+            "[[place-ashkarad|zaros]] [foreign]{lang=en} zaros",
+        );
+        expect(errors(source).filter((message) => message.includes("counts one language"))).toEqual(
+            [
+                "2:26: `scan=` counts one language's beats; this verse line contains another language",
+            ],
+        );
+    });
+
+    it("applies a wikilink's language attribute to its label", () => {
+        const source = fence(
+            "scan=trimeter lang=vyl",
+            "[[place-ashkarad|zaros]]{lang=en} zaros zaros",
+        );
+        expect(errors(source).filter((message) => message.includes("counts one language"))).toEqual(
+            ["2:1: `scan=` counts one language's beats; this verse line contains another language"],
+        );
     });
 
     it("says how many beats the line has and how many the metre wants, at the line", () => {

@@ -1380,6 +1380,16 @@ complete source. Reference-only positions contribute no work shape. A wholly
 reference-only body carries its references in `model.notes`, rendered once
 outside native-font wrappers without a verse row or label.
 
+Verse regions retain the authored `body` and its absolute `bodyStart` and
+`bodyEnd`. Their `logicalBody` excludes Markdown list and blockquote prefixes;
+`bodyOffsets` maps each logical UTF-16 position, including the exclusive end,
+back to an authored body offset. `parseVerse(logicalBody, {sourceOffsets:
+bodyOffsets, footnotes})` returns the whole model in authored body coordinates:
+line bounds and character offsets, stanza and canto bounds, boundaries, layout
+ranges and findings all use that map. Omitted prefixes are layout ranges, so
+Roman and native projections exclude them. Add `bodyStart` to a model offset to
+locate it in the complete source. LF and CRLF retain their authored lengths.
+
 | Export           | Signature                          | Returns                                                      | Use it when                                                                              |
 | ---------------- | ---------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `createRenderer` | `createRenderer(target, options?)` | `{ target, md, plugins, prepare, render, renderInline }`     | Rendering a note body for one target with the rules every target shares.                 |
@@ -2590,6 +2600,16 @@ alongside `records`. `locateFrontmatterKey` and `assertNoDeclaredPackage` accept
 points derive their own inputs. Generation and pack compilation accept
 `reportPreparation` (default true); a coordinating caller may set it false
 only after reporting the shared source findings itself.
+
+`engine/content-scripts` exposes `runContext(config, records?, {referenceName}?)`.
+It returns the language, encoding and metre context used by run scanning.
+`referenceName(target)` supplies the rendering or validation index's current
+name for an Address, including dependency targets, or `undefined` when none
+resolves. This lookup takes precedence over the local-record fallback and
+belongs only to the returned context; shared cached lexical data does not
+share a lookup between page or audience views. A metre line whose empty link
+label has no resolved spoken text stays unscanned, while the link validator
+reports invalid targets independently.
 
 `buildLinkIndex` and `buildContentLinkIndex` accept an optional `foreign` view
 from the same session; their diagnostic and routed resolver contracts remain

@@ -669,7 +669,7 @@ function protectLintVerse(source) {
     };
     for (const region of verseRegions(syntax)) {
         if (!region.closed) continue;
-        referencesInVerse(region.body, parseVerse(region.body, { footnotes }));
+        referencesInVerse(region.logicalBody, parseVerse(region.logicalBody, { footnotes }));
         ranges.push([region.bodyStart, starts[region.end]]);
         for (let line = region.start + 1; line < region.end; line++) {
             bodyLines.add(line + 1);

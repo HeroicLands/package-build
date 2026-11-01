@@ -31,6 +31,9 @@ Leading `:` captions describe the next supported block; `:@` captions also numbe
 
 A `.verse` div (`::: {.verse ...}` or `:::verse {...}`) sets poetry or prose. `/` ends a logical line; source newlines
 otherwise join. Blank lines or `//` end stanzas, and a standalone `--- {.canto}` after a blank line ends a canto.
+Blockquotes and list items may contain verse divs, including nested combinations.
+Their container prefixes are excluded from verse text, while findings retain
+authored line and column positions with either LF or CRLF endings.
 Leading periods indent a logical line, including after `/` within a source line;
 a period on a joined continuation line is text. `\/` writes a literal slash.
 A concrete `enc=` on a div sets the original once in two presentations, script on the left

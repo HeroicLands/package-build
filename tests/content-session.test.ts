@@ -17,6 +17,8 @@ import * as blockScans from "../engine/content-blocks.mjs";
 import * as firstUse from "../engine/first-use.mjs";
 import * as sqlPreparations from "../engine/sql-tables.mjs";
 import { auditLinks, buildLinkIndex } from "../engine/content-links.mjs";
+import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
+import { scanRuns } from "../engine/content-scripts.mjs";
 import { prepareContentIndex, emitContentIndex } from "../engine/content-index.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
@@ -554,6 +556,82 @@ describe("one invocation owns the shared content session", () => {
             isolated.dispose();
         }
         await expect(first.publication()).rejects.toThrow(/disposed/i);
+    });
+
+    it("shares dependency reference names with both compile-corpus paths", async () => {
+        const input = repo();
+        const config = configFromData(
+            {
+                ...YAML.parse(fs.readFileSync(input.configFile, "utf8")),
+                relationships: {
+                    requires: [
+                        {
+                            id: "source",
+                            manifest: "https://example.invalid/source/module.json",
+                            compatibility: { verified: "1.0.0" },
+                        },
+                    ],
+                },
+            },
+            input.configFile,
+        );
+        const dependency = path.join(config.paths.metadataCache, "source@1.0.0");
+        write(
+            path.join(dependency, "source-metadata.jsonl"),
+            JSON.stringify({
+                package: "source",
+                type: "place",
+                shortcode: "hill",
+                name: { full: "men men" },
+                address: { slug: "place-hill", canonical: "source-note-place-hill" },
+                anchors: [],
+                foundry: null,
+                documentation: null,
+            }) + "\n",
+        );
+        write(path.join(dependency, ".complete"), "");
+        write(
+            path.join(config.paths.content, "Note2.md"),
+            note({
+                type: "skill",
+                subType: "language",
+                shortcode: "tongue",
+                name: { full: "Tongue" },
+                data: {
+                    roman: "abcdefghijklmnopqrstuvwxyz",
+                    sounds: { stress: { two: "first", longer: "penultimate" } },
+                    words: [{ form: "men", class: "n", gloss: "stone" }],
+                },
+            }),
+        );
+        write(
+            path.join(config.paths.content, "Metres.md"),
+            note({
+                type: "doc",
+                subType: "reference",
+                shortcode: "metres",
+                name: { full: "Metres" },
+                data: { metres: [{ name: "trimeter", beats: 3, kind: "accentual" }] },
+            }),
+        );
+        const session = await factory()({ config });
+        try {
+            const captured = await session.compileCorpus();
+            const direct = await buildCompileCorpus({
+                config,
+                contentBase: config.paths.content,
+                skipDirectories: config.skipDirectories,
+                router: session.router,
+            });
+            const source =
+                "::: {.verse scan=trimeter lang=tongue}\n[[source-note-place-hill|]] men\n:::";
+            for (const corpus of [captured, direct]) {
+                expect(corpus.runs.referenceName("source-note-place-hill")).toBe("men men");
+                expect(scanRuns(source, corpus.runs).warnings).toEqual([]);
+            }
+        } finally {
+            session.dispose();
+        }
     });
 
     it("captures dependency SQL schemas anew for a fresh resolved configuration", async () => {

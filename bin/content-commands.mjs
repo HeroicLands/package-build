@@ -1289,7 +1289,12 @@ function lintCommand() {
                 // Text marked with a language, a font or a map, checked against
                 // the languages this package declares, the faces it installed
                 // and the maps its notes declare.
-                const runs = runContext(config, records);
+                const runs = runContext(config, records, {
+                    referenceName: (target) => {
+                        const hit = index.resolveAddress(target) ?? index.manifestHit(target);
+                        return hit?.fm?.name?.full ?? hit?.name;
+                    },
+                });
                 const loaderLocations = new Set(
                     (runs.encodingFindings ?? []).map((one) =>
                         JSON.stringify([one.file, one.line, one.column, one.message]),

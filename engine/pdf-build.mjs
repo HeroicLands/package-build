@@ -1385,7 +1385,9 @@ async function buildBook(book, shared) {
                 url: site,
                 elsewhere,
                 findings,
-                runs: runContext(resolved, records),
+                runs: runContext(resolved, records, {
+                    referenceName: (target) => resolveInfoboxRef(gates.index, target)?.name,
+                }),
                 file: page.file,
                 bodyLine: page.bodyLine,
                 prepared: true,
@@ -1476,7 +1478,9 @@ async function buildBook(book, shared) {
                     elsewhere,
                     indexMentions: true,
                     findings,
-                    runs: runContext(resolved, records),
+                    runs: runContext(resolved, records, {
+                        referenceName: (target) => resolveInfoboxRef(gates.index, target)?.name,
+                    }),
                     file,
                 }),
             );
@@ -1508,7 +1512,9 @@ async function buildBook(book, shared) {
                 elsewhere,
                 indexMentions: true,
                 findings,
-                runs: runContext(resolved, records),
+                runs: runContext(resolved, records, {
+                    referenceName: (target) => resolveInfoboxRef(gates.index, target)?.name,
+                }),
                 file,
             });
         } catch {
@@ -1682,7 +1688,9 @@ async function buildBook(book, shared) {
         copyright: shared.copyright,
         license: shared.license,
         index,
-        runs: runContext(resolved, records),
+        runs: runContext(resolved, records, {
+            referenceName: (target) => resolveInfoboxRef(gates.index, target)?.name,
+        }),
     });
     // Last, over the whole document: a reference can only be checked once every
     // declaration is in one string, and Typst treats a dangling one as fatal.

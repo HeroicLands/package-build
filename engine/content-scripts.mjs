@@ -74,6 +74,9 @@ import { plainRomanVerse } from "./roman-verse.mjs";
 import { encodeText } from "./encoding.mjs";
 import { WIKILINK } from "./wikilink-syntax.mjs";
 import { matchAllOutsideCode } from "./code-fences.mjs";
+import { noteAddressOf } from "./word-rows.mjs";
+import { isNoteRecord } from "./index-records.mjs";
+import { parseAddress, isAddressTuple, renderAddress } from "./address.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
 
 /** The keys this module reads, which no construct passes through as written. */
@@ -118,6 +121,7 @@ const CONFIG = "package-build.config.yaml";
  * @property {ReadonlyMap<string, import("./verse-metre.mjs").MetreBook>} [metreBooks] -
  *   What each configured language's verse is counted by, from
  *   {@link module:engine/verse-metre.metreBooksFromRecords}.
+ * @property {(target: string) => string|undefined} [referenceName] - An indexed wikilink target's visible name.
  * @property {ReadonlyMap<string, import("./roman-characters.mjs").RomanInventory>} [romanInventories] -
  *   Exact Roman source inventories by configured alias and BCP 47 tag.
  * @property {ReadonlyMap<string, import("./script-emphasis.mjs").Emphasis>} [emphases] -
@@ -164,12 +168,16 @@ const withEncodings = new WeakMap();
  *   resolved configuration.
  * @param {Iterable<Record<string, any>>} [records] - The content index's
  *   records, whose language notes supply lexical writings and script choices.
+ * @param {{referenceName?: (target: string) => string|undefined}} [options] -
+ *   The rendering or validation index's own target-name lookup.
  * @returns {RunContext} Its languages, the faces installed where it sits, and
  *   the encodings. A fonts package that cannot be read gives no faces; a run naming
  *   one is reported.
  */
-export function runContext(config, records) {
-    if (!config) return {};
+export function runContext(config, records, { referenceName: indexedName } = {}) {
+    const withReferences = (context) =>
+        indexedName ? Object.freeze({ ...context, referenceName: indexedName }) : context;
+    if (!config) return withReferences({});
     let base = contexts.get(config);
     if (!base) {
         let faces;
@@ -192,14 +200,41 @@ export function runContext(config, records) {
         });
         contexts.set(config, base);
     }
-    if (!records || typeof records !== "object") return base;
+    if (!records || typeof records !== "object") return withReferences(base);
     let byRecords = withEncodings.get(config);
     if (!byRecords) withEncodings.set(config, (byRecords = new WeakMap()));
     const known = byRecords.get(records);
-    if (known) return known;
+    if (known) return withReferences(known);
     const loaded = encodingsFromRecords(records, config, base.fonts);
     const encodings = loaded.encodings;
     const languageRecords = languageRecordsByName(records, config);
+    const referenceNames = new Map();
+    for (const record of records) {
+        if (!isNoteRecord(record)) continue;
+        const name = record.name?.full ?? record.name;
+        if (typeof name !== "string") continue;
+        const note = noteAddressOf(record);
+        if (note) referenceNames.set(note, name);
+        const canonical = record.address?.canonical;
+        if (canonical)
+            referenceNames.set(
+                isAddressTuple(canonical) ? renderAddress(canonical) : canonical,
+                name,
+            );
+    }
+    const referenceTypes = new Set([...records].map((record) => record.type));
+    const referenceName = (target) => {
+        const address = parseAddress(
+            target,
+            {
+                package: config.contentPackage,
+                system: "note",
+                types: referenceTypes,
+            },
+            { declared: true },
+        );
+        return isAddressTuple(address) ? referenceNames.get(renderAddress(address)) : undefined;
+    };
     const context = Object.freeze({
         ...base,
         encodings,
@@ -211,12 +246,13 @@ export function runContext(config, records) {
         wordBooks: wordBooksFromRecords(records, config),
         metres: metresFromRecords(records),
         metreBooks: metreBooksFromRecords(records, config),
+        referenceName,
         emphases: emphasesFromRecords(records),
         languageEmphases: languageEmphasesOf(languageRecords),
         directions: directionsFromRecords(records),
     });
     byRecords.set(records, context);
-    return context;
+    return withReferences(context);
 }
 
 /**
@@ -2056,6 +2092,7 @@ export function scanRuns(source, ctx = {}, syntax) {
         languages: ctx.languages,
         metreBooks: ctx.metreBooks,
         lexicons: ctx.lexicons,
+        referenceName: ctx.referenceName,
         attributeColumns,
     });
     const merged = (found, extra) =>
@@ -2715,7 +2752,8 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
             ...(detail.face?.direction === "rtl" ? { dir: "rtl" } : {}),
             ...(search ? { "data-pagefind-ignore": "true" } : {}),
         };
-        const marker = `<!--verse-pair:${verses.size + 1}-->${poem.inline ? "" : "\n"}`;
+        const prefix = poem.inline ? "" : block.body.slice(0, block.bodyOffsets[0]);
+        const marker = `${prefix}<!--verse-pair:${verses.size + 1}-->${poem.inline ? "" : "\n"}`;
         const body = marker + block.body;
         verses.set(body, { model, classes, attributes, inline: poem.inline });
         pairedEdits.push({ from: block.bodyStart, to: block.bodyStart, text: marker });

@@ -140,7 +140,7 @@ export function scanVerse(source, { checkWorks = true } = {}) {
         for (const message of [...region.problems, ...refusedAttributes(region.attributes)])
             errors.push({ ...at, message });
         if (!region.closed) errors.push({ ...at, message: "verse div needs a closing ::: line" });
-        if (!region.body.trim()) errors.push({ ...at, message: "verse div is empty" });
+        if (!region.logicalBody.trim()) errors.push({ ...at, message: "verse div is empty" });
         for (const key of Object.keys(region.attributes))
             if (!VERSE_KEYS.includes(key))
                 errors.push({
@@ -150,7 +150,10 @@ export function scanVerse(source, { checkWorks = true } = {}) {
                 });
         if (region.attributes.work !== undefined && !region.attributes.work.trim())
             errors.push({ ...at, message: "work= needs a nonempty page-local key" });
-        const model = parseVerse(region.body, { footnotes: definedFootnotes });
+        const model = parseVerse(region.logicalBody, {
+            footnotes: definedFootnotes,
+            sourceOffsets: region.bodyOffsets,
+        });
         for (const finding of model.errors) {
             const preceding = text.slice(0, region.bodyStart + finding.offset);
             errors.push({
@@ -254,6 +257,8 @@ function keyColumn(opening, key) {
  * @property {string[]} classes - Authored presentation classes.
  * @property {string} indent - Opening div's leading spaces.
  * @property {string} body - Authored verse body.
+ * @property {string} logicalBody - Body without Markdown container prefixes.
+ * @property {number[]} bodyOffsets - Logical UTF-16 offsets mapped to authored body offsets, including the end.
  * @property {VerseModel} model - Logical structure relative to the body.
  */
 
@@ -291,10 +296,10 @@ function cantoLine(line) {
  * Offsets are UTF-16 positions relative to body. Delimiters and indentation are
  * layout ranges; source newlines inside a logical line contribute one space.
  * @param {string} body - Authored verse body.
- * @param {{inline?: boolean, footnotes?: ReadonlySet<string>}} [options] - Inline quotations have no cantos; footnotes are same-note definition labels.
+ * @param {{inline?: boolean, footnotes?: ReadonlySet<string>, sourceOffsets?: number[]}} [options] - Inline quotations have no cantos; footnotes are same-note definition labels; sourceOffsets maps projected body positions to authored offsets, including the end.
  * @returns {VerseModel} The shared structure with offsets relative to the body.
  */
-export function parseVerse(body, { inline = false, footnotes = new Set() } = {}) {
+export function parseVerse(body, { inline = false, footnotes = new Set(), sourceOffsets } = {}) {
     const source = String(body ?? "");
     const groups = [],
         boundaries = [],
@@ -594,6 +599,35 @@ export function parseVerse(body, { inline = false, footnotes = new Set() } = {})
     for (const group of groups)
         if (!group.cantoBreak)
             group.label = multi ? `${group.canto}:${group.stanza}` : String(group.stanza);
+    if (sourceOffsets) {
+        const position = (offset) => sourceOffsets[offset];
+        const bounds = (item) => {
+            item.from = position(item.from);
+            item.to = position(item.to);
+        };
+        for (const line of new Set([
+            ...cantos.flatMap((canto) => canto.stanzas.flatMap((stanza) => stanza.lines)),
+            ...pendingNotes,
+        ])) {
+            bounds(line);
+            line.offsets = line.offsets.map(position);
+        }
+        for (const canto of cantos) for (const stanza of canto.stanzas) bounds(stanza);
+        for (const group of groups) bounds(group);
+        for (const boundary of boundaries) boundary.sourceOffset = position(boundary.sourceOffset);
+        for (const range of layout) {
+            range[0] = position(range[0]);
+            range[1] = position(range[1]);
+        }
+        for (const finding of errors) finding.offset = position(finding.offset);
+        // Container bytes remain layout in projections that read the authored body.
+        let previous = 0;
+        for (const offset of sourceOffsets) {
+            if (offset > previous) layout.push([previous, offset]);
+            previous = offset + 1;
+        }
+        layout.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+    }
     return { cantos, groups, boundaries, layout, errors, notes: pendingNotes };
 }
 
@@ -816,16 +850,24 @@ export function renderVerse(source, { verses = new Map() } = {}) {
             !lines.slice(0, block.start).some((line) => /^ *(?:[-+*]|\d+[.)]) +/.test(line))
         )
             indent = "";
+        const openingPrefix = lines[block.start].slice(0, block.column - 1);
+        // A list marker belongs only to the opening line; its continuation is spaces.
+        const prefix = openingPrefix.replace(/(?:[-+*]|\d+[.)])[ \t]+/g, (mark) =>
+            " ".repeat(mark.length),
+        );
+        const container = prefix.includes(">") || openingPrefix !== prefix;
+        const continuation = container ? prefix : indent;
+        const blank = continuation.trimEnd();
         output.push(
             "",
-            `${indent}<div ${attrs.join(" ")}>`,
-            "",
+            `${container ? openingPrefix : indent}<div ${attrs.join(" ")}>`,
+            blank,
             ...verseMarkdown(block.body, { labelled, model, presentation: transported })
                 .split("\n")
-                .map((line) => (line ? indent + line : line)),
-            "",
-            `${indent}</div>`,
-            "",
+                .map((line) => (line ? continuation + line : blank)),
+            blank,
+            `${continuation}</div>`,
+            blank,
         );
         cursor = block.end + 1;
     }

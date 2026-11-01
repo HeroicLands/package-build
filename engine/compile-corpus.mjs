@@ -42,6 +42,7 @@ import { indexRecordsFor } from "./content-index.mjs";
 import { buildContentLinkIndex } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { runContext } from "./content-scripts.mjs";
+import { resolveReference } from "./wikilinks.mjs";
 import { prepareTreeSqlTables } from "./sql-tables.mjs";
 
 /**
@@ -99,13 +100,16 @@ export async function buildCompileCorpus({
     const corpusOptions = { config: resolved, records };
     const sqlOptions = { ...corpusOptions, skipDirectories, parsed };
     const sqlTables = await prepareTreeSqlTables(contentBase, sqlOptions);
+    const linkIndex = buildContentLinkIndex(contentBase, router, { ...corpusOptions, sqlTables });
     return {
         currentDate: resolved.currentDate,
-        runs: runContext(resolved, records),
+        runs: runContext(resolved, records, {
+            referenceName: (target) => resolveReference(linkIndex, target)?.name,
+        }),
         records,
         parsed,
         problems: collected,
-        linkIndex: buildContentLinkIndex(contentBase, router, { ...corpusOptions, sqlTables }),
+        linkIndex,
         sqlTables,
     };
 }

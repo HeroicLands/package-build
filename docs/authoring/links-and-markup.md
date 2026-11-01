@@ -424,6 +424,20 @@ Periods inside the first inline span can set indentation; periods in later spans
 are literal. Tabs inside a verse div are errors. The div body is opaque to Markdown block syntax:
 lines beginning `- `, `1. `, `# `, `> ` or four spaces stay verse text.
 
+A verse div may sit inside a blockquote, a list item, or nested combinations of
+both. Write the surrounding container prefix on each line, including blank
+stanza lines. Container markers stay outside the verse text; logical lines,
+indentation and stanza boundaries follow the same rules as a standalone div.
+Findings point to the authored line and column, including its container prefix.
+
+```markdown
+> ::: {.verse}
+> One/..Two
+>
+> Three
+> :::
+```
+
 These two bodies have the same lines and indentation:
 
 ```markdown
@@ -491,13 +505,23 @@ language's stress rules; it reports an error at the line:
 Speaker labels and stage directions (`.speaker` and `.direction`) are presentation
 only: their text is not scanned, and a line containing only those spans is skipped.
 
+Wikilinks contribute only their visible labels to the beat count. An empty label
+(`[[place-ashkarad|]]`) contributes the indexed target's name, including a name
+from a dependency. Address segments, anchors and link attributes contribute no
+beats. If an empty label has no resolved spoken text, the line is not scanned;
+the link check reports invalid targets separately. Empty same-page caption
+references depend on page or book numbering and leave the line unscanned when
+that display text is unavailable.
+
 Beats are counted this way:
 
 - **Syllables** are vowel groups. A vowel is a letter whose base is `a`, `e`,
   `i`, `o` or `u`, and a pair the language lists in
   `data.sounds.syllables.vowelPairs` is one syllable.
-- **Every word of two or more syllables has one beat**, on its stressed
-  syllable. The language's stress rule places it: `two` for a word of two
+- **A word of two or more syllables has one beat**, on its stressed
+  syllable, but may go unstressed when every lexicon class is a function class:
+  any base other than `n`, `v`, `adj`, `num` or `name`. A word with any content
+  class, or no lexicon entry, keeps its beat. The language's stress rule places it: `two` for a word of two
   syllables, `longer` for a word of three or more, and a vowel carrying the
   rule's `mark` is stressed wherever it sits.
 - **A one-syllable noun, verb, adjective, numeral or name has a beat.** A
@@ -506,7 +530,7 @@ Beats are counted this way:
   through `lang=` as it is for the word check, including words inherited from
   its family. All entries for a spelling in the nearest lexicon supply their
   classes. A form the
-  language's own rules derive takes its word's class. A word whose entries differ in class is a
+  language's own rules derive takes its word's class. A one-syllable word with both content and function classes has a
   beat that may be left out.
 - **A one-syllable word the lexicon does not hold is a content word** and has a
   beat. The word check reports the word separately.

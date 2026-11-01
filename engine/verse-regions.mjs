@@ -26,6 +26,8 @@ import { parseExtensionAttributes } from "./extension-attributes.mjs";
  * @property {number} bodyStart - First body offset.
  * @property {number} bodyEnd - Offset past body text, excluding its final newline.
  * @property {string} body - Authored body bytes.
+ * @property {string} logicalBody - Body without Markdown container prefixes.
+ * @property {number[]} bodyOffsets - Logical UTF-16 offsets mapped to authored body offsets, including the end.
  * @property {Record<string,string>} attributes - Authored values.
  * @property {string} id - Anchor or empty string.
  * @property {string[]} classes - Authored classes including verse.
@@ -95,6 +97,18 @@ export function verseDivPlugin(md) {
                 if (original[bodyEnd - 1] === "\n") bodyEnd--;
                 if (original[bodyEnd - 1] === "\r") bodyEnd--;
             }
+            const bodyOffsets = [];
+            let logicalBody = "";
+            for (let number = first + 1; number < (closed ? close : past); number++) {
+                const lineEnd = Math.min(starts[number] + rawLines[number].length, bodyEnd);
+                const contentStart = Math.min(contentStarts[number - first], lineEnd);
+                const pastLine = Math.min(starts[number + 1] ?? bodyEnd, bodyEnd);
+                for (let offset = contentStart; offset < pastLine; offset++) {
+                    logicalBody += original[offset];
+                    bodyOffsets.push(offset - bodyStart);
+                }
+            }
+            bodyOffsets.push(bodyEnd - bodyStart);
             const region = {
                 start: first,
                 end: closed ? close : past - 1,
@@ -104,6 +118,8 @@ export function verseDivPlugin(md) {
                 bodyStart,
                 bodyEnd,
                 body: original.slice(bodyStart, bodyEnd),
+                logicalBody,
+                bodyOffsets,
                 attributes: parsed.values,
                 id: parsed.id,
                 classes: parsed.classes,

@@ -2287,11 +2287,14 @@ counted.
 The fence states `lang=` with a language whose `note` names a language note
 stating `data.sounds.stress` (see [a language's register, sounds and
 history](#a-languages-register-sounds-and-history)). A word has one beat on its
-stressed syllable when it has two or more syllables; a one-syllable word has a
+stressed syllable when it has two or more syllables, but may go unstressed
+when all its lexicon classes have bases outside `n`, `v`, `adj`, `num` and
+`name`; a multi-syllable word with any of those bases, or no lexicon entry,
+keeps its beat. A one-syllable word has a
 beat when the `class` base of its lexicon entry is `n`, `v`, `adj`, `num` or
 `name`, and none when it is any other base; a one-syllable word the lexicon
-does not hold is counted as a content word; a word whose entries differ in
-class is a beat that may be left out; and a word of four or more syllables
+does not hold is counted as a content word; a one-syllable word with both
+content and function classes has a beat that may be left out; and a word of four or more syllables
 whose stress is not on its first may take a second beat there. A line scans when
 its count can be the metre's.
 

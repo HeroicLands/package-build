@@ -62,8 +62,48 @@ import MarkdownIt from "markdown-it";
 import { spanMarkdownPlugin } from "./content-spans.mjs";
 import { parseVerse } from "./content-verse.mjs";
 import { inlineText } from "./name-markup.mjs";
+import { WIKILINK, authoredLabel, parseWikilink } from "./wikilink-syntax.mjs";
 
 const verseParser = new MarkdownIt().use(spanMarkdownPlugin);
+const wikilinkAt = new RegExp(WIKILINK.source, "y");
+
+// Parse link labels in place so neighbouring spans keep their source offsets.
+verseParser.inline.ruler.before("link", "metre_wikilink", (state, silent) => {
+    const start = state.pos;
+    wikilinkAt.lastIndex = start;
+    const match = wikilinkAt.exec(state.src);
+    if (!match || start + match[0].length > state.posMax) return false;
+    const finish = start + match[0].length;
+    if (silent) {
+        state.pos = finish;
+        return true;
+    }
+    const parsed = parseWikilink(match[1], match[0]);
+    const label = authoredLabel(parsed) ?? state.env.referenceName?.(parsed.target);
+    const token = state.push("span_open", "span", 1);
+    token.meta = {
+        span: true,
+        start,
+        end: finish,
+        unresolvedReference: !parsed.labelled || label === undefined || label === "",
+    };
+    if (parsed.attributes?.classes.length)
+        token.attrSet("class", parsed.attributes.classes.join(" "));
+    for (const [key, value] of Object.entries(parsed.attributes?.values ?? {}))
+        token.attrSet(key, value);
+    const nested = [];
+    state.md.inline.parse(label ?? "", state.md, state.env, nested);
+    const labelStart = start + match[0].indexOf("|") + 1;
+    for (const child of nested)
+        if (child.meta?.span) {
+            child.meta.start += labelStart;
+            child.meta.end += labelStart;
+        }
+    state.tokens.push(...nested);
+    state.push("span_close", "span", -1);
+    state.pos = finish;
+    return true;
+});
 
 export { METRE_KINDS, METRE_NAME, checkMetresField } from "./metre-declaration.mjs";
 
@@ -240,11 +280,12 @@ function wordBeats(word, book) {
     const folded = foldWord(word);
     const count = nucleiOf(folded, book.pairs).length;
     if (count === 0) return { min: 0, max: 0 };
-    if (count > 1) {
-        const first = stressIndex(folded, book.rule, book.pairs) === 0;
-        return { min: 1, max: count >= 4 && !first ? 2 : 1 };
-    }
     const bases = book.classes.get(folded);
+    if (count > 1) {
+        const functionWord = bases && [...bases].every((base) => !BEAT_BASES.includes(base));
+        const first = stressIndex(folded, book.rule, book.pairs) === 0;
+        return { min: functionWord ? 0 : 1, max: count >= 4 && !first ? 2 : 1 };
+    }
     if (!bases) return { min: 1, max: 1 };
     const carrying = [...bases].filter((base) => BEAT_BASES.includes(base)).length;
     if (carrying === bases.size) return { min: 1, max: 1 };
@@ -292,7 +333,7 @@ export function metreMessage({ min, max }, metre) {
  * @param {ReadonlyArray<{start: number, end: number, indent: string, attributes: Record<string, string>, classes: string[]}>} blocks -
  *   The divs, from {@link module:engine/content-verse.scanVerse}.
  * @param {string[]} lines - The source's lines.
- * @param {{languages?: Readonly<Record<string, {tag: string}>>, metres?: ReadonlyMap<string, import("./metre-declaration.mjs").Metre>, metreBooks?: ReadonlyMap<string, MetreBook>, lexicons?: ReadonlyMap<string, unknown>, attributeColumns: (line: string, key: string) => {key: number, value: number}}} ctx -
+ * @param {{languages?: Readonly<Record<string, {tag: string}>>, metres?: ReadonlyMap<string, import("./metre-declaration.mjs").Metre>, metreBooks?: ReadonlyMap<string, MetreBook>, lexicons?: ReadonlyMap<string, unknown>, referenceName?: (target: string) => string|undefined, attributeColumns: (line: string, key: string) => {key: number, value: number}}} ctx -
  *   The metres and books, and how the div says its columns and where its
  *   keys sit.
  * @returns {{errors: object[], warnings: object[]}} The findings at 1-based
@@ -358,9 +399,12 @@ export function metreFindings(blocks, lines, ctx) {
                         ({ offset }) =>
                             !model.layout.some(([from, to]) => offset >= from && offset < to),
                     );
+                const inlineContext = { referenceName: ctx.referenceName };
                 const parsed =
-                    verseParser.parseInline(units.map((unit) => unit.text).join(""), {})[0]
-                        ?.children ?? [];
+                    verseParser.parseInline(
+                        units.map((unit) => unit.text).join(""),
+                        inlineContext,
+                    )[0]?.children ?? [];
                 let presentationDepth = 0;
                 const tokens = parsed.filter((token) => {
                     if (presentationDepth) {
@@ -395,6 +439,7 @@ export function metreFindings(blocks, lines, ctx) {
                     );
                     continue;
                 }
+                if (tokens.some((token) => token.meta?.unresolvedReference)) continue;
                 const beats = lineBeats(text, book);
                 if (metre.beats >= beats.min && metre.beats <= beats.max) continue;
                 warnings.push({

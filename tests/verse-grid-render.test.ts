@@ -35,6 +35,32 @@ const runs = {
 };
 
 describe("encoded verse print layout", () => {
+    it.each(["\n", "\r\n"])(
+        "retains nested containers in paired verse with %j endings",
+        (newline) => {
+            const source = [
+                "- Intro.",
+                "",
+                "  > ::: {.verse lang=vyl enc=letters}",
+                "  > Marendas/",
+                "  > ..Marendas",
+                "  >",
+                "  > Marendas",
+                "  > :::",
+            ].join(newline);
+            for (const target of ["foundry", "web", "preview"] as const) {
+                const html = createRenderer(target).render(source, { runs });
+                expect(html).toContain("verse-paired");
+                expect(html.match(new RegExp(glyph, "g"))).toHaveLength(3);
+                expect(html.match(/class="verse-stanza"/g)).toHaveLength(2);
+                expect(html).toContain("<blockquote>");
+                expect(html).not.toContain("&gt;");
+            }
+            const out = markdownToTypst(source, { runs });
+            expect(out.match(new RegExp(glyph, "g"))).toHaveLength(3);
+            expect(out).toContain("#h(2.5em)");
+        },
+    );
     it("pairs native and Roman logical lines from one original at full weight", () => {
         const out = markdownToTypst(verse("Marendas/..Marendas", "lang=vyl enc=letters"), { runs });
         expect(out).toContain("#set text(dir: ltr)\n#grid(columns: (1fr, 1fr)");

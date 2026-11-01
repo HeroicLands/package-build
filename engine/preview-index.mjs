@@ -37,7 +37,7 @@ import { noContentIndexPackages } from "./metadata-index.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
 import { assetPathnameKey, pathnameProblem, resolvePathname } from "./pathnames.mjs";
-import { buildSiteIndex } from "./site-index.mjs";
+import { buildSiteIndex, resolveInfoboxRef } from "./site-index.mjs";
 import { siteBase } from "../content-config.mjs";
 
 /**
@@ -107,7 +107,9 @@ export function previewIndex({ config, records, foreign }) {
         return key ? assets?.byPath?.get(key) : undefined;
     };
     return {
-        runs: runContext(config, records),
+        runs: runContext(config, records, {
+            referenceName: (target) => resolveInfoboxRef(site, target)?.name,
+        }),
         icons: config.icons,
         lookupAsset,
         resolveSrc: webSrc,

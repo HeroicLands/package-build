@@ -122,7 +122,14 @@ function parseVerseContent(token, md, env, region) {
     const inline = token.type === "verse_inline";
     const paired = inline ? undefined : env.verses?.get(body);
     const footnotes = new Set(Object.keys(env.footnotes?.refs ?? {}).map((key) => key.slice(1)));
-    const model = paired?.model ?? region.model ?? parseVerse(body, { inline, footnotes });
+    const model =
+        paired?.model ??
+        region.model ??
+        parseVerse(region.logicalBody ?? body, {
+            inline,
+            footnotes,
+            sourceOffsets: region.bodyOffsets,
+        });
     token.meta ??= {};
     token.meta.verse = region;
     token.meta.versePaired = paired;

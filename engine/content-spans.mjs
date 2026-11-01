@@ -318,12 +318,11 @@ export function scanSpans(source) {
             return mapping.absolute + pos - mapping.local;
         });
     }
-    // Verse fences preserve inline Markdown even though the block parser
-    // normally treats every code fence as literal text.
+    // Verse divs retain inline syntax while their container prefixes stay layout.
     for (const poem of scanVerse(text, { checkWorks: false }).blocks) {
         const children = [];
-        parser.inline.parse(poem.body, parser, env, children);
-        collect(children, (pos) => poem.bodyStart + pos);
+        parser.inline.parse(poem.logicalBody, parser, env, children);
+        collect(children, (pos) => poem.bodyStart + poem.bodyOffsets[pos]);
     }
     const raw = text.split("");
     for (const region of codeRegions(text))

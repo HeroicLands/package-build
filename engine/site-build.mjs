@@ -695,7 +695,9 @@ export function renderSitePage(
         figuresByAddress = new Map(),
         events,
         drawings = new Map(),
-        runs = runContext(config),
+        runs = runContext(config, undefined, {
+            referenceName: (target) => resolveInfoboxRef(index, target)?.name,
+        }),
     },
 ) {
     const secretErrors = [];
@@ -985,7 +987,9 @@ export function renderPages(pages, options) {
     // What each page renders as, held until the graph is whole.
     /** @type {Array<{page: object, markdown: string, figures: object[], data: object}>} */
     const rendered = [];
-    const runs = runContext(config, records);
+    const runs = runContext(config, records, {
+        referenceName: (target) => resolveInfoboxRef(index, target)?.name,
+    });
 
     const renderOne = (page) =>
         renderSitePage(page, {
