@@ -157,7 +157,7 @@
         "eslint-plugin-yml": "^3.8.1",
         "fflate": "^0.8.3",
         "flesch": "^2.0.1",
-        "glob": "^13.0.6",
+        "glob": "^14.0.0",
         "handlebars": "^4.7.10",
         "highlight.js": "^11.12.0",
         "ignore": "^7.0.12",
