@@ -168,7 +168,7 @@
         "markdown-it": "^15.0.0",
         "markdown-it-deflist": "^4.0.0",
         "markdown-it-footnote": "^4.0.0",
-        "minimatch": "^10.2.6",
+        "minimatch": "^11.0.0",
         "pagefind": "^1.5.2",
         "prettier": "^3.9.6",
         "remark-frontmatter": "^5.0.0",
