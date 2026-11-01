@@ -69,7 +69,7 @@ export const CONTENT_TARGETS = Object.freeze(["index", "lint", "links", "compile
 /**
  * Capture one source tree for index, lint, links and compilation.
  * No source or parser state is persisted or reused by another invocation.
- * Prepared SQL databases close within their existing preparation functions.
+ * Session-owned SQL resources close after pending preparations drain on dispose.
  * @param {object} [options]
  * @param {import("../content-config.mjs").ContentBuildConfig} [options.config] - Exact resolved configuration.
  * @param {string} [options.contentBase] - Content root, defaulting to configuration.
@@ -119,6 +119,7 @@ export async function createContentSession({
     const syntaxCache = new Map();
     const prepared = new Map();
     let disposed = false;
+    let sqlScope;
     const active = () => {
         if (disposed) throw new Error("Content session has been disposed");
     };
@@ -209,6 +210,18 @@ export async function createContentSession({
                     skipDirectories: scope,
                     foreignIndex: foreign.index,
                     syntax,
+                    database: async () => {
+                        active();
+                        if (!sqlScope) {
+                            const dependencies = await sql.cachedDependencies(config);
+                            active();
+                            sqlScope ??= sql.createNotesDatabaseScope(records, {
+                                dependencies,
+                                contentBase: tree,
+                            });
+                        }
+                        return sqlScope.database(audience);
+                    },
                 }),
             );
         },
@@ -289,9 +302,17 @@ export async function createContentSession({
         },
         /** Release this invocation's derived views; captured inputs stay unchanged. */
         dispose() {
+            if (disposed) return;
             disposed = true;
+            // A preparation can still be querying after its database opens.
+            // Keep the promises before clearing memoized results, and drain
+            // both successful and failed work before closing native resources.
+            const pending = [...prepared.values()];
+            void Promise.allSettled(pending).then(() => {
+                sqlScope?.dispose();
+                syntaxCache.clear();
+            });
             prepared.clear();
-            syntaxCache.clear();
         },
     };
     return session;

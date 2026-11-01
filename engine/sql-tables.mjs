@@ -217,23 +217,25 @@ export function findSqlBlocks(markdown) {
     return blocks;
 }
 
-/** Keep encoding source keys as case-sensitive values in the SQL projection.
+/** Omit the Foundry export from SQL; the canonical index stays intact.
+ * Keep encoding source keys as case-sensitive values in the SQL projection.
  * The canonical index retains its authored mapping object; DuckDB structs
  * cannot distinguish a and A as field names.
  */
 function sqlRecord(record) {
-    const mappings = record?.data?.mappings;
+    const { foundry, ...projected } = record;
+    const mappings = projected?.data?.mappings;
     if (
         record?.type !== "doc" ||
         !mappings ||
         typeof mappings !== "object" ||
         Array.isArray(mappings)
     )
-        return record;
+        return projected;
     return {
-        ...record,
+        ...projected,
         data: {
-            ...record.data,
+            ...projected.data,
             mappings: Object.entries(mappings).map(([from, value]) => ({
                 from,
                 codes: Array.isArray(value) ? value : [value],
@@ -286,223 +288,366 @@ function sqlRecord(record) {
  * @param {object} [opts.addressContext] - Address resolution context.
  * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes from
  *   local and dependency relations.
+ * @param {boolean} [opts.testMemoryLimit] - Test-only fixed 256 MB budget;
+ *   production always uses 2 GB. This is not authored configuration.
  * @param {string} [opts.contentBase] - The directory the records' paths are
  *   relative to, so a refused key is reported at its file and line.
- * @returns {Promise<{query: (sql: string) => Promise<object[]>,
- *   close: () => Promise<void>}>} The open database.
+ * @returns {ReturnType<typeof openDatabase>} The open database.
  */
-export async function openNotesDatabase(
+export async function openNotesDatabase(records, opts = {}) {
+    return openDatabase(records, opts);
+}
+
+/**
+ * Open one audience connection, optionally in a session-owned instance.
+ * @param {object[]} records - Content-index records.
+ * @param {NonNullable<Parameters<typeof openNotesDatabase>[1]>} [opts] - Load options.
+ * @param {object} [shared] - Session-owned SQL resources.
+ */
+async function openDatabase(
     records,
-    { dir, dependencies = [], addressContext, audience = "all", contentBase } = {},
+    {
+        dir,
+        dependencies = [],
+        addressContext,
+        audience = "all",
+        contentBase,
+        testMemoryLimit = false,
+    } = {},
+    shared,
 ) {
     const { DuckDBInstance } = await import("@duckdb/node-api");
-    const base = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
+    const base = shared?.base ?? dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
     fs.mkdirSync(base, { recursive: true });
     const jsonl = path.join(base, "notes.jsonl");
     const encoded = records.map((record) => sqlRecord(encodeAddresses(record)));
 
-    const instance = await DuckDBInstance.create(":memory:");
-    const connection = await instance.connect();
-    await connection.run("SET threads=1");
-    try {
-        await createRelations(connection, jsonl, encoded, "", audience);
-    } catch (err) {
-        // DuckDB names the clashing key but not the notes that spell it.
-        if (/Duplicate name ".*" in struct/.test(String(err?.message))) {
-            const lines = keyCaseCollisionDiagnostics(encoded, { contentBase });
-            if (lines.length) {
-                const located = new Error(lines.join("\n"));
-                /** @type {any} */ (located).located = true;
-                throw located;
+    const memoryLimit = testMemoryLimit === true ? "256 MB" : "2 GB";
+    let instance;
+    let connection;
+    let load = "local relations";
+    const close = () => {
+        try {
+            connection?.closeSync();
+        } finally {
+            try {
+                if (!shared) instance?.closeSync();
+                else shared.connections.delete(connection);
+            } finally {
+                if (!shared && !dir) fs.rmSync(base, { recursive: true, force: true });
             }
+        }
+    };
+    try {
+        instance =
+            shared?.instance ??
+            (await DuckDBInstance.create(":memory:", { memory_limit: memoryLimit }));
+        if (shared) shared.instance = instance;
+        connection = await instance.connect();
+        if (shared) shared.connections.add(connection);
+        await connection.run("SET threads=1");
+        if (shared) {
+            // Each connection resolves main.* and dependency schemas inside its
+            // own catalog. Only the raw wrapped records live in the base catalog.
+            const catalog = `"__sql_${audience}"`;
+            await connection.run(`ATTACH ':memory:' AS ${catalog}`);
+            await connection.run(`USE ${catalog}`);
+        }
+        try {
+            await createRelations(connection, jsonl, encoded, "", audience, shared);
+        } catch (err) {
+            // DuckDB names the clashing key but not the notes that spell it.
+            if (/Duplicate name ".*" in struct/.test(String(err?.message))) {
+                const lines = keyCaseCollisionDiagnostics(encoded, { contentBase });
+                if (lines.length) {
+                    const located = new Error(lines.join("\n"));
+                    /** @type {any} */ (located).located = true;
+                    throw located;
+                }
+            }
+            throw err;
+        }
+        await createEventRelation(
+            connection,
+            path.join(base, "events.jsonl"),
+            encoded,
+            "",
+            audience,
+        );
+        await createNameRelation(connection, path.join(base, "names.jsonl"), encoded, "", audience);
+        await createRunRelation(connection, path.join(base, "runs.jsonl"), encoded, "", audience);
+        await createNativeRelation(
+            connection,
+            path.join(base, "natives.jsonl"),
+            encoded,
+            "",
+            audience,
+        );
+        await createWordRelations(connection, path.join(base, "notes"), encoded, "", audience);
+
+        // One schema per declared dependency, so `FROM sohl.notes` reads the notes
+        // that package published. Quoted, because a package id may carry a hyphen
+        // (`sohl-thalorna`) and an unquoted identifier may not. Both views are
+        // created, so `FROM sohl.entries` reads a dependency's stubs the same way.
+        for (const dep of dependencies) {
+            if (!dep?.id || !dep?.file || !fs.existsSync(dep.file)) continue;
+            load = `dependency ${dep.id} relations`;
+            const schema = `"${String(dep.id).replace(/"/g, '""')}"`;
+            await connection.run(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
+            // A published index writes each Address as an object; a fence compares
+            // the string an author writes, so each is flattened to it on load.
+            const flat = path.join(
+                base,
+                `dependency-${String(dep.id).replace(/[^a-z0-9]/gi, "_")}.jsonl`,
+            );
+            const depRecords = fs
+                .readFileSync(dep.file, "utf8")
+                .split("\n")
+                .filter((line) => line.trim())
+                .map((line) => sqlRecord(flattenPublishedAddresses(JSON.parse(line))));
+            await createRelations(connection, flat, depRecords, `${schema}.`, audience, shared);
+            await createEventRelation(
+                connection,
+                flat.replace(/\.jsonl$/, "-events.jsonl"),
+                depRecords,
+                `${schema}.`,
+                audience,
+            );
+            await createNameRelation(
+                connection,
+                flat.replace(/\.jsonl$/, "-names.jsonl"),
+                depRecords,
+                `${schema}.`,
+                audience,
+            );
+            await createRunRelation(
+                connection,
+                flat.replace(/\.jsonl$/, "-runs.jsonl"),
+                depRecords,
+                `${schema}.`,
+                audience,
+            );
+            await createNativeRelation(
+                connection,
+                flat.replace(/\.jsonl$/, "-natives.jsonl"),
+                depRecords,
+                `${schema}.`,
+                audience,
+            );
+            await createWordRelations(
+                connection,
+                flat.replace(/\.jsonl$/, ""),
+                depRecords,
+                `${schema}.`,
+                audience,
+            );
+        }
+
+        load = "shared SQL views";
+        // The market scale as a relation, so a table prints `village` beside the
+        // number a note wrote without a second copy of the scale living in authored
+        // content. Three columns, because the scale states three things and a join
+        // that could only give back the name would send the next author to copy the
+        // rest by hand.
+        await connection.run(
+            "CREATE VIEW market AS SELECT * FROM (VALUES " +
+                MARKET_CLASSES.map(
+                    (c) =>
+                        `(${c.value}, '${c.name.replace(/'/g, "''")}', ` +
+                        `'${c.trade.replace(/'/g, "''")}')`,
+                ).join(", ") +
+                ") AS t(value, name, trade)",
+        );
+
+        // The stub-inclusive reading of `notes`, in a schema of its own. Putting it
+        // on the search path re-runs an authored query with unqualified `notes`
+        // resolving to `entries`, which is how a fence that would gain rows from
+        // the wider relation is found without parsing anybody's SQL — see
+        // {@link prepareSqlTables}.
+        await connection.run(`CREATE SCHEMA IF NOT EXISTS ${WITH_STUBS_SCHEMA}`);
+        await connection.run(`CREATE VIEW ${WITH_STUBS_SCHEMA}.notes AS SELECT * FROM entries`);
+        for (const relation of [
+            "events",
+            "names",
+            "runs",
+            "words",
+            "affixes",
+            "fields",
+            "glossary",
+            "language_lineage",
+            "dictionary",
+            "terms",
+            ...LANGUAGE_RELATIONS.map(([name]) => name),
+        ])
+            await connection.run(
+                `CREATE VIEW ${WITH_STUBS_SCHEMA}.${relation} AS SELECT * FROM main.${relation}`,
+            );
+
+        // Whether this index holds a stub at all, asked once. A corpus with none
+        // pays nothing for the comparison above, which is every package that has
+        // not started writing them.
+        const hasStubs =
+            (
+                await connection.runAndReadAll(
+                    "SELECT count(*) AS n FROM entries WHERE state = 'stub'",
+                )
+            ).getRowObjects()[0].n > 0;
+
+        /**
+         * How many rows a query loses by selecting `FROM notes` rather than
+         * `FROM entries`.
+         *
+         * Answered by **running the author's query again** with unqualified `notes`
+         * resolving to the stub-inclusive relation, rather than by reading the
+         * `WHERE` clause. Reading it would mean parsing somebody else's SQL to work
+         * out which types a fence covers, and being wrong about that is exactly the
+         * silent failure the two views exist to prevent. Re-running is exact, and
+         * it costs nothing at all for a corpus with no stub, which is the common
+         * case and the only one that is asked twice for nothing.
+         *
+         * @param {string} sql - The query, as authored.
+         * @param {number} rows - How many rows it selected as written.
+         * @returns {Promise<number>} How many rows it would gain.
+         */
+        async function stubsExcluded(sql, rows) {
+            if (!hasStubs) return 0;
+            try {
+                const schema =
+                    shared ? `__sql_${audience}.${WITH_STUBS_SCHEMA}` : WITH_STUBS_SCHEMA;
+                await connection.run(`SET search_path='${schema}'`);
+                const wider = await connection.runAndReadAll(sql);
+                return Math.max(0, wider.getRowObjects().length - rows);
+            } catch {
+                // A query that cannot run under the wider relation has nothing to
+                // say about stubs, and the failure it does have is reported by the
+                // run that matters.
+                return 0;
+            } finally {
+                await connection.run(shared ? `USE "__sql_${audience}".main` : "RESET search_path");
+            }
+        }
+
+        return {
+            addressContext: addressContext ?? {
+                package: records.find((record) => record.package)?.package,
+                types: new Set(Object.keys(NOTE_VOCABULARY)),
+                system: "note",
+            },
+            stubsExcluded,
+            // Each language code's note, for a page whose language is read from
+            // its frontmatter.
+            languageNotes: languageNotesByCode(encoded, (record) =>
+                (
+                    typeof record.package === "string" &&
+                    typeof record.type === "string" &&
+                    typeof record.shortcode === "string"
+                ) ?
+                    renderAddress({
+                        package: record.package,
+                        system: "note",
+                        type: record.type,
+                        shortcode: record.shortcode,
+                    })
+                :   undefined,
+            ),
+            async query(sql) {
+                const reader = await connection.runAndReadAll(sql);
+                return {
+                    // From the result's schema, not from the rows: a query that
+                    // selects nothing still has columns, and reporting *that* is
+                    // what tells a stale query from an empty category.
+                    columnNames: reader.columnNames(),
+                    rows: reader
+                        .getRowObjects()
+                        .map((row) =>
+                            Object.fromEntries(
+                                Object.entries(row).map(([key, value]) => [key, toPlain(value)]),
+                            ),
+                        ),
+                };
+            },
+            async close() {
+                close();
+            },
+        };
+    } catch (err) {
+        close();
+        if (/out of memory|memory limit/i.test(String(err?.message))) {
+            const message =
+                `SQL memory_limit ${memoryLimit} exhausted loading ${load}` +
+                (err.sqlLoad ? ` (${err.sqlLoad})` : "") +
+                ".";
+            throw Object.assign(new Error(message, { cause: err }), {
+                findings: [{ code: "sql-memory-limit", severity: "error", message }],
+            });
         }
         throw err;
     }
-    await createEventRelation(connection, path.join(base, "events.jsonl"), encoded, "", audience);
-    await createNameRelation(connection, path.join(base, "names.jsonl"), encoded, "", audience);
-    await createRunRelation(connection, path.join(base, "runs.jsonl"), encoded, "", audience);
-    await createNativeRelation(connection, path.join(base, "natives.jsonl"), encoded, "", audience);
-    await createWordRelations(connection, path.join(base, "notes"), encoded, "", audience);
+}
 
-    // One schema per declared dependency, so `FROM sohl.notes` reads the notes
-    // that package published. Quoted, because a package id may carry a hyphen
-    // (`sohl-thalorna`) and an unquoted identifier may not. Both views are
-    // created, so `FROM sohl.entries` reads a dependency's stubs the same way.
-    for (const dep of dependencies) {
-        if (!dep?.id || !dep?.file || !fs.existsSync(dep.file)) continue;
-        const schema = `"${String(dep.id).replace(/"/g, '""')}"`;
-        await connection.run(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
-        // A published index writes each Address as an object; a fence compares
-        // the string an author writes, so each is flattened to it on load.
-        const flat = path.join(
-            base,
-            `dependency-${String(dep.id).replace(/[^a-z0-9]/gi, "_")}.jsonl`,
-        );
-        const depRecords = fs
-            .readFileSync(dep.file, "utf8")
-            .split("\n")
-            .filter((line) => line.trim())
-            .map((line) => sqlRecord(flattenPublishedAddresses(JSON.parse(line))));
-        await createRelations(connection, flat, depRecords, `${schema}.`, audience);
-        await createEventRelation(
-            connection,
-            flat.replace(/\.jsonl$/, "-events.jsonl"),
-            depRecords,
-            `${schema}.`,
-            audience,
-        );
-        await createNameRelation(
-            connection,
-            flat.replace(/\.jsonl$/, "-names.jsonl"),
-            depRecords,
-            `${schema}.`,
-            audience,
-        );
-        await createRunRelation(
-            connection,
-            flat.replace(/\.jsonl$/, "-runs.jsonl"),
-            depRecords,
-            `${schema}.`,
-            audience,
-        );
-        await createNativeRelation(
-            connection,
-            flat.replace(/\.jsonl$/, "-natives.jsonl"),
-            depRecords,
-            `${schema}.`,
-            audience,
-        );
-        await createWordRelations(
-            connection,
-            flat.replace(/\.jsonl$/, ""),
-            depRecords,
-            `${schema}.`,
-            audience,
-        );
-    }
-
-    // The market scale as a relation, so a table prints `village` beside the
-    // number a note wrote without a second copy of the scale living in authored
-    // content. Three columns, because the scale states three things and a join
-    // that could only give back the name would send the next author to copy the
-    // rest by hand.
-    await connection.run(
-        "CREATE VIEW market AS SELECT * FROM (VALUES " +
-            MARKET_CLASSES.map(
-                (c) =>
-                    `(${c.value}, '${c.name.replace(/'/g, "''")}', ` +
-                    `'${c.trade.replace(/'/g, "''")}')`,
-            ).join(", ") +
-            ") AS t(value, name, trade)",
-    );
-
-    // The stub-inclusive reading of `notes`, in a schema of its own. Putting it
-    // on the search path re-runs an authored query with unqualified `notes`
-    // resolving to `entries`, which is how a fence that would gain rows from
-    // the wider relation is found without parsing anybody's SQL — see
-    // {@link prepareSqlTables}.
-    await connection.run(`CREATE SCHEMA IF NOT EXISTS ${WITH_STUBS_SCHEMA}`);
-    await connection.run(`CREATE VIEW ${WITH_STUBS_SCHEMA}.notes AS SELECT * FROM entries`);
-    for (const relation of [
-        "events",
-        "names",
-        "runs",
-        "words",
-        "affixes",
-        "fields",
-        "glossary",
-        "language_lineage",
-        "dictionary",
-        "terms",
-        ...LANGUAGE_RELATIONS.map(([name]) => name),
-    ])
-        await connection.run(
-            `CREATE VIEW ${WITH_STUBS_SCHEMA}.${relation} AS SELECT * FROM main.${relation}`,
-        );
-
-    // Whether this index holds a stub at all, asked once. A corpus with none
-    // pays nothing for the comparison above, which is every package that has
-    // not started writing them.
-    const hasStubs =
-        (
-            await connection.runAndReadAll("SELECT count(*) AS n FROM entries WHERE state = 'stub'")
-        ).getRowObjects()[0].n > 0;
-
-    /**
-     * How many rows a query loses by selecting `FROM notes` rather than
-     * `FROM entries`.
-     *
-     * Answered by **running the author's query again** with unqualified `notes`
-     * resolving to the stub-inclusive relation, rather than by reading the
-     * `WHERE` clause. Reading it would mean parsing somebody else's SQL to work
-     * out which types a fence covers, and being wrong about that is exactly the
-     * silent failure the two views exist to prevent. Re-running is exact, and
-     * it costs nothing at all for a corpus with no stub, which is the common
-     * case and the only one that is asked twice for nothing.
-     *
-     * @param {string} sql - The query, as authored.
-     * @param {number} rows - How many rows it selected as written.
-     * @returns {Promise<number>} How many rows it would gain.
-     */
-    async function stubsExcluded(sql, rows) {
-        if (!hasStubs) return 0;
+/**
+ * Own the SQL resources of one content session. Raw local and dependency JSON
+ * tables are loaded once; each audience derives its relations unchanged in a
+ * separate catalog/connection. Openings are serialized, queries are not.
+ * @param {object[]} records - The session's captured index.
+ * @param {Omit<NonNullable<Parameters<typeof openNotesDatabase>[1]>, "audience"|"dir">} [options] - Shared load options.
+ * @returns {{database: (audience: "all"|"public") => Promise<Awaited<ReturnType<typeof openNotesDatabase>>>, dispose: () => void}}
+ */
+export function createNotesDatabaseScope(records, options = {}) {
+    const shared = {
+        base: fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-session-")),
+        instance: undefined,
+        connections: new Set(),
+        tables: new Map(),
+    };
+    const databases = new Map();
+    let queue = Promise.resolve();
+    let disposed = false;
+    let failed = false;
+    let released = false;
+    const release = () => {
+        if (released) return;
+        released = true;
         try {
-            await connection.run(`SET search_path='${WITH_STUBS_SCHEMA}'`);
-            const wider = await connection.runAndReadAll(sql);
-            return Math.max(0, wider.getRowObjects().length - rows);
-        } catch {
-            // A query that cannot run under the wider relation has nothing to
-            // say about stubs, and the failure it does have is reported by the
-            // run that matters.
-            return 0;
+            for (const connection of shared.connections) connection.closeSync();
         } finally {
-            await connection.run("RESET search_path");
+            shared.connections.clear();
+            shared.instance?.closeSync();
+            shared.instance = undefined;
+            fs.rmSync(shared.base, { recursive: true, force: true });
         }
-    }
-
+    };
     return {
-        addressContext: addressContext ?? {
-            package: records.find((record) => record.package)?.package,
-            types: new Set(Object.keys(NOTE_VOCABULARY)),
-            system: "note",
+        database(audience) {
+            if (disposed || failed) return Promise.reject(new Error("SQL scope has been disposed"));
+            if (!databases.has(audience)) {
+                const pending = queue.then(async () => {
+                    if (disposed || failed) throw new Error("SQL scope has been disposed");
+                    try {
+                        return await openDatabase(records, { ...options, audience }, shared);
+                    } catch (error) {
+                        failed = true;
+                        // The failed opening closed its own connection. An
+                        // earlier audience can still be preparing results;
+                        // its owner drains those preparations before dispose.
+                        if (!shared.connections.size) release();
+                        throw error;
+                    }
+                });
+                databases.set(audience, pending);
+                queue = pending.then(
+                    () => {},
+                    () => {},
+                );
+            }
+            return databases.get(audience);
         },
-        stubsExcluded,
-        // Each language code's note, for a page whose language is read from
-        // its frontmatter.
-        languageNotes: languageNotesByCode(encoded, (record) =>
-            (
-                typeof record.package === "string" &&
-                typeof record.type === "string" &&
-                typeof record.shortcode === "string"
-            ) ?
-                renderAddress({
-                    package: record.package,
-                    system: "note",
-                    type: record.type,
-                    shortcode: record.shortcode,
-                })
-            :   undefined,
-        ),
-        async query(sql) {
-            const reader = await connection.runAndReadAll(sql);
-            return {
-                // From the result's schema, not from the rows: a query that
-                // selects nothing still has columns, and reporting *that* is
-                // what tells a stale query from an empty category.
-                columnNames: reader.columnNames(),
-                rows: reader
-                    .getRowObjects()
-                    .map((row) =>
-                        Object.fromEntries(
-                            Object.entries(row).map(([key, value]) => [key, toPlain(value)]),
-                        ),
-                    ),
-            };
-        },
-        async close() {
-            connection.closeSync();
-            instance.closeSync();
-            if (!dir) fs.rmSync(base, { recursive: true, force: true });
+        dispose() {
+            if (disposed) return;
+            disposed = true;
+            // A caller may dispose while a lazy opening is still in flight.
+            // Drain it before releasing its native connection and instance.
+            void queue.then(release);
         },
     };
 }
@@ -570,21 +715,35 @@ function withNameSort(record) {
  * @param {"all"|"public"} [audience] - Whether to leave out GM notes.
  * @returns {Promise<void>}
  */
-async function createRelations(connection, file, records, prefix = "", audience = "all") {
+async function createRelations(connection, file, records, prefix = "", audience = "all", shared) {
     // Every record contributes its schema; only visible records contribute rows.
-    fs.writeFileSync(
-        file,
-        records
-            .map((record) =>
-                JSON.stringify({
-                    record: sortKeysDeep(withNameSort(record)),
-                    visible: audience !== "public" || !isGmNote(record),
-                }),
-            )
-            .join("\n"),
-    );
-    const source = readJsonAuto(file);
-    const read = records.length ? `SELECT record.* FROM (${source}) WHERE visible` : source;
+    let source;
+    if (shared?.tables.has(prefix)) {
+        source = `SELECT * FROM ${shared.tables.get(prefix)}`;
+    } else {
+        fs.writeFileSync(
+            file,
+            records
+                .map((record) =>
+                    JSON.stringify({
+                        record: sortKeysDeep(withNameSort(record)),
+                        visible:
+                            shared ? !isGmNote(record) : audience !== "public" || !isGmNote(record),
+                    }),
+                )
+                .join("\n"),
+        );
+        source = readJsonAuto(file);
+        if (shared) {
+            await connection.run("CREATE SCHEMA IF NOT EXISTS memory.__sql_base");
+            const table = `memory.__sql_base.source${shared.tables.size}`;
+            await createTableFromFile(connection, table, source);
+            shared.tables.set(prefix, table);
+            source = `SELECT * FROM ${table}`;
+        }
+    }
+    const filter = !shared || audience === "public" ? " WHERE visible" : "";
+    const read = records.length ? `SELECT record.* FROM (${source})${filter}` : source;
     const described = await connection.runAndReadAll(`DESCRIBE ${read}`);
     const columns = new Set(described.getRowObjects().map((row) => String(row.column_name)));
     // A row with no address is a stub. With no address column anywhere, every
@@ -598,12 +757,11 @@ async function createRelations(connection, file, records, prefix = "", audience 
             "COALESCE(list_contains(TRY_CAST(tags AS VARCHAR[]), 'draft'), false) " +
             "OR COALESCE(TRY_CAST(tags AS VARCHAR) = 'draft', false)"
         :   "false";
-    await createTableFromFile(
-        connection,
-        `${prefix}entries`,
+    const select =
         `SELECT *, CASE WHEN ${stub} THEN 'stub' WHEN ${draft} THEN 'draft' ` +
-            `ELSE 'full' END AS state FROM (${read})`,
-    );
+        `ELSE 'full' END AS state FROM (${read})`;
+    if (shared) await connection.run(`CREATE VIEW ${prefix}entries AS ${select}`);
+    else await createTableFromFile(connection, `${prefix}entries`, select);
     await connection.run(
         `CREATE VIEW ${prefix}notes AS SELECT * FROM ${prefix}entries WHERE state <> 'stub'`,
     );
@@ -766,7 +924,12 @@ async function createTypedRelation(connection, file, name, rows, columns, intege
  * @returns {Promise<void>}
  */
 async function createTableFromFile(connection, name, select) {
-    await connection.run(`CREATE TABLE ${name} AS ${select}`);
+    try {
+        await connection.run(`CREATE TABLE ${name} AS ${select}`);
+    } catch (err) {
+        err.sqlLoad = name;
+        throw err;
+    }
 }
 
 /**
@@ -1281,8 +1444,9 @@ async function noteLabels(db) {
     try {
         schemas = (
             await db.query(
-                "SELECT DISTINCT schema_name FROM duckdb_tables() WHERE table_name = 'entries' " +
-                    "ORDER BY schema_name",
+                "SELECT DISTINCT table_schema AS schema_name FROM information_schema.tables " +
+                    "WHERE table_catalog = current_database() AND table_name = 'entries' " +
+                    "ORDER BY table_schema",
             )
         ).rows.map((row) => String(row.schema_name));
     } catch {
@@ -1640,7 +1804,8 @@ export async function cachedDependencies(config) {
  * @param {object} [opts.database] - An open notes database over `records`, from
  *   {@link openNotesDatabase} with this call's `audience` and the declared
  *   dependencies from {@link cachedDependencies}. It is queried and left open;
- *   absent, one is opened and closed here.
+ *   absent, one is opened and closed here. A lazy async factory is also
+ *   accepted and called only when this preparation needs SQL.
  * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes.
  * @param {Map<string, object>} [opts.foreignIndex] - The fetched indexes the
  *   generated sections take in, where the caller holds them already; absent,
@@ -1767,7 +1932,7 @@ export async function prepareTreeSqlTables(
     // `sql` directive never reaches this line, and one whose dependency has not
     // been fetched already fails earlier with a message naming the fetch.
     const db =
-        database ??
+        (typeof database === "function" ? await database() : database) ??
         (await openNotesDatabase(allRecords, {
             dependencies: await cachedDependencies(config),
             audience,

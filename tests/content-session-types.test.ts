@@ -18,6 +18,7 @@ const fixture = path.join(root, "tests/fixtures/content-session-consumer.mts");
 it("a typed consumer can use the emitted session and captured-input APIs without ignored types", () => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), "pb-content-session-types-"));
     try {
+        fs.symlinkSync(path.join(root, "node_modules"), path.join(temp, "node_modules"), "dir");
         const configFile = ts.readConfigFile(path.join(root, "tsconfig.dts.json"), ts.sys.readFile);
         expect(configFile.error).toBeUndefined();
         const config = ts.parseJsonConfigFileContent(configFile.config, ts.sys, root);
@@ -63,14 +64,20 @@ it("a typed consumer can use the emitted session and captured-input APIs without
         const consumer = ts.createProgram([fixture], {
             strict: true,
             noEmit: true,
-            skipLibCheck: true,
+            skipLibCheck: false,
             target: ts.ScriptTarget.ES2022,
             module: ts.ModuleKind.NodeNext,
             moduleResolution: ts.ModuleResolutionKind.NodeNext,
             types: ["node"],
             paths,
         });
-        const diagnostics = ts.getPreEmitDiagnostics(consumer);
+        // Check our declarations too; only dependency declarations are outside
+        // this package's contract, as in the published declaration check.
+        const diagnostics = ts
+            .getPreEmitDiagnostics(consumer)
+            .filter(
+                (diagnostic) => !diagnostic.file?.fileName.split(path.sep).includes("node_modules"),
+            );
         expect(
             consumer
                 .getSourceFiles()
