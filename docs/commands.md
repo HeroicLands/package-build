@@ -2255,11 +2255,12 @@ dependencies; exact Item UUID validation remains part of compilation. Reads
 the content tree named by `root`, defaulting to
 `paths.content`; writes nothing.
 
-Every configured language note declares `data.roman`, its exact NFC Roman
-source characters. Lint checks language-tagged text before mapping, using the
+Every configured language note declares `data.roman`, the NFC Roman characters
+the language adds to the shared standard: letters in accepted cases, accents,
+catch signs and digits. Lint checks language-tagged text before mapping, using the
 same inventory for a configured name and its BCP 47 tag. Visible linked labels
 are checked; destinations, attributes and verse structure are excluded. An
-explicit empty inventory declares no written characters. External tags without
+explicit empty inventory declares no additions. External tags without
 a language-note association retain their ordinary behavior. Standalone
 `package-build markdown` does not load these inventories.
 

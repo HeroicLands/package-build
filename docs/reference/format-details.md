@@ -2104,6 +2104,11 @@ keys makes a separate presentation choice. `enc=default` inside an encoded
 parent keeps the inherited language but does not inherit its inferred script
 face. An explicitly authored font remains a font choice.
 
+The content charset admits characters in every registered setting-script block,
+including the format controls those scripts use. The selected native face must
+still draw each character. In a language run, write native characters through
+literal codage; pasting a native character directly is a finding.
+
 A name's braces use the shared name controls. Resolved references encode only
 their visible labels, retaining URLs and presentation cues. These keys apply
 to spans, divs and scroll fences. A scroll's selected font must
@@ -6082,7 +6087,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `family`                                   | `Address`                                                                                                                      | `language` only: the parent language, naming a skill note with `subType: language`; this language reads the parent's words as its own — see [a language's words](#a-languages-words)           |
 | `abbreviation`                             | `string`                                                                                                                       | `language` only: the tag a dictionary prints for it, as `Prov.`; its full name where unstated — see [dictionaries and glossaries](#dictionaries-and-glossaries)                                |
 | `core`                                     | `boolean`                                                                                                                      | `language` only: `true` where the language must cover the [core vocabulary](#the-core-vocabulary)                                                                                              |
-| `roman`                                    | literal NFC string, may be empty                                                                                               | Exact permitted Roman source characters, including both cases, accents, digits and punctuation; required on each configured language note. No family inheritance or range syntax.              |
+| `roman`                                    | literal NFC string, may be empty                                                                                               | Additions: letters in accepted cases, accents, catch signs and digits. Listing shared punctuation or whitespace is an error. Required per configured language note; no inheritance or ranges.  |
 | `grammar`                                  | `{ plural?, verbs?, agreement?, participles? }`                                                                                | Optional noun plurals, one verb pattern, agreement and participles; supplied shapes only are checked                                                                                           |
 | `grammar.plural`                           | `{ ending, becomes }[]`                                                                                                        | Literal suffix replacements in authored order; the first match wins                                                                                                                            |
 | `grammar.plural[].ending`                  | `string`, required, may be empty                                                                                               | Bare suffix to replace; empty matches every noun                                                                                                                                               |
