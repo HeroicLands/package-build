@@ -34,6 +34,9 @@ export default defineConfig({
         name: "package-build",
         globals: true,
         environment: "node",
+        // CI shares the host with other jobs. Keep CLI subprocesses, SQL loads
+        // and declaration emit from multiplying with the host's CPU count.
+        maxWorkers: 2,
         include: ["tests/**/*.test.ts"],
         env: {
             PACKAGE_BUILD_CONFIG: path.join(HERE, "tests/fixtures/repo/package-build.config.yaml"),

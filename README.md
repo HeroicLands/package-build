@@ -53,6 +53,13 @@ repository’s setup installs the two canonical shell hooks; it installs no
 pre-push hook. Run `npm test` and the other checks directly, or use
 `package-build ci` for a container run.
 
+The repository's `vitest.config.ts` limits both `npm test` and `npm run
+test:watch` to two workers, with Vitest's isolated fork pool. CI runs the same
+`npm test` command. This bounds concurrent test files on the shared runner,
+including files that start CLI subprocesses, load SQL databases, or emit
+TypeScript declarations. Keep this bound when reproducing CI failures locally;
+a percentage of the host's CPUs does not reserve resources for other jobs.
+
 ## Documentation
 
 The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md). This toolchain does not build its own site or book.
