@@ -32,9 +32,11 @@
  *
  * - `name.full` — drawn from the culture's language's name lists by their
  *   pattern, the given name from the list for `data.gender` (see
- *   `language-names.mjs`). A name the spec states is kept, and must fit those
- *   lists: every placeholder filled by a name of its list, the given name from
- *   the gender's.
+ *   `language-names.mjs`). Each drawn name word starts with a capital in the
+ *   English display form; the pattern's literal connectors keep their case.
+ *   A different source form with no English list part is retained under the
+ *   language code. A name the spec states is kept, and must fit the source or
+ *   display-form lists.
  * - `shortcode` — the name transliterated to lowercase ASCII letters and
  *   digits, cut to twelve characters, with a counter replacing its tail where a
  *   being in the package already holds it.
@@ -70,7 +72,7 @@ import { parseNoteDate } from "./note-dates.mjs";
 import { eraYear } from "./calendars.mjs";
 import { parseAddress, renderAddress } from "./address.mjs";
 import { isPlainMap } from "./data-keys.mjs";
-import { drawName, nameMisfit } from "./language-names.mjs";
+import { drawNameParts, nameMisfit } from "./language-names.mjs";
 
 /** The youngest and oldest age, in whole years, a generated person is born to. */
 export const ADULT_AGE = Object.freeze({ min: 18, max: 60 });
@@ -151,6 +153,27 @@ export function canonicalSpec(value) {
 
 /** Whether a spec value counts as given — any value but `undefined`. */
 const given = (value) => value !== undefined;
+
+/** Each name word starts with a capital and keeps its remaining letters. */
+const displayNameWords = (name) =>
+    name.replace(/\p{L}[\p{L}\p{M}'’]*/gu, (word) =>
+        word.replace(/^\p{L}/u, (letter) => letter.toUpperCase()),
+    );
+
+/** Name lists in English display case; literal pattern text keeps its case. */
+function displayNameLists(names) {
+    const display = (value) =>
+        Array.isArray(value) ? value.map(displayNameWords)
+        : isPlainMap(value) ?
+            Object.fromEntries(Object.entries(value).map(([key, list]) => [key, display(list)]))
+        :   value;
+    return Object.fromEntries(
+        Object.entries(names).map(([key, value]) => [
+            key,
+            key === "pattern" ? value : display(value),
+        ]),
+    );
+}
 
 /** The value at a dotted path, or `undefined`. */
 function at(object, path) {
@@ -433,6 +456,8 @@ function frontmatterYaml(frontmatter) {
  *   by `namesProblems`.
  * @param {string} [context.language] - The language's Address, for an error
  *   about a name that does not fit.
+ * @param {string} [context.languageCode] - The language code under which a
+ *   generated name's distinct source form is retained.
  * @param {string} [context.seed] - Text joined to the spec's own seed, to draw a
  *   different person from the same spec.
  * @param {unknown} [context.currentDate] - The setting's neutral current date, defaulting to "720.1".
@@ -460,7 +485,9 @@ export function generateNpc(spec, context) {
     const gender = data.gender;
     const statedName = spec.name?.full;
     if (given(statedName)) {
-        const misfit = nameMisfit(statedName, names, gender);
+        const displayNames = displayNameLists(names);
+        const misfit =
+            nameMisfit(statedName, names, gender) && nameMisfit(statedName, displayNames, gender);
         if (misfit)
             throw Object.assign(
                 new Error(
@@ -470,7 +497,25 @@ export function generateNpc(spec, context) {
                 { keyPath: ["name", "full"] },
             );
     }
-    const name = given(statedName) ? statedName : drawName(names, gender, draw("name.full"));
+    const nameParts = given(statedName) ? [] : drawNameParts(names, gender, draw("name.full"));
+    const sourceName = given(statedName) ? statedName : nameParts.map((part) => part.text).join("");
+    const name =
+        given(statedName) ? statedName : (
+            nameParts
+                .map((part) => ("literal" in part ? part.text : displayNameWords(part.text)))
+                .join("")
+        );
+    const languageCode = context.languageCode;
+    const sourceAlias =
+        (
+            !given(statedName) &&
+            languageCode &&
+            languageCode !== "en" &&
+            sourceName !== name &&
+            !nameParts.some((part) => "list" in part && part.list === "en")
+        ) ?
+            { [languageCode]: [sourceName] }
+        :   {};
 
     const height =
         given(data.height) ?
@@ -537,7 +582,7 @@ export function generateNpc(spec, context) {
             subType: "npc",
             tags: ["generated", "draft"],
             ...frontmatterSpec,
-            name: { full: name, ...(isPlainMap(spec.name) ? spec.name : {}) },
+            name: { full: name, ...sourceAlias, ...(isPlainMap(spec.name) ? spec.name : {}) },
             data: fullData,
         },
         TOP_ORDER,

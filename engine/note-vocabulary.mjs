@@ -771,7 +771,7 @@ const NAMES_FIELD = Object.freeze({
     describe:
         "How this language's speakers are named, for `package-build npc new`: `pattern` " +
         'builds a name from placeholders such as "{given} {clan}" and literal text, `given` ' +
-        "maps a gender to a list of given names, " +
+        "is one list of given names for everyone or a map by gender with " +
         `${wordList([...requiredGivenGenders()]).replace(" or ", " and ")} required, and ` +
         "`en` holds groups of English names, and every other key is a list of names a " +
         "placeholder of the same name draws from. A " +
@@ -807,12 +807,17 @@ const NAMES_FIELD = Object.freeze({
         }),
         Object.freeze({
             name: "given",
-            kind: "map",
+            kind: "list-or-map",
             required: true,
-            shape: "a map of genders to lists of names",
+            shape: "a list of names or a map of genders to lists of names",
             describe:
-                "Given names by gender word. A gender with no list draws from every given " +
-                "list together.",
+                "One shared list supplies every gender. A gender map requires female and male; " +
+                "a gender with no list draws from every given list together.",
+            entries: Object.freeze({
+                kind: "string",
+                shape: "a name",
+                describe: "One name, as written.",
+            }),
             values: Object.freeze({
                 kind: "list",
                 shape: "a list of names",

@@ -94,6 +94,63 @@ describe("a language's name lists", () => {
         expect(lint(language(namesLines()))).toEqual([]);
     });
 
+    it("accepts one shared given list and draws from it for every gender", () => {
+        const note = language(namesLines({ given: "        given: [Nara, Taro]" }));
+        expect(lint(note)).toEqual([]);
+        for (const { value: gender } of BEING_LOOK_VOCABULARY.gender) {
+            expect(givenNames(note.fm.data.names, gender)).toEqual(["Nara", "Taro"]);
+            expect(drawName(note.fm.data.names, gender, fixed(0, 0))).toBe("Nara ez Zileti");
+            expect(nameMisfit("Taro ez Iqu", note.fm.data.names, gender)).toBeUndefined();
+            expect(nameMisfit("Unknown ez Iqu", note.fm.data.names, gender)).toMatch(/given list/);
+        }
+    });
+
+    it("checks entries of a shared given list at their authored positions", () => {
+        for (const [given, message, literal] of [
+            ["        given: []", /at least one name/, "[]"],
+            ['        given: [Nara, ""]', /entry 2 should be a name/, '""'],
+            ["        given: [Nara, 5]", /should be a name/, "5"],
+        ] as const) {
+            const note = language(namesLines({ given }));
+            const findings = lint(note);
+            expect(findings).toHaveLength(1);
+            expect(findings[0].message).toMatch(message);
+            expect(findings[0]).toMatchObject(at(note.raw, literal));
+        }
+    });
+
+    it("uses a shared given list for an explicitly named gender", () => {
+        const note = language(
+            namesLines({
+                given: "        given: [Nara, Taro]",
+                pattern: '        pattern: "{given} {given.male}sen ez {place}"',
+            }),
+        );
+        expect(lint(note)).toEqual([]);
+        expect(drawName(note.fm.data.names, "female", fixed(0, 0.9, 0))).toBe(
+            "Nara Tarosen ez Zileti",
+        );
+        expect(nameMisfit("Nara Tarosen ez Zileti", note.fm.data.names, "female")).toBeUndefined();
+    });
+
+    it.each([
+        ["invalid", /"invalid" is not a gender/],
+        ["mle", /"mle" is not a gender.*Did you mean "male"\?/],
+    ])("refuses the invalid gender %s on a shared given placeholder", (gender, message) => {
+        const note = language(
+            namesLines({
+                given: "        given: [Nara]",
+                pattern: `        pattern: "{given.${gender}} ez {place}"`,
+            }),
+        );
+        const findings = lint(note);
+        expect(findings.map((finding: any) => finding.message)).toEqual([
+            expect.stringMatching(message),
+        ]);
+        expect(findings[0].message).not.toContain("has no");
+        expect(findings[0]).toMatchObject(at(note.raw, `"{given.${gender}} ez {place}"`));
+    });
+
     it("refuse a placeholder naming no list, at the pattern", () => {
         const note = language(namesLines({ pattern: '        pattern: "{given} ez {plce}"' }));
         const findings = lint(note);

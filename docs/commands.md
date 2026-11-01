@@ -3417,17 +3417,20 @@ reads the words of its `data.family` chain as its own. The languages are listed
 by name; each block gives the number missing, then the missing concepts under
 their groups in list order, each group with its count, each concept as its `id`
 and `gloss` separated by a tab. A language with no concept missing is reported as
-covering them all. Writes nothing.
+covering them all. The default report ends with `Not covered (no data.core): …`,
+naming language notes without `data.core: true` in name order, when any exist.
+An explicit `--language` measures only the requested language and prints no
+skip line. Writes nothing.
 
 A missing concept is a fact to work through, never a finding, so the report does
 not change the exit status.
 
 **OPTIONS**
 
-| Option       | Type    | Default | Description                                                                                                                                                            |
-| ------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--language` | string  | —       | Report this language alone, by its name, its shortcode or its reference, whether or not it states `data.core`.                                                         |
-| `--json`     | boolean | `false` | Print `{ concepts, languages }` instead, each language `{ name, language, core, total, covered, missing }` and each missing group `{ group, count, total, concepts }`. |
+| Option       | Type    | Default | Description                                                                                                                                                                                                                                                |
+| ------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--language` | string  | —       | Report this language alone, by its name, its shortcode or its reference, whether or not it states `data.core`.                                                                                                                                             |
+| `--json`     | boolean | `false` | Print `{ concepts, notCovered, languages }` instead; `notCovered` lists unmeasured language names (empty with `--language`), each language `{ name, language, core, total, covered, missing }` and each missing group `{ group, count, total, concepts }`. |
 
 **EXIT STATUS**
 
@@ -3533,7 +3536,7 @@ exactly as given, at every depth, and every field it leaves out is generated:
 
 | Field                                                   | Generated value                                                                                                                           |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `name.full`                                             | Drawn from the culture's language's name lists by one of its patterns for `data.gender`, the given name from the list for that gender.    |
+| `name.full`                                             | Drawn by a pattern for `data.gender`; given names use the shared or gendered list, and drawn words start with capitals.                   |
 | `shortcode`                                             | The name transliterated to lowercase letters and digits and cut to twelve characters; a counter replaces its tail where a being holds it. |
 | `type`, `subType`, `tags`                               | `being`, `npc`, `[generated, draft]`.                                                                                                     |
 | `data.icon`, `data.species`, `data.packFolder`          | The commonest value among the package's npcs of the same culture, else among all its npcs; left out where none states one.                |
@@ -3577,13 +3580,25 @@ cycle. See [culture parents](reference/format-details.md#culture-parents-and-inh
 
 A profile or name lists with problems are refused with a finding at each.
 
+Generated `name.full` is the English display form: each word drawn from a name
+list starts with a capital, while its remaining letters and the pattern's
+connecting words keep their authored case. A caseless tongue can therefore
+supply `lumawesa` and `simi manik` to produce `Lumawesa of the Simi Manik`.
+The distinct source form keeps its authored spelling under the culture's language code,
+such as `name: {full: Lumawesa of the Simi Manik, teyu: [lumawesa of the simi manik]}`.
+If the selected pattern draws any English `{en.*}` part, the command omits
+the generated native alias. An unused English pattern does not affect a name
+drawn from another pattern.
+Supplied names and language forms keep their exact spelling and case.
+
 A spec that states `name.full` keeps it, and the name must fit the language's
-lists: one of the patterns for `data.gender`, with every placeholder filled by
+source or English display lists: one of the patterns for `data.gender`, with every placeholder filled by
 a name of its list, the given name from the list for `data.gender`. A name that does not fit is an
 error naming the part that fails and the language it was checked against; from
 a `--specfile`, the error is located at the name in the file. Where the
-gender has no given list of its own, the given name is drawn from, and
-checked against, every given list together.
+language states one shared `given` list, every gender draws from and is checked
+against it. With a gender map, a gender with no list of its own draws from and
+is checked against every given list together.
 
 Two top-level spec keys are section bodies rather than frontmatter.
 `appearance` is the Appearance section's markdown, written verbatim with its

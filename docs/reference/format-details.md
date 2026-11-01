@@ -4927,10 +4927,11 @@ language:
   - **a map of `gender` words** to a pattern or a list of them, for a tongue
     whose forms differ by gender. A gender with no pattern of its own takes
     every pattern stated.
-- `given` maps a `gender` word to a list of given names. `female` and `male`
-  are required. `{given}` draws from the list for the person's gender, or from
-  every given list together where that gender has none. `{given.<gender>}`
-  draws from that gender's list whatever the person's gender, as a patronymic
+- `given` is one list of names for everyone, or a map of `gender` words to
+  lists. A shared list supplies every gender. A map requires `female` and
+  `male`; `{given}` draws from the person's gender's list, or every given list
+  together where that gender has none. `{given.<gender>}` draws from the shared
+  list or that gender's list whatever the person's gender, as a patronymic
   draws a father's name.
 - `en` holds English names, in groups of lists. A group is named by letters,
   digits and underscores, beginning with a letter, and a pattern reaches it by
@@ -4945,6 +4946,18 @@ language:
 Each placeholder draws one name from its list, each name as likely as any
 other, and a drawn name takes one of its gender's patterns, each as likely as
 any other.
+
+A tongue whose given names suit anyone states one list:
+
+```yaml
+data:
+  names:
+    pattern: "{given} {clan}"
+    given: [Nara, Taro]
+    clan: [Mori, Sela]
+```
+
+`Nara Mori` and `Taro Sela` fit every gender; each draw uses the same list.
 
 A tongue whose people are named by standing states each form in a list:
 
@@ -6079,7 +6092,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `parentSkill`                              | `Address`                                                                                                                      | Parent skill this skill specializes                                                                                                                                                            |
 | `names`                                    | `{ pattern, given, en?, <name>... }`                                                                                           | `language` only: how its speakers are named, for `package-build npc new` — see [name lists](#name-lists)                                                                                       |
 | `names.pattern`                            | `string`, `string[]` or map of `gender` words to either, required                                                              | Placeholders such as `{given}`, `{given.male}` and `{clan}`, each naming a list, with literal text around them; a list states several forms, a map each gender's forms                         |
-| `names.given`                              | map of `gender` words to lists of names, required                                                                              | Given names by gender; `female` and `male` are required                                                                                                                                        |
+| `names.given`                              | list of names or map of `gender` words to lists, required                                                                      | One shared list for every gender, or a map requiring `female` and `male`                                                                                                                       |
 | `names.given.<name>`                       | `string[]`                                                                                                                     | The given names of one gender                                                                                                                                                                  |
 | `names.en`                                 | map of list names to lists of English names                                                                                    | English names, never encoded in the tongue's script; a pattern draws from one list as `{en.<list>}`                                                                                            |
 | `names.en.<name>`                          | `string[]`                                                                                                                     | A list of English names, such as `epithet`                                                                                                                                                     |
@@ -6657,8 +6670,13 @@ meaning, `built` may name its existing pieces, and `concept` may name every
 concept those senses support. The report counts declared ids; it does not
 prove an expression's meaning or infer coverage from grammar or untagged prose.
 
-`package-build core` is the report. A concept no word serves is never a lint
-finding; the report lists it so the language can be filled in. See
+`package-build core` measures only language notes that state `data.core: true`.
+It ends with `Not covered (no data.core): …`, naming the other language notes
+in name order, when any exist. The JSON report includes the same names in its
+`notCovered` array. `--language <name>` measures that language whether or not
+it states `data.core`, with an empty `notCovered` array and no skip line.
+A concept no word serves is never a lint finding; the report lists it so the
+language can be filled in. See
 [`package-build core`](../commands.md#package-build-core).
 
 #### A language's register, sounds and history

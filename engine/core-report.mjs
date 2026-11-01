@@ -79,7 +79,7 @@ function idsOf(word) {
  * @param {Iterable<Record<string, any>>} records - Index records.
  * @param {{language?: string}} [options] - A language to report alone, by its
  *   name, shortcode or reference slug whether or not it states `data.core`.
- * @returns {{concepts: number, languages: Array<{name: string, language: string, core: boolean, total: number, covered: number, missing: Array<{group: string, count: number, total: number, concepts: Array<{id: string, gloss: string}>}>}>}|{problem: string, about: string}}
+ * @returns {{concepts: number, notCovered: string[], languages: Array<{name: string, language: string, core: boolean, total: number, covered: number, missing: Array<{group: string, count: number, total: number, concepts: Array<{id: string, gloss: string}>}>}>}|{problem: string, about: string}}
  *   The report, or the problem when there is no concept list or the language
  *   asked for is none.
  */
@@ -113,6 +113,13 @@ export function coreReport(records, { language } = {}) {
     const groups = [...new Set(concepts.map((concept) => concept.group))];
     return {
         concepts: concepts.length,
+        notCovered:
+            language === undefined ?
+                languages
+                    .filter((record) => record.data?.core !== true)
+                    .map(nameOf)
+                    .sort((a, b) => a.localeCompare(b))
+            :   [],
         languages: chosen.map((record) => {
             const have = new Set();
             const forms = new Set();
@@ -154,24 +161,26 @@ export function coreReport(records, { language } = {}) {
  * A core report as text: one block per language, its missing concepts under
  * their groups with counts, each concept's id and gloss tab-separated.
  *
- * @param {{concepts: number, languages: Array<object>}} report - A report from {@link coreReport}.
+ * The default report ends with the names of languages it does not measure.
+ *
+ * @param {{concepts: number, notCovered: string[], languages: Array<object>}} report - A report from {@link coreReport}.
  * @returns {string} The text, ending in a newline.
  */
 export function coreReportText(report) {
-    if (!report.languages.length) return "No language states `data.core: true`.\n";
-    return report.languages
-        .map((one) => {
-            if (!one.missing.length)
-                return `${one.name} (${one.language}): all ${one.total} core concepts have a word\n`;
-            const lines = [
-                `${one.name} (${one.language}): ${one.total - one.covered} of ${one.total} core concepts have no word`,
-            ];
-            for (const group of one.missing) {
-                lines.push(`  ${group.group}: ${group.count} of ${group.total}`);
-                for (const concept of group.concepts)
-                    lines.push(`    ${concept.id}\t${concept.gloss}`);
-            }
-            return `${lines.join("\n")}\n`;
-        })
-        .join("\n");
+    const blocks = report.languages.map((one) => {
+        if (!one.missing.length)
+            return `${one.name} (${one.language}): all ${one.total} core concepts have a word\n`;
+        const lines = [
+            `${one.name} (${one.language}): ${one.total - one.covered} of ${one.total} core concepts have no word`,
+        ];
+        for (const group of one.missing) {
+            lines.push(`  ${group.group}: ${group.count} of ${group.total}`);
+            for (const concept of group.concepts) lines.push(`    ${concept.id}\t${concept.gloss}`);
+        }
+        return `${lines.join("\n")}\n`;
+    });
+    if (!blocks.length) blocks.push("No language states `data.core: true`.\n");
+    if (report.notCovered.length)
+        blocks.push(`Not covered (no data.core): ${report.notCovered.join(", ")}\n`);
+    return blocks.join("\n");
 }

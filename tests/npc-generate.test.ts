@@ -273,6 +273,125 @@ describe("a generated npc", () => {
 });
 
 describe("a generated npc's name", () => {
+    it.each([
+        { given: { female: ["nali"], male: ["lumawesa"], nonbinary: null } },
+        { given: ["lumawesa"], en: null },
+    ])("generates from name lists with optional null entries: %j", (lists) => {
+        const { fm } = split(
+            generateNpc(unnamed(), {
+                ...CONTEXT,
+                languageCode: "caseless",
+                names: { pattern: "{given}", ...lists },
+            }).text,
+        );
+        expect(fm.name).toEqual({ full: "Lumawesa", caseless: ["lumawesa"] });
+        expect(() =>
+            generateNpc(
+                { ...unnamed(), name: { full: "Lumawesa" } },
+                { ...CONTEXT, names: { pattern: "{given}", ...lists } },
+            ),
+        ).not.toThrow();
+    });
+
+    it("capitalizes the actual fallback draw when distinct spellings share a display form", () => {
+        for (let seed = 0; seed < 16; seed++) {
+            const { fm } = split(
+                generateNpc(unnamed({ gender: "nonbinary" }), {
+                    ...CONTEXT,
+                    seed: String(seed),
+                    languageCode: "caseless",
+                    names: {
+                        pattern: "{given}",
+                        given: { female: ["a", "Bo"], male: ["bo", "c"] },
+                    },
+                }).text,
+            );
+            const source = fm.name.caseless?.[0] ?? fm.name.full;
+            expect(fm.name.full, `seed ${seed}, source ${source}`).toBe(
+                source[0].toUpperCase() + source.slice(1),
+            );
+        }
+    });
+
+    it("omits a native alias only when the selected pattern contains an English part", () => {
+        const patterns = new Set();
+        for (let seed = 0; seed < 12; seed++) {
+            const { fm } = split(
+                generateNpc(unnamed(), {
+                    ...CONTEXT,
+                    seed: String(seed),
+                    languageCode: "caseless",
+                    names: {
+                        pattern: ["{given}", "{given} the {en.epithet}"],
+                        given: { female: ["nali"], male: ["lumawesa"] },
+                        en: { epithet: ["bold"] },
+                    },
+                }).text,
+            );
+            const englishPart = fm.name.full.includes(" the ");
+            patterns.add(englishPart);
+            expect(fm.name).toEqual(
+                englishPart ?
+                    { full: "Lumawesa the Bold" }
+                :   { full: "Lumawesa", caseless: ["lumawesa"] },
+            );
+        }
+        expect(patterns.size).toBe(2);
+    });
+
+    it("capitalizes name words for English and keeps the original roman alias", () => {
+        const { fm, body } = split(
+            generateNpc(unnamed(), {
+                ...CONTEXT,
+                languageCode: "caseless",
+                names: {
+                    pattern: "{given} of the {clan}",
+                    given: { female: ["nali"], male: ["lumawesa"] },
+                    clan: ["simi manik"],
+                },
+            }).text,
+        );
+        expect(fm.name).toEqual({
+            full: "Lumawesa of the Simi Manik",
+            caseless: ["lumawesa of the simi manik"],
+        });
+        expect(body).toContain("Lumawesa of the Simi Manik is a");
+    });
+
+    it("preserves a caseful name's internal case and pattern connectors", () => {
+        const { fm } = split(
+            generateNpc(unnamed(), {
+                ...CONTEXT,
+                languageCode: "caseful",
+                names: {
+                    pattern: "{given} of the {clan}",
+                    given: { female: ["Nali"], male: ["McAllan"] },
+                    clan: ["O'Mara"],
+                },
+            }).text,
+        );
+        expect(fm.name).toEqual({ full: "McAllan of the O'Mara" });
+    });
+
+    it("keeps a supplied English display name and native alias exactly", () => {
+        const name = { full: "Lumawesa of the Simi Manik", caseless: ["lumawesa"] };
+        const { fm } = split(
+            generateNpc(
+                { ...unnamed(), name },
+                {
+                    ...CONTEXT,
+                    languageCode: "caseless",
+                    names: {
+                        pattern: "{given} of the {clan}",
+                        given: { female: ["nali"], male: ["lumawesa"] },
+                        clan: ["simi manik"],
+                    },
+                },
+            ).text,
+        );
+        expect(fm.name).toEqual(name);
+    });
+
     it("is drawn from the language's lists when the spec states none, the same each time", () => {
         const a = split(generateNpc(unnamed(), CONTEXT).text);
         const b = split(generateNpc(unnamed(), CONTEXT).text);

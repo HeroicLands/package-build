@@ -3485,6 +3485,7 @@ function newNpc(config, argv) {
             profile,
             names,
             language: languageKey,
+            languageCode: code,
             seed: argv.seed,
             currentDate: config.currentDate,
             dateContext: reckoningContext(index),

@@ -83,6 +83,8 @@ languages:
   khelathi: { tag: art-x-khelathi, note: skill-khelathilng }
   silent: { tag: art-x-silent, note: skill-silentlng }
   ownwords: { tag: art-x-ownwords, note: skill-ownwordslng }
+  shared: { tag: art-x-shared, note: skill-sharedlng }
+  caseless: { tag: art-x-caseless, note: skill-caselesslng }
 packs:
   - { name: journals, type: JournalEntry, default: true }
   - { name: skills, type: Item }
@@ -98,6 +100,7 @@ packs:
     culture("Plainfolk", "plainfolk", "  lang: khelathi\n");
     culture("Wordless", "wordless", PROFILE);
     culture("Unlisted", "unlisted", "  lang: silent\n" + PROFILE);
+    culture("Caseless", "caseless", "  lang: caseless\n" + PROFILE);
     language(
         "Khelathi",
         "khelathilng",
@@ -106,6 +109,19 @@ packs:
             `    kin: [Zekar, Lêru, Iqu]\n`,
     );
     language("Silent", "silentlng", "");
+    culture("Shared", "shared", "  lang: shared\n" + PROFILE);
+    language(
+        "Shared",
+        "sharedlng",
+        '  names:\n    pattern: "{given} {kin}"\n' + "    given: [Nara, Taro]\n    kin: [Mori]\n",
+    );
+
+    language(
+        "Caseless",
+        "caselesslng",
+        '  names:\n    pattern: "{given} of the {clan}"\n' +
+            "    given:\n      female: [nali]\n      male: [lumawesa]\n    clan: [simi manik]\n",
+    );
     language(
         "Ownwords",
         "ownwordslng",
@@ -137,6 +153,24 @@ const UNNAMED = { data: { culture: "khelathi", gender: "female" } };
 const frontmatterOf = (text: string) => YAML.parse(text.split("---\n")[1]);
 
 describe("package-build npc new", () => {
+    it(
+        "capitalizes the English name and retains its caseless language form",
+        () => {
+            const generated = run(
+                "npc",
+                "new",
+                "--spec",
+                JSON.stringify({ data: { culture: "caseless", gender: "male" } }),
+            );
+            expect(generated.status).toBe(0);
+            expect(frontmatterOf(generated.stdout).name).toEqual({
+                full: "Lumawesa of the Simi Manik",
+                caseless: ["lumawesa of the simi manik"],
+            });
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
     it(
         "requires exactly one of --spec and --specfile",
         () => {
@@ -239,6 +273,36 @@ describe("package-build npc new", () => {
             expect(seeded.stdout).not.toBe(a.stdout);
         },
         subprocessTimeout(3),
+    );
+
+    it(
+        "generates and accepts a shared given name for every gender",
+        () => {
+            for (const gender of ["female", "male", "nonbinary"]) {
+                const generated = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({
+                        data: { culture: "shared", gender },
+                    }),
+                );
+                expect(generated.status, generated.stderr).toBe(0);
+                expect(frontmatterOf(generated.stdout).name.full).toMatch(/^(Nara|Taro) Mori$/);
+                const supplied = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({
+                        name: { full: "Nara Mori" },
+                        data: { culture: "shared", gender },
+                    }),
+                );
+                expect(supplied.status, supplied.stderr).toBe(0);
+                expect(frontmatterOf(supplied.stdout).name.full).toBe("Nara Mori");
+            }
+        },
+        subprocessTimeout(6),
     );
 
     it(

@@ -403,6 +403,42 @@ describe("the core report", () => {
         expect(report.languages.map((one: any) => one.name)).toEqual(["Lonely", "Younger"]);
     });
 
+    it("names unmeasured languages after the default coverage blocks", () => {
+        const { records } = tree({
+            ...FULL,
+            "Skills/Aside.md": language("asidelng", "Aside", ["  core: false"], []),
+        });
+        const report: any = coreReport(records);
+        expect(report.languages.map((one: any) => one.name)).toEqual(["Younger"]);
+        expect(JSON.parse(JSON.stringify(report)).notCovered).toEqual(["Aside", "Elder"]);
+        const text = coreReportText(report);
+        expect(text).not.toMatch(/^(Aside|Elder) \(skill-/m);
+        expect(text).toMatch(/\nNot covered \(no data.core\): Aside, Elder\n$/);
+    });
+
+    it("names unmeasured languages even when no language states core", () => {
+        const { records } = tree({
+            "Docs/Concepts.md": CONCEPTS,
+            "Skills/Elder.md": ELDER,
+        });
+        const report: any = coreReport(records);
+        expect(report.languages).toEqual([]);
+        expect(report.notCovered).toEqual(["Elder"]);
+        expect(coreReportText(report)).toBe(
+            "No language states `data.core: true`.\n\nNot covered (no data.core): Elder\n",
+        );
+    });
+
+    it("has no unmeasured languages when every language states core", () => {
+        const { records } = tree({
+            "Docs/Concepts.md": CONCEPTS,
+            "Skills/Lonely.md": LONELY,
+        });
+        const report: any = coreReport(records);
+        expect(report.notCovered).toEqual([]);
+        expect(coreReportText(report)).not.toContain("Not covered");
+    });
+
     it("lists a language with no words as missing every concept, by group in list order", () => {
         const report: any = coreReport(records, { language: "lonely" });
         expect(report.languages).toHaveLength(1);
@@ -421,6 +457,8 @@ describe("the core report", () => {
             const report: any = coreReport(records, { language: key });
             expect(report.problem, key).toBeUndefined();
             expect(report.languages.map((one: any) => one.name)).toEqual(["Elder"]);
+            expect(report.notCovered).toEqual([]);
+            expect(coreReportText(report)).not.toContain("Not covered");
         }
     });
 
@@ -453,7 +491,7 @@ describe("the core report", () => {
         );
         const done = tree({ ...FULL, "Skills/Younger.md": full }).records;
         expect(coreReportText(coreReport(done) as any)).toBe(
-            "Younger (skill-youngerlng): all 8 core concepts have a word\n",
+            "Younger (skill-youngerlng): all 8 core concepts have a word\n\nNot covered (no data.core): Elder\n",
         );
     });
 
@@ -461,6 +499,7 @@ describe("the core report", () => {
         const report: any = coreReport(records, { language: "younger" });
         expect(JSON.parse(JSON.stringify(report))).toEqual({
             concepts: 8,
+            notCovered: [],
             languages: [
                 {
                     name: "Younger",

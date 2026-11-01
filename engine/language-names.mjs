@@ -29,11 +29,11 @@
  *   tongue whose forms differ by gender states a map of gender words to a
  *   pattern or a list of them. A gender with no pattern of its own takes every
  *   pattern stated.
- * - `given` — given names, one list per gender word of the closed gender
- *   vocabulary. `female` and `male` are required. `{given}` draws from the
- *   person's gender's list, or from every given list together where that gender
- *   has none; `{given.<gender>}` draws from that gender's list whatever the
- *   person's gender, as a patronymic draws a father's name.
+ * - `given` — one list of names for everyone, or a map of gender words to
+ *   lists. The map requires `female` and `male`. `{given}` draws from the shared
+ *   list, the person's gender's list, or every given list together where that
+ *   gender has none. `{given.<gender>}` draws from the shared list or that
+ *   gender's list whatever the person's gender, as a patronymic draws a father's name.
  * - `en` — English names, in groups of lists: `en.epithet` is a list a pattern
  *   draws from as `{en.epithet}`, as `"{given} the {en.epithet}"` does. English
  *   names are never encoded in the tongue's script or checked against its
@@ -73,7 +73,7 @@ const LIST_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 const PLACEHOLDER = /^([A-Za-z][A-Za-z0-9_]*)(?:\.([A-Za-z][A-Za-z0-9_]*))?$/;
 
 /**
- * The genders every `data.names.given` states a list for.
+ * The genders a mapped `data.names.given` states a list for.
  *
  * A function rather than a `const`: `note-vocabulary.mjs` reads it while the
  * module graph is still evaluating.
@@ -317,8 +317,12 @@ export function namesProblems(names, lookVocabulary) {
 
     const given = names[GIVEN_LIST];
     if (given === undefined || given === null) shape([], "`data.names` must state `given`", true);
+    else if (Array.isArray(given)) checkList([GIVEN_LIST]);
     else if (!isPlainMap(given))
-        shape([GIVEN_LIST], `\`${label([GIVEN_LIST])}\` should be a map of genders to lists`);
+        shape(
+            [GIVEN_LIST],
+            `\`${label([GIVEN_LIST])}\` should be a list of names or a map of genders to lists`,
+        );
     else {
         const genders = genderWords(lookVocabulary);
         for (const gender of requiredGivenGenders()) {
@@ -428,7 +432,18 @@ export function namesProblems(names, lookVocabulary) {
             }
             named.add(part.list);
             if (part.gender !== undefined) {
-                if (givenMap[part.gender] === undefined || givenMap[part.gender] === null)
+                if (Array.isArray(given)) {
+                    if (!genders.includes(part.gender)) {
+                        const guess = nearest(part.gender, genders);
+                        problem(
+                            path,
+                            `${JSON.stringify(part.gender)} is not a gender; ` +
+                                `\`{${placeholderText(part)}}\` in \`${label(path)}\` takes ` +
+                                genders.join(", ") +
+                                (guess ? `. Did you mean "${guess}"?` : ""),
+                        );
+                    }
+                } else if (givenMap[part.gender] === undefined || givenMap[part.gender] === null)
                     problem(
                         path,
                         `\`{${placeholderText(part)}}\` in \`${label(path)}\` names no list: ` +
@@ -476,7 +491,7 @@ export function namesProblems(names, lookVocabulary) {
  * keys cannot: a pattern that does not parse, a placeholder naming no list, a
  * list no pattern names, a list name a placeholder cannot spell, an empty list
  * of patterns or of names, an empty name, a pattern or given list keyed by no
- * gender, and a missing `female` or `male` list. Each is located at the pattern, list, entry or key at fault.
+ * gender, and a missing `female` or `male` list in a gender map. Each is located at the pattern, list, entry or key at fault.
  *
  * @param {object} note - The note: `file`, `raw` and parsed `fm`.
  * @param {Readonly<Record<string, readonly {value: string}[]>>} lookVocabulary -
@@ -534,8 +549,8 @@ export function namesFindings(note, lookVocabulary) {
 }
 
 /**
- * The given names a gender draws from: its own list, or every given list
- * together where it has none.
+ * The given names a gender draws from: the shared list, its own list, or
+ * every given list together where it has none.
  *
  * @param {object} names - Checked `data.names`.
  * @param {string} gender - A gender word.
@@ -543,6 +558,7 @@ export function namesFindings(note, lookVocabulary) {
  */
 export function givenNames(names, gender) {
     const given = names[GIVEN_LIST];
+    if (Array.isArray(given)) return given;
     if (Array.isArray(given[gender])) return given[gender];
     return [...new Set(Object.values(given).filter(Array.isArray).flat())];
 }
@@ -551,13 +567,33 @@ export function givenNames(names, gender) {
 function listFor(names, part, gender) {
     if (part.sub !== undefined) return names[part.list][part.sub];
     if (part.list !== GIVEN_LIST) return names[part.list];
-    if (part.gender !== undefined) return names[GIVEN_LIST][part.gender];
+    if (part.gender !== undefined) return givenNames(names, part.gender);
     return givenNames(names, gender);
 }
 
 /**
- * A name drawn from a language's lists: one of the gender's patterns, where it
- * has more than one, then each placeholder an even draw from its list.
+ * A name's selected literal and placeholder parts. One of the gender's
+ * patterns is selected first, then each placeholder is an even draw from its
+ * source list.
+ *
+ * @param {object} names - Checked `data.names`.
+ * @param {string} gender - A gender word.
+ * @param {() => number} next - A stream of numbers in `[0, 1)`.
+ * @returns {(PatternPart & {text: string})[]} The selected parts in pattern order.
+ */
+export function drawNameParts(names, gender, next) {
+    const patterns = patternsFor(names, gender);
+    const pattern =
+        patterns.length > 1 ? patterns[Math.floor(next() * patterns.length)] : patterns[0];
+    return parsePattern(pattern).parts.map((part) => {
+        if ("literal" in part) return { ...part, text: part.literal };
+        const list = listFor(names, part, gender);
+        return { ...part, text: list[Math.floor(next() * list.length)] };
+    });
+}
+
+/**
+ * A name drawn from a language's lists.
  *
  * @param {object} names - Checked `data.names`.
  * @param {string} gender - A gender word.
@@ -565,15 +601,8 @@ function listFor(names, part, gender) {
  * @returns {string} The name.
  */
 export function drawName(names, gender, next) {
-    const patterns = patternsFor(names, gender);
-    const pattern =
-        patterns.length > 1 ? patterns[Math.floor(next() * patterns.length)] : patterns[0];
-    return parsePattern(pattern)
-        .parts.map((part) => {
-            if ("literal" in part) return part.literal;
-            const list = listFor(names, part, gender);
-            return list[Math.floor(next() * list.length)];
-        })
+    return drawNameParts(names, gender, next)
+        .map((part) => part.text)
         .join("");
 }
 
@@ -640,7 +669,8 @@ export function nameMisfit(full, names, gender) {
     const text = nfc(full);
     const given = names[GIVEN_LIST];
     const own = givenNames(names, gender).map(nfc);
-    const every = Object.values(given).filter(Array.isArray).flat().map(nfc);
+    const every = (
+        Array.isArray(given) ? given : Object.values(given).filter(Array.isArray).flat()).map(nfc);
     const lookup = (forGiven) => (part) =>
         part.list === GIVEN_LIST && part.gender === undefined ?
             forGiven
