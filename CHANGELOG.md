@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 25.5.4
+
+**Builds and commands**
+
+- Content builds use less memory when preparing, checking and compiling notes.
+
 ## 25.5.3
 
 **Verse**
