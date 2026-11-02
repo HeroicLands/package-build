@@ -62,6 +62,7 @@
  * @module
  */
 
+import { scanPageBreaks } from "./page-breaks.mjs";
 import { createRenderer } from "./content-render.mjs";
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
 import { ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
@@ -359,6 +360,7 @@ function reportUnrenderable(source, definitions, opts, original) {
         }
     }
     for (const error of [
+        ...scanPageBreaks(source).errors,
         ...scanSpans(source).errors,
         ...scanRuns(source, opts.runs).errors,
         ...markupAnchorFindings(source),
@@ -469,6 +471,7 @@ function reportUnrenderable(source, definitions, opts, original) {
  * @param {Array<{line: number, generated: boolean}>} [opts.lineMap] - From
  *   table expansion, mapping each line handed in back to the line an author
  *   wrote.
+ * @param {boolean} [opts.pageBreaks] - Internal: whether this slice remains at the note top level.
  * @param {boolean} [opts.prepared] - Whether this body has been through the
  *   passes that resolve a wikilink, an embed and an inline expression. A note's
  *   has; a front-matter file's and a prose file's have not, and markup of theirs
@@ -547,6 +550,7 @@ export function markdownToTypst(markdown, opts = {}) {
         footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
         scrolls: marked?.scrolls ?? opts.scrolls ?? new Map(),
         verses: marked?.verses ?? opts.verses ?? new Map(),
+        pageBreaks: opts.pageBreaks !== false,
     };
     // A withheld section is set in the box a `:::secret` is set in, and its
     // heading is set inside it: a printed page honours no reader permission, so
@@ -600,6 +604,7 @@ export function markdownToTypst(markdown, opts = {}) {
                 if (block.name === "div") {
                     const content = markdownToTypst(block.body, {
                         ...sharedOptions,
+                        pageBreaks: false,
                         insideAdmonition: false,
                     });
                     const anchor = block.id ? ` <${sectionLabel(anchorPrefix, block.id)}>` : "";
@@ -620,6 +625,7 @@ export function markdownToTypst(markdown, opts = {}) {
                 // of its own; a box holds none, and the scan has already said so.
                 const content = markdownToTypst(block.body, {
                     ...sharedOptions,
+                    pageBreaks: false,
                     insideAdmonition: !BLOCK_CONTAINERS.includes(block.name),
                 });
                 output.push(
@@ -695,7 +701,7 @@ export function markdownToTypst(markdown, opts = {}) {
 /** Render one fragment with the note's footnote definitions available. */
 function renderMarkdownSegment(source, md, ctx, definitions) {
     const input = definitions ? `${source}\n\n${definitions}` : source;
-    const tokens = md.parse(input, { verses: ctx.verses });
+    const tokens = md.parse(input, { verses: ctx.verses, pageBreaks: ctx.pageBreaks });
     const footnoteStart = tokens.findIndex((token) => token.type === "footnote_block_open");
     const visible = footnoteStart < 0 ? tokens : tokens.slice(0, footnoteStart);
     const footnotes = new Map();
@@ -791,6 +797,9 @@ function renderBlock(tokens, i, out, ctx) {
             out.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
             return 1;
         }
+        case "page_break":
+            out.push("\n#pagebreak(weak: true)\n\n");
+            return 1;
         case "hr":
             out.push("\n#line(length: 100%, stroke: 0.4pt)\n\n");
             return 1;

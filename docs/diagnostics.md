@@ -297,6 +297,23 @@ Like a culture conflict, each fails the index and every command that reads it
 without collecting problems. The rules are under
 [a note's language](reference/format-details.md#a-notes-language).
 
+## Book page-break findings
+
+The optional [book page break](authoring/links-and-markup.md#book-page-breaks)
+uses only `--- {.page-break}` between blocks at the note's top level.
+Other classes, ids or attributes on an attributed `---` line receive findings
+at their opening brace. A `.page-break` on `***` or `___` receives a finding
+at the marker. A marker inside a list, block quote, alert, secret block or
+fenced div receives `a page break stands between blocks at the top level of a
+note`, at that marker's line and column. Missing surrounding blank lines
+receive the same placement finding. Code blocks and complete verse divs are
+literal and receive no page-break findings.
+
+The author lint, pack compiler, site build, both preview views and book source
+generation report these errors from the same scanner. A valid marker is
+omitted on screens and emits a weak page break in the book, avoiding an extra
+blank page at a page top.
+
 ## A worked case: versions of a work
 
 [Versions of a work](authoring/links-and-markup.md#versions-and-stanza-labels)

@@ -258,6 +258,12 @@ A phrase with an <abbr title="abbreviation">abbr</abbr> tag inline.
 
 <div class="raw-block">A raw block of markup.</div>
 
+Before the authored book break.
+
+--- {.page-break}
+
+After the authored book break.
+
 [^original-word]: A note on the original word.
 [^english-line]: A note on the English line.
 [^script-word]: A note on the script word.

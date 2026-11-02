@@ -237,6 +237,30 @@ A captioned item inside the section is withheld with it: in Foundry the item's o
 
 The special Actor anchors `{#appearance}` and `{#dossier}` feed the same authored sections to each system's Actor fields, and take an H1 only — not the lower-level heading a journal page may otherwise start from. The section runs to the next H1, nested headings included. An anchor declared on a lower heading is still found, and is a build error rather than a quietly empty field: move the heading to the top level, or drop the anchor if the section is meant to stay unaddressed prose.
 
+## Book page breaks
+
+Write `--- {.page-break}` on its own line between blocks, with blank lines around it:
+
+```markdown
+The first passage ends here.
+
+--- {.page-break}
+
+The next passage starts on a fresh book page.
+```
+
+The book starts a fresh page without drawing a rule. If the marker already
+falls at the top of a page, it adds no blank page. The website, Foundry and
+both editor preview views omit the marker. Plain `---`, `***` and `___` keep
+their ordinary horizontal rules. Code blocks and verse divs keep the marker
+as literal text.
+
+Only `---` accepts `.page-break`; `*** {.page-break}` and `___ {.page-break}`
+are findings. Other classes, ids and attributes on an attributed `---` line
+are findings too. A page break stands between blocks at the top level of a
+note: putting one inside a list, block quote, alert, secret block or fenced
+div is a finding at the marker's line and column.
+
 ## Captions and numbered references
 
 Write a caption on its own line **before** the item it describes, with a blank line before and after the caption. `:` produces an unnumbered caption; `:@` produces a numbered caption. One or more spaces separate the marker from its text. An optional attribute block at the end accepts an identifier, classes and named attributes:

@@ -51,6 +51,7 @@
  * @module
  */
 
+import { scanPageBreaks } from "./page-breaks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
 import { decodeNoteAddresses, noteAddressContext } from "./note-addresses.mjs";
@@ -799,6 +800,7 @@ export function renderSitePage(
     for (const error of [
         ...scanBlocks(page.body).errors,
         ...scanAlerts(page.body).errors,
+        ...scanPageBreaks(page.body).errors,
         ...scanSpans(page.body).errors,
         ...scanRuns(page.body, runs).errors,
         ...markupAnchorFindings(page.body),

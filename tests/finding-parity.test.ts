@@ -142,6 +142,55 @@ describe("the pack compiler, the site build and the book agree on one note's fin
         spy?.mockRestore();
     });
 
+    it("reports an invalid page break once at its authored position on every surface", async () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "page-break-parity-"));
+        try {
+            const content = path.join(tmp, "content");
+            fs.mkdirSync(content);
+            const file = path.join(content, "Probe.md");
+            const body = "A paragraph.\n\n> --- {.page-break}";
+            const message = "a page break stands between blocks at the top level of a note";
+            fs.writeFileSync(file, noteFile(body));
+            const out = path.join(tmp, "out");
+            fs.mkdirSync(out);
+            const emitted: string[] = [];
+            spy = vi
+                .spyOn(console, "error")
+                .mockImplementation((line: unknown) => emitted.push(String(line)));
+            const pack = new Probe({ skipDirectories: [], contentBase: content, dest: out });
+            await pack.compile();
+            expect(pack.errorCount).toBe(1);
+            expect(emitted.filter((line) => line.includes(message))).toEqual([
+                `${file}:10:3: error: ${message}`,
+            ]);
+            const page = {
+                kind: "content" as const,
+                fm: { type: "doc", shortcode: "parity", name: { full: "Probe" } },
+                file,
+                pkg: "sohl",
+                body,
+                bodyLine: 8,
+                name: "Probe",
+                slug: "doc-parity",
+                base: "Probe.md",
+                relPath: "Probe.md",
+            };
+            const built = buildSiteIndex([page], { package: "sohl" });
+            const site = renderSitePage(page, {
+                index: built.index,
+                foreign: { index: new Map() },
+                universe: new Map(),
+                config: {},
+            });
+            expect(site.secretErrors).toEqual([{ file, line: 10, column: 3, message }]);
+            const findings: any[] = [];
+            markdownToTypst(body, { findings, file, bodyLine: 8 });
+            expect(findings).toEqual([{ file, severity: "error", line: 10, column: 3, message }]);
+        } finally {
+            fs.rmSync(tmp, { recursive: true, force: true });
+        }
+    });
+
     it("reports both figure findings on every surface, not just the first", async () => {
         // The pack compiler: a tree of one note, compiled, counted.
         const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-finding-parity-"));

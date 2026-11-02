@@ -11,6 +11,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { scanPageBreaks } from "./page-breaks.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
 import { scanRuns } from "./content-scripts.mjs";
@@ -74,6 +75,7 @@ export function markupFindings(source, file, syntax, runs) {
     const errors = [
         ...(scanned?.blocks ?? scanBlocks(body)).errors,
         ...(scanned?.alerts ?? scanAlerts(body)).errors,
+        ...scanPageBreaks(body).errors,
         ...verseErrors,
         ...(marked?.errors ?? []),
         ...shortcodeErrors(body),

@@ -96,6 +96,7 @@ describe("createRenderer", () => {
         // The book reads the tokens its Typst stage walks.
         expect(names("book")).toEqual([
             "footnotes",
+            "page-breaks",
             "alerts",
             "spans",
             "verse-div",

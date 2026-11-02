@@ -28,6 +28,7 @@
  * | quotes, dashes and ellipses | as written | typographic | as written | as written, set by Typst |
  * | raw HTML in a note | passed through | passed through | shown as text | shown as text |
  * | a name's first use | bold | bold | bold, with an index | bold |
+ * | `--- {.page-break}` | omitted | omitted | omitted | a weak page break |
  * | the output | HTML | HTML | HTML | the token stream, for the Typst stage |
  *
  * A target differs from the others only in that table. The shared plugins are
@@ -41,6 +42,8 @@
  * already resolved by {@link module:engine/content-expand.expandContent}.
  * {@link Renderer#prepare} then writes the constructs markdown-it has no
  * syntax for as HTML between blank lines, in this order:
+ *
+ * Valid authored page breaks are omitted before these stages.
  *
  * 1. **Marked text** — a run's language, face and mapping, from the
  *    configuration's script notes.
@@ -64,6 +67,7 @@
  * @module
  */
 
+import { omitPageBreaks, pageBreakPlugin } from "./page-breaks.mjs";
 import MarkdownIt from "markdown-it";
 import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
@@ -402,6 +406,7 @@ export function createRenderer(target, options = {}) {
 
     use("footnotes", footnotePlugin);
     if (book) {
+        use("page-breaks", pageBreakPlugin);
         use("alerts", alertMarkdownPlugin);
         use("spans", spanMarkdownPlugin, { verseInline: quotedVerse });
         use("verse-div", verseDivPlugin);
@@ -449,7 +454,7 @@ export function createRenderer(target, options = {}) {
 
     /** Write the constructs markdown-it has no syntax for as HTML. */
     const prepare = (markdown, env = {}) => {
-        let text = String(markdown ?? "");
+        let text = omitPageBreaks(String(markdown ?? ""));
         if (preview) text = sourceMalformedAlerts(text);
         let verses = env.verses;
         if (env.runs) {

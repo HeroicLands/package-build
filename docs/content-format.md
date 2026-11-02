@@ -27,6 +27,13 @@ Start with [your first note](authoring/first-note.md). It explains the smallest 
 
 A nonempty note body creates one system-agnostic Foundry JournalEntry. Content before the first H1 becomes an introduction page; every H1 starts another JournalEntryPage. A lower-level heading with an explicit `{#anchor}` starts a page too, so a link can address it. Each page name is its heading's visible text: spans, links and emphasis contribute their text without their markup. The same prose becomes a web page and can be selected for a book. The content index records the note and its frontmatter for queries and navigation.
 
+A top-level `--- {.page-break}` line between blank lines starts a fresh book page
+without drawing a rule, and adds no blank page when it already falls at a page
+top. Foundry, the website and both editor preview views omit it. Plain thematic
+breaks remain rules; code and verse keep the marker literally. Other
+attributes, star or underscore markers, and markers inside containers are
+findings. See [book page breaks](authoring/links-and-markup.md#book-page-breaks).
+
 Leading `:` captions describe the next supported block; `:@` captions also number it. The optional type accepts `figure`, `table`, `verse`, `code`, `prose`, and `example`. Captions support identifiers, classes and named attributes; unsupported following blocks are errors. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references).
 
 A `.verse` div (`::: {.verse ...}` or `:::verse {...}`) sets poetry or prose. `/` ends a logical line; source newlines

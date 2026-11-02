@@ -458,6 +458,7 @@ const STOCK = new MarkdownIt();
  * that is not named here fails until the corpus has a construct for it.
  */
 const RULE_CONSTRUCT: Record<string, string> = {
+    "block:page_break": "page-break",
     "core:dictionary_entry_headings": "dictionary-entry",
     "core:footnote_tail": "footnote",
     "core:cartouche_figures": "cartouche-span",

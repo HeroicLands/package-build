@@ -143,6 +143,29 @@ function boolean(name: string): Construct {
 
 /** Every construct the corpus exercises, by id. */
 export const CONSTRUCTS: Record<string, Construct> = {
+    "page-break": {
+        summary: "An authored page break starts a fresh book page and disappears on screens.",
+        probe: "--- {.page-break}",
+        foundry: {
+            sees: [
+                /<p>Before the authored book break\.<\/p>\s*<p>After the authored book break\.<\/p>/,
+            ],
+            absent: [/page-break/, /\{\.page-break\}/],
+        },
+        preview: {
+            sees: [
+                /<p>Before the authored book break\.<\/p>\s*<p>After the authored book break\.<\/p>/,
+            ],
+            absent: [/page-break/, /\{\.page-break\}/],
+        },
+        web: {
+            sees: [
+                /<p>Before the authored book break\.<\/p>\s*<p>After the authored book break\.<\/p>/,
+            ],
+            absent: [/page-break/, /\{\.page-break\}/],
+        },
+        book: { sees: [/#pagebreak\(weak: true\)/], absent: [/page-break/] },
+    },
     "span-emphasis": {
         summary: "A span marks ordinary emphasis with the same presentation as Markdown emphasis.",
         probe: "[marked softly]{.emph}",

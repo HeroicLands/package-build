@@ -13,6 +13,7 @@
 
 /** Buffer-only HTML preview shared by editors and external renderers. @module */
 
+import { scanPageBreaks } from "./page-breaks.mjs";
 import { sharedContentRules } from "./content-styles.mjs";
 import { readMatter } from "./note-matter.mjs";
 import { scanFigures } from "./content-figures.mjs";
@@ -99,6 +100,8 @@ export function renderPreview(
     } catch (error) {
         findings.push({ file, severity: "warning", message: String(error.message) });
     }
+    for (const error of scanPageBreaks(body).errors)
+        findings.push({ file, severity: "error", ...error, line: bodyLine + error.line - 1 });
     applyComputedBeingAge(frontmatter, date);
     if (String(frontmatter.type ?? "").toLowerCase() === "being") {
         frontmatter.data ??= {};
