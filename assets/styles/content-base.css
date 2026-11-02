@@ -17,7 +17,7 @@
  *
  * It carries what every package's compiled content needs to read in Foundry as
  * it does in the preview and on the site: definition lists, verse, alerts,
- * inline spoilers, marked names, unresolved links, captioned blocks and
+ * inline spoilers, unresolved links, captioned blocks and
  * highlighted code. Every
  * class the Foundry renderer emits is styled here or exempted by name in
  * `tests/base-styles.test.ts`. A package keeps its own stylesheet for its own

@@ -357,7 +357,6 @@ describe("map and holdings use a deliberate Shortcode identity", () => {
             "engine/holdings.mjs",
             "engine/map-places.mjs",
             "engine/populations.mjs",
-            "engine/settlement-tables.mjs",
         ]);
         for (const { file, context } of sites)
             expect(context, file).toContain("Shortcode identity:");

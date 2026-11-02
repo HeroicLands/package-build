@@ -160,6 +160,7 @@ import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkSettlementTables } from "./settlement-tables.mjs";
+import { SETTLEMENTS_FIELD } from "./settlement-terms.mjs";
 import { checkConceptList, checkCoreFlag } from "./core-vocabulary.mjs";
 import { METRE_KINDS, checkMetresField } from "./metre-declaration.mjs";
 import { checkLanguageEmphasis, checkScriptField } from "./script-emphasis.mjs";
@@ -2556,6 +2557,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "Explicit null means complete anarchy. " +
                     "A positive population with no government key produces an advisory.",
             },
+            SETTLEMENTS_FIELD,
             {
                 name: "market",
                 ...NUM,

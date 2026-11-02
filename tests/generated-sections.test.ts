@@ -173,6 +173,7 @@ afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 describe("the generated sections", () => {
     it("follow the author's text in one fixed order", () => {
         expect(GENERATED_SECTIONS.map((section) => section.slug)).toEqual([
+            "settlements",
             "within",
             "governedby",
             "governedplaces",

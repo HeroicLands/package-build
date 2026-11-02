@@ -1558,11 +1558,13 @@ export async function prepareInlineSqlExpressions(db, sources) {
  * @param {Map<string, Map<string, string>>} [opts.derived] - The derived
  *   lists, from an earlier call over the same records, which are not derived
  *   again.
+ * @param {Map<string,{raw?:string}>} [opts.parsed] - Captured source locators.
  * @param {object[]} [opts.all=records] - Complete records for lexical lineage
  *   traversal through providers outside the surface's audience.
  * @returns {Promise<{sections: Map<string, string>, views: Set<string>,
  *   derived: Map<string, Map<string, string>>,
- *   lexical: Map<string, import("./lexical-sections.mjs").LexicalSection[]>}>} Note file to its sections,
+ *   lexical: Map<string, import("./lexical-sections.mjs").LexicalSection[]>,
+ *   declared: Map<string, Array<{slug:string,heading:string,markdown:string}>>}>} Note file to its sections,
  *   joined in order; the files whose sections hold an event view's fence; and
  *   the derived lists alone.
  */
@@ -1570,7 +1572,7 @@ export async function generatedSectionsFor(
     db,
     records,
     contentBase,
-    { only, foreignIndex, config, derived: given, all = records } = {},
+    { only, foreignIndex, config, derived: given, all = records, parsed } = {},
 ) {
     const notes = records.filter((record) => isNoteRecord(record));
     const fileOf = (record) => noteFile(contentBase, record);
@@ -1583,11 +1585,27 @@ export async function generatedSectionsFor(
             foreignIndex,
             config,
             only,
+            all,
+            rawOf: (file) => parsed?.get(file)?.raw,
         });
     const views = db ? await eventViewSections(db, notes, fileOf, only) : new Map();
     const sections = new Map();
-    for (const file of new Set([...derived.keys(), ...views.keys()]))
-        sections.set(file, joinSections([derived.get(file), views.get(file)]));
+    const declared = new Map();
+    for (const file of new Set([...derived.keys(), ...views.keys()])) {
+        const lists = new Map(derived.get(file));
+        const settlements = lists.get("settlements");
+        if (settlements)
+            declared.set(file, [
+                {
+                    slug: "settlements",
+                    heading: "Settlements",
+                    markdown: settlements.replace(/^# Settlements \{#settlements\}\s*\n/, ""),
+                },
+            ]);
+        lists.delete("settlements");
+        const text = joinSections([lists, views.get(file)]);
+        if (text) sections.set(file, text);
+    }
     // Automatic sections follow their source's audience even in a Foundry
     // corpus containing both public and private packs. Explicit SQL keeps
     // the database audience the caller requested.
@@ -1607,7 +1625,7 @@ export async function generatedSectionsFor(
         if (owners.has(key) && (only === undefined || fileOf(note) === only))
             lexical.set(fileOf(note), owners.get(key));
     }
-    return { sections, views: new Set(views.keys()), derived, lexical };
+    return { sections, views: new Set(views.keys()), derived, lexical, declared };
 }
 
 /**
@@ -1654,11 +1672,16 @@ export function joinGeneratedSections(generated, sources, parsed) {
  * empty set carrying them.
  *
  * @param {Map<string, object[]>} prepared - From {@link prepareSqlTables}.
- * @param {{sections: Map<string, string>, lexical?: Map<string, import("./lexical-sections.mjs").LexicalSection[]>}} generated - From
+ * @param {{sections: Map<string, string>, lexical?: Map<string, import("./lexical-sections.mjs").LexicalSection[]>, declared?: Map<string, Array<{slug:string,heading:string,markdown:string}>>}} generated - From
  *   {@link generatedSectionsFor}.
  * @returns {void}
  */
 export function attachGeneratedSections(prepared, generated) {
+    for (const [absPath, sections] of generated.declared ?? []) {
+        let results = prepared.get(absPath);
+        if (!results) prepared.set(absPath, (results = []));
+        results.declared = sections;
+    }
     for (const [absPath, text] of generated.sections) {
         let results = prepared.get(absPath);
         if (!results) prepared.set(absPath, (results = []));
@@ -1881,11 +1904,18 @@ export async function prepareTreeSqlTables(
         }
     }
     const derivedOnly = await generatedSectionsFor(undefined, indexRecords, contentBase, {
+        parsed,
         foreignIndex: foreign,
         config,
         all: allRecords,
     });
-    if (!sources.length && !hasEvents && !derivedOnly.sections.size && !derivedOnly.lexical.size)
+    if (
+        !sources.length &&
+        !hasEvents &&
+        !derivedOnly.sections.size &&
+        !derivedOnly.lexical.size &&
+        !derivedOnly.declared.size
+    )
         return undefined;
 
     // A page list is a filter over the records, so it needs no database. A tree
@@ -1940,6 +1970,7 @@ export async function prepareTreeSqlTables(
         }));
     try {
         const generated = await generatedSectionsFor(db, indexRecords, contentBase, {
+            parsed,
             derived: derivedOnly.derived,
             all: allRecords,
         });

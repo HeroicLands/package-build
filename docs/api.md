@@ -531,16 +531,19 @@ What trade a settlement supports (`data.market`): the six-step scale, stated onc
 
 ### `engine.settlementTables`
 
-A region's settlements table — a markdown table under `## Settlements` on a `place` note, one row per settlement with its market, its people and its holder — held to its declared columns, to the holding model the region's tags name, and to the notes its rows link. `package-build lint` runs it as part of the `place` check; a note with no such table is not read.
+A region declares its rows in indexed `data.settlements`. The guard checks populations, markets, holders and regional coverage, and refuses authored body tables. Every publishing surface uses the same generated table, retaining the canonical `#settlements` heading or filling the author's existing section.
 
-| Export                   | Signature                                | Returns                                 | Use it when                                                                                                       |
-| ------------------------ | ---------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `HOLDING_MODELS`         | `const HOLDING_MODELS`                   | `readonly object[]`                     | the holding models in order, each its `tag`, the `holder` its Held by cell names, and whether a `person` may hold |
-| `SETTLEMENT_COLUMNS`     | `const SETTLEMENT_COLUMNS`               | `readonly object[]`                     | the table's columns in header order, each its `name` and whether it is `required`                                 |
-| `SETTLEMENTS_HEADING`    | `const SETTLEMENTS_HEADING`              | `string`                                | the level-two heading text a settlements table stands under                                                       |
-| `SETTLEMENT_TABLE_RULES` | `const SETTLEMENT_TABLE_RULES`           | `readonly object[]`                     | the rules in order, each its `name` — the prefix its findings carry — and what it `describe`s                     |
-| `findSettlementTables`   | `findSettlementTables(raw)`              | `{ heading: number, tables: object[] }` | reading a note's settlements tables, each with its header, its rows' cells and their 1-based lines and columns    |
-| `checkSettlementTables`  | `checkSettlementTables(note, { index })` | `object[]`                              | linting a place note's settlements tables against the corpus the index holds                                      |
+| Export                    | Signature                                                           | Returns             | Use it when                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `HOLDING_MODELS`          | `const HOLDING_MODELS`                                              | `readonly object[]` | the holding models in order, each its `tag`, the `holder` its Held by cell names, and whether a `person` may hold |
+| `SETTLEMENT_COLUMNS`      | `const SETTLEMENT_COLUMNS`                                          | `readonly object[]` | the table's columns in header order, each its `name` and whether it is `required`                                 |
+| `SETTLEMENTS_HEADING`     | `const SETTLEMENTS_HEADING`                                         | `string`            | the generated settlements heading                                                                                 |
+| `SETTLEMENT_TABLE_RULES`  | `const SETTLEMENT_TABLE_RULES`                                      | `readonly object[]` | the rules in order, each its `name` — the prefix its findings carry — and what it `describe`s                     |
+| `settlementMarkdown`      | `settlementMarkdown(record)`                                        | `string`            | rendering indexed rows as the shared table                                                                        |
+| `assertSettlementRecords` | `assertSettlementRecords(records, { fileOf, rawOf, foreignIndex })` | `void`              | refusing invalid indexed rows before publication                                                                  |
+| `SETTLEMENTS_FIELD`       | `const SETTLEMENTS_FIELD`                                           | `object`            | the vocabulary declaration for rows and tail                                                                      |
+| `SETTLEMENT_ROW_FIELDS`   | `const SETTLEMENT_ROW_FIELDS`                                       | `readonly object[]` | the closed row declaration                                                                                        |
+| `checkSettlementTables`   | `checkSettlementTables(note, { index })`                            | `object[]`          | linting a place note's settlements tables against the corpus the index holds                                      |
 
 ### `engine.mapPlaces`
 

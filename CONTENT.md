@@ -75,6 +75,45 @@ default target type is `affiliation`. Explicit `null` means complete anarchy;
 omission leaves government unknown. Governing bodies receive their place lists
 from those references. See [place governments](docs/authoring/frontmatter.md#place-governments).
 
+A region’s settlements
+
+A region declares its table in `data.settlements: { rows, tail }`. The rows
+carry the settlement's `population` and numeric `market`, either `place` (the
+existing note's Address, default type `place`) or `name` (plain text where no
+note exists), and either `heldBy` (an affiliation or being Address, default
+type `affiliation`) or `holder` (plain text where no note exists). Each pair
+is exclusive. Optional `for` states why the settlement exists. `tail` is the
+sentence stating what the table leaves out. The region carries its holding
+model as tags: `held`, `endowed`, `registered`, `kin` or `polis`.
+
+The guard reads indexed rows. A linked row's population and market agree with
+its note, and every settlement note covered through `parents` has one row in
+the nearest declaring region. `government` states who governs; it never supplies
+who holds the land. HTML, Foundry and Typst render the declared table once.
+A body table under `## Settlements` is an error at its header, naming
+`data.settlements`; no facts are read from it.
+
+```yaml
+data:
+  settlements:
+    rows:
+      - place: ashford
+        market: 4
+        population: 3400
+        heldBy: affiliation-crown
+        for: the ford on the drove road
+      - name: Weyshott
+        market: 2
+        population: 420
+        heldBy: being-aldwyn
+        for: the manor's mill
+      - name: Cold Hatch
+        market: 1
+        population: 60
+        holder: Sir Aldwyn of Brynwold
+    tail: Some four hundred further villages lie in the vale, none of them named here.
+```
+
 A being's `data.gender`, `data.frame`, `data.appearance.eye_color`,
 `hair_color`, `skin_color` and `complexion` take their words from one closed
 vocabulary, and any other value is a located build error naming the words the

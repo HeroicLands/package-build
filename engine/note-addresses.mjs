@@ -43,6 +43,22 @@ export {
 
 /** Structured positions whose Address is nested inside a declared container. */
 export const STRUCTURED_ADDRESSES = Object.freeze([
+    {
+        noteType: "place",
+        path: ["data", "settlements", "rows", "*", "place"],
+        shape: "value",
+        type: "place",
+        accepts: ["place"],
+        lenient: true,
+    },
+    {
+        noteType: "place",
+        path: ["data", "settlements", "rows", "*", "heldBy"],
+        shape: "value",
+        type: "affiliation",
+        accepts: ["affiliation", "being"],
+        lenient: true,
+    },
     { path: ["data", "seeAlso", "*", "address"], shape: "value", lenient: true },
     {
         path: ["packFolder"],

@@ -1924,6 +1924,7 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
                 record.data?.events?.length,
         ) ||
             derivedSections(notes, {
+                rawOf: (file) => parsed.get(file)?.raw,
                 fileOf: (record) => noteFile(tree, record),
                 config: resolved,
                 foreignIndex: loadForeignIndexes(resolved, [contentPackage]).index,

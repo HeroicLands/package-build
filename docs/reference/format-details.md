@@ -7823,6 +7823,16 @@ level with no background prints nothing.
 | `culture`                         | `Address`                                                                        | The people this place belongs to, naming a lore note with `subType: culture`                              |
 | `population`                      | `number`                                                                         | Approximate population (precision 2 significant digits)                                                   |
 | `government`                      | `Address` or `null` (default type: `affiliation`)                                | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
+| `settlements`                     | `{ rows, tail }`                                                                 | Declared settlement rows and the sentence saying what the table leaves out                                |
+| `settlements.rows`                | list of row maps                                                                 | One row per settlement                                                                                    |
+| `settlements.rows[].place`        | `Address`                                                                        | Existing settlement note; exclusive with name                                                             |
+| `settlements.rows[].name`         | `string`                                                                         | A settlement without a note; exclusive with place                                                         |
+| `settlements.rows[].market`       | integer, required                                                                | Market class, 1 to 6                                                                                      |
+| `settlements.rows[].population`   | positive integer, required                                                       | People living here                                                                                        |
+| `settlements.rows[].heldBy`       | `Address`                                                                        | Existing affiliation or being holder; exclusive with holder                                               |
+| `settlements.rows[].holder`       | `string`                                                                         | Holder without a note; exclusive with heldBy                                                              |
+| `settlements.rows[].for`          | `string`                                                                         | Optional reason the settlement exists                                                                     |
+| `settlements.tail`                | `string`, required                                                               | Sentence stating what the table leaves out                                                                |
 | `market`                          | `number`                                                                         | Market class, 1 to 6 — what trade a settlement supports                                                   |
 | `borders`                         | `{ to, bearing }[]`                                                              | Places sharing a frontier with this one, and where each lies from here                                    |
 | `borders[].to`                    | `Address`, required                                                              | The other place; the type defaults to `place`                                                             |
@@ -8126,40 +8136,32 @@ languages belong to a polity's `sohl.system.commonSkills`, while the note's
 
 #### A region's settlements table
 
-A region lists its settlements in a table on its own note: one row for each
-settlement, stating what its market is, how many people it holds and who holds
-it. **A row is the whole record of a settlement that has no note.** Where a
-note exists the row links it, and the two must agree. A package that writes no
-such table is not affected by anything in this section.
+A region declares its table in `data.settlements: { rows, tail }`. The rows
+carry the settlement's `population` and numeric `market`, either `place` (the
+existing note's Address, default type `place`) or `name` (plain text where no
+note exists), and either `heldBy` (an affiliation or being Address, default
+type `affiliation`) or `holder` (plain text where no note exists). Each pair
+is exclusive. Optional `for` states why the settlement exists. `tail` is the
+sentence stating what the table leaves out. The region carries its holding
+model as tags: `held`, `endowed`, `registered`, `kin` or `polis`.
 
-The table is a markdown table under a level-two `## Settlements` heading on the
-region's `place` note. Its header is exactly these columns, in this order. `For`
-may be left out; the header carries no other column:
+The guard reads indexed rows. A linked row's population and market agree with
+its note, and every settlement note covered through `parents` has one row in
+the nearest declaring region. `government` states who governs; it never supplies
+who holds the land. HTML, Foundry and Typst render the declared table once.
+A body table under `## Settlements` is an error at its header, naming
+`data.settlements`; no facts are read from it.
+
+The rendered columns are fixed, in this order; `For` appears when any row
+states `for`:
 
 | Name | Market | People | Held by | For |
 | ---- | ------ | ------ | ------- | --- |
 
-- **Name** — the settlement. Where it has a note, a link to it with the pipe
-  escaped for the table, `[[place-ashford\|Ashford]]`; otherwise plain text.
-- **Market** — the market class as its number and its name, lower case:
-  `1 hamlet`, `2 village`, `3 town`, `4 market town`, `5 city`, `6 great city`.
-  The scale is the one [`data.market`](#what-a-settlements-market-supports)
-  states.
-- **People** — the population, a whole number, grouped with commas or not:
-  `60`, `420`, `3,400`.
-- **Held by** — who holds it, written in the region's holding model. Link the
-  holder where it has a note.
-- **For** — a short phrase saying why the place is there: the ford, the mine,
-  the shrine.
-
-At least one sentence of prose follows the table, before the next heading,
-saying what the table leaves out. A section filled by an `sql` fence is
-generated from the notes and is not read as a settlements table.
-
-**The region names its holding model as a tag.** A note carrying a settlements
-table carries at least one of these tags; a region whose countryside is held
-two ways carries both. Tags stay open, so a misspelled model is not reported as
-such: the table's note is reported for naming no model.
+`population` is a positive whole number. `market` is an integer from 1 to 6;
+the generated Market cell includes the class name (`4 market town`). A linked
+holder is an affiliation or a being; a being may hold land only where the
+region carries `held`, alone or beside another model.
 
 | `holdingModel` value | the Held by cell names |
 | -------------------- | ---------------------- |
@@ -8169,77 +8171,57 @@ such: the table's note is reported for naming no model.
 | `kin`                | a kindred              |
 | `polis`              | the city               |
 
-A linked holder is an `affiliation` or a `being`, and a `being` is a person: it
-may hold land only in a region tagged `held`.
+A worked example: the following `data` block belongs to `Vale.md`, whose
+`type` is `place`, `subType` is `region`, `shortcode` is `vale`, and tags are
+`[region, held]`:
 
-**A settlement belongs to one table** — that of the nearest place above it, by
-`parents`, that carries a settlements table. Every `settlement` note that table
-covers has a row there and nowhere else.
-
-A worked example. `Vale.md`:
-
-```markdown
----
-shortcode: vale
-name: { full: The Vale }
-type: place
-subType: region
-tags: [region, held]
+```yaml
 data:
-  population: 100000
-  government: crown
----
-
-## Settlements
-
-| Name                       | Market        | People | Held by                                  | For                        |
-| -------------------------- | ------------- | -----: | ---------------------------------------- | -------------------------- |
-| [[place-ashford\|Ashford]] | 4 market town |  3,400 | [[affiliation-crown\|the Crown]]         | the ford on the drove road |
-| Weyshott                   | 2 village     |    420 | [[being-aldwyn\|Sir Aldwyn of Brynwold]] | the manor's mill           |
-| Cold Hatch                 | 1 hamlet      |     60 | Sir Aldwyn of Brynwold                   | the sheepwalk              |
-
-Some four hundred further villages lie in the vale, none of them named here.
+  settlements:
+    rows:
+      - place: ashford
+        market: 4
+        population: 3400
+        heldBy: affiliation-crown
+        for: the ford on the drove road
+      - name: Weyshott
+        market: 2
+        population: 420
+        heldBy: being-aldwyn
+        for: the manor's mill
+      - name: Cold Hatch
+        market: 1
+        population: 60
+        holder: Sir Aldwyn of Brynwold
+    tail: Some four hundred further villages lie in the vale, none of them named here.
 ```
 
 `Ashford.md` states `parents: [vale]`, `population: 3400` and `market: 4`, so its
-row agrees with it. Weyshott and Cold Hatch have no notes; their rows are their
-whole record. Change Ashford's row to `3,000` and `package-build lint` reports:
+row agrees. `affiliation-crown` names the existing Crown note; `being-aldwyn`
+names Sir Aldwyn's existing note. Weyshott and Cold Hatch have no notes; these
+rows hold their complete settlement record. The generated table uses the
+current note names for its links and prints `3,400` and `4 market town`.
+Changing Ashford's row population to `3000` produces `figure disagrees` at
+that YAML value; removing its row produces `missing row` at `rows`.
 
-```text
-assets/content/Vale.md:16:49: error: figure disagrees: Ashford is carried at 3,000 here and 3,400 on its own note
-```
+Every semantic finding is an error, located where its YAML changes:
 
-`package-build lint` reports each of these as an error, each named by the
-phrase its message begins with:
-
-- **`settlements columns`** — the header is not the declared columns in
-  order. The table's rows are not read until it is.
-- **`no holding model`** — the note carries a settlements table and none of
-  the holding-model tags. Reported at its `tags`.
-- **`market class`** — a Market cell is not a class written as its number and
-  its name.
-- **`people figure`** — a People cell is not a positive whole number.
-- **`no holder`** — a Held by cell is empty.
-- **`not a holder`** — a Held by link names a note that is neither an
-  affiliation nor a being.
-- **`holder out of model`** — a Held by link names a being in a region not
-  tagged `held`.
-- **`not a settlement`** — a Name link names a note that is not a place.
-- **`figure disagrees`** — a linked row's People differs from its note's
-  `data.population`, or the note states none.
-- **`market disagrees`** — a linked row's Market differs from its note's
-  `data.market`, or the note states none.
-- **`unlinked settlement`** — an unlinked Name is the name or an alias of a
-  settlement note the table covers. The finding gives the link to write.
-- **`missing row`** — a settlement note the table covers has no row. Reported
-  at the table's header.
-- **`duplicate settlement`** — a settlement has a second row in one table, or
-  a row in a table other than the one covering it.
-- **`no tail`** — no sentence follows the table before the next heading.
-  Reported at the table's last row.
-
-A cell's finding is located at the cell. A link in a cell that resolves to no
-note is reported by the link check, once, and not again here.
+- **`body settlements table`** — A body table under Settlements is refused; declare data.settlements.
+- **`settlements shape`** — A region declares rows and tail, with one name/place and holder/heldBy per row.
+- **`unresolved settlement reference`** — A place or heldBy Address does not resolve.
+- **`no holding model`** — The note declares settlements but no holding-model tag.
+- **`market class`** — A row market is not an integer from 1 to 6.
+- **`people figure`** — Population is not a positive whole number.
+- **`no holder`** — A row states no holder.
+- **`not a holder`** — A heldBy Address names neither an affiliation nor a being.
+- **`holder out of model`** — A person holds land in a region not tagged held.
+- **`not a settlement`** — A place Address names a subject that is not a place.
+- **`figure disagrees`** — A linked population differs from its note, or the note states none.
+- **`market disagrees`** — A linked market differs from its note, or the note states none.
+- **`unlinked settlement`** — A plain name has an existing settlement note in this region.
+- **`missing row`** — A covered settlement note has no row.
+- **`duplicate settlement`** — A settlement has another row here or in another region.
+- **`no tail`** — The declaration has no sentence stating what it leaves out.
 
 ### type: scenario
 

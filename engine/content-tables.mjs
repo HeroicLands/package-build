@@ -14,6 +14,7 @@
 import { FENCE_LINE } from "./code-fences.mjs";
 import { PAGE_LIST_LANGUAGE } from "./page-lists.mjs";
 import { appendGeneratedSections } from "./generated-sections.mjs";
+import { insertDeclaredSections } from "./declared-sections.mjs";
 import { insertLexicalSections } from "./lexical-sections.mjs";
 
 /**
@@ -149,11 +150,17 @@ export function expandContentTables(markdown, { source = "", sqlTables, pageList
         if (close + 1 < lines.length && lines[close + 1].trim()) emit("", i, true);
         i = close;
     }
+    const declared = insertDeclaredSections(out.join("\n"), sqlTables?.declared, {
+        authored,
+        lineMap,
+        generatedFrom,
+        syntax: sqlTables?.syntax,
+    });
     return {
-        ...insertLexicalSections(out.join("\n"), sqlTables?.lexical, {
+        ...insertLexicalSections(declared.markdown, sqlTables?.lexical, {
             authored,
-            lineMap,
-            generatedFrom,
+            lineMap: declared.lineMap,
+            generatedFrom: declared.generatedFrom,
             syntax: sqlTables?.syntax,
         }),
         errors,

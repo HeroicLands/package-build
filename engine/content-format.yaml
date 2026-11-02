@@ -323,6 +323,7 @@ types:
             - culture
             - population
             - government
+            - settlements
             - market
             - borders
             - routes

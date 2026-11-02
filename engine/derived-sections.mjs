@@ -39,6 +39,7 @@
  */
 
 import fs from "node:fs";
+import { assertSettlementRecords, settlementMarkdown } from "./settlement-tables.mjs";
 import path from "node:path";
 
 import {
@@ -257,12 +258,18 @@ export function drawMapsFrom(records, { outDir, foreignIndex = new Map(), config
  *   prepared results are keyed.
  * @param {Map<string, object>} [opts.foreignIndex] - The fetched indexes.
  * @param {object} [opts.config] - The resolved configuration.
+ * @param {(file:string)=>string|undefined} [opts.rawOf] - Captured source locators.
+ * @param {object[]} [opts.all=records] - Complete records for settlement validation.
  * @param {string} [opts.only] - One note file to give sections to; absent,
  *   every note.
  * @returns {Map<string, Map<string, string>>} Note file to its sections, each
  *   keyed by its slug, for every note given at least one.
  */
-export function derivedSections(records, { fileOf, foreignIndex = new Map(), config, only }) {
+export function derivedSections(
+    records,
+    { fileOf, foreignIndex = new Map(), config, only, rawOf, all = records },
+) {
+    assertSettlementRecords(all, { fileOf, foreignIndex, rawOf });
     const notes = records.filter((record) => isNoteRecord(record) && record.shortcode);
     const pages = notes.filter((record) => record.address);
     const nodeOf = (record) => ({
@@ -297,6 +304,8 @@ export function derivedSections(records, { fileOf, foreignIndex = new Map(), con
             if (content && !authoredSection(record, slug))
                 sections.set(slug, section(slug, content));
         };
+        const settlements = settlementMarkdown(record);
+        if (settlements) sections.set("settlements", section("settlements", settlements));
         if (lists.contains?.length) add("within", groupedPlaces(lists.contains));
         if (lists.governed_by?.length)
             add(

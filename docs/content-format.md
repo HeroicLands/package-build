@@ -203,7 +203,44 @@ The [first-note guide](authoring/first-note.md) shows the build commands and how
 
 Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](authoring/frontmatter.md#place-governments).
 
-A region may list its settlements in a table under `## Settlements` — name, market, people and holder, one row each — tagged with the holding model it is written in. A row links the settlement's note where one exists, and `package-build lint` holds the two to agreement. See [a region's settlements table](reference/format-details.md#a-regions-settlements-table).
+A region declares its table in `data.settlements: { rows, tail }`. The rows
+carry the settlement's `population` and numeric `market`, either `place` (the
+existing note's Address, default type `place`) or `name` (plain text where no
+note exists), and either `heldBy` (an affiliation or being Address, default
+type `affiliation`) or `holder` (plain text where no note exists). Each pair
+is exclusive. Optional `for` states why the settlement exists. `tail` is the
+sentence stating what the table leaves out. The region carries its holding
+model as tags: `held`, `endowed`, `registered`, `kin` or `polis`.
+
+The guard reads indexed rows. A linked row's population and market agree with
+its note, and every settlement note covered through `parents` has one row in
+the nearest declaring region. `government` states who governs; it never supplies
+who holds the land. HTML, Foundry and Typst render the declared table once.
+A body table under `## Settlements` is an error at its header, naming
+`data.settlements`; no facts are read from it.
+
+```yaml
+data:
+  settlements:
+    rows:
+      - place: ashford
+        market: 4
+        population: 3400
+        heldBy: affiliation-crown
+        for: the ford on the drove road
+      - name: Weyshott
+        market: 2
+        population: 420
+        heldBy: being-aldwyn
+        for: the manor's mill
+      - name: Cold Hatch
+        market: 1
+        population: 60
+        holder: Sir Aldwyn of Brynwold
+    tail: Some four hundred further villages lie in the vale, none of them named here.
+```
+
+See [a region's settlements table](reference/format-details.md#a-regions-settlements-table).
 
 A being states its gender, frame and appearance in words from one closed vocabulary: `data.gender`, `data.frame`, and `data.appearance.eye_color`, `hair_color`, `skin_color` and `complexion` each take only the words listed for them, and any other value is an error at the value. `complexion` is a list, required once a being states an appearance. `data.appearance.extra_features` lists the being's visible physical marks, each a short plain description of one, and an entry stating a colour, a skin condition or anything that is not a mark is an error. See [a being's look](reference/format-details.md#a-beings-look).
 
