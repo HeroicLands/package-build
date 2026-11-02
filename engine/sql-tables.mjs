@@ -217,6 +217,59 @@ export function findSqlBlocks(markdown) {
     return blocks;
 }
 
+/**
+ * Overwrite string literals and comments with spaces, keeping every offset and
+ * newline, so a search of what remains reads only identifiers and operators.
+ *
+ * @param {string} sql - A query.
+ * @returns {string} The query, the same length.
+ */
+function maskLiterals(sql) {
+    const blank = (text) => text.replace(/[^\n]/g, " ");
+    return sql.replace(/'(?:[^']|'')*'|--[^\n]*|\/\*[\s\S]*?\*\//g, blank);
+}
+
+/**
+ * Where a query reads the `file` block of the index record: `file.path`,
+ * `file.folder` or `file.name`, bare or qualified by a relation or its alias.
+ * A note is selected by property, tag or address, so a query that reaches for
+ * the file it was written in is refused. A field of a note's own data that is
+ * named `file` is not the block and is left alone.
+ *
+ * @param {string} sql - One fence's query.
+ * @returns {{line: number, column: number, text: string}|undefined} The first
+ *   reference, its 0-based line within the query and 1-based column, or
+ *   nothing where the query makes none.
+ */
+export function findFileReference(sql) {
+    const masked = maskLiterals(String(sql ?? ""));
+    const qualifiers = new Set();
+    for (const [, relation, alias] of masked.matchAll(
+        /\b(?:from|join)\s+([\w."]+)(?:\s+(?:as\s+)?([A-Za-z_]\w*))?/gi,
+    )) {
+        qualifiers.add(relation.split(".").at(-1).replaceAll('"', ""));
+        if (
+            alias &&
+            !/^(where|group|order|limit|join|inner|left|right|full|cross|on|union|having|window|qualify|using|natural)$/i.test(
+                alias,
+            )
+        )
+            qualifiers.add(alias);
+    }
+    const reference = /(?<![\w$"])(?:(\w+|"\w+")\s*\.\s*)?"?file"?\s*\.\s*"?(path|folder|name)\b/gi;
+    for (const match of masked.matchAll(reference)) {
+        const qualifier = match[1]?.replaceAll('"', "");
+        if (qualifier && !qualifiers.has(qualifier)) continue;
+        const before = masked.slice(0, match.index);
+        return {
+            line: before.split("\n").length - 1,
+            column: match.index - (before.lastIndexOf("\n") + 1) + 1,
+            text: match[0].replace(/\s+/g, ""),
+        };
+    }
+    return undefined;
+}
+
 /** Omit the Foundry export from SQL; the canonical index stays intact.
  * Keep encoding source keys as case-sensitive values in the SQL projection.
  * The canonical index retains its authored mapping object; DuckDB structs
@@ -1371,6 +1424,16 @@ export async function prepareSqlTables(db, sources, { linkable, records, pageLan
         for (const [ordinal, block] of blocks.entries()) {
             try {
                 if (block.problems.length) throw new Error(block.problems.join("; "));
+                const reference = findFileReference(block.query);
+                if (reference) {
+                    forNote.push({
+                        reason: `\`${reference.text}\` is not available to a query; a query selects notes by property, tag or address`,
+                        line: block.line + 1 + reference.line,
+                        column: reference.column,
+                        allowEmpty: block.allowEmpty,
+                    });
+                    continue;
+                }
                 const result = await runSqlQuery(reader, block.query);
                 const options = {
                     linkable,

@@ -1071,7 +1071,6 @@ export function checkLanguageData(note, { index, types } = {}) {
     for (const kind of SCOPE_KINDS) {
         listOf(scope[kind]).forEach((value, i) => {
             const path = ["data", "scope", kind, i];
-            if (kind === "paths") return;
             if (kind === "types") {
                 if (types && typeof value === "string" && !types.includes(value))
                     findings.push(finding(path, "error", `\`${value}\` is not a note type`));

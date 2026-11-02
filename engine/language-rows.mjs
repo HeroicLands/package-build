@@ -413,14 +413,12 @@ export function inScope(record, address, scope) {
         const wanted = values(kind);
         return strings(list).some((one) => wanted.has(one));
     };
-    const file = typeof record.file?.path === "string" ? record.file.path : "";
     return (
         values("addresses").has(address) ||
         any("folders", data.packFolder) ||
         any("cultures", data.culture) ||
         any("lore", data.lore) ||
-        any("parents", data.parents) ||
-        strings(scope.paths).some((prefix) => file.startsWith(prefix))
+        any("parents", data.parents)
     );
 }
 

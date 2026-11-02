@@ -88,7 +88,6 @@ const DUNHARI = [
     "    lore: [dunhariclt]",
     "    parents: [dunharargn]",
     "    addresses: [lore-dunhariclt, skill-dunharlng]",
-    "    paths: [Places/]",
     "    types: [place, being]",
     "    skip: [place-dunharargn]",
     "  sounds:",
@@ -434,9 +433,17 @@ describe("retired forms", () => {
 describe("the scope", () => {
     it("refuses a kind it does not declare, at the key", () => {
         one(
-            edit("    paths: [Places/]", "    path: [Places/]"),
-            /"path" is not a key of `data\.scope`.*Did you mean "paths"\?/,
-            "path",
+            edit("    folders: [dunhara]", "    folders: [dunhara]\n    folder: [dunhara]"),
+            /"folder" is not a key of `data\.scope`/,
+            "folder",
+        );
+    });
+
+    it("refuses a selection by file path, as an unknown key", () => {
+        one(
+            edit("    folders: [dunhara]", "    folders: [dunhara]\n    paths: [Places/]"),
+            /"paths" is not a key of `data\.scope`/,
+            "paths",
         );
     });
 

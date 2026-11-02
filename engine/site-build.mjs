@@ -275,11 +275,9 @@ export function collectContentPages(contentBase, ctx) {
             // not use it: a note is addressed as `type/shortcode` wherever it
             // is filed.
             tld: rel.split(path.sep)[0],
-            // Location below the content root, POSIX-separated — what a
-            // generated table reads as `file.path` and scopes on with `FROM`.
+            // Location below the content root, POSIX-separated.
             relPath: rel.split(path.sep).join("/"),
-            // The immediate source subfolder — what a content table reads as
-            // `file.folder`, and the page's `kbfolder`.
+            // The immediate source subfolder — the page's `kbfolder`.
             folder: path.basename(path.dirname(file)),
             // Every page is addressed by `(type, shortcode)` at the package
             // root, which takes no content mount.

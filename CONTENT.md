@@ -8,8 +8,10 @@ publishes fresh indexes, emits calendars, stages assets, checks content and link
 and compiles packs in one invocation. See the [command reference](docs/commands.md#package-build-content-build)
 for ordering, publication readiness and failure behavior.
 
-SQL reads the content-index fields except the top-level `foundry` export,
-for both local notes and dependencies. Addresses are queryable strings;
+SQL reads the content-index fields except the top-level `foundry` export and
+the `file` block, for both local notes and dependencies. A query selects notes
+by property, tag or address; one that names `file.path`, `file.folder` or
+`file.name` is an error at its position in the note. Addresses are queryable strings;
 `name`, `data`, `sohl` and other nested objects remain structs, including
 `data.governance.offices`. Encoding documents expose `data.mappings` as a
 list of `{from, codes}` records so source keys retain their case. SQL also

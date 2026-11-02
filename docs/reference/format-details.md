@@ -1444,8 +1444,8 @@ complete address here; `folder-poisonsandtoxins` and the fully qualified
 `sohl-none-folder-poisonsandtoxins` name the same folder. An address no folder
 note answers to is a build error naming the folders the package does declare.
 
-Note this is the _pack_ folder, not the note's directory. The directory is
-`file.path` / `file.folder`, which a content table reads separately.
+Note this is the _pack_ folder, and a note's directory has no bearing on it
+or on any query.
 
 **Where a folder materialises is derived from what references it.** Every pack
 holding a document that names a folder gets that folder, and its ancestors with
@@ -3404,7 +3404,7 @@ ORDER BY sohl.kbcat, name.full
 **`FROM notes`** is the content index: one row per note, plus one per
 documentation entry, so `type = 'miscgear'` selects the items and never their
 journals. A nested field is addressed exactly as a note authors it —
-`sohl.weight`, `name.full`, `file.path` — because the index is read as JSON and
+`sohl.weight`, `name.full`, `data.culture` — because the index is read as JSON and
 every nested object is inferred as a struct. A field a note type does not carry
 reads `NULL` rather than failing. `data.culture` is the one field that reads as
 a derived value: the note's own culture, or the one it inherits. See
@@ -3534,7 +3534,7 @@ for the keys.
 | `register`       | `data.register`                 | `name`, `tongue`, `kind`, `built` (a list), `gloss`, `why`, `built_text` (the pieces joined with `+`), and `notes`: every note of the package carrying the name, derived from the index, `NULL` where none does                                                                                                                                                            |
 | `tongues`        | `data.tongues`                  | `tag`, `meaning`, and `tongue_language`, the tongue's `language`                                                                                                                                                                                                                                                                                                           |
 | `retired`        | `data.retired`                  | `form`, `instead` (always a list, `NULL` where nothing is written instead), `why`                                                                                                                                                                                                                                                                                          |
-| `scope`          | `data.scope`                    | No `position`: `kind`, the key the value is under (`folders`, `cultures`, `lore`, `parents`, `addresses`, `paths`, `types` or `skip`), and `value`, an Address in its canonical form or a path or a type                                                                                                                                                                   |
+| `scope`          | `data.scope`                    | No `position`: `kind`, the key the value is under (`folders`, `cultures`, `lore`, `parents`, `addresses`, `types` or `skip`), and `value`, an Address in its canonical form or a type                                                                                                                                                                                      |
 | `letters`        | `data.sounds.letters`           | `letters` (a list), `kind`, `like`, `place`, `ipa`, `tongue` (a list, `NULL` for every tongue); a [spelling guide's](#a-spelling-guides-sounds) rows too, keyed by the guide                                                                                                                                                                                               |
 | `edges`          | `data.sounds.edges`             | `edge`, `sounds` (a list: `[any]` for every sound, empty for none)                                                                                                                                                                                                                                                                                                         |
 | `clusters`       | `data.sounds.clusters`          | No `position`: `max`, one row per language stating it                                                                                                                                                                                                                                                                                                                      |
@@ -3683,8 +3683,9 @@ relational operations:
 `_section` is why one query replaces the forty near-identical blocks a grouped
 table would otherwise need: the authored `ORDER BY` decides the section order too.
 
-**Beware `packFolder`.** It is a note's _pack_ folder, not its directory — the
-directory is `file.folder`.
+**Beware `packFolder`.** It is a note's _pack_ folder. A query never selects by
+the directory a note sits in: `file.path`, `file.folder` and `file.name` are
+refused wherever a query names them.
 
 ##### Culture parents and inherited fields
 
@@ -6205,13 +6206,12 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `retired[].form`                           | `string`, required                                                                                                             | The form the setting does not write                                                                                                                                                            |
 | `retired[].instead`                        | `string` or `string[]`                                                                                                         | What is written in its place; absent where nothing is                                                                                                                                          |
 | `retired[].why`                            | `string`, required                                                                                                             | Why the setting does not write it                                                                                                                                                              |
-| `scope`                                    | `{ folders?, cultures?, lore?, parents?, addresses?, paths?, types?, skip? }`                                                  | `language` only: the notes the register covers                                                                                                                                                 |
+| `scope`                                    | `{ folders?, cultures?, lore?, parents?, addresses?, types?, skip? }`                                                          | `language` only: the notes the register covers                                                                                                                                                 |
 | `scope.folders`                            | `Address[]`                                                                                                                    | Every note whose `packFolder` is one of these folders                                                                                                                                          |
 | `scope.cultures`                           | `Address[]`                                                                                                                    | Every note whose `culture` is one of these cultures                                                                                                                                            |
 | `scope.lore`                               | `Address[]`                                                                                                                    | Every note whose `lore` names one of these notes                                                                                                                                               |
 | `scope.parents`                            | `Address[]`                                                                                                                    | Every note whose `parents` names one of these notes                                                                                                                                            |
 | `scope.addresses`                          | `Address[]`                                                                                                                    | These notes themselves                                                                                                                                                                         |
-| `scope.paths`                              | `string[]`                                                                                                                     | Every note whose file sits below one of these content paths, as `Regions/Aelwyth/`                                                                                                             |
 | `scope.types`                              | `string[]`                                                                                                                     | The note types covered; a note of another type is out of scope whatever else catches it                                                                                                        |
 | `scope.skip`                               | `Address[]`                                                                                                                    | Notes out of scope whatever else catches them                                                                                                                                                  |
 | `sounds`                                   | `{ letters?, edges?, clusters?, stress?, finals?, syllables?, joining?, joins?, marks?, skeleton?, frames?, readPast? }`       | `language` only: the letters it writes and the rules its words keep                                                                                                                            |

@@ -321,13 +321,6 @@ export const SCOPE_FIELDS = Object.freeze([
         describe: "These notes themselves.",
     }),
     Object.freeze({
-        name: "paths",
-        kind: "list",
-        shape: "a list of content paths",
-        entries: Object.freeze({ kind: "string", shape: "a path such as `Regions/Aelwyth/`" }),
-        describe: "Every note whose file sits below one of these paths of the content tree.",
-    }),
-    Object.freeze({
         name: "types",
         kind: "list",
         shape: "a list of note types",
@@ -1926,7 +1919,7 @@ export const LANGUAGE_DATA_FIELDS = Object.freeze([
     Object.freeze({
         name: "scope",
         kind: "map",
-        shape: "a map — `{ folders?, cultures?, lore?, parents?, addresses?, paths?, types?, skip? }`",
+        shape: "a map — `{ folders?, cultures?, lore?, parents?, addresses?, types?, skip? }`",
         fields: SCOPE_FIELDS,
         describe: "The notes the register covers. A language skill note only.",
     }),

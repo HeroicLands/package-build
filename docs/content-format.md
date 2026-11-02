@@ -96,6 +96,8 @@ markers scoped to each note. Definition lists use a term followed by one or
 more `: definition` lines. See [footnotes and definition lists](authoring/links-and-markup.md#footnotes-and-definition-lists)
 for examples and placement in journals, web pages, and books.
 
+A query selects notes by property, tag or address, never by where a note's file sits: a fence that names `file.path`, `file.folder` or `file.name` is an error at the reference, and a note moved between folders changes no query's answer.
+
 An inline `{{sql "SELECT COUNT(*) FROM notes"}}` expression inserts one scalar query result. Use `{{words (sql "SELECT COUNT(*) FROM notes")}}` for a count in running prose, or `{{digits (sql "SELECT COUNT(*) FROM entries")}}` for grouped numerals. The query must return exactly one row and one column with a nonempty value; a mismatch is a located build error. Prefix `\{{` to show the syntax literally. The [expression reference](reference/format-details.md#dates-and-calendars) describes the helpers and the available SQL relations.
 
 Add `gm` to `tags` for a GM-only note. Public site and book builds omit it;

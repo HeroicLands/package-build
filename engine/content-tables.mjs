@@ -130,8 +130,8 @@ export function expandContentTables(markdown, { source = "", sqlTables, pageList
                 source,
                 directive: block.join("\n"),
                 reason: failure,
-                line: i,
-                column: indent.length + 1,
+                line: prepared?.line ?? i,
+                column: prepared?.column ?? indent.length + 1,
             });
             block.forEach((value, offset) => emit(value, i + offset));
             i = close;

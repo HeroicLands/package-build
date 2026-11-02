@@ -67,7 +67,6 @@ beforeAll(async () => {
                 "  scope:",
                 "    cultures: [dunhariclt]",
                 "    addresses: [skill-dunharlng, place-dunharargn, lore-dunhariclt]",
-                "    paths: [Places/]",
                 "    skip: [place-otherplc]",
                 "  sounds:",
                 "    letters:",
@@ -384,7 +383,6 @@ describe("the lists beside the register", () => {
             { kind: "addresses", value: DUNHARI },
             { kind: "addresses", value: "demo-note-place-dunharargn" },
             { kind: "addresses", value: "demo-note-lore-dunhariclt" },
-            { kind: "paths", value: "Places/" },
             { kind: "skip", value: "demo-note-place-otherplc" },
         ]);
     });
