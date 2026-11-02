@@ -1,5 +1,27 @@
 # @heroiclands/package-build
 
+## 25.5.5
+
+**Languages and scripts**
+
+- Ch'alish P'ilam Ceremonial text passes character checks and is recognized as native script alongside Common.
+- Core vocabulary reports name the languages left unmeasured, including when no language opts into coverage.
+- Generated NPC names capitalize their name words for English prose while keeping connecting words as written.
+- Distinct source names keep their authored spelling under the culture's language code, except when the selected pattern draws English words.
+- The language reference explains that Roman inventories list language additions and refuse shared punctuation and whitespace in the list.
+- A language can supply one list of given names for everyone; NPC generation draws from it for every gender.
+
+**Verse**
+
+- Metre checks allow multi-syllable function words to go unstressed, so lines can scan without placing a beat on every particle or pronoun.
+- Verse inside blockquotes and nested lists keeps its line breaks, stanza boundaries and indentation, with findings located at the authored text.
+- Verse metre checks count a linked name's visible words without adding beats from its address.
+
+**Rendering and sites**
+
+- A book can break the page at a chosen point with `--- {.page-break}`.
+- Website previews start immediately, keep the last successful pages available during rebuilds, and report progress while building pages and search.
+
 ## 25.5.4
 
 **Builds and commands**
