@@ -2960,10 +2960,13 @@ const inferred = encode(data, null, "say", { enc: "aelwsemaronenc" });
 
 Both functions take `(data, language, text, options?)` and return
 `{text, findings}`; encoding with a language also returns source-positioned
-`pieces`. A language key selects its encoding, face and lexical inputs.
-`options.enc` and `options.font` override the encoding and face; `options.verse`
-asks the encoder to interpret verse structure. With `language: null`, `enc` is
-required and only the encoding's rows apply.
+`pieces`. `options.enc` selects a consumer-authored encoding document, which
+supplies its language and font. An explicit language must agree with that
+document; a null or omitted language infers it and uses its lexical inputs.
+`options.font` must agree with the encoding's font; `options.verse` asks the
+encoder to interpret verse structure. An omitted `enc`, or `enc: "default"`,
+preserves the Roman text. Bare conversion without lexical inputs uses the
+pure `encodeText` and `decodeText` functions in `engine/encoding.mjs`.
 
 Language conversion uses the same pure `encodeWithLanguage` and
 `decodeWithLanguage` functions as the build. Recorded native writings and
@@ -2971,7 +2974,7 @@ parts precede encoding rows, and decoding can recover an unmarked word from
 the lexicon. An unknown word gives a positioned finding. A bare refusal
 returns empty text and an error finding. Findings carry `severity`, `message`,
 `offset` (UTF-16), and one-based Unicode-code-point `line` and `column`.
-Invalid data, unknown languages and missing encoding selections throw an
+Invalid data, unknown languages and unknown encoding selections throw an
 error before conversion. `validateData(data)` returns the validated data or
 throws; it opens no files.
 

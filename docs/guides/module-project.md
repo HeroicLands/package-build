@@ -716,13 +716,21 @@ packageBuild:
 ```
 
 `package-build manifest` writes the JSON beneath the build stage, so the
-release includes the data alongside the module's other files. It embeds each
-language's published encoding and the lexical inputs used by the build.
+release includes the data alongside the module's other files. It embeds the
+consumer's authored encoding definitions, the selected fonts' glyph-code
+snapshots, and the language names and lexical inputs used by the build.
+Conversion rules belong to the consumer's encoding notes; fonts supply the
+glyphs and their metadata.
 
 Bundle `@heroiclands/package-build/convert` into the module's browser code,
 fetch `modules/<module-id>/data/converter.json` once, and pass the parsed data
 to `encode` or `decode`. A picker can list `Object.entries(data.languages)`
-using each entry's `name`; each entry already states its encoding and face.
+using each entry's `name`. Offer the encoding documents in `data.encodings`
+whose `data.language` matches the selected language, and pass the selected
+document Address as `options.enc`. That document supplies its font; language
+entries carry no default encoding or face. Omitting `options.enc`, or choosing
+`default`, preserves Roman text. The JSON includes all conversion inputs, so
+the browser fetches no separate encoding or font metadata files.
 Show the returned findings alongside the text when a word cannot be recovered.
 See the [API](../api.md#browser-conversion) and
 [data format](../reference/format-details.md#converter-data-format).

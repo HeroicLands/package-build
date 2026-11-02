@@ -2307,8 +2307,9 @@ the source directory:
 
 Optional path for a browser converter's JSON data, relative to
 `packageBuild.stageDir`. `package-build manifest` writes it during the module
-build from the same published encodings and language vocabulary that render
-native text. The path must stay within the stage, end in `.json`, and name an
+build from the same consumer-authored encoding notes, selected fonts' glyph
+metadata and language vocabulary that render native text. The path must stay
+within the stage, end in `.json`, and name an
 artifact other than `module.json`, `system.json` or `package.json`. Absolute
 paths and parent traversal are refused. Omission writes no converter file.
 
