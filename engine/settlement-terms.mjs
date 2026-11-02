@@ -22,6 +22,7 @@ export const HOLDING_MODELS = Object.freeze([
     Object.freeze({ tag: "registered", holder: "an office", person: false }),
     Object.freeze({ tag: "kin", holder: "a kindred", person: false }),
     Object.freeze({ tag: "polis", holder: "the city", person: false }),
+    Object.freeze({ tag: "guide-held", holder: "the guide peoples", person: false }),
 ]);
 
 /** Rendered columns, in their fixed order; For is optional. */

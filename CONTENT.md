@@ -84,7 +84,8 @@ note exists), and either `heldBy` (an affiliation or being Address, default
 type `affiliation`) or `holder` (plain text where no note exists). Each pair
 is exclusive. Optional `for` states why the settlement exists. `tail` is the
 sentence stating what the table leaves out. The region carries its holding
-model as tags: `held`, `endowed`, `registered`, `kin` or `polis`.
+model as tags: `held`, `endowed`, `registered`, `kin`, `polis` or `guide-held`
+for land held collectively by the guide peoples.
 
 The guard reads indexed rows. A linked row's population and market agree with
 its note, and every settlement note covered through `parents` has one row in

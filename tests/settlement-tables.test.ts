@@ -265,6 +265,56 @@ describe("indexed settlement rows", () => {
                 (f) => expect(f.findings).toEqual([]),
             ),
     );
+    it("accepts guide-held collective holders and renders the shared table", () => {
+        const raw = region((fm) => {
+            fm.tags = ["guide-held"];
+            fm.data.settlements.rows[0].heldBy = "affiliation-osketguides";
+            fm.data.settlements.rows[1].heldBy = "affiliation-hvarnguides";
+            delete fm.data.settlements.rows[2].heldBy;
+            fm.data.settlements.rows[2].holder = "the guide peoples";
+        });
+        const guideAffiliations = {
+            "Oskhet Guides.md": note({
+                type: "affiliation",
+                subType: "polity",
+                shortcode: "osketguides",
+                name: { full: "Oskhet Guides" },
+            }),
+            "Hvarn Guides.md": note({
+                type: "affiliation",
+                subType: "polity",
+                shortcode: "hvarnguides",
+                name: { full: "Hvarn Guides" },
+            }),
+        };
+        checked(tree(raw, guideAffiliations), (f) => {
+            expect(f.findings).toEqual([]);
+            const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
+            const sections = derivedSections(records, {
+                fileOf: (record) => path.join(f.root, record.file.path),
+            });
+            const rendered = sections.get(path.join(f.root, "Vale.md"))?.get("settlements") ?? "";
+            expect(rendered).toContain("[[sohl-note-affiliation-osketguides\\|]]");
+            expect(rendered).toContain("[[sohl-note-affiliation-hvarnguides\\|]]");
+            expect(rendered).toContain("the guide peoples");
+        });
+    });
+    it("refuses a being holder in a guide-held region", () =>
+        checked(
+            tree(
+                region((fm) => {
+                    fm.tags = ["guide-held"];
+                    fm.data.settlements.rows[0].heldBy = "affiliation-crown";
+                    fm.data.settlements.rows[1].heldBy = "being-aldwyn";
+                    delete fm.data.settlements.rows[2].heldBy;
+                    fm.data.settlements.rows[2].holder = "the guide peoples";
+                }),
+            ),
+            (f) => {
+                expect(f.findings).toHaveLength(1);
+                expect(f.findings[0].message).toMatch(/^holder out of model:.*being-aldwyn/);
+            },
+        ));
     it("accepts held alongside another holding model", () =>
         checked(tree(region((fm) => (fm.tags = ["held", "endowed"]))), (f) =>
             expect(f.findings).toEqual([]),
