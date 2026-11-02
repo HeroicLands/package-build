@@ -258,8 +258,8 @@ as literal text.
 Only `---` accepts `.page-break`; `*** {.page-break}` and `___ {.page-break}`
 are findings. Other classes, ids and attributes on an attributed `---` line
 are findings too. A page break stands between blocks at the top level of a
-note: putting one inside a list, block quote, alert, secret block or fenced
-div is a finding at the marker's line and column.
+note: putting one inside a list, block quote, alert, footnote definition,
+secret block or fenced div is a finding at the marker's line and column.
 
 ## Captions and numbered references
 

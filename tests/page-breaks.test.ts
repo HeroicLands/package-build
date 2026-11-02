@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createRenderer } from "../engine/content-render.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 import { renderPreview } from "../engine/site-preview.mjs";
+import { scanPageBreaks } from "../engine/page-breaks.mjs";
 import { markupFindings } from "../engine/markup-validation.mjs";
 import { previewIndexFor, PARITY_FIXTURE } from "./helpers/parity.js";
 
@@ -146,4 +147,56 @@ describe("authored page breaks", () => {
             );
         },
     );
+});
+
+describe("page-break eligibility before fragment rendering", () => {
+    const index = previewIndexFor(PARITY_FIXTURE);
+    it.each([
+        ["Text.[^a]\n\n[^a]: A note.\n\n    --- {.page-break}\n\n    More note.", 5, 5],
+        ["Text.[^a]\n\n[^a]: --- {.page-break}\n\n    More note.", 3, 7],
+        ["A.\n\n--- {.page-break}\n::: {.wide}\nX\n:::", 3, 1],
+        ["::: {.wide}\nX\n:::\n--- {.page-break}\n\nA.", 4, 1],
+    ] as const)("keeps a misplaced marker literal in %j", (source, line, column) => {
+        const error = { line, column, message: placement };
+        const crlf = source.replaceAll("\n", "\r\n");
+        expect(scanPageBreaks(crlf).errors).toEqual([error]);
+        const crlfFindings: any[] = [];
+        expect(markdownToTypst(crlf, { findings: crlfFindings })).not.toContain("#pagebreak");
+        expect(crlfFindings).toEqual([{ severity: "error", ...error }]);
+        expect(scanPageBreaks(source).errors).toEqual([error]);
+        expect(markupFindings(source, "note.md")).toEqual([
+            { file: "note.md", severity: "error", ...error },
+        ]);
+        for (const target of ["foundry", "web", "preview"] as const)
+            expect(createRenderer(target).render(source)).toContain("page-break");
+        for (const previewIndex of [undefined, index]) {
+            const preview = renderPreview(source, {
+                index: previewIndex,
+                infobox: false,
+                file: "note.md",
+            });
+            expect(preview.ok).toBe(false);
+            expect(preview.findings).toEqual([{ file: "note.md", severity: "error", ...error }]);
+            expect(preview.html).toContain("page-break");
+        }
+        const findings: any[] = [];
+        const typst = markdownToTypst(source, { findings, file: "note.md", bodyLine: 8 });
+        expect(typst).toContain("page-break");
+        expect(typst).not.toContain("#pagebreak");
+        expect(findings).toEqual([
+            { file: "note.md", severity: "error", ...error, line: line + 7 },
+        ]);
+    });
+
+    it.each([
+        "Text.[^a]\n\n[^a]: A note.\n\n        --- {.page-break}",
+        "Text.[^a]\n\n[^a]: A note.\n\n    ```text\n    --- {.page-break}\n    ```",
+        "Text.[^a]\n\n[^a]: A note.\n\n    ::: {.verse}\n    --- {.page-break}\n    :::",
+    ])("keeps actual literal blocks inside footnotes exempt in %j", (source) => {
+        expect(scanPageBreaks(source).errors).toEqual([]);
+        expect(markupFindings(source, "note.md")).toEqual([]);
+        const findings: any[] = [];
+        expect(markdownToTypst(source, { findings })).not.toContain("#pagebreak");
+        expect(findings).toEqual([]);
+    });
 });

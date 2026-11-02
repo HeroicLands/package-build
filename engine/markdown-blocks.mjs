@@ -25,35 +25,50 @@
  */
 
 import MarkdownIt from "markdown-it";
+import footnotePlugin from "markdown-it-footnote";
 import { verseDivPlugin } from "./verse-regions.mjs";
 
 /** The renderer's block grammar, with inline parsing and its passes switched off. */
 const parser = new MarkdownIt({ html: true }).use(verseDivPlugin);
-parser.core.ruler.disable(["inline", "linkify", "replacements", "smartquotes", "text_join"]);
+const footnoteParser = new MarkdownIt({ html: true }).use(footnotePlugin).use(verseDivPlugin);
+for (const projection of [parser, footnoteParser])
+    projection.core.ruler.disable([
+        "inline",
+        "linkify",
+        "replacements",
+        "smartquotes",
+        "text_join",
+    ]);
+// Keep definition containers and their original maps in place for scanners.
+footnoteParser.core.ruler.disable("footnote_tail");
 
 /** How many recent sources keep their tokens. */
 const RECENT = 16;
 
 /** @type {Map<string, import("markdown-it").Token[]>} */
 const recent = new Map();
+const recentFootnotes = new Map();
 
 /**
  * The block tokens of a Markdown source. The array is shared between callers
  * and must not be modified; an `inline` token carries no `children`.
  *
  * @param {unknown} source - Markdown.
+ * @param {object} [options] - Optional block projection.
+ * @param {boolean} [options.footnotes=false] - Include footnote definition containers.
  * @returns {readonly import("markdown-it").Token[]} The block tokens, in order.
  */
-export function blockTokens(source) {
+export function blockTokens(source, { footnotes = false } = {}) {
     const text = String(source ?? "");
-    const hit = recent.get(text);
+    const cache = footnotes ? recentFootnotes : recent;
+    const hit = cache.get(text);
     if (hit) {
-        recent.delete(text);
-        recent.set(text, hit);
+        cache.delete(text);
+        cache.set(text, hit);
         return hit;
     }
-    const tokens = parser.parse(text, { verseSource: text });
-    recent.set(text, tokens);
-    if (recent.size > RECENT) recent.delete(recent.keys().next().value);
+    const tokens = (footnotes ? footnoteParser : parser).parse(text, { verseSource: text });
+    cache.set(text, tokens);
+    if (cache.size > RECENT) cache.delete(cache.keys().next().value);
     return tokens;
 }

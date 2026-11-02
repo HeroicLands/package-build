@@ -303,8 +303,8 @@ The optional [book page break](authoring/links-and-markup.md#book-page-breaks)
 uses only `--- {.page-break}` between blocks at the note's top level.
 Other classes, ids or attributes on an attributed `---` line receive findings
 at their opening brace. A `.page-break` on `***` or `___` receives a finding
-at the marker. A marker inside a list, block quote, alert, secret block or
-fenced div receives `a page break stands between blocks at the top level of a
+at the marker. A marker inside a list, block quote, alert, footnote definition,
+secret block or fenced div receives `a page break stands between blocks at the top level of a
 note`, at that marker's line and column. Missing surrounding blank lines
 receive the same placement finding. Code blocks and complete verse divs are
 literal and receive no page-break findings.

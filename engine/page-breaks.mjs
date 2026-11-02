@@ -19,7 +19,7 @@ import { parseExtensionAttributes, refusedAttributes } from "./extension-attribu
 
 /** A standalone attributed break, including Markdown container prefixes. */
 const BREAK_LINE =
-    /^(?:[ \t]*(?:>[ \t]?|(?:[-+*]|\d{1,9}[.)])[ \t]+))*[ \t]*(---|\*\*\*|___)[ \t]+(\{[^\r\n]*\})[ \t]*$/;
+    /^(?<prefix>(?:[ \t]*(?:>[ \t]?|(?:[-+*]|\d{1,9}[.)])[ \t]+|\[\^[^\]\s]+\]:[ \t]*))*[ \t]*)(?<marker>---|\*\*\*|___)[ \t]+(?<attributes>\{[^\r\n]*\})[ \t]*$/;
 const PLACEMENT = "a page break stands between blocks at the top level of a note";
 
 /**
@@ -35,8 +35,13 @@ export function scanPageBreaks(source) {
     if (!lines.some((line) => BREAK_LINE.test(line))) return { breaks: [], errors: [] };
     const literal = new Set();
     const nested = new Set();
-    for (const token of blockTokens(text)) {
+    let footnoteDepth = 0;
+    for (const token of blockTokens(text, { footnotes: true })) {
+        if (token.type === "footnote_reference_open") footnoteDepth++;
+        if (token.type === "footnote_reference_close") footnoteDepth--;
         if (!token.map) continue;
+        if (footnoteDepth)
+            for (let line = token.map[0]; line < token.map[1]; line++) nested.add(line);
         const target =
             ["fence", "code_block", "html_block", "verse_div"].includes(token.type) ? literal
             : ["blockquote_open", "list_item_open"].includes(token.type) ? nested
@@ -51,10 +56,11 @@ export function scanPageBreaks(source) {
         if (literal.has(i)) continue;
         const match = BREAK_LINE.exec(lines[i]);
         if (!match) continue;
-        const parsed = parseExtensionAttributes(match[2].slice(1, -1));
-        if (match[1] !== "---" && !parsed.classes.includes("page-break")) continue;
-        const column = lines[i].indexOf(match[1]) + 1;
-        const attributeColumn = lines[i].indexOf("{") + 1;
+        const { prefix, marker, attributes } = match.groups;
+        const parsed = parseExtensionAttributes(attributes.slice(1, -1));
+        if (marker !== "---" && !parsed.classes.includes("page-break")) continue;
+        const column = prefix.length + 1;
+        const attributeColumn = lines[i].lastIndexOf(attributes) + 1;
         const at = (message) => ({ line: i + 1, column: attributeColumn, message });
         const problems = [...parsed.problems, ...refusedAttributes(parsed.values)];
         if (
@@ -68,7 +74,7 @@ export function scanPageBreaks(source) {
         if (parsed.id) problems.push("a page break does not accept an id");
         if (Object.keys(parsed.values).length)
             problems.push("a page break does not accept attributes");
-        if (match[1] !== "---")
+        if (marker !== "---")
             errors.push({ line: i + 1, column, message: "only --- accepts {.page-break}" });
         if (
             nested.has(i) ||
@@ -77,7 +83,7 @@ export function scanPageBreaks(source) {
         )
             errors.push({ line: i + 1, column, message: PLACEMENT });
         errors.push(...problems.map(at));
-        if (match[1] === "---" && !problems.length && !errors.some((error) => error.line === i + 1))
+        if (marker === "---" && !problems.length && !errors.some((error) => error.line === i + 1))
             breaks.push({ line: i + 1, column });
     }
     return { breaks, errors };
@@ -92,6 +98,28 @@ export function omitPageBreaks(source) {
     const lines = String(source ?? "").split("\n");
     for (const marker of scanPageBreaks(source).breaks) lines[marker.line - 1] = "";
     return lines.join("\n");
+}
+
+/**
+ * Preserve refused markers as literal Markdown before the book slices blocks.
+ * A slice must not make a marker eligible by discarding its original neighbour.
+ * Findings are collected from the original source before this rewrite.
+ * @param {string} source - Complete Markdown body, before splitting containers.
+ * @returns {string} Markdown with invalid markers escaped for literal rendering.
+ */
+export function escapeInvalidPageBreaks(source) {
+    const text = String(source ?? "");
+    const refused = new Set(scanPageBreaks(text).errors.map((error) => error.line));
+    if (!refused.size) return text;
+    return text
+        .split("\n")
+        .map((line, i) => {
+            if (!refused.has(i + 1)) return line;
+            const match = BREAK_LINE.exec(line.replace(/\r$/, ""));
+            const prefix = match.groups.prefix;
+            return `${prefix}\\${line.slice(prefix.length)}`;
+        })
+        .join("\n");
 }
 
 /**

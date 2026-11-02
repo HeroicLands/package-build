@@ -62,7 +62,7 @@
  * @module
  */
 
-import { scanPageBreaks } from "./page-breaks.mjs";
+import { escapeInvalidPageBreaks, scanPageBreaks } from "./page-breaks.mjs";
 import { createRenderer } from "./content-render.mjs";
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
 import { ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
@@ -360,7 +360,7 @@ function reportUnrenderable(source, definitions, opts, original) {
         }
     }
     for (const error of [
-        ...scanPageBreaks(source).errors,
+        ...scanPageBreaks(original).errors,
         ...scanSpans(source).errors,
         ...scanRuns(source, opts.runs).errors,
         ...markupAnchorFindings(source),
@@ -522,7 +522,8 @@ export function markdownToTypst(markdown, opts = {}) {
             renderRuns(markingSource, opts.runs, undefined, { target: "book" })
         );
     const markedFootnotes = marked && definitions ? separateFootnotes(marked.markdown) : undefined;
-    const source = markedFootnotes?.markdown ?? marked?.markdown ?? authored;
+    const markedSource = markedFootnotes?.markdown ?? marked?.markdown ?? authored;
+    const source = opts.nested ? markedSource : escapeInvalidPageBreaks(markedSource);
     if (markedFootnotes) definitions = markedFootnotes.definitions;
     if (marked) {
         sharedOptions.footnoteDefinitions = definitions;

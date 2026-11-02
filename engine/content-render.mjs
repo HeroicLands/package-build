@@ -40,10 +40,10 @@
  *
  * A note reaches {@link Renderer#render} with its index-dependent constructs
  * already resolved by {@link module:engine/content-expand.expandContent}.
+ * Valid authored page breaks are omitted before these stages.
+ *
  * {@link Renderer#prepare} then writes the constructs markdown-it has no
  * syntax for as HTML between blank lines, in this order:
- *
- * Valid authored page breaks are omitted before these stages.
  *
  * 1. **Marked text** — a run's language, face and mapping, from the
  *    configuration's script notes.
