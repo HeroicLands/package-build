@@ -685,6 +685,20 @@ describe("what the book cannot set", () => {
         expect(findings[0].message).toBe(htmlMessage("<strong>"));
     });
 
+    it("leaves typed quotations alone while reporting adjacent raw HTML", () => {
+        for (const body of [
+            "He said <<tor>> and <<ta>>.",
+            "[<<tor>>]{.emph}",
+            "::: {.verse}\n<<tor>>\n:::",
+        ])
+            expect(render(body).findings).toEqual([]);
+        const { findings } = render("<<tor>> and <b>real</b>");
+        expect(findings).toEqual([
+            expect.objectContaining({ column: 13, message: htmlMessage("<b>") }),
+            expect.objectContaining({ column: 20, message: htmlMessage("</b>") }),
+        ]);
+    });
+
     it("reports a wikilink, an embed and an expression that no pass resolved", () => {
         const link = render("See [[lore-harbor|the harbor]].").findings;
         expect(link[0]).toMatchObject({ line: 1, column: 5, severity: "error" });

@@ -157,7 +157,7 @@
         "eslint-plugin-yml": "^3.8.1",
         "fflate": "^0.8.3",
         "flesch": "^2.0.1",
-        "glob": "^14.0.0",
+        "glob": "^14.0.3",
         "handlebars": "^4.7.10",
         "highlight.js": "^11.12.0",
         "ignore": "^7.0.12",
@@ -168,7 +168,7 @@
         "markdown-it": "^15.0.0",
         "markdown-it-deflist": "^4.0.0",
         "markdown-it-footnote": "^4.0.0",
-        "minimatch": "^11.0.0",
+        "minimatch": "^11.0.3",
         "pagefind": "^1.5.2",
         "prettier": "^3.9.6",
         "remark-frontmatter": "^5.0.0",
@@ -243,5 +243,10 @@
         "sohl",
         "song-of-heroic-lands"
     ],
-    "homepage": "https://github.com/HeroicLands/package-build#documentation"
+    "homepage": "https://github.com/HeroicLands/package-build#documentation",
+    "overrides": {
+        "minimatch": "$minimatch",
+        "katex": "0.18.2",
+        "re2js": "2.8.7"
+    }
 }

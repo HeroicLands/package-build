@@ -1519,6 +1519,10 @@ Naming an interface icon in a note, without drawing it there. The user guide des
 
 Raw HTML in a note's prose, reported. **A note is markdown.** What markdown cannot say, a note does not say — it gets a construct every surface can render, the way `:icon …:` replaces a pasted glyph.
 
+`HTML_TAG` excludes the doubled `<<` that opens a typed quotation. A quotation
+written with `<<` and `>>` draws no raw-HTML warning; adjacent real tags retain
+their findings and positions.
+
 | Export            | Signature                               | Returns                                                                                                                                                              | Use it when                                                    |
 | ----------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `HTML_TAG`        | `const HTML_TAG`                        | —                                                                                                                                                                    | A raw HTML tag, opening, closing or self-closing.              |

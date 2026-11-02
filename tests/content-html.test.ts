@@ -65,6 +65,34 @@ describe("checkHtml", () => {
 });
 
 describe("what is not a tag", () => {
+    it.each([
+        "He said <<pabak gunádh mand.>> twice.",
+        "[<<pabak gunádh mand.>>]{lang=khaz}",
+        "```verse {lang=en cols=2}\n1 [<<pabak gunádh mand.>>]{lang=khaz}\n```",
+        "He said <<tor>> and <<ta>>.",
+    ])("leaves typed quotation marks alone: %s", (body) => {
+        expect(checkHtml(body, "q.md")).toEqual([]);
+    });
+
+    it("keeps real tags and their columns beside a typed quotation", () => {
+        const findings = checkHtml("<<pabak mand.>> and <b>real</b>", "q.md");
+        expect(findings.map(({ column, message }) => ({ column, message }))).toEqual([
+            { column: 21, message: htmlMessage("<b>") },
+            { column: 28, message: htmlMessage("</b>") },
+        ]);
+        expect(
+            checkHtml('A <abbr title="x">tag</abbr> and <br/>.', "q.md").map(
+                ({ column }) => column,
+            ),
+        ).toEqual([3, 22, 34]);
+    });
+
+    it("treats a doubled opener as quotation even when a closing tag follows", () => {
+        expect(checkHtml("<<b>text</b>>", "q.md")).toEqual([
+            expect.objectContaining({ column: 9, message: htmlMessage("</b>") }),
+        ]);
+    });
+
     it("leaves an autolink alone", () => {
         // `<https://…>` is markdown. The name is followed by `:`, which is
         // neither whitespace nor a closing bracket, so the pattern stops.

@@ -64,7 +64,8 @@ import { positionInBody, splitFrontmatter } from "./diagnostics.mjs";
  * markdown's own angle brackets out of it: an autolink is `<https://…>`, and
  * `https` is followed by `:` rather than whitespace or `>`, so the pattern
  * stops. A comparison written in prose — `a < b` — has no name after the
- * bracket at all.
+ * bracket at all. A doubled `<<` opens a quotation, so its second bracket
+ * never starts an HTML tag.
  *
  * Attributes are consumed as "anything but a bracket", deliberately loosely: a
  * finding names the tag, and a pattern that tried to parse attribute syntax
@@ -73,7 +74,7 @@ import { positionInBody, splitFrontmatter } from "./diagnostics.mjs";
  *
  * @type {RegExp}
  */
-export const HTML_TAG = /<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?\/?>/g;
+export const HTML_TAG = /(?<!<)<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?\/?>/g;
 
 /**
  * What a note carrying raw HTML is told.
