@@ -154,6 +154,44 @@ describe("an affiliation that reaches no culture", () => {
         expect(at(text, findings[0]).startsWith("affiliation")).toBe(true);
     });
 
+    it("is not a finding for a child whose parent names a culture", () => {
+        expect(
+            lint({
+                ...WORLD,
+                "Affiliations/Lodge.md": affiliation("lodge", ["parents: [affiliation-chapter]"]),
+            }),
+        ).toEqual([]);
+    });
+
+    it("is a finding when neither the body nor any ancestor names a culture", () => {
+        const text = affiliation("lodge", ["parents: [affiliation-loners]"]);
+        const findings = lint({
+            ...WORLD,
+            "Affiliations/Loners.md": affiliation("loners", []),
+            "Affiliations/Lodge.md": text,
+        });
+        expect(findings.map((finding) => finding.file).sort()).toEqual([
+            "Affiliations/Lodge.md",
+            "Affiliations/Loners.md",
+        ]);
+        const lodge = findings.find((finding) => finding.file === "Affiliations/Lodge.md");
+        expect(lodge).toMatchObject({ severity: "warning", line: 4 });
+        expect(lodge.message).toMatch(/reaches no culture/);
+        expect(at(text, lodge).startsWith("affiliation")).toBe(true);
+    });
+
+    it("terminates on a cycle of parents", () => {
+        const findings = lint({
+            ...WORLD,
+            "Affiliations/Ouro.md": affiliation("ouro", ["parents: [affiliation-boros]"]),
+            "Affiliations/Boros.md": affiliation("boros", ["parents: [affiliation-ouro]"]),
+        });
+        expect(findings.map((finding) => finding.file).sort()).toEqual([
+            "Affiliations/Boros.md",
+            "Affiliations/Ouro.md",
+        ]);
+    });
+
     it("is not a finding in a tree that describes no people", () => {
         expect(
             lint({

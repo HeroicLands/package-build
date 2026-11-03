@@ -345,6 +345,9 @@ export function noteTerms(index, note, entry) {
  * in a tree that describes peoples. Its ranks and offices then have no
  * culture associations for term queries.
  *
+ * The note's `data.culture` is the culture the content index resolved for it:
+ * its own, else the one its `data.parents` chain agrees on.
+ *
  * @param {object} note - An `affiliation` note.
  * @param {{index?: object}} [context]
  * @returns {object[]} One warning, at the note's `type`, or none.
