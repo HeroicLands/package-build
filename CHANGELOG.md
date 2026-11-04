@@ -1,5 +1,23 @@
 # @heroiclands/package-build
 
+## 25.6.0
+
+**Changes to act on**
+
+- Note queries and a language note's `scope` select notes by property, tag or address; a query that reads `file.path`, `file.folder` or `file.name`, or a scope that lists `paths`, is an error at its position.
+- A scenario no longer takes `data.status`, and a note that still writes it fails the build; mark an unfinished scenario with the `draft` tag instead.
+- A region's settlement table comes from its frontmatter on the website, in Foundry and in books, and a table still written in the body must move there. It needs no holding-model tag, and shows a Held by column only where a row names its holder by address.
+
+**New**
+
+- Places can be districts, such as a city's quarter or a kingdom's shire, standing within a settlement or a region and falling under its government unless they name their own.
+- Places can be routes, such as a road, a pass or a sea lane, with the journeys along them.
+- An affiliation's page lists who holds each of its offices, drawn from the living beings that name the office, and the content index carries the same list.
+- A being can hold several posts in one body by listing them under `office`.
+- Gear can be marked `unique: true` for a one-of-a-kind item; such an item's note must link a place or a being.
+- A language or spelling guide can declare a written mark of kind `quality`, for a mark that changes which vowel is said rather than how long it is held.
+- A quotation typed with `<<` and `>>` draws no raw-HTML warning.
+
 ## 25.5.5
 
 **Languages and scripts**
