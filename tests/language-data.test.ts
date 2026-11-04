@@ -689,9 +689,9 @@ describe("the sound rules beside the letters", () => {
 
     it("refuse a mark's kind or limit outside the closed lists, at the value", () => {
         one(
-            edit("kind: stress, limit: one", "kind: tone, limit: one"),
-            /`data\.sounds\.marks\[0\]\.kind` should be `stress` or `length` or `apart` or `quality`/,
-            "tone",
+            edit("kind: stress, limit: one", "kind: pitch, limit: one"),
+            /`data\.sounds\.marks\[0\]\.kind` should be `stress` or `length` or `apart` or `quality` or `tone`/,
+            "pitch",
         );
         one(
             edit("kind: stress, limit: one", "kind: stress, limit: two"),
@@ -847,6 +847,35 @@ const GUIDE = (rows: string[]) =>
     ].join("\n");
 
 const guide = (text: string) => lint({ "Lore/Pronouncing.md": text });
+
+describe.each([
+    [
+        "a language note",
+        (rows: string[]) => DUNHARI.replace("    marks:\n", rows.join("\n") + "\n"),
+        dunhari,
+    ],
+    ["a spelling guide", GUIDE, guide],
+] as const)("%s's mark kinds", (_name, note, validate) => {
+    it("accepts rising and falling tone marks", () => {
+        const text = note([
+            "    marks:",
+            "      - {mark: caron, letters: [ǎ], kind: tone, limit: any}",
+            "      - {mark: circumflex, letters: [â], kind: tone, limit: any}",
+        ]);
+        expect(validate(text)).toEqual([]);
+    });
+
+    it("refuses an unknown kind at the value", () => {
+        const text = note([
+            "    marks:",
+            "      - {mark: caron, letters: [ǎ], kind: pitch, limit: any}",
+        ]);
+        const findings = validate(text);
+        expect(findings, JSON.stringify(findings)).toHaveLength(1);
+        expect(findings[0].message).toMatch(/`data\.sounds\.marks\[0\]\.kind` should be/);
+        expect(at(text, findings[0]).startsWith("pitch")).toBe(true);
+    });
+});
 
 describe("a spelling guide's sounds", () => {
     it("states letters with their IPA and the languages that write them, and marks", () => {

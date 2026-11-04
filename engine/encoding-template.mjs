@@ -21,6 +21,12 @@ const scalar = (value) =>
     !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value);
 const base = (value) => value.normalize("NFD").replace(/\p{M}/gu, "");
 const slug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/** Each diaeresis vowel and the plain vowel whose mapping writes it. */
+const DIAERESIS_VOWELS = Object.freeze(
+    Object.fromEntries(
+        [..."aeiouAEIOU"].map((plain) => [(plain + "\u0308").normalize("NFC"), plain]),
+    ),
+);
 const codeName = /^[A-Za-z0-9_]+$/;
 
 /**
@@ -339,12 +345,27 @@ export function templateProgram(data, options, fault) {
         ]),
     ];
     if (!Array.isArray(accepts)) fault("accepts", "accepts must be a list of characters or ranges");
+    // A diaeresis vowel no source names is written with its plain vowel's rows,
+    // and decoding restores it by rule.
+    const named = [...mappings.map(([from]) => from), ...contextual.map((r) => r.from)];
+    const derived =
+        rules.diaeresis?.allowed === true ?
+            Object.fromEntries(
+                Object.entries(DIAERESIS_VOWELS).filter(
+                    ([letter, plain]) =>
+                        named.includes(plain) &&
+                        !named.some((from) => from.includes(letter)) &&
+                        !separators.some((row) => row.from.includes(letter)),
+                ),
+            )
+        :   undefined;
     return {
         definition: {
             name: "encoding-note",
             fonts: [data.font],
             accepts: [
                 ...accepts,
+                ...Object.keys(derived ?? {}),
                 ...STANDARD_ROWS.flatMap((r) => [...(Array.isArray(r) ? r[0] : r.from)]),
             ],
             separator: " ",
@@ -366,6 +387,13 @@ export function templateProgram(data, options, fault) {
                 maxVowelGroup: Math.max(0, ...vowelGroups.map((group) => [...group].length)),
                 stress,
                 diaeresis: rules.diaeresis?.allowed === false,
+                apart:
+                    derived ?
+                        Object.freeze({
+                            letters: Object.freeze(derived),
+                            groups: Object.freeze(vowelGroups),
+                        })
+                    :   undefined,
                 grave: rules["grave-accent"]?.allowed === false,
             }),
         },

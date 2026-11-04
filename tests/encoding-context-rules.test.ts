@@ -178,8 +178,13 @@ describe("explicit accent permissions", () => {
             expect(encodeText(enc, "ëè")).toBe("βσ");
             expect(decodeText(enc, "βσ")).toBe("ëè");
         }
-        const enc = compile(note({ diaeresis: { allowed: true } }, { e: "A" }));
-        expect(() => encodeText(enc, "ë")).toThrow(EncodingError);
+        expect(() => encodeText(compile(note({}, { e: "A" })), "ë")).toThrow(EncodingError);
+        expect(() =>
+            encodeText(compile(note({ "grave-accent": { allowed: true } }, { e: "A" })), "è"),
+        ).toThrow(EncodingError);
+        expect(encodeText(compile(note({ diaeresis: { allowed: true } }, { e: "A" })), "ë")).toBe(
+            "α",
+        );
     });
     it("forbids false declarations and rejects nonboolean permission values", () => {
         for (const key of ["diaeresis", "grave-accent"]) {

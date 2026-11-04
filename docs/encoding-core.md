@@ -53,15 +53,16 @@ second behaviour.
 | `case`                | `{single-letter: preserve, consonant-group: lowercase-or-initial-uppercase, other-group-cases: forbidden}`; single letters retain authored case, and groups use lowercase or an initial capital.                                                      |
 | `stress`              | `{modifier, position: after-stressed-vowel, printing: false, effect: stress-only, changes-sound: false, changes-length: false, vowel-group-position: first-vowel}`; `modifier` names a font code and acute mappings append it to the unchanged vowel. |
 | `vowel-groups`        | `{reading: established, allow-splitting: false, unrecognized-adjacent-vowels: separate, groups: [...]}`; the explicit group list determines where an acute belongs on its first vowel.                                                                |
-| `diaeresis`           | `{allowed: boolean}` permits or forbids explicitly mapped diaeresis characters.                                                                                                                                                                       |
+| `diaeresis`           | `{allowed: boolean}`; false forbids diaeresis characters; true derives plain-vowel mappings and restores splits of distinctly mapped declared groups.                                                                                                 |
 | `grave-accent`        | `{allowed: boolean}` permits or forbids explicitly mapped grave-accent characters.                                                                                                                                                                    |
 | `contextual-mappings` | A list of `{match, emit, before?, at?}`; following-letter or source-position conditions precede unconditional mappings.                                                                                                                               |
 | `y`                   | `{kind: consonant, sound: "y in yes", vowel-reading: false}`; y cannot also appear in `data.vowels`.                                                                                                                                                  |
 
 The accent blocks accept an explicit Boolean `allowed`. False forbids that
-accent; true permits it only where the character is accepted and mapped.
-Omitting the block also permits such explicit mappings. Neither choice invents
-an accent pronunciation or adds a character to the inventory.
+accent. True on the grave accent permits it only where the character is
+accepted and mapped; true on the diaeresis turns on the
+[diaeresis rule](#the-diaeresis-by-rule). Omitting either block permits
+explicit mappings alone, and no choice invents an accent pronunciation.
 
 `rules.roundTrip` is optional and defaults to `exact`. Exact mappings must be
 uniquely decodable across adjacent mappings and spaces; ambiguous outputs and
@@ -116,7 +117,8 @@ canonical round trips. Decoding keeps the shared space as a space.
 A contextual match cannot contain whitespace, literal markers or forbidden
 accents. Both modes enforce the same accepted characters, normalization,
 case, stress, accent and literal-control rules. The compiler does not infer
-linguistic vowel groups or silently add missing letter mappings.
+linguistic vowel groups or silently add missing plain-letter mappings. The
+[diaeresis rule](#the-diaeresis-by-rule) uses only explicitly declared groups.
 
 Lint checks every authored word, variant and registered name for a language
 with an encoding document, including unused entries. It also checks actual
@@ -146,6 +148,42 @@ start their own sentence, and closing quotations contribute their enclosed
 text to the surrounding sentence. Names, literal codage and independent
 language children count as text. An explicit mapping can give a standard
 source its own font glyph. Other punctuation needs its own mapping.
+
+### The diaeresis by rule
+
+A diaeresis splits a listed vowel group: _kau_ uses the group _au_, while
+_kaü_ sounds its vowels apart. Adjacent vowels outside the declared groups
+already sound separately and need no mark: _kae_ remains _kae_.
+
+`diaeresis: {allowed: true}` accepts _ä_, _ë_, _ï_, _ö_ and _ü_, and their
+capitals, using the corresponding plain vowel's mappings and contextual
+rules. No extra mapping rows are needed. This applies only when the plain
+vowel has a mapping of its own and no source explicitly names that diaeresis
+vowel. Explicit mappings retain their authored spelling and glyphs. A derived
+diaeresis blocks a row from joining the preceding vowel, while permitting
+matching from the marked vowel onward. Source pieces and errors retain their
+authored UTF-16 offsets, including decomposed input normalized to NFC.
+
+Decoding retains the selected native mapping boundaries. A group written by
+its own mapping stays together; separate mappings receive a diaeresis where
+their letters would otherwise be joined by a declared group mapping. For
+example, with `au: AU`, `a: A` and `u: U`, the AU glyph reads _au_ and the A
+then U glyphs read _aü_. Groups use `rules.vowel-groups.groups`, longest first;
+there is no default group list. Existing marks and the interiors of explicit
+mappings retain their spelling. Literal `⟦…⟧` spans receive no derived marks.
+
+The native writing must distinguish the group from its split. A group with
+no mapping of its own, or one emitting the same sequence as its separate
+vowels, cannot restore that distinction. The compiler still accepts such an
+encoding and its bare vowel spelling. An exact encoding refuses a newly
+derived split input when its native path cannot recover the mark. This also
+applies when a particular context or an acute prevents the distinct group
+mapping from matching. Canonical encodings retain their existing longest
+complete native match and authored-alias preferences, so an ambiguous split
+may return the conventional bare spelling. Standalone or non-group diaeresis
+aliases remain accepted, but have no rule-derived mark to restore; this is
+not a pronunciation validator. An encoding that omits the permission block
+or forbids the diaeresis derives no aliases or marks.
 
 ## Conversion API
 

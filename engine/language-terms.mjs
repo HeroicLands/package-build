@@ -154,10 +154,10 @@ export const JOIN_RULES = Object.freeze(["merge", "insert", "drop", "double"]);
 
 /**
  * What a written mark says of its letter: `stress` falls on it, `length` holds
- * it longer, `apart` says it apart from its neighbour, and `quality` changes
- * which vowel is said.
+ * it longer, `apart` says it apart from its neighbour, `quality` changes
+ * which vowel is said, and `tone` marks a rising or falling pitch.
  */
-export const MARK_KINDS = Object.freeze(["stress", "length", "apart", "quality"]);
+export const MARK_KINDS = Object.freeze(["stress", "length", "apart", "quality", "tone"]);
 
 /** How many of a mark a word may carry: `one` at most, or `any` number. */
 export const MARK_LIMITS = Object.freeze(["one", "any"]);

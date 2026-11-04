@@ -89,18 +89,26 @@ export const ENCODING_RULE_FIELDS = Object.freeze([
             describe: "The complete authored group inventory.",
         },
     ]),
-    ...["diaeresis", "grave-accent"].map((name) =>
-        block(name, `Whether ${name} mappings are allowed.`, [
-            {
-                name: "allowed",
-                kind: "boolean",
-                shape: "true or false",
-                required: true,
-                describe:
-                    "False forbids the accent; true permits explicitly mapped and accepted characters.",
-            },
-        ]),
-    ),
+    block("diaeresis", "Whether diaeresis vowels are allowed, and how they are written.", [
+        {
+            name: "allowed",
+            kind: "boolean",
+            shape: "true or false",
+            required: true,
+            describe:
+                "False forbids the diaeresis; true derives plain-vowel mappings and restores splits where a declared group's native mapping distinguishes joined and separate vowels. Exact conversion refuses an unrecoverable derived group split; canonical conversion keeps its conventional reading.",
+        },
+    ]),
+    block("grave-accent", "Whether grave-accent mappings are allowed.", [
+        {
+            name: "allowed",
+            kind: "boolean",
+            shape: "true or false",
+            required: true,
+            describe:
+                "False forbids the accent; true permits explicitly mapped and accepted characters.",
+        },
+    ]),
     {
         name: "contextual-mappings",
         kind: "list",

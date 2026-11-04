@@ -470,7 +470,11 @@ function checkGroupCase(enc, groups, text, at, bound) {
  * @param {string} text
  * @param {{font?: string, verse?: boolean, start?: number, end?: number}} [options]
  */
-function encodeRawPieces(enc, text, { font, verse = false, start = 0, end = text.length } = {}) {
+function encodeRawPieces(
+    enc,
+    text,
+    { font, verse = false, start = 0, end = text.length, stops = [] } = {},
+) {
     const groups = tiers(enc, font);
     if (typeof text !== "string") throw new EncodingError("Text must be a string");
     if (
@@ -485,9 +489,13 @@ function encodeRawPieces(enc, text, { font, verse = false, start = 0, end = text
         });
     const bound = end;
     const out = [];
-    let at = start;
+    let at = start,
+        stop = 0;
     while (at < bound) {
         const first = firstAt(text, at);
+        while (stop < stops.length && stops[stop] <= at) stop++;
+        // A row never spans the start of a diaeresis vowel written by its plain vowel.
+        const limit = Math.min(bound, stops[stop] ?? bound);
         if (first === OPEN) {
             const close = span(text.slice(0, bound), at, OPEN, CLOSE);
             out.push(
@@ -545,7 +553,7 @@ function encodeRawPieces(enc, text, { font, verse = false, start = 0, end = text
             continue;
         }
         if (!enc.template) checkGroupCase(enc, groups, text, at, bound);
-        const row = enc.accepted.has(first) ? rowAt(enc, groups, text, at, bound) : null;
+        const row = enc.accepted.has(first) ? rowAt(enc, groups, text, at, limit) : null;
         if (!row)
             refused(
                 enc,
@@ -688,7 +696,13 @@ function sourceDetails(enc, text, options) {
                     pointSlice(normalized.slice(0, bound), at, enc.template.maxVowelGroup)
                 :   "";
             const lower = lookahead.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-            const group = enc.template?.vowelGroups.find((value) => lower.startsWith(value));
+            const group = enc.template?.vowelGroups.find(
+                (value) =>
+                    lower.startsWith(value) &&
+                    [...lookahead]
+                        .slice(1, [...value].length)
+                        .every((letter) => !/[\u0308\u0300]/u.test(letter.normalize("NFD"))),
+            );
             if (group) {
                 let cursor = at;
                 for (let i = 0; i < [...group].length; i++) {
@@ -713,7 +727,16 @@ function sourceDetails(enc, text, options) {
             });
         throw error;
     }
-    return projection;
+    const letters = enc.template?.apart?.letters;
+    if (!letters) return { ...projection, folded: normalized, stops: [] };
+    const stops = [];
+    let folded = "";
+    for (let at = 0; at < normalized.length; at++) {
+        const plain = at >= begin && at < bound ? letters[normalized[at]] : undefined;
+        if (plain) stops.push(at);
+        folded += plain ?? normalized[at];
+    }
+    return { ...projection, folded, stops };
 }
 
 /**
@@ -736,16 +759,49 @@ export function validateSource(enc, text, options = {}) {
  */
 export function encodePieces(enc, text, options = {}) {
     if (!enc?.template) return encodeRawPieces(enc, text, options);
-    const { normalized, sourceAt, begin, bound } = sourceDetails(enc, text, options);
+    const { normalized, folded, stops, sourceAt, begin, bound } = sourceDetails(enc, text, options);
     try {
-        return encodeRawPieces(enc, normalized, { ...options, start: begin, end: bound }).map(
-            (one) => ({
-                ...one,
-                from: text.slice(sourceAt[one.start], sourceAt[one.end]),
-                start: sourceAt[one.start],
-                end: sourceAt[one.end],
-            }),
-        );
+        const pieces = encodeRawPieces(enc, folded, {
+            ...options,
+            start: begin,
+            end: bound,
+            stops,
+        });
+        if (enc.roundTrip === "exact" && stops.length) {
+            const native = pieces.map((one) => one.to).join("");
+            const decoded = decodeTemplatePieces(enc, native, options);
+            let nativeAt = 0;
+            for (const one of pieces) {
+                const expected = normalized.slice(one.start, one.end);
+                const marked = stops.find(
+                    (at) =>
+                        at >= one.start &&
+                        at < one.end &&
+                        splitsDeclaredGroup(enc, normalized, at, begin, bound),
+                );
+                if (
+                    marked !== undefined &&
+                    !decoded.some(
+                        (step) =>
+                            step.start === nativeAt &&
+                            step.end === nativeAt + one.to.length &&
+                            step.from === expected,
+                    )
+                )
+                    textError(
+                        folded,
+                        marked,
+                        "The encoding cannot distinguish this diaeresis split in an exact round trip",
+                    );
+                nativeAt += one.to.length;
+            }
+        }
+        return pieces.map((one) => ({
+            ...one,
+            from: text.slice(sourceAt[one.start], sourceAt[one.end]),
+            start: sourceAt[one.start],
+            end: sourceAt[one.end],
+        }));
     } catch (error) {
         if (error instanceof EncodingError && error.offset !== undefined)
             throw new EncodingError(error.message, {
@@ -845,6 +901,12 @@ function decodeRawText(enc, text, { font } = {}) {
  */
 export function decodeText(enc, text, options = {}) {
     if (!enc?.template) return decodeRawText(enc, text, options);
+    return decodeTemplatePieces(enc, text, options)
+        .map((one) => one.from)
+        .join("");
+}
+
+function decodeTemplatePieces(enc, text, options = {}) {
     const readings = tiers(enc, options.font)[0].readings;
     if (typeof text !== "string") throw new EncodingError("Text must be a string");
     if (!templateReaders.has(enc)) {
@@ -905,7 +967,7 @@ export function decodeText(enc, text, options = {}) {
                 failedContext = Math.min(failedContext, at);
                 continue;
             }
-            paths.set(at, { from: row.from, next });
+            paths.set(at, { from: row.from, row, next });
         }
     }
     if (!paths.has(0)) {
@@ -950,8 +1012,76 @@ export function decodeText(enc, text, options = {}) {
     const out = [];
     for (let at = 0; at < text.length;) {
         const step = paths.get(at);
-        out.push(step.from);
+        out.push({ from: step.from, row: step.row, start: at, end: step.next });
         at = step.next;
     }
-    return out.join("");
+    const apart = enc.template.apart;
+    if (!apart) return out;
+    return restoreDiaeresis(enc, out, options);
+}
+
+/** Restore only joins contradicted by the selected native row boundaries. */
+function restoreDiaeresis(enc, pieces, options) {
+    const text = pieces.map((one) => one.from).join("");
+    const letters = [];
+    let offset = 0;
+    for (const [part, piece] of pieces.entries()) {
+        for (const char of piece.from) {
+            letters.push({ char, part, offset, literal: !piece.row });
+            offset += char.length;
+        }
+    }
+    const groups = tiers(enc, options.font);
+    for (let i = 0; i < letters.length; i++) {
+        if (letters[i].literal) continue;
+        const group = enc.template.apart.groups.find((value) => {
+            const span = [...value];
+            if (
+                !span.every((char, k) => {
+                    const letter = letters[i + k];
+                    return (
+                        letter &&
+                        !letter.literal &&
+                        letter.char.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase() ===
+                            char &&
+                        (k === 0 || letter.char.normalize("NFD").length === 1)
+                    );
+                })
+            )
+                return false;
+            const row = rowAt(enc, groups, text, letters[i].offset);
+            return row && row.from.toLowerCase() === value;
+        });
+        if (!group) continue;
+        const end = i + [...group].length;
+        let boundary = i + 1;
+        while (boundary < end && letters[boundary].part === letters[i].part) boundary++;
+        if (boundary === end) {
+            i = end - 1;
+            continue;
+        }
+        const letter = letters[boundary];
+        const marked = (letter.char + "\u0308").normalize("NFC");
+        if (enc.template.apart.letters[marked]) {
+            letter.char = marked;
+            i = boundary - 1;
+        }
+    }
+    const output = pieces.map((piece) => ({ ...piece, from: "" }));
+    for (const letter of letters) output[letter.part].from += letter.char;
+    return output;
+}
+
+/** Whether a derived mark actually splits one of this note's declared groups. */
+function splitsDeclaredGroup(enc, text, at, begin, bound) {
+    for (const group of enc.template.apart.groups) {
+        const count = [...group].length;
+        // The supported diaeresis letters are one NFC UTF-16 unit each.
+        for (let start = Math.max(begin, at - count + 1); start < at; start++) {
+            const span = pointSlice(text.slice(0, bound), start, count);
+            if (start + span.length <= at) continue;
+            if (span.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase() === group) return true;
+        }
+    }
+    return false;
 }
