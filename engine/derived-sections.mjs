@@ -21,10 +21,12 @@
  * | Within            | `within`         | a place              | the places whose `parents` names it, grouped by kind         |
  * | Governed by       | `governedby`     | a place              | the affiliation its `data.government` names                  |
  * | Governed places   | `governedplaces` | an affiliation       | the places naming it as government, grouped by kind          |
+ * | Office holders    | `officeholders`  | an affiliation       | each declared office's living holders, from the beings' own `office` |
  * | In song and story | `insongandstory` | any note             | the works naming it, or one of its events, in `subjects`     |
  * | From here         | `fromhere`       | a place on a border or a route | the map from it, as an image                       |
  *
- * The lists are the derivations {@link module:engine/holdings} and
+ * The lists are the derivations {@link module:engine/holdings},
+ * {@link module:engine/office-holders} and
  * {@link module:engine/literature-works} make, over this package's records and
  * every fetched index. An entry naming a note that publishes a page is a
  * wikilink with an empty label, so each surface resolves it its own way and
@@ -53,6 +55,8 @@ import { isNoteRecord } from "./index-records.mjs";
 import { foreignWorksNodes, worksNode, worksPages } from "./literature-works.mjs";
 import { buildMaps, relatedPlaces } from "./map-build.mjs";
 import { mapWorld } from "./map-places.mjs";
+import { officeBodyKey, officeHolders } from "./office-holders.mjs";
+import { renderAddress } from "./address.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 
 /**
@@ -66,10 +70,12 @@ import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 export const PLACE_KIND_LABELS = Object.freeze({
     world: "Worlds",
     region: "Regions",
+    district: "Districts",
     settlement: "Settlements",
     site: "Sites",
     structure: "Structures",
     feature: "Features",
+    route: "Routes",
     celestial: "Celestial places",
 });
 
@@ -165,6 +171,22 @@ function listed(entries, detail) {
  */
 function section(slug, content) {
     return `${sectionHeading(slug)}\n\n${content}\n`;
+}
+
+/**
+ * A body's offices, one line each, with the beings holding each.
+ *
+ * @param {Map<string, object[]>} held - Office → its holders' records.
+ * @returns {string} Markdown.
+ */
+function officeLines(held) {
+    const holder = (record) =>
+        record.address ?
+            `[[${renderAddress({ ...record.address.canonical, system: "note" })}|]]`
+        :   plain(titleOf(record));
+    return [...held]
+        .map(([office, holders]) => `- **${plain(office)}:** ${holders.map(holder).join(", ")}`)
+        .join("\n");
 }
 
 /**
@@ -293,6 +315,7 @@ export function derivedSections(
         { types: new Set(Object.keys(NOTE_VOCABULARY)) },
     );
     const mapped = new Set(placesWithMaps(notes, { foreignIndex, config }));
+    const offices = officeHolders(notes);
 
     const out = new Map();
     for (const record of pages) {
@@ -314,6 +337,8 @@ export function derivedSections(
             );
         if (lists.governed_places?.length)
             add("governedplaces", groupedPlaces(lists.governed_places));
+        const held = record.type === "affiliation" && offices.get(officeBodyKey(record));
+        if (held) add("officeholders", officeLines(held));
         const written = works.get(key)?.works ?? [];
         if (written.length)
             add(

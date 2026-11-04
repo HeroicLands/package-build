@@ -296,6 +296,19 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
     },
 };
 
+for (const type of Object.keys(NOTE_VOCABULARY).filter((one) =>
+    (dataFields(one) ?? []).some((field: any) => field.name === "unique"),
+)) {
+    FIXTURES[`${type}:unique`] = {
+        covers: ["unique"],
+        fm: () => ({
+            type,
+            shortcode: "subject",
+            data: { unique: true, lost: "place-ironfells#sack" },
+        }),
+    };
+}
+
 for (const type of Object.keys(NOTE_VOCABULARY)) {
     FIXTURES[`${type}:seeAlso`] = {
         covers: ["seeAlso"],

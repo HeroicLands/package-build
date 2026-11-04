@@ -12,7 +12,7 @@
  */
 
 /**
- * Indexed settlement rows, their holding-model checks and their shared table.
+ * Indexed settlement rows, their checks and their shared table.
  * Facts come only from data.settlements. The body is scanned solely to locate
  * a forbidden authored table, never to recover any row's facts.
  * @module
@@ -22,14 +22,12 @@ import { declaredHeadings } from "./declared-sections.mjs";
 import { positionOfFrontmatterPath, formatDiagnostic } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { MARKET_CLASSES, marketClass } from "./market-class.mjs";
-import { hasTag } from "./note-vocabulary.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
 import { isAddressTuple, renderAddress, parseAddress, readCanonicalKey } from "./address.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 
 import {
     SETTLEMENTS_HEADING,
-    HOLDING_MODELS,
     SETTLEMENT_COLUMNS,
     SETTLEMENT_ROW_FIELDS,
     SETTLEMENTS_FIELD,
@@ -38,7 +36,6 @@ import {
 /** Public settlement vocabulary and rendering declarations. */
 export {
     SETTLEMENTS_HEADING,
-    HOLDING_MODELS,
     SETTLEMENT_COLUMNS,
     SETTLEMENT_ROW_FIELDS,
     SETTLEMENTS_FIELD,
@@ -266,13 +263,6 @@ export function checkSettlementTables(note, { index } = {}) {
             base,
             "data.settlements.tail is a sentence stating what the table leaves out",
         );
-    const models = HOLDING_MODELS.filter((m) => hasTag(note.fm, m.tag));
-    if (!models.length)
-        report(
-            "no holding model",
-            ["tags"],
-            `declare at least one holding model: ${HOLDING_MODELS.map((m) => m.tag).join(", ")}`,
-        );
     const corpus = corpusOf(index);
     const self = corpus.byNote.get(note);
     const covered = corpus.covers.get(self?.key) ?? [];
@@ -292,9 +282,9 @@ export function checkSettlementTables(note, { index } = {}) {
             report(
                 "settlements shape",
                 at,
-                "a row carries only place, name, market, population, heldBy, holder and for",
+                "a row carries only place, name, market, population, heldBy and for",
             );
-        for (const key of ["name", "holder", "for"])
+        for (const key of ["name", "for"])
             if (Object.hasOwn(row, key) && typeof row[key] !== "string")
                 report("settlements shape", [...at, key], `${key} is plain text`);
         const label = text(row.name) || ref(row.place) || `row ${i + 1}`;
@@ -396,13 +386,6 @@ export function checkSettlementTables(note, { index } = {}) {
                     `${title} is carried as ${marketText(row.market)} here and ${ownMarket ? marketText(ownMarket.value) + " on its own note" : "its own note states none"}`,
                 );
         }
-        if (!row.heldBy && !text(row.holder)) report("no holder", at, `${label} names no holder`);
-        if (row.heldBy && text(row.holder))
-            report(
-                "settlements shape",
-                at,
-                "state exactly one of heldBy (an Address) and holder (plain text)",
-            );
         if (row.heldBy) {
             const hit = resolve(index, row.heldBy);
             if (!hit)
@@ -418,12 +401,6 @@ export function checkSettlementTables(note, { index } = {}) {
                         "not a holder",
                         [...at, "heldBy"],
                         `${ref(row.heldBy)} is a ${type}; a holder is an affiliation or a being`,
-                    );
-                else if (type === "being" && models.length && !models.some((m) => m.person))
-                    report(
-                        "holder out of model",
-                        [...at, "heldBy"],
-                        `${ref(row.heldBy)} is a person, and this region is ${models.map((m) => m.tag).join(", ")}`,
                     );
             }
         }
@@ -514,17 +491,22 @@ export function settlementMarkdown(record) {
             .replace(/([\\`*_[\]<>{}|#!~])/g, "\\$1")
             .replace(/\s*\n\s*/g, " ");
     const link = (value) => `[[${ref(value)}\\|]]`;
-    const optional = declaration.rows.some((row) => Object.hasOwn(row, "for"));
-    const columns = SETTLEMENT_COLUMNS.filter((c) => c.required || optional).map((c) => c.name);
+    const stated = {
+        "Held by": declaration.rows.some((row) => map(row) && row.heldBy),
+        For: declaration.rows.some((row) => map(row) && Object.hasOwn(row, "for")),
+    };
+    const columns = SETTLEMENT_COLUMNS.filter((c) => c.required || stated[c.name]).map(
+        (c) => c.name,
+    );
     const lines = [`| ${columns.join(" | ")} |`, `| ${columns.map(() => "---").join(" | ")} |`];
     for (const row of declaration.rows) {
         const cells = [
             row.place ? link(row.place) : escape(row.name),
             marketText(row.market),
             count(row.population),
-            row.heldBy ? link(row.heldBy) : escape(row.holder),
         ];
-        if (optional) cells.push(escape(row.for));
+        if (stated["Held by"]) cells.push(row.heldBy ? link(row.heldBy) : "");
+        if (stated.For) cells.push(escape(row.for));
         lines.push(`| ${cells.join(" | ")} |`);
     }
     return lines.join("\n") + "\n\n" + escape(declaration.tail);

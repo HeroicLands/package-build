@@ -14,7 +14,9 @@
 /**
  * Derive containment and government lists from place facts. Geography comes
  * only from `data.parents`; government comes only from `data.government`.
- * Neither graph expands through geographic or affiliation ancestors. Government identity preserves the Address package, type and shortcode.
+ * Neither graph expands through affiliation ancestors, and government expands
+ * through geographic ones only for a district stating none, which the content
+ * index resolves before these lists read it. Government identity preserves the Address package, type and shortcode.
  * Its system normalizes to `note` because Item and journal documents share one page.
  * The lists become a note's generated **Within**, **Governed by** and
  * **Governed places** sections — see {@link module:engine/derived-sections}.
@@ -256,6 +258,106 @@ export function holdingsPages(nodes, { governmentNodes = [] } = {}) {
 }
 
 /* --------------------------------------------------------------------- */
+/*  A district's government                                               */
+/* --------------------------------------------------------------------- */
+
+/** Districts whose government the index supplied from a parent. */
+const inheritedGovernment = new WeakSet();
+
+/**
+ * Whether a record's `data.government` came from a parent rather than its own
+ * note.
+ *
+ * @param {object} record - An index record.
+ * @returns {boolean} True for a district that inherited its government.
+ */
+export function governmentInherited(record) {
+    return inheritedGovernment.has(record);
+}
+
+/**
+ * Give each district that states no government its parent's.
+ *
+ * A `place/district` falls under the government of the place it stands
+ * within. One stating no `data.government` key takes the value of its nearest
+ * parent that states the key, walking `data.parents` breadth first, in the
+ * order written, through any parent that states none, and never visiting a
+ * place twice. An explicit value on the district, `null` (complete anarchy)
+ * included, is its own and is kept; a parent's explicit `null` is inherited as
+ * anarchy. Every reader of the index — the Governed by and Governed places
+ * sections, the "missing government" advisory, a consumer of the published
+ * index — then reads the effective government at `data.government`.
+ *
+ * @param {object[]} records - Content-index records, edited in place.
+ * @param {object} [opts]
+ * @param {(key: string) => object|undefined} [opts.foreignRecord] - A fetched
+ *   index's record by canonical Address, for a parent in a dependency.
+ * @returns {void}
+ */
+export function inheritDistrictGovernments(records, { foreignRecord } = {}) {
+    const keyOf = (pkg, shortcode) =>
+        renderAddress({
+            package: String(pkg ?? "local"),
+            system: "note",
+            type: "place",
+            shortcode: String(shortcode).toLowerCase(),
+        });
+    const places = new Map();
+    for (const record of records) {
+        if (record?.type !== "place" || record.documents || !record.shortcode) continue;
+        const key = keyOf(record.package, record.shortcode);
+        if (!places.has(key)) places.set(key, record);
+    }
+    const parentKeys = (record) => {
+        const parents = record?.data?.parents ?? record?.parents;
+        const list =
+            Array.isArray(parents) ? parents
+            : parents == null ? []
+            : [parents];
+        return list
+            .map((value) => {
+                if (isAddressTuple(value)) return keyOf(value.package, value.shortcode);
+                const tuple =
+                    readCanonicalKey(String(value ?? "")) ??
+                    parseAddress(value, {
+                        package: record.package ?? "local",
+                        system: "note",
+                        type: "place",
+                        types: new Set(["place"]),
+                    });
+                return isAddressTuple(tuple) ? keyOf(tuple.package, tuple.shortcode) : "";
+            })
+            .filter(Boolean);
+    };
+    const stated = (record) => {
+        const data = record?.data && typeof record.data === "object" ? record.data : record;
+        return data && Object.hasOwn(data, "government") && !inheritedGovernment.has(record) ?
+                { value: data.government }
+            :   undefined;
+    };
+    for (const district of places.values()) {
+        if (district.subType !== "district") continue;
+        const data = district.data && typeof district.data === "object" ? district.data : {};
+        if (Object.hasOwn(data, "government")) continue;
+        const seen = new Set([keyOf(district.package, district.shortcode)]);
+        const queue = parentKeys(district);
+        let found;
+        while (queue.length && !found) {
+            const key = queue.shift();
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const parent = places.get(key) ?? foreignRecord?.(key);
+            if (!parent) continue;
+            found = stated(parent);
+            if (!found) queue.push(...parentKeys(parent));
+        }
+        if (!found) continue;
+        district.data = { ...data, government: found.value };
+        inheritedGovernment.add(district);
+    }
+}
+
+/* --------------------------------------------------------------------- */
 /*  The lint                                                              */
 /* --------------------------------------------------------------------- */
 
@@ -264,8 +366,10 @@ export function holdingsPages(nodes, { governmentNodes = [] } = {}) {
  * Missing, null or zero population establishes no inhabited population.
  * Property presence distinguishes omitted government from explicit null,
  * which means complete anarchy. Non-null values are validated by the declared
- * affiliation reference field. Neither geographic containment nor tenure
- * supplies this fact, and the rule is independent of place subtype.
+ * affiliation reference field. Tenure never supplies this fact, and
+ * containment supplies it only to a district, which the content index gives
+ * its nearest parent's government (see {@link inheritDistrictGovernments}), so
+ * a district under a governed place is never advised.
  *
  * @param {object} note - The note with parsed frontmatter and raw source.
  * @returns {object[]} Located warning findings.

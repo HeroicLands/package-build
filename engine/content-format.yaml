@@ -96,6 +96,7 @@ types:
             - durability
             - made
             - lost
+            - unique
         subTypes: []
     armorlocation:
         data:
@@ -114,6 +115,7 @@ types:
             - durability
             - made
             - lost
+            - unique
             - quantity
             - potency
             - strength
@@ -130,6 +132,7 @@ types:
             - durability
             - made
             - lost
+            - unique
             - capacity
         subTypes: []
     miscgear:
@@ -141,6 +144,7 @@ types:
             - durability
             - made
             - lost
+            - unique
             - quantity
         subTypes: []
     mystery:
@@ -189,6 +193,7 @@ types:
             - durability
             - made
             - lost
+            - unique
             - quantity
         subTypes:
             - none
@@ -268,6 +273,7 @@ types:
             - durability
             - made
             - lost
+            - unique
         subTypes: []
     lore:
         data:
@@ -344,10 +350,12 @@ types:
         subTypes:
             - world
             - region
+            - district
             - settlement
             - site
             - structure
             - feature
+            - route
             - celestial
     scenario:
         data:
@@ -356,7 +364,6 @@ types:
             - cast
             - factions
             - follows
-            - status
             - party.size
             - party.archetypes
         subTypes:
@@ -741,12 +748,6 @@ vocabularies:
         - "4"
         - "5"
         - "6"
-    holdingModel:
-        - held
-        - endowed
-        - registered
-        - kin
-        - polis
     bearing:
         - N
         - NE

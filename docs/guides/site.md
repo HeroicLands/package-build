@@ -244,7 +244,7 @@ notes' sources. A page is reachable when an authored link leads to it:
 The links the build generates do not make a page reachable. These are the
 Related card, the previous and next links, the infobox links, and the sections
 generated after a note's text (Within, Governed by, Governed places,
-Chronology, Events, Accounts, What followed, In song and story). Each is drawn
+Office holders, Chronology, Events, Accounts, What followed, In song and story). Each is drawn
 without a link to a page outside the reachable set, and a section left with
 nothing under it is not drawn. An infobox value that names an unreachable page
 is set as plain text. So is a link in a dictionary or glossary entry, whether

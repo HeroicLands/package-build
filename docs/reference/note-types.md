@@ -90,7 +90,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 | Key                                     | Shape                                                                                                                        | Required | Meaning                                                                                                                    |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `data.affiliations.<Address>.rank`      | the level on that body's own ladder, as a whole number — an ordinary member is `1`, and `0` is the rung for someone cast out | yes      | The level on the body's own `governance.ranks` ladder.                                                                     |
-| `data.affiliations.<Address>.office`    | a post from that body's `governance.offices`                                                                                 | no       | A post the body names in its `governance.offices`, where one is held.                                                      |
+| `data.affiliations.<Address>.office`    | a post from that body's `governance.offices`, or a list of them                                                              | no       | A post the body names in its `governance.offices`, where one is held, or a list of the posts one being holds in that body. |
 | `data.affiliations.<Address>.societies` | a list of society names                                                                                                      | no       | The societies the membership is held in, by name. SoHL carries one, the first, as the affiliation item's `system.society`. |
 
 **System mappings**
@@ -250,16 +250,17 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape                   | Meaning                                                                                                      |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
-| `data.weight`           | number                  | What the thing weighs.                                                                                       |
-| `data.value`            | number                  | What the thing is worth.                                                                                     |
-| `data.quality`          | number                  | How well it is made.                                                                                         |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
+| Field                   | Shape                   | Meaning                                                                                                                             |
+| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
+| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
+| `data.value`            | number                  | What the thing is worth.                                                                                                            |
+| `data.quality`          | number                  | How well it is made.                                                                                                                |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
+| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
 
 **System mappings**
 
@@ -294,19 +295,20 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `mundane`, `exotic`, `elixir`.
 
-| Field                   | Shape                   | Meaning                                                                                                      |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
-| `data.weight`           | number                  | What the thing weighs.                                                                                       |
-| `data.value`            | number                  | What the thing is worth.                                                                                     |
-| `data.quality`          | number                  | How well it is made.                                                                                         |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
-| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                          |
-| `data.potency`          | string                  | Potency — `na`, `mild`, `strong` or `great`.                                                                 |
-| `data.strength`         | number                  | Strength; the higher, the stronger.                                                                          |
+| Field                   | Shape                   | Meaning                                                                                                                             |
+| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
+| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
+| `data.value`            | number                  | What the thing is worth.                                                                                                            |
+| `data.quality`          | number                  | How well it is made.                                                                                                                |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
+| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
+| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                                                 |
+| `data.potency`          | string                  | Potency — `na`, `mild`, `strong` or `great`.                                                                                        |
+| `data.strength`         | number                  | Strength; the higher, the stronger.                                                                                                 |
 
 **System mappings**
 
@@ -322,17 +324,18 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape                   | Meaning                                                                                                      |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
-| `data.weight`           | number                  | What the thing weighs.                                                                                       |
-| `data.value`            | number                  | What the thing is worth.                                                                                     |
-| `data.quality`          | number                  | How well it is made.                                                                                         |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
-| `data.capacity`         | number                  | How much it holds.                                                                                           |
+| Field                   | Shape                   | Meaning                                                                                                                             |
+| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
+| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
+| `data.value`            | number                  | What the thing is worth.                                                                                                            |
+| `data.quality`          | number                  | How well it is made.                                                                                                                |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
+| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
+| `data.capacity`         | number                  | How much it holds.                                                                                                                  |
 
 **System mappings**
 
@@ -350,17 +353,18 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape                   | Meaning                                                                                                      |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
-| `data.weight`           | number                  | What the thing weighs.                                                                                       |
-| `data.value`            | number                  | What the thing is worth.                                                                                     |
-| `data.quality`          | number                  | How well it is made.                                                                                         |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
-| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                          |
+| Field                   | Shape                   | Meaning                                                                                                                             |
+| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
+| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
+| `data.value`            | number                  | What the thing is worth.                                                                                                            |
+| `data.quality`          | number                  | How well it is made.                                                                                                                |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
+| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
+| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                                                 |
 
 **System mappings**
 
@@ -425,17 +429,18 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `none`, `arrow`, `bolt`, `bullet`, `dart`, `other`.
 
-| Field                   | Shape                   | Meaning                                                                                                      |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
-| `data.weight`           | number                  | What the thing weighs.                                                                                       |
-| `data.value`            | number                  | What the thing is worth.                                                                                     |
-| `data.quality`          | number                  | How well it is made.                                                                                         |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
-| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                          |
+| Field                   | Shape                   | Meaning                                                                                                                             |
+| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
+| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
+| `data.value`            | number                  | What the thing is worth.                                                                                                            |
+| `data.quality`          | number                  | How well it is made.                                                                                                                |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
+| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
+| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                                                 |
 
 **System mappings**
 
@@ -631,7 +636,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 | `data.sounds.marks`                       | list of `{ mark, letters, kind, limit }`                                                                  | no       | The marks the language writes on its letters.                                                                                                                                                                                                                                                                                                                                        |
 | `data.sounds.marks[].mark`                | a string, such as `acute`                                                                                 | yes      | The mark's name.                                                                                                                                                                                                                                                                                                                                                                     |
 | `data.sounds.marks[].letters`             | a list of letters                                                                                         | yes      | The letters that carry it.                                                                                                                                                                                                                                                                                                                                                           |
-| `data.sounds.marks[].kind`                | one of stress, length, apart                                                                              | yes      | What the mark says of its letter.                                                                                                                                                                                                                                                                                                                                                    |
+| `data.sounds.marks[].kind`                | one of stress, length, apart, quality                                                                     | yes      | What the mark says of its letter.                                                                                                                                                                                                                                                                                                                                                    |
 | `data.sounds.marks[].limit`               | one of one, any                                                                                           | yes      | How many a word may carry: `one` at most, or `any`.                                                                                                                                                                                                                                                                                                                                  |
 | `data.sounds.skeleton`                    | list of `{ second, between? }`                                                                            | no       | The vowel set between a root's second and third consonants.                                                                                                                                                                                                                                                                                                                          |
 | `data.sounds.skeleton[].second`           | a list of sounds, or `any`                                                                                | yes      | The second consonants of a root the row holds for; `any` for every other.                                                                                                                                                                                                                                                                                                            |
@@ -753,16 +758,17 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape                   | Meaning                                                                                                      |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
-| `data.weight`           | number                  | What the thing weighs.                                                                                       |
-| `data.value`            | number                  | What the thing is worth.                                                                                     |
-| `data.quality`          | number                  | How well it is made.                                                                                         |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
+| Field                   | Shape                   | Meaning                                                                                                                             |
+| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
+| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
+| `data.value`            | number                  | What the thing is worth.                                                                                                            |
+| `data.quality`          | number                  | How well it is made.                                                                                                                |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
+| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
 
 **System mappings**
 
@@ -896,7 +902,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 ### place
 
-**Subtypes:** `world`, `region`, `settlement`, `site`, `structure`, `feature`, `celestial`.
+**Subtypes:** `world`, `region`, `district`, `settlement`, `site`, `structure`, `feature`, `route`, `celestial`.
 
 | Field                                  | Shape                                                             | Meaning                                                                                                                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -929,63 +935,62 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 **Inner keys** — a key a field's value does not declare is an error at its own line and column.
 
-| Key                                        | Shape                                                                                 | Required | Meaning                                                                          |
-| ------------------------------------------ | ------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------- |
-| `data.events[].id`                         | an address segment                                                                    | no       | The event's name within its note — lowercase letters and digits.                 |
-| `data.events[].kind`                       | one `eventKind` value                                                                 | no       | What sort of thing happened.                                                     |
-| `data.events[].depth`                      | one `depth` value                                                                     | no       | How far the event's history reaches.                                             |
-| `data.events[].when`                       | a date, or `"0.<day>"`                                                                | yes      | When it happened, or the anchor and first instance of an event that recurs.      |
-| `data.events[].until`                      | a date                                                                                | no       | When a continuous event ended, or where a recurring series stopped.              |
-| `data.events[].recurs`                     | `{ every }` or `{ on }`                                                               | no       | How further occurrences are found; absent for an event that happened once.       |
-| `data.events[].recurs.every`               | a whole number of years, 1 or more                                                    | no       | A period counted on the canonical axis from `when`.                              |
-| `data.events[].recurs.on`                  | a list of dates, strictly increasing, each later than `when`                          | no       | Recorded occurrences beyond the first, in place of a period.                     |
-| `data.events[].summary`                    | a string                                                                              | yes      | What happened, stated plainly.                                                   |
-| `data.events[].standing`                   | one `standing` value                                                                  | no       | What the world's evidence supports.                                              |
-| `data.events[].names`                      | `{ name, by, gloss? }[]`                                                              | no       | The event's names in the world, each with who uses it.                           |
-| `data.events[].names[].name`               | a string                                                                              | yes      | One name the event goes by in the world.                                         |
-| `data.events[].names[].by`                 | an Address naming an `affiliation`, `lore`, `place`, `being` or `skill` note          | yes      | Who uses that name — a people, a polity, a faith, a place, a tongue.             |
-| `data.events[].names[].gloss`              | a string                                                                              | no       | What the name means, or how it is used.                                          |
-| `data.events[].where`                      | `{ locus?, reach? }`                                                                  | no       | Where it happened, and where it was felt.                                        |
-| `data.events[].where.locus`                | a list of Addresses, each defaulting to `place`                                       | no       | Where the event physically happened; each resolves to a place.                   |
-| `data.events[].where.reach`                | `{ place, how, knowledge, attributedTo? }[]`                                          | no       | Where the event was felt, and whether each place knows why.                      |
-| `data.events[].where.reach[].place`        | an Address, defaulting to `place`                                                     | yes      | A place where the event was felt.                                                |
-| `data.events[].where.reach[].how`          | a string                                                                              | yes      | One clause: a consequence someone in that place could notice.                    |
-| `data.events[].where.reach[].knowledge`    | one `knowledge` value                                                                 | yes      | Whether that place connects what it felt to this event.                          |
-| `data.events[].where.reach[].attributedTo` | an Address, defaulting to `lore`, naming an event or a `lore` note                    | no       | Only beside `knowledge: misattributed` — the cause that place names instead.     |
-| `data.events[].who`                        | `{ ref, role }[]`                                                                     | no       | Who took part, and as what.                                                      |
-| `data.events[].who[].ref`                  | an Address naming a `being`, `affiliation` or `lore` note                             | yes      | A participant — a being, a people, an affiliation.                               |
-| `data.events[].who[].role`                 | one `role` value                                                                      | yes      | What the participant was to the event.                                           |
-| `data.events[].follows`                    | `{ event, how, note? }[]`                                                             | no       | The earlier events this one follows from.                                        |
-| `data.events[].follows[].event`            | an Address, defaulting to `lore`, anchored to an `event` where its note holds several | yes      | The earlier event; it resolves to exactly one event.                             |
-| `data.events[].follows[].how`              | one `followsHow` value                                                                | yes      | How this event follows from it.                                                  |
-| `data.events[].follows[].note`             | a string                                                                              | no       | One clause saying what connects the two.                                         |
-| `data.events[].accounts`                   | `{ by, says, agrees, withholds? }[]`                                                  | no       | What each people, polity, faith or place says about it.                          |
-| `data.events[].accounts[].by`              | an Address naming an `affiliation`, `lore`, `place` or `being` note                   | yes      | Who holds the account.                                                           |
-| `data.events[].accounts[].says`            | a string                                                                              | yes      | What they say happened, in their terms.                                          |
-| `data.events[].accounts[].agrees`          | one `agrees` value                                                                    | yes      | How far their account agrees with `summary`.                                     |
-| `data.events[].accounts[].withholds`       | a string                                                                              | no       | What they decline to say.                                                        |
-| `data.events[].unresolved`                 | a list of strings                                                                     | no       | What the world itself has not settled.                                           |
-| `data.events[].sources`                    | a list of Addresses                                                                   | no       | The notes that state or support the event; each resolves.                        |
-| `data.events[].stated`                     | `{ calendar, text }`                                                                  | no       | The date as one tradition writes it in its own reckoning.                        |
-| `data.events[].stated.calendar`            | an Address, or a lore shortcode                                                       | yes      | The calendar that tradition reckons in — a `lore` note with `subType: calendar`. |
-| `data.events[].stated.text`                | a string                                                                              | yes      | The date as that tradition writes it.                                            |
-| `data.settlements.rows`                    | a list of settlement rows                                                             | yes      | One row per settlement.                                                          |
-| `data.settlements.rows[].place`            | a place Address                                                                       | no       | The existing settlement note; exclusive with name.                               |
-| `data.settlements.rows[].name`             | plain text                                                                            | no       | A settlement without a note; exclusive with place.                               |
-| `data.settlements.rows[].market`           | a market class, 1 to 6                                                                | yes      | What trade the settlement supports.                                              |
-| `data.settlements.rows[].population`       | a positive whole number                                                               | yes      | How many people live here.                                                       |
-| `data.settlements.rows[].heldBy`           | an affiliation or being Address                                                       | no       | The holder's existing note; exclusive with holder.                               |
-| `data.settlements.rows[].holder`           | plain text                                                                            | no       | A holder without a note; exclusive with heldBy.                                  |
-| `data.settlements.rows[].for`              | plain text                                                                            | no       | Optional reason the settlement exists.                                           |
-| `data.settlements.tail`                    | a nonempty sentence                                                                   | yes      | What the table leaves out.                                                       |
-| `data.borders[].to`                        | the other place — its shortcode, or its Address                                       | yes      | The other place, by Address; the type defaults to `place`.                       |
-| `data.borders[].bearing`                   | one of N, NE, E, SE, S, SW, W, NW                                                     | yes      | Where the other place lies from here.                                            |
-| `data.routes[].to`                         | the other place — its shortcode, or its Address                                       | yes      | The other place, by Address; the type defaults to `place`.                       |
-| `data.routes[].bearing`                    | one of N, NE, E, SE, S, SW, W, NW                                                     | yes      | Where the other place lies from here.                                            |
-| `data.routes[].mode`                       | one of land, boat, ship                                                               | yes      | How the journey is travelled.                                                    |
-| `data.routes[].days`                       | one of 1, 2, 3, 5, 10, 20, 30, 45, 60, 90, 180, 360                                   | yes      | About how many days the journey takes, under normal conditions.                  |
-| `data.routes[].terrain`                    | a list of terrains in travel order                                                    | no       | The terrains crossed, in travel order, each crossable by the mode.               |
-| `data.routes[].leagues`                    | a distance in leagues                                                                 | no       | The distance, in leagues.                                                        |
+| Key                                        | Shape                                                                                 | Required | Meaning                                                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `data.events[].id`                         | an address segment                                                                    | no       | The event's name within its note — lowercase letters and digits.                                        |
+| `data.events[].kind`                       | one `eventKind` value                                                                 | no       | What sort of thing happened.                                                                            |
+| `data.events[].depth`                      | one `depth` value                                                                     | no       | How far the event's history reaches.                                                                    |
+| `data.events[].when`                       | a date, or `"0.<day>"`                                                                | yes      | When it happened, or the anchor and first instance of an event that recurs.                             |
+| `data.events[].until`                      | a date                                                                                | no       | When a continuous event ended, or where a recurring series stopped.                                     |
+| `data.events[].recurs`                     | `{ every }` or `{ on }`                                                               | no       | How further occurrences are found; absent for an event that happened once.                              |
+| `data.events[].recurs.every`               | a whole number of years, 1 or more                                                    | no       | A period counted on the canonical axis from `when`.                                                     |
+| `data.events[].recurs.on`                  | a list of dates, strictly increasing, each later than `when`                          | no       | Recorded occurrences beyond the first, in place of a period.                                            |
+| `data.events[].summary`                    | a string                                                                              | yes      | What happened, stated plainly.                                                                          |
+| `data.events[].standing`                   | one `standing` value                                                                  | no       | What the world's evidence supports.                                                                     |
+| `data.events[].names`                      | `{ name, by, gloss? }[]`                                                              | no       | The event's names in the world, each with who uses it.                                                  |
+| `data.events[].names[].name`               | a string                                                                              | yes      | One name the event goes by in the world.                                                                |
+| `data.events[].names[].by`                 | an Address naming an `affiliation`, `lore`, `place`, `being` or `skill` note          | yes      | Who uses that name — a people, a polity, a faith, a place, a tongue.                                    |
+| `data.events[].names[].gloss`              | a string                                                                              | no       | What the name means, or how it is used.                                                                 |
+| `data.events[].where`                      | `{ locus?, reach? }`                                                                  | no       | Where it happened, and where it was felt.                                                               |
+| `data.events[].where.locus`                | a list of Addresses, each defaulting to `place`                                       | no       | Where the event physically happened; each resolves to a place.                                          |
+| `data.events[].where.reach`                | `{ place, how, knowledge, attributedTo? }[]`                                          | no       | Where the event was felt, and whether each place knows why.                                             |
+| `data.events[].where.reach[].place`        | an Address, defaulting to `place`                                                     | yes      | A place where the event was felt.                                                                       |
+| `data.events[].where.reach[].how`          | a string                                                                              | yes      | One clause: a consequence someone in that place could notice.                                           |
+| `data.events[].where.reach[].knowledge`    | one `knowledge` value                                                                 | yes      | Whether that place connects what it felt to this event.                                                 |
+| `data.events[].where.reach[].attributedTo` | an Address, defaulting to `lore`, naming an event or a `lore` note                    | no       | Only beside `knowledge: misattributed` — the cause that place names instead.                            |
+| `data.events[].who`                        | `{ ref, role }[]`                                                                     | no       | Who took part, and as what.                                                                             |
+| `data.events[].who[].ref`                  | an Address naming a `being`, `affiliation` or `lore` note                             | yes      | A participant — a being, a people, an affiliation.                                                      |
+| `data.events[].who[].role`                 | one `role` value                                                                      | yes      | What the participant was to the event.                                                                  |
+| `data.events[].follows`                    | `{ event, how, note? }[]`                                                             | no       | The earlier events this one follows from.                                                               |
+| `data.events[].follows[].event`            | an Address, defaulting to `lore`, anchored to an `event` where its note holds several | yes      | The earlier event; it resolves to exactly one event.                                                    |
+| `data.events[].follows[].how`              | one `followsHow` value                                                                | yes      | How this event follows from it.                                                                         |
+| `data.events[].follows[].note`             | a string                                                                              | no       | One clause saying what connects the two.                                                                |
+| `data.events[].accounts`                   | `{ by, says, agrees, withholds? }[]`                                                  | no       | What each people, polity, faith or place says about it.                                                 |
+| `data.events[].accounts[].by`              | an Address naming an `affiliation`, `lore`, `place` or `being` note                   | yes      | Who holds the account.                                                                                  |
+| `data.events[].accounts[].says`            | a string                                                                              | yes      | What they say happened, in their terms.                                                                 |
+| `data.events[].accounts[].agrees`          | one `agrees` value                                                                    | yes      | How far their account agrees with `summary`.                                                            |
+| `data.events[].accounts[].withholds`       | a string                                                                              | no       | What they decline to say.                                                                               |
+| `data.events[].unresolved`                 | a list of strings                                                                     | no       | What the world itself has not settled.                                                                  |
+| `data.events[].sources`                    | a list of Addresses                                                                   | no       | The notes that state or support the event; each resolves.                                               |
+| `data.events[].stated`                     | `{ calendar, text }`                                                                  | no       | The date as one tradition writes it in its own reckoning.                                               |
+| `data.events[].stated.calendar`            | an Address, or a lore shortcode                                                       | yes      | The calendar that tradition reckons in — a `lore` note with `subType: calendar`.                        |
+| `data.events[].stated.text`                | a string                                                                              | yes      | The date as that tradition writes it.                                                                   |
+| `data.settlements.rows`                    | a list of settlement rows                                                             | yes      | One row per settlement.                                                                                 |
+| `data.settlements.rows[].place`            | a place Address                                                                       | no       | The existing settlement note; exclusive with name.                                                      |
+| `data.settlements.rows[].name`             | plain text                                                                            | no       | A settlement without a note; exclusive with place.                                                      |
+| `data.settlements.rows[].market`           | a market class, 1 to 6                                                                | yes      | What trade the settlement supports.                                                                     |
+| `data.settlements.rows[].population`       | a positive whole number                                                               | yes      | How many people live here.                                                                              |
+| `data.settlements.rows[].heldBy`           | an affiliation or being Address                                                       | no       | What holds the settlement's land, where its culture holds land; what the holder is says how it is held. |
+| `data.settlements.rows[].for`              | plain text                                                                            | no       | Optional reason the settlement exists.                                                                  |
+| `data.settlements.tail`                    | a nonempty sentence                                                                   | yes      | What the table leaves out.                                                                              |
+| `data.borders[].to`                        | the other place — its shortcode, or its Address                                       | yes      | The other place, by Address; the type defaults to `place`.                                              |
+| `data.borders[].bearing`                   | one of N, NE, E, SE, S, SW, W, NW                                                     | yes      | Where the other place lies from here.                                                                   |
+| `data.routes[].to`                         | the other place — its shortcode, or its Address                                       | yes      | The other place, by Address; the type defaults to `place`.                                              |
+| `data.routes[].bearing`                    | one of N, NE, E, SE, S, SW, W, NW                                                     | yes      | Where the other place lies from here.                                                                   |
+| `data.routes[].mode`                       | one of land, boat, ship                                                               | yes      | How the journey is travelled.                                                                           |
+| `data.routes[].days`                       | one of 1, 2, 3, 5, 10, 20, 30, 45, 60, 90, 180, 360                                   | yes      | About how many days the journey takes, under normal conditions.                                         |
+| `data.routes[].terrain`                    | a list of terrains in travel order                                                    | no       | The terrains crossed, in travel order, each crossable by the mode.                                      |
+| `data.routes[].leagues`                    | a distance in leagues                                                                 | no       | The distance, in leagues.                                                                               |
 
 ### scenario
 
@@ -998,7 +1003,6 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.cast`             | list of Addresses | Beings who appear in it.                         |
 | `data.factions`         | list of Addresses | Affiliations with a stake in it.                 |
 | `data.follows`          | list of Addresses | Scenarios that should be played before this one. |
-| `data.status`           | string            | `draft`, `playtested` or `published`.            |
 | `data.party.size`       | string            | `solo`, `small`, `standard`, `large` or `host`.  |
 | `data.party.archetypes` | list of strings   | Archetypes the scenario is written for.          |
 
@@ -1072,7 +1076,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.sounds.marks`                                    | list of `{ mark, letters, kind, limit }`                              | no       | The marks the language writes on its letters.                                                                                                                            |
 | `data.sounds.marks[].mark`                             | a string, such as `acute`                                             | yes      | The mark's name.                                                                                                                                                         |
 | `data.sounds.marks[].letters`                          | a list of letters                                                     | yes      | The letters that carry it.                                                                                                                                               |
-| `data.sounds.marks[].kind`                             | one of stress, length, apart                                          | yes      | What the mark says of its letter.                                                                                                                                        |
+| `data.sounds.marks[].kind`                             | one of stress, length, apart, quality                                 | yes      | What the mark says of its letter.                                                                                                                                        |
 | `data.sounds.marks[].limit`                            | one of one, any                                                       | yes      | How many a word may carry: `one` at most, or `any`.                                                                                                                      |
 | `data.metres[].name`                                   | string                                                                | yes      | What a verse div's `scan=` names the metre by: lowercase letters, digits and `-`, unique in the package.                                                                 |
 | `data.metres[].beats`                                  | a whole number above zero                                             | yes      | The beats of one line.                                                                                                                                                   |

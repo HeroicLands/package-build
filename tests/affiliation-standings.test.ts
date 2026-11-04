@@ -227,6 +227,28 @@ describe("a being's standing names the body that confers it", () => {
         );
     });
 
+    it("accepts a list of posts, so one being holds two in one body", () => {
+        expect(
+            standingFindings({ vrystwldtrbs: { rank: 5, office: ["War Chief", "Treasurer"] } }),
+        ).toEqual([]);
+        expect(standingFindings({ vrystwldtrbs: { rank: 5, office: ["Treasurer"] } })).toEqual([]);
+    });
+
+    it("refuses each listed post the named body does not name", () => {
+        const findings = checkStandings(
+            note({ vrystwldtrbs: { rank: 4, office: ["War Chief", "Harbour-reeve", ""] } }),
+            { index },
+        );
+        expect(findings.map((f: any) => f.message)).toEqual([
+            expect.stringMatching(/office "Harbour-reeve" is not an office/),
+            expect.stringMatching(/`office` must name a post/),
+        ]);
+        expect(findings.every((f: any) => f.severity === "error")).toBe(true);
+        expect(standingFindings({ vrystwldtrbs: { rank: 4, office: [7] } })[0].message).toMatch(
+            /`data\.affiliations\.vrystwldtrbs\.office\[0\]`/,
+        );
+    });
+
     it("refuses an unknown standing key, a non-map standing, and a body named twice", () => {
         expect(
             standingFindings({ vrystwldtrbs: { grade: 4 } })
@@ -302,6 +324,9 @@ describe("the body is the single source for what a rung is called", () => {
         expect(standingLead({ office: "War Chief" }, digest)).toBe("War Chief, of ");
         expect(standingLead({ rank: 5, office: "War Chief" }, digest)).toBe(
             "War Chief, Hárár (5), of ",
+        );
+        expect(standingLead({ rank: 5, office: ["War Chief", "Treasurer"] }, digest)).toBe(
+            "War Chief, Treasurer, Hárár (5), of ",
         );
         expect(standingLead({}, digest)).toBe("");
         // A rung the body has not named still reads as the standing it is.
@@ -497,6 +522,14 @@ describe("a membership is derived into the SoHL item, never authored twice", () 
         expect(items[0].system.office).toBe("War Chief");
         // The body's own declarations come through the model untouched.
         expect(items[0].system.subType).toBe("tribe");
+    });
+
+    it("sets the item's office to every post a list names, in order", () => {
+        const { items, errors } = build({
+            vrystwldtrbs: { rank: 5, office: ["War Chief", "Treasurer"] },
+        });
+        expect(errors).toBe(0);
+        expect(items[0].system.office).toBe("War Chief, Treasurer");
     });
 
     it("keeps the body's own defaults where the being states no standing", () => {

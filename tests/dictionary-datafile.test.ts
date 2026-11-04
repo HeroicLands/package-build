@@ -18,7 +18,11 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { collectContentIndex, emitContentIndex } from "../engine/content-index.mjs";
+import {
+    collectContentIndex,
+    emitContentIndex,
+    prepareContentIndex,
+} from "../engine/content-index.mjs";
 import { openNotesDatabase, runSqlQuery } from "../engine/sql-tables.mjs";
 import { DICTIONARY_LANGUAGES } from "./helpers/dictionary-languages";
 
@@ -42,6 +46,18 @@ beforeAll(() => {
 afterAll(() => {
     fs.rmSync(dir, { recursive: true, force: true });
 });
+
+/**
+ * The index and its datafiles, written as a build writes them. The tree's
+ * bodies hold office holders, so its publication is prepared first.
+ */
+async function emit() {
+    const input = config();
+    return emitContentIndex({
+        config: input,
+        publication: await prepareContentIndex({ config: input }),
+    });
+}
 
 /** Every key of a value, at every depth, in the order the text holds them. */
 function keyOrders(value: unknown, out: string[][] = []): string[][] {
@@ -82,8 +98,8 @@ const FILES = [
 ] as const;
 
 describe("the datafiles", () => {
-    it("are written beside the index, one per relation", () => {
-        const result = emitContentIndex({ config: config() });
+    it("are written beside the index, one per relation", async () => {
+        const result = await emit();
         for (const { relation, name } of FILES) {
             const written = (result as any)[relation];
             expect(written.file).toBe(path.join(dir, "out", name));
@@ -92,12 +108,12 @@ describe("the datafiles", () => {
         }
     });
 
-    it("are byte-identical over two builds", () => {
-        const first = emitContentIndex({ config: config() });
+    it("are byte-identical over two builds", async () => {
+        const first = await emit();
         const before = FILES.map(({ relation }) =>
             fs.readFileSync((first as any)[relation].file, "utf8"),
         );
-        const second = emitContentIndex({ config: config() });
+        const second = await emit();
         const after = FILES.map(({ relation }) =>
             fs.readFileSync((second as any)[relation].file, "utf8"),
         );
@@ -106,7 +122,7 @@ describe("the datafiles", () => {
     });
 
     it("hold each relation's rows, sorted, with every key sorted", async () => {
-        const result = emitContentIndex({ config: config() });
+        const result = await emit();
         const db = await openNotesDatabase(
             collectContentIndex(TREE, {
                 contentPackage: "demo",

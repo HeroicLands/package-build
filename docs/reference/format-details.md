@@ -4306,6 +4306,7 @@ the authored text as H1 sections with fixed anchors, in this order:
 | Within            | `within`         | a `place`                                                | the places whose `data.parents` names it, one paragraph to each kind of place, in the order the place vocabulary lists its `subType`s |
 | Governed by       | `governedby`     | a `place`                                                | the affiliation its `data.government` names, as a list entry with the affiliation's kind                                              |
 | Governed places   | `governedplaces` | an `affiliation`                                         | the places whose `data.government` names it, grouped as **Within** groups them                                                        |
+| Office holders    | `officeholders`  | an `affiliation`                                         | each office of its `governance.offices` held by a living being, one line each, with the beings whose `office` names it                |
 | Chronology        | `chronology`     | a `place`                                                | an [event view](#event-views)                                                                                                         |
 | Events            | `events`         | a `being`, an `affiliation`, a `lore` note of `culture`  | an event view                                                                                                                         |
 | Accounts          | `accounts`       | an `affiliation`, a `place`, a `lore` note of `culture`  | an event view                                                                                                                         |
@@ -5067,8 +5068,8 @@ names, an empty name, a missing `pattern` or `given`, a missing `female` or
 
 #### The bodies a being belongs to, and its standing in each
 
-**Membership**: `{rank: number, office: string, societies: string[]}` — `rank`
-required, `office` and `societies` not.
+**Membership**: `{rank: number, office: string | string[], societies: string[]}` —
+`rank` required, `office` and `societies` not.
 
 `data.affiliations` is a **map keyed by the body's Address**, and each entry is
 the standing the being holds in that body. The key is what makes the pair
@@ -5082,7 +5083,8 @@ An entry carries three keys and nothing else:
   every rung, so a number indexes into it and the body stays the single source
   for what its level 5 is called.
 - **`office`** — optional, a **string**, matched against the keys of that body's
-  `governance.offices` map.
+  `governance.offices` map, or a **list** of them where one being holds several
+  posts in the same body, such as treasurer and chancellor of one council.
 - **`societies`** — optional, a **list of names**, the societies the membership
   is held in. It is always a list, even with one name; a bare string is an
   error at the key.
@@ -5111,13 +5113,15 @@ data:
 Both values are checked against the body the entry is keyed by. A `rank` that
 is not a level the body confers and an `office` that is not one of its keys are
 each an error naming the file, line and column — so a rung or a post that does
-not exist fails on every being pointing at it. Naming one body twice, by its short
+not exist fails on every being pointing at it. Each post of a list is checked
+and located on its own. Naming one body twice, by its short
 and full Address, still names one body and is an error.
 
 The infobox prints one line per membership, in the order the note writes them,
 in a section of its own titled **Affiliations**: the office where one is held, then the rung's
 title with its level in parentheses, then the body — `War Chief, Hárár (5), of
-Vrystwald Tribes`, or `Hárár (5), of Vrystwald Tribes` with no office. The title
+Vrystwald Tribes`, or `Hárár (5), of Vrystwald Tribes` with no office. Several
+posts lead in the order written: `Treasurer, Chancellor, Hárár (5), of …`. The title
 is read from the body's own `governance.ranks`; where the body declares no rung
 at that level, or its ladder is not available, the rung reads as `Rank 5` —
 `Rank 5, of Vrystwald Tribes`. The body's name links to its page, and is plain
@@ -5125,10 +5129,11 @@ text where it publishes none. A membership stating no
 standing is the body's name alone. The lines are the same on the website, in
 a Foundry journal and in the book. On the body's own page each office is a row
 anchored by its name, so the post a being holds is described where the body
-declares it.
+declares it, and its **Office holders** section lists who holds each post.
 
 For SoHL, a being embeds one affiliation item per entry: `rank` **is** that
-item's `system.level`, `office` its `system.office`, and the first name in
+item's `system.level`, `office` its `system.office` (several posts joined by
+commas), and the first name in
 `societies` its `system.society`. The SoHL item holds one society, so only the
 first name reaches it. A standing is a fact
 about the setting rather than about one system, so the `sohl:` block states
@@ -5691,7 +5696,33 @@ data:
           - { being: being-mara, start: "datefrom vrcal 2 Lusenar 725 VR" }
 ```
 
-**Governed places are derived from place notes.** Each place names one governing affiliation in `data.government`. The affiliation's **Governed places** [generated section](#generated-sections) lists the places whose explicit references resolve to it, across local notes and fetched indexes, grouped by kind; with none, it has no such section. No affiliation-side list supplies government, and neither geographic containment nor organizational parents expands it.
+**Office holders are derived from beings.** Nothing names a holder on the
+office itself: a being states the post it holds in its own
+`data.affiliations.<body>.office`. For each office in `governance.offices`, the
+body's **Office holders** [generated section](#generated-sections) lists every
+being naming it whose `data.died` is unset, so several holders at once, a post
+held jointly, a vacant post that lists no one and a former holder who has died
+all need no further key. Offices follow the body's order, and holders are
+ordered by name; an office nobody living holds has no line, and a body with no
+held office has no section. A public body lists only public beings. The
+content index carries the same list on the body's record as `officeHolders`, one
+`{ office, holders }` entry per held office, each holder a being Address:
+
+```json
+{
+  "officeHolders": [
+    {
+      "office": "War Chief",
+      "holders": [{ "address": "thalorna-note-being-hrothgar", "anchor": null, "anchorKind": null }]
+    }
+  ]
+}
+```
+
+`holders`, the dated roster above, is a separate record of terms a body may
+keep; the derived list reads only the beings.
+
+**Governed places are derived from place notes.** Each place names one governing affiliation in `data.government`. The affiliation's **Governed places** [generated section](#generated-sections) lists the places whose explicit references resolve to it, across local notes and fetched indexes, grouped by kind, and every district that states no government and falls under one of those places; with none, it has no such section. No affiliation-side list supplies government, organizational parents never expand it, and geographic containment expands it only to a district stating none.
 
 If `sohl` is present, this becomes an `affiliation` item.
 
@@ -5839,6 +5870,7 @@ Note: `data.quantity` may not be specified. Quantity is always 1.
 | `durability`       | `number`         | Gear durability                                                               |
 | `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
 | `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
 
 If a `sohl` property is present, a SoHL item of type "armorgear" is created.
 
@@ -5860,6 +5892,15 @@ holding one event. A bare shortcode is read as a `lore` note, so
 without an `id`, a note holding none, an anchor the note does not declare, or
 a `prose` anchor is an error at that key. Neither reaches a system field, an
 infobox row or a page: each is a fact a content table can read.
+
+`unique: true` marks a one-of-a-kind item — a named hammer, a crown, a sword
+in a tomb — and an item without it is common, like ten feet of rope. No key says
+who holds or owns a unique item: possession changes in play, where Foundry
+tracks it in an actor's inventory, and ownership is a claim that can be
+disputed. Where the item lies and who claims it are prose in its note, linked
+to the places and beings involved, so a unique item whose note links no `place`
+and no `being` — in a body wikilink, or in a `made` or `lost` event Address — is
+an error at `unique`. Neither system reads the key; the infobox shows it as a **Unique** row.
 
 ### type: armorlocation
 
@@ -5901,6 +5942,7 @@ if a `sohl` property is present, a SoHL item of type "attribute" is created.
 | `durability`       | `number`                        | Gear durability                                                               |
 | `made`             | an event Address                | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
 | `lost`             | an event Address                | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `unique`           | `boolean`                       | `true` for a one-of-a-kind item; its note links a place or a being            |
 | `quantity`         | `number`                        | Gear quantity (default: 1)                                                    |
 | `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)                               |
 | `strength`         | `number`                        | Strength: higher the number, greater the strength                             |
@@ -5931,6 +5973,7 @@ Note: `data.quantity` may not be specified; quantity is always set to 1.
 | `durability`       | `number`         | Gear durability                                                               |
 | `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
 | `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
 | `capacity`         | `number`         | HM3 container capacity (in lbs)                                               |
 
 if a `sohl` property is present, a SoHL item of type "containergear" is created.
@@ -5958,6 +6001,7 @@ SoHL reads a container’s capacity in pounds from `sohl.maxCapacity`.
 | `durability`       | `number`         | Gear durability                                                               |
 | `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
 | `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
 | `quantity`         | `number`         | HM3 gear quantity (default: 1)                                                |
 
 if a `sohl` property is present, a SoHL item of type "miscgear" is created.
@@ -6077,6 +6121,7 @@ the item’s base mastery and level from `sohl.masteryLevelBase` and
 | `durability`       | `number`         | Gear durability                                                               |
 | `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
 | `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
 | `quantity`         | `number`         | HM3 gear quantity (default: 1)                                                |
 
 if a `sohl` property is present, a SoHL item of type "projectilegear" is created.
@@ -6269,7 +6314,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `sounds.marks`                             | `{ mark, letters, kind, limit }[]`                                                                                             | The marks the language writes on its letters                                                                                                                                                   |
 | `sounds.marks[].mark`                      | `string`, required                                                                                                             | The mark's name, as `acute`                                                                                                                                                                    |
 | `sounds.marks[].letters`                   | `string[]`, required                                                                                                           | The letters that carry it                                                                                                                                                                      |
-| `sounds.marks[].kind`                      | `stress`, `length` or `apart`, required                                                                                        | What it says of its letter                                                                                                                                                                     |
+| `sounds.marks[].kind`                      | `stress`, `length`, `apart` or `quality`, required                                                                             | What it says of its letter                                                                                                                                                                     |
 | `sounds.marks[].limit`                     | `one` or `any`, required                                                                                                       | How many a word may carry                                                                                                                                                                      |
 | `sounds.skeleton`                          | `{ second, third?, between? }[]`                                                                                               | The vowel set between a root's second and third consonants                                                                                                                                     |
 | `sounds.skeleton[].second`                 | `string[]` or `any`, required                                                                                                  | The second consonants the row holds for; `any` for every other                                                                                                                                 |
@@ -6925,7 +6970,7 @@ closed list where its values are words:
 - `joins`: what happens where a consonant or a vowel meets another (`C+C`,
   `V+C`, `V+V`): `merge`, `insert` the `letters` between, `drop` the first, or
   `double` the consonant, everywhere or `where` stated.
-- `marks`: the marks written on letters, each saying `stress`, `length`, or `apart` (the mark sets a vowel to be said apart from its neighbour, as a diaeresis does), and
+- `marks`: the marks written on letters, each saying `stress`, `length`, `apart` (the mark sets a vowel to be said apart from its neighbour, as a diaeresis does) or `quality` (the mark changes which vowel is said, as a grave writing the short vowel of _cat_ does), and
   whether a word carries `one` at most or `any`.
 - `skeleton`: the vowel set between a root's second and third consonants, by
   the second consonant and, where a row states `third`, the third; nothing
@@ -7213,6 +7258,7 @@ Note: `data.quantity` may not be specified. Quantity is always 1.
 | `durability`       | `number`         | Gear durability                                                               |
 | `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
 | `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
 
 if a `sohl` property is present, a SoHL item of type "weapongear" is created,
 carrying every strike mode the weapon has — melee and missile alike — on
@@ -7807,11 +7853,33 @@ level with no background prints nothing.
 
 - world: A self-contained whole in which places exist — a planet, plane, or realm.
 - region: A bounded division of a world or larger region — continents, marches, uplands, provinces.
+- district: A recognised division of a settlement or a region, usually administrative — a city's quarter, a town's ward, a kingdom's shire.
 - settlement: A place where folk dwell together — cities, towns, villages, holdings, camps.
 - site: A place significant by what was made or done there — ruins, monoliths, henges, works, battlefields.
 - structure: A single building or habitation — halls, keeps, temples, inns, towers.
-- feature: A place significant by its terrain — forests, rivers, falls, passes, fords.
+- feature: A place significant by its terrain — forests, rivers, falls, fords.
+- route: A way travelled between places — a road, a pass, a sea lane.
 - celestial: A body observed from a world rather than located on one — a sun, a planet, a comet.
+
+A region is land defined by its geography or its people; a district is a
+division drawn by those who govern it. A valley crossing two shires is a
+region, and each shire is a district. **A district always stands within a
+`settlement` or a `region`**, named in `data.parents`: a district naming no
+parent is an error at its `subType`, and one whose parents all resolve and none
+is a settlement or a region is an error at `parents`. A district may name its
+own governing affiliation in `data.government`, a ward's governor or council;
+without the key it falls under its parent's government. The content index gives
+such a district the `data.government` of its nearest parent that states the key,
+reading `data.parents` in order and upward through parents that state none, so
+the district's **Governed by** section, the governing body's **Governed
+places** and every reader of the index name that body, and the "missing
+government" advisory does not fire. An explicit value on the district,
+`null` (complete anarchy) included, is its own and stands; a parent's explicit
+`null` is inherited as anarchy. **A route carries its
+journeys in `data.routes`**, at least one, and one stating none is an error at
+its `subType`; rivers stay features. Both compile as every place does, to a
+journal entry filed by `data.pack` and `data.packFolder`, and both are listed
+in their parent's **Within** section under **Districts** and **Routes**.
 
 | `data` property                   | Values                                                                           | Description                                                                                               |
 | --------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -7829,8 +7897,7 @@ level with no background prints nothing.
 | `settlements.rows[].name`         | `string`                                                                         | A settlement without a note; exclusive with place                                                         |
 | `settlements.rows[].market`       | integer, required                                                                | Market class, 1 to 6                                                                                      |
 | `settlements.rows[].population`   | positive integer, required                                                       | People living here                                                                                        |
-| `settlements.rows[].heldBy`       | `Address`                                                                        | Existing affiliation or being holder; exclusive with holder                                               |
-| `settlements.rows[].holder`       | `string`                                                                         | Holder without a note; exclusive with heldBy                                                              |
+| `settlements.rows[].heldBy`       | `Address`                                                                        | What holds the land, where it is held; an affiliation or a being                                          |
 | `settlements.rows[].for`          | `string`                                                                         | Optional reason the settlement exists                                                                     |
 | `settlements.tail`                | `string`, required                                                               | Sentence stating what the table leaves out                                                                |
 | `market`                          | `number`                                                                         | Market class, 1 to 6 — what trade a settlement supports                                                   |
@@ -8079,7 +8146,7 @@ Write `government: null` for **complete anarchy**. Omitting the key leaves gover
 | Any                   | Explicit `null`     | None; complete anarchy           |
 | Any                   | Affiliation Address | None; the reference must resolve |
 
-These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government.
+These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government, except to a `district` that omits the key, which falls under its nearest parent's government as [type: place](#type-place) describes.
 
 #### Population figures
 
@@ -8137,14 +8204,14 @@ languages belong to a polity's `sohl.system.commonSkills`, while the note's
 #### A region's settlements table
 
 A region declares its table in `data.settlements: { rows, tail }`. The rows
-carry the settlement's `population` and numeric `market`, either `place` (the
-existing note's Address, default type `place`) or `name` (plain text where no
-note exists), and either `heldBy` (an affiliation or being Address, default
-type `affiliation`) or `holder` (plain text where no note exists). Each pair
-is exclusive. Optional `for` states why the settlement exists. `tail` is the
-sentence stating what the table leaves out. The region carries its holding
-model as tags: `held`, `endowed`, `registered`, `kin`, `polis` or `guide-held`
-for land held collectively by the guide peoples.
+carry the settlement's `population` and numeric `market`, and either `place`
+(the existing note's Address, default type `place`) or `name` (plain text where
+no note exists), never both. Where the region's culture holds land, a row's
+optional `heldBy` names what holds it by Address (an affiliation or a being,
+default type `affiliation`), and what that note is says how the land is held: a
+temple, a lineage, the city, a kin group. A people who hold no land state no
+`heldBy`, and their table has no Held by column. Optional `for` states why the
+settlement exists. `tail` is the sentence stating what the table leaves out.
 
 The guard reads indexed rows. A linked row's population and market agree with
 its note, and every settlement note covered through `parents` has one row in
@@ -8153,29 +8220,20 @@ who holds the land. HTML, Foundry and Typst render the declared table once.
 A body table under `## Settlements` is an error at its header, naming
 `data.settlements`; no facts are read from it.
 
-The rendered columns are fixed, in this order; `For` appears when any row
-states `for`:
+The rendered columns are fixed, in this order; `Held by` appears when any row
+states `heldBy`, and `For` when any row states `for`:
 
 | Name | Market | People | Held by | For |
 | ---- | ------ | ------ | ------- | --- |
 
 `population` is a positive whole number. `market` is an integer from 1 to 6;
-the generated Market cell includes the class name (`4 market town`). A linked
-holder is an affiliation or a being; a being may hold land only where the
-region carries `held`, alone or beside another model.
-
-| `holdingModel` value | the Held by cell names |
-| -------------------- | ---------------------- |
-| `held`               | a person or a house    |
-| `endowed`            | an institution         |
-| `registered`         | an office              |
-| `kin`                | a kindred              |
-| `polis`              | the city               |
-| `guide-held`         | the guide peoples      |
+the generated Market cell includes the class name (`4 market town`). A holder
+is an affiliation or a being, and its note says what kind of holding it is: a
+temple holds its endowment, a lineage its fiefs, the city its own fields. A row
+naming no holder leaves its Held by cell empty.
 
 A worked example: the following `data` block belongs to `Vale.md`, whose
-`type` is `place`, `subType` is `region`, `shortcode` is `vale`, and tags are
-`[region, held]`:
+`type` is `place`, `subType` is `region` and `shortcode` is `vale`:
 
 ```yaml
 data:
@@ -8194,14 +8252,13 @@ data:
       - name: Cold Hatch
         market: 1
         population: 60
-        holder: Sir Aldwyn of Brynwold
     tail: Some four hundred further villages lie in the vale, none of them named here.
 ```
 
 `Ashford.md` states `parents: [vale]`, `population: 3400` and `market: 4`, so its
 row agrees. `affiliation-crown` names the existing Crown note; `being-aldwyn`
 names Sir Aldwyn's existing note. Weyshott and Cold Hatch have no notes; these
-rows hold their complete settlement record. The generated table uses the
+rows hold their complete settlement record, and Cold Hatch names no holder. The generated table uses the
 current note names for its links and prints `3,400` and `4 market town`.
 Changing Ashford's row population to `3000` produces `figure disagrees` at
 that YAML value; removing its row produces `missing row` at `rows`.
@@ -8209,14 +8266,11 @@ that YAML value; removing its row produces `missing row` at `rows`.
 Every semantic finding is an error, located where its YAML changes:
 
 - **`body settlements table`** — A body table under Settlements is refused; declare data.settlements.
-- **`settlements shape`** — A region declares rows and tail, with one name/place and holder/heldBy per row.
+- **`settlements shape`** — A region declares rows and tail, with one name or place per row.
 - **`unresolved settlement reference`** — A place or heldBy Address does not resolve.
-- **`no holding model`** — The note declares settlements but no holding-model tag.
 - **`market class`** — A row market is not an integer from 1 to 6.
 - **`people figure`** — Population is not a positive whole number.
-- **`no holder`** — A row states no holder.
 - **`not a holder`** — A heldBy Address names neither an affiliation nor a being.
-- **`holder out of model`** — A person holds land in a region not tagged held.
 - **`not a settlement`** — A place Address names a subject that is not a place.
 - **`figure disagrees`** — A linked population differs from its note, or the note states none.
 - **`market disagrees`** — A linked market differs from its note, or the note states none.
@@ -8235,6 +8289,14 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - adventure: A self-contained undertaking with a specific objective, playable in a few sessions.
 - encounter: A single scene or challenge, reusable within an adventure or on its own.
 
+A scenario's state is two independent signals. The `draft` tag is the author's
+judgement that it still needs work, lifted when it is finished whether or not
+it has been played. An optional `## Playtest {#playtest}` section, absent until
+the scenario is first run at a table, records each run: the date, the table's
+size, the party's makeup and the scenes covered, the difficulty as played scene
+by scene, adjustments a GM can make, and what the party did that the scenario
+did not foresee. Holes found in play are fixed in the scenario itself.
+
 | `data` property    | Values                                       | Description                                                                    |
 | ------------------ | -------------------------------------------- | ------------------------------------------------------------------------------ |
 | `parents`          | `Address[]`                                  | List of parent scenarios of this scenario (campaigns, etc.)                    |
@@ -8242,7 +8304,6 @@ Content prepared to be played — a situation with its cast, places, and possibl
 | `cast`             | `Address[]`                                  | individuals associated with this scenario                                      |
 | `factions`         | `Address[]`                                  | Affiliations associated with this scenario                                     |
 | `follows`          | `Address[]`                                  | Prerequisite scenarios that should be completed before beginning this scenario |
-| `status`           | `draft \| playtested \| published`           | Playability status of this scenario                                            |
 | `party.size`       | `solo \| small \| standard \| large \| host` | Suggested party size (solo=1, small=2-3, standard=4-6, large=6-7, host=7+)     |
 | `party.archetypes` | `Archetype[]`                                | Archetypes of characters suitable for completion                               |
 
@@ -8322,7 +8383,7 @@ Content prepared to be played — a situation with its cast, places, and possibl
 | `sounds.marks`                                    | `{ mark, letters, kind, limit }[]`                                    | The marks written on the letters, each row's keys as a language note's `sounds.marks`                                                          |
 | `sounds.marks[].mark`                             | `string`, required                                                    | The mark's name, as `acute`                                                                                                                    |
 | `sounds.marks[].letters`                          | `string[]`, required                                                  | The letters that carry it                                                                                                                      |
-| `sounds.marks[].kind`                             | `stress`, `length` or `apart`, required                               | What it says of its letter                                                                                                                     |
+| `sounds.marks[].kind`                             | `stress`, `length`, `apart` or `quality`, required                    | What it says of its letter                                                                                                                     |
 | `sounds.marks[].limit`                            | `one` or `any`, required                                              | How many a word may carry                                                                                                                      |
 
 A setting guide introduces one culture's view of the setting, so it names that

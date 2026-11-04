@@ -104,6 +104,8 @@ import {
     STANDING_FIELDS,
 } from "./standing-terms.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
+import { checkUniqueItem } from "./unique-items.mjs";
+import { checkPlaceKind } from "./place-kinds.mjs";
 import { checkAffiliationRankFloor, checkRankLadder } from "./rank-ladder.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
 import { checkNoteEvents } from "./note-events.mjs";
@@ -1252,8 +1254,8 @@ const EVENT_ADDRESS = Object.freeze({
 });
 
 /**
- * The values every carried thing declares: the four a game reads, and the two
- * events of its history.
+ * The values every carried thing declares: the four a game reads, the two
+ * events of its history, and whether it is the only one of its kind.
  *
  * @type {readonly DataFieldSpec[]}
  */
@@ -1275,6 +1277,15 @@ const GEAR = Object.freeze([
         describe:
             "The event in which the thing was lost — `lore-flood`, or one event of a note " +
             "as `place-ironfells#sack`.",
+    },
+    {
+        name: "unique",
+        kind: "boolean",
+        shape: "`true` or `false`",
+        check: checkUniqueItem,
+        describe:
+            "`true` for a one-of-a-kind item, such as a named weapon; its note links the " +
+            "places and beings involved. Absent, the item is common.",
     },
 ]);
 
@@ -1305,7 +1316,7 @@ const CHARGES = Object.freeze([
  * Three questions about one subject, and they are independent: who governs
  * this inhabited place, what the body states about itself where the note is a
  * body rather than somewhere within one, and whether a region's settlements
- * table agrees with its holding model and the notes it links. A type declares
+ * table agrees with the notes it links. A type declares
  * one whole-note check, so the three are composed here rather than any being
  * folded into another.
  *
@@ -1318,6 +1329,7 @@ function checkPlace(note, opts) {
         ...checkGovernment(note),
         ...checkWorldFacts(note, opts),
         ...checkSettlementTables(note, opts),
+        ...checkPlaceKind(note, opts),
     ];
 }
 
@@ -2498,10 +2510,12 @@ export const NOTE_VOCABULARY = Object.freeze({
         subTypes: Object.freeze([
             "world",
             "region",
+            "district",
             "settlement",
             "site",
             "structure",
             "feature",
+            "route",
             "celestial",
         ]),
         check: checkPlace,
@@ -2639,11 +2653,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "scenario",
                 accepts: ["scenario"],
                 describe: "Scenarios that should be played before this one.",
-            },
-            {
-                name: "status",
-                ...TEXT,
-                describe: "`draft`, `playtested` or `published`.",
             },
             {
                 name: "party.size",

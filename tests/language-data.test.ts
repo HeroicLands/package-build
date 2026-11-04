@@ -690,7 +690,7 @@ describe("the sound rules beside the letters", () => {
     it("refuse a mark's kind or limit outside the closed lists, at the value", () => {
         one(
             edit("kind: stress, limit: one", "kind: tone, limit: one"),
-            /`data\.sounds\.marks\[0\]\.kind` should be `stress` or `length` or `apart`/,
+            /`data\.sounds\.marks\[0\]\.kind` should be `stress` or `length` or `apart` or `quality`/,
             "tone",
         );
         one(
@@ -859,6 +859,17 @@ describe("a spelling guide's sounds", () => {
                     "      - {letters: [ea], kind: vowel pair, like: eh-ah, tongue: skill-vylarilng}",
                     "    marks:",
                     "      - {mark: diaeresis, letters: [ë], kind: length, limit: any}",
+                ]),
+            ),
+        ).toEqual([]);
+    });
+
+    it("declares a mark that changes which vowel is said as kind quality", () => {
+        expect(
+            guide(
+                GUIDE([
+                    "    marks:",
+                    "      - {mark: grave, letters: [à, ì, ò, ù], kind: quality, limit: any}",
                 ]),
             ),
         ).toEqual([]);

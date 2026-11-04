@@ -1538,13 +1538,14 @@ Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.
 
 The build adds sections to the end of a note, after everything you wrote, listing what other notes say about it. Each appears only where it has something to list, under a fixed anchor:
 
-| Section           | Anchor           | Lists                                                                |
-| ----------------- | ---------------- | -------------------------------------------------------------------- |
-| Within            | `within`         | on a place, the places whose `parents` name it, grouped by kind      |
-| Governed by       | `governedby`     | on a place, the affiliation its `government` names                   |
-| Governed places   | `governedplaces` | on an affiliation, the places naming it as their `government`        |
-| In song and story | `insongandstory` | the works of literature whose `subjects` name the note or its events |
-| From here         | `fromhere`       | on a place with borders or routes, the map drawn from it             |
+| Section           | Anchor           | Lists                                                                         |
+| ----------------- | ---------------- | ----------------------------------------------------------------------------- |
+| Within            | `within`         | on a place, the places whose `parents` name it, grouped by kind               |
+| Governed by       | `governedby`     | on a place, the affiliation its `government` names                            |
+| Governed places   | `governedplaces` | on an affiliation, the places naming it as their `government`                 |
+| Office holders    | `officeholders`  | on an affiliation, each office's living holders, from the beings that name it |
+| In song and story | `insongandstory` | the works of literature whose `subjects` name the note or its events          |
+| From here         | `fromhere`       | on a place with borders or routes, the map drawn from it                      |
 
 The event sections below sit among them, and the [format reference](../reference/format-details.md#generated-sections) gives the order. Each entry links to the note it names; a note with no page of its own is named in plain text. Replace a section the way you replace an event view, by writing your own with the same anchor:
 

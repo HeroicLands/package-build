@@ -31,7 +31,8 @@
  * **`rank` is a number, not a link.** The body declares `{level, title,
  * description}` for every rung of its `governance.ranks`, so a number indexes
  * into that ladder and the body stays the single source for what its level 5 is
- * called. **`office` is a string**, matched against the keys of the body's
+ * called. **`office` is a string, or a list of them** for one being holding
+ * several posts in one body, each matched against the keys of the body's
  * `governance.offices` map: there are far more offices in a tree than bodies,
  * most of them held by one body alone, and an Address would make writing the
  * fact wait on authoring a page about the post.
@@ -55,7 +56,7 @@ import { acceptsType, isAddressTuple, parseAddress, renderAddress } from "./addr
 import { AddressEntries } from "./address-values.mjs";
 import { slugify } from "./content-slug.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
-import { fitsKind } from "./data-keys.mjs";
+import { fitsKind, pathLabel } from "./data-keys.mjs";
 import { STANDING_BODY_TYPES, STANDING_FIELDS, STANDING_KEYS } from "./standing-terms.mjs";
 
 export { STANDING_BODY_TYPES, STANDING_FIELDS, STANDING_KEYS };
@@ -222,11 +223,44 @@ export function standingsDigest(fm) {
 }
 
 /**
+ * The posts one standing names, as written: one post, or each post of a list.
+ *
+ * Every entry is kept, blank or not text included, so the check can locate
+ * each one; a reader of the posts themselves takes {@link standingOffices}.
+ *
+ * @param {unknown} office - A standing's authored `office`.
+ * @returns {Array<{value: unknown, at: Array<number>}>} Each post with its
+ *   position below `office` — `[]` for the single form, `[i]` for a list entry.
+ */
+function writtenOffices(office) {
+    if (office === undefined || office === null) return [];
+    if (Array.isArray(office)) return office.map((value, i) => ({ value, at: [i] }));
+    return [{ value: office, at: [] }];
+}
+
+/**
+ * The posts a standing holds, trimmed, in the order written.
+ *
+ * `office` is one post or a list of them, and every reader — the line on the
+ * being's page, the SoHL item, the derived holders of an office — wants the
+ * same list from both.
+ *
+ * @param {object} [standing] - `{rank, office}`, either or both absent.
+ * @returns {string[]} The posts, blank and non-text entries left out.
+ */
+export function standingOffices(standing) {
+    return writtenOffices(standing?.office)
+        .map(({ value }) => (typeof value === "string" ? value.trim() : ""))
+        .filter(Boolean);
+}
+
+/**
  * What a standing says before the body that confers it — `War Chief, Hárár
  * (5), of ` — or `""` where no standing is held.
  *
  * The office leads, because it is the more particular of the two: a reader
- * meeting "War Chief" has been told the rung as well. The rung follows as its
+ * meeting "War Chief" has been told the rung as well. Several posts in one
+ * body lead in the order written, `Treasurer, Chancellor, …`. The rung follows as its
  * title with its level in parentheses, read from the body's own ladder; where
  * the ladder names no rung at that level, or none is available, it reads as
  * `Rank 5` and the number is not repeated. The body closes the phrase, which is
@@ -241,9 +275,7 @@ export function standingsDigest(fm) {
  * @returns {string} The words before the body's name, ending `of `.
  */
 export function standingLead(standing, digest) {
-    const parts = [];
-    if (typeof standing?.office === "string" && standing.office.trim())
-        parts.push(standing.office.trim());
+    const parts = [...standingOffices(standing)];
     const rank = standing?.rank;
     const level = typeof rank === "number" || typeof rank === "string" ? Number(rank) : NaN;
     if (rank !== "" && Number.isFinite(level)) {
@@ -264,7 +296,7 @@ export function standingLead(standing, digest) {
  * 3. the entry states a standing at all — what a stated standing holds is the
  *    inner-key check's, read from {@link STANDING_FIELDS};
  * 4. a `rank` is a level the named body's `governance.ranks` declares;
- * 5. an `office` is a key of that body's `governance.offices`.
+ * 5. each post an `office` names is a key of that body's `governance.offices`.
  *
  * Both of the last two are read from the named body's own frontmatter as the
  * lint runs, so a rung or a post that does not exist fails on every being pointing
@@ -474,39 +506,59 @@ function rankFindings(note, standing, body, path, resolved) {
     ];
 }
 
-/** Whether an `office` is a post the named body names. */
+/**
+ * Whether each post an `office` names is one the named body names.
+ *
+ * `office` is one post or a list of them, and each is checked on its own and
+ * located at its own value, so a list naming one unknown post among several is
+ * one finding at that post.
+ */
 function officeFindings(note, standing, body, path, resolved) {
-    // Absent is a membership with no post; a value that is not text is the
-    // inner-key check's finding.
-    if (typeof standing.office !== "string") return [];
-    const at = () => position(note, [...path, "office"]);
-    if (!standing.office.trim())
-        return [
-            {
+    const roster = resolved.fm ? officeRoster(resolved.fm.data?.governance?.offices) : undefined;
+    const findings = [];
+    for (const { value, at: below } of writtenOffices(standing.office)) {
+        if (typeof value !== "string") {
+            // A list entry that is not text is the inner-key check's finding,
+            // read from the declaration's `entries`. The single form is one
+            // post too, and the inner-key check reads only a list's entries.
+            if (!below.length)
+                findings.push({
+                    ...position(note, [...path, "office"]),
+                    message:
+                        `\`${pathLabel(["data", "affiliations", ...path.slice(2), "office"])}\` ` +
+                        `should be ${STANDING_FIELDS.find((f) => f.name === "office").shape}, ` +
+                        `but reads ${JSON.stringify(value)}`,
+                });
+            continue;
+        }
+        const at = () => position(note, [...path, "office", ...below]);
+        if (!value.trim()) {
+            findings.push({
                 ...at(),
                 message:
                     `\`data.affiliations\` entry for ${body}: \`office\` must name a post from its ` +
-                    `\`governance.offices\`, but reads ${JSON.stringify(standing.office)}`,
-            },
-        ];
-    if (!resolved.fm) return [];
-    const roster = officeRoster(resolved.fm.data?.governance?.offices);
-    if (roster.has(standing.office)) return [];
-    if (!roster.size)
-        return [
-            {
+                    `\`governance.offices\`, but reads ${JSON.stringify(value)}`,
+            });
+            continue;
+        }
+        if (!roster || roster.has(value)) continue;
+        if (!roster.size) {
+            findings.push({
                 ...at(),
                 message:
                     `\`data.affiliations\` entry for ${body} names an office, and that body ` +
                     `${resolved.address} declares no \`data.governance.offices\` to hold one`,
-            },
-        ];
-    return [
-        {
+            });
+            // One finding says the body holds no posts; each further post
+            // would repeat it.
+            break;
+        }
+        findings.push({
             ...at(),
             message:
-                `\`data.affiliations\` entry for ${body}: office ${JSON.stringify(standing.office)} is not ` +
+                `\`data.affiliations\` entry for ${body}: office ${JSON.stringify(value)} is not ` +
                 `an office ${resolved.address} names; it holds ${[...roster.keys()].join(", ")}`,
-        },
-    ];
+        });
+    }
+    return findings;
 }

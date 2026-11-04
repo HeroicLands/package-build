@@ -218,6 +218,7 @@ something to show:
 | Within            | `within`         | a place                                                | the places whose `data.parents` names it, a paragraph to each kind of place                  |
 | Governed by       | `governedby`     | a place                                                | the affiliation its `data.government` names, with that affiliation's kind                    |
 | Governed places   | `governedplaces` | an affiliation                                         | the places whose `data.government` names it, a paragraph to each kind of place               |
+| Office holders    | `officeholders`  | an affiliation                                         | each office a living being holds, one line each, with its holders                            |
 | Chronology        | `chronology`     | a place                                                | the [event views](format-details.md#event-views)                                             |
 | Events            | `events`         | a being, an affiliation or a people                    | the event views                                                                              |
 | Accounts          | `accounts`       | an affiliation, a place or a people                    | the event views                                                                              |

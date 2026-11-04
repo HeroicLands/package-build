@@ -49,6 +49,7 @@
  */
 
 import { pluralOf, pluralByRule } from "./word-inflections.mjs";
+import { standingOffices } from "./standings.mjs";
 export { pluralOf, pluralByRule } from "./word-inflections.mjs";
 import { createHash } from "node:crypto";
 import { parseAddress, renderAddress } from "./address.mjs";
@@ -393,7 +394,7 @@ export function dictionaryAndTermRows(records, all = records) {
                     :   [];
                 add("office", title, isMap(office) ? office.description : office, [
                     ...holders,
-                    ...membersOf(body, (standing) => standing.office === title),
+                    ...membersOf(body, (standing) => standingOffices(standing).includes(title)),
                 ]);
             }
         governance.set(body, rows);

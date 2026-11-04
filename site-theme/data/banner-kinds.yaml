@@ -64,8 +64,10 @@ kinds:
     mysticalability: mystical-abilities
     place:
         celestial: default
+        district: default
         feature: default
         region: region
+        route: default
         settlement: settlement
         site: default
         structure: default

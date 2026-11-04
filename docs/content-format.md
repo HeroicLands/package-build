@@ -206,14 +206,14 @@ The [first-note guide](authoring/first-note.md) shows the build commands and how
 Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](authoring/frontmatter.md#place-governments).
 
 A region declares its table in `data.settlements: { rows, tail }`. The rows
-carry the settlement's `population` and numeric `market`, either `place` (the
-existing note's Address, default type `place`) or `name` (plain text where no
-note exists), and either `heldBy` (an affiliation or being Address, default
-type `affiliation`) or `holder` (plain text where no note exists). Each pair
-is exclusive. Optional `for` states why the settlement exists. `tail` is the
-sentence stating what the table leaves out. The region carries its holding
-model as tags: `held`, `endowed`, `registered`, `kin`, `polis` or `guide-held`
-for land held collectively by the guide peoples.
+carry the settlement's `population` and numeric `market`, and either `place`
+(the existing note's Address, default type `place`) or `name` (plain text where
+no note exists), never both. Where the region's culture holds land, a row's
+optional `heldBy` names what holds it by Address (an affiliation or a being,
+default type `affiliation`), and what that note is says how the land is held: a
+temple, a lineage, the city, a kin group. A people who hold no land state no
+`heldBy`, and their table has no Held by column. Optional `for` states why the
+settlement exists. `tail` is the sentence stating what the table leaves out.
 
 The guard reads indexed rows. A linked row's population and market agree with
 its note, and every settlement note covered through `parents` has one row in
@@ -239,7 +239,6 @@ data:
       - name: Cold Hatch
         market: 1
         population: 60
-        holder: Sir Aldwyn of Brynwold
     tail: Some four hundred further villages lie in the vale, none of them named here.
 ```
 

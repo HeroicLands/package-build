@@ -15,22 +15,12 @@
 /** The generated heading. */
 export const SETTLEMENTS_HEADING = "Settlements";
 
-/** How each holding tag identifies the holder, including whether a person may hold. */
-export const HOLDING_MODELS = Object.freeze([
-    Object.freeze({ tag: "held", holder: "a person or a house", person: true }),
-    Object.freeze({ tag: "endowed", holder: "an institution", person: false }),
-    Object.freeze({ tag: "registered", holder: "an office", person: false }),
-    Object.freeze({ tag: "kin", holder: "a kindred", person: false }),
-    Object.freeze({ tag: "polis", holder: "the city", person: false }),
-    Object.freeze({ tag: "guide-held", holder: "the guide peoples", person: false }),
-]);
-
-/** Rendered columns, in their fixed order; For is optional. */
+/** Rendered columns, in their fixed order; Held by and For appear when a row states them. */
 export const SETTLEMENT_COLUMNS = Object.freeze([
     Object.freeze({ name: "Name", required: true }),
     Object.freeze({ name: "Market", required: true }),
     Object.freeze({ name: "People", required: true }),
-    Object.freeze({ name: "Held by", required: true }),
+    Object.freeze({ name: "Held by", required: false }),
     Object.freeze({ name: "For", required: false }),
 ]);
 
@@ -67,13 +57,8 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
             name: "heldBy",
             kind: "address",
             shape: "an affiliation or being Address",
-            describe: "The holder's existing note; exclusive with holder.",
-        },
-        {
-            name: "holder",
-            kind: "string",
-            shape: "plain text",
-            describe: "A holder without a note; exclusive with heldBy.",
+            describe:
+                "What holds the settlement's land, where its culture holds land; what the holder is says how it is held.",
         },
         {
             name: "for",
@@ -117,17 +102,11 @@ export const SETTLEMENT_TABLE_RULES = Object.freeze(
             "body settlements table",
             "A body table under Settlements is refused; declare data.settlements.",
         ],
-        [
-            "settlements shape",
-            "A region declares rows and tail, with one name/place and holder/heldBy per row.",
-        ],
+        ["settlements shape", "A region declares rows and tail, with one name or place per row."],
         ["unresolved settlement reference", "A place or heldBy Address does not resolve."],
-        ["no holding model", "The note declares settlements but no holding-model tag."],
         ["market class", "A row's market is not an integer class from 1 to 6."],
         ["people figure", "A row's population is not a positive whole number."],
-        ["no holder", "A row states no holder."],
         ["not a holder", "A heldBy Address names neither an affiliation nor a being."],
-        ["holder out of model", "A person holds land in a region not tagged held."],
         ["not a settlement", "A place Address names a subject that is not a place."],
         ["figure disagrees", "A linked population differs from its note, or the note states none."],
         ["market disagrees", "A linked market differs from its note, or the note states none."],

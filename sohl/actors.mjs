@@ -42,7 +42,8 @@
  * **A membership is derived, never authored here.** `data.affiliations` names
  * the bodies a being belongs to and the standing it holds in each, and each
  * entry becomes one embedded affiliation item: the entry's `rank` is that
- * item's `system.level`, its `office` is `system.office`, and the first of its
+ * item's `system.level`, its `office` is `system.office` (several posts joined
+ * by commas), and the first of its
  * `societies` is `system.society`, the one society the SoHL item carries. A
  * standing is a fact about the setting rather than about one system — it does
  * not become true because SoHL is installed — so the system block states none
@@ -76,7 +77,7 @@ import { blockProperty, mergeSystemData } from "../engine/system-block.mjs";
 // A being's memberships and the standing it holds in each, read from the one
 // place they are authored. The rank *is* the affiliation item's `level`, so
 // there is nothing to map and nowhere for a second authoring to disagree.
-import { readStandings } from "../engine/standings.mjs";
+import { readStandings, standingOffices } from "../engine/standings.mjs";
 
 /**
  * The system this pass compiles for — the block its notes write.
@@ -234,7 +235,7 @@ export class Actors extends SystemActorCompiler {
             const shortcode = body?.shortcode;
             if (!shortcode) continue;
             const level = Number(standing?.rank);
-            const office = typeof standing?.office === "string" ? standing.office.trim() : "";
+            const office = standingOffices(standing).join(", ");
             const [first] = Array.isArray(standing?.societies) ? standing.societies : [];
             const society = typeof first === "string" ? first.trim() : "";
             const system = {

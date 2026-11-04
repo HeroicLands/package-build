@@ -56,6 +56,7 @@ import { readWikilink } from "./wikilink-syntax.mjs";
 import { encodeAddresses } from "./address-values.mjs";
 import fs from "node:fs";
 import { cultureRecordProblems, cultureInheritedFields } from "./culture-parents.mjs";
+import { governmentInherited } from "./holdings.mjs";
 import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
@@ -248,6 +249,13 @@ export function buildLinkIndex(
         if (typeof record.languageCode === "string") note.languageCode = record.languageCode;
         const hierarchyProblems = cultureRecordProblems(record);
         note.inheritedCultureFields = cultureInheritedFields(record);
+        // A district's government taken from its parent is the parent's
+        // authored value, checked where it is written, not here.
+        if (governmentInherited(record))
+            note.inheritedCultureFields = new Set([
+                ...(note.inheritedCultureFields ?? []),
+                "government",
+            ]);
         if (hierarchyProblems)
             note.reportedCultureParents = new Set(
                 hierarchyProblems

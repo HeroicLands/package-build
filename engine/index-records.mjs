@@ -42,7 +42,8 @@ import { isAddressTuple } from "./address.mjs";
  * since a note declaring its own is a hard error — and it matches what
  * the content-table expander puts on the same field, so a query reads the same
  * value from either. `file` namespaces the note's place in the tree, again
- * matching the expander's `file.*`.
+ * matching the expander's `file.*`. `officeHolders` lists, on a body, the
+ * living beings whose own standing names each of its offices.
  *
  * Both are checked rather than assumed: `folder` is real frontmatter on most
  * notes, so the neighbouring names are close enough to a real key that a silent
@@ -68,6 +69,7 @@ export const DERIVED_KEYS = Object.freeze([
     "citations",
     "names",
     "runs",
+    "officeHolders",
 ]);
 
 /**

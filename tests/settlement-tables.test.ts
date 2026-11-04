@@ -19,7 +19,7 @@ import { renderAddress, readCanonicalKey } from "../engine/address.mjs";
 import { createRenderer } from "../engine/content-render.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 import { derivedSections } from "../engine/derived-sections.mjs";
-import { HOLDING_MODELS, SETTLEMENT_TABLE_RULES } from "../engine/settlement-tables.mjs";
+import { SETTLEMENT_TABLE_RULES } from "../engine/settlement-tables.mjs";
 
 const tail = "Some four hundred further villages lie in the vale, none of them named here.";
 const rows = () => [
@@ -41,7 +41,6 @@ const rows = () => [
         name: "Cold Hatch",
         market: 1,
         population: 60,
-        holder: "Sir Aldwyn of Brynwold",
         for: "the sheepwalk",
     },
 ];
@@ -53,7 +52,7 @@ function region(change: (fm: any) => void = () => {}, body?: string) {
         subType: "region",
         shortcode: "vale",
         name: { full: "The Vale" },
-        tags: ["region", "held"],
+        tags: ["region"],
         data: { population: 100000, government: "crown", settlements: { rows: rows(), tail } },
     };
     change(fm);
@@ -119,7 +118,6 @@ function checked(files: Record<string, string>, run: (f: ReturnType<typeof fixtu
     }
 }
 const cases: Record<string, { change: (fm: any) => void; says: string; at: string }> = {
-    "no holding model": { change: (fm) => (fm.tags = ["region"]), says: "held", at: "tags:" },
     "market class": {
         change: (fm) => (fm.data.settlements.rows[1].market = 7),
         says: "7",
@@ -130,20 +128,10 @@ const cases: Record<string, { change: (fm: any) => void; says: string; at: strin
         says: "positive",
         at: "population: 0",
     },
-    "no holder": {
-        change: (fm) => delete fm.data.settlements.rows[2].holder,
-        says: "Cold Hatch",
-        at: "name: Cold Hatch",
-    },
     "not a holder": {
         change: (fm) => (fm.data.settlements.rows[1].heldBy = "place-ashford"),
         says: "place",
         at: "heldBy: place-ashford",
-    },
-    "holder out of model": {
-        change: (fm) => (fm.tags = ["endowed"]),
-        says: "endowed",
-        at: "heldBy: being-aldwyn",
     },
     "not a settlement": {
         change: (fm) =>
@@ -245,80 +233,45 @@ describe("indexed settlement rows", () => {
             ),
             (f) => expect(f.findings).toEqual([]),
         ));
-    it("keeps holder and government distinct", () =>
+    it("accepts a row naming no holder, and keeps holder and government distinct", () =>
         checked(tree(region((fm) => delete fm.data.settlements.rows[0].heldBy)), (f) =>
-            expect(f.findings.some((x) => x.message.startsWith("no holder:"))).toBe(true),
+            expect(f.findings).toEqual([]),
         ));
-    it.each(HOLDING_MODELS.filter((m) => !m.person).map((m) => m.tag))(
-        "accepts an affiliation holder in %s",
-        (tag) =>
-            checked(
-                tree(
-                    region((fm) => {
-                        fm.tags = [tag];
-                        fm.data.settlements.rows.forEach((r: any) => {
-                            delete r.holder;
-                            r.heldBy = "affiliation-crown";
-                        });
-                    }),
-                ),
-                (f) => expect(f.findings).toEqual([]),
+    it("reads no tenure from the region's tags", () =>
+        checked(tree(region((fm) => (fm.tags = ["held"]))), (f) => expect(f.findings).toEqual([])));
+    it("accepts a being or an affiliation as a holder in any region", () =>
+        checked(
+            tree(
+                region((fm) => {
+                    fm.data.settlements.rows[0].heldBy = "being-aldwyn";
+                    fm.data.settlements.rows[1].heldBy = "affiliation-crown";
+                }),
             ),
-    );
-    it("accepts guide-held collective holders and renders the shared table", () => {
-        const raw = region((fm) => {
-            fm.tags = ["guide-held"];
-            fm.data.settlements.rows[0].heldBy = "affiliation-osketguides";
-            fm.data.settlements.rows[1].heldBy = "affiliation-hvarnguides";
-            delete fm.data.settlements.rows[2].heldBy;
-            fm.data.settlements.rows[2].holder = "the guide peoples";
-        });
-        const guideAffiliations = {
-            "Oskhet Guides.md": note({
-                type: "affiliation",
-                subType: "polity",
-                shortcode: "osketguides",
-                name: { full: "Oskhet Guides" },
-            }),
-            "Hvarn Guides.md": note({
-                type: "affiliation",
-                subType: "polity",
-                shortcode: "hvarnguides",
-                name: { full: "Hvarn Guides" },
-            }),
-        };
-        checked(tree(raw, guideAffiliations), (f) => {
+            (f) => expect(f.findings).toEqual([]),
+        ));
+    it("renders no Held by column for a people who hold no land", () => {
+        const raw = region((fm) => fm.data.settlements.rows.forEach((r: any) => delete r.heldBy));
+        checked(tree(raw), (f) => {
             expect(f.findings).toEqual([]);
             const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
             const sections = derivedSections(records, {
                 fileOf: (record) => path.join(f.root, record.file.path),
             });
             const rendered = sections.get(path.join(f.root, "Vale.md"))?.get("settlements") ?? "";
-            expect(rendered).toContain("[[sohl-note-affiliation-osketguides\\|]]");
-            expect(rendered).toContain("[[sohl-note-affiliation-hvarnguides\\|]]");
-            expect(rendered).toContain("the guide peoples");
+            expect(rendered).toContain("| Name | Market | People | For |");
+            expect(rendered).not.toContain("Held by");
         });
     });
-    it("refuses a being holder in a guide-held region", () =>
-        checked(
-            tree(
-                region((fm) => {
-                    fm.tags = ["guide-held"];
-                    fm.data.settlements.rows[0].heldBy = "affiliation-crown";
-                    fm.data.settlements.rows[1].heldBy = "being-aldwyn";
-                    delete fm.data.settlements.rows[2].heldBy;
-                    fm.data.settlements.rows[2].holder = "the guide peoples";
-                }),
-            ),
-            (f) => {
-                expect(f.findings).toHaveLength(1);
-                expect(f.findings[0].message).toMatch(/^holder out of model:.*being-aldwyn/);
-            },
-        ));
-    it("accepts held alongside another holding model", () =>
-        checked(tree(region((fm) => (fm.tags = ["held", "endowed"]))), (f) =>
-            expect(f.findings).toEqual([]),
-        ));
+    it("leaves a Held by cell empty on a row naming no holder in a held table", () =>
+        checked(tree(region((fm) => delete fm.data.settlements.rows[2].heldBy)), (f) => {
+            const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
+            const sections = derivedSections(records, {
+                fileOf: (record) => path.join(f.root, record.file.path),
+            });
+            const rendered = sections.get(path.join(f.root, "Vale.md"))?.get("settlements") ?? "";
+            expect(rendered).toContain("| Name | Market | People | Held by | For |");
+            expect(rendered).toMatch(/\| Cold Hatch \| 1 hamlet \| 60 \|  \| the sheepwalk \|/);
+        }));
     it("leaves unresolved links as errors in the native Address check", () =>
         checked(
             tree(region((fm) => (fm.data.settlements.rows[0].heldBy = "affiliation-nobody"))),
@@ -460,7 +413,7 @@ describe("settlement publication bridges", () => {
 describe("closed settlement declarations", () => {
     for (const [title, change] of [
         ["both settlement identities", (fm: any) => (fm.data.settlements.rows[0].name = "Ashford")],
-        ["both holder identities", (fm: any) => (fm.data.settlements.rows[0].holder = "The Crown")],
+        ["a plain-text holder", (fm: any) => (fm.data.settlements.rows[2].holder = "Sir Aldwyn")],
         ["unknown row key", (fm: any) => (fm.data.settlements.rows[0].unread = "discarded")],
         ["unknown declaration key", (fm: any) => (fm.data.settlements.unread = "discarded")],
         ["non-region declaration", (fm: any) => (fm.subType = "settlement")],
@@ -587,7 +540,6 @@ describe("reviewed settlement boundaries", () => {
                         place: "other-note-place-town",
                         population: 1,
                         market: 1,
-                        holder: "The Crown",
                     },
                 ];
             }),
@@ -596,7 +548,6 @@ describe("reviewed settlement boundaries", () => {
                 type: "place",
                 subType: "region",
                 shortcode: "vale",
-                tags: ["held"],
                 data: {
                     settlements: {
                         rows: [
@@ -604,7 +555,6 @@ describe("reviewed settlement boundaries", () => {
                                 place: "other-note-place-town",
                                 population: 1,
                                 market: 1,
-                                holder: "The Crown",
                             },
                         ],
                         tail,

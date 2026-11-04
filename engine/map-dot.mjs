@@ -131,6 +131,26 @@ export const STYLE = Object.freeze({
         penwidth: 2.0,
         extraStyle: "rounded",
     },
+    district: {
+        shape: "box",
+        fill: "#C5E1A5",
+        border: DEFAULT_BORDER,
+        fontsize: 9,
+        width: 0.8,
+        height: 0.4,
+        penwidth: 1.0,
+        extraStyle: "rounded,dashed",
+    },
+    route: {
+        shape: "parallelogram",
+        fill: "#FFE082",
+        border: DEFAULT_BORDER,
+        fontsize: 9,
+        width: 0.9,
+        height: 0.4,
+        penwidth: 1.0,
+        extraStyle: "",
+    },
     settlement: {
         shape: "ellipse",
         fill: "#A5D6A7",
@@ -187,10 +207,12 @@ export const STYLE = Object.freeze({
 const LEGEND = Object.freeze([
     ["world", "the root note"],
     ["region", "continent, region, sub-region"],
+    ["district", "quarter, ward, shire"],
     ["settlement", "city, town, village"],
     ["site", "ruin, landmark, dungeon, wonder"],
     ["feature", "river, mountain range, sea"],
     ["structure", "a single building"],
+    ["route", "road, pass, sea lane"],
     ["polity", "affiliation, dashed edge to its region"],
 ]);
 

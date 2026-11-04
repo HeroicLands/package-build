@@ -177,6 +177,7 @@ describe("the generated sections", () => {
             "within",
             "governedby",
             "governedplaces",
+            "officeholders",
             "chronology",
             "events",
             "accounts",

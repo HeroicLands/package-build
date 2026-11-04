@@ -61,6 +61,7 @@ export const GENERATED_SECTIONS = Object.freeze(
         { slug: "within", heading: "Within" },
         { slug: "governedby", heading: "Governed by" },
         { slug: "governedplaces", heading: "Governed places" },
+        { slug: "officeholders", heading: "Office holders" },
         { slug: CHRONOLOGY_SLUG, heading: "Chronology" },
         { slug: "events", heading: "Events" },
         { slug: "accounts", heading: "Accounts" },

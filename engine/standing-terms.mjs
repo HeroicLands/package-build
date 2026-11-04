@@ -35,8 +35,9 @@ export const STANDING_BODY_TYPES = Object.freeze(["affiliation"]);
  * The keys one standing carries, as inner-key declarations.
  *
  * `rank` is the level on the body's own `governance.ranks` ladder, and every
- * membership states one. `office` is a key of its `governance.offices` map, and
- * is stated only where the being holds a post. `societies` names the societies
+ * membership states one. `office` is a key of its `governance.offices` map, or
+ * a list of them where the being holds several posts in that body, and is
+ * stated only where the being holds a post. `societies` names the societies
  * the membership is held in, as a list because a membership can span several.
  *
  * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
@@ -53,9 +54,12 @@ export const STANDING_FIELDS = Object.freeze([
     }),
     Object.freeze({
         name: "office",
-        kind: "string",
-        shape: "a post from that body's `governance.offices`",
-        describe: "A post the body names in its `governance.offices`, where one is held.",
+        kind: "string-or-list",
+        shape: "a post from that body's `governance.offices`, or a list of them",
+        entries: Object.freeze({ kind: "string", shape: "a post" }),
+        describe:
+            "A post the body names in its `governance.offices`, where one is held, or a list of " +
+            "the posts one being holds in that body.",
     }),
     Object.freeze({
         name: "societies",

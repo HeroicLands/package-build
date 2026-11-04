@@ -141,6 +141,8 @@ import { EXPRESSION, renderMarkdownExpressions } from "./markdown-expressions.mj
 import { scanFigures } from "./content-figures.mjs";
 import { eventNoteIndex } from "./event-fields.mjs";
 import { derivedSections } from "./derived-sections.mjs";
+import { officeBodyKey, officeHolders } from "./office-holders.mjs";
+import { inheritDistrictGovernments } from "./holdings.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
 // builds that emit a link. Re-exported because this is where callers
 // have always addressed it.
@@ -1311,6 +1313,8 @@ export function collectContentIndex(
         parsed,
     });
     resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems, parsed });
+    // A district stating no government falls under its parent's.
+    inheritDistrictGovernments(records, { foreignRecord });
     const cultureNotes = records
         .filter((record) => isNoteRecord(record) && record.type === "lore")
         .map((record) => ({
@@ -1332,6 +1336,24 @@ export function collectContentIndex(
     reportCultureParents(inheritance.findings, problems);
     for (const [note, inherited] of inheritance.values)
         if (Object.keys(inherited).length) note.fm.data = { ...note.fm.data, ...inherited };
+
+    // An office's holders are the living beings naming it, read once every
+    // being is recorded. A public body lists only public beings, as its page
+    // does.
+    phase("index office holders");
+    const publicHolders = officeHolders(records.filter((record) => !isGmNote(record)));
+    const allHolders = officeHolders(records);
+    for (const record of records) {
+        if (!isNoteRecord(record) || record.type !== "affiliation") continue;
+        const held = (isGmNote(record) ? allHolders : publicHolders).get(officeBodyKey(record));
+        if (!held) continue;
+        record.officeHolders = [...held].map(([office, holders]) => ({
+            office,
+            holders: holders.map((being) =>
+                readCanonicalKey(canonicalKey(being.package, "note", "being", being.shortcode)),
+            ),
+        }));
+    }
 
     // Automatic lexical sections require only the recorded frontmatter. Their
     // published anchors and journal targets therefore use the same pure body
