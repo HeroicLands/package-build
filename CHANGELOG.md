@@ -1,5 +1,12 @@
 # @heroiclands/package-build
 
+## 25.6.1
+
+**Languages and scripts**
+
+- Scripts that allow diaeresis can read back the marks in split vowel groups when their writing keeps joined and separate vowels distinct.
+- Language notes and spelling guides can declare pronunciation marks for rising or falling pitch with `kind: tone`.
+
 ## 25.6.0
 
 **Changes to act on**
