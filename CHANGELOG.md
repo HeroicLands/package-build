@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 25.6.2
+
+**Languages and scripts**
+
+- Encoding documents can choose a mapping according to the letter before it, as well as the following letter and word position.
+
 ## 25.6.1
 
 **Languages and scripts**
