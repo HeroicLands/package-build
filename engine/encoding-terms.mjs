@@ -114,12 +114,19 @@ export const ENCODING_RULE_FIELDS = Object.freeze([
         kind: "list",
         shape: "a list of conditional mappings",
         describe:
-            "Alternatives conditioned on the following letter or source position, applied before unconditional mappings.",
+            "Alternatives conditioned on the preceding letter, following letter or source position, applied before unconditional mappings.",
         entries: {
             kind: "map",
             shape: "a contextual mapping",
             fields: [
                 text("match", "The source sequence.", true),
+                {
+                    ...text(
+                        "after",
+                        "Match after one exact NFC Unicode letter, a declared vowel or another letter.",
+                    ),
+                    shape: "one NFC Unicode letter, vowel or consonant",
+                },
                 {
                     ...text("before", "Match before a declared vowel or another letter."),
                     allowed: ["vowel", "consonant"],

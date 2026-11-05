@@ -271,11 +271,25 @@ export function templateProgram(data, options, fault) {
         const seen = new Set();
         for (const [i, row] of rules["contextual-mappings"].entries()) {
             const key = `rules.contextual-mappings.${i}`;
-            closed(row, ["match", "before", "at", "emit"], key);
+            closed(row, ["match", "after", "before", "at", "emit"], key);
             if (!scalar(row.match) || !row.match || row.match !== row.match.normalize("NFC"))
                 fault(`${key}.match`, "A contextual match must be nonempty NFC text");
-            if (row.before === undefined && row.at === undefined)
-                fault(key, "A contextual mapping requires before or at");
+            if (row.after === undefined && row.before === undefined && row.at === undefined)
+                fault(key, "A contextual mapping requires after, before or at");
+            if (row.after !== undefined) {
+                if (
+                    !["vowel", "consonant"].includes(row.after) &&
+                    (typeof row.after !== "string" ||
+                        !/^\p{L}$/u.test(row.after) ||
+                        row.after !== row.after.normalize("NFC"))
+                )
+                    fault(`${key}.after`, "after is one NFC Unicode letter, vowel or consonant");
+                if (["vowel", "consonant"].includes(row.after) && !vowels)
+                    fault(
+                        `${key}.after`,
+                        "After-vowel or after-consonant mappings require declared vowels",
+                    );
+            }
             if (row.before !== undefined && !["vowel", "consonant"].includes(row.before))
                 fault(`${key}.before`, "before is vowel or consonant");
             if (row.at !== undefined && !["start", "end", "line-start"].includes(row.at))
@@ -285,7 +299,12 @@ export function templateProgram(data, options, fault) {
                     `${key}.before`,
                     "Before-vowel or before-consonant mappings require declared vowels",
                 );
-            const condition = JSON.stringify([row.match, row.before ?? null, row.at ?? null]);
+            const condition = JSON.stringify([
+                row.match,
+                row.after ?? null,
+                row.before ?? null,
+                row.at ?? null,
+            ]);
             if (seen.has(condition))
                 fault(
                     `${key}.match`,
@@ -298,6 +317,7 @@ export function templateProgram(data, options, fault) {
             contextual.push({
                 from: row.match,
                 to,
+                ...(row.after !== undefined ? { after: row.after } : {}),
                 ...(row.before !== undefined ? { before: row.before } : {}),
                 ...(row.at !== undefined ? { at: row.at } : {}),
             });

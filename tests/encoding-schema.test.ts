@@ -110,3 +110,50 @@ describe("encoding declarations and language native data", () => {
         ]);
     });
 });
+
+describe("encoding contextual vocabulary", () => {
+    it("declares after and accepts every source-owned contextual field while refusing unknown siblings", async () => {
+        const { ENCODING_RULE_FIELDS } = await import("../engine/encoding-terms.mjs");
+        const fields = ENCODING_RULE_FIELDS.find((field) => field.name === "contextual-mappings")!
+            .entries!.fields;
+        expect(fields.map((field) => field.name)).toContain("after");
+        const values: Record<string, unknown> = {
+            match: "k",
+            emit: "K",
+            after: "a",
+            before: "vowel",
+            at: "start",
+        };
+        const contextual = Object.fromEntries(
+            fields.map((field) => [field.name, values[field.name]]),
+        );
+        const check = (row: object) =>
+            lintNote(
+                note({
+                    type: "doc",
+                    shortcode: "after",
+                    name: { full: "After" },
+                    data: {
+                        language: "test",
+                        font: "test",
+                        mappings: { k: "K" },
+                        rules: {
+                            normalization: "NFC",
+                            matching: "longest-first",
+                            "contextual-mappings": [row],
+                        },
+                    },
+                }),
+                {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                },
+            );
+        expect(check(contextual)).toEqual([]);
+        expect(check({ ...contextual, mystery: "a" })).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ message: expect.stringMatching(/mystery/) }),
+            ]),
+        );
+    });
+});

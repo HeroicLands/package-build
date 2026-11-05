@@ -274,3 +274,95 @@ describe("shared word separators and canonical alias selection", () => {
         expect(decodeText(enc, "εβ")).toBe("kb");
     });
 });
+
+describe("preceding-source contextual conditions", () => {
+    const row = (after: unknown, extra = {}) => ({ match: "k", after, emit: "BEFORE", ...extra });
+    it("matches literal scalars and categories with contextual precedence and fallback", () => {
+        for (const [after, source, native] of [
+            ["a", "ak bk k", "αγ βκ κ"],
+            ["vowel", "ak bk k", "αγ βκ κ"],
+            ["consonant", "ak bk k", "ακ βγ κ"],
+        ]) {
+            const enc = compile(note({ "contextual-mappings": [row(after)] }));
+            expect(encodeText(enc, source)).toBe(native);
+            expect(decodeText(enc, native)).toBe(source);
+        }
+    });
+    it("combines all supplied predicates with AND and preserves exact before decoding", () => {
+        const enc = compile(
+            note({ "contextual-mappings": [row("a", { before: "consonant", at: "end" })] }),
+        );
+        expect(encodeText(enc, "akb ak bk")).toBe("ακβ ακ βκ");
+        const final = compile(note({ "contextual-mappings": [row("a", { at: "end" })] }));
+        expect(encodeText(final, "ak akb bk")).toBe("αγ ακβ βκ");
+        const both = compile(note({ "contextual-mappings": [row("a", { before: "consonant" })] }));
+        expect(encodeText(both, "akb aka bkb")).toBe("αγβ ακα βκβ");
+        expect(() => decodeText(both, "αγα")).toThrow(EncodingError);
+        // after, like at, governs forward matching only.
+        expect(decodeText(both, "βγβ")).toBe("bkb");
+    });
+    it("uses exact Unicode letters after NFC and diaeresis source projection", () => {
+        const data = note({ diaeresis: { allowed: true }, "contextual-mappings": [row("a")] });
+        expect(encodeText(compile(data), "a\u0308k")).toBe("αγ");
+        expect(encodeText(compile(data), "k!k k\nk")).toBe("κ\u{E0103}κ κ κ");
+        const enc = compile({
+            ...note({ "contextual-mappings": [row("𐐀")] }, { "𐐀": "A", "𐐨": "B", k: "K" }),
+            vowels: undefined,
+        });
+        expect(encodeText(enc, "𐐀k 𐐨k")).toBe("αγ βκ");
+        const accented = compile(note({ "contextual-mappings": [row("é")] }, { é: "A", k: "K" }));
+        expect(encodeText(accented, "e\u0301k")).toBe("αγ");
+    });
+    it("validates after at its own key and includes it in duplicate identity", () => {
+        for (const after of ["", "ab", "a\u0301", "!", "1", "\uD800", null, [], true, 1])
+            expect(() => compile(note({ "contextual-mappings": [row(after)] }))).toThrow(
+                expect.objectContaining({ key: "rules.contextual-mappings.0.after" }),
+            );
+        for (const after of ["vowel", "consonant"])
+            expect(() =>
+                compile({ ...note({ "contextual-mappings": [row(after)] }), vowels: undefined }),
+            ).toThrow(expect.objectContaining({ key: "rules.contextual-mappings.0.after" }));
+        expect(() => compile(note({ "contextual-mappings": [row("a"), row("b")] }))).not.toThrow();
+        expect(() => compile(note({ "contextual-mappings": [row("a"), row("a")] }))).toThrow(
+            expect.objectContaining({ key: "rules.contextual-mappings.1.match" }),
+        );
+    });
+    it("refuses an undeclared tone predecessor without an unconditional tone fallback", () => {
+        const enc = compileEncoding(
+            {
+                language: "test",
+                font: "test",
+                vowels: "auâ",
+                mappings: { p: "P", a: "A", u: "U" },
+                rules: {
+                    normalization: "NFC",
+                    matching: "longest-first",
+                    diaeresis: { allowed: true },
+                    "contextual-mappings": [
+                        { match: "âa", at: "start", emit: "T" },
+                        { match: "âa", after: "consonant", emit: "T" },
+                        { match: "âa", after: "u", emit: "T" },
+                    ],
+                },
+            },
+            { codes: { P: "\u{F0000}", A: "\u{F0001}", U: "\u{F0002}", T: "\u{F0003}" } },
+        );
+        for (const [source, native] of [
+            ["pâa", "\u{F0000}\u{F0003}"],
+            ["puâa", "\u{F0000}\u{F0002}\u{F0003}"],
+            ["pâaa", "\u{F0000}\u{F0003}\u{F0001}"],
+        ]) {
+            expect(() => validateSource(enc, source)).not.toThrow();
+            expect(encodeText(enc, source)).toBe(native);
+            expect(decodeText(enc, native)).toBe(source);
+        }
+        // Source validation permits lexicon-authoritative native writings without row coverage.
+        expect(() => validateSource(enc, "paâa")).not.toThrow();
+        expect(() => encodeText(enc, "paâa")).toThrow(
+            expect.objectContaining({ offset: 2, column: 3 }),
+        );
+        expect(() => encodeText(enc, "pa\u0308âa")).toThrow(
+            expect.objectContaining({ offset: 3, column: 4 }),
+        );
+    });
+});

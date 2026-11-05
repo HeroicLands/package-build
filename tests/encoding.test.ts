@@ -274,3 +274,26 @@ it("quotes reserved literal payload controls without hiding the outer close", ()
         refuses(() => decodeText(e, open + payload), 2, 1, 2);
     refuses(() => decodeText(e, open + escape + close), 0, 1, 1);
 });
+
+describe("raw preceding-source conditions", () => {
+    const raw = (after: unknown, vowels: string | null = "a") =>
+        compileEncoding({
+            name: "after",
+            fonts: ["test"],
+            accepts: [..."abk𐐀"],
+            separator: " ",
+            ...(vowels === null ? {} : { vowels }),
+            rows: [["a", "A"], ["b", "B"], ["𐐀", "D"], ["k", "K"], { from: "k", to: "X", after }],
+        });
+    it("executes after-only rows before ordinary rows", () => {
+        expect(encodeText(raw("a"), "ak bk k")).toBe("AX BK K");
+        expect(encodeText(raw("consonant"), "ak bk")).toBe("AK BX");
+        expect(encodeText(raw("vowel"), "ak bk")).toBe("AX BK");
+        expect(encodeText(raw("𐐀", null), "𐐀k")).toBe("DX");
+    });
+    it("rejects invalid literals and categories without vowels", () => {
+        for (const after of ["", "aa", "a\u0301", "!", "\uD800", null, [], 1])
+            expect(() => raw(after)).toThrow(expect.objectContaining({ key: "rows.4.after" }));
+        expect(() => raw("vowel", null)).toThrow(expect.objectContaining({ key: "rows.4.after" }));
+    });
+});

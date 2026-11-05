@@ -55,7 +55,7 @@ second behaviour.
 | `vowel-groups`        | `{reading: established, allow-splitting: false, unrecognized-adjacent-vowels: separate, groups: [...]}`; the explicit group list determines where an acute belongs on its first vowel.                                                                |
 | `diaeresis`           | `{allowed: boolean}`; false forbids diaeresis characters; true derives plain-vowel mappings and restores splits of distinctly mapped declared groups.                                                                                                 |
 | `grave-accent`        | `{allowed: boolean}` permits or forbids explicitly mapped grave-accent characters.                                                                                                                                                                    |
-| `contextual-mappings` | A list of `{match, emit, before?, at?}`; following-letter or source-position conditions precede unconditional mappings.                                                                                                                               |
+| `contextual-mappings` | A list of `{match, emit, after?, before?, at?}`; preceding-letter, following-letter or source-position conditions precede unconditional mappings.                                                                                                     |
 | `y`                   | `{kind: consonant, sound: "y in yes", vowel-reading: false}`; y cannot also appear in `data.vowels`.                                                                                                                                                  |
 
 The accent blocks accept an explicit Boolean `allowed`. False forbids that
@@ -80,13 +80,28 @@ empty outputs or store invisible metadata to restore the original spelling.
 A language's authoritative vocabulary can recover fuller word spellings.
 Shared word spaces remain spaces in both modes.
 
-Contextual entries use `{match, emit, before?, at?}` and require at least one
-condition. `before` is `vowel` or `consonant`; `at` is `start`, `end` or
+Contextual entries use `{match, emit, after?, before?, at?}` and require at least one
+condition. `after` tests the immediately preceding Unicode scalar in the NFC
+matching stream (including derived diaeresis-to-plain vowel projection). It is
+`vowel`, `consonant`, or one literal NFC Unicode letter, compared exactly and
+case-sensitively; astral letters are permitted. Category conditions require
+`data.vowels`; a literal does not. Neither category matches a missing predecessor, punctuation or space. A literal
+matches only that letter. `after` is a
+positive condition, so refusing an unlisted predecessor requires authored
+allowed alternatives with no unconditional fallback. For example,
+`{match: k, after: a, emit: K_AFTER_A}` selects that font code after `a`.
+
+`after` governs forward encoding only, like `at`; decoding does not validate a
+preceding-source condition. Existing inverse `before` checks remain strict in
+exact mode. Source validation permits spellings without mapping coverage for
+authoritative native entries; `encodeText` refuses uncovered source text.
+
+`before` is `vowel` or `consonant`; `at` is `start`, `end` or
 `line-start`. `start` and `end` refer to word boundaries. A consonant is a
 letter outside the declared `data.vowels`. Line start follows a newline or
 verse slash and permits preceding indentation carets. Multiple conditions
 combine with AND. Entries for the same source may use different conditions;
-repeating the same source and condition tuple is an error. Equal-length
+repeating the same `(match, after, before, at)` tuple is an error. Equal-length
 contextual matches retain authored order.
 
 ```yaml

@@ -16,20 +16,20 @@
 /**
  * Check codeword integrity with a trie and finite Sardinas–Patterson residuals.
  * Source-equivalent compositions are redundant rules, not distinct spellings.
- * @param {Array<{from:string,to:string,key:string,before?:string,at?:string}>} rows - Validated ordinary rows.
+ * @param {Array<{from:string,to:string,key:string,after?:string,before?:string,at?:string}>} rows - Validated ordinary rows.
  * @param {(key:string,message:string)=>never} fault - Positioned schema-error constructor.
  */
 export function assertUniqueOutputs(rows, fault) {
     const bySource = new Map();
     for (const row of rows) {
-        if (row.before || row.at) continue;
+        if (row.after || row.before || row.at) continue;
         const first = [...row.from][0];
         if (!bySource.has(first)) bySource.set(first, []);
         bySource.get(first).push(row);
     }
     for (const group of bySource.values()) group.sort((a, b) => b.from.length - a.from.length);
     const redundant = (row) => {
-        if (row.before || row.at || [...row.from].length < 2) return false;
+        if (row.after || row.before || row.at || [...row.from].length < 2) return false;
         let at = 0,
             output = "";
         while (at < row.from.length) {

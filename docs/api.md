@@ -2891,8 +2891,8 @@ expose their schema `key`.
 Encoding rules default to exact, uniquely decodable outputs. A note may state
 `rules.roundTrip: canonical` to permit aliases and empty code sequences;
 `decodeText` then returns the authored conventional reading without restoring
-erased Roman characters. Contextual rules accept `before: vowel|consonant`
-and `at: start|end|line-start`; supplied conditions combine with AND. Accent
+erased Roman characters. Contextual rules accept `after` (one exact NFC Unicode letter, `vowel` or
+`consonant`), `before: vowel|consonant` and `at: start|end|line-start`; supplied conditions combine with AND. `after` governs forward encoding only. Accent
 permission blocks accept explicit Boolean values. See [Encoding text](encoding-core.md).
 
 ### `engine.encodingLanguage`

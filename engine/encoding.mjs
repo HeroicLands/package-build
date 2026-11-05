@@ -114,14 +114,14 @@ function rows(value, key, vowels, allowEmpty) {
     if (!Array.isArray(value)) fault(key, `\`${key}\` must be a list of rows`);
     return value.map((value, order) => {
         const at = `${key}.${order}`;
-        let from, to, before, position;
+        let from, to, after, before, position;
         if (Array.isArray(value)) {
             if (value.length !== 2) fault(at, "A row is two strings, [from, to]");
             [from, to] = value;
         } else if (object(value)) {
-            keys(value, new Set(["from", "to", "before", "at"]), at);
-            ({ from, to, before, at: position } = value);
-        } else fault(at, "A row is [from, to] or {from, to, before?, at?}");
+            keys(value, new Set(["from", "to", "after", "before", "at"]), at);
+            ({ from, to, after, before, at: position } = value);
+        } else fault(at, "A row is [from, to] or {from, to, after?, before?, at?}");
         string(from, `${at}.from`, true);
         string(to, `${at}.to`);
         if (from.includes(OPEN) || from.includes(CLOSE))
@@ -130,12 +130,23 @@ function rows(value, key, vowels, allowEmpty) {
             fault(`${at}.from`, "Whitespace is stated by separator");
         if (!to && !allowEmpty && from !== " ")
             fault(`${at}.to`, "An exact row must write a nonempty output");
+        if (after !== undefined) {
+            if (
+                !["vowel", "consonant"].includes(after) &&
+                (typeof after !== "string" ||
+                    !LETTER.test(after) ||
+                    after !== after.normalize("NFC"))
+            )
+                fault(`${at}.after`, "after is one NFC Unicode letter, vowel or consonant");
+            if (["vowel", "consonant"].includes(after) && !vowels)
+                fault(`${at}.after`, "after categories need vowels");
+        }
         if (before !== undefined && !["vowel", "consonant"].includes(before))
             fault(`${at}.before`, "before is vowel or consonant");
         if (before && !vowels) fault(`${at}.before`, "before needs vowels");
         if (position !== undefined && !["start", "end", "line-start"].includes(position))
             fault(`${at}.at`, "at is start, end or line-start");
-        return Object.freeze({ from, to, before, at: position, order, key: at });
+        return Object.freeze({ from, to, after, before, at: position, order, key: at });
     });
 }
 function indexRows(rows) {
@@ -149,7 +160,8 @@ function indexRows(rows) {
         group.sort(
             (a, b) =>
                 length(b.from) - length(a.from) ||
-                Number(Boolean(b.before || b.at)) - Number(Boolean(a.before || a.at)) ||
+                Number(Boolean(b.after || b.before || b.at)) -
+                    Number(Boolean(a.after || a.before || a.at)) ||
                 a.order - b.order,
         );
     return index;
@@ -328,6 +340,15 @@ function beforeHolds(condition, char, vowels) {
     );
 }
 function holds(row, text, start, end, vowels) {
+    if (row.after) {
+        const preceding = start > 0 ? previousAt(text, start) : undefined;
+        if (
+            ["vowel", "consonant"].includes(row.after) ?
+                !beforeHolds(row.after, preceding, vowels)
+            :   preceding !== row.after
+        )
+            return false;
+    }
     if (row.before && !beforeHolds(row.before, firstAt(text, end), vowels)) return false;
     if (row.at === "line-start") {
         let slash = text.lastIndexOf("/", start - 1);

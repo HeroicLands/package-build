@@ -212,3 +212,22 @@ describe("executable encoding note template", () => {
         }
     });
 });
+
+describe("preceding conditions and unique-output proofs", () => {
+    it("excludes after-conditioned components and composites from unconditional redundancy proofs", async () => {
+        const { assertUniqueOutputs } = await import("../engine/encoding-integrity.mjs");
+        const fault = (key: string, message: string): never => {
+            throw new EncodingError(message, { key });
+        };
+        const ordinary = [
+            { from: "a", to: "A", key: "a" },
+            { from: "b", to: "B", key: "b" },
+            { from: "ab", to: "AB", key: "ab" },
+        ];
+        expect(() => assertUniqueOutputs(ordinary, fault)).not.toThrow();
+        for (const index of [0, 2]) {
+            const rows = ordinary.map((row, i) => (i === index ? { ...row, after: "c" } : row));
+            expect(() => assertUniqueOutputs(rows, fault)).toThrow(/ambiguous/);
+        }
+    });
+});

@@ -153,8 +153,14 @@ An encoding's output must decode unambiguously, including across adjacent
 mappings and spaces. The compiler refuses indistinguishable spellings rather
 than choosing a guessed reading. See [the executable rules](../encoding-core.md).
 
-Mappings match longest first; contextual before-vowel rules precede their
-unconditional alternatives. A case rule may allow lowercase and initial-capital
+Mappings match longest first; contextual rules precede their unconditional
+alternatives. A contextual mapping may use `after: vowel`, `after: consonant`
+or one exact NFC letter such as `after: a` to test the preceding source letter.
+It may combine this with `before` and `at`; all supplied conditions must hold.
+The categories use `data.vowels`. These positive conditions need explicit
+allowed alternatives to refuse a predecessor, with no unconditional fallback.
+`after` governs encoding only; see [the executable rules](../encoding-core.md)
+for normalization and decoding details. A case rule may allow lowercase and initial-capital
 groups while refusing other mixed or uppercase group spellings. Encoding keeps
 authored case and never rewrites a word's Roman spelling.
 
