@@ -229,6 +229,78 @@ export function siteBase(config) {
 }
 
 /**
+ * Apply validated runtime site URLs to a resolved configuration, without changing it.
+ * The caller checks the authored homepage before applying these build options.
+ *
+ * @param {ContentBuildConfig} config - The resolved authored configuration.
+ * @param {object} options - Runtime options.
+ * @param {string} [options.baseUrl] - Absolute HTTP(S) site URL ending in `/`.
+ * @param {string} [options.assets] - Absolute HTTP(S) asset root.
+ * @returns {ContentBuildConfig} The effective configuration, frozen.
+ */
+export function siteBuildConfig(config, { baseUrl, assets }) {
+    if (baseUrl === undefined && assets === undefined) return config;
+    const homepage = baseUrl === undefined ? config.homepage : buildUrl(baseUrl, "--base-url").href;
+    const base =
+        baseUrl === undefined ? config.site.base : normalizeSiteBase(new URL(homepage).pathname);
+    const assetRoot =
+        assets === undefined ?
+            config.site.assets
+        :   normalizeSiteAssets(buildUrl(assets, "--assets").href);
+    checkSiteSitemaps(config.site.sitemaps, base, config.contentPackage);
+    return Object.freeze({
+        ...config,
+        homepage,
+        site: Object.freeze({ ...config.site, base, assets: assetRoot }),
+    });
+}
+
+/**
+ * A runtime web root must survive URL joining and mapping to a local directory.
+ *
+ * @param {string} value - The command-line value.
+ * @param {string} option - The option naming it.
+ * @returns {URL} The checked URL.
+ */
+function buildUrl(value, option) {
+    // URL parsing consumes both literal and escaped dot segments.
+    const rawPath = /^https?:\/\/[^/?#]+([^?#]*)/i.exec(value)?.[1] ?? "";
+    if (
+        rawPath.includes("%") ||
+        rawPath.split("/").some((segment) => segment === "." || segment === "..")
+    ) {
+        throw new TypeError(
+            `${option} must use a plain path without percent escapes or dot segments`,
+        );
+    }
+    let url;
+    try {
+        url = new URL(value);
+    } catch {
+        throw new TypeError(`${option} must be an absolute HTTP(S) URL`);
+    }
+    if (
+        !/^https?:\/\/[^/]+/i.test(value) ||
+        /[\s\\]/.test(value) ||
+        !["http:", "https:"].includes(url.protocol) ||
+        url.username ||
+        url.password ||
+        value.includes("?") ||
+        value.includes("#") ||
+        url.pathname.includes("//") ||
+        url.pathname.includes("%")
+    ) {
+        throw new TypeError(
+            `${option} must be an absolute HTTP(S) URL with a plain path and no credentials, query or fragment`,
+        );
+    }
+    if (option === "--base-url" && !url.pathname.endsWith("/")) {
+        throw new TypeError(`${option} must end with /`);
+    }
+    return url;
+}
+
+/**
  * Whether this package publishes the pages its content tree compiles to.
  *
  * Every package publishes an authored homepage. Other authored notes provide
@@ -1875,6 +1947,23 @@ function packageSiteList(value, field, contentPackage) {
 }
 
 /**
+ * @param {readonly string[]} sitemaps - The configured package sitemaps.
+ * @param {string} base - The site path.
+ * @param {string} contentPackage - The package id.
+ * @returns {void}
+ */
+function checkSiteSitemaps(sitemaps, base, contentPackage) {
+    if (sitemaps.length && base !== "/") {
+        fail(
+            "site.sitemaps",
+            "names the package sites a sitemap index lists, and a sitemap index and " +
+                "`robots.txt` belong at the root of an origin; this site is served at " +
+                `\`${base || `/${contentPackage}/`}\`, so declare \`site.base: /\` or drop the key`,
+        );
+    }
+}
+
+/**
  * The `site` section — how this repository frames the website it publishes.
  *
  * Everything here is *framing*: which named pass bundle supplies the
@@ -1939,14 +2028,7 @@ function normalizeSite(value, contentPackage) {
     const base = normalizeSiteBase(input.base);
     const search = optionalBoolean(input.search, "site.search", true);
     const sitemaps = packageSiteList(input.sitemaps, "site.sitemaps", contentPackage);
-    if (sitemaps.length && base !== "/") {
-        fail(
-            "site.sitemaps",
-            "names the package sites a sitemap index lists, and a sitemap index and " +
-                "`robots.txt` belong at the root of an origin; this site is served at " +
-                `\`${base || `/${contentPackage}/`}\`, so declare \`site.base: /\` or drop the key`,
-        );
-    }
+    checkSiteSitemaps(sitemaps, base, contentPackage);
     const mergeIndexes = packageSiteList(input.mergeIndexes, "site.mergeIndexes", contentPackage);
     if (mergeIndexes.length && !search) {
         fail(

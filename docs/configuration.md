@@ -1284,6 +1284,11 @@ site:
   mergeIndexes: [sohl, thalorna, kethira, harnensemble]
 ```
 
+The optional [`site build --base-url` and `--assets` flags](commands.md#package-build-site-build)
+apply runtime overrides to these resolved settings. The base URL supplies the
+effective homepage and `site.base`; the asset URL supplies effective
+`site.assets`. The authored configuration stays unchanged and must be valid.
+
 ### What the site build reads
 
 `package-build site build` composes the site's settings from sources the

@@ -2685,7 +2685,7 @@ it for search.
 **SYNOPSIS**
 
 ```
-package-build site build [--out <dir>]
+package-build site build [--out <dir>] [--base-url <url>] [--assets <url>]
 ```
 
 **DESCRIPTION**
@@ -2760,9 +2760,27 @@ run fails before the search index is built.
 
 `--out <dir>` — the directory that is deployed. Defaults to `build/site`.
 
+`--base-url <url>` — the absolute HTTP(S) address of this build. Its pathname
+becomes the effective `site.base`, and must end with `/`; `/` serves the site
+at the origin's root. Pages, local links, theme files, script fonts and search
+all use that prefix. Output lands under `<out>/<pathname>/`.
+
+`--assets <url>` — the absolute HTTP(S) asset root for this build. It may
+include a path; trailing slashes are trimmed.
+
+Both options are optional and independent. Without them, the build uses the
+authored `homepage`, `site.base` and `site.assets`. Overrides apply in memory
+before preflight and rendering; they never rewrite `package.json` or
+`package-build.config.yaml`. The authored homepage must still pass its usual
+validation. Both URLs require plain paths without percent escapes, dot
+segments (`.` or `..`), or doubled slashes, and reject credentials, queries,
+fragments, whitespace and backslashes.
+Invalid overrides fail before output is replaced. A site declaring
+`site.sitemaps` must still be served at `/`.
+
 **EXIT STATUS**
 
-1 if `package.json` declares no `homepage`, or one that does not end
+1 if a runtime URL override is invalid. 1 if `package.json` declares no `homepage`, or one that does not end
 `/<contentPackage>/`; if the site declares no title, description or `assets`
 host; or if the navigation has not been fetched (`package-build deps fetch`
 fills the cache and is named in the message). 1 if any gate fires — no
@@ -2773,6 +2791,15 @@ script-font finding, and when the search index cannot be built. Otherwise 0,
 findings of severity `warning` included.
 
 **EXAMPLES**
+
+```bash
+package-build site build \
+    --base-url https://www.internal.heroiclands.org/thalorna/ \
+    --assets https://cdn.internal.heroiclands.org
+package-build site build \
+    --base-url https://www.internal.heroiclands.org/pr/thalorna/123/thalorna/ \
+    --assets https://cdn.internal.heroiclands.org
+```
 
 ```
 $ package-build site build

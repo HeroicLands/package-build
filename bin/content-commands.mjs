@@ -46,7 +46,12 @@ import log from "loglevel";
 import prefix from "loglevel-plugin-prefix";
 import { readStdin } from "../engine/read-stdin.mjs";
 import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
-import { compilesFoundryDocuments, publishesContentPages, siteBase } from "../content-config.mjs";
+import {
+    compilesFoundryDocuments,
+    publishesContentPages,
+    siteBase,
+    siteBuildConfig,
+} from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { buildPdf, listBookAssets } from "../engine/pdf-build.mjs";
 import { summaryLines } from "../engine/pdf-coverage.mjs";
@@ -115,7 +120,7 @@ import {
 } from "../engine/encoding-lexicon.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import { lintProse, scoreProseTree } from "../engine/readability-lint.mjs";
-import { loadPackageBuildConfig } from "../config.mjs";
+import { checkHomepage, loadPackageBuildConfig } from "../config.mjs";
 import {
     emitContentIndex,
     prepareContentIndex,
@@ -520,7 +525,7 @@ function withIndexPreflight(command, shouldCheck = () => true) {
         handler: async (argv) => {
             let config;
             try {
-                config = loadPackConfig();
+                config = argv[CONTENT_CONFIG] ?? loadPackConfig();
                 if (shouldCheck(config, argv)) cachedMetadataIndexes(config);
             } catch (err) {
                 if (config) {
@@ -2279,9 +2284,11 @@ function siteCommand() {
         builder: (yargs) =>
             yargs
                 .command(
-                    withIndexPreflight(
-                        withBodyPreflight(siteBuildCommand()),
-                        publishesContentPages,
+                    withSiteBuildConfig(
+                        withIndexPreflight(
+                            withBodyPreflight(siteBuildCommand()),
+                            publishesContentPages,
+                        ),
                     ),
                 )
                 .command(
@@ -2291,6 +2298,29 @@ function siteCommand() {
                     ),
                 )
                 .demandCommand(1, "Name a site command: build or serve."),
+    };
+}
+
+/** Apply runtime site settings before the index and body preflights. */
+function withSiteBuildConfig(command) {
+    const handler = command.handler;
+    return {
+        ...command,
+        handler: async (argv) => {
+            if (argv.baseUrl === undefined && argv.assets === undefined) return handler(argv);
+            try {
+                const authored = argv[CONTENT_CONFIG] ?? loadPackConfig();
+                checkHomepage(authored.homepage, authored.contentPackage, authored.site.base);
+                const config = siteBuildConfig(authored, {
+                    baseUrl: argv.baseUrl,
+                    assets: argv.assets,
+                });
+                return await handler({ ...argv, [CONTENT_CONFIG]: config });
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
     };
 }
 
@@ -2342,10 +2372,21 @@ function siteBuildCommand() {
         command: "build",
         describe: "Render the content tree as a website and index it for search",
         builder: (yargs) =>
-            yargs.option("out", {
-                type: "string",
-                describe: `The directory that is deployed (default: ${DEPLOY_ROOT})`,
-            }),
+            yargs
+                .option("out", {
+                    type: "string",
+                    describe: `The directory that is deployed (default: ${DEPLOY_ROOT})`,
+                })
+                .option("base-url", {
+                    type: "string",
+                    requiresArg: true,
+                    describe: "Absolute HTTP(S) site URL for this build, ending in /",
+                })
+                .option("assets", {
+                    type: "string",
+                    requiresArg: true,
+                    describe: "Absolute HTTP(S) asset root for this build",
+                }),
         handler: async (argv) => {
             try {
                 const config = argv[CONTENT_CONFIG] ?? loadPackConfig();

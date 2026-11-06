@@ -306,6 +306,36 @@ The terminal reports indexing, rendering, writing and search indexing as they
 start, including page counts where available. Progress is on stdout;
 diagnostics retain their file, line and column on stderr.
 
+For an internal main preview, supply the build's address and asset root:
+
+```bash
+package-build site build \
+    --base-url https://www.internal.heroiclands.org/thalorna/ \
+    --assets https://cdn.internal.heroiclands.org
+```
+
+For a pull request preview, include the whole prefix:
+
+```bash
+package-build site build \
+    --base-url https://www.internal.heroiclands.org/pr/thalorna/123/thalorna/ \
+    --assets https://cdn.internal.heroiclands.org
+```
+
+The second build writes to `build/site/pr/thalorna/123/thalorna/`. Its local
+links, theme files, script fonts and search stay under that prefix; its images
+use the supplied asset root. `--out` changes the deployment directory above the
+prefix. Both URL options are optional and independent, and require absolute
+HTTP(S) URLs. The base URL's path ends with `/`; the asset root may include a
+path and has trailing slashes trimmed. Use plain paths without percent escapes,
+dot segments (`.` or `..`), or doubled slashes, credentials, queries or fragments.
+
+The options apply to this build only. Authored `package.json` and YAML stay
+unchanged, and the authored homepage still has to match the configured site.
+Invalid overrides fail before replacing output. A site with `site.sitemaps`
+requires a base URL at the origin's root. See the
+[command reference](../commands.md#package-build-site-build) for URL validation.
+
 ```bash
 package-build site serve
 ```
