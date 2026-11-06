@@ -212,6 +212,7 @@ export * as packagebuildIndex from "./packagebuild-index.mjs";
 
 /** Publishing a content tree as a website: the pass, and its integrity gates. */
 export * as siteBuild from "./site-build.mjs";
+export * as sitePage from "./site-page.mjs";
 
 /** In-memory page rendering for an editor preview. */
 export * as sitePreview from "./site-preview.mjs";

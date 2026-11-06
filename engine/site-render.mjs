@@ -70,8 +70,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { LEXICAL_LINK_CLASS } from "./dictionary-layout.mjs";
-import { createRenderer } from "./content-render.mjs";
-import { resolvePathname } from "./pathnames.mjs";
+import { siteBodyRenderer } from "./site-page.mjs";
 import { minifyHtml } from "./html-minify.mjs";
 import { mapWorld } from "./map-places.mjs";
 import {
@@ -548,8 +547,7 @@ export function writeSite({
  *   becomes its page.
  */
 export function packageSite({ config, built, settings, navigation = [], year }) {
-    const renderer = createRenderer("web", { icons: config.icons });
-    const resolveSrc = (src) => resolvePathname(src, config)?.web ?? null;
+    const renderBody = siteBodyRenderer(config);
     const { site: from } = built;
     const relative = (file) =>
         file ? path.relative(process.cwd(), file).split(path.sep).join("/") : undefined;
@@ -582,7 +580,7 @@ export function packageSite({ config, built, settings, navigation = [], year }) 
             params: data,
             date: isPost(data) ? data.data?.date : undefined,
             weight: data.weight,
-            content: renderer.render(markdown, { runs: from.runs, figures, resolveSrc }),
+            content: renderBody(markdown, { runs: from.runs, figures }),
             source: relative(page.file),
             search: search(data),
         };
@@ -595,7 +593,7 @@ export function packageSite({ config, built, settings, navigation = [], year }) 
             title: text(home.data.title),
             url: from.base,
             params: home.data,
-            content: renderer.render(home.body, { runs: from.runs, resolveSrc }),
+            content: renderBody(home.body, { runs: from.runs }),
             source: relative(home.file),
             search: search(home.data),
         });

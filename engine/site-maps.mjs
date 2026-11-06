@@ -95,20 +95,33 @@ export function inlineSvg(svg) {
  * @param {object} opts.config - The resolved configuration.
  * @param {string} opts.base - The site base every page is served under,
  *   ending in a slash: what every name in a drawing links through.
+ * @param {Iterable<string>} [opts.only] - The places to draw, by shortcode,
+ *   of those given a map; absent, every one.
+ * @param {string} [opts.outDir] - Where to draw, emptied first;
+ *   {@link SITE_MAP_DIR} under the package root by default.
  * @returns {{maps: Map<string, SiteMap>, findings: Array<{file: string,
  *   line?: number, column?: number, severity: "error"|"warning",
  *   message: string}>}} The drawings, keyed by the file name a **From here**
  *   section names, and warnings for relations that name no place.
  */
-export function drawSiteMaps({ records, foreignIndex, config, base }) {
+export function drawSiteMaps({
+    records,
+    foreignIndex,
+    config,
+    base,
+    only,
+    outDir = path.join(config.rootDir, ...SITE_MAP_DIR.split("/")),
+}) {
     /** @type {Map<string, SiteMap>} */
     const maps = new Map();
-    const outDir = path.join(config.rootDir, ...SITE_MAP_DIR.split("/"));
+    const wanted = only ? new Set(only) : undefined;
     // Every run draws afresh: a place that lost its relations must not keep
     // the map an earlier run drew.
     fs.rmSync(outDir, { recursive: true, force: true });
 
-    const centres = placesWithMaps(records, { foreignIndex, config });
+    const centres = placesWithMaps(records, { foreignIndex, config }).filter(
+        (centre) => !wanted || wanted.has(centre),
+    );
     if (centres.length === 0) return { maps, findings: [] };
     const world = mapWorld({
         records,
@@ -125,25 +138,4 @@ export function drawSiteMaps({ records, foreignIndex, config, base }) {
         maps.set(name, { name, file });
     }
     return { maps, findings };
-}
-
-/**
- * The figure the website sets a drawing in: the SVG inline, so its place names
- * stay links, with no blank line inside it — a blank line would end the HTML
- * block and hand the rest of the drawing to the Markdown renderer.
- *
- * @param {string} svg - The drawing, as {@link inlineSvg} wrote it.
- * @param {string} alt - What the drawing shows, for a screen reader.
- * @returns {string} One HTML block.
- */
-export function inlineDrawingFigure(svg, alt) {
-    const label = String(alt ?? "").replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-    const body = String(svg)
-        .split("\n")
-        .filter((line) => line.trim() !== "")
-        .join("\n");
-    return (
-        `<figure class="note-image note-image-full-width" role="img" ` +
-        `aria-label="${label}">\n${body}\n</figure>`
-    );
 }

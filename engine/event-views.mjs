@@ -42,6 +42,7 @@
 import { ownDocumentSystem, renderAddress } from "./address.mjs";
 import { authoredSection, sectionHeading } from "./generated-sections.mjs";
 import { calendarAddress } from "./reckoning-markers.mjs";
+import { outsideOnly } from "./prepared-only.mjs";
 
 /** A literal SQL string. */
 const literal = (text) => `'${String(text).replace(/'/g, "''")}'`;
@@ -428,8 +429,9 @@ function section(view, query) {
  * @param {Iterable<object>} records - The content-index records.
  * @param {(record: object) => string} fileOf - A record's note file, as the
  *   prepared results are keyed.
- * @param {string} [only] - One note file to give views to, every note's being
- *   read for them; absent, every note is given its views.
+ * @param {string|Set<string>} [only] - The note file, or files, to give views
+ *   to, every note's being read for them; absent, every note is given its
+ *   views.
  * @returns {Promise<Map<string, Map<string, string>>>} Note file to its views,
  *   each keyed by its slug, for every note given at least one.
  */
@@ -448,7 +450,7 @@ export async function eventViewSections(db, records, fileOf, only) {
         const selves = [];
         for (const record of all) {
             if (!record?.address || record.documents || !record.shortcode) continue;
-            if (only !== undefined && fileOf(record) !== only) continue;
+            if (outsideOnly(only, fileOf(record))) continue;
             if (!view.applies(record) || authoredSection(record, view.slug)) continue;
             const self = selfForms(record);
             if (view.query(self, shape)) selves.push(self);
@@ -460,7 +462,7 @@ export async function eventViewSections(db, records, fileOf, only) {
     }
     for (const record of all) {
         if (!record?.address || record.documents || !record.shortcode) continue;
-        if (only !== undefined && fileOf(record) !== only) continue;
+        if (outsideOnly(only, fileOf(record))) continue;
         const self = selfForms(record);
         const sections = new Map();
         for (const view of EVENT_VIEWS) {

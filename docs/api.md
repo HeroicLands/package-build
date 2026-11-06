@@ -193,16 +193,18 @@ Whether a content tree has anything to compile. The pack build's worst failure i
 
 The consuming repository's resolved `package-build.config.yaml`: the content package, the Foundry package and its kind, every path, the `_stats` identity, item-type membership and the pack list — read on call rather than hoisted at import, so importing this package never requires a configuration to exist.
 
-| Export              | Signature                            | Returns                       | Use it when                                                                          |
-| ------------------- | ------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------ |
-| `CONFIG_BASENAME`   | `const CONFIG_BASENAME`              | —                             | naming the stem every consuming repository declares its build under                  |
-| `CONFIG_FILENAMES`  | `const CONFIG_FILENAMES`             | —                             | listing the file names a configuration may be written as                             |
-| `findConfigFile`    | `findConfigFile(from)`               | `string \| undefined`         | finding the nearest configuration file at or above a directory                       |
-| `resolveConfigFile` | `resolveConfigFile(...)`             | `{path, fromCwd, fromModule}` | asking which configuration file a build launched here would read, without loading it |
-| `locateConfigError` | `locateConfigError(err, configPath)` | the decorated error           | attaching the position of the key a configuration error names                        |
-| `configFromData`    | `configFromData(data, configPath)`   | `ContentBuildConfig`          | turning a parsed YAML configuration into the frozen one the engine reads             |
-| `loadPackConfig`    | `loadPackConfig()`                   | `ContentBuildConfig`          | reading the consuming repository's resolved, frozen configuration                    |
-| `packConfigPath`    | `packConfigPath()`                   | `string`                      | naming the file `loadPackConfig` resolved the configuration from, for a diagnostic   |
+| Export              | Signature                            | Returns                       | Use it when                                                                                      |
+| ------------------- | ------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| `CONFIG_BASENAME`   | `const CONFIG_BASENAME`              | —                             | naming the stem every consuming repository declares its build under                              |
+| `CONFIG_FILENAMES`  | `const CONFIG_FILENAMES`             | —                             | listing the file names a configuration may be written as                                         |
+| `findConfigFile`    | `findConfigFile(from)`               | `string \| undefined`         | finding the nearest configuration file at or above a directory                                   |
+| `resolveConfigFile` | `resolveConfigFile(...)`             | `{path, fromCwd, fromModule}` | asking which configuration file a build launched here would read, without loading it             |
+| `locateConfigError` | `locateConfigError(err, configPath)` | the decorated error           | attaching the position of the key a configuration error names                                    |
+| `configFromData`    | `configFromData(data, configPath)`   | `ContentBuildConfig`          | turning a parsed YAML configuration into the frozen one the engine reads                         |
+| `loadPackConfig`    | `loadPackConfig()`                   | `ContentBuildConfig`          | reading the consuming repository's resolved, frozen configuration                                |
+| `packConfigPath`    | `packConfigPath()`                   | `string`                      | naming the file `loadPackConfig` resolved the configuration from, for a diagnostic               |
+| `readPackConfig`    | `readPackConfig(configPath)`         | `ContentBuildConfig`          | reading the configuration one named file declares, unmemoised                                    |
+| `withPackConfig`    | `withPackConfig(config, fn, file?)`  | what `fn` returns             | running work, asynchronous included, with `config` as the configuration `loadPackConfig` answers |
 
 ### `engine.packRouter`
 
@@ -621,12 +623,11 @@ The npm-installed Graphviz runtime draws SVG maps. The `.dot` source stays besid
 
 The map from each place, drawn for the site: `package-build site build` draws the map from every place of this package given a **From here** section — with the site's base, so every name links through it — and sets each drawing inline in that section, where its place names stay links. `site.maps: false` gives no place the section, and nothing is drawn.
 
-| Export                | Signature                                               | Returns            | Use it when                                                                                                     |
-| --------------------- | ------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `SITE_MAP_DIR`        | `const SITE_MAP_DIR`                                    | `string`           | where the site build draws below a package's root, `build/map/site`                                             |
-| `inlineSvg`           | `inlineSvg(svg)`                                        | `string`           | rewriting a GraphViz SVG for inlining — no prologue, no comment, no `xlink:`, the root sized by `viewBox` alone |
-| `drawSiteMaps`        | `drawSiteMaps({ records, foreignIndex, config, base })` | `{maps, findings}` | drawing the map from every place given a **From here** section, keyed by the file name the section names        |
-| `inlineDrawingFigure` | `inlineDrawingFigure(svg, alt)`                         | `string`           | the one HTML block the website sets an inline drawing in, with no blank line to end it early                    |
+| Export         | Signature                                                               | Returns            | Use it when                                                                                                     |
+| -------------- | ----------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `SITE_MAP_DIR` | `const SITE_MAP_DIR`                                                    | `string`           | where the site build draws below a package's root, `build/map/site`                                             |
+| `inlineSvg`    | `inlineSvg(svg)`                                                        | `string`           | rewriting a GraphViz SVG for inlining — no prologue, no comment, no `xlink:`, the root sized by `viewBox` alone |
+| `drawSiteMaps` | `drawSiteMaps({ records, foreignIndex, config, base, only?, outDir? })` | `{maps, findings}` | drawing the map from every place given a **From here** section, keyed by the file name the section names        |
 
 ### `engine.systems`
 
@@ -1447,9 +1448,17 @@ locate it in the complete source. LF and CRLF retain their authored lengths.
 
 `previewIndex({ config, records, foreign? })` builds what [`renderPreview`](#enginesitepreview) takes as `index`: the link index, the asset address space, the languages' maps, the icon registry and an `expand` function that resolves a buffer's links, embeds, expressions and figure numbers as the website does. `records` are the content index's records and `foreign` the dependencies' indexes. Build it once per index and reuse it for every render.
 
-| Export         | Signature                                    | Returns                                | Use it when                                                              |
-| -------------- | -------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------ |
-| `previewIndex` | `previewIndex({ config, records, foreign })` | `{ runs, icons, lookupAsset, expand }` | An editor holds a content index and wants the preview to render with it. |
+| Export              | Signature                                         | Returns                                | Use it when                                                               |
+| ------------------- | ------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------- |
+| `previewIndex`      | `previewIndex({ config, records, foreign })`      | `{ runs, icons, lookupAsset, expand }` | An editor holds a content index and wants the preview to render with it.  |
+| `recordSiteContext` | `recordSiteContext({ config, records, foreign })` | `{ site, assets, events, runs }`       | Resolving a page against content-index records instead of a content tree. |
+
+`recordSiteContext` places every note that publishes a page at the URL the
+site gives it: the homepage at the package root, a note `site.sections` names
+at its section, and every other note at its address. `anchorsOf(record)` may
+answer a note's anchors as its page emits them, generated sections included;
+answering nothing keeps the record's own. `pages` maps each page's URL to its
+record.
 
 ### `engine.sitePreview`
 
@@ -1694,7 +1703,8 @@ Shared helpers for the pack compilers in `packages/package-build/`. The HeroicLa
 | `convertNoteWikilinks`    | `convertNoteWikilinks(body, { type, id, pack, docPack, index, name, file, bodyLine, bodyColumn, lineMap })` | `{{markdown: string, unresolved: Array<object>}}`                                                                                                                                                                                         | Converts the wikilinks in one note's markdown, reporting any that have no target in the content tree.                                                                                                |
 | `expandNoteTables`        | `function expandNoteTables(body,`                                                                           | `{{markdown: string, lineMap: Array<{line: number, generated: boolean}>}}` The body with every table expanded, and where each emitted line came from — which is what lets a diagnostic about the expanded body name an authored position. | Expand prepared SQL tables in one note's markdown, before wikilinks are resolved — so a generated cell may itself be a wikilink.                                                                     |
 | `folderFilename`          | `function folderFilename(name, id)`                                                                         | —                                                                                                                                                                                                                                         | Builds a compendium-source filename for a folder JSON document: `folder_Name_id.json` with non-alphanumeric runs replaced by underscores.                                                            |
-| `walkMarkdownTree`        | `walkMarkdownTree(rootDir, { skipDirectories, sources, renderDescription })`                                | generator yielding `{frontmatter, body, description, raw, bodyLine?, bodyColumn?, file, absPath}`                                                                                                                                         | walking a content tree and reading every markdown file's frontmatter and body; `skipDirectories` is required rather than defaulted, so two callers cannot silently disagree about the corpus's scope |
+| `walkMarkdownTree`        | `walkMarkdownTree(rootDir, { skipDirectories, sources, renderDescription, parse })`                         | generator yielding `{frontmatter, body, description, raw, bodyLine?, bodyColumn?, file, absPath}`                                                                                                                                         | walking a content tree and reading every markdown file's frontmatter and body; `skipDirectories` is required rather than defaulted, so two callers cannot silently disagree about the corpus's scope |
+| `walkMarkdownFiles`       | `walkMarkdownFiles(rootDir, { skipDirectories })`                                                           | generator yielding each `.md` file's absolute path                                                                                                                                                                                        | listing the files `walkMarkdownTree` reads, in its order, without reading them                                                                                                                       |
 
 `buildContentLinkIndex` accepts `{ config?, records, sqlTables?, foreign? }`.
 `records` is the required, supplied content corpus. The optional prepared
@@ -1705,9 +1715,12 @@ so glossary word links resolve to their dictionary entries.
 `renderDescription` option defaults to true; false leaves `description` empty
 while retaining authored body and positions. `walkMarkdownTree` accepts a
 selected `sources` map in walk order and the same rendering option, also true
-by default. Index collection explicitly omits unused rendered descriptions.
-`indexRecordsFor` accepts that selected map, a `syntax` projection function
-and a captured `foreignIndex`. These adapters do not retain state globally.
+by default, and a `parse` function called as `parseMarkdownFile` is, for a
+caller answering from earlier parses. Index collection explicitly omits unused
+rendered descriptions. `indexRecordsFor` accepts that selected map, a `syntax`
+projection function, a captured `foreignIndex` and a `cache` of earlier
+parses and per-note records, the one [`./note-page`](#note-page) keeps. These
+adapters do not retain state globally.
 
 The physical wrappers `lintContentCharset`, `lintContentHtml`,
 `lintContentIcons`, `lintContentImages` and `lintContentTaskLists` accept an
@@ -2191,6 +2204,138 @@ Where HM3 records the template priority — one statement (`data.templatePriorit
 | ---------------------- | ---------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `HM3_DEFAULT_ITEM_ART` | `const HM3_DEFAULT_ITEM_ART` | —                                 | reading the full map of default item artwork keyed by **note** type (not document subtype) for HM3 items |
 | `hm3DefaultItemArt`    | `hm3DefaultItemArt(type)`    | `string` — the default image path | getting the default art path for an HM3 item's note type, throwing when the type is unknown              |
+
+### `engine.sitePage`
+
+One content page, from its note to its body HTML. The site build renders every
+page through these functions, and [`./note-page`](#note-page) renders a single
+note through the same ones. Nothing here reads a file.
+
+| Export                      | Signature                                | Returns                                            | Use it when                                                                                  |
+| --------------------------- | ---------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `parseNote`                 | `parseNote(source, file, ctx)`           | `{fm, body, bodyLine} \| null`                     | reading a note's frontmatter and body from its text, addresses decoded                       |
+| `contentPage`               | `contentPage(note, ctx)`                 | `{page?, fmLinks, addressFinding?} \| null`        | deciding whether a note publishes a page, and building it                                    |
+| `inlineDrawingFigure`       | `inlineDrawingFigure(svg, alt)`          | `string`                                           | the one HTML block the website sets an inline drawing in, with no blank line to end it early |
+| `pageFrontmatter`           | `pageFrontmatter(page, options)`         | `object`                                           | the frontmatter a page publishes with                                                        |
+| `pageTitle`                 | `pageTitle(page)`                        | `string`                                           | the title a page publishes under                                                             |
+| `resolveArtFields`          | `resolveArtFields(data, webSrc, artSrc)` | `void`                                             | rewriting a page's artwork addresses into the URLs the website serves                        |
+| `isPlainObject`             | `isPlainObject(value)`                   | `boolean`                                          | asking whether a value is a mapping a field may be read from                                 |
+| `renderSitePage`            | `renderSitePage(page, options)`          | `{markdown, figures, data, resolved, …Errors}`     | expanding one page with the passes the site writer uses                                      |
+| `resolveSitePass`           | `resolveSitePass(name, options)`         | `{beforeLinks?: Function}`                         | resolving `site.pass` to its bundle                                                          |
+| `sitePageDecorator`         | `sitePageDecorator(config, index)`       | `Function`                                         | adding the site's infobox and being metadata to a page's frontmatter                         |
+| `siteBodyRenderer`          | `siteBodyRenderer(config)`               | `(markdown, {runs, figures}) => string`            | rendering an expanded page body to the HTML the site writer receives                         |
+| `pageDiagnostics`           | `pageDiagnostics(result, rawOf)`         | `Array<{file, line?, column?, severity, message}>` | turning a page render's findings into located diagnostics                                    |
+| `frontmatterLinkDiagnostic` | `frontmatterLinkDiagnostic(finding)`     | `{file, severity, message}`                        | reporting a wikilink authored in frontmatter                                                 |
+| `addressDiagnostic`         | `addressDiagnostic(finding)`             | `{file, severity, message}`                        | reporting a note whose page has no address                                                   |
+
+`renderSitePage` takes `drawing`, a function from the file name a generated
+**From here** section names to that drawing's SVG text, and sets the drawing
+inline when it answers. The site build answers with the maps it drew.
+
+## `./note-page`
+
+One note, rendered to the body HTML its site page carries, for a preview that
+reads like the published page: links as their labels and unresolved ones
+marked, `.name` spans in bold, query fences evaluated into tables, inline verse
+broken onto its lines and the generated sections a page carries.
+
+```js
+import { renderNoteFile } from "@heroiclands/package-build/note-page";
+
+const { html, styles, findings, cache } = await renderNoteFile("assets/content/Lore/Tides.md", {
+  root: "/path/to/repository",
+});
+```
+
+| Export           | Signature                                                 | Returns                                      | Use it when                                                   |
+| ---------------- | --------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------- |
+| `renderNoteFile` | `renderNoteFile(path, { root?, cache?, prepareTables? })` | `Promise<{ html, styles, findings, cache }>` | rendering a saved note of a repository as its site page shows |
+
+`path` is the note, relative to `root` or absolute; `root` is the repository
+or any directory inside it, the working directory by default. The note is read
+from disk, so what is rendered is what is saved. `renderNoteFile` loads the
+repository's `package-build.config.yaml` and its dependencies' fetched indexes,
+derives the content tree's index records as every build does, answers the
+note's own queries and generated sections over them as `package-build site
+build` does, and renders the note through the site build's own page render.
+The repository's configuration answers every read of the configuration made
+during the call, wherever the caller stands. Nothing has to be built first: no
+content index and no site.
+
+The page resolves against the notes it links as their own pages emit them.
+The note is rendered once to learn which of the package's pages it looks up,
+and those notes' query answers and generated sections are prepared beside its
+own, so a link to a generated section such as `#fromhere` resolves, and a
+cross-note `{{ref}}` finds the target's figures, numbered as its page numbers
+them. A place's **From here** drawing is drawn for that place alone, in a
+scratch directory under the system's temporary directory that is removed once
+the drawing is read, and set inline as the site sets it.
+
+**The cache.** The records and the note's answers are kept in
+`build/cache/note-page/` under the repository root, and reused while every
+input they were derived from is unchanged. Nothing is reused otherwise: each
+stored answer is keyed by a hash of its inputs, which are
+
+- package-build's version and the bytes of its own modules, the Node.js
+  version and the DuckDB version;
+- the configuration file's bytes and the resolved configuration;
+- the bytes of every fetched dependency index, and the installed
+  `@heroiclands/fonts` version and manifest;
+- every note's path and the hash of its text, and the package's asset records.
+
+The dependencies' indexes and the configuration are read between two
+readings of those inputs, which are read again after the records are derived
+and around preparing any query answers the store lacks. When any reading
+differs, something changed while it was read: nothing is stored, and the whole
+render is done again from the start, the configuration resolved and the note's
+place in the tree checked afresh, so a retry answers as a fresh call would and
+a store always holds what was derived from the bytes its key names. After
+three such attempts the call throws. The cache holds two stores, each
+replaced whole by renaming a complete file over it. `notes.v8` keeps each note's parse, keyed by its text, and the
+records derived from that note alone, keyed also by what the tree gives every
+note: the setting date and calendars, the addresses the notes declare and the
+asset records. `tree.v8` keeps the whole tree's records, keyed by every input,
+and beside them the query answers of each note a render has needed. So a second render of an
+unchanged tree reads the records and the answers; a changed note re-derives
+its own records and re-runs the passes that read the whole tree; a changed
+address, calendar, asset, dependency index, configuration or toolchain
+re-derives every note. A store that cannot be read, that was written for
+other inputs, or that holds an entry of the wrong shape, down to each table
+result, inline answer, page-list result and parse inside it, is derived again
+and overwritten. Deleting the directory loses
+only time. `cache: false` derives everything and reads and writes nothing.
+`prepareTables` prepares the query answers, `prepareTreeSqlTables` from
+`engine/sql-tables.mjs` by default; a host may wrap it to time or observe the
+preparation.
+
+`html` is the body before the site writer minifies it and before it unlinks
+links to pages its homepage cannot reach. Set it in
+`<div class="single-content"><div class="single-body">…</div></div>` with
+`styles`, the CSS the site theme applies to a page body, to show it as the page
+does. `styles` carries the theme's reset, body typography and ordinary link
+rules scoped to `.single-content`, so the body reads as the page does whatever
+the host's own styles, and sets the root font size on `:root`, since the
+theme measures its lengths in `rem`. Each finding is `{ file, line?, column?, severity, message }` and prints
+through `formatDiagnostic` as `file:line:column: severity: message`. `cache`
+says what the cache answered: `tree` is `"hit"` when the tree's records were
+reused whole, `"miss"` when they were derived, and `"off"` without the cache;
+`notes` counts the notes whose own records were derived again; `tables` is
+`"hit"` when the answers of the note and of every note it links were all
+reused, `"miss"` when any was prepared, and `"off"` without the cache.
+
+It throws when there is no configuration at or above `root`; when the file is
+not a note of the content tree (outside `paths.content`, in a skipped
+directory, or not Markdown); when a dependency's index has not been fetched or
+cannot be read, naming `package-build deps fetch`; when a note of the tree
+cannot be indexed, as the content-index build reports it; and when the
+configuration, fonts or dependency indexes keep changing while they are read,
+three times over. A finding in the
+rendered note itself is returned in `findings`, never thrown.
+
+`prepareTreeSqlTables(contentBase, { only })`, with one note's file or a
+collection of them, answers those notes' directives and generated sections and
+no other note's; its queries still read the whole corpus, so each note's
+results equal its results in a preparation of the whole tree.
 
 ## `./preview`
 
@@ -2678,6 +2823,10 @@ preparation and kept separate.
 `prepareTreeSqlTables` retains the complete record membership when opening a
 public database, so derived citations can distinguish hidden notes from
 unknown addresses. Only public records contribute rendered sources and links.
+`prepareTreeSqlTables(contentBase, { only })`, with one note's file, answers
+that note's directives and generated sections and no other note's; its queries
+still read the whole corpus, so its results equal that note's in a preparation
+of the whole tree.
 
 | Export                 | Contract                                                                                                                     |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------- |

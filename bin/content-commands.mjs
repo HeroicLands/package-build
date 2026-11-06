@@ -133,6 +133,11 @@ import {
     siteBuildFailed,
     formatUnaddressableFinding as formatUnaddressable,
 } from "../engine/site-build.mjs";
+import {
+    addressDiagnostic,
+    frontmatterLinkDiagnostic,
+    pageDiagnostics,
+} from "../engine/site-page.mjs";
 import { buildPackageSite, siteDirectory } from "../engine/site-render.mjs";
 import { serveSite } from "../engine/site-serve.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
@@ -2172,23 +2177,8 @@ function reportSiteBuild(result) {
     // or two competing for it, has nothing to say about its pages
     // yet.
     for (const f of gates.homepages) emitDiagnostic(f);
-    for (const f of gates.frontmatterLinks) {
-        emitDiagnostic({
-            file: f.file,
-            severity: "error",
-            message:
-                `wikilink ${f.link} authored in frontmatter at ` +
-                `${f.path} — frontmatter is data, is copied to the ` +
-                `page verbatim, and reaches the reader as brackets`,
-        });
-    }
-    for (const f of gates.addressErrors) {
-        emitDiagnostic({
-            file: f.file,
-            severity: "error",
-            message: `cannot derive a URL: ${f.reason}`,
-        });
-    }
+    for (const f of gates.frontmatterLinks) emitDiagnostic(frontmatterLinkDiagnostic(f));
+    for (const f of gates.addressErrors) emitDiagnostic(addressDiagnostic(f));
     reportSiteFindings(gates.sections ?? []);
     for (const s of gates.staleManifests) {
         emitDiagnostic({
@@ -2208,58 +2198,7 @@ function reportSiteBuild(result) {
     // would make a single bad table hide every other problem in the tree.
     // Each is `file:line:column: error: message`, path first — the shape
     // the pack build reports the same findings in.
-    for (const e of result.tableErrors) {
-        emitDiagnostic({
-            file: e.source,
-            line: typeof e.line === "number" ? e.line + 1 : undefined,
-            column: e.column,
-            severity: "error",
-            message: e.reason,
-        });
-    }
-    for (const e of result.expressionErrors) {
-        emitDiagnostic(e);
-    }
-    for (const e of result.secretErrors) {
-        emitDiagnostic({ ...e, severity: "error" });
-    }
-    for (const e of result.captionErrors) {
-        emitDiagnostic({ ...e, severity: "error" });
-    }
-    for (const e of result.headingErrors) {
-        emitDiagnostic({ ...e, severity: "error" });
-    }
-    for (const e of result.footnoteErrors) {
-        emitDiagnostic({ ...e, severity: "error" });
-    }
-    for (const e of result.embedErrors) {
-        emitDiagnostic({ ...e, severity: "error" });
-    }
-    // Worded by the shared table the pack build words the same finding
-    // with, and located by searching the note for the link.
-    for (const e of result.wikiErrors) {
-        emitDiagnostic({
-            file: e.file,
-            ...positionOfLiteral(readRawNote(e.file), e.link, e.occurrence),
-            severity: "error",
-            // An embed's directive speaks the image vocabulary
-            // rather than the link one, and carries its own
-            // sentence; everything else is worded by the shared
-            // table.
-            message: e.message ?? linkFindingMessage(e),
-        });
-    }
-    // An image whose pathname the site cannot resolve, located the
-    // way a wikilink finding is: by searching the note for the
-    // literal the resolver was handed.
-    for (const e of result.imageErrors) {
-        emitDiagnostic({
-            file: e.file,
-            ...positionOfLiteral(readRawNote(e.file), e.src, e.occurrence),
-            severity: "error",
-            message: e.message,
-        });
-    }
+    for (const d of pageDiagnostics(result, readRawNote)) emitDiagnostic(d);
     if (siteBuildFailed(result)) return false;
 
     // Relation warnings do not fail a site build.

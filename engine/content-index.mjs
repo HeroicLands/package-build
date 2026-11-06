@@ -1108,6 +1108,13 @@ export function resolveCultures(
  * @param {Iterable<string>} [options.nameTypes] - Additional bare name kinds from configured type declarations.
  * @param {ReturnType<typeof import("./content-timings.mjs").createContentTimings>} [options.timings] -
  *   Invocation stage accounting, which records each phase of the derivation.
+ * @param {NoteDerivationCache} [options.cache] - Earlier work to answer from:
+ *   each note's parse, and the records derived from one note alone, which
+ *   depend on that note and on the context the tree gives every note (the
+ *   setting date and calendars, the addresses the notes declare, the asset
+ *   records, the address context and the configured kinds). Not consulted
+ *   for the records when `syntax` is given. Every pass that reads the whole
+ *   tree runs whatever the cache holds.
  * @returns {Array<Record<string, any>>} The records, in a total order that does
  *   not depend on directory-read order.
  */
@@ -1131,6 +1138,7 @@ export function collectContentIndex(
         syntax,
         nameTypes,
         timings,
+        cache,
     },
 ) {
     // Each phase runs until the next begins; the caller's stage closes the last.
@@ -1142,8 +1150,9 @@ export function collectContentIndex(
     phase("index read");
     const records = [];
     // Passed through rather than defaulted away: an absent scope is the
-    // caller's omission, and `walkMarkdownTree` says so.
-    const walkOpts = { skipDirectories, sources, ...(sources ? { renderDescription: false } : {}) };
+    // caller's omission, and `walkMarkdownTree` says so. No record reads a
+    // note's rendered description, so none is rendered.
+    const walkOpts = { skipDirectories, sources, renderDescription: false, parse: cache?.parse };
 
     // A package may ship assets and no notes at all, in which case there is no
     // tree to walk and the index is its asset records. The caller decides
@@ -1202,6 +1211,29 @@ export function collectContentIndex(
         parsedNotes,
         contentPackage,
     );
+    // Everything the tree gives each note's own records, so a cached note's
+    // records are reused only where none of it moved.
+    const noteContext =
+        cache && !syntax ?
+            cache.context({
+                dates,
+                assetRecords,
+                declared: parsedNotes
+                    .map(({ frontmatter: fm }) => `${fm?.type}\0${fm?.shortcode}`)
+                    .sort(),
+                addressContext: Object.entries(addressContext ?? { package: contentPackage })
+                    .filter(([, value]) => typeof value !== "function")
+                    .sort(([a], [b]) =>
+                        a < b ? -1
+                        : a > b ? 1
+                        : 0,
+                    ),
+                contentPackage,
+                languages,
+                manifest,
+                nameTypes: nameTypes ? [...nameTypes] : undefined,
+            })
+        :   undefined;
 
     // Each recorded note with its body, for the words its prose cites.
     phase("index notes");
@@ -1220,23 +1252,25 @@ export function collectContentIndex(
         applyComputedBeingAge(fm, present, dates);
         const relPath = path.relative(contentBase, absPath);
         try {
-            const made = indexRecordsForNote({
-                frontmatter: fm,
-                relPath,
-                absPath,
-                raw,
-                contentPackage,
-                body,
-                bodyLine,
-                bodyColumn,
-                nameTypes,
-                manifest,
-                addressContext: decodeContext,
-                dateContext: dates,
-                resolveRole,
-                syntax,
-                runContext: { languages },
-            });
+            const derive = () =>
+                indexRecordsForNote({
+                    frontmatter: fm,
+                    relPath,
+                    absPath,
+                    raw,
+                    contentPackage,
+                    body,
+                    bodyLine,
+                    bodyColumn,
+                    nameTypes,
+                    manifest,
+                    addressContext: decodeContext,
+                    dateContext: dates,
+                    resolveRole,
+                    syntax,
+                    runContext: { languages },
+                });
+            const made = cache ? cache.records(absPath, noteContext, derive) : derive();
             records.push(...made);
             bodies.push({ record: made[0], body });
         } catch (err) {
@@ -1533,6 +1567,8 @@ function dependencyAddresses(config) {
  * @param {Map<string, object>} [opts.foreignIndex] - Captured dependency address view.
  * @param {ReturnType<typeof import("./content-timings.mjs").createContentTimings>} [opts.timings] -
  *   Invocation stage accounting.
+ * @param {NoteDerivationCache} [opts.cache] - Earlier parses and per-note
+ *   records to answer from; see {@link collectContentIndex}.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
 export function indexRecordsFor({
@@ -1547,6 +1583,7 @@ export function indexRecordsFor({
     nameTypes,
     foreignIndex,
     timings,
+    cache,
 } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = contentBase ?? resolved.paths.content;
@@ -1582,6 +1619,7 @@ export function indexRecordsFor({
         syntax,
         nameTypes: nameTypes ?? resolved.itemTypes,
         timings,
+        cache,
     });
 }
 
@@ -1801,6 +1839,20 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
         syntax: session?.syntax,
     };
 }
+
+/**
+ * Earlier derivation work {@link collectContentIndex} may answer from, such as
+ * {@link module:engine/note-cache.noteTree}'s store.
+ * @typedef {object} NoteDerivationCache
+ * @property {typeof import("./helpers.mjs").parseMarkdownFile} [parse] - Reads
+ *   one note, as {@link module:engine/helpers.parseMarkdownFile} does.
+ * @property {(value: unknown) => string|undefined} context - A key for the
+ *   context the tree gives each note's records, or nothing when it has none.
+ * @property {(absPath: string, context: string|undefined, derive: () => object[]) => object[]} records -
+ *   The records one note derives: the stored ones when that note's text and
+ *   the context are unchanged, else `derive()`'s. Either is the caller's to
+ *   change.
+ */
 
 /**
  * A captured source context, consumed without mutation by the synchronous emitter.

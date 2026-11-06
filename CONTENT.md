@@ -8,6 +8,17 @@ publishes fresh indexes, emits calendars, stages assets, checks content and link
 and compiles packs in one invocation. See the [command reference](docs/commands.md#package-build-content-build)
 for ordering, publication readiness and failure behavior.
 
+A single note renders as the body of its site page with
+`@heroiclands/package-build/note-page`. `renderNoteFile(path, { root })` needs
+only the package's fetched dependency indexes (`package-build deps fetch`), and
+names that command when one is missing. Links, `.name` spans, query fences,
+verse and generated sections render as `package-build site build` renders them,
+and `findings` holds what the site build would report for the note. The
+content tree's records and the note's query answers are kept in
+`build/cache/note-page/`, keyed by hashes of every input they were derived
+from, and reused only while those are unchanged. See
+[`./note-page`](docs/api.md#note-page).
+
 SQL reads the content-index fields except the top-level `foundry` export and
 the `file` block, for both local notes and dependencies. A query selects notes
 by property, tag or address; one that names `file.path`, `file.folder` or

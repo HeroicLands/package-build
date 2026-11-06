@@ -20,6 +20,13 @@ Build indexes, calendars, staged assets and packs together with `package-build c
 
 Run selected content operations together with `package-build content run index lint links compile`. The [shared content command](docs/commands.md#package-build-content-run-targets) captures one source tree for the selected checks and outputs; standalone commands remain available.
 
+Render one note to the body HTML its site page carries with
+`@heroiclands/package-build/note-page`: `renderNoteFile(path, { root })` reads a
+saved note of a repository against its content tree and fetched dependency
+indexes, and returns `{ html, styles, findings, cache }`. What it derives is
+kept in `build/cache/note-page/` and reused while its inputs are unchanged, so a
+second preview is fast; see [`./note-page`](docs/api.md#note-page).
+
 Language annotations keep authored spelling: `[Zaron]{lang=vyl}` stays Roman.
 Add `.nativefont` with an explicit `lang=` to use native script defaults;
 see [writing in invented scripts](docs/guides/writing-in-invented-scripts.md).
@@ -87,6 +94,7 @@ The documentation lives in the Markdown files in this repository. Start with [th
 | Invented languages and scripts                    | [Write in invented scripts](docs/guides/writing-in-invented-scripts.md)   |
 | Encoding rules and the conversion core            | [Encoding core](docs/encoding-core.md)                                    |
 | Buffer-only preview and Gitea rendering           | [Source preview](docs/source-preview.md)                                  |
+| One note as its site page's body                  | [`./note-page`](docs/api.md#note-page)                                    |
 | Every CLI command                                 | [Commands](docs/commands.md)                                              |
 | Every build setting                               | [Configuration](docs/configuration.md)                                    |
 | Programmatic exports                              | [API](docs/api.md)                                                        |

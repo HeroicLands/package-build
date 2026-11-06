@@ -356,6 +356,9 @@ export function assertSuppliedCorpus(records, who) {
  * @param {Map<string, {raw: string}>} [opts.sources] - Selected sources in walk order.
  *   Supplied, the walk parses these strings instead of reading the filesystem.
  * @param {boolean} [opts.renderDescription=true] - Render each body's description.
+ * @param {typeof parseMarkdownFile} [opts.parse] - What reads one file, called
+ *   as {@link parseMarkdownFile} is; a caller holding earlier parses answers
+ *   from them.
  * @yields {{frontmatter: object|null, body: string, description: string,
  *   file: string, absPath: string, bodyLine?: number, bodyColumn?: number}}
  *   One entry per `.md` file found.
@@ -364,7 +367,13 @@ export function assertSuppliedCorpus(records, who) {
  */
 export function* walkMarkdownTree(
     rootDir,
-    { skipDirectories, addressContext, sources, renderDescription = true } = {},
+    {
+        skipDirectories,
+        addressContext,
+        sources,
+        renderDescription = true,
+        parse = parseMarkdownFile,
+    } = {},
 ) {
     // Stated by the caller, never resolved here. A default here
     // — `loadPackConfig().skipDirectories` — read whichever configuration
@@ -381,7 +390,7 @@ export function* walkMarkdownTree(
     if (sources) {
         for (const [absPath, source] of sources) {
             yield {
-                ...parseMarkdownFile(absPath, {
+                ...parse(absPath, {
                     addressContext,
                     raw: source.raw,
                     renderDescription,
@@ -392,6 +401,27 @@ export function* walkMarkdownTree(
         }
         return;
     }
+    for (const absPath of walkMarkdownFiles(rootDir, { skipDirectories })) {
+        yield {
+            ...parse(absPath, { addressContext, renderDescription }),
+            file: path.basename(absPath),
+            absPath,
+        };
+    }
+}
+
+/**
+ * Recursively yields the path of every `.md` file under `rootDir`, in the
+ * order {@link walkMarkdownTree} reads them, without reading any.
+ *
+ * @param {string} rootDir - Root of the tree to walk.
+ * @param {{skipDirectories: readonly string[]}} opts - Directory names to
+ *   ignore wherever they appear; required, as for {@link walkMarkdownTree}.
+ * @yields {string} Each file's absolute path.
+ * @throws {Error} When `skipDirectories` is not stated.
+ */
+export function* walkMarkdownFiles(rootDir, { skipDirectories } = {}) {
+    assertStatedScope(skipDirectories, "walkMarkdownFiles");
     if (!fs.existsSync(rootDir)) return;
     const stack = [rootDir];
     while (stack.length > 0) {
@@ -408,13 +438,7 @@ export function* walkMarkdownTree(
             if (entry.isDirectory()) {
                 if (skipDirectories.includes(entry.name)) continue;
                 stack.push(absPath);
-            } else if (entry.isFile() && entry.name.endsWith(".md")) {
-                yield {
-                    ...parseMarkdownFile(absPath, { addressContext, renderDescription }),
-                    file: entry.name,
-                    absPath,
-                };
-            }
+            } else if (entry.isFile() && entry.name.endsWith(".md")) yield absPath;
         }
     }
 }

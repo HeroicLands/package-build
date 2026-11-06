@@ -99,6 +99,7 @@ describe("docs/api.md documents the real export surface", () => {
             "./sohl",
             "./hm3",
             "./preview",
+            "./note-page",
             "./content-config",
             "./config",
             "./prettier",

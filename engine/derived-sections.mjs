@@ -58,6 +58,7 @@ import { mapWorld } from "./map-places.mjs";
 import { officeBodyKey, officeHolders } from "./office-holders.mjs";
 import { renderAddress } from "./address.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
+import { outsideOnly } from "./prepared-only.mjs";
 
 /**
  * The heading each kind of place is grouped under, in the order the place
@@ -282,8 +283,8 @@ export function drawMapsFrom(records, { outDir, foreignIndex = new Map(), config
  * @param {object} [opts.config] - The resolved configuration.
  * @param {(file:string)=>string|undefined} [opts.rawOf] - Captured source locators.
  * @param {object[]} [opts.all=records] - Complete records for settlement validation.
- * @param {string} [opts.only] - One note file to give sections to; absent,
- *   every note.
+ * @param {string|Set<string>} [opts.only] - The note file, or files, to give
+ *   sections to; absent, every note.
  * @returns {Map<string, Map<string, string>>} Note file to its sections, each
  *   keyed by its slug, for every note given at least one.
  */
@@ -319,7 +320,7 @@ export function derivedSections(
 
     const out = new Map();
     for (const record of pages) {
-        if (only !== undefined && fileOf(record) !== only) continue;
+        if (outsideOnly(only, fileOf(record))) continue;
         const key = record.address.canonical;
         const lists = holdings.get(key) ?? {};
         const sections = new Map();

@@ -72,6 +72,7 @@ import { sqlQueriesInMarkdown } from "./markdown-expressions.mjs";
 // The record accessors only — see `engine/index-records.mjs`.
 import { authoredFrontmatter, isNoteRecord, noteFile, sortKeysDeep } from "./index-records.mjs";
 import { nameSortOf } from "./name-sort.mjs";
+import { outsideOnly } from "./prepared-only.mjs";
 
 /** Rendered in a cell whose value is absent. */
 const EMPTY_CELL = "—";
@@ -1613,8 +1614,8 @@ export async function prepareInlineSqlExpressions(db, sources) {
  *   surface publishes to.
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
- * @param {string} [opts.only] - One note file to give sections to; absent,
- *   every note.
+ * @param {string|Set<string>} [opts.only] - The note file, or files, to give
+ *   sections to; absent, every note.
  * @param {Map<string, object>} [opts.foreignIndex] - The fetched indexes, whose
  *   places, affiliations and works the lists take in.
  * @param {object} [opts.config] - The resolved configuration.
@@ -1685,7 +1686,7 @@ export async function generatedSectionsFor(
             type: note.type,
             shortcode: note.shortcode,
         });
-        if (owners.has(key) && (only === undefined || fileOf(note) === only))
+        if (owners.has(key) && !outsideOnly(only, fileOf(note)))
             lexical.set(fileOf(note), owners.get(key));
     }
     return { sections, views: new Set(views.keys()), derived, lexical, declared };
@@ -1897,6 +1898,9 @@ export async function cachedDependencies(config) {
  *   generated sections take in, where the caller holds them already; absent,
  *   they are read from the cache.
  * @param {import("./content-session.mjs").ContentSyntax} [opts.syntax] - Exact-text scanner projections.
+ * @param {string|Iterable<string>} [opts.only] - One note's file, or several:
+ *   answer their directives and give them their generated sections, and no
+ *   other note's. The queries still read the whole corpus.
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path,
  *   carrying `inline` and `pageLists` beside them, or nothing when the tree
  *   holds no such directive and no note is given a generated section.
@@ -1912,6 +1916,7 @@ export async function prepareTreeSqlTables(
         audience = "all",
         foreignIndex,
         syntax,
+        only,
     } = {},
 ) {
     // Imported here rather than at module scope: the index reaches the pack
@@ -1919,6 +1924,7 @@ export async function prepareTreeSqlTables(
     // module they load would close a cycle and leave `BasePackCompiler`
     // uninitialised for whichever module the runtime happened to load first.
     const { indexRecordsFor } = await import("./content-index.mjs");
+    if (only !== undefined && typeof only !== "string") only = new Set(only);
     const notes = parsed ?? new Map();
     const allRecords =
         records ?? indexRecordsFor({ contentBase, config, skipDirectories, parsed: notes });
@@ -1937,6 +1943,7 @@ export async function prepareTreeSqlTables(
     for (const record of indexRecords) {
         if (!isNoteRecord(record)) continue;
         const absPath = noteFile(contentBase, record);
+        if (outsideOnly(only, absPath)) continue;
         const { body, frontmatter } = notes.get(absPath) ?? parseMarkdownFile(absPath);
         if (
             body &&
@@ -1971,6 +1978,7 @@ export async function prepareTreeSqlTables(
         foreignIndex: foreign,
         config,
         all: allRecords,
+        only,
     });
     if (
         !sources.length &&
@@ -2036,6 +2044,7 @@ export async function prepareTreeSqlTables(
             parsed,
             derived: derivedOnly.derived,
             all: allRecords,
+            only,
         });
         joinGeneratedSections(generated, sources, notes);
         const prepared = await prepareSqlTables(db, sources, {

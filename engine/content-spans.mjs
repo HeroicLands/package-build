@@ -23,6 +23,23 @@ import { parseExtensionAttributes, refusedAttributes } from "./extension-attribu
 import { inlineText } from "./name-markup.mjs";
 import { cartoucheProblems, glyphProblems } from "./content-glyphs.mjs";
 
+/**
+ * Whether the text before `at` ends in `@` and one or more ASCII letters, as
+ * a language tag does.
+ *
+ * Read backwards from `at`, so each bracket costs its own tag's length rather
+ * than the length of everything before it.
+ *
+ * @param {string} text - The source.
+ * @param {number} at - The offset of the bracket.
+ * @returns {boolean} Whether a tag ends there.
+ */
+function followsLanguageTag(text, at) {
+    let start = at;
+    while (start > 0 && /[A-Za-z]/.test(text[start - 1])) start--;
+    return start < at && text[start - 1] === "@";
+}
+
 /** Add bracket spans after recognized Markdown links and footnotes.
  * @param {import("markdown-it")} md - Markdown parser to extend.
  * @param {object} [options] - Surface presentation.
@@ -65,7 +82,7 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false, verse
             // adjacent closing brackets without parsing every label twice.
             (state.src[start + 1] === "[" &&
                 state.src[state.src.indexOf("]", start + 2) + 1] === "]") ||
-            /@[A-Za-z]+$/.test(state.src.slice(0, start)) ||
+            followsLanguageTag(state.src, start) ||
             state.src[start + 1] === "^" ||
             ["!", "]"].includes(state.src[start - 1]) ||
             (state.src[start - 1] === "[" && state.linkLevel === 0)

@@ -25,6 +25,7 @@
  */
 
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { baseStylesheetSource } from "./base-styles.mjs";
 
@@ -88,4 +89,88 @@ export function highlightRules(scope) {
  */
 export function siteCodeStylesheet(scope = ".single-body") {
     return `${scope} :is(pre, code) {\n    color-scheme: dark;\n}\n\n${highlightRules(scope)}`;
+}
+
+/** The stretches of the site theme's stylesheet that style a page body. */
+const NOTE_BODY_RULES = /\/\* note-body \*\/([^]*?)\/\* \/note-body \*\//g;
+
+/**
+ * The page-wide rules the site theme writes for the whole document, and the
+ * selector each is given for a body shown on its own: the reset, the root
+ * size the theme's `rem` lengths are measured against, the body's text and
+ * the ordinary link. `keep` names the declarations that carry over; a rule
+ * without one carries over whole.
+ */
+const PAGE_RULES = Object.freeze([
+    {
+        from: "*, *::before, *::after",
+        to: ".single-content, .single-content *, .single-content *::before, .single-content *::after",
+    },
+    { from: "html", to: ":root", keep: ["font-size"] },
+    {
+        from: "body",
+        to: ".single-content",
+        keep: [
+            "font-family",
+            "font-weight",
+            "line-height",
+            "color",
+            "background",
+            "-webkit-font-smoothing",
+        ],
+    },
+    { from: "a", to: ".single-content a" },
+    { from: "a:hover", to: ".single-content a:hover" },
+]);
+
+/**
+ * One page-wide rule of the theme, given the selector a body shown on its own
+ * takes.
+ *
+ * @param {string} css - The theme's stylesheet.
+ * @param {{from: string, to: string, keep?: readonly string[]}} rule - Which
+ *   rule, and how it carries over.
+ * @returns {string} The rule.
+ * @throws {Error} When the stylesheet has no such rule.
+ */
+function scopedPageRule(css, { from, to, keep }) {
+    const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const found = new RegExp(`^${escaped} \\{([^}]*)\\}`, "m").exec(css);
+    if (!found) throw new Error(`the site stylesheet has no \`${from}\` rule for a page body`);
+    const declarations = found[1]
+        .split(";")
+        .map((declaration) => declaration.trim())
+        .filter(Boolean)
+        .filter((declaration) => !keep || keep.includes(declaration.split(":")[0].trim()));
+    return `${to} {\n${declarations.map((declaration) => `  ${declaration};`).join("\n")}\n}`;
+}
+
+/**
+ * The CSS the site theme applies to a page body: its custom properties, the
+ * body's text, named blocks, figures, verse, footnotes, unresolved and draft
+ * links, cartouches, glyphs, alerts, spoilers, dictionary lists and faces,
+ * then the highlighted-code rules a site links as `css/code.css`.
+ *
+ * Read from the theme's own stylesheet, the stretches it marks `note-body`,
+ * so a rule changed there changes here. The rules are scoped as the theme
+ * scopes them: the body sits in a `.single-body` inside a `.single-content`.
+ * The theme's page-wide rules for the reset, the body's typography and the
+ * ordinary link come first, scoped to `.single-content`, so a body set in that
+ * wrapper reads as the page does whatever the host's own styles; the one
+ * exception is the root font size, set on `:root`, since every length the
+ * theme writes in `rem` is measured against it.
+ *
+ * @returns {string} The stylesheet.
+ * @throws {Error} When the theme's stylesheet marks no body rules, or lacks
+ *   one of the page-wide rules.
+ */
+export function noteBodyStylesheet() {
+    const css = fs.readFileSync(
+        fileURLToPath(new URL("../site-theme/static/css/style.css", import.meta.url)),
+        "utf8",
+    );
+    const rules = [...css.matchAll(NOTE_BODY_RULES)].map((match) => match[1].trim());
+    if (!rules.length) throw new Error("the site stylesheet marks no rules for a page body");
+    const page = PAGE_RULES.map((rule) => scopedPageRule(css, rule));
+    return `${[...page, ...rules].join("\n\n")}\n\n${siteCodeStylesheet()}`;
 }

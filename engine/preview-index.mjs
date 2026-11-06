@@ -31,7 +31,7 @@ import { embedRole } from "./content-embeds.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { runContext } from "./content-scripts.mjs";
 import { eventNoteIndex } from "./event-fields.mjs";
-import { isHomepage } from "./homepage.mjs";
+import { homepageTitle, isHomepage } from "./homepage.mjs";
 import { authoredFrontmatter, isNoteRecord, isStub } from "./index-records.mjs";
 import { noContentIndexPackages } from "./metadata-index.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
@@ -57,32 +57,56 @@ import { siteBase } from "../content-config.mjs";
  */
 
 /**
- * Build the object a preview with an index renders from.
+ * What a page of the package resolves against, from its content-index records.
+ *
+ * The site build reads the same answers from its whole tree; this derives
+ * them from the records alone, so a single note renders as its page does
+ * without the tree. Each note that publishes a page is an entry at the URL
+ * the site gives it: the homepage at the package root, a note
+ * `site.sections` names at its section, and every other at its address.
  *
  * @param {object} options
  * @param {object} options.config - The resolved package configuration.
- * @param {object[]} options.records - The content index's records: every note
- *   and every asset.
+ * @param {object[]} options.records - The content index's records.
  * @param {object} [options.foreign] - The dependencies' indexes, as
  *   {@link module:engine/metadata-index.loadForeignIndexes} returns them.
- *   Omitted, the package links only to itself.
- * @returns {PreviewIndex} The index.
+ * @param {(record: object) => object[]|undefined} [options.anchorsOf] - A
+ *   note's anchors as its page emits them, where they differ from the
+ *   record's: those of its body with its query answers and generated sections
+ *   expanded. Absent, or answering nothing, the record's own.
+ * @returns {{site: object, assets: object, events: Map<string, object>, runs: object,
+ *   pages: Map<string, object>}} The link index, the asset address space,
+ *   every note's events, the package's marked-text context, and the record
+ *   behind each page by its URL.
  */
-export function previewIndex({ config, records, foreign }) {
+export function recordSiteContext({ config, records, foreign, anchorsOf = () => undefined }) {
     const base = siteBase(config);
+    const sections = new Map(
+        Object.entries(config.site?.sections ?? {}).map(([name, address]) => [address, name]),
+    );
     const entries = [];
+    const pages = new Map();
     for (const record of records) {
         if (!isNoteRecord(record) || isStub(record)) continue;
         const fm = authoredFrontmatter(record);
         if (isGmNote(fm) || typeof fm.shortcode !== "string" || !fm.shortcode) continue;
+        const slug = addressSlug(fm);
+        const home = isHomepage(fm);
+        const url =
+            home ? base
+            : sections.has(slug) ? `${base}${sections.get(slug)}/`
+            : `${base}${slug}/`;
+        pages.set(url, record);
         entries.push({
             kind: "content",
             fm,
             body: "",
-            anchors: record.anchors ?? [],
+            anchors: anchorsOf(record) ?? record.anchors ?? [],
             pkg: record.package ?? config.contentPackage,
-            name: fm.name?.full ?? fm.shortcode,
-            url: isHomepage(fm) ? base : `${base}${addressSlug(fm)}/`,
+            name:
+                fm.name?.full ??
+                (home ? homepageTitle(fm, config) : (record.file?.name ?? fm.shortcode)),
+            url,
         });
     }
     const site = buildSiteIndex(entries, {
@@ -99,6 +123,26 @@ export function previewIndex({ config, records, foreign }) {
         foreignIndex: foreign?.index,
         dates: site.dateContext,
     });
+    const runs = runContext(config, records, {
+        referenceName: (target) => resolveInfoboxRef(site, target)?.name,
+    });
+    return { site, assets, events, runs, pages };
+}
+
+/**
+ * Build the object a preview with an index renders from.
+ *
+ * @param {object} options
+ * @param {object} options.config - The resolved package configuration.
+ * @param {object[]} options.records - The content index's records: every note
+ *   and every asset.
+ * @param {object} [options.foreign] - The dependencies' indexes, as
+ *   {@link module:engine/metadata-index.loadForeignIndexes} returns them.
+ *   Omitted, the package links only to itself.
+ * @returns {PreviewIndex} The index.
+ */
+export function previewIndex({ config, records, foreign }) {
+    const { site, assets, events, runs } = recordSiteContext({ config, records, foreign });
     const resolveRole = (address) => embedRole(assets, address);
     const webSrc = (src) =>
         pathnameProblem(src) ? src : (resolvePathname(src, config)?.web ?? src);
@@ -107,9 +151,7 @@ export function previewIndex({ config, records, foreign }) {
         return key ? assets?.byPath?.get(key) : undefined;
     };
     return {
-        runs: runContext(config, records, {
-            referenceName: (target) => resolveInfoboxRef(site, target)?.name,
-        }),
+        runs,
         icons: config.icons,
         lookupAsset,
         resolveSrc: webSrc,

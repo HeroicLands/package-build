@@ -99,6 +99,7 @@
  * @module
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -677,6 +678,9 @@ let loaded;
 /** The file {@link loadPackConfig} read, alongside the memoised result. */
 let loadedFrom;
 
+/** The configuration {@link withPackConfig} gives the work it runs, and its file. */
+const scoped = new AsyncLocalStorage();
+
 /**
  * The consuming repository's resolved, frozen configuration.
  *
@@ -691,6 +695,8 @@ let loadedFrom;
  *   compilers know neither what to compile nor where to put it.
  */
 export function loadPackConfig() {
+    const scope = scoped.getStore();
+    if (scope) return scope.config;
     if (loaded) return loaded;
 
     const explicit = process.env.PACKAGE_BUILD_CONFIG;
@@ -739,12 +745,47 @@ export function loadPackConfig() {
         });
     }
 
-    loaded =
-        configPath.endsWith(".mjs") ?
-            loadCodeConfig(configPath)
-        :   configFromData(YAML.parse(fs.readFileSync(configPath, "utf8")), configPath);
+    loaded = readPackConfig(configPath);
     loadedFrom = configPath;
     return loaded;
+}
+
+/**
+ * The resolved, frozen configuration one file declares.
+ *
+ * {@link loadPackConfig} reads the file the working directory resolves to and
+ * keeps it; this reads the file named, every time, for a caller working on a
+ * repository other than the one it stands in.
+ *
+ * @param {string} configPath - Absolute path of the configuration file.
+ * @returns {import("../content-config.mjs").ContentBuildConfig} The frozen configuration.
+ * @throws {Error} As {@link loadPackConfig}, when the file cannot be loaded.
+ */
+export function readPackConfig(configPath) {
+    return configPath.endsWith(".mjs") ?
+            loadCodeConfig(configPath)
+        :   configFromData(YAML.parse(fs.readFileSync(configPath, "utf8")), configPath);
+}
+
+/**
+ * Run `fn` with `config` as the configuration {@link loadPackConfig} answers.
+ *
+ * The engine reads configured values through {@link loadPackConfig} wherever
+ * a caller passes no configuration. A caller working on a repository other
+ * than the one it stands in makes those reads answer with that repository's
+ * configuration for the whole of `fn`, its asynchronous continuations
+ * included, and for nothing else running beside it.
+ *
+ * @template T
+ * @param {import("../content-config.mjs").ContentBuildConfig} config - The
+ *   resolved configuration.
+ * @param {() => T} fn - The work, synchronous or asynchronous.
+ * @param {string} [file] - The file `config` was read from, which
+ *   {@link packConfigPath} answers within `fn`.
+ * @returns {T} What `fn` returned.
+ */
+export function withPackConfig(config, fn, file) {
+    return scoped.run({ config, file }, fn);
 }
 
 /**
@@ -760,6 +801,8 @@ export function loadPackConfig() {
  * @throws {Error} As {@link loadPackConfig}, when there is no configuration.
  */
 export function packConfigPath() {
+    const scope = scoped.getStore();
+    if (scope) return scope.file;
     loadPackConfig();
     return /** @type {string} */ (loadedFrom);
 }

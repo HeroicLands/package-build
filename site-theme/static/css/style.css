@@ -3,6 +3,10 @@
    Dark fantasy / manuscript aesthetic
    ============================================ */
 
+/* Each stretch between a note-body comment and its closing comment styles
+   what the renderer writes into a page body. A host showing one note's body,
+   such as a preview, takes exactly these stretches as the note's styles. */
+/* note-body */
 :root {
   --bg:            #0f1923;
   --bg-deeper:     #0a1219;
@@ -67,6 +71,7 @@
   --content-width: 100%;
   --content-narrow: 100%;
 }
+/* /note-body */
 
 /* ---- Reset ---- */
 
@@ -103,6 +108,7 @@ a:hover {
   color: var(--accent-hover);
 }
 
+/* note-body */
 /* Inline body links get a subtle underline on hover so they feel
    tactile without competing with headings or navigation. Links
    inside utility contexts (cards, nav, TOC) opt out via more
@@ -114,6 +120,7 @@ a:hover {
 .single-body a:hover {
   border-bottom-color: var(--accent-dim);
 }
+/* /note-body */
 
 img {
   max-width: 100%;
@@ -1000,6 +1007,7 @@ a.tag:hover {
   line-height: 1.6;
 }
 
+/* note-body */
 /* ---- Article Content ---- */
 
 .single-content {
@@ -1734,6 +1742,8 @@ a.tag:hover {
   text-underline-offset: 0.15em;
   cursor: help;
 }
+
+/* /note-body */
 
 /* ---- The draft notice ----
 
@@ -2727,6 +2737,7 @@ summary.info-sidebar-title::after {
   }
 }
 
+/* note-body */
 /* ---- Cartouches ----
 
    Named-entity SVGs rendered as ornamental accents on culture-flavored
@@ -2927,6 +2938,7 @@ summary.info-sidebar-title::after {
     height: 3.25rem;
   }
 }
+/* /note-body */
 
 /* ---- Related card (bottom of article) ----
 
@@ -2993,6 +3005,7 @@ summary.info-sidebar-title::after {
   border-bottom-color: var(--accent-dim);
 }
 
+/* note-body */
 /* A drawing the build sets inline — the map in a place's From here section —
    scales to its figure, and scrolls rather than shrinking past legibility on
    a phone. */
@@ -3110,3 +3123,4 @@ summary.info-sidebar-title::after {
 .script :is(em, strong) { font-style:normal; font-weight:inherit; font-synthesis:none; }
 .emph-rubric { color:var(--rubric); }
 .emph-overline { text-decoration-line:overline; text-decoration-skip-ink:none; }
+/* /note-body */

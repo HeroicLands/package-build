@@ -40,6 +40,11 @@
             "import": "./engine/site-preview.mjs",
             "default": "./engine/site-preview.mjs"
         },
+        "./note-page": {
+            "types": "./types/engine/note-page.d.mts",
+            "import": "./engine/note-page.mjs",
+            "default": "./engine/note-page.mjs"
+        },
         "./content-config": {
             "types": "./types/content-config.d.mts",
             "import": "./content-config.mjs"
