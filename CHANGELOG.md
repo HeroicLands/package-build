@@ -1,5 +1,22 @@
 # @heroiclands/package-build
 
+## 25.7.0
+
+**Rendering and sites**
+
+- Preview a saved note with its website body, theme styles and findings, without building the whole site; unchanged inputs are cached for later previews.
+- Content indexing and builds that use it are faster on large content trees.
+- Root sites can generate matching menus and published navigation for the selected address, validating canonical roster data before replacing previous output.
+
+**Builds and commands**
+
+- An explicit root selects matching website and image addresses; without it, configured image hosts stay in use.
+- CDN publication defaults to internal atlas storage; choose `--dest cloudflare` for the public bucket.
+
+**Upgrading**
+
+- Pass `--root heroiclands.org` to public builds; website builds now default to `internal.heroiclands.org`.
+
 ## 25.6.3
 
 **Rendering and sites**
