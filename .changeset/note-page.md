@@ -4,6 +4,5 @@
 
 **Rendering and sites**
 
-- A single note can be rendered to the same body its website page shows, with the theme's styles and the site build's findings, for a preview outside a full site build.
-- That preview keeps what it worked out under `build/`, so previewing again is quick, and after an edit only the changed note is worked out again.
-- Building a content index, and every build that reads one, takes noticeably less time on a large content tree.
+- Preview a saved note with its website body, theme styles and findings, without building the whole site; unchanged inputs are cached for later previews.
+- Content indexing and builds that use it are faster on large content trees.

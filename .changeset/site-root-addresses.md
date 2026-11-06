@@ -1,5 +1,5 @@
 ---
-"@heroiclands/package-build": patch
+"@heroiclands/package-build": minor
 ---
 
 **Upgrading**
