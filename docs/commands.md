@@ -1324,13 +1324,17 @@ package leaves out as a named asset set.
 **SYNOPSIS**
 
 ```
-package-build cdn publish --set <file> --name <display name> [--dry-run]
+package-build cdn publish [--dest internal|cloudflare] --set <file> --name <display name> [--dry-run]
 ```
 
 **DESCRIPTION**
 
-The one writer to `<site.assets>/<contentPackage>/`. It is run by hand, or by
-a manually dispatched workflow; no build or release runs it.
+Publication is manual and separate from site building and deployment. No build
+or release runs it. `--dest internal` is the default: pictures go to
+`atlas:/srv/preview/cdn`, served at `https://cdn.internal.heroiclands.org`.
+`--dest cloudflare` uses the existing R2 bucket served at configured `site.assets`
+(normally `https://cdn.heroiclands.org`). Each destination uses the same planner,
+transforms, object keys and publication rules.
 
 Every icon and image under the package's picture roots is uploaded flat, as
 `icons/<basename>` or `images/<basename>` — shipped and left-out pictures
@@ -1339,11 +1343,10 @@ site build gives it. `packageBuild.assetTransform` runs on each file exactly
 as `package-build assets` runs it, so a picture on the CDN holds the bytes the
 staged package holds. SVG is served as `image/svg+xml`.
 
-The bucket is served at `site.assets`, so an object's key is its path below
-that address: `thalorna/images/thorn.webp` is
+An object's key is its path below the selected CDN origin. For Cloudflare, `thalorna/images/thorn.webp` is
 `https://cdn.heroiclands.org/thalorna/images/thorn.webp`.
 
-`--set` names the set file, written at `<site.assets>/<contentPackage>/<file>`.
+`--set` names the set file, written at `<selected CDN origin>/<contentPackage>/<file>`.
 It lists only the pictures the package leaves out — an address a set does not
 list resolves to the shipped copy — chosen by the same rule the stage applies,
 `packageBuild.shippingLicenses` included. Its shape is the shipped set's, with
@@ -1380,9 +1383,32 @@ does not have, and a note naming left-out art that is not on the CDN when the
 run ends, are warnings at the note's line and column: an art slot under
 `data:`, an embed, or a body image.
 
-**Credentials.** The store is an S3-compatible bucket — Cloudflare R2 for
-`cdn.heroiclands.org` — signed with AWS Signature Version 4. Its settings are
-read from the environment, after `.env.local` and `.env` are loaded:
+**Internal access.** Install `rsync` and OpenSSH on the publishing machine.
+The default uses your ordinary `atlas` SSH account, which must have write access
+to `/srv/preview/cdn`. Keys come from your SSH configuration or agent; the command
+uses batch mode and requires an already verified host key with
+`StrictHostKeyChecking=yes`. It uses only rsync's receiver protocol, keeps keys out
+of arguments and logs, and never deletes existing CDN objects. Transfer failures
+report the exit code and a bounded, sanitized receiver diagnostic; local staging
+failures name the operation and filesystem error code. Commands, key material and
+full child-process errors are omitted.
+
+For an existing restricted publisher credential, configure an SSH alias with its
+`User preview-publish`, `IdentityFile` and verified `UserKnownHostsFile`. Then set
+`CDN_INTERNAL_DESTINATION=your-alias:cdn` in the environment or `.env.local`.
+The deployed forced command `rrsync -wo -munge /srv/preview` accepts that relative
+destination; do not repeat `/srv/preview` for this account. The override accepts
+only an SSH host alias followed by `:cdn` or `:/srv/preview/cdn`. It changes the
+connection, not the public origin. This command neither installs credentials nor
+changes server permissions.
+
+Internal skip checks and set comparisons read the selected internal CDN over
+HTTPS. An internal dry run uses only those reads: no SSH connection, temporary
+staging or R2 credentials. The CDN must be reachable from the LAN or VPN.
+
+**Cloudflare credentials.** With `--dest cloudflare`, the store is the existing
+S3-compatible bucket, signed with AWS Signature Version 4. Its settings are read
+from the environment, after `.env.local` and `.env` are loaded:
 
 | Variable                | What it is                                                                |
 | ----------------------- | ------------------------------------------------------------------------- |
@@ -1391,46 +1417,35 @@ read from the environment, after `.env.local` and `.env` are loaded:
 | `CDN_ACCESS_KEY_ID`     | The access key id of a token that can write the bucket.                   |
 | `CDN_SECRET_ACCESS_KEY` | That token's secret. Never printed.                                       |
 
-Setting some but not all of them is an error naming the missing ones. With
-none set, `--dry-run` compares against the public CDN at `site.assets`
-instead, read-only, and an upload is refused.
-
-A workflow calls the command the same way, passing the four values as named
-secrets in the step's environment:
-
-```yaml
-- run: npx package-build cdn publish --set alt-art.json --name "Thalorna — illustrated"
-  env:
-    CDN_ENDPOINT: ${{ secrets.CDN_ENDPOINT }}
-    CDN_BUCKET: ${{ secrets.CDN_BUCKET }}
-    CDN_ACCESS_KEY_ID: ${{ secrets.CDN_ACCESS_KEY_ID }}
-    CDN_SECRET_ACCESS_KEY: ${{ secrets.CDN_SECRET_ACCESS_KEY }}
-```
+Setting some but not all of them is an error naming the missing ones. With none
+set, `--dest cloudflare --dry-run` compares against `site.assets` read-only, and an
+upload is refused. Internal publication ignores all four R2 settings.
 
 **OPTIONS**
 
-| Option      | Type    | Default | Description                                                                 |
-| ----------- | ------- | ------- | --------------------------------------------------------------------------- |
-| `--set`     | string  | —       | Required. The set file's name under the package's CDN root, a `.json` file. |
-| `--name`    | string  | —       | Required. The set's display name.                                           |
-| `--dry-run` | boolean | `false` | List what would upload and what is skipped; write nothing.                  |
+| Option      | Type    | Default    | Description                                                                 |
+| ----------- | ------- | ---------- | --------------------------------------------------------------------------- |
+| `--dest`    | string  | `internal` | `internal` for atlas; `cloudflare` for the configured R2 bucket.            |
+| `--set`     | string  | —          | Required. The set file's name under the package's CDN root, a `.json` file. |
+| `--name`    | string  | —          | Required. The set's display name.                                           |
+| `--dry-run` | boolean | `false`    | List what would upload and what is skipped; write nothing.                  |
 
 **EXIT STATUS**
 
 1 when a picture's file has no address, when a picture fails to upload, when
-`--set` is `default.json` or a path, when `site.assets` is undeclared, and
-when an upload has no store configured. Warnings about notes do not change
+`--set` is `default.json` or a path, when Cloudflare `site.assets` is undeclared, when an internal destination or
+planned relative key is unsafe, and when an upload lacks access to its store. Warnings about notes do not change
 it. Otherwise 0.
 
 **EXAMPLES**
 
 ```
 $ package-build cdn publish --set alt-art.json --name "Thalorna — illustrated" --dry-run
-Dry run: comparing 582 pictures against https://cdn.heroiclands.org, read-only.
+Dry run: comparing 582 pictures against https://cdn.internal.heroiclands.org, read-only.
   would upload thalorna/icons/anvilbdg.svg (969 bytes)
   …
   would upload thalorna/alt-art.json (582 assets)
-Would upload 582, skipped 0, failed 0; https://cdn.heroiclands.org/thalorna/alt-art.json lists 582 left-out pictures (would change).
+Would upload 582, skipped 0, failed 0; https://cdn.internal.heroiclands.org/thalorna/alt-art.json lists 582 left-out pictures (would change).
 
 $ package-build cdn publish --set default.json --name Shipped
 package-build: `--set default.json` is refused: `default.json` is the shipped set's name, the fallback every other set is read against. Name the set for its art
@@ -2685,7 +2700,7 @@ it for search.
 **SYNOPSIS**
 
 ```
-package-build site build [--out <dir>] [--base-url <url>] [--assets <url>]
+package-build site build [--root <domain>] [--out <dir>] [--base-url <url>] [--assets <url>]
 ```
 
 **DESCRIPTION**
@@ -2748,6 +2763,11 @@ out in the [site guide](guides/site.md#search).
 
 The site's address, title and menu are read before the tree is, so a missing
 `homepage` or a cold navigation cache fails with the last good site in place.
+With [`site.inputs`](configuration.md#local-site-inputs), a local module supplies
+the selected navigation and text artifacts instead of reading the navigation
+cache. It receives the effective configuration, runs before content rendering,
+and may reject canonical navigation drift. Its files are validated before
+output replacement and written after the renderer clears the site.
 Every gate is then checked and reported, and the run stops at the first that
 fires, ordered so the report names the cause rather than its symptoms — an
 unusable dependency manifest, reported after the links that failed because of
@@ -2760,6 +2780,13 @@ run fails before the search index is built.
 
 `--out <dir>` — the directory that is deployed. Defaults to `build/site`.
 
+`--root <domain>` — domain for the build's addresses, defaulting to
+`internal.heroiclands.org`. The site uses `https://www.<domain>` with the
+package's existing homepage path. An explicit root also selects
+`https://cdn.<domain>` over configured `site.assets`; omitting this flag keeps
+configured assets, or derives the CDN when none are configured. Supply a plain
+DNS domain without a scheme, path, port, credentials, query or fragment.
+
 `--base-url <url>` — the absolute HTTP(S) address of this build. Its pathname
 becomes the effective `site.base`, and must end with `/`; `/` serves the site
 at the origin's root. Pages, local links, theme files, script fonts and search
@@ -2768,8 +2795,18 @@ all use that prefix. Output lands under `<out>/<pathname>/`.
 `--assets <url>` — the absolute HTTP(S) asset root for this build. It may
 include a path; trailing slashes are trimmed.
 
-Both options are optional and independent. Without them, the build uses the
-authored `homepage`, `site.base` and `site.assets`. Overrides apply in memory
+Explicit `--base-url` overrides the root-derived site URL, including its path;
+explicit `--assets` overrides both root-derived and configured assets. These
+low-level flags are independent and may be combined with `--root`. Cached
+navigation links on the canonical Heroic Lands www origin and the brand's
+license link use the effective site origin. External links and authored content
+links keep their addresses. Asset references on the exact canonical
+`https://cdn.heroiclands.org` origin use the effective asset root, preserving
+the path, query and fragment. Other image origins stay unchanged.
+The build only writes local output; it neither
+uploads nor fetches missing dependencies or assets.
+
+Overrides apply in memory
 before preflight and rendering; they never rewrite `package.json` or
 `package-build.config.yaml`. The authored homepage must still pass its usual
 validation. Both URLs require plain paths without percent escapes, dot

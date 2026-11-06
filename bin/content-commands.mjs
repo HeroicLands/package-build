@@ -2307,11 +2307,11 @@ function withSiteBuildConfig(command) {
     return {
         ...command,
         handler: async (argv) => {
-            if (argv.baseUrl === undefined && argv.assets === undefined) return handler(argv);
             try {
                 const authored = argv[CONTENT_CONFIG] ?? loadPackConfig();
                 checkHomepage(authored.homepage, authored.contentPackage, authored.site.base);
                 const config = siteBuildConfig(authored, {
+                    root: argv.root,
                     baseUrl: argv.baseUrl,
                     assets: argv.assets,
                 });
@@ -2376,6 +2376,11 @@ function siteBuildCommand() {
                 .option("out", {
                     type: "string",
                     describe: `The directory that is deployed (default: ${DEPLOY_ROOT})`,
+                })
+                .option("root", {
+                    type: "string",
+                    requiresArg: true,
+                    describe: "Domain for www and CDN origins (default: internal.heroiclands.org)",
                 })
                 .option("base-url", {
                     type: "string",

@@ -306,13 +306,34 @@ The terminal reports indexing, rendering, writing and search indexing as they
 start, including page counts where available. Progress is on stdout;
 diagnostics retain their file, line and column on stderr.
 
-For an internal main preview, supply the build's address and asset root:
+Build locally for the internal site or a public release with the selected root:
 
 ```bash
-package-build site build \
-    --base-url https://www.internal.heroiclands.org/thalorna/ \
-    --assets https://cdn.internal.heroiclands.org
+package-build site build --root internal.heroiclands.org
+package-build site build --root heroiclands.org
 ```
+
+These select `https://www.internal.heroiclands.org` and
+`https://cdn.internal.heroiclands.org`, or `https://www.heroiclands.org` and
+`https://cdn.heroiclands.org`, retaining the package's path. Without `--root`,
+the site defaults to the internal www origin and keeps configured `site.assets`
+(or derives the internal CDN if none is configured). An explicit root overrides
+the configured asset host. Build and publication are separate: this command
+writes local output, reads cached dependencies, and never uploads or fetches
+missing assets. Shared navigation and the brand license follow the selected
+site origin; external attribution and authored content links retain their URLs.
+Asset references to the exact canonical `https://cdn.heroiclands.org` origin
+also use the effective asset root, retaining their path, query and fragment;
+external image hosts keep their addresses. This happens during normal asset
+resolution and leaves authored files unchanged.
+
+A site that generates its own navigation can declare
+[`site.inputs`](../configuration.md#local-site-inputs). Its local module receives
+the selected addresses in the effective configuration and returns its menu plus
+text files such as `nav.json`. The builder renders that menu and writes those
+files together, so one build command prepares the complete site. A canonical
+roster check belongs in that module before it returns deployment-specific URLs;
+a drift finding leaves the last built site in place.
 
 For a pull request preview, include the whole prefix:
 
@@ -322,10 +343,12 @@ package-build site build \
     --assets https://cdn.internal.heroiclands.org
 ```
 
-The second build writes to `build/site/pr/thalorna/123/thalorna/`. Its local
+This build writes to `build/site/pr/thalorna/123/thalorna/`. Its local
 links, theme files, script fonts and search stay under that prefix; its images
 use the supplied asset root. `--out` changes the deployment directory above the
-prefix. Both URL options are optional and independent, and require absolute
+prefix. Explicit `--base-url` takes precedence over the root-derived site
+address, and explicit `--assets` takes precedence over both the root-derived and
+configured asset host. Both URL options are optional and independent, and require absolute
 HTTP(S) URLs. The base URL's path ends with `/`; the asset root may include a
 path and has trailing slashes trimmed. Use plain paths without percent escapes,
 dot segments (`.` or `..`), or doubled slashes, credentials, queries or fragments.

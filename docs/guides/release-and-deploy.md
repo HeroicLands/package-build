@@ -133,23 +133,34 @@ the other actions and environment variables.
 
 ## Publish pictures to the CDN
 
-The website draws every picture a package has from
-`<site.assets>/<contentPackage>/`, and the art a Foundry package leaves out
-reaches a world from there as a named asset set. `package-build cdn publish`
-is the one command that writes there:
+Run `package-build cdn publish` manually after pictures or their provenance change.
+It uploads every icon and image flat, applies the stage's transformations, skips
+pictures already present at the same size, and writes a named set listing the
+pictures the Foundry package leaves out. Site builds and releases do not publish
+pictures.
+
+The default destination is atlas at `https://cdn.internal.heroiclands.org`:
 
 ```bash
 package-build cdn publish --set alt-art.json --name "Thalorna — illustrated" --dry-run
 package-build cdn publish --set alt-art.json --name "Thalorna — illustrated"
 ```
 
-It uploads every icon and image flat, transformed as the stage transforms
-them, skips what the CDN already holds at the same size, and writes
-`<site.assets>/<contentPackage>/alt-art.json` listing the left-out pictures.
-Run it after the pictures or their provenance change; it is not part of a
-build or a release.
+Connect to the LAN or VPN. Install rsync and use your verified `atlas` SSH account
+with write access to `/srv/preview/cdn`. SSH configuration or your SSH agent supplies
+the key; unknown host keys fail. For a configured forced-rrsync publisher alias,
+set `CDN_INTERNAL_DESTINATION=your-alias:cdn`; its relative path is required by the
+restricted receiver. The command does not provision keys or change permissions.
+An internal dry run only reads HTTPS; it never opens SSH or uses R2 credentials.
 
-The bucket's credentials go in `.env.local` beside the stage paths:
+To publish to the public CDN, select Cloudflare explicitly:
+
+```bash
+package-build cdn publish --dest cloudflare --set alt-art.json --name "Thalorna — illustrated"
+```
+
+This retains the existing R2 transport and configured `site.assets` origin,
+normally `https://cdn.heroiclands.org`. The bucket's credentials go in `.env.local`:
 
 ```dotenv
 CDN_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
@@ -158,10 +169,11 @@ CDN_ACCESS_KEY_ID=<access key id>
 CDN_SECRET_ACCESS_KEY=<secret access key>
 ```
 
-A dry run with none of them set compares against the public CDN instead. A
-dispatched workflow passes the same four values as named secrets. See the
-[command reference](../commands.md#package-build-cdn-publish) for the set
-file's shape, the refusals and the exit status.
+With none of those settings present, `--dest cloudflare --dry-run` compares against
+`site.assets` read-only. Both destinations use the same keys and sets; neither
+deletes existing shared CDN objects. See the
+[command reference](../commands.md#package-build-cdn-publish) for SSH setup,
+set shape, refusals and exit status.
 
 ## Publish a package-build npm version
 

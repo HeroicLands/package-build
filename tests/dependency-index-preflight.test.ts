@@ -18,7 +18,11 @@ function fixture() {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "index-preflight-"));
     fs.writeFileSync(
         path.join(root, "package.json"),
-        JSON.stringify({ name: "demo", version: "1.0.0" }),
+        JSON.stringify({
+            name: "demo",
+            version: "1.0.0",
+            homepage: "https://www.heroiclands.org/demo/",
+        }),
     );
     fs.writeFileSync(
         path.join(root, "package-build.config.yaml"),

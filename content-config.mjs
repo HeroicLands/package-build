@@ -234,19 +234,34 @@ export function siteBase(config) {
  *
  * @param {ContentBuildConfig} config - The resolved authored configuration.
  * @param {object} options - Runtime options.
- * @param {string} [options.baseUrl] - Absolute HTTP(S) site URL ending in `/`.
- * @param {string} [options.assets] - Absolute HTTP(S) asset root.
- * @returns {ContentBuildConfig} The effective configuration, frozen.
+ * @param {string} [options.root] - Domain from which www and CDN origins derive.
+ *   Defaults to internal.heroiclands.org; explicit root replaces configured assets.
+ * @param {string} [options.baseUrl] - Absolute HTTP(S) site URL ending in `/`;
+ *   overrides the root-derived site URL.
+ * @param {string} [options.assets] - Absolute HTTP(S) asset root; overrides both
+ *   root-derived and configured assets.
+ * @returns {ContentBuildConfig} The effective configuration, frozen. Its homepage
+ *   and site.assets are the selected inputs for downstream site integrations.
  */
-export function siteBuildConfig(config, { baseUrl, assets }) {
-    if (baseUrl === undefined && assets === undefined) return config;
-    const homepage = baseUrl === undefined ? config.homepage : buildUrl(baseUrl, "--base-url").href;
-    const base =
-        baseUrl === undefined ? config.site.base : normalizeSiteBase(new URL(homepage).pathname);
+export function siteBuildConfig(config, { root, baseUrl, assets } = {}) {
+    const domain = root ?? "internal.heroiclands.org";
+    if (
+        typeof domain !== "string" ||
+        domain.length > 253 ||
+        !domain.includes(".") ||
+        !domain.split(".").every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
+    ) {
+        throw new TypeError("--root must be a domain without a scheme, path, port or credentials");
+    }
+    const homepage =
+        baseUrl === undefined ?
+            `https://www.${domain.toLowerCase()}${new URL(config.homepage).pathname}`
+        :   buildUrl(baseUrl, "--base-url").href;
+    const base = normalizeSiteBase(new URL(homepage).pathname);
     const assetRoot =
-        assets === undefined ?
-            config.site.assets
-        :   normalizeSiteAssets(buildUrl(assets, "--assets").href);
+        assets !== undefined ? normalizeSiteAssets(buildUrl(assets, "--assets").href)
+        : root !== undefined ? `https://cdn.${domain.toLowerCase()}`
+        : config.site.assets || `https://cdn.${domain.toLowerCase()}`;
     checkSiteSitemaps(config.site.sitemaps, base, config.contentPackage);
     return Object.freeze({
         ...config,
@@ -697,6 +712,8 @@ export function publishesContentPages(config) {
  *                                          `pack:` frontmatter, and one pack of
  *                                          the type is marked `default: true` to
  *                                          receive the notes that name none.
+ * @property {Record<string, any> & {inputs?: string}} [site] Site settings;
+ *                                          inputs names the optional local input provider.
  * @property {PathsInput} [paths]           Layout overrides. See {@link DEFAULT_PATHS}.
  * @property {string[]} [skipDirectories]   Directory names the content walk ignores
  *                                          wherever they appear (e.g. Obsidian's
@@ -752,6 +769,8 @@ export function publishesContentPages(config) {
  *                                     which Foundry serves no files for. See
  *                                     {@link module:engine/helpers.resolveImg},
  *                                     the one reader of it.
+ * @property {Readonly<Record<string, any> & {inputs: string}>} site Frozen site settings;
+ *                                     inputs is the local provider path or an empty string.
  * @property {Readonly<ResolvedPaths>} paths
  * @property {Readonly<StatsSpec>|null} stats  `null` for a `documentation`
  *                                     package, which stamps no `_stats`.
@@ -857,6 +876,7 @@ const SITE_KEYS = [
     "tags",
     "sitemaps",
     "mergeIndexes",
+    "inputs",
 ];
 const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
 const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
@@ -2011,6 +2031,7 @@ function normalizeSite(value, contentPackage) {
         tags: false,
         sitemaps: Object.freeze([]),
         mergeIndexes: Object.freeze([]),
+        inputs: "",
     });
     if (value === undefined) return empty;
     if (!isPlainObject(value)) fail("site", "must be a mapping");
@@ -2038,6 +2059,12 @@ function normalizeSite(value, contentPackage) {
         );
     }
 
+    const inputs =
+        input.inputs === undefined ? "" : requireNonEmptyString(input.inputs, "site.inputs");
+    if (inputs && !inputs.split("/").every((segment) => /^[a-z0-9][a-z0-9._-]*$/i.test(segment))) {
+        fail("site.inputs", "must be a plain relative module path without dot segments");
+    }
+
     return Object.freeze({
         base,
         title: input.title === undefined ? "" : requireNonEmptyString(input.title, "site.title"),
@@ -2060,6 +2087,7 @@ function normalizeSite(value, contentPackage) {
         tags: optionalBoolean(input.tags, "site.tags", false),
         sitemaps,
         mergeIndexes,
+        inputs,
     });
 }
 

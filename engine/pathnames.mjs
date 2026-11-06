@@ -67,11 +67,15 @@
  *
  * ## What is not a package pathname
  *
- * **An off-install address passes through on every surface**: a URL, a
- * protocol-relative `//host/…`, or a `/`-rooted path, which Foundry serves from
- * the data root and which names no package at all. That is how a note addresses
- * core Foundry art (`/icons/svg/mystery-man.svg`) or a package this build knows
- * nothing about (`/systems/dnd5e/icons/spell.webp`).
+ * **An off-install address passes through**: a URL, a protocol-relative
+ * `//host/…`, or a `/`-rooted path, which Foundry serves from the data root and
+ * which names no package at all. This covers core Foundry art
+ * (`/icons/svg/mystery-man.svg`) and packages outside this build
+ * (`/systems/dnd5e/icons/spell.webp`).
+ *
+ * The web form of an absolute canonical Heroic Lands CDN asset uses the
+ * effective `site.assets` host instead, preserving its path, query and fragment.
+ * This affects asset resolution only; authored links and text stay unchanged.
  *
  * **A package this build has never heard of keeps its ownership.** The website
  * and the book need only the package's name and the suffix, so both resolve;
@@ -98,6 +102,7 @@
  * @module
  */
 
+import { CANONICAL_CDN_ORIGIN } from "./site-origins.mjs";
 import { PACKAGEBUILD_PACKAGE } from "./packages.mjs";
 import { deployedSuffix, isDeployedSuffix } from "./asset-types.mjs";
 
@@ -173,7 +178,7 @@ export const PATHNAME_SURFACES = Object.freeze(["foundry", "local", "web", "pdf"
  * which Foundry serves from the data root rather than from any package.
  *
  * @param {string} s - A non-empty authored pathname.
- * @returns {boolean} Whether every surface emits it unchanged.
+ * @returns {boolean} Whether it is outside the package pathname space.
  */
 function isExternal(s) {
     // Checked before the single-slash case, which would otherwise claim it.
@@ -389,6 +394,16 @@ export function resolvePathname(raw, config) {
     if (raw == null) return null;
     const authored = String(raw);
     if (isExternal(authored)) {
+        let web = authored;
+        const host = String(config.site?.assets ?? "").replace(/\/+$/, "");
+        if (host && URL.canParse(authored)) {
+            const url = new URL(authored);
+            // Only this exact owned origin changes; external image hosts and
+            // all non-web forms retain their authored addresses.
+            if (url.origin === CANONICAL_CDN_ORIGIN) {
+                web = `${host}${url.pathname}${url.search}${url.hash}`;
+            }
+        }
         return {
             authored,
             state: "external",
@@ -397,7 +412,7 @@ export function resolvePathname(raw, config) {
             own: false,
             foundry: authored,
             local: authored,
-            web: authored,
+            web,
             pdf: authored,
         };
     }

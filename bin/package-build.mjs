@@ -61,7 +61,7 @@
  *   npx package-build bundle check
  *   npx package-build release
  *   npx package-build deploy <stage>
- *   npx package-build cdn publish --set <file> --name <display name> [--dry-run]
+ *   npx package-build cdn publish [--dest internal|cloudflare] --set <file> --name <display name> [--dry-run]
  *   npx package-build container <stage> <action>
  *   npx package-build e2e <seed|run|open|fast|sweep>
  *
@@ -96,6 +96,8 @@ import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, resetStage } from "../stage.mjs";
 import {
     CDN_ENV,
+    INTERNAL_CDN_HOST,
+    internalStore,
     cdnCredentials,
     noteArtFindings,
     noteArtReferences,
@@ -1417,11 +1419,9 @@ function deployCommand() {
  * `cdn publish` — upload every picture the package has to the CDN, and the art
  * the package leaves out as a named asset set.
  *
- * The one writer to `<site.assets>/<package>/`. It is run by hand or by a
- * dispatched workflow, never by a build or a release. The store is named by
- * the `CDN_*` variables in `CDN_ENV`, read from the environment or
- * `.env.local`; a dry run with none of them set compares against the public
- * CDN instead.
+ * Run manually, separate from builds and releases. Internal uses rsync to atlas
+ * and public HTTPS reads. Cloudflare uses the existing `CDN_*` R2 credentials;
+ * without those credentials its dry run compares against `site.assets`.
  *
  * @returns {object} The yargs command module.
  */
@@ -1431,6 +1431,12 @@ function cdnPublishCommand() {
         describe: "Upload every picture to the CDN and write a named asset set",
         builder: (y) =>
             y
+                .option("dest", {
+                    type: "string",
+                    choices: ["internal", "cloudflare"],
+                    default: "internal",
+                    describe: "CDN destination: atlas or Cloudflare R2",
+                })
                 .option("set", {
                     type: "string",
                     demandOption: true,
@@ -1455,15 +1461,18 @@ function cdnPublishCommand() {
             if (setProblem) die(setProblem);
             const name = String(args.name ?? "").trim();
             if (!name) die("`--name` is blank; a set needs a display name");
-            const host = String(packConfig.site?.assets ?? "").trim();
+            const host =
+                args.dest === "internal" ?
+                    INTERNAL_CDN_HOST
+                :   String(packConfig.site?.assets ?? "").trim();
             if (!host) {
                 die(
                     "`site.assets` is not declared, and it is the CDN root every picture " +
                         "is published under",
                 );
             }
-            const credentials = cdnCredentials(process.env);
-            if (!credentials && !args.dryRun) {
+            const credentials = args.dest === "cloudflare" ? cdnCredentials(process.env) : null;
+            if (args.dest === "cloudflare" && !credentials && !args.dryRun) {
                 die(
                     `no CDN store is configured: set ${Object.values(CDN_ENV).join(", ")} ` +
                         "in the environment or `.env.local`",
@@ -1501,7 +1510,13 @@ function cdnPublishCommand() {
                 records: plan.records,
             });
 
-            const store = credentials ? s3Store(credentials) : publicStore(host);
+            const store =
+                args.dest === "internal" ?
+                    args.dryRun ?
+                        publicStore(host)
+                    :   internalStore({ destination: process.env.CDN_INTERNAL_DESTINATION })
+                : credentials ? s3Store(credentials)
+                : publicStore(host);
             console.log(
                 `${args.dryRun ? "Dry run: comparing" : "Publishing"} ${plan.uploads.length} ` +
                     `pictures against ${store.describe}.`,

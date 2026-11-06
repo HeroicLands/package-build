@@ -137,10 +137,12 @@ describe("package-build site build, for a root site", () => {
             "Third Lantern",
             "First Lantern",
         ]);
-        expect(entries[0]).toContain('href="https://www.example.org/doc-secondlantern/"');
+        expect(entries[0]).toContain(
+            'href="https://www.internal.heroiclands.org/doc-secondlantern/"',
+        );
         expect(entries[0]).toContain("<name>Bo Writer</name>");
         expect(entries[1]).toContain("<name>Cy Editor</name>");
-        expect(feed).toContain('href="https://www.example.org/blog/atom.xml"');
+        expect(feed).toContain('href="https://www.internal.heroiclands.org/blog/atom.xml"');
         expect(read("index.html")).toMatch(
             /type="?application\/atom\+xml"?[^>]*href="?\/blog\/atom\.xml/,
         );
@@ -161,14 +163,14 @@ describe("package-build site build, for a root site", () => {
     it("names its own sitemap and each package site's in a sitemap index and robots.txt", () => {
         const index = read("sitemap-index.xml");
         expect([...index.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])).toEqual([
-            "https://www.example.org/sitemap.xml",
-            "https://www.example.org/searchdemo/sitemap.xml",
+            "https://www.internal.heroiclands.org/sitemap.xml",
+            "https://www.internal.heroiclands.org/searchdemo/sitemap.xml",
         ]);
         const robots = read("robots.txt");
         for (const loc of [
-            "https://www.example.org/sitemap-index.xml",
-            "https://www.example.org/sitemap.xml",
-            "https://www.example.org/searchdemo/sitemap.xml",
+            "https://www.internal.heroiclands.org/sitemap-index.xml",
+            "https://www.internal.heroiclands.org/sitemap.xml",
+            "https://www.internal.heroiclands.org/searchdemo/sitemap.xml",
         ])
             expect(robots).toContain(`Sitemap: ${loc}`);
     });
@@ -177,11 +179,11 @@ describe("package-build site build, for a root site", () => {
         const locs = [...read("sitemap.xml").matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
         expect(locs).toEqual(
             expect.arrayContaining([
-                "https://www.example.org/",
-                "https://www.example.org/blog/",
-                "https://www.example.org/projects/",
-                "https://www.example.org/doc-firstlantern/",
-                "https://www.example.org/tags/news/",
+                "https://www.internal.heroiclands.org/",
+                "https://www.internal.heroiclands.org/blog/",
+                "https://www.internal.heroiclands.org/projects/",
+                "https://www.internal.heroiclands.org/doc-firstlantern/",
+                "https://www.internal.heroiclands.org/tags/news/",
             ]),
         );
         expect(locs.some((loc) => loc.includes("doc-blog"))).toBe(false);

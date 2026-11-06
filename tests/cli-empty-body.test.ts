@@ -20,7 +20,11 @@ function fixture(body = "", draft = false) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "empty-body-"));
     fs.writeFileSync(
         path.join(root, "package.json"),
-        JSON.stringify({ name: "demo", version: "1.0.0" }),
+        JSON.stringify({
+            name: "demo",
+            version: "1.0.0",
+            homepage: "https://www.heroiclands.org/demo/",
+        }),
     );
     fs.writeFileSync(
         path.join(root, "package-build.config.yaml"),

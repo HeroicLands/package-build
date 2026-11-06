@@ -111,7 +111,7 @@ describe("a root site resolves", () => {
         const { message } = refusal(["sitemap: [sohl]"]);
         expect(message).toContain(
             "expected one of: base, title, assets, description, packages, pass, passOptions, " +
-                "notfound, search, maps, sections, feed, tags, sitemaps, mergeIndexes",
+                "notfound, search, maps, sections, feed, tags, sitemaps, mergeIndexes, inputs",
         );
     });
 });

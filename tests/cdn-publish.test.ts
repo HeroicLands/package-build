@@ -16,16 +16,22 @@
  * signed with the fixture's key, so an unsigned upload fails here.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { spawn, spawnSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import YAML from "yaml";
 
-import { s3Store, publicStore } from "../engine/cdn-publish.mjs";
+import {
+    s3Store,
+    publicStore,
+    internalStore,
+    planCdnPublish,
+    publishToCdn,
+} from "../engine/cdn-publish.mjs";
 
 import { subprocessTimeout } from "./subprocess-timeout.js";
 
@@ -227,7 +233,16 @@ function run(repo: string, args: string[], env: Record<string, string>) {
     });
 }
 
-const PUBLISH = ["cdn", "publish", "--set", "alt-art.json", "--name", "Test — illustrated"];
+const PUBLISH = [
+    "cdn",
+    "publish",
+    "--dest",
+    "cloudflare",
+    "--set",
+    "alt-art.json",
+    "--name",
+    "Test — illustrated",
+];
 
 let s3: FakeS3;
 let credentials: Record<string, string>;
@@ -498,4 +513,411 @@ describe("store size()", () => {
             expect(await stores(fetchImpl)[kind].size("a/b.svg")).toBeUndefined();
         });
     }
+});
+
+describe("internal CDN transport", () => {
+    it("uploads the same transformed plan through rsync and skips an unchanged second run", async () => {
+        const repo = makeRepo("package-build-internal-", "https://unused.test");
+        const plan = planCdnPublish({
+            assetsBase: path.join(repo, "assets"),
+            contentPackage: PKG,
+            host: "https://cdn.internal.heroiclands.org",
+            setFile: "art.json",
+            setName: "Internal",
+            transform: (file: string) =>
+                file.endsWith(".svg") ?
+                    fs.readFileSync(file, "utf8").replace("#000", "currentColor")
+                :   null,
+        });
+        const objects = new Map<string, Buffer>();
+        const transfers: string[][] = [];
+        const stagedPaths: string[] = [];
+        const store = internalStore({
+            destination: "preview-atlas:cdn",
+            fetch: (async (url: string, init: RequestInit) => {
+                const key = decodeURIComponent(new URL(url).pathname.slice(1));
+                const body = objects.get(key);
+                return body ?
+                        new Response(init.method === "HEAD" ? null : body, {
+                            headers: { "content-length": String(body.length) },
+                        })
+                    :   new Response(null, { status: 404 });
+            }) as typeof fetch,
+            transfer: async (args: string[]) => {
+                transfers.push(args);
+                const source = args.at(-2)!;
+                stagedPaths.push(source);
+                const key = source.split("/./")[1];
+                objects.set(key, fs.readFileSync(source));
+            },
+        });
+        const dry = await publishToCdn(plan, { store, dryRun: true });
+        expect(dry.uploaded).toHaveLength(6);
+        expect(transfers).toHaveLength(0);
+        expect(objects.size).toBe(0);
+        const first = await publishToCdn(plan, { store });
+        expect(first.failed).toEqual([]);
+        expect(first.uploaded).toHaveLength(6);
+        expect(objects.get("tpkg/icons/anvil.svg")?.toString()).toContain('fill="currentColor"');
+        expect(objects.get("tpkg/art.json")).toEqual(plan.set!.body);
+        expect(JSON.parse(objects.get("tpkg/art.json")!.toString()).assets[0].source).toMatch(
+            /^https:\/\/cdn.internal.heroiclands.org\//,
+        );
+        for (const args of transfers) {
+            expect(args.at(-1)).toBe("preview-atlas:cdn/");
+            expect(args).toContain("--relative");
+            expect(args).toContain("--ignore-times");
+            expect(args.join(" ")).toContain("StrictHostKeyChecking=yes");
+            expect(args.join(" ")).not.toMatch(/--delete|--rsync-path|IdentityFile/);
+        }
+        expect(stagedPaths.every((file) => !fs.existsSync(file))).toBe(true);
+        const second = await publishToCdn(plan, { store });
+        expect(second.skipped).toHaveLength(6);
+        expect(second.set).toBe("skipped");
+        expect(transfers).toHaveLength(7);
+    });
+
+    it("rejects unsafe destinations and keys before a transfer", async () => {
+        let calls = 0;
+        const transfer = async () => {
+            calls++;
+        };
+        for (const destination of [
+            "-host:cdn",
+            "atlas:../cdn",
+            "atlas:cdn;id",
+            "atlas:/other",
+            "user:secret@atlas:cdn",
+        ]) {
+            expect(() => internalStore({ destination, transfer })).toThrow(/destination/);
+        }
+        const store = internalStore({ transfer });
+        for (const key of [
+            "../bad",
+            "/absolute",
+            "tpkg/../bad",
+            "tpkg/./bad",
+            "tpkg//bad",
+            "tpkg/back\\slash",
+            "tpkg/bad\nname",
+        ]) {
+            await expect(store.write!(key, Buffer.from("x"), "image/png")).rejects.toThrow(/key/);
+        }
+        expect(calls).toBe(0);
+    });
+
+    it("sanitizes transfer failures, cleans scratch and withholds the set", async () => {
+        let staged = "";
+        const store = internalStore({
+            fetch: (async () => new Response(null, { status: 404 })) as typeof fetch,
+            transfer: async (args: string[]) => {
+                staged = args.at(-2)!;
+                throw new Error("secret-in-ssh-error");
+            },
+        });
+        const plan = {
+            uploads: [
+                {
+                    key: "tpkg/images/a.png",
+                    body: Buffer.from("a"),
+                    address: "a",
+                    contentType: "image/png",
+                },
+            ],
+            set: { key: "tpkg/art.json", body: Buffer.from("{}"), set: { assets: [] } },
+        };
+        const result = await publishToCdn(plan as any, { store });
+        expect(result.set).toBe("withheld");
+        expect(result.failed[0].message).toMatch(/rsync.*failed/);
+        expect(result.failed[0].message).not.toContain("secret-in-ssh-error");
+        expect(fs.existsSync(staged)).toBe(false);
+    });
+});
+
+describe("CDN destination CLI", () => {
+    it(
+        "dry-runs internal by default without SSH or R2 credentials",
+        async () => {
+            const repo = makeRepo("package-build-internal-dry-", "https://configured-public.test");
+            const preload = path.join(repo, "fetch.mjs");
+            fs.writeFileSync(
+                preload,
+                `globalThis.fetch = async (input) => {
+            if (new URL(input).origin !== "https://cdn.internal.heroiclands.org") throw new Error("unexpected destination");
+            return new Response(null, {status: 404});
+        };`,
+            );
+            const fakeBin = path.join(repo, "bin");
+            fs.mkdirSync(fakeBin);
+            const marker = path.join(repo, "ssh-attempted");
+            fs.writeFileSync(
+                path.join(fakeBin, "rsync"),
+                '#!/bin/sh\n: > "$CDN_TEST_MARKER"\nexit 17\n',
+                { mode: 0o700 },
+            );
+            const out = await run(
+                repo,
+                ["cdn", "publish", "--set", "art.json", "--name", "Internal", "--dry-run"],
+                {
+                    NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`,
+                    PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`,
+                    CDN_TEST_MARKER: marker,
+                    CDN_INTERNAL_DESTINATION: "unsafe:path",
+                    CDN_ACCESS_KEY_ID: "half-configured-and-ignored",
+                },
+            );
+            expect(out.stderr).toBe("");
+            expect(out.status).toBe(0);
+            expect(out.stdout).toContain("against https://cdn.internal.heroiclands.org, read-only");
+            expect(out.stdout).toContain("Would upload 6, skipped 0, failed 0");
+            expect(fs.existsSync(marker)).toBe(false);
+        },
+        subprocessTimeout(1),
+    );
+    it(
+        "defaults to internal and rejects an unknown destination before publication",
+        async () => {
+            const repo = makeRepo("package-build-destination-", "https://unused.test");
+            const help = await run(repo, ["cdn", "publish", "--help"], {});
+            expect(help.status).toBe(0);
+            expect(help.stdout).toMatch(
+                /--dest[\s\S]*internal[\s\S]*cloudflare[\s\S]*default: "internal"/,
+            );
+            const defaultRun = await run(
+                repo,
+                ["cdn", "publish", "--set", "art.json", "--name", "Internal"],
+                {
+                    CDN_INTERNAL_DESTINATION: "unsafe:path",
+                    CDN_ACCESS_KEY_ID: "half-configured-and-ignored",
+                },
+            );
+            expect(defaultRun.status).not.toBe(0);
+            expect(defaultRun.stderr).toContain("invalid internal CDN destination");
+            expect(defaultRun.stderr).not.toContain("half configured");
+            const bad = await run(repo, [...PUBLISH, "--dest", "elsewhere"], credentials);
+            expect(bad.status).not.toBe(0);
+            expect(bad.stderr).toContain("Invalid values");
+        },
+        subprocessTimeout(3),
+    );
+});
+
+const HAS_RSYNC_RECEIVER =
+    spawnSync("rsync", ["--version"]).status === 0 && spawnSync("rrsync", ["-h"]).status === 0;
+it.skipIf(!HAS_RSYNC_RECEIVER)(
+    "internal writes work with a forced write-only rrsync receiver",
+    async () => {
+        const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "package-build-rrsync-"));
+        try {
+            const root = path.join(scratch, "receiver");
+            fs.mkdirSync(path.join(root, "cdn"), { recursive: true });
+            fs.writeFileSync(path.join(root, "cdn", "unrelated.txt"), "keep");
+            // Homebrew's receiver script names Apple's different /usr/bin/rsync.
+            // Keep the installed receiver logic, selecting the same rsync as the sender.
+            const find = (name: string) =>
+                process.env
+                    .PATH!.split(path.delimiter)
+                    .map((dir) => path.join(dir, name))
+                    .find((file) => fs.existsSync(file))!;
+            const receiver = path.join(scratch, "rrsync");
+            fs.writeFileSync(
+                receiver,
+                fs
+                    .readFileSync(find("rrsync"), "utf8")
+                    .replace(/^RSYNC = .*$/m, `RSYNC = ${JSON.stringify(find("rsync"))}`),
+                { mode: 0o700 },
+            );
+            const transport = path.join(scratch, "transport");
+            fs.writeFileSync(
+                transport,
+                '#!/bin/sh\nshift\nSSH_ORIGINAL_COMMAND="$*" exec "$CDN_TEST_RECEIVER" -wo -munge "$CDN_TEST_ROOT"\n',
+                { mode: 0o700 },
+            );
+            const store = internalStore({
+                destination: "restricted-atlas:cdn",
+                transfer: async (args: string[]) => {
+                    const result = spawnSync(
+                        "rsync",
+                        args.map((arg) => (arg.startsWith("--rsh=") ? `--rsh=${transport}` : arg)),
+                        {
+                            encoding: "utf8",
+                            env: {
+                                ...process.env,
+                                CDN_TEST_ROOT: root,
+                                CDN_TEST_RECEIVER: receiver,
+                            },
+                        },
+                    );
+                    expect(result.stderr).toBe("");
+                    expect(result.status).toBe(0);
+                },
+            });
+            await store.write!(
+                "tpkg/icons/quote' space.svg",
+                Buffer.from("first"),
+                "image/svg+xml",
+            );
+            await store.write!("tpkg/art.json", Buffer.from("first"), "application/json");
+            await store.write!("tpkg/art.json", Buffer.from("other"), "application/json");
+            expect(
+                fs.readFileSync(path.join(root, "cdn/tpkg/icons/quote' space.svg"), "utf8"),
+            ).toBe("first");
+            expect(fs.readFileSync(path.join(root, "cdn/tpkg/art.json"), "utf8")).toBe("other");
+            expect(fs.readFileSync(path.join(root, "cdn/unrelated.txt"), "utf8")).toBe("keep");
+        } finally {
+            fs.rmSync(scratch, { recursive: true, force: true });
+        }
+    },
+);
+
+it("validates the whole plan before any read or write", async () => {
+    let calls = 0;
+    const store = {
+        describe: "test",
+        size: async () => {
+            calls++;
+            return undefined;
+        },
+        read: async () => {
+            calls++;
+            return undefined;
+        },
+        write: async () => {
+            calls++;
+        },
+    };
+    const valid = {
+        key: "tpkg/images/a.png",
+        body: Buffer.from("a"),
+        address: "a",
+        contentType: "image/png",
+    };
+    for (const plan of [
+        { uploads: [valid, { ...valid, key: "tpkg/../outside" }], set: { key: "tpkg/art.json" } },
+        { uploads: [valid], set: { key: "../outside.json" } },
+    ]) {
+        await expect(publishToCdn(plan as any, { store })).rejects.toThrow(/unsafe CDN key/);
+    }
+    expect(calls).toBe(0);
+});
+
+it("public reads encode each validated key segment", async () => {
+    const seen: string[] = [];
+    const store = publicStore("https://cdn.test", (async (url: string) => {
+        seen.push(url);
+        return new Response(null, { status: 404 });
+    }) as typeof fetch);
+    await store.read("tpkg/set #1?.json");
+    expect(seen).toEqual(["https://cdn.test/tpkg/set%20%231%3F.json"]);
+});
+
+describe("internal publication failure diagnostics", () => {
+    it.each([
+        [255, "Host key verification failed."],
+        [255, "Permission denied (publickey)."],
+        [12, "rrsync error: untrusted transfer option refused"],
+    ])("retains exit %s and actionable stderr", async (code, diagnostic) => {
+        const store = internalStore({
+            transfer: async () => {
+                throw Object.assign(new Error("Command failed: rsync secret-argv"), {
+                    code,
+                    stderr: `debug command: secret-argv\n${diagnostic}\nrsync: connection unexpectedly closed\nrsync error: unexplained error (code ${code}) at io.c(232)\n`,
+                });
+            },
+        });
+        await expect(
+            store.write!("tpkg/art.json", Buffer.from("{}"), "application/json"),
+        ).rejects.toThrow(`exit ${code}: ${diagnostic}`);
+    });
+
+    it("bounds terminal-safe context and omits commands and private key material", async () => {
+        const secret = "private-key-body-never-log";
+        const store = internalStore({
+            transfer: async () => {
+                throw Object.assign(new Error(`Command failed: secret-argv ${secret}`), {
+                    code: 255,
+                    stderr: `-----BEGIN OPENSSH PRIVATE KEY-----\n${secret}\n-----END OPENSSH PRIVATE KEY-----\nCommand failed: secret-argv\n\u001b[31mPermission denied (publickey).\u001b[0m\r\n`,
+                });
+            },
+        });
+        let message = "";
+        try {
+            await store.write!("tpkg/art.json", Buffer.from("{}"), "application/json");
+        } catch (err) {
+            message = (err as Error).message;
+        }
+        expect(message).toContain("exit 255: Permission denied (publickey).");
+        expect(message).not.toMatch(/secret-argv|private-key|PRIVATE KEY|[\x00-\x1f\x7f-\x9f]/);
+        expect(message.length).toBeLessThan(500);
+    });
+
+    it.each(["mkdtempSync", "writeFileSync"] as const)(
+        "reports local %s EACCES without a path or original message",
+        async (operation) => {
+            const before = new Set(
+                fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith("package-build-cdn-")),
+            );
+            const spy = vi.spyOn(fs, operation).mockImplementation(() => {
+                throw Object.assign(new Error("private-local-path"), { code: "EACCES" });
+            });
+            let calls = 0;
+            const store = internalStore({
+                transfer: async () => {
+                    calls++;
+                },
+            });
+            let message = "";
+            try {
+                await store.write!("tpkg/art.json", Buffer.from("{}"), "application/json");
+            } catch (err) {
+                message = (err as Error).message;
+            } finally {
+                spy.mockRestore();
+            }
+            expect(message).toContain("EACCES");
+            expect(message).toContain(
+                operation === "mkdtempSync" ? "create temporary directory" : "write staged file",
+            );
+            expect(message).not.toContain("private-local-path");
+            expect(calls).toBe(0);
+            expect(
+                new Set(
+                    fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith("package-build-cdn-")),
+                ),
+            ).toEqual(before);
+        },
+    );
+});
+
+it("bounds long receiver context", async () => {
+    const store = internalStore({
+        transfer: async () => {
+            throw Object.assign(new Error("argv-hidden"), {
+                code: 12,
+                stderr: "rrsync error: " + "receiver refused ".repeat(100),
+            });
+        },
+    });
+    let message = "";
+    try {
+        await store.write!("tpkg/art.json", Buffer.from("{}"), "application/json");
+    } catch (err) {
+        message = (err as Error).message;
+    }
+    expect(message).toContain("exit 12: rrsync error: receiver refused");
+    expect(message.length).toBeLessThan(500);
+});
+
+it("reports installed rrsync's executable-prefixed refusal safely", async () => {
+    const store = internalStore({
+        transfer: async () => {
+            throw Object.assign(new Error("argv-hidden"), {
+                code: 12,
+                stderr: '/usr/bin/rrsync error: invalid path "private-path"\nrsync error: error in rsync protocol data stream (code 12)\n',
+            });
+        },
+    });
+    await expect(
+        store.write!("tpkg/art.json", Buffer.from("{}"), "application/json"),
+    ).rejects.toThrow("exit 12: rrsync error: invalid path [redacted]");
 });

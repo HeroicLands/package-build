@@ -94,7 +94,7 @@ export async function serveSite({
 }) {
     // Refuse a site that cannot be described before starting its server.
     siteSettings({ config });
-    readCachedNavigation(config);
+    if (!config.site.inputs) readCachedNavigation(config);
     root = path.resolve(root);
     out = path.resolve(out);
     let timer = null;

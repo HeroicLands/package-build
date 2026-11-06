@@ -20,12 +20,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { defineConfig } from "../content-config.mjs";
+import { defineConfig, siteBuildConfig } from "../content-config.mjs";
 import {
     BRAND,
     DEPLOY_ROOT,
     NAVIGATION_FILE,
     NAVIGATION_URL,
+    CANONICAL_CDN_ORIGIN,
     fetchNavigation,
     navigationCacheDir,
     readCachedNavigation,
@@ -291,4 +292,68 @@ describe("`site.notfound` is validated", () => {
             links: [{ title: "t", url: "/", text: "why" }],
         });
     });
+});
+
+describe("selected site origins", () => {
+    it("projects only canonical owned navigation links and brand links onto the effective origin", () => {
+        const authored = configFor();
+        cacheNavigation(authored, [
+            {
+                name: "Owned",
+                url: "https://www.heroiclands.org/sohl/?view=all#top",
+                children: [
+                    { name: "External", url: "https://example.org/credit/" },
+                    { name: "Similar", url: "https://www.heroiclands.org.example.org/" },
+                ],
+            },
+        ]);
+        const cached = fs.readFileSync(
+            path.join(navigationCacheDir(authored), NAVIGATION_FILE),
+            "utf8",
+        );
+        for (const root of ["internal.heroiclands.org", "heroiclands.org"]) {
+            const effective = siteBuildConfig(authored, { root });
+            const menu = readCachedNavigation(effective);
+            expect(menu[0].url).toBe(`https://www.${root}/sohl/?view=all#top`);
+            expect(menu[0].children?.[0].url).toBe("https://example.org/credit/");
+            expect(menu[0].children?.[1].url).toBe("https://www.heroiclands.org.example.org/");
+            const brand = siteSettings({ config: effective }).params.brand as any;
+            expect(brand.licenseURL).toBe(`https://www.${root}/license/`);
+            expect(brand.discordURL).toBe(BRAND.discordURL);
+        }
+        expect(
+            fs.readFileSync(path.join(navigationCacheDir(authored), NAVIGATION_FILE), "utf8"),
+        ).toBe(cached);
+    });
+});
+
+it("keeps relative navigation and external URLs while projecting owned absolute links", () => {
+    const config = siteBuildConfig(configFor(), { root: "internal.heroiclands.org" });
+    const navigation = [
+        {
+            name: "Relative",
+            url: "../projects/?q=1#top",
+            children: [
+                { name: "Local", url: "/local/" },
+                { name: "Protocol relative", url: "//www.heroiclands.org/sohl/" },
+                { name: "External", url: "https://outside.example.org/" },
+                { name: "Owned", url: "https://www.heroiclands.org/sohl/?q=1#top" },
+            ],
+        },
+    ];
+    cacheNavigation(config, navigation);
+    expect(readCachedNavigation(config)).toEqual([
+        {
+            ...navigation[0],
+            children: navigation[0].children.map((child) =>
+                child.name === "Owned" ?
+                    { ...child, url: "https://www.internal.heroiclands.org/sohl/?q=1#top" }
+                :   child,
+            ),
+        },
+    ]);
+});
+
+it("exposes the canonical CDN origin beside the owned navigation address", () => {
+    expect(CANONICAL_CDN_ORIGIN).toBe("https://cdn.heroiclands.org");
 });

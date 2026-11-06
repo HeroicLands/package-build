@@ -974,23 +974,24 @@ Any other key under `docs.itemFields` is refused:
 
 **Type:** object · **Optional** · every key defaults to nothing published:
 
-| Key                 | Type     | Default                                      |
-| ------------------- | -------- | -------------------------------------------- |
-| `site.base`         | string   | `""`                                         |
-| `site.title`        | string   | `""`, required when no manifest title exists |
-| `site.assets`       | string   | `""`, but required for `site build`          |
-| `site.description`  | string   | `""`, but required for `site build`          |
-| `site.packages`     | string[] | `[]`                                         |
-| `site.pass`         | string   | `""`                                         |
-| `site.passOptions`  | object   | `{}`                                         |
-| `site.notfound`     | object   | `null`                                       |
-| `site.search`       | boolean  | `true`                                       |
-| `site.maps`         | boolean  | `true`                                       |
-| `site.sections`     | object   | `{}`                                         |
-| `site.feed`         | string   | `""`                                         |
-| `site.tags`         | boolean  | `false`                                      |
-| `site.sitemaps`     | string[] | `[]`, and only at the root of an origin      |
-| `site.mergeIndexes` | string[] | `[]`                                         |
+| Key                 | Type     | Default                                       |
+| ------------------- | -------- | --------------------------------------------- |
+| `site.base`         | string   | `""`                                          |
+| `site.title`        | string   | `""`, required when no manifest title exists  |
+| `site.assets`       | string   | `""`; `site build` derives a CDN when omitted |
+| `site.description`  | string   | `""`, but required for `site build`           |
+| `site.packages`     | string[] | `[]`                                          |
+| `site.pass`         | string   | `""`                                          |
+| `site.passOptions`  | object   | `{}`                                          |
+| `site.notfound`     | object   | `null`                                        |
+| `site.search`       | boolean  | `true`                                        |
+| `site.maps`         | boolean  | `true`                                        |
+| `site.sections`     | object   | `{}`                                          |
+| `site.feed`         | string   | `""`                                          |
+| `site.tags`         | boolean  | `false`                                       |
+| `site.sitemaps`     | string[] | `[]`, and only at the root of an origin       |
+| `site.mergeIndexes` | string[] | `[]`                                          |
+| `site.inputs`       | string   | `""`; optional local input-provider module    |
 
 The authored content tree determines which pages reach the web. `site` is
 framing: which named pass bundle
@@ -1016,7 +1017,7 @@ renders it under the deployment root `build/site/`, at
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, title, assets, description, packages, pass, passOptions, notfound, search, maps, sections, feed, tags, sitemaps, mergeIndexes).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, title, assets, description, packages, pass, passOptions, notfound, search, maps, sections, feed, tags, sitemaps, mergeIndexes, inputs).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -1029,17 +1030,18 @@ Absolute, and the trailing slash is trimmed:
 
 > ``package-build config: `site.assets` must be an absolute `http://` or `https://` address — it is the host every package's imagery is served from, and a relative value resolves against whichever page happens to carry the image.``
 
-`package-build site build` refuses a configuration with no `site.assets` at
-all — there is no defensible default, because the theme
-resolves every relative asset against it:
+`package-build site build` resolves its effective asset host from `--assets`,
+an explicit `--root`, or configured `site.assets`, in that order. If none is
+provided, it derives `https://cdn.internal.heroiclands.org` from the default
+root. Every relative asset resolves against that effective host.
 
-> ``package-build config: `site.assets` is not declared, and a site build needs one — it is the host every package's imagery is served from, and the theme resolves every relative asset against it.``
-
-`package-build cdn publish` uploads the package's pictures under the same
-host, at `<site.assets>/<contentPackage>/icons/<basename>` and
-`…/images/<basename>`, which is the address the website gives each one. The
-bucket behind the CDN is served at `site.assets`, so an object's key is its
-path below this value.
+`package-build cdn publish --dest cloudflare` manually uploads pictures under
+this host, at `<site.assets>/<contentPackage>/icons/<basename>` and
+`…/images/<basename>`. The R2 bucket is served at `site.assets`, so an object's
+key is its path below this value. The default `--dest internal` instead publishes
+the same keys to atlas, served at `https://cdn.internal.heroiclands.org`; its set
+sources use that internal origin regardless of configured `site.assets`.
+Publication is separate from site building and deployment.
 
 The site settings carry the same host as
 `params.cdnBaseURL`, which the theme resolves a relative asset path against.
@@ -1284,10 +1286,54 @@ site:
   mergeIndexes: [sohl, thalorna, kethira, harnensemble]
 ```
 
-The optional [`site build --base-url` and `--assets` flags](commands.md#package-build-site-build)
-apply runtime overrides to these resolved settings. The base URL supplies the
-effective homepage and `site.base`; the asset URL supplies effective
-`site.assets`. The authored configuration stays unchanged and must be valid.
+[`site build --root <domain>`](commands.md#package-build-site-build) selects
+`https://www.<domain>` while preserving the homepage path. Its default domain
+is `internal.heroiclands.org`. Explicit `--root` replaces configured `site.assets`
+with `https://cdn.<domain>`; without the flag the configured asset host stays,
+or the derived CDN is used if no asset host is configured. Explicit `--base-url`
+and `--assets` independently take precedence over these derived values.
+The effective configuration exposes the chosen address as `homepage`, its path
+as `site.base`, and the asset host as `site.assets`. The authored configuration
+stays unchanged and must be valid. A root-website integration uses these resolved
+inputs rather than deriving hosts itself; canonical source-navigation drift
+checks remain against the original navigation before projecting its URLs.
+`readCachedNavigation(effectiveConfig)` projects only canonical Heroic Lands
+www links onto the effective homepage origin; `siteSettings` does the same for
+the brand license link. Neither function writes the cache or changes external
+attribution links.
+
+### Local site inputs
+
+`site.inputs` optionally names a local module relative to `rootDir`, such as
+`utils/site-inputs.mjs`. Use a plain relative path without dot segments,
+backslashes or symlinks. Its default export is a function taking `{config}`,
+the immutable effective configuration after root and URL overrides. The function
+may return a promise and must return `{navigation, files}`:
+
+```js
+export default async function ({ config }) {
+  const navigation = [{ name: "Home", url: new URL("/", config.homepage).href }];
+  return { navigation, files: { "nav.json": JSON.stringify(navigation) + "\n" } };
+}
+```
+
+The navigation uses the existing `{name, url, children?}` shape. A provider
+supplies selected URLs itself; the example reads the effective homepage instead
+of deriving hosts. A root website can compare its committed canonical navigation
+against its canonical roster before returning selected-origin navigation. A
+thrown drift finding stops the build before output is replaced. Without this
+key the builder continues to require the navigation cache from `deps fetch`.
+
+`files` maps relative output paths to UTF-8 strings. Paths use plain ASCII
+letters, numbers, dots, underscores and hyphens within segments, with each
+segment beginning with a letter or number. Absolute paths, dot segments,
+symlinks, case collisions and file/directory collisions are refused. A provider
+cannot claim HTML, theme/static assets, fonts, search/tag trees, page paths,
+feeds, sitemap files, robots or deployment headers. All files are validated
+before output replacement, then written inside the package site's output after
+the renderer clears it. Their paths are included in `written.files`.
+This prepares build inputs and text artifacts; it is not a shell command or a
+publication hook.
 
 ### What the site build reads
 
@@ -1296,17 +1342,17 @@ repository already states, a few constants of the organisation, and the
 navigation `deps fetch` cached. Every value has one source, and that source is
 where it is edited:
 
-| Setting              | Derived from                                                                                                                                          |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| base URL             | `package.json` `homepage`, checked by `checkHomepage` — an absolute URL ending `/<contentPackage>/`                                                   |
-| title                | `site.title` when declared, otherwise `packageBuild.manifest.title`                                                                                   |
-| `params.description` | `site.description`, which is required                                                                                                                 |
-| `params.author`      | the first entry of `authors`, its `name`; absent when `authors` is empty                                                                              |
-| `params.cdnBaseURL`  | `site.assets`, which is required                                                                                                                      |
-| `params.brand`       | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                     |
-| `params.notfound`    | `site.notfound`; absent when undeclared                                                                                                               |
-| `params.scriptFonts` | the installed script fonts' stylesheet, present only when the package delivers fonts                                                                  |
-| menu                 | the navigation `package-build deps fetch` caches from `https://www.heroiclands.org/nav.json`, entry for entry, a dropdown's entries as its `children` |
+| Setting              | Derived from                                                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| base URL             | Effective `homepage` from `siteBuildConfig`; authored `package.json` `homepage` first passes `checkHomepage`                                                                                                 |
+| title                | `site.title` when declared, otherwise `packageBuild.manifest.title`                                                                                                                                          |
+| `params.description` | `site.description`, which is required                                                                                                                                                                        |
+| `params.author`      | the first entry of `authors`, its `name`; absent when `authors` is empty                                                                                                                                     |
+| `params.cdnBaseURL`  | `site.assets`, which is required                                                                                                                                                                             |
+| `params.brand`       | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                                                                            |
+| `params.notfound`    | `site.notfound`; absent when undeclared                                                                                                                                                                      |
+| `params.scriptFonts` | the installed script fonts' stylesheet, present only when the package delivers fonts                                                                                                                         |
+| menu                 | the navigation `package-build deps fetch` caches from `https://www.heroiclands.org/nav.json`, with canonical owned URLs projected onto the effective homepage origin, a dropdown's entries as its `children` |
 
 The site build reads the navigation from the cache only. A cold cache is an
 error naming the command that fills it:
@@ -1322,11 +1368,9 @@ the same way when it is absent:
 
 > ``package-build config: `site.description` is not declared, and the site's `<meta name="description">` reads from it.``
 
-`params.cdnBaseURL` reads from `site.assets`, and the theme resolves every
-relative asset against it, so a configuration declaring none fails the site
-build the same way:
-
-> ``package-build config: `site.assets` is not declared, and a site build needs one — it is the host every package's imagery is served from, and the theme resolves every relative asset against it.``
+`params.cdnBaseURL` reads the effective `site.assets` chosen by the build
+resolver, and the theme resolves every relative asset against it. Direct
+`siteSettings` callers must supply that effective asset host.
 
 Nothing else is configurable. A site is its homepage and its pages: the
 homepage is the package root and every note is a page. A tag is a field a

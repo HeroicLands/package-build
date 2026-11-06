@@ -32,7 +32,11 @@ function fixture() {
     );
     fs.appendFileSync(
         path.join(root, "assets/content/Pages/road.md"),
-        "\nThe inscription reads [\u{F0200}]{font=semaron-kuriale}.\n",
+        "\nThe inscription reads [\u{F0200}]{font=semaron-kuriale}.\n" +
+            "\n[Project attribution](https://www.heroiclands.org/author/) and [External credit](https://example.org/credit/).\n" +
+            "\n![Shared image](https://cdn.heroiclands.org/sohl/images/map.webp?size=2#detail)\n" +
+            "\n![External image](https://example.org/image.webp)\n" +
+            "\n[CDN attribution](https://cdn.heroiclands.org/sohl/images/map.webp)\n",
     );
     cacheNavigation(fixtureConfig(root));
     return root;
@@ -61,7 +65,24 @@ describe("site build runtime URLs", () => {
     });
 
     it.each([
-        ["defaults", "https://www.example.org/rootdemo/", "https://cdn.example.org", []],
+        [
+            "defaults",
+            "https://www.internal.heroiclands.org/rootdemo/",
+            "https://cdn.example.org",
+            [],
+        ],
+        [
+            "public root",
+            "https://www.heroiclands.org/rootdemo/",
+            "https://cdn.heroiclands.org",
+            ["--root", "heroiclands.org"],
+        ],
+        [
+            "explicit internal root",
+            "https://www.internal.heroiclands.org/rootdemo/",
+            "https://cdn.internal.heroiclands.org",
+            ["--root", "internal.heroiclands.org"],
+        ],
         [
             "internal main",
             "https://www.internal.heroiclands.org/rootdemo/",
@@ -101,7 +122,16 @@ describe("site build runtime URLs", () => {
             const read = (file: string) => fs.readFileSync(path.join(out, file), "utf8");
             const html = read("doc-roadproject/index.html");
             expect(html).toContain(`${base}blog/`);
+            expect(html).toContain(`${new URL(homepage as string).origin}/license/`);
+            expect(html).toContain(
+                `href="${new URL(homepage as string).origin}/" class="nav-link"`,
+            );
+            expect(html).toContain('href="https://www.heroiclands.org/author/"');
+            expect(html).toContain('href="https://example.org/credit/"');
             expect(html).toContain(`${assets}/images/brand/sohl-icon-white.webp`);
+            expect(html).toContain(`src="${assets}/sohl/images/map.webp?size=2#detail"`);
+            expect(html).toContain('src="https://example.org/image.webp"');
+            expect(html).toContain('href="https://cdn.heroiclands.org/sohl/images/map.webp"');
             expect(html).toContain(`${base}fonts/heroiclands/1.4.0/fonts.css`);
             expect(html).toContain(`${base}pagefind/`);
             expect(read("sitemap.xml")).toContain(`${homepage}doc-roadproject/`);
@@ -131,6 +161,14 @@ describe("site build runtime URLs", () => {
     );
 
     it.each([
+        ["--root", "https://heroiclands.org"],
+        ["--root", "heroiclands.org/path"],
+        ["--root", "heroiclands.org:443"],
+        ["--root", "user@heroiclands.org"],
+        ["--root", "heroiclands.org?x"],
+        ["--root", "-invalid.org"],
+        ["--root", "invalid..org"],
+        ["--root", ""],
         ["--base-url", "https:///example.org/rootdemo/"],
         ["--base-url", "/relative/"],
         ["--base-url", "ftp://example.org/rootdemo/"],
@@ -152,7 +190,7 @@ describe("site build runtime URLs", () => {
             const out = path.join(root, "build/site/rootdemo");
             fs.mkdirSync(out, { recursive: true });
             fs.writeFileSync(path.join(out, "index.html"), "last good build");
-            const result = build(root, [flag, value]);
+            const result = build(root, [`${flag}=${value}`]);
             expect(result.status).toBe(1);
             expect(result.stderr).toContain(flag);
             expect(fs.readFileSync(path.join(out, "index.html"), "utf8")).toBe("last good build");
@@ -198,6 +236,26 @@ describe("site build runtime URLs", () => {
             expect(config.site.assets).toBe("https://cdn.example.org");
         },
     );
+
+    it("resolves root and low-level precedence without changing the authored config", () => {
+        const authored = fixtureConfig(fixture());
+        const original = JSON.stringify(authored);
+        const defaults = siteBuildConfig(authored, {});
+        expect(defaults.homepage).toBe("https://www.internal.heroiclands.org/rootdemo/");
+        expect(defaults.site.assets).toBe("https://cdn.example.org");
+        const selected = siteBuildConfig(authored, { root: "heroiclands.org" });
+        expect(selected.site.assets).toBe("https://cdn.heroiclands.org");
+        expect(selected.site.base).toBe("/rootdemo/");
+        expect(Object.isFrozen(selected.site)).toBe(true);
+        const overrides = siteBuildConfig(authored, {
+            root: "heroiclands.org",
+            baseUrl: "https://preview.example.org/pr/rootdemo/123/rootdemo/",
+            assets: "https://assets.example.org/media/",
+        });
+        expect(overrides.homepage).toBe("https://preview.example.org/pr/rootdemo/123/rootdemo/");
+        expect(overrides.site.assets).toBe("https://assets.example.org/media");
+        expect(JSON.stringify(authored)).toBe(original);
+    });
 
     it("checks the authored homepage even when a valid override is supplied", () => {
         const root = fixture();

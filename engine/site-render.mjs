@@ -67,7 +67,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { LEXICAL_LINK_CLASS } from "./dictionary-layout.mjs";
 import { createRenderer } from "./content-render.mjs";
@@ -81,7 +81,7 @@ import {
     siteFontsDestination,
 } from "./script-font-delivery.mjs";
 import { buildSite, gatesFailed } from "./site-build.mjs";
-import { readCachedNavigation, siteSettings } from "./site-config.mjs";
+import { checkNavigation, readCachedNavigation, siteSettings } from "./site-config.mjs";
 import { atomFeed, robotsTxt, sitemapIndexXml, sitemapXml } from "./site-files.mjs";
 import {
     pageAddress,
@@ -658,6 +658,128 @@ export function deliverSiteFonts(config, out) {
 }
 
 /**
+ * @typedef {object} SiteInputs
+ * @property {import("./site-config.mjs").NavigationEntry[]} navigation The selected menu.
+ * @property {Record<string, string>} files Text artifacts relative to the site's output.
+ */
+
+/**
+ * @callback SiteInputsProvider
+ * @param {{config: import("../content-config.mjs").ContentBuildConfig}} options Frozen effective configuration.
+ * @returns {SiteInputs|Promise<SiteInputs>} Inputs prepared before content rendering.
+ */
+
+/**
+ * Refuse a symlink anywhere along a provider module or output path.
+ * @param {string} file The absolute path.
+ */
+function checkInputSymlinks(file) {
+    const absolute = path.resolve(file);
+    let current = path.parse(absolute).root;
+    for (const segment of absolute.slice(current.length).split(path.sep)) {
+        current = path.join(current, segment);
+        const stat = fs.lstatSync(current, { throwIfNoEntry: false });
+        if (!stat) break;
+        if (stat.isSymbolicLink()) {
+            throw new Error(`site.inputs refuses a symlink at ${current}`);
+        }
+        if (!stat.isDirectory()) break;
+    }
+}
+
+/**
+ * Read the one optional local input provider. It runs before content work.
+ * @param {object} config The effective configuration.
+ * @returns {Promise<SiteInputs>} Validated navigation and unvalidated text artifacts.
+ */
+async function readSiteInputs(config) {
+    if (!config.site.inputs) return { navigation: readCachedNavigation(config), files: {} };
+    const modulePath = path.resolve(config.rootDir, config.site.inputs);
+    checkInputSymlinks(modulePath);
+    const provider = (await import(pathToFileURL(modulePath).href)).default;
+    if (typeof provider !== "function")
+        throw new TypeError("site.inputs must export a default function");
+    const inputs = await provider({ config });
+    if (!inputs || typeof inputs !== "object" || Array.isArray(inputs)) {
+        throw new TypeError("site.inputs must return {navigation, files}");
+    }
+    return {
+        navigation: checkNavigation(inputs.navigation, "site.inputs.navigation"),
+        files: inputs.files,
+    };
+}
+
+/**
+ * Validate every provider artifact before the output tree can be replaced.
+ * @param {Record<string, string>} files Text artifacts.
+ * @param {object} options Output and builder-owned paths.
+ * @param {string} options.out Site output directory.
+ * @param {object} options.site Resolved site settings.
+ * @param {object[]} options.pages Rendered pages.
+ * @returns {[string, string][]} Absolute destination/content pairs.
+ */
+function siteInputFiles(files, { out, site, pages }) {
+    if (!files || typeof files !== "object" || Array.isArray(files)) {
+        throw new TypeError(
+            "site.inputs.files must be a mapping of relative paths to UTF-8 strings",
+        );
+    }
+    if (!Object.keys(files).length) return [];
+    const reservedTrees = new Set(
+        [
+            "assets",
+            "fonts",
+            "pagefind",
+            "tags",
+            ...fs.readdirSync(SITE_STATIC_DIR),
+            ...siteThemeAssets().map((asset) => asset.path.split("/")[0]),
+        ].map((name) => name.toLowerCase()),
+    );
+    const owned = [
+        "_headers",
+        "_redirects",
+        "sitemap.xml",
+        "sitemap-index.xml",
+        "robots.txt",
+        "404.html",
+    ];
+    for (const page of siteTree(site, pages))
+        owned.push(
+            path
+                .relative(out, pageFile(site, out, page.url))
+                .split(path.sep)
+                .join("/"),
+        );
+    if (site.feed) owned.push(`${site.feed.section}/atom.xml`);
+    const ownedPaths = owned.map((name) => name.toLowerCase());
+    /** @type {string[]} */
+    const seen = [];
+    const conflicts = (a, b) => a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+    return Object.entries(files).map(([name, content]) => {
+        const lower = name.toLowerCase();
+        if (
+            !name.split("/").every((segment) => /^[a-z0-9][a-z0-9._-]*$/i.test(segment)) ||
+            typeof content !== "string"
+        )
+            throw new TypeError(
+                `site.inputs.files: ${name} must be a plain relative path with UTF-8 text`,
+            );
+        if (
+            lower.endsWith(".html") ||
+            reservedTrees.has(lower.split("/")[0]) ||
+            [...ownedPaths, ...seen].some((other) => conflicts(lower, other))
+        )
+            throw new TypeError(
+                `site.inputs.files: ${name} collides with a builder-owned or provider file`,
+            );
+        seen.push(lower);
+        const file = path.join(out, ...name.split("/"));
+        checkInputSymlinks(file);
+        return [file, content];
+    });
+}
+
+/**
  * Build a package's site from its content tree and write it.
  *
  * The site's address, title and menu are read before the tree is, so a site
@@ -677,11 +799,17 @@ export function deliverSiteFonts(config, out) {
  *   What the build found, and, when it found nothing that stops it, what was
  *   written, the pages it was written from and how a note rendered again
  *   becomes its page. `written` is `null` when a gate fired.
- * @throws {Error} When the site's settings or its cached menu cannot be read.
+ * With `site.inputs`, the local default-exported provider receives `{config}`
+ * and supplies the navigation plus text artifacts. All artifact paths are checked
+ * before replacing output; artifacts are then written after the renderer clears
+ * and writes the site, and included in `written.files`.
+ *
+ * @throws {Error} When the site's settings, cached menu or input provider fail,
+ *   or a provider artifact is unsafe or collides with builder-owned output.
  */
 export async function buildPackageSite({ config, out, year, progress = () => {} }) {
     const settings = siteSettings({ config });
-    const navigation = readCachedNavigation(config);
+    const { navigation, files } = await readSiteInputs(config);
     progress("indexing content");
     const sqlTables = await prepareTreeSqlTables(config.paths.content, {
         skipDirectories: config.skipDirectories,
@@ -691,7 +819,13 @@ export async function buildPackageSite({ config, out, year, progress = () => {} 
     const built = buildSite({ config, sqlTables, progress });
     if (gatesFailed(built.gates)) return { built, written: null, fonts: null };
     const { site, pages, pageOf } = packageSite({ config, built, settings, navigation, year });
+    const artifacts = siteInputFiles(files, { out, site, pages });
     const written = writeSite({ site, pages, out, progress });
+    for (const [file, content] of artifacts) {
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, content, "utf8");
+        written.files.push(file);
+    }
     const fonts = deliverSiteFonts(config, out);
     return { built, written, fonts, site, pages, pageOf };
 }

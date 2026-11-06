@@ -15,14 +15,17 @@
  * `package-build cdn publish` — every picture a package has, on the CDN, and
  * the art the package leaves out as a named asset set.
  *
+ * Internal publication uses the same plan with an atlas rsync writer and public
+ * HTTPS reads. Cloudflare publication keeps the S3-compatible transport.
+ *
  * **The layout is the deployed one.** Each icon and image is uploaded flat, as
- * `icons/<basename>` or `images/<basename>`, under `<site.assets>/<package>/`
- * — the address {@link module:engine/pathnames.resolvePathname} gives the
- * website for the same file, so the site and the CDN agree by construction.
+ * `icons/<basename>` or `images/<basename>`, under the selected CDN's package
+ * root. Cloudflare uses `site.assets`; internal uses `INTERNAL_CDN_HOST`.
+ * Select the same CDN origin for site builds that consume these pictures.
  * Shipped and excluded pictures both go up: the website shows all of them.
  *
- * **The bucket is served at `site.assets`.** An object's key is its path below
- * that URL, `<package>/images/<basename>`, so the key and the public address
+ * **Each destination preserves object keys.** An object's key is its path below
+ * the selected CDN origin, `<package>/images/<basename>`, so the key and the public address
  * differ only by the host.
  *
  * **The bytes are the staged bytes.** The repository's `assetTransform` runs
@@ -56,6 +59,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { execFile } from "node:child_process";
+import { promisify, stripVTControlCharacters } from "node:util";
 
 import { AwsClient } from "aws4fetch";
 
@@ -278,7 +284,7 @@ export function s3Store({ endpoint, bucket, accessKeyId, secretAccessKey, fetch:
 export function publicStore(host, fetchImpl) {
     const base = host.replace(/\/+$/, "");
     const get = (key, method) =>
-        (fetchImpl ?? fetch)(`${base}/${key}`, {
+        (fetchImpl ?? fetch)(`${base}/${key.split("/").map(encodeURIComponent).join("/")}`, {
             method,
             headers: method === "HEAD" ? IDENTITY : undefined,
         });
@@ -297,6 +303,156 @@ export function publicStore(host, fetchImpl) {
             return Buffer.from(await response.arrayBuffer());
         },
         write: undefined,
+    };
+}
+
+/** The internal CDN's public origin. Reads never require SSH credentials. */
+export const INTERNAL_CDN_HOST = "https://cdn.internal.heroiclands.org";
+
+/** The manual operator's ordinary SSH account on atlas. */
+export const INTERNAL_CDN_DESTINATION = "atlas:/srv/preview/cdn";
+
+/**
+ * Refuse traversal, absolute paths and control characters before touching a store.
+ *
+ * @param {string} key - A planned relative object key.
+ * @returns {void}
+ */
+function validateCdnKey(key) {
+    if (
+        typeof key !== "string" ||
+        !/^[\x20-\x7e]+$/.test(key) ||
+        key.includes("\\") ||
+        key.split("/").some((part) => !part || part === "." || part === "..")
+    ) {
+        throw new Error("unsafe CDN key: expected a printable relative path without traversal");
+    }
+}
+
+/**
+ * Retain the last actionable receiver diagnostic without commands or key material.
+ *
+ * @param {unknown} stderr - Child-process stderr, never the whole error message.
+ * @returns {string} Bounded, terminal-safe diagnostic text, or an empty string.
+ */
+function transferDiagnostic(stderr) {
+    if (typeof stderr !== "string" && !Buffer.isBuffer(stderr)) return "";
+    const text = stripVTControlCharacters(String(stderr).slice(-8192))
+        .replace(
+            /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g,
+            "",
+        )
+        .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "");
+    let fallback = "";
+    for (const raw of text.split("\n").reverse()) {
+        const line = raw
+            .trim()
+            .replace(/^(?:\/[^\s/]+)*\/(rrsync|rsync|ssh)(?=(?: error)?: )/i, "$1");
+        if (/command failed|command:|\brsync\s+--|\bssh\s+-/i.test(line)) continue;
+        const known = line.match(
+            /Host key verification failed\.|Permission denied(?: \([A-Za-z0-9, -]{1,80}\))?\.?|REMOTE HOST IDENTIFICATION HAS CHANGED|Connection refused|Connection timed out|Could not resolve hostname/i,
+        );
+        if (known) return known[0];
+        if (!/^(?:r?rsync|ssh)(?: error)?: /i.test(line)) continue;
+        const context = line
+            .replace(/(["'])[^"']*\1/g, "[redacted]")
+            .replace(/(?:\/|[A-Za-z]:[\\/])[^\s,;)]+/g, "[path]")
+            .replace(/[A-Za-z0-9+/=]{48,}/g, "[redacted]")
+            .slice(0, 240);
+        if (/^rrsync(?: error)?: /i.test(line)) return context;
+        fallback ||= context;
+    }
+    return fallback;
+}
+
+/**
+ * Report an operation and its structured failure code, excluding error argv/message.
+ *
+ * @param {unknown} error - A filesystem or child-process error.
+ * @param {string} operation - The operation being attempted.
+ * @returns {string} The operator-facing failure.
+ */
+function internalFailure(error, operation) {
+    const details = error && typeof error === "object" ? /** @type {any} */ (error) : {};
+    const code =
+        Number.isInteger(details.code) && details.code >= 0 && details.code <= 255 ?
+            `exit ${details.code}`
+        : typeof details.code === "string" && Object.hasOwn(os.constants.errno, details.code) ?
+            `code ${details.code}`
+        : typeof details.signal === "string" && /^SIG[A-Z0-9]{1,12}$/.test(details.signal) ?
+            `signal ${details.signal}`
+        :   "";
+    const context = operation === "rsync transfer" ? transferDiagnostic(details.stderr) : "";
+    const action =
+        operation === "rsync transfer" ? "rsync transfer failed" : `could not ${operation}`;
+    return `internal CDN ${action}${code ? `; ${code}` : ""}${context ? `: ${context}` : ""}`;
+}
+
+/**
+ * Internal storage: HTTPS reads and rsync writes of the planned bytes only.
+ *
+ * The default uses the operator's normal atlas account. An explicitly configured
+ * SSH alias may select the forced-rrsync account with a relative `cdn` destination.
+ * SSH configuration and its agent supply keys; no remote shell is requested.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.destination] - `host:/srv/preview/cdn` or `alias:cdn`.
+ * @param {typeof fetch} [opts.fetch] - The fetch to use for public reads.
+ * @param {(args: string[]) => Promise<unknown>} [opts.transfer] - Run rsync.
+ * @returns {CdnStore} The store.
+ */
+export function internalStore({
+    destination = INTERNAL_CDN_DESTINATION,
+    fetch: fetchImpl,
+    transfer = (args) => promisify(execFile)("rsync", args),
+} = {}) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*:(?:\/srv\/preview\/)?cdn\/?$/.test(destination)) {
+        throw new Error(
+            "invalid internal CDN destination: use an SSH host alias followed by :/srv/preview/cdn or :cdn",
+        );
+    }
+    const target = `${destination.replace(/\/+$/, "")}/`;
+    const reader = publicStore(INTERNAL_CDN_HOST, fetchImpl);
+    return {
+        ...reader,
+        describe: `${destination} (${INTERNAL_CDN_HOST})`,
+        async write(key, body) {
+            validateCdnKey(key);
+            let scratch;
+            let operation = "create temporary directory";
+            let failure;
+            try {
+                scratch = fs.mkdtempSync(path.join(os.tmpdir(), "package-build-cdn-"));
+                const file = path.join(scratch, ...key.split("/"));
+                operation = "create staged directories";
+                fs.mkdirSync(path.dirname(file), { recursive: true });
+                operation = "write staged file";
+                fs.writeFileSync(file, body);
+                operation = "rsync transfer";
+                await transfer([
+                    "--recursive",
+                    "--relative",
+                    "--ignore-times",
+                    "--chmod=D755,F644",
+                    "--omit-dir-times",
+                    "--rsh=ssh -o BatchMode=yes -o StrictHostKeyChecking=yes",
+                    "--",
+                    `${scratch}/./${key}`,
+                    target,
+                ]);
+            } catch (error) {
+                failure = internalFailure(error, operation);
+            } finally {
+                if (scratch) {
+                    try {
+                        fs.rmSync(scratch, { recursive: true, force: true });
+                    } catch (error) {
+                        failure ??= internalFailure(error, "remove temporary directory");
+                    }
+                }
+            }
+            if (failure) throw new Error(failure);
+        },
     };
 }
 
@@ -444,6 +600,8 @@ async function pooled(items, limit, work) {
  *   planned size once the run ends — or would be, in a dry run.
  */
 export async function publishToCdn(plan, { store, dryRun = false, log = () => {} }) {
+    for (const upload of plan.uploads) validateCdnKey(upload.key);
+    validateCdnKey(plan.set?.key);
     if (!dryRun && !store.write) {
         throw new Error(`the store (${store.describe}) is read-only, so it can only be dry-run`);
     }

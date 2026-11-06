@@ -60,6 +60,9 @@ export const BRAND = Object.freeze({
 /** Where the navigation is published. */
 export const NAVIGATION_URL = "https://www.heroiclands.org/nav.json";
 
+// Shared with the pathname leaf without importing configuration back into it.
+export { CANONICAL_CDN_ORIGIN } from "./site-origins.mjs";
+
 /** The cached navigation's file name. */
 export const NAVIGATION_FILE = "nav.json";
 
@@ -101,7 +104,7 @@ function requireNonEmptyString(value, where) {
 /**
  * Check a navigation's shape, and return it.
  *
- * `[{name, url, children?: [{name, url}]}]`, every `url` absolute. Checked
+ * `[{name, url, children?: [{name, url}]}]`, every `url` a non-empty string. Checked
  * on fetch and again on read: a file that is not a navigation would otherwise
  * reach the menu as `undefined` labels and links.
  *
@@ -148,7 +151,22 @@ export function navigationCacheDir(config) {
 }
 
 /**
- * The cached navigation.
+ * Project a canonical owned chrome link onto the selected site origin.
+ * Attribution and ordinary content links do not pass through this function.
+ *
+ * @param {string} value - A chrome URL.
+ * @param {object} config - The effective configuration.
+ * @returns {string} The selected URL, or the unchanged external URL.
+ */
+function chromeURL(value, config) {
+    if (!URL.canParse(value)) return value;
+    const url = new URL(value);
+    if (url.origin !== new URL(NAVIGATION_URL).origin) return value;
+    return new URL(`${url.pathname}${url.search}${url.hash}`, new URL(config.homepage).origin).href;
+}
+
+/**
+ * The cached navigation, with canonical owned links on the effective homepage origin.
  *
  * **Reads the cache only.** A cold cache is an error naming the command that
  * fills it, rather than a download nobody asked for: a site build that reaches
@@ -168,7 +186,18 @@ export function readCachedNavigation(config) {
             "the site navigation has not been fetched. Run `package-build deps fetch` first.",
         );
     }
-    return checkNavigation(JSON.parse(fs.readFileSync(file, "utf8")), file);
+    return checkNavigation(JSON.parse(fs.readFileSync(file, "utf8")), file).map((entry) => ({
+        ...entry,
+        url: chromeURL(entry.url, config),
+        ...(entry.children ?
+            {
+                children: entry.children.map((child) => ({
+                    ...child,
+                    url: chromeURL(child.url, config),
+                })),
+            }
+        :   {}),
+    }));
 }
 
 /**
@@ -252,7 +281,7 @@ export function siteSettings({ config }) {
     const params = { description: config.site.description };
     if (config.author?.name) params.author = config.author.name;
     if (config.site.assets) params.cdnBaseURL = config.site.assets;
-    params.brand = { ...BRAND };
+    params.brand = { ...BRAND, licenseURL: chromeURL(BRAND.licenseURL, config) };
     if (config.site.notfound) params.notfound = structuredClone(config.site.notfound);
     // Named only when the build copies the fonts, so the theme links nothing
     // it does not ship.

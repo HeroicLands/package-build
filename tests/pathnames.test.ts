@@ -115,6 +115,30 @@ describe("one authored pathname, four derived forms", () => {
         }
     });
 
+    it("projects canonical CDN asset URLs only onto the effective asset root", () => {
+        const authored = "https://cdn.heroiclands.org/sohl/images/map.webp?size=2#detail";
+        for (const assets of [
+            "https://cdn.internal.heroiclands.org",
+            "https://assets.example.org/media/",
+        ]) {
+            const config = { ...thalorna, site: { assets } };
+            const forms = resolvePathname(authored, config)!;
+            expect(forms.web).toBe(
+                `${assets.replace(/\/+$/, "")}/sohl/images/map.webp?size=2#detail`,
+            );
+            expect(forms.foundry).toBe(authored);
+            expect(forms.local).toBe(authored);
+            expect(forms.pdf).toBe(authored);
+            for (const external of [
+                "https://cdn.heroiclands.org.example.org/sohl/images/map.webp",
+                "https://cdn.heroiclands.org:8443/sohl/images/map.webp",
+                "https://example.org/image.webp",
+                "data:image/svg+xml;base64,AAAA",
+            ])
+                expect(resolvePathname(external, config)?.web).toBe(external);
+        }
+    });
+
     it('keeps `null` unset and refuses `""`', () => {
         expect(resolvePathname(null, thalorna)).toBeNull();
         expect(resolvePathname(undefined, thalorna)).toBeNull();
