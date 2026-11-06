@@ -18,12 +18,9 @@ permissions:
     contents: read
 
 jobs:
-    test-build:
-        name: Build & Test
-        # A throwaway Ubuntu container with root: the Typst step
-        # installs into /usr/local/bin and GraphViz installs with apt-get, which
-        # the host-mode runner's user cannot do.
-        runs-on: ubuntu-vm
+    light:
+        name: Formatting, markdown and light checks
+        runs-on: lint
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
@@ -121,6 +118,46 @@ jobs:
             # well when it does.
             - name: Changeset quality
               run: node bin/package-build.mjs changelog check
+            - name: Check WIP workflow gating
+              if: ${{ !cancelled() }}
+              run: node --test ci/wip-workflows.test.mjs
+    test-build:
+        name: Build & Test
+        needs: light
+        if: ${{ !cancelled() }}
+        # A throwaway Ubuntu container with root: the Typst step
+        # installs into /usr/local/bin and GraphViz installs with apt-get, which
+        # the host-mode runner's user cannot do.
+        runs-on: ubuntu-vm
+        steps:
+            - name: Require a ready pull request
+              id: ready
+              env:
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+              run: |
+                  case "${PR_TITLE-}" in
+                      [Ww][Ii][Pp]:*)
+                          echo "WIP pull request: the long checks have not run. Remove WIP with earl pr ready." >&2
+                          exit 1
+                          ;;
+                  esac
+            - name: Require light checks
+              run: test "${LIGHT_RESULT-success}" = success
+              env:
+                  LIGHT_RESULT: ${{ needs.light.result }}
+              id: light_checks
+              if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && (success()) }}
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  github-server-url: https://git.pupluppy.org
+              if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && steps.light_checks.outcome == 'success' && (success()) }}
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+              with:
+                  node-version: ${{ vars.CI_NODE_VERSION || '24' }}
+                  cache: npm
+              if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && steps.light_checks.outcome == 'success' && (success()) }}
+            - run: npm ci
+              if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && steps.light_checks.outcome == 'success' && (success()) }}
             # The book tests compile a real PDF and assert on it — the outline,
             # the `/ToUnicode` map that makes it searchable. Without a compiler
             # they skip, and a criterion that skips is not a criterion. Pinned
@@ -145,6 +182,7 @@ jobs:
                       exit 1
                   fi
                   typst --version
+              if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && steps.light_checks.outcome == 'success' && (success()) }}
             # The map tests render with GraphViz and assert on the SVG. The
             # runner image ships it; the pre-push container does not, so the
             # step installs it where `dot` is absent rather than letting the
@@ -163,11 +201,15 @@ jobs:
                       fi
                   fi
                   dot -V
+              if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && steps.light_checks.outcome == 'success' && (success()) }}
             - name: Tests
               run: npm test
+              if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && steps.light_checks.outcome == 'success' && (success()) }}
             # Declaration emit is what `prepack` runs at publish time, so a
             # failure here would otherwise only surface during a release.
             - name: Declaration emit
               run: npm run build:types
+              if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && steps.light_checks.outcome == 'success' && (success()) }}
             - name: Published declaration check
               run: node bin/package-build.mjs types check --project tsconfig.dts.json --exports
+              if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && steps.light_checks.outcome == 'success' && (success()) }}

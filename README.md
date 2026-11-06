@@ -107,3 +107,13 @@ installed browser with `package-build e2e fast -- --browser electron` (also
 available for `run` and `open`). See [browser selection and cache settings](docs/guides/e2e.md#choose-a-browser).
 
 The package is GPL-3.0-or-later for code and CC-BY-SA-4.0 for original content. See [LICENSE.md](LICENSE.md).
+
+## Pull request checks
+
+A pull request whose title starts with `WIP:` runs the light checks. An existing
+required check runs a short guard and fails, blocking merges while the expensive
+steps stay skipped. Remove the prefix with `earl pr ready`; it starts fresh
+required checks before scheduling a merge. Changing the title by hand does not
+start those checks. Main, release and manual runs keep their existing checks.
+
+Check the workflow gating locally with `node --test ci/wip-workflows.test.mjs`.
