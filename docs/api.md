@@ -3167,8 +3167,12 @@ preserves the Roman text. Bare conversion without lexical inputs uses the
 pure `encodeText` and `decodeText` functions in `engine/encoding.mjs`.
 
 Language conversion uses the same pure `encodeWithLanguage` and
-`decodeWithLanguage` functions as the build. Recorded native writings and
-parts precede encoding rows, and decoding can recover an unmarked word from
+`decodeWithLanguage` functions as the build. Codes-only templates with lexical
+inputs resolve native words before validating remaining source spans with
+`encodePieces`; alphabetic templates retain whole-input Roman validation before
+native overrides. Literal payloads and unsupported residual characters remain
+validated. Recorded native writings and parts precede encoding rows, and decoding
+can recover an unmarked word from
 the lexicon. An unknown word gives a positioned finding. A bare refusal
 returns empty text and an error finding. Findings carry `severity`, `message`,
 `offset` (UTF-16), and one-based Unicode-code-point `line` and `column`.

@@ -10,7 +10,7 @@ import { resolvePackageBuildConfig } from "../config.mjs";
 import { buildConverterData, writeConverterData } from "../engine/converter-data.mjs";
 import { encode, decode, validateData } from "../convert.mjs";
 import { runContext, renderRuns } from "../engine/content-scripts.mjs";
-import { encodeWithLanguage } from "../engine/encoding-language.mjs";
+import { encodeWithLanguage, decodeWithLanguage } from "../engine/encoding-language.mjs";
 import { serializeLexicon } from "../engine/encoding-lexicon.mjs";
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 import { installEncodingNote, template, codes, encodingName } from "./helpers/encoding-note.js";
@@ -43,6 +43,47 @@ describe("converter build artifact", () => {
                 [],
             );
         }
+    });
+    it("preserves zero affixes and lexical parity in a written browser artifact", () => {
+        const inputs = records.map((record) =>
+            record.type === "skill" ?
+                {
+                    ...record,
+                    data: {
+                        ...record.data,
+                        affixes: [
+                            { zero: true, gloss: "Singular" },
+                            { form: "-e", gloss: "Plural" },
+                        ],
+                    },
+                }
+            :   record,
+        );
+        const packageBuild = resolvePackageBuildConfig({
+            ...config,
+            packageBuild: { converterData: "data/zero-affixes.json" },
+        });
+        const written = writeConverterData({ config, packageBuild, records: inputs })!;
+        const artifact = JSON.parse(fs.readFileSync(written.path, "utf8"));
+        expect(artifact.languages.aelw.lexicon.data.affixes).toEqual([
+            { zero: true },
+            { form: "-e" },
+        ]);
+        expect(validateData(artifact)).toBe(artifact);
+        const context = runContext(config, inputs);
+        const encoding = context.encodings!.get(encodingName);
+        const lexicon = context.lexicons!.get("aelw");
+        for (const text of ["say", "saith", "thikke", "Adwell"]) {
+            const browser = encode(artifact, "aelw", text, { enc: encodingName });
+            expect(browser).toEqual(encodeWithLanguage(encoding, text, { lexicon }));
+            expect(decode(artifact, "aelw", browser.text, { enc: encodingName })).toEqual(
+                decodeWithLanguage(encoding, browser.text, { lexicon }),
+            );
+        }
+        expect(inputs.find((record) => record.type === "skill").data.affixes[0]).toEqual({
+            zero: true,
+            gloss: "Singular",
+        });
     });
     it("includes configured note-less languages for literal encoding documents", () => {
         const configured = {

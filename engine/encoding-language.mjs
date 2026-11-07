@@ -195,7 +195,8 @@ export function encodeWithLanguage(enc, text, options = {}) {
     options = optionsFor(enc, options);
     const findings = [],
         pieces = [];
-    if (enc.template) {
+    // Codes-only lexicons supply native words; encodePieces checks the remaining spans.
+    if (enc.template && (!options.lexicon || [...enc.accepted].some((char) => letter.test(char)))) {
         try {
             validateSource(enc, text, { font: options.font });
         } catch (error) {

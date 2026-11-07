@@ -423,7 +423,16 @@ function projectLexicon(lexicon) {
             select(word, ["form", "class", "gloss", "variants", "plural", "built", "native"]),
         ),
         affixes: listOf(source.affixes).map((affix) =>
-            select(affix, ["form", "front", "kind", "classes", "attachesTo", "replaces", "native"]),
+            select(affix, [
+                "form",
+                "zero",
+                "front",
+                "kind",
+                "classes",
+                "attachesTo",
+                "replaces",
+                "native",
+            ]),
         ),
         register: listOf(source.register).map((row) => select(row, ["name", "tongue"])),
         ...(source.grammar ?

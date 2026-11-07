@@ -46,8 +46,15 @@ function lexicalData(value, where) {
         if (!Array.isArray(value[field])) throw new TypeError(`${where}.${field} must be an array`);
         for (const row of value[field]) {
             const name = field === "register" ? "name" : "form";
-            if (!object(row) || typeof row[name] !== "string" || !row[name])
-                throw new TypeError(`${where}.${field} needs ${name}`);
+            if (!object(row)) throw new TypeError(`${where}.${field} needs an object`);
+            if (field === "affixes" && row.zero === true) {
+                if (row.form !== undefined)
+                    throw new TypeError(`${where}.affixes cannot state both form and zero: true`);
+            } else if (typeof row[name] !== "string" || !row[name]) {
+                throw new TypeError(
+                    `${where}.${field} needs ${name}${field === "affixes" ? " or zero: true" : ""}`,
+                );
+            }
             if (
                 row.native !== undefined &&
                 (!Array.isArray(row.native) ||

@@ -418,8 +418,12 @@ recursive parts terminate without a writing. Entries with genuinely different
 writings remain an ambiguity naming every matching gloss.
 
 An encoding accepting no letters, such as `zethu` or `chalish-pilam`, needs a
-lexical writing or literal codes for a word. The refusal names the word,
-language and encoding and points to that word.
+lexical writing or literal codes for a word. Roman words reach the lexical
+lookup before the codes-only source checks. Every remaining span, including
+literal payloads and punctuation, passes through the encoding's own validation.
+The refusal names an unwritten word, language and encoding and points to that
+word. An alphabetic encoding validates the whole Roman input before native
+overrides, so a native entry cannot bypass its spelling restrictions.
 
 ### Reading script text
 

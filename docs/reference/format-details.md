@@ -8749,6 +8749,9 @@ language and font; contradictory language or face selections are errors.
 A lexicon's data contains only the word, affix, grammar and name-register
 fields conversion reads. Native encoding references are canonical Addresses
 resolved in each source note's own package, including inherited vocabulary.
+Affix rows retain `zero: true` for an unwritten ending and omit its `form`.
+A row supplies a nonempty `form` or `zero: true`, never both; a zero affix does
+not introduce a written piece or a new conversion rule.
 Authored order, case and senses are retained; prose, source records, closures
 and Maps are absent. The same pure conversion functions serve the build and
 [browser entry point](../api.md#browser-conversion). A null or omitted language

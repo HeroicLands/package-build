@@ -257,3 +257,15 @@ it("supports hyphenated own and foreign package identities without foreign suffi
         }),
     ).toThrow(/Unknown encoding document/);
 });
+
+it("accepts explicit zero affixes while refusing missing or conflicting spellings", () => {
+    const withAffix = (affix: object) => ({
+        ...bare,
+        languages: {
+            aelw: { name: "Aelwythi", lexicon: { language: "aelw", data: { affixes: [affix] } } },
+        },
+    });
+    expect(validateData(withAffix({ zero: true }))).toBeDefined();
+    for (const row of [{}, { zero: false }, { zero: true, form: "-e" }, { zero: true, form: "" }])
+        expect(() => validateData(withAffix(row))).toThrow();
+});

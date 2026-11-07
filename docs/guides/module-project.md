@@ -720,7 +720,8 @@ release includes the data alongside the module's other files. It embeds the
 consumer's authored encoding definitions, the selected fonts' glyph-code
 snapshots, and the language names and lexical inputs used by the build.
 Conversion rules belong to the consumer's encoding notes; fonts supply the
-glyphs and their metadata.
+glyphs and their metadata. Zero affixes remain explicit `zero: true` entries
+without a written form in the lexical snapshot.
 
 Bundle `@heroiclands/package-build/convert` into the module's browser code,
 fetch `modules/<module-id>/data/converter.json` once, and pass the parsed data
