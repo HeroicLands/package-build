@@ -282,7 +282,16 @@ export function siteSettings({ config }) {
     if (config.author?.name) params.author = config.author.name;
     if (config.site.assets) params.cdnBaseURL = config.site.assets;
     params.brand = { ...BRAND, licenseURL: chromeURL(BRAND.licenseURL, config) };
-    if (config.site.notfound) params.notfound = structuredClone(config.site.notfound);
+    if (config.site.notfound) {
+        const notfound = structuredClone(config.site.notfound);
+        if (notfound.links) {
+            notfound.links = notfound.links.map((link) => ({
+                ...link,
+                url: chromeURL(link.url, config),
+            }));
+        }
+        params.notfound = notfound;
+    }
     // Named only when the build copies the fonts, so the theme links nothing
     // it does not ship.
     const scriptFonts = siteFontsParam(config);

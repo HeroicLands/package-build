@@ -320,8 +320,11 @@ the site defaults to the internal www origin and keeps configured `site.assets`
 (or derives the internal CDN if none is configured). An explicit root overrides
 the configured asset host. Build and publication are separate: this command
 writes local output, reads cached dependencies, and never uploads or fetches
-missing assets. Shared navigation and the brand license follow the selected
-site origin; external attribution and authored content links retain their URLs.
+missing assets. Shared navigation, the brand license and canonical www links
+in the page-not-found recovery list follow the selected site origin. Use an
+absolute canonical www URL for a recovery link to another package; relative
+recovery links must name a page this package publishes. External attribution
+and authored content links retain their URLs.
 Asset references to the exact canonical `https://cdn.heroiclands.org` origin
 also use the effective asset root, retaining their path, query and fragment;
 external image hosts keep their addresses. This happens during normal asset

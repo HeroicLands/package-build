@@ -357,3 +357,37 @@ it("keeps relative navigation and external URLs while projecting owned absolute 
 it("exposes the canonical CDN origin beside the owned navigation address", () => {
     expect(CANONICAL_CDN_ORIGIN).toBe("https://cdn.heroiclands.org");
 });
+
+describe("page-not-found recovery links follow the selected origin", () => {
+    it.each(["internal.heroiclands.org", "heroiclands.org"])(
+        "projects owned links for %s without changing authored settings",
+        (root) => {
+            const links = [
+                {
+                    title: "Thalorna",
+                    url: "https://www.heroiclands.org/thalorna/?view=all#top",
+                    text: "The setting.",
+                },
+                { title: "External", url: "https://example.org/credit/" },
+                { title: "Similar", url: "https://www.heroiclands.org.example.org/" },
+                { title: "Local", url: "/local/" },
+                { title: "Relative", url: "../projects/?q=1#top" },
+                { title: "Protocol relative", url: "//www.heroiclands.org/sohl/" },
+            ].map((link) => ({ text: "Continue here.", ...link }));
+            const authored = configFor(
+                {},
+                { notfound: { tagline: "No page at", sitenoun: "site", links } },
+            );
+            const original = structuredClone(authored.site.notfound);
+            const effective = siteBuildConfig(authored, { root });
+            const result = siteSettings({ config: effective }).params.notfound as any;
+            expect(result.links).toEqual([
+                { ...links[0], url: `https://www.${root}/thalorna/?view=all#top` },
+                ...links.slice(1),
+            ]);
+            expect(authored.site.notfound).toEqual(original);
+            expect(effective.site.notfound).toEqual(original);
+            expect(result).not.toBe(effective.site.notfound);
+        },
+    );
+});

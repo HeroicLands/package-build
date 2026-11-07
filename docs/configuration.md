@@ -1299,8 +1299,10 @@ inputs rather than deriving hosts itself; canonical source-navigation drift
 checks remain against the original navigation before projecting its URLs.
 `readCachedNavigation(effectiveConfig)` projects only canonical Heroic Lands
 www links onto the effective homepage origin; `siteSettings` does the same for
-the brand license link. Neither function writes the cache or changes external
-attribution links.
+the brand license link and absolute canonical www recovery links in
+`site.notfound.links`. Relative recovery links retain their local-page checks;
+use an absolute canonical www URL for a sibling package. Neither function writes
+the cache or changes external attribution links.
 
 ### Local site inputs
 

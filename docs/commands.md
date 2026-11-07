@@ -2798,8 +2798,8 @@ include a path; trailing slashes are trimmed.
 Explicit `--base-url` overrides the root-derived site URL, including its path;
 explicit `--assets` overrides both root-derived and configured assets. These
 low-level flags are independent and may be combined with `--root`. Cached
-navigation links on the canonical Heroic Lands www origin and the brand's
-license link use the effective site origin. External links and authored content
+navigation links and page-not-found recovery links on the canonical Heroic
+Lands www origin, plus the brand's license link, use the effective site origin. External links and authored content
 links keep their addresses. Asset references on the exact canonical
 `https://cdn.heroiclands.org` origin use the effective asset root, preserving
 the path, query and fragment. Other image origins stay unchanged.
