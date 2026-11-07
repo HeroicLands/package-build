@@ -67,7 +67,7 @@ const cache = new Map();
  * @param {{offset: number}} table - The `cmap` record.
  * @returns {Map<number, number>} Glyph indices by code point.
  */
-function codepointGlyphs(buf, table) {
+export function codepointGlyphs(buf, table) {
     const out = new Map();
     const at = table.offset;
     const numTables = buf.readUInt16BE(at + 2);

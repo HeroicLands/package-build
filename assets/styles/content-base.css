@@ -11,6 +11,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+@import url("./package-build-ipa.css");
+
 /*
  * The base stylesheet every package ships, staged into the package root and
  * named first in the manifest's `styles`.

@@ -1,0 +1,17 @@
+/* Copyright (c) 2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Libertinus faces retain their OFL.txt and provenance.yaml beside the fonts.
+ */
+@font-face {
+    font-family: "Package Build IPA";
+    src: url("../fonts/package-build-ipa/LibertinusSans-Regular.otf") format("opentype");
+    font-style: normal;
+    font-weight: 400;
+}
+.ipa,
+.ipa * {
+    font-family: "Package Build IPA", sans-serif !important;
+    font-style: normal !important;
+    font-weight: 400 !important;
+    font-synthesis: none;
+}

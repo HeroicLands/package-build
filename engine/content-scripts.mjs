@@ -60,6 +60,7 @@ import {
     encodingFor,
 } from "./encoding-lexicon.mjs";
 import { unknownWordMessage, unknownWords, wordBooksFromRecords } from "./run-words.mjs";
+import { maskLiteralCodage } from "./word-book.mjs";
 import { metreBooksFromRecords, metreFindings, metresFromRecords } from "./verse-metre.mjs";
 import { encodeWithLanguage } from "./encoding-language.mjs";
 import { encodingsFromRecords, encodingAddress } from "./encoding-notes.mjs";
@@ -1862,9 +1863,7 @@ function analyseRuns(source, ctx, syntax) {
 
         const book = ctx.wordBooks?.get(owner.run.lang);
         if (book) {
-            const mask = projection.text.split("");
-            for (const match of projection.text.matchAll(/⟦[^]*?(?:⟧|$)/g))
-                mask.fill(" ", match.index, match.index + match[0].length);
+            const mask = maskLiteralCodage(projection.text).split("");
             for (const span of projection.spans.filter((span) => !span.included))
                 mask.fill(" ", span.from, span.to);
             for (const problem of unknownWords(mask.join(""), book))

@@ -41,9 +41,9 @@
  * - **Latin Extended Additional: 7 of 8.** Only Hoefler Text lacks the
  *   dot-unders the transliterated notes are built on, and one face is a price
  *   worth paying for `Ādānaśreṇī`.
- * - **IPA Extensions: 5 of 8.** Considered for the allowlist and *rejected* —
- *   requiring it would have cost font freedom rather than bought it, which is
- *   the opposite of this module's purpose.
+ * - **IPA Extensions: 5 of 8.** Ordinary prose does not require them. Explicit
+ *   `.ipa` spans and declared pronunciation fields use a dedicated phonetic
+ *   face, so their phonetic characters are admitted in those source ranges.
  *
  * **What is banned is banned by category, not by glyph**, because the next
  * emoji nobody has thought of yet should fail on arrival rather than after it
@@ -86,6 +86,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { capturedSources } from "./content-sources.mjs";
+import YAML, { isScalar, isSeq } from "yaml";
+import { splitFrontmatter } from "./diagnostics.mjs";
+import { scanSpans } from "./content-spans.mjs";
 
 /**
  * Tier 1 — the letters, and the two whitespace characters a file is made of.
@@ -246,7 +249,7 @@ const REFUSALS = Object.freeze([
     {
         from: 0x0250,
         to: 0x02af,
-        why: "IPA, which three of eight candidate book faces lack — describe the sound instead",
+        why: "IPA; mark phonetic text with `.ipa` or use a declared pronunciation field",
     },
     {
         from: 0x02b0,
@@ -338,8 +341,67 @@ export function decomposedRuns(text) {
     return out;
 }
 
+/** The phonetic blocks considered for an explicitly typed context. */
+function isPhoneticCodePoint(cp) {
+    if (/\p{Default_Ignorable_Code_Point}/u.test(String.fromCodePoint(cp))) return false;
+    return (
+        (cp >= 0x0250 && cp <= 0x036f) || // IPA, modifiers, tone and combining marks
+        [0x03b2, 0x03b8, 0x03c6, 0x03c7].includes(cp) // β θ φ χ in phonetic notation
+    );
+}
+
+/** These modifier ranges have no glyph in the bundled Libertinus Sans Regular. */
+function lacksPhoneticGlyph(cp) {
+    return (cp >= 0x02e5 && cp <= 0x02eb) || (cp >= 0x02ef && cp <= 0x02ff);
+}
+
+/** The existing span parser and YAML scalar nodes own phonetic source ranges. */
+function phoneticRanges(text) {
+    const ranges = [];
+    const frontmatter = splitFrontmatter(text);
+    const body = frontmatter?.body ?? text;
+    const bodyStart = text.length - body.length;
+    if (body.includes(".ipa")) {
+        const { spans, errors } = scanSpans(body);
+        const starts = [0];
+        for (let at = 0; at < body.length; at++) if (body[at] === "\n") starts.push(at + 1);
+        const invalid = errors.map(({ line, column }) => starts[line - 1] + column - 1);
+        for (const span of spans) {
+            const classes = span.attrs.find(([key]) => key === "class")?.[1].split(/\s+/) ?? [];
+            if (!classes.includes("ipa") || invalid.some((at) => at >= span.start && at < span.end))
+                continue;
+            ranges.push([bodyStart + span.start + 1, bodyStart + span.contentEnd]);
+        }
+    }
+    if (frontmatter) {
+        const doc = YAML.parseDocument(frontmatter.yaml);
+        if (!doc.errors.length) {
+            const type = doc.get("type"),
+                subType = doc.get("subType");
+            const language = type === "skill" && subType === "language";
+            // These are the existing sounds declarations: language notes and doc spelling guides.
+            if (language || type === "doc") {
+                const yamlStart = text.indexOf(frontmatter.yaml);
+                for (const key of language ? ["letters", "finals"] : ["letters"]) {
+                    const rows = doc.getIn(["data", "sounds", key], true);
+                    if (!isSeq(rows)) continue;
+                    for (let index = 0; index < rows.items.length; index++) {
+                        const scalar = doc.getIn(["data", "sounds", key, index, "ipa"], true);
+                        if (isScalar(scalar) && typeof scalar.value === "string" && scalar.range)
+                            ranges.push([yamlStart + scalar.range[0], yamlStart + scalar.range[1]]);
+                    }
+                }
+            }
+        }
+    }
+    return ranges;
+}
+
 /**
  * Check one file's text against the charset and the normalization rule.
+ * Roman short vowels àìòù (and uppercase forms) admit one following U+0301
+ * acute, with no further combining mark. This NFC spelling keeps both quality
+ * and stress without requiring phonetic markup.
  *
  * Findings are **deduplicated per character per line**: a 60-cell table of
  * `━` is one mistake made once, and sixty findings would bury the other
@@ -353,14 +415,15 @@ export function decomposedRuns(text) {
 export function checkText(text, file) {
     const findings = [];
     const runs = decomposedRuns(text);
+    const phonetic = phoneticRanges(text);
 
     // A decomposed letter is one mistake. Its combining mark would otherwise be
     // refused by the charset *and* reported as a normalization error, which
     // tells the author twice and offers two different fixes for one edit. The
     // normalization finding wins because it names the precomposed replacement,
     // so the offsets its runs cover are struck from the character scan. A
-    // combining mark that composes to nothing is in no run, and is still
-    // refused below on its own account.
+    // combining mark that composes to nothing is in no run, and its authored
+    // context is checked below.
     const composedAway = new Set();
     for (const run of runs) {
         for (let k = 0; k < run.sequence.length; k++) composedAway.add(run.index + k);
@@ -389,6 +452,11 @@ export function checkText(text, file) {
             within += ch.length;
             const cp = ch.codePointAt(0) ?? 0;
             if (isAllowedCodePoint(cp)) continue;
+            // Roman stress on a short vowel: one acute after its precomposed grave.
+            if (cp === 0x0301 && /^[àìòùÀÌÒÙ]\u0301(?!\p{M})/u.test(text.slice(at - 1))) continue;
+            const isPhonetic =
+                isPhoneticCodePoint(cp) && phonetic.some(([from, to]) => at >= from && at < to);
+            if (isPhonetic && !lacksPhoneticGlyph(cp)) continue;
             if (composedAway.has(at)) continue;
             // Inside a fence the mono face sets the text, so the diagram
             // repertoire is judged against that font rather than the book's.
@@ -402,7 +470,7 @@ export function checkText(text, file) {
                 column,
                 severity: /** @type {const} */ ("warning"),
                 // A Private Use character draws as nothing, so quoting it leaves an empty span.
-                message: `${/\p{Co}/u.test(ch) ? "" : `\`${ch}\` `}${hex(cp)} is ${refusalFor(cp)}`,
+                message: `${/\p{Co}/u.test(ch) ? "" : `\`${ch}\` `}${hex(cp)} is ${isPhonetic && lacksPhoneticGlyph(cp) ? "not covered by the bundled Libertinus Sans Regular phonetic face" : refusalFor(cp)}`,
             });
         }
     }

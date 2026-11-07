@@ -3,6 +3,8 @@
    Dark fantasy / manuscript aesthetic
    ============================================ */
 
+@import url("./package-build-ipa.css");
+
 /* Each stretch between a note-body comment and its closing comment styles
    what the renderer writes into a page body. A host showing one note's body,
    such as a preview, takes exactly these stretches as the note's styles. */

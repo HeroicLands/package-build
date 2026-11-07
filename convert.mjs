@@ -14,6 +14,12 @@
 import { renderAddress } from "./engine/address-render.mjs";
 import { compileEncoding, encodeText, decodeText, EncodingError } from "./engine/encoding.mjs";
 import { encodeWithLanguage, decodeWithLanguage } from "./engine/encoding-language.mjs";
+import {
+    wordBook,
+    unknownWords,
+    unknownWordMessage,
+    maskLiteralCodage,
+} from "./engine/word-book.mjs";
 /**
  * @typedef {{language:string,data:Record<string,any>}} ConverterLexicon
  * @typedef {{name:string,lexicon?:ConverterLexicon}} ConverterLanguage
@@ -110,14 +116,12 @@ export function validateData(data) {
     return data;
 }
 
-function conversion(data, language, text, options, direction) {
-    validateData(data);
-    if (typeof text !== "string") throw new TypeError("Conversion input must be text");
+function selection(data, language, options) {
     let entry = language === null || language === undefined ? undefined : data.languages[language];
     if (language !== null && language !== undefined && !Object.hasOwn(data.languages, language))
         throw new TypeError(`Unknown language ${language}`);
     const name = options.enc ?? "default";
-    if (name === "default") return { text, findings: [] };
+    if (name === "default") return { language: language ?? null, entry };
     const short = /^(?:(?:note-)?doc-|doc\/)?([a-z0-9]+)$/u.exec(name);
     const selected =
         Object.hasOwn(data.encodings, name) ? name
@@ -135,6 +139,14 @@ function conversion(data, language, text, options, direction) {
     if (entry && language !== encoding.language)
         throw new TypeError(`Encoding ${selected} writes ${encoding.language}, not ${language}`);
     entry ??= data.languages[encoding.language];
+    return { language: encoding.language, entry, encoding };
+}
+
+function conversion(data, language, text, options, direction) {
+    validateData(data);
+    if (typeof text !== "string") throw new TypeError("Conversion input must be text");
+    const { entry, encoding } = selection(data, language, options);
+    if (!encoding) return { text, findings: [] };
     const settings = {
         font: options.font ?? encoding.font,
         verse: options.verse,
@@ -186,4 +198,31 @@ export function encode(data, language, text, options = {}) {
  */
 export function decode(data, language, text, options = {}) {
     return conversion(data, language, text, options, "decode");
+}
+
+/** Check original Roman lexical membership before conversion, using the publisher's word book.
+ * This does not check spelling, grammar, source syntax or encodability.
+ * @param {ConverterData} data Read-only format-2 converter data.
+ * @param {string|null|undefined} language Explicit language, or infer it from options.enc.
+ * @param {string} text Original raw Roman input; Markdown is not interpreted.
+ * @param {{enc?:string}} [options] Optional encoding selection, with the same agreement rules as encode.
+ * @returns {{language:string|null, checked:boolean, findings:Array<{kind:"unknown-word", severity:"warning", word:string, message:string, offset:number, line:number, column:number}>}} Checked is false without a language or lexical inputs. Offsets count UTF-16 code units; line and column count code points from one.
+ */
+export function checkRoman(data, language, text, options = {}) {
+    validateData(data);
+    if (typeof text !== "string") throw new TypeError("Conversion input must be text");
+    const selected = selection(data, language, options);
+    if (!selected.entry?.lexicon)
+        return { language: selected.language, checked: false, findings: [] };
+    const book = wordBook(selected.language, selected.entry.lexicon.data);
+    const findings = unknownWords(maskLiteralCodage(text), book).map(({ word, offset }) => ({
+        kind: /** @type {const} */ ("unknown-word"),
+        severity: /** @type {const} */ ("warning"),
+        word,
+        message: unknownWordMessage(word, selected.language),
+        offset,
+        line: text.slice(0, offset).split("\n").length,
+        column: [...text.slice(text.lastIndexOf("\n", offset - 1) + 1, offset)].length + 1,
+    }));
+    return { language: selected.language, checked: true, findings };
 }

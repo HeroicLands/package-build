@@ -21,6 +21,7 @@ import { formatDiagnostic, positionOfYamlPath } from "./diagnostics.mjs";
 import { stageAssets } from "../stage.mjs";
 import { rowsStagingPictureRoots, stagePackageAssets } from "./asset-shipping.mjs";
 import { baseStyleStageEntry } from "./base-styles.mjs";
+import { phoneticAssetEntries } from "./phonetic-fonts.mjs";
 import { checkScriptFonts, copyScriptFonts, STAGED_FONTS_DIR } from "./script-font-delivery.mjs";
 
 /**
@@ -148,9 +149,12 @@ export async function stagePackageBuildAssets({
     // repository's assets, and a `transform` written to retheme a
     // package's own SVGs has no business being handed it.
     if (config.baseStyles) {
-        const staged = stageAssets([baseStyleStageEntry(config.stageDir)], {
-            cwd: config.rootDir,
-        });
+        const staged = stageAssets(
+            [baseStyleStageEntry(config.stageDir), ...phoneticAssetEntries(config.stageDir)],
+            {
+                cwd: config.rootDir,
+            },
+        );
         count += staged.entries;
         files += staged.files;
     }

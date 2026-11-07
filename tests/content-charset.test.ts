@@ -89,11 +89,11 @@ describe("typography", () => {
 });
 
 describe("what the measurement excluded", () => {
-    it("refuses IPA, and says to describe the sound instead", () => {
+    it("requires an explicit phonetic context for IPA", () => {
         const findings = checkText("the vowel /ə/ is common", "n.md");
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toContain("U+0259");
-        expect(findings[0].message).toContain("describe the sound");
+        expect(findings[0].message).toContain(".ipa");
     });
 
     it("refuses tone letters", () => {
@@ -204,6 +204,59 @@ describe("normalization", () => {
         const findings = checkText(`---\nname:\n  full: ${NFD}\n---\n`, "n.md");
         expect(findings).toHaveLength(1);
         expect(findings[0].line).toBe(3);
+    });
+});
+
+describe("Roman stress on grave short vowels", () => {
+    it("accepts the guide's NFC spelling without a phonetic span", () => {
+        const word = "bòtò\u0301n";
+        expect(word.normalize("NFC")).toBe(word);
+        expect(checkText(`_${word}_`, "n.md")).toEqual([]);
+        expect(isAllowedCodePoint(0x0301)).toBe(false);
+    });
+
+    it("accepts one acute on each supported grave vowel in either case", () => {
+        for (const vowel of "àìòùÀÌÒÙ") {
+            const word = `${vowel}\u0301`;
+            expect(word.normalize("NFC"), word).toBe(word);
+            expect(checkText(`name: ${word}n\n_${word}n_`, "n.md"), word).toEqual([]);
+        }
+    });
+
+    it("retains NFC diagnostics for decomposed and reverse-order spellings", () => {
+        for (const word of ["o\u0300\u0301", "o\u0301\u0300"]) {
+            const findings = checkText(word, "n.md");
+            expect(findings, word).toHaveLength(1);
+            expect(findings[0].message).toContain("written decomposed");
+        }
+    });
+
+    it("refuses unsupported bases, repeated marks and other combining sequences", () => {
+        for (const word of [
+            "\u0301",
+            "è\u0301",
+            "È\u0301",
+            "q\u0301",
+            "ò\u0301\u0301",
+            "ò\u0302",
+            "ò\u0301\u0302",
+            "ò \u0301",
+            "ò\n\u0301",
+        ]) {
+            expect(checkText(word, "n.md").length, word).toBeGreaterThan(0);
+        }
+    });
+
+    it("keeps unrelated character warnings and their original positions", () => {
+        const findings = checkText("bòtò\u0301n\nò\u0301 \u200b θ 😀", "n.md");
+        expect(findings.map(({ line, column }) => [line, column])).toEqual([
+            [2, 4],
+            [2, 6],
+            [2, 8],
+        ]);
+        expect(said(findings)).toContain("U+200B");
+        expect(said(findings)).toContain("U+03B8");
+        expect(said(findings)).toContain("U+1F600");
     });
 });
 

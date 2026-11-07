@@ -1525,6 +1525,52 @@ The charset authored content is held to, so a book can choose its face. The pack
 | `checkText`                | `function checkText(text, file)`           | {Array<{file: string, line: number, column: number, severity: "warning", message: string}>} What is wrong, in file order.                                                | Check one file's text against the charset and the normalization rule.                        |
 | `lintContentCharset`       | `function lintContentCharset(contentBase,` | `{{findings: Array<{file: string, line: number, column: number, severity: "warning", message: string}>, files: number}}` The findings, and how many files produced them. | Walk a content tree and check every authored file in it.                                     |
 
+`checkText` also accepts the ordinary Roman NFC sequences `à́`, `ì́`, `ò́`,
+`ù́` and their uppercase forms: a precomposed grave short vowel followed by
+one U+0301 acute, with no further combining mark. For example, `bòtò́n` keeps
+its vowel quality and marked stress without `.ipa` markup. Other bases,
+repeated accents and unsupported combining sequences remain findings, and
+non-NFC spellings retain normalization diagnostics. This contextual rule does
+not change `isAllowedCodePoint(0x0301)`, which returns `false`, or renderers.
+
+`checkText` admits phonetic characters only inside valid `[text]{.ipa}` body
+spans and string scalars at `data.sounds.letters[].ipa` on language notes or
+`doc` spelling guides, and `data.sounds.finals[].ipa` on language notes. It uses
+the existing span parser and YAML scalar source ranges; arbitrary `ipa` keys,
+other fields, malformed spans and literal code examples of span syntax gain no allowance. The ordinary
+character tiers and NFC diagnostics remain unchanged, including inside phonetic
+text. Emoji, unrelated scripts and invisible controls remain findings.
+
+The added repertoire is the bundled face's supported phonetic characters:
+U+0250–U+02E4, U+02EC–U+02EE, non-ignorable combining marks U+0300–U+036F,
+and phonetic β, θ, φ, χ. Unsupported modifiers and tone bars U+02E5–U+02EB
+and U+02EF–U+02FF remain findings; inside a phonetic context the diagnostic
+identifies missing phonetic-face coverage. This is a character allowance,
+not a pronunciation validator. Source offsets and diagnostic
+locations remain tied to the original text.
+
+The shared `.ipa` stylesheet uses the package's Libertinus Sans Regular face,
+upright even in italic or bold surrounding prose, so combining tie bars remain
+legible. Phonetic spans take precedence over other font or emphasis classes,
+and their descendants use the same face. Inline code inside a phonetic span
+keeps its literal content in that face; code containing literal span syntax
+remains an ordinary code example. Foundry's base stylesheet and the site stylesheet import it; their
+builds copy the regular face, the OFL license and provenance. Books select the
+same upright regular face for `.ipa` spans with font fallback disabled. The optional wildcard helper
+`engine/phonetic-fonts.mjs` provides the same source/destination list to both HTML
+outputs:
+
+| Export                 | Signature                                       | Returns                   | Use it when                                                                                  |
+| ---------------------- | ----------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------- |
+| `phoneticAssetEntries` | `phoneticAssetEntries(root, styles = "styles")` | `[source, destination][]` | Delivering the phonetic sheet, fonts and notices; sites pass `"css"` as the second argument. |
+
+The wildcard module `engine/font-outlines.mjs` also exposes its existing cmap
+reader for checking a delivered face against the admitted repertoire:
+
+| Export            | Signature                     | Returns               | Use it when                                                                                                                        |
+| ----------------- | ----------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `codepointGlyphs` | `codepointGlyphs(buf, table)` | `Map<number, number>` | Reading code-point glyph indices from format 4 or 12 cmap records; pass the font buffer and its cmap record from `tableDirectory`. |
+
 ### `engine.romanCharacters`
 
 A configured language's Roman additions to the shared punctuation standard,
@@ -3138,18 +3184,19 @@ no Maps or callbacks.
 
 `@heroiclands/package-build/convert` exports:
 
-| Export         | Signature                                | Returns                                                    |
-| -------------- | ---------------------------------------- | ---------------------------------------------------------- |
-| `encode`       | `encode(data, language, text, options?)` | Converted text, findings and source pieces for a language. |
-| `decode`       | `decode(data, language, text, options?)` | Roman text and findings.                                   |
-| `validateData` | `validateData(data)`                     | The validated format-2 data.                               |
+| Export         | Signature                                  | Returns                                                               |
+| -------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| `encode`       | `encode(data, language, text, options?)`   | Converted text, findings and source pieces for a language.            |
+| `decode`       | `decode(data, language, text, options?)`   | Roman text and findings.                                              |
+| `checkRoman`   | `checkRoman(data, language, text, {enc}?)` | Original-input lexical membership findings and explicit check status. |
+| `validateData` | `validateData(data)`                       | The validated format-2 data.                                          |
 
 Its module graph uses no Node built-in and can be bundled for
 a browser without shims. Load the module's [format-2 data file](reference/format-details.md#converter-data-format)
 once and treat it as read-only.
 
 ```js
-import { encode, decode, validateData } from "@heroiclands/package-build/convert";
+import { encode, decode, checkRoman, validateData } from "@heroiclands/package-build/convert";
 const data = validateData(await (await fetch("data/converter.json")).json());
 const native = encode(data, "aelw", "say", { enc: "aelwsemaronenc" });
 const roman = decode(data, "aelw", native.text, { enc: "aelwsemaronenc" });
@@ -3180,12 +3227,54 @@ Invalid data, unknown languages and unknown encoding selections throw an
 error before conversion. `validateData(data)` returns the validated data or
 throws; it opens no files.
 
+### Checking Roman lexical membership
+
+`checkRoman(data, language, text, {enc}?)` returns `{language, checked, findings}`.
+An explicit language selects its lexical inputs even without an encoding, or
+with `enc: "default"`. A null or undefined language is inferred from a selected
+non-default encoding. Encoding references and language agreement follow the
+same rules and throw the same selection errors as conversion.
+
+Without a selected language, `language` is null and `checked` is false. A
+selected language with no serialized lexicon also returns `checked: false`.
+Both return an empty findings list: **unchecked does not mean known**. A supplied
+empty lexicon is checked and accepts no words containing letters. Checked means
+that membership was tested, not that spelling, grammar or encodability passed.
+
+Each finding has `kind: "unknown-word"`, `severity: "warning"`, the original
+`word`, the publisher's lexical `message`, and `offset`, `line`, `column`.
+Offsets count UTF-16 code units in the original input; lines and columns are
+one-based, with columns counting Unicode code points. Each unknown folded word
+is reported once, at its first occurrence. The check shares the publisher's
+NFC/case folding, curly-apostrophe folding, forms, variants, regular derivations,
+phrase words, and non-translation registered name words. Compounds are split
+only when not accepted whole; digit-only tokens are ignored.
+
+Literal codage from `⟦` through `⟧` (or the end of unfinished input) is masked
+without moving offsets. The check reads raw text, not Markdown. Encoding remains
+responsible for malformed literals and source-syntax errors. Run this optional
+check on the **original Roman input**: lossy encodings can map an unknown word
+and a known word to the same native text, so decoding the result cannot prove
+original membership. Calling the check does not change encoding or decoding.
+
+```js
+const lexical = checkRoman(data, "aelw", input, { enc: "aelwsemaronenc" });
+const converted = encode(data, "aelw", input, { enc: "aelwsemaronenc" });
+// Present lexical.checked and lexical.findings separately from converted.findings.
+```
+
+The pure `engine/word-book.mjs` leaf owns `wordBook(language, data)`,
+`registeredNameWords(data)`, `unknownWords(text, book, said?)`,
+`unknownWordMessage(word, language)` and `maskLiteralCodage(text)`.
+`engine/run-words.mjs` assembles books from indexed records and re-exports its
+existing helpers; publisher and browser use the same membership implementation.
+
 The Node-side `engine/converter-data.mjs` module prepares these inputs from an
 indexed package:
 
 | Export               | Signature                                              | Returns                                                                       |
 | -------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| `buildConverterData` | `buildConverterData(config, records)`                  | Format-1 converter data from the build context.                               |
+| `buildConverterData` | `buildConverterData(config, records)`                  | Format-2 converter data from the build context.                               |
 | `writeConverterData` | `writeConverterData({config, packageBuild, records?})` | `{path, data}` when the optional output is configured; otherwise `undefined`. |
 
 The content run scanner reports diagnostic columns in Unicode code points.

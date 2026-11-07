@@ -1374,6 +1374,7 @@ function scriptWrapped(content, classes = [], attributes = {}) {
  * @returns {string} Typst markup.
  */
 function renderInline(token, ctx) {
+    ctx = { ...ctx, emphasisDepth: ctx.emphasisDepth ?? 0, phoneticDepth: ctx.phoneticDepth ?? 0 };
     const children = token?.children ?? [];
     const out = [];
     for (let i = 0; i < children.length; i += 1) {
@@ -1389,7 +1390,7 @@ function renderInline(token, ctx) {
                 out.push(" \\\n");
                 break;
             case "code_inline":
-                out.push(inlineRaw(child.content));
+                out.push(ctx.phoneticDepth ? escapeTypst(child.content) : inlineRaw(child.content));
                 break;
             case "verse_inline": {
                 const content = workVerse(child, child.meta.verse, ctx);
@@ -1398,8 +1399,16 @@ function renderInline(token, ctx) {
                 break;
             }
             case "span_open": {
-                if (["em", "strong"].includes(child.tag)) {
-                    const classes = (child.attrGet?.("class") ?? "").split(/\s+/);
+                const classes = (child.attrGet?.("class") ?? "")
+                    .split(/\s+/)
+                    .filter((value) => value && value !== "secret");
+                const phonetic = ctx.phoneticDepth > 0 || classes.includes("ipa");
+                if (!phonetic && ["em", "strong"].includes(child.tag)) {
+                    if (
+                        child.tag === "em" &&
+                        !classes.some((name) => ["emph-rubric", "emph-overline"].includes(name))
+                    )
+                        ctx.emphasisDepth += 1;
                     out.push(
                         classes.includes("emph-rubric") ?
                             `#text(fill: ${ctx.textFill ?? "book-rubric"})[`
@@ -1408,16 +1417,15 @@ function renderInline(token, ctx) {
                     );
                     break;
                 }
-                const sign = renderGlyph(children, i, ctx) ?? renderCartouche(children, i, ctx);
+                const sign =
+                    !phonetic &&
+                    (renderGlyph(children, i, ctx) ?? renderCartouche(children, i, ctx));
                 if (sign) {
                     out.push(sign.typst);
                     i = sign.close;
                     break;
                 }
                 // Inline secrecy has no print presentation; other classes and ids survive.
-                const classes = (child.attrGet?.("class") ?? "")
-                    .split(/\s+/)
-                    .filter((value) => value && value !== "secret");
                 const values = classes
                     .map((value) => '"' + escapeTypstString(value) + '"')
                     .join(", ");
@@ -1429,9 +1437,18 @@ function renderInline(token, ctx) {
                             (classes.length === 1 ? "," : "") +
                             ")" +
                             (lang ? `, lang: "${lang}"` : "") +
+                            (ctx.phoneticDepth ? ", phonetic: true" : "") +
+                            ((
+                                !ctx.phoneticDepth &&
+                                classes.includes("ipa") &&
+                                ctx.emphasisDepth % 2
+                            ) ?
+                                ", emphasized: true"
+                            :   "") +
                             ")["
                     :   "#box[",
                 );
+                if (classes.includes("ipa")) ctx.phoneticDepth += 1;
                 break;
             }
             case "span_close": {
@@ -1444,13 +1461,24 @@ function renderInline(token, ctx) {
                         break;
                     }
                 }
+                if (
+                    !ctx.phoneticDepth &&
+                    opening?.tag === "em" &&
+                    !(opening.attrGet?.("class") ?? "")
+                        .split(/\s+/)
+                        .some((name) => ["emph-rubric", "emph-overline"].includes(name))
+                )
+                    ctx.emphasisDepth -= 1;
+                if ((opening?.attrGet?.("class") ?? "").split(/\s+/).includes("ipa"))
+                    ctx.phoneticDepth -= 1;
                 const id = opening?.attrGet?.("id");
                 out.push(`]${id ? ` <${sectionLabel(ctx.anchorPrefix, id)}>` : ""}`);
                 break;
             }
             case "script_emphasis_open":
                 out.push(
-                    child.meta?.convention === "rubric" ?
+                    ctx.phoneticDepth ? "#box["
+                    : child.meta?.convention === "rubric" ?
                         `#text(fill: ${ctx.textFill ?? "book-rubric"})[`
                     :   "#overline[",
                 );
@@ -1459,10 +1487,11 @@ function renderInline(token, ctx) {
                 out.push("]");
                 break;
             case "strong_open":
-                out.push("#strong[");
+                out.push(ctx.phoneticDepth ? "#box[" : "#strong[");
                 break;
             case "em_open":
-                out.push("#emph[");
+                if (!ctx.phoneticDepth) ctx.emphasisDepth += 1;
+                out.push(ctx.phoneticDepth ? "#box[" : "#emph[");
                 break;
             case "s_open":
                 out.push("#strike[");
@@ -1470,6 +1499,7 @@ function renderInline(token, ctx) {
             case "strong_close":
             case "em_close":
             case "s_close":
+                if (!ctx.phoneticDepth && child.type === "em_close") ctx.emphasisDepth -= 1;
                 out.push("]");
                 break;
             case "heroiclands_icon":
@@ -1981,8 +2011,15 @@ export function bookTypstPreamble(runs = {}, families = {}) {
         // Plain semantic hooks retain the span classes without choosing their appearance.
         "#let book-direction(body) = body",
         "#let book-speaker(body) = body",
-        "#let book-span(body, classes: (), lang: none) = {\n" +
-            "  let styled = book-script-text(body, classes: classes, lang: lang)\n" +
+        "#let book-span(body, classes: (), lang: none, emphasized: false, phonetic: false) = {\n" +
+            '  if "ipa" in classes { phonetic = true }\n' +
+            "  let styled = if phonetic { body } else { book-script-text(body, classes: classes, lang: lang) }\n" +
+            // Typst's inherited emph toggles after text.style; a second toggle restores upright IPA.
+            "  if phonetic {\n" +
+            "    if lang != none { styled = text(lang: lang, styled) }\n" +
+            '    styled = text(font: "Libertinus Sans", style: "normal", weight: "regular", fallback: false, styled)\n' +
+            "    if emphasized { styled = emph(styled) }\n" +
+            "  }\n" +
             '  if "direction" in classes { styled = book-direction(styled) }\n' +
             '  if "speaker" in classes { styled = book-speaker(styled) }\n' +
             "  box(styled)\n" +

@@ -372,7 +372,9 @@ describe("Typst", () => {
         );
         expect(bookTypstPreamble()).toContain("#let book-script-fonts = (:)");
         expect(preamble).toMatch(/#let book-script-text\(body, classes: \(\), lang: none\)/);
-        expect(preamble).toMatch(/#let book-span\(body, classes: \(\), lang: none\)/);
+        expect(preamble).toMatch(
+            /#let book-span\(body, classes: \(\), lang: none, emphasized: false, phonetic: false\)/,
+        );
     });
 
     it("sets a generic family in the book's own font", () => {

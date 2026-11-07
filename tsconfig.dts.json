@@ -35,6 +35,7 @@
         "stage.mjs",
         "config.mjs",
         "container.mjs",
+        "convert.mjs",
         "coverage.mjs",
         "e2e.mjs",
         "templates.mjs",

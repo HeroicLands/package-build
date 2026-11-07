@@ -100,7 +100,9 @@ describe("span classes in emitted books", () => {
             bodies: new Map([[anchor, body]]),
         });
         expect(book.match(/#let book-span\(/g)).toHaveLength(1);
-        expect(book).toContain("#let book-span(body, classes: (), lang: none)");
+        expect(book).toContain(
+            "#let book-span(body, classes: (), lang: none, emphasized: false, phonetic: false)",
+        );
         // A name takes no weight from its class: its first use is bold as written.
         expect(book).not.toContain('classes.contains("name")');
         expect(book).toContain("box(styled)");

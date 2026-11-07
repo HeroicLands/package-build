@@ -65,6 +65,7 @@
  * @module
  */
 
+import { phoneticAssetEntries } from "./phonetic-fonts.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -287,6 +288,10 @@ function pageFile(site, out, url) {
 export function writeThemeFiles(out, staticDir = SITE_STATIC_DIR) {
     fs.mkdirSync(out, { recursive: true });
     if (fs.existsSync(staticDir)) fs.cpSync(staticDir, out, { recursive: true });
+    for (const [source, target] of phoneticAssetEntries(out, "css")) {
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(source, target);
+    }
     return siteThemeAssets().map((asset) => {
         const file = path.join(out, asset.path);
         fs.mkdirSync(path.dirname(file), { recursive: true });

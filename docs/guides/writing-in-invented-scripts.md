@@ -47,6 +47,71 @@ entries can recover fuller word forms. The encoder adds no invisible metadata
 to restore erased spelling. See the [canonical encoding contract](../encoding-core.md#executable-rules)
 for aliases, inherent vowels and shared word separators.
 
+## Roman short vowels and stress
+
+When stress falls on a grave short vowel, keep both marks: `à́`, `ì́`, `ò́`,
+`ù́` (or their uppercase forms). Write the precomposed grave vowel followed by
+one combining acute, U+0301, as in _bòtò́n_. This is NFC Roman spelling and
+uses ordinary text styling; it needs no `.ipa` span. Other bases, repeated
+accents and additional combining marks do not gain this allowance. Decomposed
+spellings still receive the normal NFC diagnostic.
+
+## Phonetic notation
+
+Write an exact pronunciation in an explicit phonetic span, keeping the English
+comparison alongside it:
+
+```markdown
+[/ʃ/]{.ipa} — as in _ship_.
+```
+
+The span uses upright Libertinus Sans Regular on the site, in Foundry and in
+the book, including within italic or bold prose. This keeps phonetic marks such
+as the combining tie bar legible while surrounding prose retains its style.
+The phonetic face also governs combined classes and descendants: `.ipa .emph`,
+`.ipa .strong`, inner emphasis, links and inline code all stay upright in the
+same face. Other font classes do not replace it. Inline code inside an IPA span
+keeps its literal text; it is not reparsed as Markdown.
+The package supplies the face and its license; it does not rely on a reader
+having it installed. Foundry packages that disable the shared
+base stylesheet supply their own presentation. IPA is phonetic notation, not
+Roman spelling and not input to an invented script encoding.
+
+A language note's `data.sounds.letters[].ipa` and `data.sounds.finals[].ipa`, and
+a spelling guide's `data.sounds.letters[].ipa`, are already typed pronunciation
+fields. Keep their plain IPA values. To give generated table cells the same
+presentation, wrap the query's result, not the stored field:
+
+```sql
+SELECT "like" AS "Sounds like", '[/' || ipa || '/]{.ipa}' AS "IPA"
+FROM letters WHERE language = 'demo-note-doc-pronouncing' ORDER BY position
+```
+
+Phonetic letters and combining marks supported by the supplied face are allowed
+only in those contexts. Unsupported tone bars and modifiers still produce a
+missing phonetic-face coverage warning, even when already marked `.ipa`.
+Ordinary text, arbitrary metadata and literal code examples of `.ipa` syntax
+retain the normal charset checks. Code formatting inside an actual phonetic
+span uses that span's allowance and face. NFC, invisible-character and unrelated-character warnings still apply;
+a span does not certify that a transcription is accurate. Preserve the
+transcription and its English comparison when adding presentation markup.
+
+## Checking words in a converter
+
+A browser converter can call the optional
+[`checkRoman` API](../api.md#checking-roman-lexical-membership) on the original
+Roman input before encoding. It uses the same vocabulary, registered names and
+regular forms as the publisher. An unknown word is reported at its first source
+position; repeated occurrences are reported once. Literal codage is left to the
+encoder, and Markdown is not interpreted in this raw input.
+
+An empty findings list means the words passed membership only when `checked` is
+true. Without a selected language or its lexical inputs, the result explicitly
+says `checked: false`. Membership does not certify grammar, spelling or whether
+the selected script can encode the text. Keep conversion findings visible too.
+Decoding native output cannot replace this check: scripts that omit distinctions
+can turn different Roman words into the same native spelling.
+
 ## Language and native presentation
 
 `enc=` names an encoding document, with `doc` as its default Address type:
