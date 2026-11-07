@@ -81,7 +81,13 @@ add higher ones only where the body truly has them. A rung is a standing, what
 a member is; an office in `governance.offices` is a post, what a member does,
 and leadership is normally an office held by the top rank. A missing or empty
 ladder, or one without level 0 or level 1, produces a located build error.
-See [the affiliation reference](docs/reference/format-details.md#type-affiliation).
+An ordinary member states a ladder rank; a declared officeholder may instead
+hold the post by appointment, with no rank. A seatless affiliation can list
+its geographic activity in optional `data.range`, which prints linked places
+under **Active in** and is available in the content index and SQL. A body with
+a seat states no range. See the [frontmatter guide](docs/authoring/frontmatter.md)
+for examples and refusals, and the
+[affiliation reference](docs/reference/format-details.md#type-affiliation).
 
 A place declares its government through `data.government`, an `Address` whose
 default target type is `affiliation`. Explicit `null` means complete anarchy;

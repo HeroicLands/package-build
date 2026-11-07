@@ -253,7 +253,11 @@ export class Actors extends SystemActorCompiler {
                 ctx,
                 { fmKey: "affiliations", modelPackage: body.package ?? null },
             );
-            if (embedded) items.push(embedded);
+            if (embedded) {
+                // An appointment carries no standing from the body's item model.
+                if (standing?.rank == null && office) delete embedded.system.level;
+                items.push(embedded);
+            }
         }
         return items;
     }

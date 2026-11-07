@@ -50,6 +50,7 @@ types:
             - governance.ranks
             - governance.offices
             - seat
+            - range
             - population
             - economy
             - lore

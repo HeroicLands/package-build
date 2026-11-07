@@ -139,7 +139,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     affiliation: {
-        covers: ["events", "governance.ranks", "governance.offices", "culture"],
+        covers: ["events", "governance.ranks", "governance.offices", "range", "culture"],
         fm: () => ({
             type: "affiliation",
             shortcode: "someaffiliation",
@@ -164,6 +164,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     },
                 },
                 culture: "cultureone",
+                range: ["place-korrath"],
             },
         }),
     },

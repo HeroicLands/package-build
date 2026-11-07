@@ -116,7 +116,14 @@ ever does, so both are required. Each rung states `level`, `title`, and
 `description`, and the level-0 title is the body's own word for the excluded
 rather than a generic "Excluded". A being's `data.affiliations` entry names a
 rank on that body's ladder; level 1 is the ordinary standing when no higher
-rank applies.
+rank applies. A declared officeholder may omit the rank and hold the post
+**by appointment**, with no ladder standing. An entry with neither a rank nor
+a declared office is an error.
+
+A seatless affiliation may list the places where it is active in optional
+`data.range`. Every entry must resolve to a place. A body with a populated
+`data.seat` states no range; `data.parents` names political subordination.
+The profile prints the range as **Active in** with linked place names.
 
 Add rungs above level 1 only where the body truly has them, generally no more
 than five. A rung is a **standing**, what a member is; an entry in

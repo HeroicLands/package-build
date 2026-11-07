@@ -87,6 +87,40 @@ describe("an office's holders are derived from the beings that hold it", () => {
             ]);
         }));
 
+    it("indexes appointed holders beside ranked holders and keeps deceased holders historical", () =>
+        withTree(
+            {
+                ...realm(),
+                "Aldwyn.md": being("aldwyn", "Aldwyn", { office: "King" }),
+                "Old King.md": being("oldking", "Old King", { office: "King" }, { died: "690" }),
+            },
+            (root) => {
+                const records = recordsOf(root);
+                const holders = officeHolders(records).get("sohl-affiliation-crown");
+                expect(holders!.get("King")!.map((record: any) => record.shortcode)).toEqual([
+                    "aldwyn",
+                ]);
+                expect(holders!.get("Treasurer")!.map((record: any) => record.shortcode)).toEqual([
+                    "beren",
+                    "cadoc",
+                ]);
+                const published = serializeContentIndex(records)
+                    .trim()
+                    .split("\n")
+                    .map((line) => JSON.parse(line));
+                const appointed = published.find(
+                    (record) => record.shortcode === "aldwyn" && !record.documents,
+                );
+                expect(appointed.data.affiliations["sohl-note-affiliation-crown"]).toEqual({
+                    office: "King",
+                });
+                const historical = published.find(
+                    (record) => record.shortcode === "oldking" && !record.documents,
+                );
+                expect(historical.data.died).toBeDefined();
+            },
+        ));
+
     it("shows them on the body's page as a generated section, a vacant office omitted", () =>
         withTree(realm(), (root) => {
             const sections = derivedSections(recordsOf(root), {

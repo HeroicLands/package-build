@@ -907,7 +907,7 @@ const STANDINGS = Object.freeze({
     keyKind: "address",
     values: Object.freeze({
         kind: "map",
-        shape: "a map — `{ rank, office? }`",
+        shape: "a map — `{ rank?, office?, societies? }`; rank or a declared office is required",
         fields: STANDING_FIELDS,
     }),
     standings: true,
@@ -1345,6 +1345,24 @@ function checkBeingDate(key) {
         }).findings;
 }
 
+/** Geographic activity is stated only by an affiliation without a seat. */
+function checkAffiliationRange(note) {
+    const data = note.fm?.data ?? {};
+    const { seat } = data;
+    const empty = (value) =>
+        value == null || value === "" || (Array.isArray(value) && value.length === 0);
+    if (empty(seat) || !Object.hasOwn(data, "range")) return [];
+    return [
+        {
+            file: note.file,
+            ...positionOfFrontmatterPath(note.raw ?? "", ["data", "range"]),
+            severity: "error",
+            message:
+                "`data.range` is permitted only when `data.seat` is empty; a body with a seat states no range",
+        },
+    ];
+}
+
 /** A place's purpose selects one of its own character tags. */
 function checkPlacePurpose(note) {
     const value = note.fm?.data?.purpose;
@@ -1689,8 +1707,9 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...STANDINGS,
                 describe:
                     "Bodies the being belongs to, keyed by Address, each entry holding the " +
-                    "standing it holds there — `rank`, required, a level on that body's own " +
-                    "ladder, and `office`, optional, a post that body names.",
+                    "standing it holds there — `rank`, a level on that body's own ladder, " +
+                    "and `office`, a post that body names. Ordinary members require a rank; " +
+                    "a declared officeholder may omit it and holds the post by appointment.",
             },
             {
                 name: "socialTies",
@@ -1916,6 +1935,15 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "place",
                 accepts: ["place"],
                 describe: "Where the affiliation's authority sits.",
+            },
+            {
+                name: "range",
+                ...LINKS,
+                ref: "place",
+                accepts: ["place"],
+                check: checkAffiliationRange,
+                describe:
+                    "Places the affiliation is active in; optional and permitted only when `data.seat` is empty. It states neither a seat nor political subordination.",
             },
             { name: "population", ...NUM, describe: "How many people it counts." },
             {

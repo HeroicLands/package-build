@@ -4638,8 +4638,8 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `culture`                          | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
 | `homes`                            | `Address[]`                                    | Place the being calls home                                                                                                                            |
 | `affiliations`                     | `Map<Address, Membership>`                     | Bodies the being belongs to, keyed by Address, each entry the standing it holds there                                                                 |
-| `affiliations.<Address>.rank`      | `integer`, required                            | The level on that body's own `governance.ranks` ladder; `1` is an ordinary member, `0` someone cast out                                               |
-| `affiliations.<Address>.office`    | `string`                                       | A post that body names in its `governance.offices`, where the being holds one                                                                         |
+| `affiliations.<Address>.rank`      | `integer`, required unless appointed           | The level on that body's own `governance.ranks` ladder; `1` is an ordinary member, `0` someone cast out                                               |
+| `affiliations.<Address>.office`    | `string` or `string[]`                         | A post that body names in its `governance.offices`, where the being holds one                                                                         |
 | `affiliations.<Address>.societies` | `string[]`                                     | The societies the membership is held in, by name; SoHL carries the first as `system.society`                                                          |
 | `socialTies`                       | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                                                                                   |
 | `gender`                           | `male \| female \| nonbinary \| none \| other` | Gender of the being — see [a being's look](#a-beings-look)                                                                                            |
@@ -5068,8 +5068,9 @@ names, an empty name, a missing `pattern` or `given`, a missing `female` or
 
 #### The bodies a being belongs to, and its standing in each
 
-**Membership**: `{rank: number, office: string | string[], societies: string[]}` —
-`rank` required, `office` and `societies` not.
+**Membership**: `{rank?: number, office?: string | string[], societies?: string[]}` —
+`rank` is required for ordinary members; an officeholder may omit it when every
+named office is declared by the body. `societies` is optional.
 
 `data.affiliations` is a **map keyed by the body's Address**, and each entry is
 the standing the being holds in that body. The key is what makes the pair
@@ -5078,7 +5079,8 @@ call a rung the same word.
 
 An entry carries three keys and nothing else:
 
-- **`rank`** — **required**, a **number**, the level on that body's own
+- **`rank`** — a **number**, required unless holding an office by appointment,
+  the level on that body's own
   `governance.ranks` ladder. The body declares `{level, title, description}` for
   every rung, so a number indexes into it and the body stays the single source
   for what its level 5 is called.
@@ -5089,18 +5091,15 @@ An entry carries three keys and nothing else:
   is held in. It is always a list, even with one name; a bare string is an
   error at the key.
 
-**Every entry states a `rank`**, because belonging to a body is holding some
-standing in it. Where nothing more is known the rung is `1`, the ordinary
-member; `0` is the rung for someone cast out, which is a real answer rather than
-a default — the ladders carry `0 Níding`, `0 Outlaw` and `0 Struck from the
-Roll`. Between them the two ends cover every standing a member can hold, so an
-entry that states no rank is an **error** at the entry's own line, and the
-message names both numbers rather than only the gap.
+**An ordinary member states a `rank`.** Level `1` is the ordinary member;
+`0` is the body's rung for someone cast out. Neither number stands for an
+appointment without ladder standing.
 
-An entry carrying an **office and no rank** is that same error and not a second
-one, reported once: an office distinguishes a person within a standing rather
-than standing in for one, so such an entry puts a person in a post in nothing.
-An entry carrying a rank and no office is complete.
+**An officeholder may state an office and no rank.** Every post must be a key
+of the referenced body's `governance.offices`. An unknown post, a body with no
+office declarations, an empty office list, or an entry with neither rank nor
+office is an error. A rank without an office is complete. A rank stated beside
+an office still must be one the body confers.
 
 ```yaml
 data:
@@ -5108,6 +5107,7 @@ data:
     affiliation-vrystwldtrbs: { rank: 5, office: War Chief, societies: [Vrystwald] }
     affiliation-greenwardens: { rank: 1 }
     affiliation-silverguild: { rank: 0 }
+    affiliation-council: { office: Chancellor }
 ```
 
 Both values are checked against the body the entry is keyed by. A `rank` that
@@ -5125,9 +5125,9 @@ posts lead in the order written: `Treasurer, Chancellor, Hárár (5), of …`. T
 is read from the body's own `governance.ranks`; where the body declares no rung
 at that level, or its ladder is not available, the rung reads as `Rank 5` —
 `Rank 5, of Vrystwald Tribes`. The body's name links to its page, and is plain
-text where it publishes none. A membership stating no
-standing is the body's name alone. The lines are the same on the website, in
-a Foundry journal and in the book. On the body's own page each office is a row
+text where it publishes none. An officeholder without a rank reads as
+`Chancellor by appointment, of Council`, with no ladder title or level. The
+lines are the same on the website, in a Foundry journal and in the book. On the body's own page each office is a row
 anchored by its name, so the post a being holds is described where the body
 declares it, and its **Office holders** section lists who holds each post.
 
@@ -5135,7 +5135,8 @@ For SoHL, a being embeds one affiliation item per entry: `rank` **is** that
 item's `system.level`, `office` its `system.office` (several posts joined by
 commas), and the first name in
 `societies` its `system.society`. The SoHL item holds one society, so only the
-first name reaches it. A standing is a fact
+first name reaches it. An appointment without rank emits no `system.level`,
+including no inherited level from the body's item. A standing is a fact
 about the setting rather than about one system, so the `sohl:` block states
 none of it.
 
@@ -5606,6 +5607,7 @@ rank names the standing, and the standing says.
 | `governance.offices.<name>.holders[].end`       | `date`                                                                    | When the term ended; omitted, the being holds the office now                                                                |
 | `governance.offices.<name>.holders[].contested` | `boolean`                                                                 | `true` where the term may overlap another holder's                                                                          |
 | `seat`                                          | `Address`                                                                 | Where the affiliation's authority sits                                                                                      |
+| `range`                                         | `Address[]`, optional                                                     | Places the affiliation is active in; permitted only with an empty `seat`                                                    |
 | `population`                                    | `number`                                                                  | Number of people in the affiliation (precision 2 significant digits).                                                       |
 | `economy`                                       | `Address[]`                                                               | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default                                      |
 | `lore`                                          | `Address[]`                                                               | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar                              |
@@ -5620,6 +5622,31 @@ rank names the standing, and the standing says.
 | `glossary[].language`                           | `Address`                                                                 | The language the term is in, naming a skill note with `subType: language`; unstated, the note of the affiliation's language |
 | `relations`                                     | `Map<Address, Standing>`                                                  | Standing with other affiliations, keyed by the other body's Address                                                         |
 | `relations.<Address>`                           | `aligned`, `unaligned`, `rival` or `nemesis`                              | The standing this body holds toward that one; any other value is an error at the value                                      |
+
+**A seatless affiliation may state its geographic activity in `data.range`.**
+It is a list of place Addresses, using the same place default and resolution as
+`data.seat`; a scalar, another note type, or an unresolved place is an error.
+The field is optional, including for a body with no seat; null is unstated on
+a seatless body. A body whose `seat`
+is populated omits the range key, even when the list is empty. Omit the seat
+or leave it null to state a range.
+`data.parents` continues to name affiliations the body answers to; geographic
+activity creates neither a headquarters nor a political parent, and does not
+participate in culture inheritance.
+
+```yaml
+data:
+  range: [place-valley, place-harbor]
+  parents: [affiliation-council]
+```
+
+The profile prints **Active in** followed by the linked place names on the
+website, in Foundry journals, and in the book. Empty ranges produce no row.
+The content index publishes each entry as an Address object; the `notes`
+relation and dependency `notes` relations expose `data.range` as canonical
+Address strings, for example
+`list_contains(data.range, 'demo-note-place-valley')`. The field has no SoHL
+system-property mapping.
 
 **An affiliation names the people it belongs to in `data.culture`.** An
 affiliation that names none takes its culture from its `data.parents`. A

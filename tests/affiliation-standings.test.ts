@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import YAML from "yaml";
 import {
     checkStandings,
     officeAnchor,
@@ -60,22 +61,10 @@ const index = {
     addressHit: (address: string) => bodies[address],
 };
 
-const raw = [
-    "---",
-    "shortcode: subject",
-    "type: being",
-    "data:",
-    "  affiliations:",
-    "    vrystwldtrbs:",
-    "      rank: 4",
-    "      office: War Chief",
-    "---",
-].join("\n");
-
 const note = (affiliations: unknown) => ({
     fm: { type: "being", shortcode: "subject", data: { affiliations } },
     file: "subject.md",
-    raw,
+    raw: `---\n${YAML.stringify({ type: "being", shortcode: "subject", data: { affiliations } })}---\n`,
 });
 
 /**
@@ -169,14 +158,31 @@ describe("a being's standing names the body that confers it", () => {
         }
     });
 
-    it("refuses an office with no rung once, on the entry", () => {
-        // The same fault, not a second one — so one finding, on the entry.
-        const findings = standingFindings({ vrystwldtrbs: { office: "War Chief" } });
-        expect(findings.map((f) => f.severity)).toEqual(["error"]);
-        expect(findings[0].message).toMatch(/`data\.affiliations\.vrystwldtrbs` must state `rank`/);
-        expect(findings[0].message).toMatch(/ordinary member is `1`/);
-        expect(findings[0].line).toBeGreaterThan(0);
-        expect(findings[0].column).toBeGreaterThan(0);
+    it("accepts every declared office without a rung, including several appointments", () => {
+        const offices = Object.keys(tribes.data.governance.offices);
+        for (const office of [...offices, offices]) {
+            expect(standingFindings({ vrystwldtrbs: { office } })).toEqual([]);
+        }
+    });
+
+    it("requires a rank or a declared appointment, with located errors", () => {
+        for (const office of [
+            undefined,
+            null,
+            [],
+            "",
+            "Unknown post",
+            ["War Chief", "Unknown post"],
+        ]) {
+            const findings = standingFindings({ vrystwldtrbs: { office } });
+            expect(findings.length).toBeGreaterThan(0);
+            expect(findings.every((finding) => finding.severity === "error")).toBe(true);
+            expect(findings[0]).toMatchObject({ file: "subject.md" });
+            expect(findings[0].line).toBeGreaterThan(0);
+        }
+        expect(standingFindings({ greenwardens: { office: "Speaker" } })[0].message).toMatch(
+            /declares no `data.governance.offices`/,
+        );
     });
 
     it("keeps a rank with no office valid, because `office` is the optional half", () => {
@@ -258,7 +264,7 @@ describe("a being's standing names the body that confers it", () => {
             /"grade" is not a key of `data\.affiliations\.vrystwldtrbs`; it takes only `rank`, `office`/,
         );
         expect(standingFindings({ vrystwldtrbs: "Hárár" })[0].message).toMatch(
-            /`data\.affiliations\.vrystwldtrbs` should be a map — `\{ rank, office\? \}`/,
+            /`data\.affiliations\.vrystwldtrbs` should be a map — `\{ rank\?, office\?, societies\? \}`/,
         );
         expect(
             checkStandings(
@@ -321,7 +327,7 @@ describe("the body is the single source for what a rung is called", () => {
     it("reads a standing as the words before its body", () => {
         const digest = standingsDigest(tribes);
         expect(standingLead({ rank: 4 }, digest)).toBe("Fródrád (4), of ");
-        expect(standingLead({ office: "War Chief" }, digest)).toBe("War Chief, of ");
+        expect(standingLead({ office: "War Chief" }, digest)).toBe("War Chief by appointment, of ");
         expect(standingLead({ rank: 5, office: "War Chief" }, digest)).toBe(
             "War Chief, Hárár (5), of ",
         );
@@ -384,6 +390,19 @@ describe("the box prints one line per membership", () => {
                 vrystwldtrbs: { rank: 4 },
             }),
         ).toEqual(["Speaker, Rank 1, of Green Wardens", "Fródrád (4), of Vrystwald Tribes"]);
+    });
+
+    it("renders an appointment with its own office and no ladder standing", () => {
+        const appointed = box({ vrystwldtrbs: { office: "War Chief" } });
+        const html = infoboxesToHtml([appointed]);
+        expect(html).toContain(
+            '<li>War Chief by appointment, of <a href="/thalorna/affiliation-vrystwldtrbs/">Vrystwald Tribes</a></li>',
+        );
+        expect(html).not.toMatch(/Rank|Vrystrith|Kinsman|Hárár/);
+        const typst = infoboxesToTypst([appointed], {
+            link: (value: { text: string }) => `#link[${value.text}]`,
+        });
+        expect(typst).toContain("War Chief by appointment, of #link[Vrystwald Tribes]");
     });
 
     it("links the body's name alone, to its page", () => {
@@ -522,6 +541,13 @@ describe("a membership is derived into the SoHL item, never authored twice", () 
         expect(items[0].system.office).toBe("War Chief");
         // The body's own declarations come through the model untouched.
         expect(items[0].system.subType).toBe("tribe");
+    });
+
+    it("emits an appointed office without inheriting the body's level zero", () => {
+        const { items, errors } = build({ vrystwldtrbs: { office: "War Chief" } });
+        expect(errors).toBe(0);
+        expect(items[0].system.office).toBe("War Chief");
+        expect(items[0].system).not.toHaveProperty("level");
     });
 
     it("sets the item's office to every post a list names, in order", () => {

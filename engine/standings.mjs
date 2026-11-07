@@ -41,13 +41,10 @@
  * what lets each be checked — a rung the body does not confer and an office it
  * does not hold are both findings naming the file, line and column.
  *
- * **An entry states a rung, and `rank` is required.** Belonging to a body is
- * holding some standing in it, so `1` is the ordinary member and `0` is the rung
- * for someone cast out — between them they cover every standing a member can
- * hold, which is what makes the requirement writable. `office` is the optional
- * half, and an entry carrying one and no rung is the same fault rather than a
- * second: an office distinguishes a person within a standing rather than
- * standing in for one.
+ * **An ordinary member states a rung.** An appointed officeholder may omit
+ * `rank` when every named office belongs to that body's `governance.offices`.
+ * The appointment confers no ladder standing; rank zero remains a real rung
+ * for someone cast out.
  *
  * @module
  */
@@ -258,10 +255,10 @@ export function standingOffices(standing) {
  * What a standing says before the body that confers it — `War Chief, Hárár
  * (5), of ` — or `""` where no standing is held.
  *
- * The office leads, because it is the more particular of the two: a reader
- * meeting "War Chief" has been told the rung as well. Several posts in one
- * body lead in the order written, `Treasurer, Chancellor, …`. The rung follows as its
- * title with its level in parentheses, read from the body's own ladder; where
+ * The office leads. Several posts in one body lead in the order written,
+ * `Treasurer, Chancellor, …`. A stated rung follows as its
+ * title with its level in parentheses, read from the body's own ladder. An
+ * officeholder with no rank reads as `by appointment`, with no rung. Where
  * the ladder names no rung at that level, or none is available, it reads as
  * `Rank 5` and the number is not repeated. The body closes the phrase, which is
  * the whole point of keying the entry by it — a standing with no body named is
@@ -282,6 +279,7 @@ export function standingLead(standing, digest) {
         const title = digest?.ranks?.[String(level)];
         parts.push(title ? `${title} (${level})` : `Rank ${level}`);
     }
+    if (rank == null && parts.length) return `${parts.join(", ")} by appointment, of `;
     return parts.length ? `${parts.join(", ")}, of ` : "";
 }
 
@@ -353,9 +351,10 @@ export function checkStandings(note, { index } = {}) {
             findings.push(...absentRankFindings(note, named, path));
             continue;
         }
-        // A standing of the wrong shape, an undeclared key and a missing `rank`
-        // are the inner-key check's findings, made from `STANDING_FIELDS`.
+        // Shape and undeclared keys belong to the inner-key check.
         if (!mapping(standing)) continue;
+        if (standing.rank == null && writtenOffices(standing.office).length === 0)
+            findings.push(...absentRankFindings(note, named, path));
         findings.push(...rankFindings(note, standing, named, path, resolved));
         findings.push(...officeFindings(note, standing, named, path, resolved));
     }
@@ -431,39 +430,15 @@ function bodyFindings(note, body, path, isKey, found) {
     return [];
 }
 
-/**
- * What an entry states no `rank` earns.
- *
- * Every member of a body holds some standing in it, and the ladders say so at
- * both ends: `1` is the ordinary member, and `0` is a real rung rather than a
- * default — `0 Níding`, `0 Outlaw`, `0 Vrystrith`, `0 Struck from the Roll` all
- * name someone cast out, who still has a standing. So an entry naming a body
- * and no rung is incomplete, and it is an **error**.
- *
- * **The message carries the rule, not just the gap.** "States no `rank`" sends a
- * reader to find out which number to write; naming `1` and `0` is the whole
- * answer, and the two ends are what makes the requirement writable — there is no
- * standing a member can hold that one of them does not cover.
- *
- * **One finding per entry.** An entry carrying an office and no rung is the same
- * fault and not a second one: an office distinguishes a person *within* a
- * standing rather than standing in for one, so the office is named here as the
- * reason the entry looked complete, rather than reported on its own line as well.
- *
- * @param {object} note - The note.
- * @param {object} standing - The authored entry.
- * @param {string} body - How the body is named in a message.
- * @param {Array<string|number>} path - The entry's frontmatter path.
- * @returns {object[]} The finding, or nothing.
- */
+/** A membership needs a rung unless it names an appointed office. */
 function absentRankFindings(note, body, path) {
     return [
         {
             ...position(note, path, true),
             message:
                 `\`data.affiliations\` entry for ${body} states no \`rank\` — a being ` +
-                "that belongs to a body holds some standing in it. An ordinary member " +
-                "is `1`, and `0` is the rung for someone cast out",
+                "without a declared office needs a rung. An ordinary member is `1`, " +
+                "and `0` is the rung for someone cast out; an appointed officeholder may omit `rank`",
         },
     ];
 }

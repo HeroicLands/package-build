@@ -344,6 +344,7 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     "party.size": Object.freeze({ label: "Party size" }),
     "party.archetypes": Object.freeze({ label: "Written for" }),
     seat: Object.freeze({ label: "Seat" }),
+    "affiliation.range": Object.freeze({ label: "Active in" }),
     parents: Object.freeze({ label: "Within" }),
     lore: Object.freeze({ label: "Lore" }),
     homes: Object.freeze({ label: "Home" }),

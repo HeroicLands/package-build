@@ -61,6 +61,22 @@ The formatter keeps a collection on one line when the full line is under 100 cha
 
 The [note-type reference](../reference/note-types.md) lists every field accepted under `data`, including the shared `id`, `pack`, `packFolder`, `harnworld`, `banner`, and `seeAlso` fields. A type such as `being` also has its own fields, including `homes` and `affiliations`. `culture` is shared by `being`, `place`, `affiliation`, `lore` and `doc`: it names a `lore` note of `subType: culture`, is required on a `doc` of `subType: settingguide`, and is inherited down `data.parents` by places and affiliations. See [culture in the index](../reference/format-details.md#culture-in-the-index). A field absent from a type's vocabulary is a lint error; an unrelated field is not silently repurposed.
 
+An affiliation can name a headquarters in `data.seat`, or, when it has no seat,
+list the places where it is active in `data.range`. For example,
+`range: [place-valley, place-harbor]` prints **Active in** with links to those
+places. Range is optional. A populated seat together with a range key is an
+error, even when the range is empty,
+as is a range naming a being or an affiliation. Political subordination belongs
+in `data.parents`.
+
+A being names each membership under `data.affiliations`. Ordinary members
+state a rank from the body's ladder, such as
+`affiliation-council: { rank: 1 }`. An appointed officeholder may instead write
+`affiliation-council: { office: Chancellor }`, provided the council declares
+`Chancellor` in its offices. This prints **Chancellor by appointment** with no
+ladder standing. Empty memberships and unknown offices are errors. A ranked
+officeholder states both values, such as `{ rank: 1, office: Chancellor }`.
+
 A being's `data.archetypes` names the roles it can fill in an adventure. Choose every specific role that fits, such as `entertainer` for a performer or `guildsperson` for someone whose professional training or connections matter. Use `[commoner]` when no specific archetype fits. `commoner` cannot share the list with another value. The [archetype reference](../reference/format-details.md#actors) defines the available roles.
 
 A being's look is stated in a closed vocabulary. `data.gender` and `data.frame` take one word each, as do `data.appearance.eye_color`, `hair_color` and `skin_color`; `data.appearance.complexion` takes a list of words, `[]` where no condition is established, and is required once a being states an appearance. A value outside a field's list — a variant spelling such as `gray`, a word from another field's list, or an empty string — is an error naming the words the field takes. Leave a field out when the fact is unrecorded. `data.appearance.extra_features` lists the visible physical marks no word covers, each a short plain description of one, such as `a burn scar on the left forearm`. The [look reference](../reference/format-details.md#a-beings-look) gives every word and what it means.

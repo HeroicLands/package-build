@@ -35,7 +35,8 @@ export const STANDING_BODY_TYPES = Object.freeze(["affiliation"]);
  * The keys one standing carries, as inner-key declarations.
  *
  * `rank` is the level on the body's own `governance.ranks` ladder, and every
- * membership states one. `office` is a key of its `governance.offices` map, or
+ * ordinary membership states one. An appointed officeholder may omit it.
+ * `office` is a key of its `governance.offices` map, or
  * a list of them where the being holds several posts in that body, and is
  * stated only where the being holds a post. `societies` names the societies
  * the membership is held in, as a list because a membership can span several.
@@ -46,11 +47,11 @@ export const STANDING_FIELDS = Object.freeze([
     Object.freeze({
         name: "rank",
         kind: "integer",
-        required: true,
         shape:
             "the level on that body's own ladder, as a whole number — an ordinary " +
             "member is `1`, and `0` is the rung for someone cast out",
-        describe: "The level on the body's own `governance.ranks` ladder.",
+        describe:
+            "The level on the body's own `governance.ranks` ladder; required unless a declared office is held by appointment.",
     }),
     Object.freeze({
         name: "office",
