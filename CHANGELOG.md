@@ -1,5 +1,19 @@
 # @heroiclands/package-build
 
+## 25.7.1
+
+**Languages and scripts**
+
+- Known words and their composed writings convert into logographic scripts without an unsupported Roman-letter error.
+- Browser converters build for languages whose endings include an unwritten form.
+- Explicit IPA pronunciations keep their phonetic letters and marks, with a supplied typeface on the site, in Foundry and in books.
+- Roman short vowels can carry an acute above their grave mark, as in _bòtò́n_, without a charset warning or phonetic markup. The four short vowels and their uppercase forms keep ordinary text styling; unrelated combining marks retain their warnings.
+- Browser converters can flag unknown Roman words before a script erases spelling distinctions, and explicitly report when vocabulary checking is unavailable.
+
+**Rendering and sites**
+
+- Page-not-found recovery links to Heroic Lands pages follow the selected public or internal site address.
+
 ## 25.7.0
 
 **Rendering and sites**
