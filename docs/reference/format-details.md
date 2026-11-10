@@ -2663,6 +2663,46 @@ on either surface sizes a `portrait` from.
 A named `size=` written beside the embed overrides a role's slot outright, the
 same as it always has — a role decides the size nothing else states.
 
+##### The note an embedded image shows
+
+A PNG, WebP or SVG master carries its provenance in an XMP packet (the PNG
+`iTXt` chunk, the WebP `XMP ` chunk, the SVG `<metadata id="hl-provenance">`
+element), in the `hl` namespace. Two optional properties say which note the
+image shows:
+
+| Property         | Holds                                                            |
+| ---------------- | ---------------------------------------------------------------- |
+| `hl:name`        | A name for the image's subject, normally the note's `name.full`. |
+| `hl:primarynote` | The note's Address, such as `thalorna-sohl-being-akirashuyu`.    |
+
+Either may appear without the other, on any image or icon, and a value is kept
+when the file is rewritten. Neither is ever required.
+
+The format is chosen from the file's signature, not its name. A WebP gains the
+`VP8X` extended header with its XMP flag when it has none, the `XMP ` chunk
+sits after the image data, the RIFF size is rewritten, and every image and
+animation chunk is copied byte for byte.
+
+The content index records, on each note that names any image, `namedImages`:
+the Addresses (each an Address object, as everywhere in the index) of the package's images it names through an art slot, an embed or
+a body image. The **primary note** of an image is the single being or
+affiliation note whose `namedImages` lists the image's Address, so the writers
+and the check read the index and never a note file. A note of another type
+that names the image does not compete.
+
+The writers fill both properties from the primary note: its Address as
+`hl:primarynote` and its `name.full` as `hl:name`. A being or affiliation with
+no `name.full` supplies `hl:primarynote` alone; an empty value is never written.
+An image named by several beings or affiliations, or by none, has no primary
+note: nothing is derived for it, and the resolver reports which of the two it
+is. Renaming the note changes the `hl:name` the next write embeds.
+
+The provenance check reads `hl:primarynote` as an Address and reports one that
+is not well formed or that names no note in the index. When it names a note,
+it reports an `hl:name` that differs from that note's `name.full`, and a
+`hl:primarynote` that differs from the being or affiliation the image
+resolves to. Each finding is `file:line:column: error: message` at the file.
+
 ##### Where provenance comes from
 
 A `provenance.yaml` states the provenance fields in the table above, and nothing

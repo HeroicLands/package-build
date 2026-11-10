@@ -44,6 +44,8 @@ import { isAddressTuple } from "./address.mjs";
  * value from either. `file` namespaces the note's place in the tree, again
  * matching the expander's `file.*`. `officeHolders` lists, on a body, the
  * living beings whose own standing names each of its offices.
+ * `namedImages` lists, on a note that names any, the Addresses (published as
+ * Address objects) of the package's images it names through an art slot, an embed or a body image.
  *
  * Both are checked rather than assumed: `folder` is real frontmatter on most
  * notes, so the neighbouring names are close enough to a real key that a silent
@@ -70,6 +72,7 @@ export const DERIVED_KEYS = Object.freeze([
     "names",
     "runs",
     "officeHolders",
+    "namedImages",
 ]);
 
 /**

@@ -127,6 +127,7 @@ import { insertLexicalSections, lexicalSectionsFor } from "./lexical-sections.mj
 import { isGmNote } from "./note-vocabulary.mjs";
 import { attachCitations } from "./word-citations.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
+import { namedImages } from "./art-naming.mjs";
 import { embedRole } from "./content-embeds.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import {
@@ -460,6 +461,8 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw)
  * @param {import("./content-session.mjs").ContentSyntax} [options.syntax] - Session scanner projections.
  * @param {import("./content-scripts.mjs").RunContext} [options.runContext] -
  *   The configured languages, which give each run's `lang=` its tag.
+ * @param {readonly object[]} [options.assetRecords] - The package's asset
+ *   records, which map a body image's pathname to its Address for `namedImages`.
  * @returns {Record<string, any>} The record, keys sorted at every depth. A
  *   **stub** — a note with an empty body, on a type an empty body suppresses —
  *   carries `address` and `anchors` as `null`: it publishes no page, so it
@@ -487,8 +490,11 @@ export function buildIndexRecord({
     resolveRole,
     syntax,
     runContext,
+    assetRecords,
 }) {
     assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw);
+    // Read before the addresses below are decoded, from the note as authored.
+    const images = namedImages({ frontmatter, body, contentPackage, assetRecords });
 
     const source = body ?? "";
     const scannedSpans = syntax ? syntax(source).spans : scanSpans(source);
@@ -563,6 +569,9 @@ export function buildIndexRecord({
                 ...frontmatter,
                 ...(Object.keys(resolvedDates).length ? { resolvedDates } : {}),
                 package: contentPackage,
+                ...(images.length ?
+                    { namedImages: images.map((image) => readCanonicalKey(image)) }
+                :   {}),
                 names: marked.names,
                 runs: recordRuns(source, { context: runContext, bodyLine, bodyColumn, syntax }),
                 address: stub ? null : address,
@@ -720,6 +729,7 @@ export function indexRecordsForNote({
     resolveRole,
     syntax,
     runContext,
+    assetRecords,
 }) {
     resolveNoteId(frontmatter, { pkg: contentPackage });
     const record = buildIndexRecord({
@@ -738,6 +748,7 @@ export function indexRecordsForNote({
         resolveRole,
         syntax,
         runContext,
+        assetRecords,
     });
     const records = [decodeIndexAddresses(record, addressContext ?? { package: contentPackage })];
     const address = noteAddress(frontmatter, contentPackage);
@@ -1269,6 +1280,7 @@ export function collectContentIndex(
                     resolveRole,
                     syntax,
                     runContext: { languages },
+                    assetRecords,
                 });
             const made = cache ? cache.records(absPath, noteContext, derive) : derive();
             records.push(...made);

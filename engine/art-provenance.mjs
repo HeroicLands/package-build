@@ -12,7 +12,7 @@
  */
 
 /**
- * Provenance embedded in a PNG or SVG master.
+ * Provenance embedded in a PNG, WebP or SVG master.
  *
  * A master carries its own identity: the Address of the note it illustrates, a
  * display name, the prompt that produced it, how it was generated, and the
@@ -27,7 +27,8 @@
  *   It holds `hl:address`, `hl:kind`, `hl:prompt` and `hl:generator` in the
  *   {@link HL_NAMESPACE} namespace, plus `dc:title`, `dc:creator`,
  *   `dc:rights`, `dc:description`, `dc:identifier` and
- *   `Iptc4xmpExt:DigitalSourceType`;
+ *   `Iptc4xmpExt:DigitalSourceType`, and, when set, `hl:name` and
+ *   `hl:primarynote`;
  * - the **standard text chunks** every PNG reader shows, as UTF-8 `iTXt`:
  *   `Title`, `Author`, `Copyright`, `Description`, `Creation Time` and
  *   `Software`.
@@ -79,6 +80,26 @@
  * with more than one `id="hl-provenance"` and text that is not valid UTF-8 are
  * refused.
  *
+ * ## The note an image shows
+ *
+ * `hl:name` (record field `name`) and `hl:primarynote` (`primaryNote`) say which
+ * note an image shows. Both are optional and independent: an image may carry
+ * either, both or neither, on any image or icon in any format, and a value is
+ * written as given and kept when the file is rewritten. `hl:primarynote` is the
+ * note's Address and `hl:name` is a name for the image's subject, normally the
+ * note's `name.full`.
+ *
+ * The writers fill them from the content index
+ * ({@link module:engine/art-primary-note.buildPrimaryNoteIndex}) when given
+ * `{index}`: an image whose primary note is the single being or affiliation note
+ * naming it, through an art slot, an embed or a body image, takes that note's
+ * Address as `hl:primarynote` and its `name.full` as `hl:name`. A note with no
+ * `name.full` supplies `hl:primarynote` alone, and a field is never written
+ * empty. An image named by no such note, or by several, gets nothing derived;
+ * {@link module:engine/art-primary-note.resolvePrimaryNote} reports which, and
+ * the writers return it as `primary`. Renaming a note changes the `hl:name` the
+ * next write embeds.
+ *
  * ## Writing is a merge
  *
  * {@link writeProvenance} reads the record already in the file, replaces the
@@ -110,14 +131,25 @@
  * `iTXt` chunk is read the same way and rewritten as the one uncompressed
  * `iTXt` chunk.
  *
+ * ## WebP
+ *
+ * {@link writeWebpProvenance} embeds the same packet in the WebP `XMP ` chunk
+ * and {@link readWebpProvenance} reads it. A plain lossy or lossless file gains
+ * a `VP8X` header with the XMP flag set; the RIFF size is rewritten; image data
+ * and animation chunks are copied byte for byte.
+ *
  * ## Checking
  *
  * {@link checkProvenance} reports, as `file:line:column: severity: message`, a
  * file with no address, an address that is not a complete Address, an
  * (address, role) pair two files share, a `dc:identifier` that differs from
- * `hl:address`, and metadata lost or disagreeing
+ * `hl:address`, a `hl:primarynote` that is malformed or that names no note in
+ * the index, a `hl:name` that differs from the named note's `name.full`, a
+ * `hl:primarynote` that differs from the being or affiliation the image
+ * resolves to, and metadata lost or disagreeing
  * between the XMP packet and the text chunks. The format is chosen by sniffing
- * the content: a PNG signature selects PNG, anything else is read as SVG.
+ * the content: a PNG signature selects PNG, a RIFF `WEBP` container selects
+ * WebP, anything else is read as SVG.
  *
  * @module engine/art-provenance
  */
@@ -126,6 +158,7 @@ import zlib from "node:zlib";
 
 import { readCanonicalKey } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
+import { resolvePrimaryNote } from "./art-primary-note.mjs";
 
 /** The namespace of the custom XMP properties. */
 export const HL_NAMESPACE = "https://heroiclands.org/ns/1.0/";
@@ -173,6 +206,8 @@ const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const FIELDS = Object.freeze([
     "address",
     "kind",
+    "name",
+    "primaryNote",
     "role",
     "derivedFrom",
     "prompt",
@@ -209,6 +244,12 @@ const COMPLETE_ADDRESS = {
  *   Every write sets it to `address`; a record read from a file that holds only
  *   one of the two carries that value in both.
  * @property {string} [kind] - What the picture is, such as `portrait`.
+ * @property {string} [name] - The `name.full` of the being or affiliation the
+ *   image shows. Written as `hl:name` in the XMP packet only. It is independent
+ *   of `primaryNote`: either may be present without the other.
+ * @property {string} [primaryNote] - The complete Address of that being or
+ *   affiliation note. Written as `hl:primarynote` in the XMP packet only, and
+ *   independent of `name`.
  * @property {string} [prompt] - The generating prompt, verbatim.
  * @property {string} [generator] - A JSON object, as a string, describing the
  *   service and model.
@@ -398,6 +439,8 @@ const XMP_PROPERTIES = Object.freeze([
     ["address", "hl:address", "plain"],
     ["identifier", "dc:identifier", "plain"],
     ["kind", "hl:kind", "plain"],
+    ["name", "hl:name", "plain"],
+    ["primaryNote", "hl:primarynote", "plain"],
     ["role", "hl:role", "plain"],
     ["derivedFrom", "hl:derivedFrom", "plain"],
     ["prompt", "hl:prompt", "plain"],
@@ -724,6 +767,12 @@ function validateRecord(record) {
                 "<package>-<system>-<type>-<shortcode> Address",
         );
     }
+    if (record.primaryNote !== undefined && !COMPLETE_ADDRESS.test(record.primaryNote)) {
+        throw new Error(
+            `primaryNote ${JSON.stringify(record.primaryNote)} is not a complete ` +
+                "<package>-<system>-<type>-<shortcode> Address",
+        );
+    }
     if (record.generator !== undefined) {
         let parsed;
         try {
@@ -795,41 +844,19 @@ function mergeRecord(existing, fields) {
 }
 
 /**
- * Write provenance into a PNG, merging with what the file already carries.
+ * The XMP packet for a record, keeping what another tool's packet holds.
  *
- * Fields that are `undefined` in `fields` keep the file's value, and fields that
- * are `null` are removed. See the module description for the chunks that are
- * touched and the policy for an existing XMP packet.
- *
- * @param {Buffer} bytes - The PNG.
- * @param {ProvenanceRecord|Record<string, string|string[]|null|undefined>} fields - The
- *   fields to set. `digitalSourceType` also accepts the token `none`.
- * @returns {{bytes: Buffer, record: ProvenanceRecord, foreignXmp: "none"|"kept"|"discarded",
- *   changed: boolean}} The new file, the record it carries, what became of
- *   another tool's XMP packet (`none` when the file held none, `kept` when its
- *   other properties were retained, `discarded` when it could not be retained
- *   safely, with `foreignXmpReason` saying why), and whether any byte differs
- *   from the input.
- * @throws {Error} When the file is not a PNG, the merged record has no valid
- *   address or an invalid field, or a value holds a character XML cannot carry.
+ * @param {string|null} existing - The packet already in the file, or `null`.
+ * @param {ProvenanceRecord} record - The record to write.
+ * @returns {{text: string, foreignXmp: "none"|"kept"|"discarded", foreignXmpReason?: string}}
  */
-export function writeProvenance(bytes, fields) {
-    const chunks = readChunks(bytes);
-    const existing = readProvenance(bytes).record;
-    const record = mergeRecord(existing, fields);
-    if (fields.digitalSourceType === undefined && existing.address === undefined) {
-        record.digitalSourceType ??= DIGITAL_SOURCE_TRAINED_ALGORITHMIC;
-    }
-    validateRecord(record);
-
-    const xmpChunks = chunks.filter(isXmpChunk);
+function buildPacket(existing, record) {
     let foreign = "";
     let foreignXmp = "none";
     let foreignReason;
     let declarations = "";
-    if (xmpChunks.length) {
-        const packet = readTextChunk(xmpChunks[0]).text;
-        const kept = retainForeign(packet);
+    if (existing !== null) {
+        const kept = retainForeign(existing);
         if (kept.kept) {
             foreign = kept.markup;
             declarations = kept.declarations;
@@ -839,7 +866,74 @@ export function writeProvenance(bytes, fields) {
             foreignReason = kept.reason;
         }
     }
-    const packetText = packetHead(declarations) + foreign + descriptionBlock(record) + PACKET_TAIL;
+    return {
+        text: packetHead(declarations) + foreign + descriptionBlock(record) + PACKET_TAIL,
+        foreignXmp,
+        ...(foreignReason === undefined ? {} : { foreignXmpReason: foreignReason }),
+    };
+}
+
+/**
+ * Fill a record's `name` and `primaryNote` from the content index.
+ *
+ * An image whose primary note is a being or an affiliation takes that note's
+ * `name.full` (when it has one) and Address. Any other image keeps whatever the record already
+ * holds.
+ *
+ * @param {ProvenanceRecord} record - The merged record, changed in place.
+ * @param {object} index - From {@link module:engine/art-primary-note.buildPrimaryNoteIndex}.
+ * @returns {import("./art-primary-note.mjs").PrimaryNoteResult|undefined} What
+ *   the resolver answered; `undefined` when the record has no address to ask about.
+ */
+function applyPrimaryNote(record, index) {
+    if (record.address === undefined) return undefined;
+    const primary = resolvePrimaryNote(index, record.address);
+    if (primary.note) {
+        if (primary.note.name !== "") record.name = primary.note.name;
+        record.primaryNote = primary.note.address;
+    }
+    return primary;
+}
+
+/**
+ * Write provenance into a PNG, merging with what the file already carries.
+ *
+ * Fields that are `undefined` in `fields` keep the file's value, and fields that
+ * are `null` are removed. See the module description for the chunks that are
+ * touched and the policy for an existing XMP packet.
+ *
+ * @param {Buffer} bytes - The PNG.
+ * @param {ProvenanceRecord|Record<string, string|string[]|null|undefined>} fields - The
+ *   fields to set. `digitalSourceType` also accepts the token `none`.
+ * @param {{index?: object}} [options] - With `index` (from
+ *   {@link module:engine/art-primary-note.buildPrimaryNoteIndex}), an image whose
+ *   primary note is a being or an affiliation takes `name` and `primaryNote`
+ *   from that note, whatever `fields` says. Every other image keeps the values
+ *   it carries and the values `fields` supplies.
+ * @returns {{bytes: Buffer, record: ProvenanceRecord, foreignXmp: "none"|"kept"|"discarded",
+ *   changed: boolean, primary?: import("./art-primary-note.mjs").PrimaryNoteResult}} The new file, the record it carries, what became of
+ *   another tool's XMP packet (`none` when the file held none, `kept` when its
+ *   other properties were retained, `discarded` when it could not be retained
+ *   safely, with `foreignXmpReason` saying why), and whether any byte differs
+ *   from the input; with `index`, `primary` is what the resolver answered, so a
+ *   caller can report an image with several notes.
+ * @throws {Error} When the file is not a PNG, the merged record has no valid
+ *   address or an invalid field, or a value holds a character XML cannot carry.
+ */
+export function writeProvenance(bytes, fields, options = {}) {
+    const chunks = readChunks(bytes);
+    const existing = readProvenance(bytes).record;
+    const record = mergeRecord(existing, fields);
+    const primary = options.index ? applyPrimaryNote(record, options.index) : undefined;
+    if (fields.digitalSourceType === undefined && existing.address === undefined) {
+        record.digitalSourceType ??= DIGITAL_SOURCE_TRAINED_ALGORITHMIC;
+    }
+    validateRecord(record);
+
+    const xmpChunks = chunks.filter(isXmpChunk);
+    const built = buildPacket(xmpChunks.length ? readTextChunk(xmpChunks[0]).text : null, record);
+    const { foreignXmp, foreignXmpReason: foreignReason } = built;
+    const packetText = built.text;
     const xmpOut = makeTextChunk(XMP_KEYWORD, packetText);
 
     const standardOut = new Map();
@@ -890,6 +984,7 @@ export function writeProvenance(bytes, fields) {
     return {
         bytes: result,
         record,
+        ...(primary ? { primary } : {}),
         foreignXmp,
         ...(foreignReason === undefined ? {} : { foreignXmpReason: foreignReason }),
         changed: !result.equals(bytes),
@@ -1078,14 +1173,16 @@ function svgMetadataElement(record, eol) {
  * @param {Buffer|Uint8Array|string} input - The SVG.
  * @param {ProvenanceRecord|Record<string, string|string[]|null|undefined>} fields - The
  *   fields to set.
- * @returns {{text: string, bytes: Buffer, record: ProvenanceRecord, changed: boolean}}
- *   The new file as text and as UTF-8 bytes, the record it carries, and whether
- *   the text differs from the input.
+ * @param {{index?: object}} [options] - As for {@link writeProvenance}.
+ * @returns {{text: string, bytes: Buffer, record: ProvenanceRecord, changed: boolean,
+ *   primary?: import("./art-primary-note.mjs").PrimaryNoteResult}}
+ *   The new file as text and as UTF-8 bytes, the record it carries, whether
+ *   the text differs from the input, and with `index` what the resolver answered.
  * @throws {Error} When the SVG is refused (see {@link readSvgProvenance}), the
  *   merged record has no valid address or an invalid field, or a value holds a
  *   character XML cannot carry.
  */
-export function writeSvgProvenance(input, fields) {
+export function writeSvgProvenance(input, fields, options = {}) {
     const text = decodeSvg(input);
     const { elements, root, managed } = locateSvg(text);
     const existing =
@@ -1093,6 +1190,7 @@ export function writeSvgProvenance(input, fields) {
             readXmpRecord(text.slice(managed.end, managed.closeStart))
         :   {};
     const record = mergeRecord(existing, fields);
+    const primary = options.index ? applyPrimaryNote(record, options.index) : undefined;
     validateRecord(record);
     const element = svgMetadataElement(record, lineEnding(text));
 
@@ -1112,17 +1210,195 @@ export function writeSvgProvenance(input, fields) {
                 `${text.slice(0, root.end - 2)}>${element}</svg>${text.slice(root.end)}`
             :   text.slice(0, at) + element + text.slice(at);
     }
-    return { text: out, bytes: Buffer.from(out, "utf8"), record, changed: out !== text };
+    return {
+        text: out,
+        bytes: Buffer.from(out, "utf8"),
+        record,
+        ...(primary ? { primary } : {}),
+        changed: out !== text,
+    };
+}
+
+/** The size of a WebP chunk's header: four type bytes and a four-byte length. */
+const WEBP_HEADER = 8;
+
+/** The `VP8X` flag that says an `XMP ` chunk follows the image data. */
+const WEBP_XMP_FLAG = 0x04;
+
+/** The `VP8X` flag that says the image has an alpha channel. */
+const WEBP_ALPHA_FLAG = 0x10;
+
+/** Whether bytes are a WebP RIFF container, by signature. */
+function isWebp(input) {
+    return (
+        typeof input !== "string" &&
+        input.length >= 12 &&
+        Buffer.from(input.subarray(0, 4)).toString("latin1") === "RIFF" &&
+        Buffer.from(input.subarray(8, 12)).toString("latin1") === "WEBP"
+    );
 }
 
 /**
- * Whether bytes are a PNG, by signature, rather than by file name.
+ * Split a WebP into its chunks.
+ *
+ * @param {Buffer} bytes - The file.
+ * @returns {{chunks: {type: string, data: Buffer, raw: Buffer}[], trailing: Buffer}}
+ *   The chunks in file order, each `raw` holding its header, payload and pad
+ *   byte, and any bytes after the RIFF container.
+ * @throws {Error} When the file is not a WebP or a chunk length runs past the
+ *   container.
+ */
+export function readWebpChunks(bytes) {
+    if (!isWebp(bytes)) throw new Error("not a WebP: the RIFF/WEBP signature is missing");
+    const end = bytes.readUInt32LE(4) + WEBP_HEADER;
+    if (end > bytes.length || end < 12) throw new Error("the WebP RIFF size is wrong");
+    const chunks = [];
+    let at = 12;
+    while (at < end) {
+        if (at + WEBP_HEADER > end) throw new Error("a WebP chunk header is truncated");
+        const type = bytes.toString("latin1", at, at + 4);
+        const length = bytes.readUInt32LE(at + 4);
+        const dataEnd = at + WEBP_HEADER + length;
+        if (dataEnd > end) throw new Error(`WebP chunk ${JSON.stringify(type)} runs past the file`);
+        const padded = length % 2 === 1 && dataEnd < end ? dataEnd + 1 : dataEnd;
+        const body = bytes.subarray(at, padded);
+        const raw =
+            length % 2 === 1 && padded === dataEnd ? Buffer.concat([body, Buffer.alloc(1)]) : body;
+        chunks.push({ type, data: bytes.subarray(at + WEBP_HEADER, dataEnd), raw });
+        at = padded;
+    }
+    return { chunks, trailing: bytes.subarray(end) };
+}
+
+/** Build a WebP chunk, padded to an even length. */
+function makeWebpChunk(type, data) {
+    const header = Buffer.alloc(WEBP_HEADER);
+    header.write(type, 0, "latin1");
+    header.writeUInt32LE(data.length, 4);
+    return Buffer.concat([header, data, Buffer.alloc(data.length % 2)]);
+}
+
+/** The XMP packet in a WebP's chunks, or `null`. */
+function webpPacket(chunks) {
+    const chunk = chunks.find((entry) => entry.type === "XMP ");
+    return chunk ? chunk.data.toString("utf8") : null;
+}
+
+/**
+ * Read a WebP's provenance from its `XMP ` chunk.
+ *
+ * @param {Buffer|Uint8Array} bytes - The WebP.
+ * @returns {{xmp: ProvenanceRecord, standard: ProvenanceRecord, packet: string|null,
+ *   record: ProvenanceRecord}} As {@link readSvgProvenance}: `standard` is always empty.
+ * @throws {Error} When the file is not a readable WebP.
+ */
+export function readWebpProvenance(bytes) {
+    const packet = webpPacket(readWebpChunks(Buffer.from(bytes)).chunks);
+    const xmp = packet === null ? {} : readXmpRecord(packet);
+    return { xmp, standard: {}, packet, record: withIdentifier(xmp) };
+}
+
+/** The `VP8X` chunk a plain WebP needs before it can carry metadata. */
+function extendedHeader(image) {
+    let width;
+    let height;
+    let flags = WEBP_XMP_FLAG;
+    if (image.type === "VP8 " && image.data.length >= 10) {
+        width = image.data.readUInt16LE(6) & 0x3fff;
+        height = image.data.readUInt16LE(8) & 0x3fff;
+    } else if (image.type === "VP8L" && image.data.length >= 5) {
+        const bits = image.data.readUInt32LE(1);
+        width = (bits & 0x3fff) + 1;
+        height = ((bits >>> 14) & 0x3fff) + 1;
+        if ((bits >>> 28) & 1) flags |= WEBP_ALPHA_FLAG;
+    } else {
+        throw new Error("a WebP with no VP8X header must start with a VP8 or VP8L image chunk");
+    }
+    const data = Buffer.alloc(10);
+    data[0] = flags;
+    data.writeUIntLE(width - 1, 4, 3);
+    data.writeUIntLE(height - 1, 7, 3);
+    return makeWebpChunk("VP8X", data);
+}
+
+/**
+ * Write provenance into a WebP, merging with what the file already carries.
+ *
+ * The record lives in the one `XMP ` chunk, with the same packet, merge rules
+ * and handling of another tool's packet as {@link writeProvenance}, and no
+ * default `digitalSourceType`. A plain lossy or lossless file gains a `VP8X`
+ * header with the XMP flag set and its canvas size taken from the bitstream; a
+ * file that has one keeps it with the flag set. The `XMP ` chunk is replaced in
+ * place or appended after the last chunk, further `XMP ` chunks are removed,
+ * and the RIFF size is rewritten. Every other chunk, image data and animation
+ * frames included, is copied byte for byte.
+ *
+ * @param {Buffer|Uint8Array} input - The WebP.
+ * @param {ProvenanceRecord|Record<string, string|string[]|null|undefined>} fields - The
+ *   fields to set.
+ * @param {{index?: object}} [options] - As for {@link writeProvenance}.
+ * @returns {{bytes: Buffer, record: ProvenanceRecord, changed: boolean,
+ *   foreignXmp: "none"|"kept"|"discarded",
+ *   primary?: import("./art-primary-note.mjs").PrimaryNoteResult}} The new file,
+ *   the record it carries, whether any byte differs, and what became of another
+ *   tool's packet.
+ * @throws {Error} When the file is not a readable WebP, the merged record has
+ *   no valid address or an invalid field, or a value holds a character XML cannot carry.
+ */
+export function writeWebpProvenance(input, fields, options = {}) {
+    const bytes = Buffer.from(input);
+    const { chunks, trailing } = readWebpChunks(bytes);
+    const existingPacket = webpPacket(chunks);
+    const existing = existingPacket === null ? {} : withIdentifier(readXmpRecord(existingPacket));
+    const record = mergeRecord(existing, fields);
+    const primary = options.index ? applyPrimaryNote(record, options.index) : undefined;
+    validateRecord(record);
+    const built = buildPacket(existingPacket, record);
+    const xmpOut = makeWebpChunk("XMP ", Buffer.from(built.text, "utf8"));
+
+    const body = [];
+    if (chunks[0]?.type === "VP8X") {
+        const header = Buffer.from(chunks[0].raw);
+        header[WEBP_HEADER] |= WEBP_XMP_FLAG;
+        body.push(header);
+    } else {
+        body.push(extendedHeader(chunks[0] ?? { type: "", data: Buffer.alloc(0) }));
+    }
+    let wrote = false;
+    chunks.forEach((chunk, index) => {
+        if (index === 0 && chunk.type === "VP8X") return;
+        if (chunk.type === "XMP ") {
+            if (!wrote) body.push(xmpOut);
+            wrote = true;
+            return;
+        }
+        body.push(chunk.raw);
+    });
+    if (!wrote) body.push(xmpOut);
+    const size = Buffer.alloc(4);
+    size.writeUInt32LE(4 + body.reduce((sum, part) => sum + part.length, 0));
+    const out = Buffer.concat([Buffer.from("RIFF"), size, Buffer.from("WEBP"), ...body, trailing]);
+    return {
+        bytes: out,
+        record,
+        ...(primary ? { primary } : {}),
+        foreignXmp: built.foreignXmp,
+        ...(built.foreignXmpReason === undefined ?
+            {}
+        :   { foreignXmpReason: built.foreignXmpReason }),
+        changed: !out.equals(bytes),
+    };
+}
+
+/**
+ * The format of a file, by signature rather than by file name.
  *
  * @param {Buffer|Uint8Array|string} input - The file.
- * @returns {"png"|"svg"} `png` for a PNG signature; anything else is treated as
- *   SVG.
+ * @returns {"png"|"webp"|"svg"} `png` for a PNG signature, `webp` for a RIFF
+ *   container holding `WEBP`; anything else is treated as SVG.
  */
 export function sniffFormat(input) {
+    if (isWebp(input)) return "webp";
     return (
             typeof input !== "string" &&
                 input.length >= 8 &&
@@ -1154,7 +1430,7 @@ export function formatFinding(finding) {
 }
 
 /**
- * Check a set of masters, PNG and SVG alike.
+ * Check a set of masters, PNG, WebP and SVG alike.
  *
  * The format of each file is sniffed from its content. A file is refused for a
  * missing address, an address that is not a complete Address, an
@@ -1163,20 +1439,32 @@ export function formatFinding(finding) {
  * PNG, a field the XMP packet and the text chunks both hold with different
  * values.
  *
+ * `hl:name` and `hl:primarynote` are optional and independent. A
+ * `hl:primarynote` that is not a complete Address is refused. With `index`
+ * (from {@link module:engine/art-primary-note.buildPrimaryNoteIndex}), a
+ * `hl:primarynote` that names no note in it is refused, a `hl:name` that differs
+ * from the named note's `name.full` is refused, and so is a `hl:primarynote`
+ * that differs from the being or affiliation note the image resolves to.
+ *
  * @param {{file: string, bytes: Buffer|string}[]} entries - The files to check.
+ * @param {{index?: object}} [options] - The primary-note index to check against.
  * @returns {ProvenanceFinding[]} The findings, in file order; empty when the set
  *   is sound.
  */
-export function checkProvenance(entries) {
+export function checkProvenance(entries, options = {}) {
     const findings = [];
     const add = (file, message) =>
         findings.push({ file, line: 1, column: 1, severity: "error", message });
     const owners = new Map();
     for (const { file, bytes } of entries) {
-        const isPng = sniffFormat(bytes) === "png";
+        const format = sniffFormat(bytes);
+        const isPng = format === "png";
         let read;
         try {
-            read = isPng ? readProvenance(bytes) : readSvgProvenance(bytes);
+            read =
+                isPng ? readProvenance(bytes)
+                : format === "webp" ? readWebpProvenance(bytes)
+                : readSvgProvenance(bytes);
         } catch (error) {
             add(file, error.message);
             continue;
@@ -1185,7 +1473,7 @@ export function checkProvenance(entries) {
         if (packet === null) {
             add(
                 file,
-                isPng ?
+                format !== "svg" ?
                     "the XMP packet is missing"
                 :   `the <metadata id="${SVG_METADATA_ID}"> element is missing`,
             );
@@ -1213,6 +1501,36 @@ export function checkProvenance(entries) {
             const list = owners.get(key) ?? { address, role: xmp.role ?? "", files: [] };
             list.files.push(file);
             owners.set(key, list);
+        }
+        if (xmp.primaryNote !== undefined) {
+            if (!COMPLETE_ADDRESS.test(xmp.primaryNote)) {
+                add(
+                    file,
+                    `malformed hl:primarynote ${JSON.stringify(xmp.primaryNote)}: expected <package>-<system>-<type>-<shortcode>`,
+                );
+            } else if (options.index) {
+                const named = options.index.notes.get(xmp.primaryNote);
+                const derived =
+                    address && COMPLETE_ADDRESS.test(address) ?
+                        resolvePrimaryNote(options.index, address).note
+                    :   undefined;
+                if (!named) {
+                    add(file, `hl:primarynote ${xmp.primaryNote} names no note in the index`);
+                } else {
+                    if (xmp.name !== undefined && named.name !== "" && xmp.name !== named.name) {
+                        add(
+                            file,
+                            `hl:name ${JSON.stringify(xmp.name)} differs from the name ${JSON.stringify(named.name)} of ${xmp.primaryNote}`,
+                        );
+                    }
+                    if (derived && derived.address !== xmp.primaryNote) {
+                        add(
+                            file,
+                            `hl:primarynote ${xmp.primaryNote} differs from ${derived.address}, the ${derived.type} that names the image`,
+                        );
+                    }
+                }
+            }
         }
         for (const [field, keyword] of Object.entries(STANDARD_KEYWORDS)) {
             if (field === "created" || field === "software") continue;

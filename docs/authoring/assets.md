@@ -45,6 +45,10 @@ ai: false
 role: portrait
 ```
 
+## Which note an image shows
+
+A master's embedded provenance may carry `hl:name` and `hl:primarynote`: a name for the image's subject and the Address of its note. Both are optional and independent. When a being or an affiliation is the only such note naming a picture, through an art slot, an embed or a body image, the build fills both from that note (the content index records which notes name which pictures), using its `name.full` and its Address, so a portrait found on its own traces back to its character. A note with no `name.full` supplies only the Address. A picture named by several beings or affiliations, or by none, gets nothing filled in. On any other picture the fields are written as given and survive a rewrite. See [the note an embedded image shows](../reference/format-details.md#the-note-an-embedded-image-shows).
+
 ## What the Foundry package ships
 
 The repository keeps every picture; the Foundry package carries a filtered copy, laid out flat. A picture ships when its record says `ai: false` and its licence is one of `LicenseRef-PublicDomain`, `CC0-1.0`, `CC0`, `CC-BY-3.0`, `CC-BY-4.0`, `CC-BY-SA-4.0` or `LicenseRef-NounProject-Pro`, together with any licence the package adds under `packageBuild.shippingLicenses`. A shipped picture sits at `icons/<basename>` or `images/<basename>` at the package root, whatever directories it is kept in here, and the package's asset set, `asset-sets/default.json`, lists what it ships. A `packageBuild.assets` row may copy other files under `icons/` or `images/`; the shipped pictures are written beside them, and a row's file at the same path as a shipped picture is an error.
