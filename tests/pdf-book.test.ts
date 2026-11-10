@@ -609,7 +609,7 @@ describe("place maps and map notes", () => {
             const place = (name: string, relation: string) =>
                 fs.writeFileSync(
                     path.join(placeDir, `${name}.md`),
-                    `---\nshortcode: ${name}\nname: { full: ${name} }\ntype: place\nsubType: settlement\n${relation}---\n\nA place.\n`,
+                    `---\nshortcode: ${name}\nname: { full: ${name} }\ntype: place\nsubType: settlement\ndata:\n  notes: A settlement.\n${relation.replace(/^data:\n/, "")}---\n\nA place.\n`,
                 );
             place(
                 "alpha",

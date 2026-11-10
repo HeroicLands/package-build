@@ -46,6 +46,7 @@ name: { full: Empty }
 shortcode: empty
 type: place
 subType: settlement
+data: { notes: A settlement. }
 description: A described note.
 ${draft ? "tags: [draft]\n" : ""}---
 ${body}`,

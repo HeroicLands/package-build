@@ -6,6 +6,7 @@ name:
   full: Highcairn
   en: [Cairnhold]
 data:
+  notes: A settlement.
   parents: [fells]
 ---
 

@@ -94,44 +94,50 @@ default target type is `affiliation`. Explicit `null` means complete anarchy;
 omission leaves government unknown. Governing bodies receive their place lists
 from those references. See [place governments](docs/authoring/frontmatter.md#place-governments).
 
-A region’s settlements
+A polity (`affiliation`, `subType: polity`) lists settlements without notes in
+`data.settlements`. Each row names its settlement, polity, location, type,
+fortification, stronghold, holder, population, market and short notes. Polity
+and holder accept an Address with an explicit type or a plain name; location
+is a place Address. Fortification and stronghold may be omitted or null.
 
-A region declares its table in `data.settlements: { rows, tail }`. The rows
-carry the settlement's `population` and numeric `market`, and either `place`
-(the existing note's Address, default type `place`) or `name` (plain text where
-no note exists), never both. Where the region's culture holds land, a row's
-optional `heldBy` names what holds it by Address (an affiliation or a being,
-default type `affiliation`), and what that note is says how the land is held: a
-temple, a lineage, the city, a kin group. A people who hold no land state no
-`heldBy`, and their table has no Held by column. Optional `for` states why the
-settlement exists. `tail` is the sentence stating what the table leaves out.
+A settlement with a note states its own facts in `data`, with `government`
+naming its polity and `parents` naming its enclosing places. It has no authored
+row in the polity. The build merges the two sources into a Settlements table
+of direct subjects and a Settlement index of every settlement beneath the
+polity. Direct subordinate polities appear through their seats, or as linked
+polity summaries where no settlement seat is stated. All publishing surfaces
+use the same generated tables.
 
-The guard reads indexed rows. A linked row's population and market agree with
-its note, and every settlement note covered through `parents` has one row in
-the nearest declaring region. `government` states who governs; it never supplies
-who holds the land. HTML, Foundry and Typst render the declared table once.
-A body table under `## Settlements` is an error at its header, naming
-`data.settlements`; no facts are read from it.
+`data.population` on an affiliation counts its members. A polity's separate
+`data.territorial_population` counts inhabitants: listed and noted settlements
+throughout its subordinate chain must account for that total within five percent.
+A polity with settlements, a seat, or subordinate polities requires this total.
+Each polity declares at most one superior.
+Seats count once, and subordinate territorial totals are never added to the
+settlement sum. Populations use at most two significant digits. Each settlement
+has short `notes`; a populated settlement note also requires `type`, `market`
+and a `government` that resolves to a polity.
 
 ```yaml
+type: affiliation
+subType: polity
+shortcode: council
 data:
+  territorial_population: 100
   settlements:
-    rows:
-      - place: ashford
-        market: 4
-        population: 3400
-        heldBy: affiliation-crown
-        for: the ford on the drove road
-      - name: Weyshott
-        market: 2
-        population: 420
-        heldBy: being-aldwyn
-        for: the manor's mill
-      - name: Cold Hatch
-        market: 1
-        population: 60
-    tail: Some four hundred further villages lie in the vale, none of them named here.
+    - settlement: East Farm
+      polity: affiliation-council
+      location: place-vale
+      type: homestead
+      fortification: null
+      stronghold: null
+      holder: The Council
+      population: 100
+      market: subsistence
+      notes: A farm by the road.
 ```
+
+See [polity settlement tables](docs/reference/format-details.md#a-politys-settlements-table).
 
 A being's `data.gender`, `data.frame`, `data.appearance.eye_color`,
 `hair_color`, `skin_color`, `complexion`, `hair_texture`, `hair_style`,

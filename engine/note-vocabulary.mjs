@@ -158,13 +158,10 @@ import {
     parseBeingWeight,
 } from "./being-measurements.mjs";
 import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
-// What trade a settlement supports — the scale and the check that holds a
-// value to it, read rather than restated, so the reference below and the
-// finding an author meets state one list.
-import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkSettlementTables } from "./settlement-tables.mjs";
-import { SETTLEMENTS_FIELD } from "./settlement-terms.mjs";
+import { checkMarket } from "./market-class.mjs";
+import { SETTLEMENTS_FIELD, SETTLEMENT_ROW_FIELDS } from "./settlement-terms.mjs";
 import { checkConceptList, checkCoreFlag } from "./core-vocabulary.mjs";
 import { METRE_KINDS, checkMetresField } from "./metre-declaration.mjs";
 import { checkLanguageEmphasis, checkScriptField } from "./script-emphasis.mjs";
@@ -186,7 +183,7 @@ import {
  * @typedef {object} DataFieldSpec
  * @property {string} name - The key under `data:`, dotted for a nested one
  *   (`charges.value`).
- * @property {"string"|"number"|"boolean"|"list"|"map"|"scalar-or-map"|"address"|"shortcode"} [kind] -
+ * @property {"string"|"number"|"boolean"|"list"|"map"|"scalar-or-map"|"address"|"address-or-string"|"shortcode"} [kind] -
  *   The value's shape, for the lint. Absent means no claim is made about the
  *   value — which is the honest answer wherever the specification's stated
  *   shape and the shape notes are authored in today disagree.
@@ -1381,8 +1378,8 @@ const CHARGES = Object.freeze([
  *
  * Three questions about one subject, and they are independent: who governs
  * this inhabited place, what the body states about itself where the note is a
- * body rather than somewhere within one, and whether a region's settlements
- * table agrees with the notes it links. A type declares
+ * body rather than somewhere within one, and whether a settlement's facts
+ * meet its table contract. A type declares
  * one whole-note check, so the three are composed here rather than any being
  * folded into another.
  *
@@ -1924,6 +1921,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         // reaching none puts its ranks, offices and language in no culture's
         // glossary — and its own glossary.
         check: (note, context) => [
+            ...checkSettlementTables(note, context),
             ...checkAffiliationRankFloor(note, context),
             ...checkAffiliationReach(note, context),
             ...checkGlossary(note, context),
@@ -2027,7 +2025,14 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe:
                     "Places the affiliation is active in; optional and permitted only when `data.seat` is empty. It states neither a seat nor political subordination.",
             },
-            { name: "population", ...NUM, describe: "How many people it counts." },
+            { name: "population", ...NUM, describe: "How many members it counts." },
+            {
+                name: "territorial_population",
+                ...NUM,
+                describe:
+                    "A polity's territorial population, separate from its membership; required with settlements, a seat, or subordinate polities, and accounted for within five percent.",
+            },
+            SETTLEMENTS_FIELD,
             {
                 name: "economy",
                 ...LINKS,
@@ -2679,17 +2684,17 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe:
                     "The governing affiliation Address; the default target type is affiliation. " +
                     "Explicit null means complete anarchy. " +
-                    "A positive population with no government key produces an advisory.",
+                    "Populated settlements require a polity; other populated places without the key receive an advisory.",
             },
-            SETTLEMENTS_FIELD,
-            {
-                name: "market",
-                ...NUM,
-                check: checkMarket,
-                describe:
-                    "What trade the settlement supports, on a scale of six: " +
-                    `${MARKET_CLASSES.map((c) => `${c.value} ${c.name}`).join(", ")}.`,
-            },
+            ...SETTLEMENT_ROW_FIELDS.filter((field) =>
+                ["type", "fortification", "stronghold", "holder", "market", "notes"].includes(
+                    field.name,
+                ),
+            ).map(({ required, ...field }) =>
+                field.name === "market" ?
+                    { ...field, allowed: undefined, check: checkMarket }
+                :   field,
+            ),
             {
                 name: "borders",
                 ...LIST,

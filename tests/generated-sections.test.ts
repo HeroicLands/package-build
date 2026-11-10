@@ -57,6 +57,7 @@ const NOTES: Record<string, { fm: object; body?: string }> = {
             shortcode: "ford",
             name: "Ford",
             data: {
+                notes: "A town at the crossing.",
                 parents: ["vale"],
                 government: "affiliation-crown",
                 borders: [{ to: "mere", bearing: "E" }],
@@ -70,7 +71,11 @@ const NOTES: Record<string, { fm: object; body?: string }> = {
             subType: "settlement",
             shortcode: "mere",
             name: "Mere",
-            data: { parents: ["vale"], government: "affiliation-crown" },
+            data: {
+                notes: "A town by the water.",
+                parents: ["vale"],
+                government: "affiliation-crown",
+            },
         },
     },
     // A stub: it publishes no page, so the lists name it as plain text.
@@ -174,6 +179,7 @@ describe("the generated sections", () => {
     it("follow the author's text in one fixed order", () => {
         expect(GENERATED_SECTIONS.map((section) => section.slug)).toEqual([
             "settlements",
+            "settlementindex",
             "within",
             "governedby",
             "governedplaces",

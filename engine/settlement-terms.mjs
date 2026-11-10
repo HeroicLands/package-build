@@ -11,108 +11,135 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/** Dependency-free settlement row declarations. @module */
-/** The generated heading. */
+/** Settlement columns and accepted authored values. @module */
+import { MARKET_CLASSES } from "./market-class.mjs";
+/** Heading for the generated table. */
 export const SETTLEMENTS_HEADING = "Settlements";
-
-/** Rendered columns, in their fixed order; Held by and For appear when a row states them. */
-export const SETTLEMENT_COLUMNS = Object.freeze([
-    Object.freeze({ name: "Name", required: true }),
-    Object.freeze({ name: "Market", required: true }),
-    Object.freeze({ name: "People", required: true }),
-    Object.freeze({ name: "Held by", required: false }),
-    Object.freeze({ name: "For", required: false }),
+/** Settlement types. */
+export const SETTLEMENT_TYPES = Object.freeze([
+    "encampment",
+    "homestead",
+    "hamlet",
+    "village",
+    "town",
+    "city",
+    "metropolis",
 ]);
-
-/** The closed row fields; existing subjects use native Addresses. */
+/** Fortification types. */
+export const FORTIFICATIONS = Object.freeze(["none", "minimal", "palisade", "walled", "fortress"]);
+/** Stronghold types. */
+export const STRONGHOLDS = Object.freeze(["fort", "castle", "keep", "fortified manor", "tower"]);
+const enumeration = (name, allowed, nullable = false) => ({
+    name,
+    kind: "string",
+    allowed,
+    nullable,
+    shape: allowed.join(", ") + (nullable ? ", or null" : ""),
+    describe: `The settlement's ${name}.`,
+});
+/** Fields declared by each settlement row. */
 export const SETTLEMENT_ROW_FIELDS = Object.freeze(
     [
         {
-            name: "place",
-            kind: "address",
-            shape: "a place Address",
-            describe: "The existing settlement note; exclusive with name.",
-        },
-        {
-            name: "name",
+            name: "settlement",
             kind: "string",
-            shape: "plain text",
-            describe: "A settlement without a note; exclusive with place.",
+            required: true,
+            shape: "a nonempty name",
+            describe: "A settlement without a note.",
         },
         {
-            name: "market",
-            kind: "number",
+            name: "polity",
+            kind: "address-or-string",
             required: true,
-            shape: "a market class, 1 to 6",
-            describe: "What trade the settlement supports.",
+            shape: "a polity Address or a name",
+            describe: "The settlement's polity.",
+        },
+        {
+            name: "location",
+            kind: "address",
+            required: true,
+            ref: "place",
+            accepts: ["place"],
+            shape: "a place Address",
+            describe: "The enclosing place.",
+        },
+        { ...enumeration("type", SETTLEMENT_TYPES), required: true },
+        enumeration("fortification", FORTIFICATIONS, true),
+        enumeration("stronghold", STRONGHOLDS, true),
+        {
+            name: "holder",
+            kind: "address-or-string",
+            required: true,
+            shape: "an affiliation or being Address, or a name",
+            describe: "Who holds the land.",
         },
         {
             name: "population",
             kind: "number",
             required: true,
-            shape: "a positive whole number",
-            describe: "How many people live here.",
+            shape: "a positive integer with at most two significant digits",
+            describe: "People living here.",
         },
         {
-            name: "heldBy",
-            kind: "address",
-            shape: "an affiliation or being Address",
-            describe:
-                "What holds the settlement's land, where its culture holds land; what the holder is says how it is held.",
+            ...enumeration(
+                "market",
+                MARKET_CLASSES.map((c) => c.value),
+            ),
+            required: true,
         },
         {
-            name: "for",
+            name: "notes",
             kind: "string",
-            shape: "plain text",
-            describe: "Optional reason the settlement exists.",
+            required: true,
+            shape: "nonempty short text",
+            describe: "What distinguishes this settlement.",
         },
     ].map(Object.freeze),
 );
-
-/** The place vocabulary's single settlement declaration. */
+/** Columns in the generated table. */
+export const SETTLEMENT_COLUMNS = Object.freeze(
+    SETTLEMENT_ROW_FIELDS.map((field) =>
+        Object.freeze({ name: field.name[0].toUpperCase() + field.name.slice(1), required: true }),
+    ),
+);
+/** The polity settlement list declaration. */
 export const SETTLEMENTS_FIELD = Object.freeze({
     name: "settlements",
-    kind: "map",
-    shape: "{ rows, tail }",
-    fields: Object.freeze([
-        {
-            name: "rows",
-            kind: "list",
-            required: true,
-            shape: "a list of settlement rows",
-            entries: { kind: "map", shape: "a settlement row", fields: SETTLEMENT_ROW_FIELDS },
-            describe: "One row per settlement.",
-        },
-        {
-            name: "tail",
-            kind: "string",
-            required: true,
-            shape: "a nonempty sentence",
-            describe: "What the table leaves out.",
-        },
-    ]),
+    kind: "list",
+    shape: "a list of settlement rows",
+    entries: { kind: "map", shape: "a settlement row", fields: SETTLEMENT_ROW_FIELDS },
     describe:
-        "A region's settlement rows and the sentence stating what they leave out; the table is generated from this declaration.",
+        "A polity's directly held settlements without notes; merged with noted settlements at build time.",
 });
-
-/** Every semantic finding, named once for the reference and its guards. */
+/** Rules governing settlement tables. */
 export const SETTLEMENT_TABLE_RULES = Object.freeze(
     [
         [
             "body settlements table",
-            "A body table under Settlements is refused; declare data.settlements.",
+            "Settlement tables are generated from frontmatter and the index.",
         ],
-        ["settlements shape", "A region declares rows and tail, with one name or place per row."],
-        ["unresolved settlement reference", "A place or heldBy Address does not resolve."],
-        ["market class", "A row's market is not an integer class from 1 to 6."],
-        ["people figure", "A row's population is not a positive whole number."],
-        ["not a holder", "A heldBy Address names neither an affiliation nor a being."],
-        ["not a settlement", "A place Address names a subject that is not a place."],
-        ["figure disagrees", "A linked population differs from its note, or the note states none."],
-        ["market disagrees", "A linked market differs from its note, or the note states none."],
-        ["unlinked settlement", "A plain name has an existing settlement note in this region."],
-        ["missing row", "A covered settlement note has no row."],
-        ["duplicate settlement", "A settlement has another row here or in another region."],
-        ["no tail", "The declaration has no sentence stating what it leaves out."],
+        [
+            "settlements shape",
+            "Only a polity declares a list of settlement rows with the declared fields.",
+        ],
+        [
+            "settlement field",
+            "Required settlement facts are present and enumerated facts take declared values.",
+        ],
+        [
+            "unresolved settlement reference",
+            "Settlement references resolve to the required note types.",
+        ],
+        [
+            "people figure",
+            "Settlement populations are positive whole numbers with at most two significant digits.",
+        ],
+        ["duplicate settlement", "Each settlement is listed or noted exactly once."],
+        [
+            "territorial population",
+            "A polity with settlements, a seat, or subordinate polities states a territorial total; settlements account for it within five percent.",
+        ],
+        ["polity superior", "A polity declares at most one superior polity."],
+        ["polity cycle", "The subordinate polity chain has no cycles."],
     ].map(([name, describe]) => Object.freeze({ name, describe })),
 );

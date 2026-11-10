@@ -508,16 +508,12 @@ async function openDatabase(
         }
 
         load = "shared SQL views";
-        // The market scale as a relation, so a table prints `village` beside the
-        // number a note wrote without a second copy of the scale living in authored
-        // content. Three columns, because the scale states three things and a join
-        // that could only give back the name would send the next author to copy the
-        // rest by hand.
+        // The market vocabulary supplies the query values, labels and trade descriptions.
         await connection.run(
             "CREATE VIEW market AS SELECT * FROM (VALUES " +
                 MARKET_CLASSES.map(
                     (c) =>
-                        `(${c.value}, '${c.name.replace(/'/g, "''")}', ` +
+                        `('${c.value}', '${c.name.replace(/'/g, "''")}', ` +
                         `'${c.trade.replace(/'/g, "''")}')`,
                 ).join(", ") +
                 ") AS t(value, name, trade)",
@@ -1668,16 +1664,17 @@ export async function generatedSectionsFor(
     const declared = new Map();
     for (const file of new Set([...derived.keys(), ...views.keys()])) {
         const lists = new Map(derived.get(file));
-        const settlements = lists.get("settlements");
-        if (settlements)
-            declared.set(file, [
-                {
-                    slug: "settlements",
-                    heading: "Settlements",
-                    markdown: settlements.replace(/^# Settlements \{#settlements\}\s*\n/, ""),
-                },
-            ]);
-        lists.delete("settlements");
+        const tables = [];
+        for (const [slug, heading] of [
+            ["settlements", "Settlements"],
+            ["settlementindex", "Settlement index"],
+        ]) {
+            const markdown = lists.get(slug);
+            if (markdown)
+                tables.push({ slug, heading, markdown: markdown.replace(/^#[^\n]*\n\s*/, "") });
+            lists.delete(slug);
+        }
+        if (tables.length) declared.set(file, tables);
         const text = joinSections([lists, views.get(file)]);
         if (text) sections.set(file, text);
     }

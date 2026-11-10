@@ -506,6 +506,9 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                         :   {}),
                     }
                 :   {}),
+                ...(["place", "affiliation"].includes(parts.type) ?
+                    { settlementRecord: record }
+                :   {}),
                 population: record.data?.population ?? undefined,
                 market: record.data?.market ?? undefined,
                 ...(Object.hasOwn(record.data ?? {}, "government") ?

@@ -61,7 +61,7 @@ import { nearest } from "./near-miss.mjs";
  * @typedef {object} InnerKeySpec
  * @property {string} name - The key as an author writes it.
  * @property {string} [kind] - Its value's shape: `string`, `date`, `number`,
- *   `integer`, `boolean`, `address`, `list`, `map`, `scalar-or-map`,
+ *   `integer`, `boolean`, `address`, `address-or-string`, `list`, `map`, `scalar-or-map`,
  *   `string-or-list`, `string-list-or-map` or `list-or-map` — see {@link fitsKind}. Absent, the check
  *   makes no claim about the value.
  * @property {readonly string[]} [allowed] - The closed set a present value is
@@ -121,6 +121,8 @@ function isScalar(value) {
  */
 export function fitsKind(value, kind) {
     switch (kind) {
+        case "address-or-string":
+            return typeof value === "string" || isAddressTuple(value);
         case "string":
             return typeof value === "string";
         case "date":

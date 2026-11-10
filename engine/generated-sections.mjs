@@ -58,6 +58,7 @@ export const CHRONOLOGY_SLUG = "chronology";
 export const GENERATED_SECTIONS = Object.freeze(
     [
         { slug: "settlements", heading: "Settlements" },
+        { slug: "settlementindex", heading: "Settlement index" },
         { slug: "within", heading: "Within" },
         { slug: "governedby", heading: "Governed by" },
         { slug: "governedplaces", heading: "Governed places" },

@@ -60,6 +60,8 @@ types:
             - seat
             - range
             - population
+            - territorial_population
+            - settlements
             - economy
             - lore
             - parents
@@ -338,8 +340,12 @@ types:
             - culture
             - population
             - government
-            - settlements
+            - type
+            - fortification
+            - stronghold
+            - holder
             - market
+            - notes
             - borders
             - routes
             - world.equatorialCircumferenceKm
@@ -751,12 +757,10 @@ vocabularies:
         - bottom-right
         - center
     market:
-        - "1"
-        - "2"
-        - "3"
-        - "4"
-        - "5"
-        - "6"
+        - international
+        - regional
+        - local
+        - subsistence
     bearing:
         - N
         - NE

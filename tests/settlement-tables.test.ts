@@ -7,576 +7,516 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import YAML from "yaml";
-import { buildLinkIndex, auditLinks } from "../engine/content-links.mjs";
+import { buildLinkIndex } from "../engine/content-links.mjs";
+import {
+    checkSettlementTables,
+    settlementMarkdown,
+    SETTLEMENT_ROW_FIELDS,
+} from "../engine/settlement-tables.mjs";
+import { indexRecordsFor, serializeContentIndex } from "../engine/content-index.mjs";
+import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
+import { renderAddress } from "../engine/address.mjs";
+import { prepareTreeSqlTables, openNotesDatabase, runSqlQuery } from "../engine/sql-tables.mjs";
+import { expandContentTables } from "../engine/content-tables.mjs";
+import { createRenderer } from "../engine/content-render.mjs";
+import { markdownToTypst } from "../engine/pdf-render.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
-import { indexRecordsFor, serializeContentIndex } from "../engine/content-index.mjs";
-import { openNotesDatabase, runSqlQuery, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
-import { expandContentTables } from "../engine/content-tables.mjs";
-import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
-import { renderAddress, readCanonicalKey } from "../engine/address.mjs";
-import { createRenderer } from "../engine/content-render.mjs";
-import { markdownToTypst } from "../engine/pdf-render.mjs";
 import { derivedSections } from "../engine/derived-sections.mjs";
-import { SETTLEMENT_TABLE_RULES } from "../engine/settlement-tables.mjs";
 
-const tail = "Some four hundred further villages lie in the vale, none of them named here.";
-const rows = () => [
-    {
-        place: "ashford",
-        market: 4,
-        population: 3400,
-        heldBy: "affiliation-crown",
-        for: "the ford on the drove road",
-    },
-    {
-        name: "Weyshott",
-        market: 2,
-        population: 420,
-        heldBy: "being-aldwyn",
-        for: "the manor's mill",
-    },
-    {
-        name: "Cold Hatch",
-        market: 1,
-        population: 60,
-        for: "the sheepwalk",
-    },
-];
-const note = (fm: object, body = "The vale is farmed from end to end.") =>
-    `---\n${YAML.stringify(fm)}---\n\n${body}\n`;
-function region(change: (fm: any) => void = () => {}, body?: string) {
-    const fm = {
-        type: "place",
-        subType: "region",
-        shortcode: "vale",
-        name: { full: "The Vale" },
-        tags: ["region"],
-        data: { population: 100000, government: "crown", settlements: { rows: rows(), tail } },
-    };
-    change(fm);
-    return note(fm, body);
+const row = (settlement = "East Farm", population = 100) => ({
+    settlement,
+    polity: "The Council",
+    location: "place-vale",
+    type: "homestead",
+    fortification: null,
+    stronghold: null,
+    holder: "The Council",
+    population,
+    market: "subsistence",
+    notes: "A farm by the road.",
+});
+function subjects() {
+    return [
+        { type: "place", subType: "region", shortcode: "vale", name: { full: "The Vale" } },
+        {
+            type: "affiliation",
+            subType: "polity",
+            shortcode: "crown",
+            name: { full: "The Crown" },
+            data: {
+                population: 10,
+                territorial_population: 1000,
+                seat: "place-capital",
+                settlements: [row()],
+            },
+        },
+        {
+            type: "affiliation",
+            subType: "polity",
+            shortcode: "council",
+            name: { full: "The Council" },
+            data: {
+                parents: ["affiliation-crown"],
+                territorial_population: 700,
+                seat: "place-town",
+                settlements: [row("West Farm", 300)],
+            },
+        },
+        {
+            type: "place",
+            subType: "settlement",
+            shortcode: "capital",
+            name: { full: "Capital" },
+            data: {
+                parents: ["place-vale"],
+                government: "affiliation-crown",
+                type: "village",
+                population: 200,
+                market: "local",
+                notes: "A bridge village.",
+            },
+        },
+        {
+            type: "place",
+            subType: "settlement",
+            shortcode: "town",
+            name: { full: "Town" },
+            data: {
+                parents: ["place-vale"],
+                government: "affiliation-council",
+                type: "town",
+                population: 400,
+                market: "regional",
+                notes: "A market town.",
+            },
+        },
+    ] as any[];
 }
-function tree(regionText = region(), extras: Record<string, string> = {}) {
-    return {
-        "Vale.md": regionText,
-        "Ashford.md": note(
-            {
-                type: "place",
-                subType: "settlement",
-                shortcode: "ashford",
-                name: { full: "Ashford", aliases: ["Old Ford"] },
-                data: { parents: ["vale"], population: 3400, market: 4, government: "crown" },
-            },
-            "Ashford stands at the ford.",
-        ),
-        "Crown.md": note(
-            {
-                type: "affiliation",
-                subType: "polity",
-                shortcode: "crown",
-                name: { full: "The Crown" },
-            },
-            "The Crown governs the vale.",
-        ),
-        "Aldwyn.md": note(
-            {
-                type: "being",
-                subType: "npc",
-                shortcode: "aldwyn",
-                name: { full: "Sir Aldwyn of Brynwold" },
-            },
-            "A knight of the vale.",
-        ),
-        ...extras,
-    };
-}
-function fixture(files: Record<string, string>) {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-settlements-"));
-    for (const [file, raw] of Object.entries(files)) fs.writeFileSync(path.join(root, file), raw);
+function fixture(change: (notes: any[]) => void = () => {}, body = "") {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "polity-settlements-"));
+    const notes = subjects();
+    change(notes);
+    for (const fm of notes)
+        fs.writeFileSync(
+            path.join(root, `${fm.shortcode}.md`),
+            `---\n${YAML.stringify(fm)}---\n${fm.shortcode === "crown" ? body || "A described polity." : "A described subject."}\n`,
+        );
     const index = buildLinkIndex(root, { skipDirectories: [] });
-    const { findings } = lintFrontmatter(index, {
-        schemas: ENGINE_NOTE_SCHEMAS as never,
-        vocabulary: NOTE_VOCABULARY,
-    });
-    const names = SETTLEMENT_TABLE_RULES.map((r) => r.name);
+    const findings = index.notes.flatMap((note) => checkSettlementTables(note, { index }));
     return {
         root,
         index,
-        all: findings,
-        findings: findings.filter((f) => names.some((n) => f.message.startsWith(n + ":"))),
+        findings,
+        records: () => indexRecordsFor({ contentBase: root, skipDirectories: [] }),
         dispose: () => fs.rmSync(root, { recursive: true, force: true }),
     };
 }
-function checked(files: Record<string, string>, run: (f: ReturnType<typeof fixture>) => void) {
-    const f = fixture(files);
+function checked(change: (notes: any[]) => void, check: (f: ReturnType<typeof fixture>) => void) {
+    const f = fixture(change);
     try {
-        run(f);
+        check(f);
     } finally {
         f.dispose();
     }
 }
-const cases: Record<string, { change: (fm: any) => void; says: string; at: string }> = {
-    "market class": {
-        change: (fm) => (fm.data.settlements.rows[1].market = 7),
-        says: "7",
-        at: "market: 7",
-    },
-    "people figure": {
-        change: (fm) => (fm.data.settlements.rows[1].population = 0),
-        says: "positive",
-        at: "population: 0",
-    },
-    "not a holder": {
-        change: (fm) => (fm.data.settlements.rows[1].heldBy = "place-ashford"),
-        says: "place",
-        at: "heldBy: place-ashford",
-    },
-    "not a settlement": {
-        change: (fm) =>
-            (fm.data.settlements.rows[2] = {
-                ...fm.data.settlements.rows[2],
-                name: undefined,
-                place: "affiliation-crown",
-            }),
-        says: "affiliation",
-        at: "place: affiliation-crown",
-    },
-    "figure disagrees": {
-        change: (fm) => (fm.data.settlements.rows[0].population = 3000),
-        says: "3,400",
-        at: "population: 3000",
-    },
-    "market disagrees": {
-        change: (fm) => (fm.data.settlements.rows[0].market = 3),
-        says: "4 market town",
-        at: "market: 3",
-    },
-    "unlinked settlement": {
-        change: (fm) => {
-            delete fm.data.settlements.rows[0].place;
-            fm.data.settlements.rows[0].name = "Old Ford";
-        },
-        says: "ashford",
-        at: "name: Old Ford",
-    },
-    "missing row": {
-        change: (fm) => fm.data.settlements.rows.shift(),
-        says: "Ashford",
-        at: "rows:",
-    },
-    "duplicate settlement": {
-        change: (fm) => fm.data.settlements.rows.push({ ...fm.data.settlements.rows[1] }),
-        says: "Weyshott",
-        at: "name: Weyshott",
-    },
-    "no tail": {
-        change: (fm) => delete fm.data.settlements.tail,
-        says: "tail",
-        at: "settlements:",
-    },
-};
-
-describe("indexed settlement rows", () => {
-    it("accepts the declared rows and their native Address links", () =>
-        checked(tree(), (f) => {
-            expect(f.findings).toEqual([]);
-            expect(f.all.filter((x) => x.message.includes("settlements"))).toEqual([]);
-            expect(auditLinks(f.index).deadAddresses).toEqual([]);
-        }));
-    for (const [rule, c] of Object.entries(cases))
-        it(`${rule} is located in the authored YAML`, () => {
-            const raw = region(c.change);
-            checked(tree(raw), (f) => {
-                const hits = f.findings.filter((x) => x.message.startsWith(rule + ":"));
-                expect(hits).toHaveLength(1);
-                expect(hits[0].message).toContain(c.says);
-                expect(hits[0].severity).toBe("error");
-                const lines = raw.split("\n");
-                const expected =
-                    rule === "duplicate settlement" ?
-                        lines.findLastIndex((l) => l.includes(c.at))
-                    :   lines.findIndex((l) => l.includes(c.at));
-                expect(hits[0].line).toBe(expected + 1);
-            });
-        });
-    it("uses indexed facts without mining a contradictory body table", () => {
-        const body =
-            "## Settlements\n\n| Name | Market | People | Held by |\n| --- | --- | --- | --- |\n| Ashford | 1 hamlet | 9 | Nobody |";
-        const raw = region(() => {}, body);
-        checked(tree(raw), (f) => {
-            expect(f.findings).toHaveLength(1);
-            expect(f.findings[0].message).toMatch(/body settlements table:.*data.settlements/);
-            expect(f.findings[0].line).toBe(
-                raw.split("\n").findIndex((l) => l.startsWith("| Name")) + 1,
-            );
-        });
-    });
-    it("refuses a legacy body table without declaring rows or checking its figures", () => {
-        const raw = region(
-            (fm) => delete fm.data.settlements,
-            "## Settlements\n\n| Name | Market | People | Held by |\n| --- | --- | --- | --- |\n| Ashford | wrong | wrong | Nobody |\n",
-        );
-        checked(tree(raw), (f) => {
-            expect(f.findings).toHaveLength(1);
-            expect(f.findings[0].message).toContain("body settlements table:");
-        });
-    });
-    it("does not treat arbitrary body tables or fenced examples as settlement declarations", () =>
+describe("polity settlement guards", () => {
+    it("counts mixed rows and notes once, including seats, without membership or subordinate totals", () =>
         checked(
-            tree(
-                region(
-                    (fm) => delete fm.data.settlements,
-                    "## Trade\n\n| Name | People |\n| --- | --- |\n| Wool | 4 |\n\n```markdown\n## Settlements\n| Name | People |\n| --- | --- |\n```",
-                ),
-            ),
+            () => {},
             (f) => expect(f.findings).toEqual([]),
         ));
-    it("accepts a row naming no holder, and keeps holder and government distinct", () =>
-        checked(tree(region((fm) => delete fm.data.settlements.rows[0].heldBy)), (f) =>
-            expect(f.findings).toEqual([]),
-        ));
-    it("reads no tenure from the region's tags", () =>
-        checked(tree(region((fm) => (fm.tags = ["held"]))), (f) => expect(f.findings).toEqual([])));
-    it("accepts a being or an affiliation as a holder in any region", () =>
+    it.each([950, 1000, 1050])("allows a five percent difference for total %s", (total) =>
         checked(
-            tree(
-                region((fm) => {
-                    fm.data.settlements.rows[0].heldBy = "being-aldwyn";
-                    fm.data.settlements.rows[1].heldBy = "affiliation-crown";
-                }),
-            ),
-            (f) => expect(f.findings).toEqual([]),
-        ));
-    it("renders no Held by column for a people who hold no land", () => {
-        const raw = region((fm) => fm.data.settlements.rows.forEach((r: any) => delete r.heldBy));
-        checked(tree(raw), (f) => {
-            expect(f.findings).toEqual([]);
-            const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
-            const sections = derivedSections(records, {
-                fileOf: (record) => path.join(f.root, record.file.path),
-            });
-            const rendered = sections.get(path.join(f.root, "Vale.md"))?.get("settlements") ?? "";
-            expect(rendered).toContain("| Name | Market | People | For |");
-            expect(rendered).not.toContain("Held by");
-        });
-    });
-    it("leaves a Held by cell empty on a row naming no holder in a held table", () =>
-        checked(tree(region((fm) => delete fm.data.settlements.rows[2].heldBy)), (f) => {
-            const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
-            const sections = derivedSections(records, {
-                fileOf: (record) => path.join(f.root, record.file.path),
-            });
-            const rendered = sections.get(path.join(f.root, "Vale.md"))?.get("settlements") ?? "";
-            expect(rendered).toContain("| Name | Market | People | Held by | For |");
-            expect(rendered).toMatch(/\| Cold Hatch \| 1 hamlet \| 60 \|  \| the sheepwalk \|/);
-        }));
-    it("leaves unresolved links as errors in the native Address check", () =>
-        checked(
-            tree(region((fm) => (fm.data.settlements.rows[0].heldBy = "affiliation-nobody"))),
-            (f) => expect(f.all.some((x) => x.message.includes("nobody"))).toBe(true),
-        ));
-    it("keeps nested Address identity through published JSON and SQL", () =>
-        checked(tree(), (f) => {
-            const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
-            const record = JSON.parse(
-                serializeContentIndex(records)
-                    .trim()
-                    .split("\n")
-                    .find((s) => JSON.parse(s).shortcode === "vale")!,
-            );
-            expect(record.data.settlements.rows[0].place.address).toMatch(/-place-ashford$/);
-            expect(record.data.settlements.rows[1].heldBy.address).toMatch(/-being-aldwyn$/);
-        }));
-    it("renders exactly once even when the author owns a settlements anchor", () =>
-        checked(
-            tree(
-                region(
-                    () => {},
-                    "# Settlements {#settlements}\n\nThe villages stand along the water.",
-                ),
-            ),
-            (f) => {
-                const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
-                const sections = derivedSections(records, {
-                    fileOf: (r) => path.join(f.root, r.file.path),
-                });
-                const rendered =
-                    sections.get(path.join(f.root, "Vale.md"))?.get("settlements") ?? "";
-                expect(rendered.match(/\| Name \| Market \| People \| Held by/g)).toHaveLength(1);
-                expect(rendered).toContain("Weyshott");
-                expect(rendered).toContain(tail);
+            (n) => {
+                n[1].data.territorial_population = total;
             },
+            (f) => {
+                // The difference is measured against the stated territorial total.
+                expect(
+                    f.findings.filter((x) => x.message.startsWith("territorial population:")),
+                ).toHaveLength(total === 1000 ? 0 : 1);
+            },
+        ),
+    );
+    it("rejects populations with more than two significant digits", () =>
+        checked(
+            (n) => {
+                n[1].data.settlements[0].population = 101;
+                n[3].data.population = 201;
+            },
+            (f) =>
+                expect(
+                    f.findings.filter((x) => x.message.startsWith("people figure:")),
+                ).toHaveLength(2),
+        ));
+    for (const field of SETTLEMENT_ROW_FIELDS.filter((field) => field.required))
+        it(`requires row ${field.name}`, () =>
+            checked(
+                (n) => {
+                    delete n[1].data.settlements[0][field.name];
+                },
+                (f) => expect(f.findings.some((x) => x.message.includes(field.name))).toBe(true),
+            ));
+    for (const field of SETTLEMENT_ROW_FIELDS.filter((field: any) => field.allowed))
+        it(`enforces ${field.name} from the runtime vocabulary`, () =>
+            checked(
+                (n) => {
+                    n[1].data.settlements[0][field.name] = "invalid";
+                },
+                (f) => expect(f.findings.some((x) => x.message.includes(field.name))).toBe(true),
+            ));
+    it.each(["type", "market", "notes", "government"])(
+        "requires a populated settlement's %s",
+        (key) =>
+            checked(
+                (n) => {
+                    delete n[3].data[key];
+                },
+                (f) => expect(f.findings.some((x) => x.message.includes(key))).toBe(true),
+            ),
+    );
+    it.each(["Capital", "place-capital"])("rejects a listed and noted identity %s", (name) =>
+        checked(
+            (n) => {
+                n[1].data.settlements[0].settlement = name;
+            },
+            (f) =>
+                expect(f.findings.some((x) => x.message.startsWith("duplicate settlement:"))).toBe(
+                    true,
+                ),
+        ),
+    );
+    it("rejects duplicate rows across polities", () =>
+        checked(
+            (n) => {
+                n[2].data.settlements[0].settlement = "East Farm";
+            },
+            (f) =>
+                expect(f.findings.some((x) => x.message.startsWith("duplicate settlement:"))).toBe(
+                    true,
+                ),
+        ));
+    it("accepts a plain holder name containing an address-like fragment", () =>
+        checked(
+            (n) => {
+                n[1].data.settlements[0].holder = "Old-place-road";
+            },
+            (f) => expect(f.findings.some((x) => x.message.includes("holder"))).toBe(false),
+        ));
+    it.each([
+        ["location", "affiliation-crown"],
+        ["location", "place-missing"],
+        ["polity", "place-vale"],
+        ["holder", "place-vale"],
+        ["holder", "affiliation-Crown"],
+        ["polity", "skill-missing"],
+        ["stronghold", "place-town"],
+    ])("rejects wrong references or enums in %s", (key, value) =>
+        checked(
+            (n) => {
+                n[1].data.settlements[0][key] = value;
+            },
+            (f) => expect(f.findings.some((x) => x.message.includes(key))).toBe(true),
+        ),
+    );
+    it("rejects cycles", () => {
+        const notes = subjects();
+        notes[1].data.parents = ["affiliation-council"];
+        const index = {
+            notes: notes.map((fm) => ({ fm, file: `${fm.shortcode}.md` })),
+            contentPackage: "sohl",
+        };
+        expect(
+            checkSettlementTables(index.notes[1], { index }).some((x) =>
+                x.message.startsWith("polity cycle:"),
+            ),
+        ).toBe(true);
+    });
+    it("rejects a parent and its ancestor as declared superiors", () =>
+        checked(
+            (n) => {
+                n.push({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "local",
+                    data: { parents: ["affiliation-council", "affiliation-crown"] },
+                });
+            },
+            (f) =>
+                expect(f.findings.some((x) => x.message.startsWith("polity superior:"))).toBe(true),
+        ));
+    it.each(["settlements", "seat", "subordinate"])(
+        "requires a territorial total for %s",
+        (reason) =>
+            checked(
+                (n) => {
+                    delete n[1].data.territorial_population;
+                    if (reason !== "settlements") delete n[1].data.settlements;
+                    if (reason !== "seat") delete n[1].data.seat;
+                    if (reason !== "subordinate") delete n[2].data.parents;
+                },
+                (f) =>
+                    expect(
+                        f.findings.some(
+                            (x) =>
+                                x.file.endsWith("crown.md") &&
+                                x.message.includes("requires a territorial population"),
+                        ),
+                    ).toBe(true),
+            ),
+    );
+    it("allows a polity without territorial declarations to omit the total", () =>
+        checked(
+            (n) => {
+                delete n[2].data.territorial_population;
+                delete n[2].data.settlements;
+                delete n[2].data.seat;
+            },
+            (f) =>
+                expect(
+                    f.findings.some(
+                        (x) =>
+                            x.file.endsWith("council.md") &&
+                            x.message.includes("requires a territorial population"),
+                    ),
+                ).toBe(false),
+        ));
+    it("rejects unrelated immediate superiors", () =>
+        checked(
+            (n) => {
+                n.push({ type: "affiliation", subType: "polity", shortcode: "other" });
+                n[2].data.parents.push("affiliation-other");
+            },
+            (f) =>
+                expect(f.findings.some((x) => x.message.startsWith("polity superior:"))).toBe(true),
+        ));
+    it("rejects region declarations, object lists and unknown row keys", () =>
+        checked(
+            (n) => {
+                n[0].data = { settlements: [] };
+                n[2].data.settlements = { rows: [], tail: "A sentence." };
+                n[1].data.settlements[0].extra = "unknown";
+            },
+            (f) =>
+                expect(
+                    f.findings.filter((x) => x.message.startsWith("settlements shape:")),
+                ).toHaveLength(3),
         ));
 });
-
-describe("settlement publication bridges", () => {
-    it("round-trips nested Addresses into a dependency and SQL without losing identity", async () => {
-        const f = fixture(tree());
+describe("settlement boundary cases", () => {
+    it("accepts typed and named holders through the complete frontmatter guard", () =>
+        checked(
+            (n) => {
+                n[1].data.settlements[0].holder = "affiliation-crown";
+                n[1].data.settlements[0].polity = "affiliation-crown";
+                n[3].data.holder = "affiliation-crown";
+            },
+            (f) => {
+                const { findings } = lintFrontmatter(f.index, {
+                    schemas: ENGINE_NOTE_SCHEMAS as never,
+                    vocabulary: NOTE_VOCABULARY,
+                });
+                expect(
+                    findings.filter((x) =>
+                        /settlements|holder|market|territorial population/.test(x.message),
+                    ),
+                ).toEqual([]);
+            },
+        ));
+    it("requires notes even without a population", () =>
+        checked(
+            (n) => {
+                delete n[3].data.population;
+                delete n[3].data.notes;
+            },
+            (f) => expect(f.findings.some((x) => x.message.includes("notes"))).toBe(true),
+        ));
+    it("refuses a populated settlement governed by a non-polity", () =>
+        checked(
+            (n) => {
+                n[2].subType = "guild";
+            },
+            (f) =>
+                expect(
+                    f.findings.some((x) =>
+                        x.message.includes("government must resolve to a polity"),
+                    ),
+                ).toBe(true),
+        ));
+    it("enforces the exact tolerance boundary without rounding totals first", () =>
+        checked(
+            (n) => {
+                n[1].data.settlements[0].population = 50;
+            },
+            (f) => expect(f.findings).toEqual([]),
+        ));
+    it("rejects a total just outside tolerance", () =>
+        checked(
+            (n) => {
+                n[1].data.settlements[0].population = 49;
+            },
+            (f) =>
+                expect(
+                    f.findings.some((x) => x.message.startsWith("territorial population:")),
+                ).toBe(true),
+        ));
+    it("walks all descendant levels and displays immediate polities without a seat", () =>
+        checked(
+            (n) => {
+                delete n[2].data.seat;
+                n.push({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "local",
+                    name: { full: "Local Council" },
+                    data: {
+                        parents: ["affiliation-council"],
+                        territorial_population: 20,
+                        settlements: [row("Hill Farm", 20)],
+                    },
+                });
+            },
+            (f) => {
+                const records = f.records();
+                const crown = records.find((r) => r.shortcode === "crown" && !r.documents)!;
+                const direct = settlementMarkdown(crown, records);
+                const recursive = settlementMarkdown(crown, records, { recursive: true });
+                expect(direct).toContain("affiliation-council");
+                expect(direct).not.toContain("Hill Farm");
+                expect(direct).not.toContain("affiliation-local");
+                expect(recursive).toContain("Hill Farm");
+            },
+        ));
+    it("refuses authored body tables without extracting their cells", () => {
+        const f = fixture(
+            () => {},
+            "# Settlements {#settlements}\n\nName | People\n--- | ---\nAn invented number | 999",
+        );
+        try {
+            expect(
+                f.findings.filter((x) => x.message.startsWith("body settlements table:")),
+            ).toHaveLength(1);
+            expect(f.findings.some((x) => x.message.startsWith("territorial population:"))).toBe(
+                false,
+            );
+        } finally {
+            f.dispose();
+        }
+    });
+});
+describe("indexed settlement output", () => {
+    it("separates direct subjects from recursive settlements and preserves audience boundaries", () =>
+        checked(
+            (n) => {
+                n.push({
+                    type: "place",
+                    subType: "settlement",
+                    shortcode: "secret",
+                    name: { full: "Secret Camp" },
+                    tags: ["gm"],
+                    data: {
+                        government: "affiliation-crown",
+                        parents: ["place-vale"],
+                        type: "encampment",
+                        population: 10,
+                        market: "subsistence",
+                        notes: "Hidden.",
+                    },
+                });
+            },
+            (f) => {
+                const records = f.records();
+                const crown = records.find(
+                    (r) => r.shortcode === "crown" && r.type === "affiliation" && !r.documents,
+                )!;
+                const direct = settlementMarkdown(crown, records);
+                const recursive = settlementMarkdown(crown, records, { recursive: true });
+                expect(direct).toContain("East Farm");
+                expect(direct).toContain("place-capital");
+                expect(direct).toContain("place-town");
+                expect(direct).not.toContain("West Farm");
+                expect(recursive).toContain("West Farm");
+                expect(recursive.match(/place-town\\\|/g)).toHaveLength(1);
+                expect(recursive).not.toContain("Secret Camp");
+                expect(recursive).not.toContain("place-secret");
+            },
+        ));
+    it("round-trips mixed Address and text columns through published indexes and SQL", async () => {
+        const f = fixture((n) => {
+            n[1].data.settlements[0].polity = "affiliation-crown";
+            n[1].data.settlements[0].holder = "affiliation-crown";
+        });
         let db;
         try {
-            const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
-            const published = serializeContentIndex(records)
+            const records = f.records();
+            const reopened = serializeContentIndex(records)
                 .trim()
                 .split("\n")
-                .map((line) => JSON.parse(line));
-            const reopened = published.map((record) =>
-                decodeIndexAddresses(record, { package: record.package }),
+                .map((line) => {
+                    const r = JSON.parse(line);
+                    return decodeIndexAddresses(r, { package: r.package });
+                });
+            const crown = reopened.find(
+                (r) => r.shortcode === "crown" && r.type === "affiliation" && !r.documents,
             );
-            const region = reopened.find((record) => record.shortcode === "vale");
-            expect(renderAddress(region.data.settlements.rows[0].place)).toMatch(/-place-ashford$/);
-            expect(renderAddress(region.data.settlements.rows[1].heldBy)).toMatch(/-being-aldwyn$/);
+            expect(renderAddress(crown.data.settlements[0].location)).toMatch(/-place-vale$/);
+            expect(renderAddress(crown.data.settlements[0].holder)).toMatch(/-affiliation-crown$/);
             db = await openNotesDatabase(records);
             const result = await runSqlQuery(
                 db,
-                "SELECT data.settlements.rows[1].place AS place, data.settlements.rows[1].population AS population FROM notes WHERE shortcode = 'vale'",
+                "SELECT data.settlements[1].location AS location FROM notes WHERE shortcode = 'crown' AND subType = 'polity'",
             );
-            expect(result.rows).toEqual([{ place: "sohl-note-place-ashford", population: 3400n }]);
+            expect(result.rows[0].location).toMatch(/-place-vale$/);
+            const markets = await runSqlQuery(db, "SELECT value FROM market ORDER BY value");
+            expect(markets.rows.map((r) => r.value)).toEqual([
+                "international",
+                "local",
+                "regional",
+                "subsistence",
+            ]);
         } finally {
             db?.close();
             f.dispose();
         }
     });
-    it("shares one generated table across HTML, Foundry and Typst, with optional For", async () => {
+    it("renders one direct table and one recursive index in shared web, journal and book markup", async () => {
         const f = fixture(
-            tree(
-                region(
-                    (fm) => fm.data.settlements.rows.forEach((r: any) => delete r.for),
-                    "# Settlements {#settlements}\n\nThe villages stand by the water.",
-                ),
-            ),
+            () => {},
+            "# Settlements {#settlements}\n\nHeld lands.\n\n# Settlement index {#settlementindex}\n\nAll subjects.",
         );
         try {
-            const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
-            const prepared = await prepareTreeSqlTables(f.root, { records, skipDirectories: [] });
-            const raw = fs.readFileSync(path.join(f.root, "Vale.md"), "utf8");
-            const body = raw.slice(raw.indexOf("---", 4) + 3);
-            const expanded = expandContentTables(body, {
-                source: path.join(f.root, "Vale.md"),
-                sqlTables: prepared?.get(path.join(f.root, "Vale.md")),
+            const records = f.records();
+            const sections = derivedSections(records, {
+                fileOf: (r) => path.join(f.root, `${r.shortcode}.md`),
             });
+            expect(sections.get(path.join(f.root, "crown.md"))?.get("settlementindex")).toContain(
+                "West Farm",
+            );
+            const prepared = await prepareTreeSqlTables(f.root, { records, skipDirectories: [] });
+            const expanded = expandContentTables(
+                "# Settlements {#settlements}\n\nHeld lands.\n\n# Settlement index {#settlementindex}\n\nAll subjects.",
+                {
+                    source: path.join(f.root, "crown.md"),
+                    sqlTables: prepared?.get(path.join(f.root, "crown.md")),
+                },
+            );
+            expect(expanded.markdown.match(/^# Settlements \{#settlements\}/gm)).toHaveLength(1);
             expect(
-                expanded.markdown.match(/^#+ Settlements(?: \{#settlements\})?$/gm),
+                expanded.markdown.match(/^# Settlement index \{#settlementindex\}/gm),
             ).toHaveLength(1);
-            expect(
-                expanded.markdown.match(/\| Name \| Market \| People \| Held by \|/g),
-            ).toHaveLength(1);
-            expect(expanded.markdown).not.toContain("| For |");
             for (const target of ["web", "foundry"] as const) {
                 const html = createRenderer(target).render(expanded.markdown);
-                expect(html.match(/<table>/g)).toHaveLength(1);
-                expect(html).toContain("3,400");
-                expect(html).toContain("4 market town");
-                expect(html).toContain("Weyshott");
+                expect(html.match(/<table>/g)).toHaveLength(2);
+                expect(html).toContain('class="name"');
+                expect(html).toContain("West Farm");
             }
             const typst = markdownToTypst(expanded.markdown);
-            expect(typst.match(/#table\(/g)).toHaveLength(1);
-            expect(typst).toContain("3,400");
-            expect(typst).toContain("Weyshott");
+            expect(typst.match(/#table\(/g)).toHaveLength(2);
+            expect(typst).toContain("West Farm");
         } finally {
             f.dispose();
         }
-    });
-    for (const [title, raw, needle] of [
-        [
-            "wrong linked population",
-            region((fm) => (fm.data.settlements.rows[0].population = 3000)),
-            "figure disagrees",
-        ],
-        ["missing row", region((fm) => fm.data.settlements.rows.shift()), "missing row"],
-        [
-            "legacy table",
-            region(
-                (fm) => delete fm.data.settlements,
-                "## Settlements\n\nName | People\n--- | ---\nAshford | 9",
-            ),
-            "body settlements table",
-        ],
-    ])
-        it(`refuses ${title} before any publication writes`, async () => {
-            const f = fixture(tree(raw));
-            try {
-                const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
-                await expect(
-                    prepareTreeSqlTables(f.root, { records, skipDirectories: [] }),
-                ).rejects.toMatchObject({
-                    located: true,
-                    message: expect.stringMatching(new RegExp("Vale\\.md:[0-9]+.*" + needle)),
-                });
-            } finally {
-                f.dispose();
-            }
-        });
-});
-
-describe("closed settlement declarations", () => {
-    for (const [title, change] of [
-        ["both settlement identities", (fm: any) => (fm.data.settlements.rows[0].name = "Ashford")],
-        ["a plain-text holder", (fm: any) => (fm.data.settlements.rows[2].holder = "Sir Aldwyn")],
-        ["unknown row key", (fm: any) => (fm.data.settlements.rows[0].unread = "discarded")],
-        ["unknown declaration key", (fm: any) => (fm.data.settlements.unread = "discarded")],
-        ["non-region declaration", (fm: any) => (fm.subType = "settlement")],
-        ["non-list rows", (fm: any) => (fm.data.settlements.rows = {})],
-        ["nontext For", (fm: any) => (fm.data.settlements.rows[0].for = 42)],
-    ] as const)
-        it(`refuses ${title}`, () =>
-            checked(tree(region(change)), (f) =>
-                expect(
-                    f.findings.some((x) => x.message.startsWith("settlements shape:") && x.line),
-                ).toBe(true),
-            ));
-    it("keeps the source-map position of prose after inserted rows", async () => {
-        const f = fixture(
-            tree(
-                region(
-                    () => {},
-                    "## Settlements\n\nThe villages stand along the water.\n\n## Economy\n\nWool and grain.",
-                ),
-            ),
-        );
-        try {
-            const records = indexRecordsFor({ contentBase: f.root, skipDirectories: [] });
-            const prepared = await prepareTreeSqlTables(f.root, { records, skipDirectories: [] });
-            const raw = fs.readFileSync(path.join(f.root, "Vale.md"), "utf8");
-            const body = raw.slice(raw.indexOf("---", 4) + 3);
-            const expanded = expandContentTables(body, {
-                source: path.join(f.root, "Vale.md"),
-                sqlTables: prepared?.get(path.join(f.root, "Vale.md")),
-            });
-            const at = expanded.markdown.split("\n").findIndex((l) => l === "Wool and grain.");
-            expect(expanded.lineMap[at]).toEqual({
-                line: body.split("\n").findIndex((l) => l === "Wool and grain."),
-                generated: false,
-            });
-            expect(expanded.markdown.match(/^#+ Settlements \{#settlements\}$/gm)).toHaveLength(1);
-            const html = createRenderer("foundry").render(expanded.markdown);
-            const first = html.match(/<tbody>\s*<tr>([\s\S]*?)<\/tr>/)?.[1] ?? "";
-            expect([...first.matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((m) => m[1])[1]).toBe(
-                "4 market town",
-            );
-            expect(prepared?.get(path.join(f.root, "Vale.md"))?.anchors).toEqual(
-                expect.arrayContaining([expect.objectContaining({ slug: "settlements" })]),
-            );
-        } finally {
-            f.dispose();
-        }
-    });
-    it("rejects duplicate authored settlement anchors instead of omitting the declaration", () =>
-        checked(
-            tree(
-                region(
-                    () => {},
-                    "# Settlements {#settlements}\n\nProse.\n\n# Settlements {#settlements}\n\nMore prose.",
-                ),
-            ),
-            (f) =>
-                expect(f.findings.some((x) => x.message.startsWith("settlements shape:"))).toBe(
-                    true,
-                ),
-        ));
-});
-
-describe("reviewed settlement boundaries", () => {
-    it("refuses an attributed legacy heading at the actual table line", () => {
-        const raw = region(
-            (fm) => delete fm.data.settlements,
-            "## Settlements {#settlements}\n\nName | People\n--- | ---\nAshford | 9",
-        );
-        checked(tree(raw), (f) => {
-            expect(f.findings).toHaveLength(1);
-            expect(f.findings[0]).toMatchObject({
-                line: raw.split("\n").findIndex((l) => l === "Name | People") + 1,
-                message: expect.stringContaining("body settlements table:"),
-            });
-        });
-    });
-    it("retains authored heading classes and values beside the canonical anchor", async () => {
-        const { insertDeclaredSections } = await import("../engine/declared-sections.mjs");
-        const { scanHeadingAttributes } = await import("../engine/heading-attributes.mjs");
-        const output = insertDeclaredSections(
-            '## Settlements {.wide title="The villages"}\n\nProse.',
-            [{ slug: "settlements", heading: "Settlements", markdown: "Rows." }],
-        );
-        expect(scanHeadingAttributes(output.markdown).headings[0]).toMatchObject({
-            text: "Settlements",
-            id: "settlements",
-            classes: ["wide"],
-            values: { title: "The villages" },
-        });
-    });
-    it.each(["ashford", "place-ashford", "sohl-note-place-ashford"])(
-        "keeps equivalent local identity %s",
-        async (form) => {
-            const { checkSettlementTables } = await import("../engine/settlement-tables.mjs");
-            checked(tree(region((fm) => (fm.data.settlements.rows = []))), (f) => {
-                const town = f.index.notes.find((n) => n.fm.shortcode === "ashford")!;
-                const parent = form.replace("ashford", "vale");
-                town.fm.data.parents = [parent];
-                const regionNote = f.index.notes.find((n) => n.fm.shortcode === "vale")!;
-                expect(
-                    checkSettlementTables(regionNote, { index: f.index }).some((x) =>
-                        x.message.startsWith("missing row:"),
-                    ),
-                ).toBe(true);
-                town.fm.data.parents = [readCanonicalKey("sohl-note-place-vale")];
-                expect(
-                    checkSettlementTables(regionNote, { index: f.index }).some((x) =>
-                        x.message.startsWith("missing row:"),
-                    ),
-                ).toBe(true);
-                town.fm.data.parents = [readCanonicalKey("other-note-place-vale")];
-                expect(checkSettlementTables(regionNote, { index: f.index })).toEqual([]);
-            });
-        },
-    );
-    it("checks population and market on raw dependency records", async () => {
-        const { checkSettlementTables } = await import("../engine/settlement-tables.mjs");
-        const regionNote = {
-            file: "Vale.md",
-            raw: region((fm) => {
-                fm.data.settlements.rows = [
-                    {
-                        place: "other-note-place-town",
-                        population: 1,
-                        market: 1,
-                    },
-                ];
-            }),
-            fm: {
-                package: "sohl",
-                type: "place",
-                subType: "region",
-                shortcode: "vale",
-                data: {
-                    settlements: {
-                        rows: [
-                            {
-                                place: "other-note-place-town",
-                                population: 1,
-                                market: 1,
-                            },
-                        ],
-                        tail,
-                    },
-                },
-            },
-        };
-        const foreign = {
-            package: "other",
-            type: "place",
-            subType: "settlement",
-            shortcode: "town",
-            name: { full: "Foreign Town" },
-            data: { population: 3400, market: 4 },
-        };
-        const index = {
-            contentPackage: "sohl",
-            notes: [regionNote],
-            resolve: (value: string) => (value === "other-note-place-town" ? foreign : undefined),
-        };
-        expect(
-            checkSettlementTables(regionNote, { index }).map((x) => x.message.split(":")[0]),
-        ).toEqual(["figure disagrees", "market disagrees"]);
     });
 });

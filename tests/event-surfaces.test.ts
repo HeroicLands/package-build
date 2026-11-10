@@ -38,6 +38,7 @@ shortcode: ironfells
 name:
     full: Ironfells
 data:
+    notes: A settlement.
     events:
         - id: raising
           when: 120

@@ -16,7 +16,13 @@ import { derivedSections, PLACE_KIND_LABELS } from "../engine/derived-sections.m
 
 const note = (fm: object, body = "Written.") => `---\n${YAML.stringify(fm)}---\n\n${body}\n`;
 const place = (shortcode: string, subType: string, data: object = {}) =>
-    note({ type: "place", subType, shortcode, name: { full: shortcode }, data });
+    note({
+        type: "place",
+        subType,
+        shortcode,
+        name: { full: shortcode },
+        data: { ...(subType === "settlement" ? { notes: "A settlement." } : {}), ...data },
+    });
 
 const world = () => ({
     "Vale.md": place("vale", "region"),
@@ -154,11 +160,13 @@ describe("a district without its own government falls under its parent's", () =>
         "City.md": place("city", "settlement", {
             parents: ["vale"],
             population: 12000,
+            type: "city",
+            market: "local",
             government: "council",
         }),
         "Council.md": note({
             type: "affiliation",
-            subType: "governmental",
+            subType: "polity",
             shortcode: "council",
             name: { full: "City Council" },
         }),
@@ -231,7 +239,7 @@ describe("a district without its own government falls under its parent's", () =>
 
     it("still advises a populated place that is not a district and names no government", () => {
         const files = tree({});
-        files["Ward.md"] = place("ward", "settlement", { parents: ["city"], population: 3000 });
+        files["Ward.md"] = place("ward", "region", { parents: ["city"], population: 3000 });
         expect(collected(files).wardFindings).toEqual([
             expect.stringMatching(/^missing government/),
         ]);

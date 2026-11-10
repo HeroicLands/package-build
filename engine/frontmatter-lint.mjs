@@ -283,6 +283,8 @@ export function matchesKind(value, kind, context = {}) {
                         Number.isFinite(Number(value));
         case "boolean":
             return typeof value === "boolean" || value === "true" || value === "false";
+        case "address-or-string":
+            return typeof value === "string" || isAddressTuple(value);
         case "string":
             return typeof value !== "object" || value === null;
         case "list":

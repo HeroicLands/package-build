@@ -25,6 +25,7 @@ import {
     newestVersionDir,
     noContentIndexPackages,
 } from "../engine/metadata-index.mjs";
+import { settlementMarkdown } from "../engine/settlement-tables.mjs";
 import { PACKAGEBUILD_PACKAGE } from "../engine/packages.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 
@@ -302,6 +303,38 @@ describe("resolving foreign addresses from cached indexes", () => {
      */
     const fetched = (index: Map<string, { package?: string }>) =>
         [...index].filter(([, entry]) => entry.package !== PACKAGEBUILD_PACKAGE);
+
+    it("includes fetched settlement facts in polity tables", () => {
+        const crown = record({ subType: "polity", data: {} });
+        const place = record({
+            type: "place",
+            subType: "settlement",
+            shortcode: "vale",
+            name: { full: "Vale" },
+            address: { canonical: "thalorna-note-place-vale", slug: "place-vale" },
+            data: {
+                government: "thalorna-note-affiliation-aerarimmpr",
+                population: 100,
+                type: "village",
+                market: "local",
+                notes: "A village.",
+            },
+        });
+        cacheIndex("thalorna", "0.1.0", [crown, place]);
+        const local = {
+            package: "sohl",
+            type: "affiliation",
+            subType: "polity",
+            shortcode: "crown",
+            data: {},
+        };
+        const child = { ...crown, data: { parents: ["sohl-note-affiliation-crown"] } };
+        cacheIndex("thalorna", "0.1.0", [child, place]);
+        const foreign = loadForeignIndexes(config(), ["sohl"]).index;
+        expect(
+            settlementMarkdown(local, [local, ...foreign.values()], { recursive: true }),
+        ).toContain("place-vale");
+    });
 
     it("keys every record by its canonical address", () => {
         cacheIndex("thalorna", "0.1.0", [record()]);

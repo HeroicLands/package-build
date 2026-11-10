@@ -47,6 +47,7 @@ function place(
         `    full: ${name}`,
         "data:",
         `    parents: [${parents.join(", ")}]`,
+        ...(subType === "settlement" ? ["    notes: A settlement."] : []),
         ...(extra ? [extra] : []),
         "---",
         "",
@@ -60,7 +61,11 @@ function affiliation(
     shortcode: string,
     name: string,
     subType: string,
-    { domains, parents = [] }: { domains?: string[]; parents?: string[] } = {},
+    {
+        domains,
+        parents = [],
+        extra = "",
+    }: { domains?: string[]; parents?: string[]; extra?: string } = {},
 ): string {
     return [
         "---",
@@ -72,6 +77,7 @@ function affiliation(
         "data:",
         `    parents: [${parents.join(", ")}]`,
         ...(domains ? [`    domains: [${domains.join(", ")}]`] : []),
+        ...(extra ? [extra] : []),
         "---",
         "",
         "Prose.",
@@ -93,6 +99,7 @@ function affiliation(
 const FIXTURE: Record<string, string> = {
     "Regions/Rgn.md": place("rgn", "The Region", "region", { extra: "    government: crown" }),
     "Regions/Far.md": place("far", "The Far Region", "region"),
+    "Regions/Outlying.md": place("outlying", "The Outlying Region", "region"),
     "Regions/Ham.md": place("ham", "Ham", "settlement", { parents: ["rgn"] }),
     "Regions/Mill.md": place("mill", "Mill", "settlement", {
         parents: ["rgn"],
@@ -106,7 +113,20 @@ const FIXTURE: Record<string, string> = {
     "Houses/House.md": affiliation("house", "The House", "lineage", {
         parents: ["crown"],
     }),
-    "Houses/Crown.md": affiliation("crown", "The Crown", "polity"),
+    "Houses/Crown.md": affiliation("crown", "The Crown", "polity", {
+        extra: [
+            "    territorial_population: 100",
+            "    settlements:",
+            "        - settlement: Outlying Farm",
+            "          polity: affiliation-crown",
+            "          location: place-outlying",
+            "          type: homestead",
+            "          holder: The Crown",
+            "          population: 100",
+            "          market: subsistence",
+            "          notes: A farm.",
+        ].join("\n"),
+    }),
     "Houses/Duchy.md": affiliation("duchy", "The Duchy", "polity", { parents: ["crown"] }),
     "Lore/Silence.md": [
         "---",
@@ -603,11 +623,11 @@ describe("a dependency's places and affiliations take part", () => {
         try {
             const base = writeTree(root, {
                 ...FIXTURE,
-                "Regions/Mill.md": place("mill", "Mill", "settlement", {
+                "Regions/Mill.md": place("mill", "Mill", "region", {
                     parents: ["rgn"],
                     extra: "    population: 120\n    government: thalorna-sohl-affiliation-empire",
                 }),
-                "Regions/Ham.md": place("ham", "Ham", "settlement", {
+                "Regions/Ham.md": place("ham", "Ham", "region", {
                     parents: ["rgn"],
                     extra: "    population: 120\n    government: house",
                 }),
@@ -689,7 +709,7 @@ describe("government advisories do not depend on holdings", () => {
         try {
             const base = writeTree(root, {
                 ...FIXTURE,
-                "Regions/Mill.md": place("mill", "Mill", "settlement", {
+                "Regions/Mill.md": place("mill", "Mill", "region", {
                     parents: ["rgn"],
                     extra: "    population: 120",
                 }),

@@ -58,7 +58,7 @@ function place(shortcode: string, data: string): void {
         "type: place",
         "subType: settlement",
         "description: A place.",
-        `data: ${data}`,
+        `data: ${data.replace("{", "{ notes: A place.,")}`,
     );
 }
 

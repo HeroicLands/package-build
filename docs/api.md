@@ -525,29 +525,29 @@ Whether a world's population figures agree from the region down — the regions 
 
 ### `engine.marketClass`
 
-What trade a settlement supports (`data.market`): the six-step scale, stated once for the lint, the author-facing reference and the specification, and the check that holds a note's value to it.
+What trade a settlement supports (`data.market`): the four market words, stated once for the lint, the author-facing reference and the specification, and the check that holds a note's value to it.
 
-| Export           | Signature              | Returns             | Use it when                                                                                       |
-| ---------------- | ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------- |
-| `MARKET_CLASSES` | `const MARKET_CLASSES` | `readonly object[]` | the scale in order, each step its `value`, the `name` a settlement of it goes by, and its `trade` |
-| `isMarketClass`  | `isMarketClass(value)` | `boolean`           | asking whether an authored value names a class, a quoted number included                          |
-| `marketClass`    | `marketClass(value)`   | `object\|undefined` | the class a value names, for rendering what a number means                                        |
-| `checkMarket`    | `checkMarket(note)`    | `object[]`          | linting a place's `market` — a value off the scale, located at the value that states it           |
+| Export           | Signature              | Returns             | Use it when                                                                             |
+| ---------------- | ---------------------- | ------------------- | --------------------------------------------------------------------------------------- |
+| `MARKET_CLASSES` | `const MARKET_CLASSES` | `readonly object[]` | the accepted market words, display labels and trade descriptions                        |
+| `isMarketClass`  | `isMarketClass(value)` | `boolean`           | asking whether an authored word names a class                                           |
+| `marketClass`    | `marketClass(value)`   | `object\|undefined` | the class a word names, for rendering its label                                         |
+| `checkMarket`    | `checkMarket(note)`    | `object[]`          | linting a place's `market` — a value off the scale, located at the value that states it |
 
 ### `engine.settlementTables`
 
-A region declares its rows in indexed `data.settlements`. The guard checks populations, markets, holders and regional coverage, and refuses authored body tables. Every publishing surface uses the same generated table, retaining the canonical `#settlements` heading or filling the author's existing section.
+A polity lists settlements without notes in indexed `data.settlements`. The build combines them with noted settlements by government and walks subordinate polities for the recursive index. The guard checks territorial completeness, references, fields, duplicate settlements and political hierarchy. Every publishing surface uses the same generated table, retaining the canonical `#settlements` heading or filling the author's existing section.
 
-| Export                    | Signature                                                           | Returns             | Use it when                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `SETTLEMENT_COLUMNS`      | `const SETTLEMENT_COLUMNS`                                          | `readonly object[]` | the table's columns in header order, each its `name` and whether it is `required`; an optional one appears when a row states it |
-| `SETTLEMENTS_HEADING`     | `const SETTLEMENTS_HEADING`                                         | `string`            | the generated settlements heading                                                                                               |
-| `SETTLEMENT_TABLE_RULES`  | `const SETTLEMENT_TABLE_RULES`                                      | `readonly object[]` | the rules in order, each its `name` — the prefix its findings carry — and what it `describe`s                                   |
-| `settlementMarkdown`      | `settlementMarkdown(record)`                                        | `string`            | rendering indexed rows as the shared table                                                                                      |
-| `assertSettlementRecords` | `assertSettlementRecords(records, { fileOf, rawOf, foreignIndex })` | `void`              | refusing invalid indexed rows before publication                                                                                |
-| `SETTLEMENTS_FIELD`       | `const SETTLEMENTS_FIELD`                                           | `object`            | the vocabulary declaration for rows and tail                                                                                    |
-| `SETTLEMENT_ROW_FIELDS`   | `const SETTLEMENT_ROW_FIELDS`                                       | `readonly object[]` | the closed row declaration                                                                                                      |
-| `checkSettlementTables`   | `checkSettlementTables(note, { index })`                            | `object[]`          | linting a place note's settlements tables against the corpus the index holds                                                    |
+| Export                    | Signature                                                           | Returns             | Use it when                                                                                   |
+| ------------------------- | ------------------------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| `SETTLEMENT_COLUMNS`      | `const SETTLEMENT_COLUMNS`                                          | `readonly object[]` | the table's columns in header order, each with its `name` and required flag                   |
+| `SETTLEMENTS_HEADING`     | `const SETTLEMENTS_HEADING`                                         | `string`            | the generated settlements heading                                                             |
+| `SETTLEMENT_TABLE_RULES`  | `const SETTLEMENT_TABLE_RULES`                                      | `readonly object[]` | the rules in order, each its `name` — the prefix its findings carry — and what it `describe`s |
+| `settlementMarkdown`      | `settlementMarkdown(record, records, { recursive })`                | `string`            | rendering indexed rows as the shared table                                                    |
+| `assertSettlementRecords` | `assertSettlementRecords(records, { fileOf, rawOf, foreignIndex })` | `void`              | refusing invalid indexed rows before publication                                              |
+| `SETTLEMENTS_FIELD`       | `const SETTLEMENTS_FIELD`                                           | `object`            | the vocabulary declaration for the polity settlement list                                     |
+| `SETTLEMENT_ROW_FIELDS`   | `const SETTLEMENT_ROW_FIELDS`                                       | `readonly object[]` | the closed row declaration                                                                    |
+| `checkSettlementTables`   | `checkSettlementTables(note, { index })`                            | `object[]`          | linting polity and settlement facts against the indexed corpus                                |
 
 ### `engine.mapPlaces`
 

@@ -11,29 +11,16 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/**
- * Indexed settlement rows, their checks and their shared table.
- * Facts come only from data.settlements. The body is scanned solely to locate
- * a forbidden authored table, never to recover any row's facts.
- * @module
- */
+/** Indexed polity settlement facts, validation and shared table markup. @module */
 import fs from "node:fs";
 import { declaredHeadings } from "./declared-sections.mjs";
 import { positionOfFrontmatterPath, formatDiagnostic } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
-import { MARKET_CLASSES, marketClass } from "./market-class.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
-import { isAddressTuple, renderAddress, parseAddress, readCanonicalKey } from "./address.mjs";
+import { isAddressTuple, renderAddress, parseAddress } from "./address.mjs";
 import { isNoteRecord } from "./index-records.mjs";
-
-import {
-    SETTLEMENTS_HEADING,
-    SETTLEMENT_COLUMNS,
-    SETTLEMENT_ROW_FIELDS,
-    SETTLEMENTS_FIELD,
-    SETTLEMENT_TABLE_RULES,
-} from "./settlement-terms.mjs";
-/** Public settlement vocabulary and rendering declarations. */
+import { isGmNote, NOTE_VOCABULARY } from "./note-vocabulary.mjs";
+import { SETTLEMENT_COLUMNS, SETTLEMENT_ROW_FIELDS } from "./settlement-terms.mjs";
 export {
     SETTLEMENTS_HEADING,
     SETTLEMENT_COLUMNS,
@@ -59,7 +46,9 @@ function bodyTables(raw) {
         const heading = headings.get(i);
         if (heading) {
             if (heading.level <= 2)
-                section = heading.text === "Settlements" || heading.id === "settlements";
+                section =
+                    ["Settlements", "Settlement index"].includes(heading.text) ||
+                    ["settlements", "settlementindex"].includes(heading.id);
             continue;
         }
         if (
@@ -78,397 +67,394 @@ const ref = (value) =>
     isAddressTuple(value) ? renderAddress(value)
     : typeof value?.address === "string" ? value.address
     : text(value);
-const typeOf = (hit) => String(hit?.fm?.type ?? hit?.type ?? "").toLowerCase();
-const resolve = (index, value) => index.resolve?.(ref(value)) ?? index.addressHit?.(ref(value));
-const count = (n) => Number(n).toLocaleString("en-US");
-const marketText = (n) => {
-    const c = marketClass(n);
-    return c ? `${c.value} ${c.name}` : String(n);
-};
+const fmOf = (note) => note?.fm ?? note?.settlementRecord ?? note ?? {};
+const polity = (note) => fmOf(note).type === "affiliation" && fmOf(note).subType === "polity";
+const settlement = (note) => fmOf(note).type === "place" && fmOf(note).subType === "settlement";
+const population = (value) =>
+    Number.isSafeInteger(value) && value > 0 && String(value).replace(/0+$/, "").length <= 2;
+const namesOf = (fm) =>
+    new Set(
+        [typeof fm.name === "string" ? fm.name : fm.name?.full, ...nameFormsOf(fm.name)]
+            .filter((v) => typeof v === "string")
+            .map((v) => v.trim().toLowerCase()),
+    );
 
-function namesOf(fm) {
-    const out = new Set();
-    const add = (v) => {
-        if (text(v)) out.add(text(v).toLowerCase());
-    };
-    if (typeof fm.name === "string") add(fm.name);
-    else {
-        add(fm.name?.full);
-        for (const form of nameFormsOf(fm.name)) add(form);
-    }
-    return out;
-}
-function ancestors(places, node) {
-    const seen = new Set([node.key]);
-    const out = [];
-    const queue = [...node.parents];
-    while (queue.length) {
-        const code = queue.shift();
-        if (seen.has(code)) continue;
-        seen.add(code);
-        const parent = places.get(code);
-        if (parent) {
-            out.push(parent);
-            queue.push(...parent.parents);
-        }
-    }
-    return out;
-}
+const corpusCache = new WeakMap();
+const renderCache = new WeakMap();
 
-/** A place's canonical identity retains its package and normalizes its system to note. */
-function placeKey(value, index) {
-    const raw = ref(value);
-    const canonical = isAddressTuple(value) ? value : readCanonicalKey(raw);
-    const tuple =
-        canonical ??
-        parseAddress(
-            raw,
-            {
-                package: index.contentPackage,
-                system: "note",
-                type: "place",
-                types: new Set(["place"]),
-                packages: index.packages ?? new Set([index.contentPackage]),
-            },
-            { declared: true },
-        );
-    if (!isAddressTuple(tuple) || tuple.type !== "place") return undefined;
-    return renderAddress({ ...tuple, system: "note" });
-}
-
-/** Read the corpus exclusively through the index's frontmatter projection. */
+/** Build one canonical graph from indexed frontmatter, including dependency notes. */
 function corpusOf(index) {
-    const places = new Map();
-    const byNote = new Map();
-    for (const note of index.notes ?? []) {
-        const fm = note.fm ?? {};
-        if (typeOf(note) !== "place") continue;
-        const shortcode = String(fm.shortcode ?? "").toLowerCase();
-        if (!shortcode) continue;
-        const key =
-            index.contentPackage ?
-                renderAddress({
-                    package: index.contentPackage,
-                    system: "note",
-                    type: "place",
-                    shortcode,
-                })
-            :   undefined;
-        const node = {
-            note,
-            key,
-            code: shortcode,
-            kind: fm.subType,
-            title: fm.name?.full ?? fm.name ?? shortcode,
-            names: namesOf(fm),
-            parents: (Array.isArray(fm.data?.parents) ? fm.data.parents : [])
-                .map((value) => placeKey(value, index))
-                .filter(Boolean),
-            declaration: fm.data?.settlements,
-        };
-        if (key) places.set(key, node);
-        byNote.set(note, node);
-    }
-    const covers = new Map();
-    for (const node of places.values()) {
-        if (node.kind !== "settlement") continue;
-        const home = ancestors(places, node).find((n) => n.declaration !== undefined);
-        if (home) {
-            const list = covers.get(home.key) ?? [];
-            list.push(node);
-            covers.set(home.key, list);
+    if (corpusCache.has(index)) return corpusCache.get(index);
+    const nodes = new Map();
+    const byRecord = new Map();
+    const notes = [...(index.notes ?? []), ...(index.foreign?.index?.values() ?? [])];
+    const types = new Set([...Object.keys(NOTE_VOCABULARY), ...(index.types ?? [])]);
+    const packages = new Set(
+        [
+            index.contentPackage,
+            ...(index.packages ?? []),
+            ...notes.map((note) => fmOf(note).package),
+        ].filter(Boolean),
+    );
+    const explicit = (value) =>
+        isAddressTuple(value) ||
+        new RegExp(`^(?:(?:[a-z0-9]+-)?note-)?(?:${[...types].join("|")})-[a-zA-Z0-9]+$`).test(
+            ref(value),
+        );
+    const keyOf = (value, type, sourcePackage = index.contentPackage) => {
+        const tuple =
+            isAddressTuple(value) ? value : (
+                parseAddress(
+                    ref(value),
+                    {
+                        package: sourcePackage,
+                        system: "note",
+                        type,
+                        types,
+                        packages,
+                    },
+                    { declared: true },
+                )
+            );
+        return isAddressTuple(tuple) ? renderAddress({ ...tuple, system: "note" }) : undefined;
+    };
+    for (const note of notes) {
+        const fm = fmOf(note);
+        if (!isNoteRecord(fm) || !fm.shortcode) continue;
+        const key = renderAddress({
+            package: fm.package ?? index.contentPackage,
+            system: "note",
+            type: fm.type,
+            shortcode: fm.shortcode,
+        });
+        if (!nodes.has(key)) {
+            const node = { key, note, fm, names: namesOf(fm), parents: [], direct: [] };
+            nodes.set(key, node);
+            byRecord.set(fm, node);
         }
     }
-    const rowedIn = new Map();
-    for (const region of [...places.values()].sort((a, b) =>
-        String(a.note.file).localeCompare(String(b.note.file), "en"),
+    const resolve = (value, type, sourcePackage) => {
+        const key = keyOf(value, type, sourcePackage);
+        if (key && nodes.has(key)) return nodes.get(key);
+        const hit = index.resolve?.(ref(value)) ?? index.addressHit?.(ref(value));
+        if (!hit) return undefined;
+        const fm = fmOf(hit);
+        const found = byRecord.get(fm);
+        return (
+            found ?? {
+                key: key ?? ref(value),
+                note: hit,
+                fm,
+                names: namesOf(fm),
+                parents: [],
+                direct: [],
+            }
+        );
+    };
+    for (const node of nodes.values())
+        if (polity(node.fm))
+            node.parents = [
+                ...new Set(
+                    (Array.isArray(node.fm.data?.parents) ? node.fm.data.parents : [])
+                        .map((v) => resolve(v, "affiliation", node.fm.package))
+                        .filter((p) => p && polity(p.fm))
+                        .map((p) => p.key),
+                ),
+            ];
+    const ancestorCache = new Map();
+    const ancestors = (key) => {
+        if (ancestorCache.has(key)) return ancestorCache.get(key);
+        const seen = new Set();
+        const pending = [...(nodes.get(key)?.parents ?? [])];
+        while (pending.length) {
+            const parent = pending.pop();
+            if (seen.has(parent)) continue;
+            seen.add(parent);
+            pending.push(...(nodes.get(parent)?.parents ?? []));
+        }
+        ancestorCache.set(key, seen);
+        return seen;
+    };
+    for (const node of nodes.values())
+        node.direct = node.parents.filter(
+            (parent) =>
+                !node.parents.some((other) => other !== parent && ancestors(other).has(parent)),
+        );
+    const owners = new Map();
+    const children = new Map();
+    const notedNames = new Set();
+    const listedCounts = new Map();
+    const notedByOwner = new Map();
+    const addTo = (map, key, value) => {
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(value);
+    };
+    for (const node of nodes.values()) {
+        for (const row of Array.isArray(node.fm.data?.settlements) ?
+            node.fm.data.settlements
+        :   []) {
+            if (!map(row)) continue;
+            const name = text(row.settlement).toLowerCase();
+            listedCounts.set(name, (listedCounts.get(name) ?? 0) + 1);
+        }
+        if (polity(node.fm)) {
+            for (const key of [node.key, ...ancestors(node.key)]) addTo(owners, key, node);
+            for (const key of node.direct) addTo(children, key, node);
+            const seat = resolve(node.fm.data?.seat, "place", node.fm.package);
+            if (seat && settlement(seat.fm)) addTo(notedByOwner, node.key, seat);
+        }
+        if (settlement(node.fm)) {
+            for (const name of node.names) notedNames.add(name);
+            const government = resolve(node.fm.data?.government, "affiliation", node.fm.package);
+            if (government) addTo(notedByOwner, government.key, node);
+        }
+    }
+    const order = new Map([...nodes.keys()].map((key, i) => [key, i]));
+    const corpus = {
+        nodes,
+        byRecord,
+        keyOf,
+        resolve,
+        ancestors,
+        explicit,
+        owners,
+        children,
+        notedNames,
+        listedCounts,
+        notedByOwner,
+        order,
+    };
+    corpusCache.set(index, corpus);
+    return corpus;
+}
+
+/** Actual settlements in a polity's territory, each listed or noted identity counted once. */
+function rowsOf(corpus, owner, recursive) {
+    const owners = recursive ? (corpus.owners.get(owner.key) ?? []) : [owner];
+    const rows = [];
+    const seen = new Set();
+    const add = (identity, row) => {
+        if (!seen.has(identity)) {
+            seen.add(identity);
+            rows.push(row);
+        }
+    };
+    for (const node of owners)
+        for (const row of Array.isArray(node.fm.data?.settlements) ? node.fm.data.settlements : [])
+            if (map(row))
+                add(`name:${text(row.settlement).toLowerCase()}`, { ...row, source: node });
+    const noted = new Map();
+    for (const node of owners)
+        for (const place of corpus.notedByOwner.get(node.key) ?? []) noted.set(place.key, place);
+    for (const node of [...noted.values()].sort(
+        (a, b) => corpus.order.get(a.key) - corpus.order.get(b.key),
     )) {
-        for (const row of Array.isArray(region.declaration?.rows) ? region.declaration.rows : []) {
-            if (!map(row) || !row.place) continue;
-            const hit = resolve(index, row.place);
-            if (!hit || typeOf(hit) !== "place") continue;
-            const list = rowedIn.get(hit) ?? [];
-            if (!list.includes(region.note)) list.push(region.note);
-            rowedIn.set(hit, list);
-        }
+        const government = corpus.resolve(node.fm.data?.government, "affiliation", node.fm.package);
+        add(node.key, {
+            ...node.fm.data,
+            settlement: node.key,
+            polity: government?.key,
+            location: node.fm.data?.parents?.[0],
+            source: node,
+            noted: true,
+        });
     }
-    return { places, byNote, covers, rowedIn };
+    return rows;
 }
 
 /**
- * Check indexed rows, locating each finding in its original YAML.
- * @param {object} note - Indexed note and original locator text.
- * @param {object} [opts] - Captured context.
- * @param {object} [opts.index] - Complete local and dependency reference index.
- * @returns {object[]} Located findings.
+ * Check settlement facts and political hierarchy at their authored positions.
+ * @param {object} note - The indexed note and its source.
+ * @param {{index?: any}} [options] - The address index.
+ * @returns {object[]} Findings at known positions.
  */
 export function checkSettlementTables(note, { index } = {}) {
-    if (!index || typeOf(note) !== "place") return [];
+    if (!index) return [];
+    const fm = fmOf(note);
     const findings = [];
-    const location = (path) => {
-        if (!Array.isArray(path)) return path;
-        for (let length = path.length; length; length--) {
-            const at = positionOfFrontmatterPath(note.raw ?? "", path.slice(0, length), {
-                key: true,
-            });
-            if (at.line) return at;
-        }
-        return { line: 1, column: 1 };
-    };
-    const report = (rule, path, message) =>
+    const report = (rule, path, message) => {
+        let at = Array.isArray(path) ? {} : path;
+        if (Array.isArray(path))
+            for (let length = path.length; length; length--) {
+                at = positionOfFrontmatterPath(note.raw ?? "", path.slice(0, length), {
+                    key: true,
+                });
+                if (at.line) break;
+            }
         findings.push({
             file: note.file,
-            ...location(path),
+            ...at,
             severity: "error",
             message: `${rule}: ${message}`,
         });
+    };
+    const base = ["data", "settlements"];
+    const declaration = fm.data?.settlements;
     for (const line of bodyTables(note.raw))
         report(
             "body settlements table",
             { line },
-            "declare the rows in data.settlements; a body table supplies no settlement facts",
+            "declare settlement facts in frontmatter; the build supplies the table",
         );
-    const declaration = note.fm?.data?.settlements;
-    if (declaration === undefined) return findings;
-    const base = ["data", "settlements"];
-    const ownHeadings = declaredHeadings(note.raw ?? "").filter(
+    if (!polity(fm) && !settlement(fm) && declaration === undefined) return findings;
+    const corpus = corpusOf(index);
+    const self = corpus.byRecord.get(fm);
+    const checkRef = (value, types, at, requirePolity = false, allowName = false) => {
+        if (allowName && text(value) && !corpus.explicit(value)) return;
+        const type = types.length === 1 ? types[0] : undefined;
+        const hit = corpus.keyOf(value, type) ? corpus.resolve(value, type) : undefined;
+        if (!hit || !types.includes(hit.fm.type) || (requirePolity && !polity(hit.fm)))
+            report(
+                "unresolved settlement reference",
+                at,
+                `${at.at(-1)} must resolve to ${requirePolity ? "a polity" : types.join(" or ")}: ${ref(value) || "missing"}`,
+            );
+    };
+    const checkFacts = (row, at, listed) => {
+        for (const field of SETTLEMENT_ROW_FIELDS) {
+            const key = field.name;
+            const value = row[key];
+            if (!listed && ["settlement", "polity", "location"].includes(key)) continue;
+            const required =
+                listed ?
+                    field.required
+                :   key === "notes" || (row.population > 0 && ["type", "market"].includes(key));
+            if (value == null && field.nullable) continue;
+            if (value === undefined && !required) continue;
+            if (key === "population") {
+                if (!(value === 0 && !listed) && !population(value))
+                    report(
+                        "people figure",
+                        [...at, key],
+                        "population is a positive whole number with at most two significant digits",
+                    );
+            } else if (field.allowed) {
+                if (!field.allowed.includes(value))
+                    report(
+                        "settlement field",
+                        [...at, key],
+                        `${key} must be ${field.allowed.join(", ")}${field.nullable ? ", or null" : ""}`,
+                    );
+            } else if (key === "location") checkRef(value, ["place"], [...at, key]);
+            else if (key === "polity") checkRef(value, ["affiliation"], [...at, key], true, true);
+            else if (key === "holder")
+                checkRef(value, ["affiliation", "being"], [...at, key], false, true);
+            else if (!text(value))
+                report("settlement field", [...at, key], `${key} is nonempty short text`);
+        }
+    };
+    if (declaration !== undefined) {
+        if (!polity(fm) || !Array.isArray(declaration)) {
+            report("settlements shape", base, "data.settlements is a list on a polity");
+        } else
+            for (const [i, row] of declaration.entries()) {
+                const at = [...base, i];
+                if (!map(row)) {
+                    report("settlements shape", at, "a settlement row is a map");
+                    continue;
+                }
+                if (
+                    Object.keys(row).some(
+                        (key) => !SETTLEMENT_ROW_FIELDS.some((f) => f.name === key),
+                    )
+                )
+                    report(
+                        "settlements shape",
+                        at,
+                        `a row carries only ${SETTLEMENT_ROW_FIELDS.map((f) => f.name).join(", ")}`,
+                    );
+                checkFacts(row, at, true);
+                const name = text(row.settlement).toLowerCase();
+                const named = corpus.resolve(row.settlement, "place");
+                if (corpus.explicit(row.settlement))
+                    report(
+                        "settlement field",
+                        [...at, "settlement"],
+                        "settlement is a name without a note; noted settlements are derived from government",
+                    );
+                const noted = corpus.notedNames.has(name) || (named && settlement(named.fm));
+                const listed = (corpus.listedCounts.get(name) ?? 0) > 1;
+                if (name && (noted || listed))
+                    report(
+                        "duplicate settlement",
+                        [...at, "settlement"],
+                        `${row.settlement} is already listed or noted; each settlement has one source`,
+                    );
+            }
+    }
+    const headings = declaredHeadings(note.raw ?? "").filter(
         (h) => h.id === "settlements" || h.text === "Settlements",
     );
-    if (ownHeadings.length > 1)
+    if (headings.length > 1 || headings.some((h) => h.id && h.id !== "settlements"))
         report(
             "settlements shape",
-            { line: ownHeadings[1].line },
-            "declare one Settlements heading with the canonical #settlements anchor",
+            { line: headings.at(-1).line },
+            "use one Settlements heading with the #settlements anchor",
         );
-    for (const heading of ownHeadings)
-        if (heading.id && heading.id !== "settlements")
-            report(
-                "settlements shape",
-                { line: heading.line },
-                "the declared Settlements section uses the canonical #settlements anchor",
-            );
-    if (note.fm.subType !== "region" || !map(declaration) || !Array.isArray(declaration.rows)) {
-        report(
-            "settlements shape",
-            base,
-            "data.settlements on a region is a map with rows and tail",
-        );
+    if (settlement(fm)) {
+        checkFacts(fm.data ?? {}, ["data"], false);
+        if (fm.data?.population > 0)
+            checkRef(fm.data?.government, ["affiliation"], ["data", "government"], true);
         return findings;
     }
-    if (Object.keys(declaration).some((key) => !["rows", "tail"].includes(key)))
-        report("settlements shape", base, "data.settlements carries only rows and tail");
-    if (!text(declaration.tail))
+    if (!polity(fm) || !self) return findings;
+    for (const [i, parent] of (Array.isArray(fm.data?.parents) ? fm.data.parents : []).entries())
+        checkRef(parent, ["affiliation"], ["data", "parents", i], true);
+    if (corpus.ancestors(self.key).has(self.key))
+        report("polity cycle", ["data", "parents"], "the subordinate chain returns to this polity");
+    if (Array.isArray(fm.data?.parents) && fm.data.parents.length > 1)
+        report("polity superior", ["data", "parents"], "a polity declares at most one superior");
+    const total = fm.data?.territorial_population;
+    if (
+        total === undefined &&
+        (declaration !== undefined || fm.data?.seat !== undefined || corpus.children.has(self.key))
+    )
         report(
-            "no tail",
-            base,
-            "data.settlements.tail is a sentence stating what the table leaves out",
+            "territorial population",
+            ["data", "territorial_population"],
+            "a polity with settlements, a seat, or subordinate polities requires a territorial population",
         );
-    const corpus = corpusOf(index);
-    const self = corpus.byNote.get(note);
-    const covered = corpus.covers.get(self?.key) ?? [];
-    const rowed = new Set();
-    const seen = new Set();
-    for (const [i, row] of declaration.rows.entries()) {
-        const at = [...base, "rows", i];
-        if (!map(row)) {
-            report("settlements shape", at, "a row is a map");
-            continue;
-        }
-        if (
-            Object.keys(row).some(
-                (key) => !SETTLEMENT_ROW_FIELDS.some((field) => field.name === key),
-            )
-        )
+    if (total !== undefined) {
+        if (!population(total))
             report(
-                "settlements shape",
-                at,
-                "a row carries only place, name, market, population, heldBy and for",
+                "territorial population",
+                ["data", "territorial_population"],
+                "territorial population is a positive whole number with at most two significant digits",
             );
-        for (const key of ["name", "for"])
-            if (Object.hasOwn(row, key) && typeof row[key] !== "string")
-                report("settlements shape", [...at, key], `${key} is plain text`);
-        const label = text(row.name) || ref(row.place) || `row ${i + 1}`;
-        let settlement;
-        if (Boolean(row.place) === Boolean(text(row.name))) {
-            report(
-                "settlements shape",
-                at,
-                "state exactly one of place (an Address) and name (plain text)",
+        else {
+            const sum = rowsOf(corpus, self, true).reduce(
+                (sum, row) => sum + (Number.isFinite(row.population) ? row.population : 0),
+                0,
             );
-        }
-        if (row.place) {
-            const hit = resolve(index, row.place);
-            if (!hit)
+            if (Math.abs(sum - total) > total * 0.05)
                 report(
-                    "unresolved settlement reference",
-                    [...at, "place"],
-                    `${ref(row.place)} does not resolve`,
+                    "territorial population",
+                    ["data", "territorial_population"],
+                    `settlements account for ${sum.toLocaleString("en-US")} people against territorial population ${total.toLocaleString("en-US")}; the allowed difference is five percent`,
                 );
-            if (hit) {
-                if (typeOf(hit) !== "place")
-                    report(
-                        "not a settlement",
-                        [...at, "place"],
-                        `${label} names a ${typeOf(hit)}; link the settlement's place note`,
-                    );
-                else settlement = hit;
-            }
-        } else if (text(row.name)) {
-            const match = covered.find((n) => n.names.has(text(row.name).toLowerCase()));
-            if (match) {
-                rowed.add(match.note);
-                report(
-                    "unlinked settlement",
-                    [...at, "name"],
-                    `${row.name} has a note; use place: place-${match.code}`,
-                );
-            }
-        }
-        const identity =
-            row.place ?
-                `link:${placeKey(row.place, index) ?? ref(row.place)}`
-            :   `name:${text(row.name).toLowerCase()}`;
-        if (seen.has(identity))
-            report(
-                "duplicate settlement",
-                [...at, row.place ? "place" : "name"],
-                `${label} already has a row in this table`,
-            );
-        else if (settlement) {
-            const tables = corpus.rowedIn.get(settlement) ?? [];
-            const node = corpus.byNote.get(settlement);
-            const home =
-                (node &&
-                    ancestors(corpus.places, node)
-                        .map((n) => n.note)
-                        .find((n) => tables.includes(n))) ??
-                tables[0];
-            if (home && home !== note)
-                report(
-                    "duplicate settlement",
-                    [...at, "place"],
-                    `${label} already has a row in ${corpus.byNote.get(home)?.title ?? home.file}`,
-                );
-        }
-        seen.add(identity);
-        if (settlement) rowed.add(settlement);
-        const market = Number.isInteger(row.market) ? marketClass(row.market) : undefined;
-        if (!market)
-            report(
-                "market class",
-                [...at, "market"],
-                `${row.market} is not a market class; use ${MARKET_CLASSES.map((c) => c.value + " " + c.name).join(", ")}`,
-            );
-        const population =
-            (
-                typeof row.population === "number" &&
-                Number.isSafeInteger(row.population) &&
-                row.population > 0
-            ) ?
-                row.population
-            :   undefined;
-        if (population === undefined)
-            report("people figure", [...at, "population"], "population is a positive whole number");
-        if (settlement) {
-            const own = (settlement.fm ?? settlement).data ?? settlement;
-            const title = (settlement.fm ?? settlement).name?.full ?? label;
-            if (population !== undefined && own.population !== population)
-                report(
-                    "figure disagrees",
-                    [...at, "population"],
-                    `${title} is carried at ${count(population)} here and ${own.population > 0 ? count(own.population) + " on its own note" : "its own note states none"}`,
-                );
-            const ownMarket = marketClass(own.market);
-            if (market && (!ownMarket || ownMarket.value !== market.value))
-                report(
-                    "market disagrees",
-                    [...at, "market"],
-                    `${title} is carried as ${marketText(row.market)} here and ${ownMarket ? marketText(ownMarket.value) + " on its own note" : "its own note states none"}`,
-                );
-        }
-        if (row.heldBy) {
-            const hit = resolve(index, row.heldBy);
-            if (!hit)
-                report(
-                    "unresolved settlement reference",
-                    [...at, "heldBy"],
-                    `${ref(row.heldBy)} does not resolve`,
-                );
-            if (hit) {
-                const type = typeOf(hit);
-                if (!["affiliation", "being"].includes(type))
-                    report(
-                        "not a holder",
-                        [...at, "heldBy"],
-                        `${ref(row.heldBy)} is a ${type}; a holder is an affiliation or a being`,
-                    );
-            }
         }
     }
-    for (const node of covered)
-        if (!rowed.has(node.note))
-            report(
-                "missing row",
-                [...base, "rows"],
-                `${node.title} (place-${node.code}) stands in this region and has no row`,
-            );
     return findings;
 }
 
 /**
- * Fail every publishing surface before it writes invalid settlement output.
- * @param {object[]} records - Indexed records, including documentation projections.
- * @param {object} opts - Captured context.
- * @param {(record: object) => string} opts.fileOf - Source filename for a record.
- * @param {Map<string,object>} [opts.foreignIndex] - Dependency reference targets.
- * @param {(file: string) => string|undefined} [opts.rawOf] - Captured locator text.
+ * Fail publishing before invalid settlement facts become output.
+ * @param {object[]} records - Indexed notes.
+ * @param {{fileOf?: Function, foreignIndex?: Map<string, object>, rawOf?: Function}} [options] - Source and dependency access.
  * @returns {void}
  */
 export function assertSettlementRecords(records, { fileOf, foreignIndex = new Map(), rawOf } = {}) {
-    const notes = records
-        .filter((record) => isNoteRecord(record) && record.type === "place")
-        .map((record) => {
-            const file = fileOf(record);
-            return {
-                file,
-                fm: record,
-                type: record.type,
-                raw: rawOf?.(file) ?? (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : ""),
-            };
-        });
-    const hits = new Map();
-    const allNotes = records.map(
-        (record) => notes.find((n) => n.fm === record) ?? { file: fileOf(record), fm: record },
-    );
-    for (const record of records) {
-        if (record.address)
-            hits.set(
-                ref(record.address.canonical),
-                allNotes.find((n) => n.fm === record),
-            );
-    }
+    const notes = records.filter(isNoteRecord).map((fm) => {
+        const file = fileOf(fm);
+        return {
+            fm,
+            file,
+            raw: rawOf?.(file) ?? (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : ""),
+        };
+    });
     const index = {
-        notes,
-        contentPackage: records.find((record) => record.package)?.package,
-        resolve: (target) => {
-            const tuple = parseAddress(
-                target,
-                {
-                    package: records.find((record) => record.package)?.package,
-                    system: "note",
-                    types: new Set(
-                        [...records, ...foreignIndex.values()].map((record) => record.type),
-                    ),
-                    packages: new Set(
-                        [...records, ...foreignIndex.values()].map((record) => record.package),
-                    ),
-                },
-                { declared: true },
-            );
-            if (!isAddressTuple(tuple)) return undefined;
-            const key = renderAddress(tuple);
-            return hits.get(key) ?? foreignIndex.get(key);
-        },
+        notes: [...notes, ...new Set([...foreignIndex.values()].map((record) => fmOf(record)))],
+        contentPackage: records.find((r) => r.package)?.package,
     };
     const findings = notes.flatMap((note) => checkSettlementTables(note, { index }));
     if (findings.length)
@@ -478,36 +464,73 @@ export function assertSettlementRecords(records, { fileOf, foreignIndex = new Ma
         });
 }
 
-/**
- * Render rows once as shared Markdown; all surfaces consume the same table.
- * @param {object} record - Indexed region.
- * @returns {string} Generated table and its closing sentence.
- */
-export function settlementMarkdown(record) {
-    const declaration = record.data?.settlements;
-    if (!map(declaration) || !Array.isArray(declaration.rows)) return "";
+/** Render a polity's direct subjects or all settlements beneath it. */
+export function settlementMarkdown(record, records = [record], { recursive = false } = {}) {
+    if (!polity(record)) return "";
+    let indexes = renderCache.get(records);
+    if (!indexes) {
+        indexes = new Map();
+        renderCache.set(records, indexes);
+    }
+    const visibility = isGmNote(record) ? "all" : "public";
+    const cacheKey = `${record.package ?? ""}:${visibility}`;
+    if (!indexes.has(cacheKey))
+        indexes.set(cacheKey, {
+            notes: records.filter((n) => visibility === "all" || !isGmNote(fmOf(n))),
+            contentPackage: record.package,
+        });
+    const corpus = corpusOf(indexes.get(cacheKey));
+    const owner = corpus.byRecord.get(record);
+    if (!owner) return "";
+    const rows = rowsOf(corpus, owner, recursive);
+    if (!recursive)
+        for (const child of corpus.children.get(owner.key) ?? []) {
+            const seat = corpus.resolve(child.fm.data?.seat, "place", child.fm.package);
+            if (seat && settlement(seat.fm)) {
+                if (!rows.some((r) => r.noted && r.settlement === seat.key))
+                    rows.push({
+                        ...seat.fm.data,
+                        settlement: seat.key,
+                        polity: child.key,
+                        location: seat.fm.data?.parents?.[0],
+                        noted: true,
+                    });
+            } else
+                rows.push({
+                    settlement: child.key,
+                    polity: child.key,
+                    population: child.fm.data?.territorial_population,
+                    noted: true,
+                });
+        }
+    if (!rows.length) return "";
     const escape = (value) =>
         String(value ?? "")
             .replace(/([\\`*_[\]<>{}|#!~])/g, "\\$1")
             .replace(/\s*\n\s*/g, " ");
     const link = (value) => `[[${ref(value)}\\|]]`;
-    const stated = {
-        "Held by": declaration.rows.some((row) => map(row) && row.heldBy),
-        For: declaration.rows.some((row) => map(row) && Object.hasOwn(row, "for")),
-    };
-    const columns = SETTLEMENT_COLUMNS.filter((c) => c.required || stated[c.name]).map(
-        (c) => c.name,
-    );
+    const named = (value) =>
+        !value ? ""
+        : corpus.keyOf(value) ? link(value)
+        : `[${escape(value)}]{.name}`;
+    const label = (value) =>
+        value == null ? "None" : String(value).replace(/\b\w/g, (c) => c.toUpperCase());
+    const columns = SETTLEMENT_COLUMNS.map((c) => c.name);
     const lines = [`| ${columns.join(" | ")} |`, `| ${columns.map(() => "---").join(" | ")} |`];
-    for (const row of declaration.rows) {
-        const cells = [
-            row.place ? link(row.place) : escape(row.name),
-            marketText(row.market),
-            count(row.population),
-        ];
-        if (stated["Held by"]) cells.push(row.heldBy ? link(row.heldBy) : "");
-        if (stated.For) cells.push(escape(row.for));
-        lines.push(`| ${cells.join(" | ")} |`);
-    }
-    return lines.join("\n") + "\n\n" + escape(declaration.tail);
+    for (const row of rows)
+        lines.push(
+            `| ${[
+                row.noted ? link(row.settlement) : `[${escape(row.settlement)}]{.name}`,
+                named(row.polity),
+                row.location ? link(row.location) : "",
+                row.type ? label(row.type) : "",
+                label(row.fortification),
+                label(row.stronghold),
+                named(row.holder),
+                row.population == null ? "" : row.population.toLocaleString("en-US"),
+                row.market ? label(row.market) : "",
+                escape(row.notes),
+            ].join(" | ")} |`,
+        );
+    return lines.join("\n");
 }

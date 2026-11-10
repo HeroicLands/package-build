@@ -318,6 +318,7 @@ export function derivedSections(
     const mapped = new Set(placesWithMaps(notes, { foreignIndex, config }));
     const offices = officeHolders(notes);
 
+    const settlementRecords = [...notes, ...foreignIndex.values()];
     const out = new Map();
     for (const record of pages) {
         if (outsideOnly(only, fileOf(record))) continue;
@@ -328,8 +329,11 @@ export function derivedSections(
             if (content && !authoredSection(record, slug))
                 sections.set(slug, section(slug, content));
         };
-        const settlements = settlementMarkdown(record);
+        const settlements = settlementMarkdown(record, settlementRecords);
         if (settlements) sections.set("settlements", section("settlements", settlements));
+        const settlementIndex = settlementMarkdown(record, settlementRecords, { recursive: true });
+        if (settlementIndex)
+            sections.set("settlementindex", section("settlementindex", settlementIndex));
         if (lists.contains?.length) add("within", groupedPlaces(lists.contains));
         if (lists.governed_by?.length)
             add(

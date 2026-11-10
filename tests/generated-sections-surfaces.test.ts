@@ -120,6 +120,7 @@ shortcode: ford
 name:
     full: Ford
 data:
+    notes: A town at the crossing.
     parents: [place-vale]
     government: affiliation-crown
     borders:
@@ -140,6 +141,7 @@ shortcode: mere
 name:
     full: Mere
 data:
+    notes: A town by the water.
     parents: [place-vale]
     government: affiliation-crown
     borders:

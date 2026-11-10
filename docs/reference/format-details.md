@@ -3667,9 +3667,8 @@ office per note that owns it. See
 [dictionaries and glossaries](#dictionaries-and-glossaries) for their columns
 and how their rows are built.
 
-**`market`** is the six-step market scale as a relation — `value`, `name`,
-`trade` — so a table prints `village` beside the number a note wrote without a
-second copy of the scale living in authored content.
+**`market`** is the market vocabulary as a relation: `value` is the authored
+word, `name` its display label, and `trade` its description.
 
 **The state is derived, never stored.** No index record carries it, no note can
 author it, and nothing in `data:` may claim it: the only authored signal is the
@@ -5743,6 +5742,18 @@ rank names the standing, and the standing says.
 | `seat`                                          | `Address`                                                                 | Where the affiliation's authority sits                                                                                      |
 | `range`                                         | `Address[]`, optional                                                     | Places the affiliation is active in; permitted only with an empty `seat`                                                    |
 | `population`                                    | `number`                                                                  | Number of people in the affiliation (precision 2 significant digits).                                                       |
+| `territorial_population`                        | positive integer                                                          | A polity's territorial inhabitants, separate from membership                                                                |
+| `settlements`                                   | list of row maps                                                          | A polity's settlements without notes                                                                                        |
+| `settlements[].settlement`                      | nonempty name                                                             | The settlement's name.                                                                                                      |
+| `settlements[].polity`                          | polity Address or name                                                    | The governing polity.                                                                                                       |
+| `settlements[].location`                        | place Address                                                             | The enclosing place.                                                                                                        |
+| `settlements[].type`                            | settlement type                                                           | The kind of settlement.                                                                                                     |
+| `settlements[].fortification`                   | fortification or null                                                     | The settlement's defenses.                                                                                                  |
+| `settlements[].stronghold`                      | stronghold or null                                                        | The settlement's stronghold.                                                                                                |
+| `settlements[].holder`                          | affiliation or being Address, or name                                     | Who holds the land.                                                                                                         |
+| `settlements[].population`                      | positive integer                                                          | Residents, to at most two significant digits.                                                                               |
+| `settlements[].market`                          | market class                                                              | The market's reach.                                                                                                         |
+| `settlements[].notes`                           | nonempty short text                                                       | What distinguishes the settlement.                                                                                          |
 | `economy`                                       | `Address[]`                                                               | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default                                      |
 | `lore`                                          | `Address[]`                                                               | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar                              |
 | `parents`                                       | `Address[]`                                                               | Affiliations that this affiliation is subordinate to                                                                        |
@@ -8027,16 +8038,12 @@ in their parent's **Within** section under **Districts** and **Routes**.
 | `culture`                         | `Address`                                                                        | The people this place belongs to, naming a lore note with `subType: culture`                              |
 | `population`                      | `number`                                                                         | Approximate population (precision 2 significant digits)                                                   |
 | `government`                      | `Address` or `null` (default type: `affiliation`)                                | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
-| `settlements`                     | `{ rows, tail }`                                                                 | Declared settlement rows and the sentence saying what the table leaves out                                |
-| `settlements.rows`                | list of row maps                                                                 | One row per settlement                                                                                    |
-| `settlements.rows[].place`        | `Address`                                                                        | Existing settlement note; exclusive with name                                                             |
-| `settlements.rows[].name`         | `string`                                                                         | A settlement without a note; exclusive with place                                                         |
-| `settlements.rows[].market`       | integer, required                                                                | Market class, 1 to 6                                                                                      |
-| `settlements.rows[].population`   | positive integer, required                                                       | People living here                                                                                        |
-| `settlements.rows[].heldBy`       | `Address`                                                                        | What holds the land, where it is held; an affiliation or a being                                          |
-| `settlements.rows[].for`          | `string`                                                                         | Optional reason the settlement exists                                                                     |
-| `settlements.tail`                | `string`, required                                                               | Sentence stating what the table leaves out                                                                |
-| `market`                          | `number`                                                                         | Market class, 1 to 6 — what trade a settlement supports                                                   |
+| `type`                            | settlement kind                                                                  | Encampment, homestead, hamlet, village, town, city or metropolis                                          |
+| `fortification`                   | string or null                                                                   | None, minimal, palisade, walled or fortress                                                               |
+| `stronghold`                      | string or null                                                                   | Fort, castle, keep, fortified manor or tower                                                              |
+| `holder`                          | Address or name                                                                  | An affiliation or being, or a plain name                                                                  |
+| `notes`                           | string                                                                           | Short settlement description                                                                              |
+| `market`                          | string                                                                           | International, regional, local or subsistence                                                             |
 | `borders`                         | `{ to, bearing }[]`                                                              | Places sharing a frontier with this one, and where each lies from here                                    |
 | `borders[].to`                    | `Address`, required                                                              | The other place; the type defaults to `place`                                                             |
 | `borders[].bearing`               | `N`, `NE`, `E`, `SE`, `S`, `SW`, `W` or `NW`, required                           | Where the other place lies from here                                                                      |
@@ -8113,31 +8120,20 @@ circular and inclined.
 
 #### What a settlement's market supports
 
-`population` states how many people a settlement holds; `market` states what a
-traveller can buy there. Those are different questions — two settlements of
-eight hundred are a different proposition when one holds a weekly market and
-the other a chartered fair with a moneylender — so a note states both, either,
-or neither.
+`population` counts inhabitants; `market` states the reach of their trade.
+A populated settlement declares both.
 
-The value is a **class**, not a measurement. The numbers order six steps and do
-nothing else: a `5` is not a market two fifths larger than a `3`, it is a city
-rather than a town. `package-build lint` refuses a value off the scale instead
-of rounding it onto one, so a reader can trust that a number means the same
-thing on every page.
-
-| `market` value | the settlement is | what can be had there                                                                             |
-| -------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
-| `1`            | a hamlet          | no market — what neighbours trade among themselves                                                |
-| `2`            | a village         | a weekly market: staples, a smith, what a household cannot make                                   |
-| `3`            | a town            | a regular market, most common goods, several trades working full time                             |
-| `4`            | a market town     | a chartered fair, goods carried from a week away, a moneylender                                   |
-| `5`            | a city            | anything ordinary, in quantity; foreign goods; a guild structure                                  |
-| `6`            | a great city      | the rare and the imported as a matter of course; banking; the market from which other markets buy |
-
-The key is meaningful on a settlement, and the lint checks no `subType`
-condition — as it checks none for `population`. Which places a fact says
-something about is the author's judgement, and the `data:` container is closed
-per type rather than per subType.
+| `type` | settlement kind | Encampment, homestead, hamlet, village, town, city or metropolis |
+| `fortification` | string or null | None, minimal, palisade, walled or fortress |
+| `stronghold` | string or null | Fort, castle, keep, fortified manor or tower |
+| `holder` | Address or name | An affiliation or being, or a plain name |
+| `notes` | string | Short settlement description |
+| `market` | string | International, regional, local or subsistence |
+| --- | --- |
+| `international` | Trade across nations |
+| `regional` | Trade across the surrounding region |
+| `local` | Trade among nearby settlements |
+| `subsistence` | Production for local needs |
 
 #### Where a place is, in relation to other places
 
@@ -8282,7 +8278,7 @@ Write `government: null` for **complete anarchy**. Omitting the key leaves gover
 | Any                   | Explicit `null`     | None; complete anarchy           |
 | Any                   | Affiliation Address | None; the reference must resolve |
 
-These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government, except to a `district` that omits the key, which falls under its nearest parent's government as [type: place](#type-place) describes.
+Populated settlements require a government that resolves to a polity. Other place subtypes accept explicit anarchy and the advisory described above. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government, except to a `district` that omits the key, which falls under its nearest parent's government as [type: place](#type-place) describes.
 
 #### Population figures
 
@@ -8320,11 +8316,8 @@ half-written region is quiet rather than noisy. A fetched index carries
 `population` alongside `parents` and `government` when its author stated a
 figure. An older fetched index with no figure remains silent.
 
-**There is deliberately no urban-share rule.** The share of a region's people
-living in its named settlements cannot be measured from the notes: the
-settlement layer names the notable places and is complete nowhere, so the ratio
-reports how much of a region has been written rather than how much of it is
-urban.
+**Urban share is authoring guidance.** Regional prose describes its urban
+character; the settlement guard checks territorial completeness.
 
 **A place declares what is true of its ground.** It names its governing affiliation
 in `data.government`; maps name the place they depict through `data.place`.
@@ -8337,83 +8330,89 @@ The place's `lore` links cover its peoples, calendar, law and history. Political
 languages belong to a polity's `sohl.system.commonSkills`, while the note's
 `description` provides its page summary.
 
-#### A region's settlements table
+#### A polity's settlements table
 
-A region declares its table in `data.settlements: { rows, tail }`. The rows
-carry the settlement's `population` and numeric `market`, and either `place`
-(the existing note's Address, default type `place`) or `name` (plain text where
-no note exists), never both. Where the region's culture holds land, a row's
-optional `heldBy` names what holds it by Address (an affiliation or a being,
-default type `affiliation`), and what that note is says how the land is held: a
-temple, a lineage, the city, a kin group. A people who hold no land state no
-`heldBy`, and their table has no Held by column. Optional `for` states why the
-settlement exists. `tail` is the sentence stating what the table leaves out.
+A polity (`affiliation`, `subType: polity`) lists settlements without notes in
+`data.settlements`. Each row names its settlement, polity, location, type,
+fortification, stronghold, holder, population, market and short notes. Polity
+and holder accept an Address with an explicit type or a plain name; location
+is a place Address. Fortification and stronghold may be omitted or null.
 
-The guard reads indexed rows. A linked row's population and market agree with
-its note, and every settlement note covered through `parents` has one row in
-the nearest declaring region. `government` states who governs; it never supplies
-who holds the land. HTML, Foundry and Typst render the declared table once.
-A body table under `## Settlements` is an error at its header, naming
-`data.settlements`; no facts are read from it.
+A settlement with a note states its own facts in `data`, with `government`
+naming its polity and `parents` naming its enclosing places. It has no authored
+row in the polity. The build merges the two sources into a Settlements table
+of direct subjects and a Settlement index of every settlement beneath the
+polity. Direct subordinate polities appear through their seats, or as linked
+polity summaries where no settlement seat is stated. All publishing surfaces
+use the same generated tables.
 
-The rendered columns are fixed, in this order; `Held by` appears when any row
-states `heldBy`, and `For` when any row states `for`:
-
-| Name | Market | People | Held by | For |
-| ---- | ------ | ------ | ------- | --- |
-
-`population` is a positive whole number. `market` is an integer from 1 to 6;
-the generated Market cell includes the class name (`4 market town`). A holder
-is an affiliation or a being, and its note says what kind of holding it is: a
-temple holds its endowment, a lineage its fiefs, the city its own fields. A row
-naming no holder leaves its Held by cell empty.
-
-A worked example: the following `data` block belongs to `Vale.md`, whose
-`type` is `place`, `subType` is `region` and `shortcode` is `vale`:
+`data.population` on an affiliation counts its members. A polity's separate
+`data.territorial_population` counts inhabitants: listed and noted settlements
+throughout its subordinate chain must account for that total within five percent.
+A polity with settlements, a seat, or subordinate polities requires this total.
+Each polity declares at most one superior.
+Seats count once, and subordinate territorial totals are never added to the
+settlement sum. Populations use at most two significant digits. Each settlement
+has short `notes`; a populated settlement note also requires `type`, `market`
+and a `government` that resolves to a polity.
 
 ```yaml
+type: affiliation
+subType: polity
+shortcode: council
 data:
+  territorial_population: 100
   settlements:
-    rows:
-      - place: ashford
-        market: 4
-        population: 3400
-        heldBy: affiliation-crown
-        for: the ford on the drove road
-      - name: Weyshott
-        market: 2
-        population: 420
-        heldBy: being-aldwyn
-        for: the manor's mill
-      - name: Cold Hatch
-        market: 1
-        population: 60
-    tail: Some four hundred further villages lie in the vale, none of them named here.
+    - settlement: East Farm
+      polity: affiliation-council
+      location: place-vale
+      type: homestead
+      fortification: null
+      stronghold: null
+      holder: The Council
+      population: 100
+      market: subsistence
+      notes: A farm by the road.
 ```
 
-`Ashford.md` states `parents: [vale]`, `population: 3400` and `market: 4`, so its
-row agrees. `affiliation-crown` names the existing Crown note; `being-aldwyn`
-names Sir Aldwyn's existing note. Weyshott and Cold Hatch have no notes; these
-rows hold their complete settlement record, and Cold Hatch names no holder. The generated table uses the
-current note names for its links and prints `3,400` and `4 market town`.
-Changing Ashford's row population to `3000` produces `figure disagrees` at
-that YAML value; removing its row produces `missing row` at `rows`.
+The fixed columns are:
 
-Every semantic finding is an error, located where its YAML changes:
+| Settlement | Polity | Location | Type | Fortification | Stronghold | Holder | Population | Market | Notes |
+| ---------- | ------ | -------- | ---- | ------------- | ---------- | ------ | ---------- | ------ | ----- |
 
-- **`body settlements table`** — A body table under Settlements is refused; declare data.settlements.
-- **`settlements shape`** — A region declares rows and tail, with one name or place per row.
-- **`unresolved settlement reference`** — A place or heldBy Address does not resolve.
-- **`market class`** — A row market is not an integer from 1 to 6.
-- **`people figure`** — Population is not a positive whole number.
-- **`not a holder`** — A heldBy Address names neither an affiliation nor a being.
-- **`not a settlement`** — A place Address names a subject that is not a place.
-- **`figure disagrees`** — A linked population differs from its note, or the note states none.
-- **`market disagrees`** — A linked market differs from its note, or the note states none.
-- **`unlinked settlement`** — A plain name has an existing settlement note in this region.
-- **`missing row`** — A covered settlement note has no row.
-- **`duplicate settlement`** — A settlement has another row here or in another region.
-- **`no tail`** — The declaration has no sentence stating what it leaves out.
+Listed settlement names and free polity or holder names render as `.name`
+spans. Noted settlements and Address values render as links. The Location
+column uses the settlement's first enclosing place.
+
+- `type`: `encampment`, `homestead`, `hamlet`, `village`, `town`, `city`, `metropolis`.
+- `fortification`: `none`, `minimal`, `palisade`, `walled`, `fortress`, or null.
+- `stronghold`: `fort`, `castle`, `keep`, `fortified manor`, `tower`, or null.
+- `market`: `international`, `regional`, `local`, `subsistence`.
+
+Every settlement is a row or a note. There is no unnamed remainder. A row
+becomes a note by moving its facts into the note and removing the row.
+Duplicate rows and listed names matching a noted settlement are errors.
+Polity ancestry has no cycles, and a polity declares at most one superior.
+References resolve to their declared note types. `stronghold` is a kind,
+not an Address. A body table under Settlements is refused: frontmatter and
+the content index supply the facts. An authored `# Settlements {#settlements}`
+heading holds the generated table alongside its prose.
+
+Urban share is authoring guidance: about ten percent by default, with higher
+shares described in regional notes where appropriate. It introduces no extra
+frontmatter field or validation rule.
+
+Every semantic finding is a located error:
+
+- **`body settlements table`** — Settlement tables are generated from frontmatter and the index.
+- **`settlements shape`** — Only a polity declares a list of settlement rows with the declared fields.
+- **`settlement field`** — Required facts and enumerated values follow the settlement vocabulary.
+- **`unresolved settlement reference`** — A reference does not resolve to its required note type.
+- **`people figure`** — A population is not a positive whole number with at most two significant digits.
+- **`duplicate settlement`** — A settlement has more than one listed or noted source.
+- **`territorial population`** — A required territorial total is missing or settlements differ from it by more than five percent.
+- **`polity superior`** — A polity declares more than one superior.
+- **`polity cycle`** — The subordinate chain returns to its starting polity.
 
 ### type: scenario
 

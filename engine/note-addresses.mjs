@@ -44,20 +44,39 @@ export {
 /** Structured positions whose Address is nested inside a declared container. */
 export const STRUCTURED_ADDRESSES = Object.freeze([
     {
-        noteType: "place",
-        path: ["data", "settlements", "rows", "*", "place"],
+        noteType: "affiliation",
+        path: ["data", "settlements", "*", "location"],
         shape: "value",
         type: "place",
         accepts: ["place"],
         lenient: true,
     },
     {
-        noteType: "place",
-        path: ["data", "settlements", "rows", "*", "heldBy"],
+        noteType: "affiliation",
+        path: ["data", "settlements", "*", "holder"],
+        text: true,
         shape: "value",
         type: "affiliation",
         accepts: ["affiliation", "being"],
         lenient: true,
+    },
+    {
+        noteType: "affiliation",
+        path: ["data", "settlements", "*", "polity"],
+        shape: "value",
+        type: "affiliation",
+        accepts: ["affiliation"],
+        lenient: true,
+        text: true,
+    },
+    {
+        noteType: "place",
+        path: ["data", "holder"],
+        shape: "value",
+        type: "affiliation",
+        accepts: ["affiliation", "being"],
+        lenient: true,
+        text: true,
     },
     { path: ["data", "seeAlso", "*", "address"], shape: "value", lenient: true },
     {
@@ -371,6 +390,12 @@ function decodePositions(fm, context, refused) {
         };
         const read = (value, path) => {
             if (value == null || value === "") return value;
+            if (
+                position.text &&
+                typeof value === "string" &&
+                parseAddress(value, { ...defaults, type: undefined }, { declared: true }).reason
+            )
+                return value;
             // The word a position declines with is not an Address; it stays as
             // written so every later stage can tell it from an image.
             if (position.declines !== undefined && value === position.declines) return value;

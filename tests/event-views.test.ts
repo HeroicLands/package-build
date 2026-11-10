@@ -40,10 +40,20 @@ const NOTES: Record<string, { fm: object; body?: string }> = {
         fm: { type: "place", subType: "region", shortcode: "rhb", data: { parents: ["south"] } },
     },
     "Ta.md": {
-        fm: { type: "place", subType: "settlement", shortcode: "ta", data: { parents: ["rha"] } },
+        fm: {
+            type: "place",
+            subType: "settlement",
+            shortcode: "ta",
+            data: { parents: ["rha"], notes: "A settlement." },
+        },
     },
     "Tb.md": {
-        fm: { type: "place", subType: "settlement", shortcode: "tb", data: { parents: ["rhb"] } },
+        fm: {
+            type: "place",
+            subType: "settlement",
+            shortcode: "tb",
+            data: { parents: ["rhb"], notes: "A settlement." },
+        },
     },
     "Quiet.md": {
         fm: { type: "place", subType: "region", shortcode: "quiet", data: { parents: ["north"] } },

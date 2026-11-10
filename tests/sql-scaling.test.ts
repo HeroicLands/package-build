@@ -19,6 +19,7 @@ subType: settlement
 shortcode: town
 name: { full: Town }
 data:
+    notes: A settlement.
     events:
         - id: raising
           when: 120

@@ -100,10 +100,10 @@ export * as placeRelations from "./place-relations.mjs";
 export * as holdings from "./holdings.mjs";
 export * as populations from "./populations.mjs";
 
-/** What trade a settlement supports: the six-step market scale, and the check that holds a value to it. */
+/** What trade a settlement supports: the market vocabulary, and the check that holds a value to it. */
 export * as marketClass from "./market-class.mjs";
 
-/** A region's settlements table: its rows, the columns, and the check that holds a table to them. */
+/** A polity's settlement tables, columns and validation contract. */
 export * as settlementTables from "./settlement-tables.mjs";
 
 /** The places a map is drawn from, read from the content index, and what `parents` says about them. */

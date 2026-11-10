@@ -20,6 +20,7 @@ const SCALAR_KINDS = new Set([
     "integer",
     "boolean",
     "address",
+    "address-or-string",
     "shortcode",
 ]);
 

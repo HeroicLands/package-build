@@ -53,7 +53,7 @@ describe("explicit place government", () => {
     it.each(["", 42, [], {}, "missing", "demo-note-place-town"].map((value) => [value]))(
         "rejects invalid government %j",
         (government) => {
-            const findings = lintNote(note({ population: 100, government }), {
+            const findings = lintNote(note({ population: 100, government }, "region"), {
                 vocabulary: NOTE_VOCABULARY,
                 schemas: ENGINE_NOTE_SCHEMAS,
                 index: { contentPackage: "demo", addressHit: () => null } as any,
@@ -67,7 +67,7 @@ describe("explicit place government", () => {
     it.each(["council", "foreign-note-affiliation-council"])(
         "accepts a resolved affiliation %s",
         (government) => {
-            const findings = lintNote(note({ population: 100, government }), {
+            const findings = lintNote(note({ population: 100, government }, "region"), {
                 vocabulary: NOTE_VOCABULARY,
                 schemas: ENGINE_NOTE_SCHEMAS,
                 index: {
