@@ -296,6 +296,7 @@ describe("a wikilink into a package declared `contentIndex: false`", () => {
     // the index must not demand one.
     const config = (over: Record<string, unknown> = {}) =>
         ({
+            ...loadPackConfig(),
             contentPackage: "modpkg",
             paths: { metadataCache: "/does/not/exist" },
             relationships: {

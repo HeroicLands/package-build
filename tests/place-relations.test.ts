@@ -13,6 +13,7 @@
  * is located at the entry that states the fault.
  */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { describe, it, expect } from "vitest";
 
 import fs from "node:fs";
@@ -744,6 +745,7 @@ describe("the content index carries a place's borders and routes", () => {
         );
         fs.writeFileSync(path.join(dir, ".complete"), "");
         const config = {
+            docEntryTypes: loadPackConfig().docEntryTypes,
             paths: { metadataCache: cache },
             relationships: { requires: [{ id: "thalorna", manifest: "https://x/y.json" }] },
         };
@@ -779,6 +781,7 @@ describe("the content index carries a place's borders and routes", () => {
         fs.writeFileSync(path.join(dir, "thalorna-metadata.jsonl"), JSON.stringify(abroad) + "\n");
         fs.writeFileSync(path.join(dir, ".complete"), "");
         return {
+            docEntryTypes: loadPackConfig().docEntryTypes,
             contentPackage: "mine",
             paths: { metadataCache: cache },
             relationships: { requires: [{ id: "thalorna", manifest: "https://x/y.json" }] },
@@ -864,6 +867,7 @@ describe("the content index carries a place's borders and routes", () => {
 
     it("names the package a full address may not reach, for a dependency publishing no index", () => {
         const config = {
+            docEntryTypes: loadPackConfig().docEntryTypes,
             contentPackage: "mine",
             paths: {
                 metadataCache: fs.mkdtempSync(path.join(os.tmpdir(), "place-relations-none-")),

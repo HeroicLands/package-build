@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import { readMatter } from "../engine/note-matter.mjs";
@@ -179,6 +180,7 @@ describe("a dependency's works list on this package's subject pages", () => {
         return {
             cache,
             config: {
+                docEntryTypes: loadPackConfig().docEntryTypes,
                 contentPackage: "demo",
                 paths: { metadataCache: cache },
                 relationships: { requires: [{ id: "thalorna", manifest: "https://x/y.json" }] },

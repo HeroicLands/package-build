@@ -16,6 +16,7 @@
  * those.
  */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -263,6 +264,7 @@ describe("a foreign package's homepage resolves to its root", () => {
             );
             fs.writeFileSync(path.join(dir, ".complete"), "");
             const config = {
+                docEntryTypes: loadPackConfig().docEntryTypes,
                 paths: { metadataCache: root },
                 relationships: {
                     requires: [

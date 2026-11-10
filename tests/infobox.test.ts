@@ -722,6 +722,30 @@ describe("the note box's fields are the type's own vocabulary", () => {
         ]);
     });
 
+    it("uses appearance colour labels while preserving authored features", () => {
+        const box = noteInfobox({
+            type: "being",
+            name: { full: "Someone" },
+            data: {
+                appearance: {
+                    eye_color: "grey",
+                    hair_color: "greying_brown",
+                    skin_color: "olive",
+                    extra_features: ["a grey mark on the hand"],
+                },
+            },
+        });
+        const appearance = box.sections[0].rows.find(
+            (row: { label: string }) => row.label === "Appearance",
+        );
+        expect(appearance.value).toEqual([
+            "gray eyes",
+            "graying brown hair",
+            "olive skin",
+            "a grey mark on the hand",
+        ]);
+    });
+
     it("composes a being's measurements into one clause", () => {
         const box = noteInfobox({
             type: "being",
@@ -963,6 +987,7 @@ describe("the closed vocabularies", () => {
         expect(presentValue("male")).toBe("Male");
         expect(presentValue("greying_brown")).toBe("Greying Brown");
         expect(presentValue("a dispossessed noble")).toBe("a dispossessed noble");
+        expect(presentValue("A well-known café_with rooms.")).toBe("A well-known café_with rooms.");
     });
 });
 

@@ -56,6 +56,8 @@
 
 import { collectAnchors, eventAnchors } from "./anchors.mjs";
 import { protectCode } from "./code-fences.mjs";
+import { scanBlocks } from "./content-blocks.mjs";
+import { scanSpans } from "./content-spans.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { boldFirstUses } from "./first-use.mjs";
@@ -174,8 +176,8 @@ export function expandTables(markdown, { source, prepared = {}, resolveRole }) {
  *   {@link module:engine/helpers.convertNoteWikilinks} fails a note with,
  *   carrying `file` and `position`.
  * @property {object[]} unresolved - `foundry`: the links that did not resolve.
- * @property {object[]} resolved - `web` and `book`: every link that resolved,
- *   in order.
+ * @property {object[]} resolved - Resolved links in order; `web` excludes
+ *   links inside secrets from the Related graph.
  * @property {number} authoredLinks - `web`: how many of `resolved` the
  *   author's text made, before the generated sections'.
  */
@@ -259,6 +261,7 @@ export function expandContent(
                     // figures scanned before any page's expressions render.
                     note: (address) =>
                         resolveCrossNoteFigures(address, {
+                            config: index.config,
                             contentTypes: index.contentTypes,
                             packages: index.packages,
                             noIndexPackages: index.noIndexPackages,
@@ -281,6 +284,7 @@ export function expandContent(
     const sections = splitGenerated(expressions.markdown);
     const named = {
         authored: boldFirstUses(sections.authored, {
+            config: index.config,
             types: web ? index.contentTypes : index.types,
             packages: index.packages,
             noIndexPackages: index.noIndexPackages,
@@ -346,6 +350,39 @@ export function expandContent(
     if (book) ctx.output = "book";
     const resolve = (text) => {
         const before = links.beforeLinks ? links.beforeLinks(text) : text;
+        ctx.includeResolvedFor = (before) => {
+            const hidden = [];
+            const collectBlocks = (source, base = 0) => {
+                const lines = source.split("\n");
+                const starts = [];
+                let position = 0;
+                for (const line of lines) {
+                    starts.push(position);
+                    position += line.length + 1;
+                }
+                for (const block of scanBlocks(source).blocks) {
+                    const start = starts[block.start];
+                    const end = (starts[block.end] ?? source.length) + lines[block.end].length;
+                    if (block.name === "secret") hidden.push([base + start, base + end]);
+                    else {
+                        const inner = starts[block.start + 1];
+                        collectBlocks(source.slice(inner, starts[block.end]), base + inner);
+                    }
+                }
+            };
+            if (!book) {
+                collectBlocks(before);
+                for (const span of scanSpans(before).spans)
+                    if (
+                        span.attrs.some(
+                            ([key, value]) =>
+                                key === "class" && value.split(/\s+/).includes("secret"),
+                        )
+                    )
+                        hidden.push([span.start, span.end]);
+            }
+            return (offset) => !hidden.some(([start, end]) => offset >= start && offset < end);
+        };
         const linked = resolveWebWikilinks(before, ctx);
         return links.afterLinks ? links.afterLinks(linked) : linked;
     };

@@ -25,6 +25,8 @@ import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
 import { builtPages } from "./helpers/built-pages";
 import { homepageLinkTargets, relatedPages } from "../engine/related-pages.mjs";
+import { expandContent } from "../engine/content-expand.mjs";
+import { buildSiteIndex } from "../engine/site-index.mjs";
 
 let root: string;
 
@@ -82,6 +84,21 @@ beforeAll(() => {
         "Knows [[being-birch|Birch]], whose file is [[docbeing-birch|the same page]], " +
             "and [[being-birch|Birch]] once more. Lives at [[place-glade|the Glade]]. " +
             "Is [[being-ash|Ash]].\n",
+    );
+    note(
+        "Lore/SecretSource.md",
+        "type: lore\nshortcode: secretsource\nname: { full: Secret Source }",
+        ":::secret\n[[lore-secrettarget|Hidden]]\n:::\n\n[Also [[lore-secrettarget|hidden]]]{.secret}\n\n[[lore-publictarget|Public]] and [a [[lore-publictarget|private duplicate]]]{.secret}.\n",
+    );
+    note(
+        "Lore/SecretTarget.md",
+        "type: lore\nshortcode: secrettarget\nname: { full: Secret Target }",
+        "Nothing here.",
+    );
+    note(
+        "Lore/PublicTarget.md",
+        "type: lore\nshortcode: publictarget\nname: { full: Public Target }",
+        "Nothing here.",
     );
     being("birch", "Birch", "Follows [[being-cedar|Cedar]].\n");
     being("cedar", "Cedar", "Follows [[being-ash|Ash]], from [[homepage-root|the front page]].\n");
@@ -206,6 +223,14 @@ describe("every page carries what links to it and what it links to", () => {
         });
     });
 
+    it("excludes secret links but retains public duplicates", () => {
+        expect(published("kb/lore-secrettarget.md")).not.toHaveProperty("related");
+        const related = published("kb/lore-secretsource.md").related as {
+            mentions: { url: string }[];
+        };
+        expect(related.mentions.map((entry) => entry.url)).toEqual(["/demo/lore-publictarget/"]);
+    });
+
     it("writes no `related` key on a page with no links either way", () => {
         expect(published("kb/lore-silence.md")).not.toHaveProperty("related");
     });
@@ -226,6 +251,74 @@ describe("every page carries what links to it and what it links to", () => {
         for (const entry of related.mentions) {
             expect(entry.url).toMatch(/^\/demo\/[a-z]+-[a-z]+\/$/);
         }
+    });
+});
+
+describe("secret link resolution", () => {
+    const index = buildSiteIndex(
+        ["hidden", "public"].map((shortcode) => ({
+            kind: "content",
+            fm: { type: "lore", shortcode },
+            body: "",
+            name: shortcode,
+            url: `/demo/lore-${shortcode}/`,
+            pkg: "demo",
+        })),
+        { package: "demo" },
+    );
+    const assets = {
+        contentPackage: "demo",
+        packages: new Set(["demo"]),
+        types: new Set(["image"]),
+        assets: new Map([
+            [
+                "demo-none-image-pic",
+                { package: "demo", asset: { path: "images/a-very-long-image-path.webp" } },
+            ],
+        ]),
+        foreign: new Map(),
+    };
+    const expand = (body: string) =>
+        expandContent(body, {
+            target: "web",
+            index,
+            note: {
+                fm: { type: "lore", shortcode: "source" },
+                file: "source.md",
+                source: "source.md",
+            },
+            links: { assets },
+        });
+
+    it("reports unresolved targets inside secret blocks and spans", () => {
+        const result = expand(
+            ":::secret\n[[lore-missing|Hidden]]\n:::\n\n[A [[lore-absent|Hidden]]]{.secret}",
+        );
+        expect(result.findings.links.map((finding: { target: string }) => finding.target)).toEqual([
+            "lore-missing",
+            "lore-absent",
+        ]);
+    });
+
+    it("excludes secret links nested in a generic div", () => {
+        const result = expand(
+            "::: {.wide}\n:::secret\n[[lore-hidden|Hidden]]\n:::\n:::\n\n[[lore-public|Public]]",
+        );
+        expect(result.findings.links).toEqual([]);
+        expect(result.resolved.map((entry: { url: string }) => entry.url)).toEqual([
+            "/demo/lore-public/",
+        ]);
+    });
+
+    it("keeps a public edge after a rewritten embed and secret span", () => {
+        const result = expand(
+            "![[pic|Picture]]\n\n[A [[lore-hidden|Hidden]]]{.secret}\n\n[[lore-public|Public]]",
+        );
+        expect(result.authored).toContain("images/a-very-long-image-path.webp");
+        expect(result.findings.links).toEqual([]);
+        expect(result.resolved.map((entry: { url: string }) => entry.url)).toEqual([
+            "/demo/lore-public/",
+        ]);
     });
 });
 

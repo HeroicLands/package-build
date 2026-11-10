@@ -204,6 +204,21 @@ describe("a being's look takes its words from a closed vocabulary", () => {
         expect(graying[0].message).toContain('Did you mean "greying_brown"?');
     });
 
+    it("displays American labels without changing accepted colour keys", () => {
+        for (const field of ["appearance.eye_color", "appearance.hair_color"]) {
+            const gray = LOOK[field].find((word) => word.value === "grey");
+            expect(gray?.label, field).toBe("Gray");
+            expect(findingsOn(field, "grey"), field).toEqual([]);
+            expect(findingsOn(field, "gray"), field).toHaveLength(1);
+        }
+        for (const word of LOOK["appearance.hair_color"].filter((word) =>
+            word.value.startsWith("greying_"),
+        )) {
+            expect(word.label).toMatch(/^Graying /);
+            expect(findingsOn("appearance.hair_color", word.value)).toEqual([]);
+        }
+    });
+
     it("gives every hair colour but grey, silver and white a greying form", () => {
         const words = LOOK["appearance.hair_color"] ?? [];
         const values = new Set(words.map((word) => word.value));
@@ -216,9 +231,9 @@ describe("a being's look takes its words from a closed vocabulary", () => {
         for (const base of bases) {
             const greying = words.find((word) => word.value === `greying_${base.value}`);
             expect(values.has(`greying_${base.value}`), base.value).toBe(true);
-            expect(greying?.label, base.value).toBe(`Greying ${base.label}`);
+            expect(greying?.label, base.value).toBe(`Graying ${base.label}`);
             expect(greying?.describe, base.value).toBe(
-                `${base.label} still dominant, grey coming in.`,
+                `${base.label} still dominant, gray coming in.`,
             );
         }
     });

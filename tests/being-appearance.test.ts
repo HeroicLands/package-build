@@ -162,6 +162,29 @@ describe("a being's appearance", () => {
         });
     });
 
+    it("accepts an ingrained stain while refusing equipment", () => {
+        for (const entry of [
+            "a stain worn into the skin",
+            "ink worn into the skin of the hands",
+            "an ink stain worn into the second finger of the right hand",
+            "a stain worn into the palms",
+        ]) {
+            expect(rules(entry), entry).toEqual([]);
+            expect(onFeature(entry), entry).toEqual([]);
+        }
+        for (const entry of [
+            "a worn shirt",
+            "a stain worn into the skin and a worn cloak",
+            "a stain worn into the skin and wearing a helmet",
+            "a cloak worn into the skin",
+            "an ink stain worn into the finger and a worn shirt",
+            "a stain worn into a glove",
+        ]) {
+            expect(rules(entry), entry).toContain("gear");
+            expect(onFeature(entry), entry).not.toEqual([]);
+        }
+    });
+
     describe("extra_features refuses what is not a physical mark", () => {
         const cases: Record<string, string> = {
             "a mail shirt kept oiled": "gear",

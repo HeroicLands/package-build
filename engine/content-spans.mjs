@@ -19,6 +19,7 @@ import { verseDivPlugin } from "./verse-regions.mjs";
 import { codeRegions } from "./code-fences.mjs";
 import { footnoteLabels } from "./content-footnotes.mjs";
 import footnotePlugin from "markdown-it-footnote";
+import deflistPlugin from "markdown-it-deflist";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { inlineText } from "./name-markup.mjs";
 import { cartoucheProblems, glyphProblems } from "./content-glyphs.mjs";
@@ -220,6 +221,7 @@ export function spanMarkdownPlugin(md, { spoilers = false, source = false, verse
 const parser = new MarkdownIt({ html: true })
     .use(verseDivPlugin)
     .use(footnotePlugin)
+    .use(deflistPlugin)
     .use(alertMarkdownPlugin)
     .use(spanMarkdownPlugin);
 /** Read span anchors and located attribute diagnostics outside literal code.

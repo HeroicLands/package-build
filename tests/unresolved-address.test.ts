@@ -32,6 +32,7 @@
  * agreement is asserted here rather than described in a comment.
  */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { describe, it, expect } from "vitest";
 
 import fs from "node:fs";
@@ -113,6 +114,7 @@ function cachedIndexes(byPackage: Record<string, unknown[]>) {
         fs.writeFileSync(path.join(dir, ".complete"), "");
     }
     return {
+        ...loadPackConfig(),
         contentPackage: "sohl",
         paths: { metadataCache: root },
         relationships: {
@@ -598,6 +600,7 @@ describe("a package declared `contentIndex: false`, in all three", () => {
 
     it("the checker", () => {
         const config = {
+            ...loadPackConfig(),
             paths: { metadataCache: "/does/not/exist" },
             relationships: {
                 requires: [

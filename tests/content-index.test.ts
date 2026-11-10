@@ -11,6 +11,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -595,6 +596,7 @@ describe("serializeContentIndex", () => {
 
 describe("emitContentIndex", () => {
     const config = (root: string) => ({
+        ...loadPackConfig(),
         paths: { content: root, contentIndex: `${root}-out` },
         contentPackage: "sohl",
         skipDirectories: [],

@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import { readMatter } from "../engine/note-matter.mjs";
@@ -570,6 +571,7 @@ function foreignCache(): { config: object; cache: string } {
     return {
         cache,
         config: {
+            docEntryTypes: loadPackConfig().docEntryTypes,
             contentPackage: "demo",
             paths: { metadataCache: cache },
             relationships: { requires: [{ id: "thalorna", manifest: "https://x/y.json" }] },

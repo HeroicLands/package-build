@@ -26,6 +26,7 @@ import {
     noContentIndexPackages,
 } from "../engine/metadata-index.mjs";
 import { PACKAGEBUILD_PACKAGE } from "../engine/packages.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 
 const LATEST = "https://github.com/HeroicLands/sohl/releases/latest/download/system.json";
 
@@ -272,6 +273,7 @@ describe("resolving foreign addresses from cached indexes", () => {
 
     const config = () =>
         ({
+            ...loadPackConfig(),
             paths: { metadataCache: root },
             relationships: { systems: [{ id: "thalorna", manifest: LATEST }] },
         }) as never;
@@ -484,7 +486,11 @@ describe("resolving foreign addresses from cached indexes", () => {
     it("folds the toolchain's own files in, with nothing declared and no cache", () => {
         // A configuration declaring no dependency at all, and a cache that was
         // never filled: neither is a failure mode for this one package.
-        const bare = { paths: { metadataCache: root }, relationships: {} } as never;
+        const bare = {
+            ...loadPackConfig(),
+            paths: { metadataCache: root },
+            relationships: {},
+        } as never;
         const { index, packages, stale } = loadForeignIndexes(bare, ["sohl"]);
         expect(stale).toEqual([]);
         expect(packages.has(PACKAGEBUILD_PACKAGE)).toBe(true);
@@ -494,7 +500,11 @@ describe("resolving foreign addresses from cached indexes", () => {
     });
 
     it("gives those entries no page URL and no uuid, having neither", () => {
-        const bare = { paths: { metadataCache: root }, relationships: {} } as never;
+        const bare = {
+            ...loadPackConfig(),
+            paths: { metadataCache: root },
+            relationships: {},
+        } as never;
         const entry = loadForeignIndexes(bare, ["sohl"]).index.get(
             "packagebuild-none-image-skillbnr",
         )!;

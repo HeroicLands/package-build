@@ -44,8 +44,8 @@
  * still ask the CLI its version, and a consumer can still import a pure helper
  * (`engine/content-slug`, `engine/wikilinks`) without standing up a whole pack
  * build. The absence is still loud, just at the moment a configured value is
- * actually needed: every accessor in the engine funnels through here, so
- * anything that reads configuration throws with the message below.
+ * actually needed. Callers working with a particular repository can pass its
+ * resolved configuration directly.
  *
  * **Located by walking up from the working directory, and from this module only
  * when that finds nothing.** The config file sits at the root of the repository
@@ -99,7 +99,6 @@
  * @module
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -678,9 +677,6 @@ let loaded;
 /** The file {@link loadPackConfig} read, alongside the memoised result. */
 let loadedFrom;
 
-/** The configuration {@link withPackConfig} gives the work it runs, and its file. */
-const scoped = new AsyncLocalStorage();
-
 /**
  * The consuming repository's resolved, frozen configuration.
  *
@@ -695,8 +691,6 @@ const scoped = new AsyncLocalStorage();
  *   compilers know neither what to compile nor where to put it.
  */
 export function loadPackConfig() {
-    const scope = scoped.getStore();
-    if (scope) return scope.config;
     if (loaded) return loaded;
 
     const explicit = process.env.PACKAGE_BUILD_CONFIG;
@@ -768,27 +762,6 @@ export function readPackConfig(configPath) {
 }
 
 /**
- * Run `fn` with `config` as the configuration {@link loadPackConfig} answers.
- *
- * The engine reads configured values through {@link loadPackConfig} wherever
- * a caller passes no configuration. A caller working on a repository other
- * than the one it stands in makes those reads answer with that repository's
- * configuration for the whole of `fn`, its asynchronous continuations
- * included, and for nothing else running beside it.
- *
- * @template T
- * @param {import("../content-config.mjs").ContentBuildConfig} config - The
- *   resolved configuration.
- * @param {() => T} fn - The work, synchronous or asynchronous.
- * @param {string} [file] - The file `config` was read from, which
- *   {@link packConfigPath} answers within `fn`.
- * @returns {T} What `fn` returned.
- */
-export function withPackConfig(config, fn, file) {
-    return scoped.run({ config, file }, fn);
-}
-
-/**
  * The file {@link loadPackConfig} resolved the configuration from.
  *
  * A diagnostic about a *configured* value has to name the file it was declared
@@ -801,8 +774,6 @@ export function withPackConfig(config, fn, file) {
  * @throws {Error} As {@link loadPackConfig}, when there is no configuration.
  */
 export function packConfigPath() {
-    const scope = scoped.getStore();
-    if (scope) return scope.file;
     loadPackConfig();
     return /** @type {string} */ (loadedFrom);
 }

@@ -193,18 +193,19 @@ Whether a content tree has anything to compile. The pack build's worst failure i
 
 The consuming repository's resolved `package-build.config.yaml`: the content package, the Foundry package and its kind, every path, the `_stats` identity, item-type membership and the pack list — read on call rather than hoisted at import, so importing this package never requires a configuration to exist.
 
-| Export              | Signature                            | Returns                       | Use it when                                                                                      |
-| ------------------- | ------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| `CONFIG_BASENAME`   | `const CONFIG_BASENAME`              | —                             | naming the stem every consuming repository declares its build under                              |
-| `CONFIG_FILENAMES`  | `const CONFIG_FILENAMES`             | —                             | listing the file names a configuration may be written as                                         |
-| `findConfigFile`    | `findConfigFile(from)`               | `string \| undefined`         | finding the nearest configuration file at or above a directory                                   |
-| `resolveConfigFile` | `resolveConfigFile(...)`             | `{path, fromCwd, fromModule}` | asking which configuration file a build launched here would read, without loading it             |
-| `locateConfigError` | `locateConfigError(err, configPath)` | the decorated error           | attaching the position of the key a configuration error names                                    |
-| `configFromData`    | `configFromData(data, configPath)`   | `ContentBuildConfig`          | turning a parsed YAML configuration into the frozen one the engine reads                         |
-| `loadPackConfig`    | `loadPackConfig()`                   | `ContentBuildConfig`          | reading the consuming repository's resolved, frozen configuration                                |
-| `packConfigPath`    | `packConfigPath()`                   | `string`                      | naming the file `loadPackConfig` resolved the configuration from, for a diagnostic               |
-| `readPackConfig`    | `readPackConfig(configPath)`         | `ContentBuildConfig`          | reading the configuration one named file declares, unmemoised                                    |
-| `withPackConfig`    | `withPackConfig(config, fn, file?)`  | what `fn` returns             | running work, asynchronous included, with `config` as the configuration `loadPackConfig` answers |
+| Export              | Signature                            | Returns                       | Use it when                                                                          |
+| ------------------- | ------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------ |
+| `CONFIG_BASENAME`   | `const CONFIG_BASENAME`              | —                             | naming the stem every consuming repository declares its build under                  |
+| `CONFIG_FILENAMES`  | `const CONFIG_FILENAMES`             | —                             | listing the file names a configuration may be written as                             |
+| `findConfigFile`    | `findConfigFile(from)`               | `string \| undefined`         | finding the nearest configuration file at or above a directory                       |
+| `resolveConfigFile` | `resolveConfigFile(...)`             | `{path, fromCwd, fromModule}` | asking which configuration file a build launched here would read, without loading it |
+| `locateConfigError` | `locateConfigError(err, configPath)` | the decorated error           | attaching the position of the key a configuration error names                        |
+| `configFromData`    | `configFromData(data, configPath)`   | `ContentBuildConfig`          | turning a parsed YAML configuration into the frozen one the engine reads             |
+| `loadPackConfig`    | `loadPackConfig()`                   | `ContentBuildConfig`          | reading the consuming repository's resolved, frozen configuration                    |
+| `packConfigPath`    | `packConfigPath()`                   | `string`                      | naming the file `loadPackConfig` resolved the configuration from, for a diagnostic   |
+| `readPackConfig`    | `readPackConfig(configPath)`         | `ContentBuildConfig`          | reading the configuration one named file declares, unmemoised                        |
+
+Pass the resolved configuration to render and index operations that work with a specific repository.
 
 ### `engine.packRouter`
 
@@ -1819,8 +1820,8 @@ source locations and frontmatter source slicing.
 
 | Export           | Signature                                                       | Returns                                                                                          | Use it when                                                                                                                |
 | ---------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `docEntryTypes`  | `function docEntryTypes()`                                      | {ReadonlySet<string>} The configured doc-carrying types.                                         | Every content type whose **prose compiles into a JournalEntry of its own**, addressed by `note` with the authored type.    |
-| `hasDocEntry`    | `function hasDocEntry(type)`                                    | {boolean} True for an item type, for `macro` and for a map type; false for `doc` and for actors. | Whether a content note's type is one whose prose becomes a JournalEntry of its own.                                        |
+| `docEntryTypes`  | `function docEntryTypes(config?)`                               | {ReadonlySet<string>} The configured doc-carrying types.                                         | Every content type whose **prose compiles into a JournalEntry of its own**, addressed by `note` with the authored type.    |
+| `hasDocEntry`    | `function hasDocEntry(type, config?)`                           | {boolean} True for an item type, for `macro` and for a map type; false for `doc` and for actors. | Whether a content note's type is one whose prose becomes a JournalEntry of its own.                                        |
 | `itemDocEntryId` | `function itemDocEntryId(itemId)`                               | {string} A 16-character Foundry id.                                                              | The id of the JournalEntry a note's prose compiles into — an item's, or a macro's.                                         |
 | `itemDocPointer` | `function itemDocPointer(packageId, itemId, name, firstPageId)` | {string} The pointer to store in `system.docHtml`.                                               | The description an item carries in place of its prose: a `@UUID` link to the first page of its item doc, and nothing else. |
 

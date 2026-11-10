@@ -1788,6 +1788,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
             ];
         });
         const index = buildSiteIndex(pages, {
+            config: resolved,
             package: resolved.contentPackage,
             currentDate: resolved.currentDate,
             records: visible,
@@ -1815,6 +1816,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
                     get: (id) => figures?.get(id),
                     note: (target) =>
                         resolveCrossNoteFigures(target, {
+                            config: index.config,
                             contentTypes: index.contentTypes,
                             packages: index.packages,
                             noIndexPackages: index.noIndexPackages,

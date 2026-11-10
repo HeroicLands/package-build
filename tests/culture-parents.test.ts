@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -88,6 +89,7 @@ describe("culture parents", () => {
         const before = fs.readFileSync(path.join(root, "child.md"), "utf8");
         const result = emitContentIndex({
             config: {
+                ...loadPackConfig(),
                 paths: { content: root, contentIndex: path.join(root, "out") },
                 contentPackage: "sohl",
                 skipDirectories: [],

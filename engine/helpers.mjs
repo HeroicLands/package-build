@@ -931,10 +931,11 @@ export function buildContentLinkIndex(
         `Wikilink index: ${docs.length} local document(s), ` +
             `${foreign.size} foreign address(es)`,
     );
-    const referenceTargets = buildReferenceTargets(records);
+    const referenceTargets = buildReferenceTargets(records, new Map(), resolved);
     return buildWikilinkIndex(docs, resolved.foundryPackage, foreign, resolved.contentPackage, {
         referenceTargets,
         foreignReferences,
+        config: resolved,
         assets,
         noIndexPackages: noContentIndexPackages(resolved),
     });

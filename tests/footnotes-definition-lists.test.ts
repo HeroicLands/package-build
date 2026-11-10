@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { splitPages, buildPages } from "../engine/journals.mjs";
 import { markdownToTypst, renderBook } from "../engine/pdf-render.mjs";
+import { renderSpans } from "../engine/content-spans.mjs";
 import { separateFootnotes } from "../engine/content-footnotes.mjs";
 
 const note = [
@@ -83,6 +84,11 @@ describe("footnotes", () => {
 
 describe("definition lists", () => {
     const source = "First Term\n: First definition.\n\nSecond Term\n: One.\n: Two.";
+
+    it("renders spans in nested definition lists", () => {
+        const source = "Outer\n: Definition.\n\n    Inner\n    : [A name]{.name}";
+        expect(renderSpans(source).markdown).toContain('<span class="name">A name</span>');
+    });
 
     it("renders terms and multiple definitions in Foundry HTML", () => {
         const html = renderFoundryMarkdown(source);

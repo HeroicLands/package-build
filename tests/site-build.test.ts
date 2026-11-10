@@ -167,6 +167,7 @@ describe("every gate reports; none exits", () => {
      * cached index is a hard error naming `deps fetch`.
      */
     const cacheConfig = (cache = path.join(root, "build/cache/metadata"), ids: string[] = []) => ({
+        ...configFor(),
         paths: { metadataCache: cache },
         relationships: {
             requires: ids.map((id) => ({ id, manifest: "https://x/y.json" })),

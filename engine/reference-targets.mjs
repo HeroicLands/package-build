@@ -23,9 +23,10 @@ import { standingsDigest } from "./standings.mjs";
  * remains separate so body-link validation retains its publication rules.
  * @param {readonly object[]} records - Decoded local or fetched records.
  * @param {Map<string, object>} [published] - Actual published link destinations.
+ * @param {import("../content-config.mjs").ContentBuildConfig} [config] - The resolved configuration.
  * @returns {Map<string, object>} Canonical lookup keys and presentation values.
  */
-export function buildReferenceTargets(records, published = new Map()) {
+export function buildReferenceTargets(records, published = new Map(), config) {
     const targets = new Map();
     for (const record of records) {
         if (!record.package || !record.type || !record.shortcode) continue;
@@ -42,7 +43,8 @@ export function buildReferenceTargets(records, published = new Map()) {
             ...(standings ? { standings } : {}),
         };
         const systems = new Set([ownDocumentSystem(record.type)]);
-        if (JOURNAL_TYPES.has(record.type) || hasDocEntry(record.type)) systems.add(NOTE_SYSTEM);
+        if (JOURNAL_TYPES.has(record.type) || hasDocEntry(record.type, config))
+            systems.add(NOTE_SYSTEM);
         for (const system of systems) {
             const address = completeAddress({
                 package: record.package,

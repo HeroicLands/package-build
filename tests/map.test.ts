@@ -19,6 +19,7 @@
  * proves its absence is reported plainly.
  */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -321,6 +322,7 @@ describe("the places are read from the content index", () => {
         fs.writeFileSync(path.join(dir, "thalorna-metadata.jsonl"), JSON.stringify(abroad) + "\n");
         fs.writeFileSync(path.join(dir, ".complete"), "");
         const config = {
+            ...loadPackConfig(),
             contentPackage: "demo",
             skipDirectories: [],
             paths: {

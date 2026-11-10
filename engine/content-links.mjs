@@ -303,7 +303,7 @@ export function buildLinkIndex(
             // The prose has one `note` Address across all system blocks, and
             // every note answers to it — whether or not a system compiles the
             // type into a document of its own, as the site index keys it.
-            if (hasDocEntry(type) || ownDocumentSystem(type) !== NOTE_SYSTEM)
+            if (hasDocEntry(type, resolved) || ownDocumentSystem(type) !== NOTE_SYSTEM)
                 into.set(canonicalKey(pkg, NOTE_SYSTEM, type, fm.shortcode), note);
         }
     }
@@ -505,7 +505,7 @@ export function buildLinkIndex(
      * @returns {object|undefined} The note it addresses.
      */
     function resolveAddress(target, keyPath) {
-        const qualified = readQualifier(target, types, packages, noIndexPackages);
+        const qualified = readQualifier(target, types, packages, noIndexPackages, resolved);
         if (!qualified || qualified.reason) return undefined;
         // Every omitted segment defaults from where the link is written,
         // so the target expands to exactly one canonical address and this is a
@@ -538,7 +538,7 @@ export function buildLinkIndex(
      * @returns {object|undefined} The stub it addresses.
      */
     function stubAt(target, keyPath) {
-        const qualified = readQualifier(target, types, packages, noIndexPackages);
+        const qualified = readQualifier(target, types, packages, noIndexPackages, resolved);
         if (!qualified || qualified.reason) return undefined;
         return byStub.get(expandAddress(qualified, { package: pkg, system: blockSystem(keyPath) }));
     }
@@ -562,7 +562,7 @@ export function buildLinkIndex(
      * @returns {object[]} The foreign entries, each carrying its `package`.
      */
     function foreignHits(target, keyPath) {
-        const q = readQualifier(target, types, packages, noIndexPackages);
+        const q = readQualifier(target, types, packages, noIndexPackages, resolved);
         if (!q || q.reason) return [];
         // An omitted package means *this* package, so a short form
         // addresses nothing foreign and never reaches a dependency's index.
@@ -615,7 +615,7 @@ export function buildLinkIndex(
      * @returns {object|undefined} The entry.
      */
     function addressHit(target, keyPath) {
-        const qualified = readQualifier(target, types, packages, noIndexPackages);
+        const qualified = readQualifier(target, types, packages, noIndexPackages, resolved);
         if (!qualified || qualified.reason) return undefined;
         const canonical = expandAddress(qualified, { package: pkg, system: blockSystem(keyPath) });
         // Stubs and foreign entries answer here and nowhere else in this
@@ -660,7 +660,7 @@ export function buildLinkIndex(
     }
 
     return {
-        config,
+        config: resolved,
         notes,
         frontmatterLinks,
         anchors,
@@ -703,7 +703,8 @@ export function buildLinkIndex(
         addressHit,
         shortcodeHit,
         /** Whether a target reads as a qualified address at all. */
-        isAddress: (target) => Boolean(readQualifier(target, types, packages, noIndexPackages)),
+        isAddress: (target) =>
+            Boolean(readQualifier(target, types, packages, noIndexPackages, resolved)),
     };
 }
 
@@ -1005,6 +1006,7 @@ export function auditLinks(index) {
                     index.types,
                     index.packages,
                     index.noIndexPackages,
+                    index.config,
                 );
                 if (qualified?.system !== NOTE_SYSTEM) continue;
             }
@@ -1090,7 +1092,13 @@ export function auditLinks(index) {
             }
             // A capital in the shortcode is refused, never lowercased. The
             // lowercase spelling is looked up only to name it in the finding.
-            const cased = readQualifier(target, index.types, index.packages, index.noIndexPackages);
+            const cased = readQualifier(
+                target,
+                index.types,
+                index.packages,
+                index.noIndexPackages,
+                index.config,
+            );
             if (cased?.reason === "shortcode-not-lowercase") {
                 const lower = `${target.slice(0, -cased.shortcode.length)}${cased.lowercase.shortcode}`;
                 const declared =
@@ -1130,7 +1138,13 @@ export function auditLinks(index) {
                 usedManifest.add(encodeAddresses(target).toLowerCase());
                 continue;
             }
-            const read = readQualifier(target, index.types, index.packages, index.noIndexPackages);
+            const read = readQualifier(
+                target,
+                index.types,
+                index.packages,
+                index.noIndexPackages,
+                index.config,
+            );
             deadAddresses.push({
                 ...at,
                 reason:

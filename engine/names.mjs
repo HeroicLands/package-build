@@ -244,6 +244,7 @@ export function createNameCatalog({ records, index }) {
                 index.types,
                 index.packages,
                 index.noIndexPackages,
+                index.config,
             );
             if (!qualified || qualified.reason) return undefined;
             const canonical = expandAddress(qualified, {

@@ -379,6 +379,7 @@ export function siteGates(pages, findings, { config, records, sqlTables }) {
             }))
         :   pages;
     out.index = buildSiteIndex(expanded, {
+        config,
         package: config.contentPackage,
         currentDate: config.currentDate,
         foreignIndex: foreign.index,

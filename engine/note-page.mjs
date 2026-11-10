@@ -35,7 +35,7 @@ import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { figureIndexKeys } from "./site-index.mjs";
 import { drawSiteMaps } from "./site-maps.mjs";
 import { NoteInputsChanged, READ_ATTEMPTS, noteTree } from "./note-cache.mjs";
-import { findConfigFile, readPackConfig, withPackConfig } from "./pack-config.mjs";
+import { findConfigFile, readPackConfig } from "./pack-config.mjs";
 import { recordSiteContext } from "./preview-index.mjs";
 import {
     addressDiagnostic,
@@ -119,14 +119,7 @@ export async function renderNoteFile(
             const configPath = findConfigFile(root);
             if (!configPath) throw new Error(`no package-build configuration at or above ${root}`);
             const config = readPackConfig(configPath);
-            // What the engine reads of the configuration where no caller
-            // passes it is answered from this repository's, wherever the
-            // caller stands.
-            return await withPackConfig(
-                config,
-                () => renderInRepository(file, root, config, { cache, prepareTables }),
-                configPath,
-            );
+            return await renderInRepository(file, root, config, { cache, prepareTables });
         } catch (error) {
             if (!(error instanceof NoteInputsChanged) || attempt >= READ_ATTEMPTS) throw error;
         }
@@ -134,7 +127,7 @@ export async function renderNoteFile(
 }
 
 /**
- * {@link renderNoteFile}, with `config` as the ambient configuration.
+ * {@link renderNoteFile}, with the resolved configuration.
  *
  * @param {string} file - The note, relative to `root` or absolute.
  * @param {string} root - The directory `file` is relative to.

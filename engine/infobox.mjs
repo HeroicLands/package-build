@@ -114,7 +114,7 @@
 
 import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { getFrontmatter } from "./frontmatter.mjs";
-import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
+import { BEING_LOOK_VOCABULARY, NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
 import { cultureNamesItself } from "./culture-choice.mjs";
@@ -364,15 +364,15 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     "being.frame": Object.freeze({ group: "appearance", phrase: (v) => `${v} frame` }),
     "being.appearance.eye_color": Object.freeze({
         group: "appearance",
-        phrase: (v) => `${humanizeValue(v)} eyes`,
+        phrase: (v) => `${lookLabel("appearance.eye_color", v)} eyes`,
     }),
     "being.appearance.hair_color": Object.freeze({
         group: "appearance",
-        phrase: (v) => `${humanizeValue(v)} hair`,
+        phrase: (v) => `${lookLabel("appearance.hair_color", v)} hair`,
     }),
     "being.appearance.skin_color": Object.freeze({
         group: "appearance",
-        phrase: (v) => `${humanizeValue(v)} skin`,
+        phrase: (v) => `${lookLabel("appearance.skin_color", v)} skin`,
     }),
     "being.appearance.complexion": Object.freeze({
         group: "appearance",
@@ -507,6 +507,14 @@ export function humanizeFieldName(name) {
     return words ? words[0].toUpperCase() + words.slice(1) : "";
 }
 
+/** The declared appearance label, or the authored value if it is unknown. */
+function lookLabel(field, value) {
+    return (
+        BEING_LOOK_VOCABULARY[field]?.find((word) => word.value === value)?.label.toLowerCase() ??
+        humanizeValue(value)
+    );
+}
+
 /**
  * An enumerated value as a reader sees it: `greying_brown` → `greying brown`.
  *
@@ -552,8 +560,8 @@ function humanizedList(value) {
  */
 export function presentValue(value) {
     if (isAddressTuple(value)) value = value.shortcode;
+    if (!/^[a-z][a-z0-9_-]*$/.test(String(value ?? ""))) return String(value ?? "");
     const text = humanizeValue(value);
-    if (!/^[a-z][a-z0-9_-]*$/.test(String(value ?? ""))) return text;
     return text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 }
 

@@ -338,6 +338,7 @@ const isNameLink = (link) => Boolean(link.wiki && link.attributes?.classes?.incl
  * packages, and the package an address that names none belongs to.
  *
  * @typedef {object} NameVocabulary
+ * @property {import("../content-config.mjs").ContentBuildConfig} [config] - The resolved configuration.
  * @property {Set<string>} [types] - Every type an address may name.
  * @property {Set<string>} [packages] - Every package an address may name.
  * @property {Set<string>} [noIndexPackages] - Packages with no content index.
@@ -349,9 +350,11 @@ const isNameLink = (link) => Boolean(link.wiki && link.attributes?.classes?.incl
  * spelling of one note, and each of its systems' documents, is one key. An
  * address the vocabulary cannot read is keyed as written.
  */
-function addressKey(address, { types, packages, noIndexPackages, contentPackage } = {}) {
+function addressKey(address, { types, packages, noIndexPackages, contentPackage, config } = {}) {
     const read =
-        types ? readQualifier(address, types, packages ?? new Set(), noIndexPackages) : null;
+        types ?
+            readQualifier(address, types, packages ?? new Set(), noIndexPackages, config)
+        :   null;
     if (!read || read.reason) return `note:${address}`;
     return `note:${read.package ?? contentPackage ?? ""}-${read.type}-${read.shortcode}`;
 }

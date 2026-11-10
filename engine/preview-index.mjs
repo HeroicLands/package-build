@@ -110,6 +110,7 @@ export function recordSiteContext({ config, records, foreign, anchorsOf = () => 
         });
     }
     const site = buildSiteIndex(entries, {
+        config,
         package: config.contentPackage,
         currentDate: config.currentDate,
         foreignIndex: foreign?.index,

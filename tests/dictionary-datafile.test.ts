@@ -11,6 +11,7 @@
  * byte-identical between two builds of an unchanged tree.
  */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -32,6 +33,7 @@ const TREE = path.join(HERE, "fixtures", "dictionary", "tree");
 let dir: string;
 const config = () =>
     ({
+        ...loadPackConfig(),
         paths: { content: TREE, contentIndex: path.join(dir, "out") },
         contentPackage: "demo",
         skipDirectories: [],

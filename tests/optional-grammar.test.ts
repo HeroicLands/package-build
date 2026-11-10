@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -523,6 +524,7 @@ describe("grammar through SQL and published data", () => {
             );
             const published = emitContentIndex({
                 config: {
+                    ...loadPackConfig(),
                     contentPackage: "demo",
                     paths: { content, contentIndex: path.join(root, "out") },
                     skipDirectories: [],

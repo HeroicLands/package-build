@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -427,6 +428,7 @@ describe("the resolution order, type by type", () => {
 
 describe("a place three levels below a cultured root", () => {
     const config = () => ({
+        docEntryTypes: loadPackConfig().docEntryTypes,
         paths: { content, contentIndex: path.join(tmp, "out") },
         contentPackage: PKG,
         skipDirectories: [],
@@ -726,6 +728,7 @@ describe("dependency indexes", () => {
     }
 
     const config = (cache: string) => ({
+        docEntryTypes: loadPackConfig().docEntryTypes,
         paths: { content, metadataCache: cache, contentIndex: path.join(tmp, "out") },
         contentPackage: PKG,
         skipDirectories: [],

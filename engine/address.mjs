@@ -210,10 +210,11 @@ const norm = (s) => String(s).toLowerCase().trim();
  * The configured types whose prose compiles into a separate JournalEntry.
  * The journal has a `note` Address with the authored type segment.
  *
+ * @param {import("../content-config.mjs").ContentBuildConfig} [config] - The resolved configuration.
  * @returns {ReadonlySet<string>} The configured doc-carrying types.
  */
-export function docEntryTypes() {
-    return loadPackConfig().docEntryTypes;
+export function docEntryTypes(config = loadPackConfig()) {
+    return config.docEntryTypes;
 }
 
 /**
@@ -221,13 +222,14 @@ export function docEntryTypes() {
  * its own.
  *
  * @param {string} type - The note's `type` frontmatter.
+ * @param {import("../content-config.mjs").ContentBuildConfig} [config] - The resolved configuration.
  * @returns {boolean} True for an item type, an actor type, a map type and
  *   `macro`; false for `doc`.
  */
-export function hasDocEntry(type) {
+export function hasDocEntry(type, config) {
     // The set is derived from the item registry's keys: the one lookup between
     // an item compiling and its prose silently compiling into nothing.
-    return docEntryTypes().has(String(type));
+    return docEntryTypes(config).has(String(type));
 }
 
 /** The segment of a note's own document. */
@@ -243,14 +245,15 @@ export function ownDocumentSystem(type) {
  *
  * @param {string} qualifier - The type segment from the input.
  * @param {Set<string>} types - Types in the content tree.
+ * @param {import("../content-config.mjs").ContentBuildConfig} [config] - The resolved configuration.
  * @returns {string|null} The underlying type, or `null`.
  */
-export function resolveItemDocType(qualifier, types) {
+export function resolveItemDocType(qualifier, types, config) {
     if (types.has(qualifier)) return null; // a real type owns its own name
     if (!qualifier.startsWith(ITEM_DOC_PREFIX)) return null;
     const base = qualifier.slice(ITEM_DOC_PREFIX.length);
     if (!base || !types.has(base)) return null;
-    if (hasDocEntry(base)) return base;
+    if (hasDocEntry(base, config)) return base;
     return packForType(base).docType === ITEM_PACK.docType ? base : null;
 }
 
@@ -262,6 +265,7 @@ export function resolveItemDocType(qualifier, types) {
  * one call.
  *
  * @typedef {object} AddressVocabulary
+ * @property {import("../content-config.mjs").ContentBuildConfig} [config] - The resolved configuration.
  * @property {Set<string>} [types] - Every type the content tree contains.
  * @property {Set<string>} [packages] - Every package an Address may name.
  *   Omitted by callers that resolve within one package, where the fully
@@ -539,6 +543,7 @@ export function readCanonicalKey(key) {
  * @param {Set<string>} [packages] - Every package an Address may name.
  * @param {Set<string>} [noIndexPackages] - Packages declared
  *   `contentIndex: false`.
+ * @param {import("../content-config.mjs").ContentBuildConfig} [config] - The resolved configuration.
  * @returns {{type: string, shortcode: string, itemDoc: boolean,
  *   package?: string, system?: string, reason?: undefined}
  *   | AddressProblem | null}
@@ -546,9 +551,9 @@ export function readCanonicalKey(key) {
  *   value is definitely qualified but names no known type, no fetched index or a
  *   badly-cased segment; or `null` when it is not an Address at all.
  */
-export function readQualifier(target, types, packages, noIndexPackages) {
+export function readQualifier(target, types, packages, noIndexPackages, config) {
     if (isAddressTuple(target)) return target;
-    const read = readWritten(target, { types, packages, noIndexPackages });
+    const read = readWritten(target, { types, packages, noIndexPackages, config });
     // A value naming no type at all is a note name, not a badly written
     // address, and the resolvers depend on telling the two apart: prose is full
     // of names, and reporting each one as a dead link would bury the real ones.
@@ -609,7 +614,7 @@ function qualifyingSegments(target) {
  * @returns {object|AddressProblem} The partial reading, or a reason.
  */
 function readWrittenCased(target, vocabulary, declared = false) {
-    const { types = new Set(), packages, noIndexPackages, type: defaultType } = vocabulary;
+    const { types = new Set(), packages, noIndexPackages, type: defaultType, config } = vocabulary;
 
     // The slash form states neither package nor system, so it is read first and
     // separately. A slash is unconditionally a qualifier — nothing else uses one
@@ -617,7 +622,12 @@ function readWrittenCased(target, vocabulary, declared = false) {
     // prose.
     const slash = target.lastIndexOf("/");
     if (slash > 0) {
-        const read = readTypeAndCode(target.slice(0, slash), target.slice(slash + 1), types);
+        const read = readTypeAndCode(
+            target.slice(0, slash),
+            target.slice(slash + 1),
+            types,
+            config,
+        );
         return read ?? { reason: "unknown-type" };
     }
 
@@ -629,18 +639,24 @@ function readWrittenCased(target, vocabulary, declared = false) {
         // rather than resolved against a guess.
         case 1: {
             if (typeof defaultType !== "string" || !defaultType) return { reason: "no-type" };
-            return readTypeAndCode(defaultType, parts[0], types) ?? { reason: "not-an-address" };
+            return (
+                readTypeAndCode(defaultType, parts[0], types, config) ?? {
+                    reason: "not-an-address",
+                }
+            );
         }
 
         // `<type>-<shortcode>`
         case 2:
-            return readTypeAndCode(parts[0], parts[1], types) ?? { reason: "not-an-address" };
+            return (
+                readTypeAndCode(parts[0], parts[1], types, config) ?? { reason: "not-an-address" }
+            );
 
         // `<system>-<type>-<shortcode>` — the package defaults to local.
         case 3: {
             const system = norm(parts[0]);
             if (!isSystemSegment(system)) return { reason: "not-an-address" };
-            const read = readTypeAndCode(parts[1], parts[2], types);
+            const read = readTypeAndCode(parts[1], parts[2], types, config);
             return read ? { ...read, system } : { reason: "not-an-address" };
         }
 
@@ -657,7 +673,7 @@ function readWrittenCased(target, vocabulary, declared = false) {
             if (!declared && !packages?.has(pkg)) return { reason: "not-an-address" };
             const system = norm(parts[1]);
             if (!isSystemSegment(system)) return { reason: "not-an-address" };
-            const read = readTypeAndCode(parts[2], parts[3], types);
+            const read = readTypeAndCode(parts[2], parts[3], types, config);
             return read ? { ...read, system, package: pkg } : { reason: "not-an-address" };
         }
 
@@ -675,15 +691,16 @@ function readWrittenCased(target, vocabulary, declared = false) {
  * @param {string} rawType - The type segment, as written.
  * @param {string} rawCode - The shortcode, as written.
  * @param {Set<string>} types - Every type the content tree contains.
+ * @param {import("../content-config.mjs").ContentBuildConfig} [config] - The resolved configuration.
  * @returns {{type: string, shortcode: string, itemDoc: boolean} | null}
  *   `null` when the segment names no known type, or the shortcode is empty.
  */
-function readTypeAndCode(rawType, rawCode, types) {
+function readTypeAndCode(rawType, rawCode, types, config) {
     const shortcode = String(rawCode).trim();
     if (!shortcode) return null;
 
     const type = norm(rawType);
-    const base = resolveItemDocType(type, types);
+    const base = resolveItemDocType(type, types, config);
     if (base) return { type: base, shortcode, itemDoc: true };
     if (!types.has(type)) return null;
     return { type, shortcode, itemDoc: false };

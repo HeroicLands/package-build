@@ -592,7 +592,12 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
         ingest(pkg, records, file);
     }
 
-    return { index, references: buildReferenceTargets(referenceRecords, index), packages, stale };
+    return {
+        index,
+        references: buildReferenceTargets(referenceRecords, index, config),
+        packages,
+        stale,
+    };
 }
 
 /**

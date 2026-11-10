@@ -115,7 +115,7 @@ export const NON_PHYSICAL_FEATURES = Object.freeze([
         category: "gear, clothing or a weapon",
         pattern: anyOf([
             "wears?",
-            "worn",
+            "worn(?! into\\b)",
             "wearing",
             "carr(?:ies|ied|ying)(?! (?:him|her|them|it)self)",
             "cloak(?:ed|s)?",

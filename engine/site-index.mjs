@@ -97,6 +97,7 @@ import { isGmNote, isDraftNote } from "./note-vocabulary.mjs";
  * The resolved index and everything a wikilink resolver reads beside it.
  *
  * @typedef {object} SiteIndex
+ * @property {import("../content-config.mjs").ContentBuildConfig} [config] - The resolved configuration.
  * @property {Map<string, {url: string, name?: string, draft?: boolean, anchors?: Set<string>|Record<string, string>}>} index
  *                                       Address → page. `draft` says the page
  *                                       carries the `draft` tag, which marks a
@@ -179,6 +180,7 @@ function mergeForeign(index, foreignIndex) {
  *   `contentIndex: false` — a Foundry dependency only, with no fetched index.
  *   A link naming one fails naming the key, rather than reading as prose or an
  *   ordinary dead address.
+ * @param {import("../content-config.mjs").ContentBuildConfig} [options.config] - The resolved configuration.
  * @param {object[]} [options.records] - Content-index records.
  * @param {Map<string, object>} [options.foreignReferences] - Foreign reference targets.
  * @param {import("./content-session.mjs").ContentSyntax} [options.syntax] - Exact-text scanner projections.
@@ -187,6 +189,7 @@ function mergeForeign(index, foreignIndex) {
 export function buildSiteIndex(
     entries,
     {
+        config,
         foreignIndex = new Map(),
         noIndexPackages = new Set(),
         package: builderPackage,
@@ -306,6 +309,7 @@ export function buildSiteIndex(
     }
 
     return {
+        config,
         contentPackage: ownPackage,
         // Carried on the same context `resolvedDateFields` reads: a recurring
         // event's `next` is computed against this present.
@@ -313,7 +317,11 @@ export function buildSiteIndex(
             ...reckoningContext({ notes: records }),
             present: normalizeCurrentDate(currentDate),
         },
-        referenceTargets: buildReferenceTargets(records, new Map([...foreignReferences, ...index])),
+        referenceTargets: buildReferenceTargets(
+            records,
+            new Map([...foreignReferences, ...index]),
+            config,
+        ),
         index,
         ambiguous,
         contentTypes,
@@ -358,6 +366,7 @@ export function figureIndexKeys(pkg, type, shortcode) {
  * @param {string} target - The address as written, anchor already removed —
  *   {@link module:engine/wikilink-syntax.ParsedWikilink.target}.
  * @param {object} options
+ * @param {import("../content-config.mjs").ContentBuildConfig} [options.config] - The resolved configuration.
  * @param {Set<string>} options.contentTypes - Every type this build reads as
  *   an address qualifier.
  * @param {Set<string>} options.packages - Every package an address may name.
@@ -375,9 +384,17 @@ export function figureIndexKeys(pkg, type, shortcode) {
  */
 export function resolveCrossNoteFigures(
     target,
-    { contentTypes, packages, noIndexPackages, contentPackage, siteIndexMap, figuresByAddress },
+    {
+        contentTypes,
+        packages,
+        noIndexPackages,
+        contentPackage,
+        siteIndexMap,
+        figuresByAddress,
+        config,
+    },
 ) {
-    const read = readQualifier(target, contentTypes, packages, noIndexPackages);
+    const read = readQualifier(target, contentTypes, packages, noIndexPackages, config);
     if (!read || read.reason) return undefined;
     const key = expandAddress(read, { package: contentPackage, system: NOTE_SYSTEM });
     const shortKey = `${read.itemDoc ? "doc" : ""}${read.type}/${read.shortcode}`.toLowerCase();
@@ -423,6 +440,7 @@ export function wikiContext(
     { src, file, type = null, errors, foreignIndex = new Map(), assets, resolved },
 ) {
     return {
+        config: built.config,
         index: built.index,
         foreign: foreignIndex,
         // The address space an embed resolves against. Separate from `index`
@@ -473,6 +491,7 @@ export function resolveInfoboxRef(siteIndex, ref, hint) {
             :   undefined;
     }
     const context = {
+        config: siteIndex.config,
         package: siteIndex.contentPackage ?? contentPackage(),
         system: "note",
         types: siteIndex.contentTypes,

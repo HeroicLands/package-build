@@ -4779,18 +4779,18 @@ The words, and what each means:
 
 | Word         | Label      | Meaning                                                                            |
 | ------------ | ---------- | ---------------------------------------------------------------------------------- |
-| `amber`      | Amber      | Golden or coppery, with no grey or green in it; the honey-toned eye.               |
+| `amber`      | Amber      | Golden or coppery, with no gray or green in it; the honey-toned eye.               |
 | `black`      | Black      | An iris that cannot be told from the pupil in any light, darker than `dark_brown`. |
 | `blue`       | Blue       | Unmixed blue, from pale ice to deep sea.                                           |
 | `brown`      | Brown      | Mid-brown, the iris pattern still legible in ordinary light.                       |
 | `dark_brown` | Dark Brown | Brown so deep the iris barely separates from the pupil.                            |
 | `gold`       | Gold       | A bright metallic yellow iris, brighter and colder than `amber`.                   |
-| `grey`       | Grey       | Grey or grey-blue, cool and without green.                                         |
+| `grey`       | Gray       | Gray or gray-blue, cool and without green.                                         |
 | `green`      | Green      | Green dominant, with no brown ring worth naming.                                   |
 | `hazel`      | Hazel      | Brown and green together, often shifting with the light; the commonest mixed eye.  |
 | `red`        | Red        | An iris that is red, as in some undead and elder folk.                             |
 | `pink`       | Pink       | A pale pink or rose iris, as in albinism.                                          |
-| `silver`     | Silver     | A grey iris with a bright metallic sheen rather than a dull cast.                  |
+| `silver`     | Silver     | A gray iris with a bright metallic sheen rather than a dull cast.                  |
 | `violet`     | Violet     | The pink-violet of an iris carrying no pigment.                                    |
 | `white`      | White      | An iris white or near-white, so that the eye reads pale throughout.                |
 | `yellow`     | Yellow     | A pale, flat yellow iris without the warmth of `amber`.                            |
@@ -4806,20 +4806,20 @@ The words, and what each means:
 | `chestnut`                 | Chestnut                 | Mid-brown with a red cast, the brown dominant — between brown and auburn.                                                    |
 | `dark_blonde`              | Dark Blonde              | Blonde darkened towards light brown.                                                                                         |
 | `dark_brown`               | Dark Brown               | Brown approaching black, still brown in sunlight.                                                                            |
-| `grey`                     | Grey                     | Grey throughout, with nothing of the original colour left to read.                                                           |
-| `greying_auburn`           | Greying Auburn           | Auburn still dominant, grey coming in.                                                                                       |
-| `greying_black`            | Greying Black            | Black still dominant, grey coming in.                                                                                        |
-| `greying_blonde`           | Greying Blonde           | Blonde still dominant, grey coming in.                                                                                       |
-| `greying_brown`            | Greying Brown            | Brown still dominant, grey coming in.                                                                                        |
-| `greying_chestnut`         | Greying Chestnut         | Chestnut still dominant, grey coming in.                                                                                     |
-| `greying_dark_blonde`      | Greying Dark Blonde      | Dark Blonde still dominant, grey coming in.                                                                                  |
-| `greying_dark_brown`       | Greying Dark Brown       | Dark Brown still dominant, grey coming in.                                                                                   |
-| `greying_light_brown`      | Greying Light Brown      | Light Brown still dominant, grey coming in.                                                                                  |
+| `grey`                     | Gray                     | Gray throughout, with nothing of the original color left to read.                                                            |
+| `greying_auburn`           | Graying Auburn           | Auburn still dominant, gray coming in.                                                                                       |
+| `greying_black`            | Graying Black            | Black still dominant, gray coming in.                                                                                        |
+| `greying_blonde`           | Graying Blonde           | Blonde still dominant, gray coming in.                                                                                       |
+| `greying_brown`            | Graying Brown            | Brown still dominant, gray coming in.                                                                                        |
+| `greying_chestnut`         | Graying Chestnut         | Chestnut still dominant, gray coming in.                                                                                     |
+| `greying_dark_blonde`      | Graying Dark Blonde      | Dark Blonde still dominant, gray coming in.                                                                                  |
+| `greying_dark_brown`       | Graying Dark Brown       | Dark Brown still dominant, gray coming in.                                                                                   |
+| `greying_light_brown`      | Graying Light Brown      | Light Brown still dominant, gray coming in.                                                                                  |
 | `light_brown`              | Light Brown              | Brown lightened toward dark blonde: paler than `brown`, darker than `dark_blonde`.                                           |
-| `greying_red`              | Greying Red              | Red still dominant, grey coming in.                                                                                          |
-| `greying_strawberry_blond` | Greying Strawberry Blond | Strawberry Blond still dominant, grey coming in.                                                                             |
+| `greying_red`              | Graying Red              | Red still dominant, gray coming in.                                                                                          |
+| `greying_strawberry_blond` | Graying Strawberry Blond | Strawberry Blond still dominant, gray coming in.                                                                             |
 | `red`                      | Red                      | Ginger or copper, the red unmixed with brown.                                                                                |
-| `silver`                   | Silver                   | A bright metallic pale between white and grey: the silver of great age, or the natural silver some elder folk are born with. |
+| `silver`                   | Silver                   | A bright metallic pale between white and gray: the silver of great age, or the natural silver some elder folk are born with. |
 | `strawberry_blond`         | Strawberry Blond         | Pale red-gold: blonde with a red cast, lighter than red.                                                                     |
 | `white`                    | White                    | Wholly white, whether from age or from carrying no pigment.                                                                  |
 
@@ -4831,7 +4831,7 @@ The words, and what each means:
 | `fair`       | Fair       | Light with a pink cast, burning before it browns.                                           |
 | `light`      | Light      | Light and neutral, browning without burning readily.                                        |
 | `medium`     | Medium     | Neither light nor dark, with no strong cast either way.                                     |
-| `olive`      | Olive      | Medium with a green-grey cast.                                                              |
+| `olive`      | Olive      | Medium with a green-gray cast.                                                              |
 | `tawny`      | Tawny      | Light brown, warm rather than olive.                                                        |
 | `golden`     | Golden     | Light to medium with a yellow cast.                                                         |
 | `tanned`     | Tanned     | Medium, darkened by sun rather than by birth.                                               |

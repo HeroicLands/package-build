@@ -12,6 +12,7 @@
  * event does not state is a finding at the reference.
  */
 
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -85,6 +86,7 @@ beforeAll(() => {
     fs.writeFileSync(path.join(cache, ".complete"), "");
     const { index: foreignIndex } = loadForeignIndexes(
         {
+            docEntryTypes: loadPackConfig().docEntryTypes,
             contentPackage: "demo",
             paths: { metadataCache: path.join(dir, "cache") },
             relationships: { requires: [{ id: "elder", manifest: "https://x/y.json" }] },

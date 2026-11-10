@@ -130,6 +130,7 @@ export function anchorPageId(noteId, anchorSlug) {
  * @param {string} [contentPackage] - This build's *content* package, which an
  *   authored address may name explicitly. Defaults to `packageId`.
  * @param {object} [opts] - Options.
+ * @param {import("../content-config.mjs").ContentBuildConfig} [opts.config] - The resolved configuration.
  * @param {Map<string, object>} [opts.assets] - The files this package ships, by
  *   canonical address. They resolve no link — an asset is not a document — and
  *   answer only the art fields, which name a file and never a document.
@@ -148,7 +149,7 @@ export function buildWikilinkIndex(
     packageId,
     foreign,
     contentPackage,
-    { assets, noIndexPackages, referenceTargets, foreignReferences } = {},
+    { assets, noIndexPackages, referenceTargets, foreignReferences, config } = {},
 ) {
     if (!packageId) {
         throw new Error(
@@ -223,6 +224,7 @@ export function buildWikilinkIndex(
 
     return {
         byShortcode,
+        config,
         referenceTargets,
         foreignReferences,
         types,
@@ -319,7 +321,7 @@ function shortcodeCase(index, problem) {
     const local =
         (read.package ?? index.contentPackage) === index.contentPackage &&
         index.byShortcode?.has(
-            `${resolveItemDocType(read.type, index.types) ?? read.type}/${read.shortcode}`,
+            `${resolveItemDocType(read.type, index.types, index.config) ?? read.type}/${read.shortcode}`,
         );
     const declared = local || foreignHits(index, read).length > 0;
     return { shortcode: problem.shortcode, ...(declared ? { declared: read.shortcode } : {}) };
@@ -663,13 +665,17 @@ function resolveWikilink(literal, rawInner, view, { markdown, captionLabels }) {
  * @param {(link: ResolvedLink) => string} opts.write - The target's writer,
  *   from {@link LINK_WRITERS}.
  * @param {Map<string, string>} [opts.captionLabels] - Numbered caption labels.
+ * @param {(offset: number) => boolean} [opts.includeResolved] - Whether a resolved occurrence joins the graph.
  * @returns {{markdown: string, links: ResolvedLink[], findings: Array<{link:
  *   string, offset: number, occurrence: number, target: string, reason:
  *   string}>, resolved: object[]}} The written body; every link in body order;
  *   the findings; and every destination a link outside its own page resolved
  *   to, in body order, repeats included — the page's edges.
  */
-export function resolveWikilinks(markdown, { view, write, captionLabels }) {
+export function resolveWikilinks(
+    markdown,
+    { view, write, captionLabels, includeResolved = () => true },
+) {
     const links = [];
     const findings = [];
     const resolved = [];
@@ -685,7 +691,7 @@ export function resolveWikilinks(markdown, { view, write, captionLabels }) {
             const occurrence = (seen.get(literal) ?? 0) + 1;
             seen.set(literal, occurrence);
             findings.push({ link: literal, offset, occurrence, ...link.finding });
-        } else if (!link.samePage) resolved.push(link.destination);
+        } else if (!link.samePage && includeResolved(offset)) resolved.push(link.destination);
         return write(link);
     });
     return { markdown: out, links, findings, resolved };
@@ -713,6 +719,7 @@ export function resolveWikilinks(markdown, { view, write, captionLabels }) {
 export function packLinkView(index, { type, id, pack, docPack }) {
     return {
         context: {
+            config: index.config,
             package: index.contentPackage,
             system: NOTE_SYSTEM,
             types: index.types,
@@ -724,12 +731,13 @@ export function packLinkView(index, { type, id, pack, docPack }) {
         self: () => index.byId?.get(`${type}/${id}`) ?? { type, id, pack, docPack },
         find(read) {
             // Ordinary wikilinks default to readable note content.
-            const baseType = resolveItemDocType(read.type, index.types);
+            const baseType = resolveItemDocType(read.type, index.types, index.config);
             const address = completeAddress(read, {
                 package: index.contentPackage,
                 system: NOTE_SYSTEM,
             });
-            const itemDoc = address.system === NOTE_SYSTEM && hasDocEntry(baseType ?? read.type);
+            const itemDoc =
+                address.system === NOTE_SYSTEM && hasDocEntry(baseType ?? read.type, index.config);
             const local =
                 read.package === index.contentPackage ?
                     index.byShortcode.get(`${baseType ?? read.type}/${read.shortcode}`)
@@ -864,6 +872,7 @@ export function resolveReference(index, ref, hint) {
             hint,
         );
     const tuple = parseAddress(ref, {
+        config: index.config,
         package: index.contentPackage,
         system: "note",
         types: index.types,
@@ -894,7 +903,7 @@ export function resolveReference(index, ref, hint) {
             return undefined;
         }
         const type = tuple.type;
-        const documentation = tuple.system === NOTE_SYSTEM && hasDocEntry(type);
+        const documentation = tuple.system === NOTE_SYSTEM && hasDocEntry(type, index.config);
         if (tuple.system !== (documentation ? NOTE_SYSTEM : ownDocumentSystem(type)))
             return undefined;
         const local = index.byShortcode?.get(`${type}/${tuple.shortcode}`);
@@ -1010,6 +1019,7 @@ export function siteLinkView(ctx, body) {
         :   undefined);
     return {
         context: {
+            config: ctx.config,
             package: ctx.contentPackage,
             system: NOTE_SYSTEM,
             types: ctx.contentTypes ?? new Set(),
@@ -1188,6 +1198,7 @@ export function resolveWebWikilinks(body, ctx) {
         view: siteLinkView(ctx, body),
         write: ctx.output === "book" ? LINK_WRITERS.book : LINK_WRITERS.web,
         captionLabels: ctx.captionLabels,
+        includeResolved: ctx.includeResolvedFor?.(embedded.markdown),
     });
     for (const { link, offset, occurrence, ...finding } of result.findings) record(link, finding);
     ctx.resolved?.push(...result.resolved);
