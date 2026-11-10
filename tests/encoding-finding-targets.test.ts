@@ -25,7 +25,7 @@ it("preserves encoding-document schema positions across lint, Foundry, site and 
                 language: "test",
                 font: "face",
                 mappings: { a: "UNKNOWN" },
-                rules: { normalization: "NFC", matching: "longest-first" },
+                rules: { normalization: "NFC", matching: "longest-first", roundTrip: "none" },
             },
         };
         const fonts: any = {

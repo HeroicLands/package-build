@@ -24,8 +24,9 @@ Semaron script. The lexicon and the notes in them are the guide's own sample.
 
 ## The model
 
-A language defines its words, meanings and pronunciation. An encoding defines
-which source sequences write which characters. A face draws those characters.
+Pronouncing Thalorna defines every sound and Roman spelling. A language selects
+its allowed sounds from that guide and defines its words and meanings. An
+encoding selects each sound’s visible or invisible form. A face draws the visible forms.
 Keeping these facts in their owning sources gives each passage one consistent
 conversion on the site, in Foundry and in the book.
 
@@ -40,12 +41,21 @@ Language identification alone retains Roman text. `enc=` selects an encoding
 document, which infers its language and font. Unknown source characters are
 errors; a face drawing a character does not make it a spelling mapping.
 
-An encoding uses exact round trips by default. If its script omits Roman
-distinctions, its note can explicitly select `rules.roundTrip: canonical`.
-Decoding then gives an authored conventional spelling; authoritative lexicon
-entries can recover fuller word forms. The encoder adds no invisible metadata
-to restore erased spelling. See the [canonical encoding contract](../encoding-core.md#executable-rules)
-for aliases, inherent vowels and shared word separators.
+A sound encoding uses exact round trips. Its configured language note states
+`data.sounds.letters` as a list of guide spellings, such as `[a, e, ai]`,
+selecting only the guide’s sounds without repeating pronunciation rules. The encoding chooses one visible or shared invisible glyph
+for every allowed sound. Missing coverage is an error. The shared guide alone
+determines pronunciation, including every coined name and word; `y` is always
+consonantal, including the closing /j/ in `iy` and `uy`.
+
+Stress, rising and falling tone, and compound boundaries have shared invisible
+characters. A tone sits on the first letter of held `aa`, `ii` or `uu`, and
+also marks stress unless an acute appears elsewhere. Decoding
+reads the selected forms directly and restores guide separators: `kau` and
+`kaü`, `asha` and `as-ha`, and `káu` and `kaú` stay distinct. It needs no
+lexicon. A logographic encoding states `rules.roundTrip: none`, makes no
+round-trip promise, and returns every registered reading of a sign. See the
+[encoding contract](../encoding-core.md#exact-sound-encodings).
 
 ## Roman short vowels and stress
 
@@ -77,9 +87,15 @@ having it installed. Foundry packages that disable the shared
 base stylesheet supply their own presentation. IPA is phonetic notation, not
 Roman spelling and not input to an invented script encoding.
 
-A language note's `data.sounds.letters[].ipa` and `data.sounds.finals[].ipa`, and
-a spelling guide's `data.sounds.letters[].ipa`, are already typed pronunciation
-fields. Keep their plain IPA values. To give generated table cells the same
+Language notes select sounds from the shared guide and describe written word
+shapes. A `sounds.finals` row holds only `final`. Harmony members and a nonempty
+`skeleton.between` each name one whole guide vowel unit. `syllables.vowelPairs`
+and `vowelPair` edges under `sounds` or `naming` allow sequences of those units: `iy`, `uy` and `ia` are
+valid, while `y` alone is consonantal. Empty optional constraints retain their
+meaning. The guide note owns `sounds.marks` and the meaning of every mark.
+
+The `data.sounds.letters[].ipa` field on a language note or spelling guide
+states the guide's pronunciation. Keep their plain IPA values. To give generated table cells the same
 presentation, wrap the query's result, not the stored field:
 
 ```sql
@@ -206,33 +222,34 @@ terminal from the following span, or escape the terminal.
 
 An encoding is a `doc` note. Its `data.language` is a configured language
 alias, `data.font` is one installed font slug, and `data.mappings` maps Roman
-strings to a font glyph code or a sequence of codes. `data.rules` holds the
-closed executable rules. Optional `data.accepts` states accepted characters
-or ranges and `data.vowels` states contextual vowels. The note body explains
-the spelling to a reader.
+strings to font glyph codes. Sound encodings choose one glyph for each allowed
+guide sound. Logographic encodings may use code sequences and optional
+`data.accepts` for accepted characters or ranges and `data.vowels` for
+contextual vowels. `data.rules` holds the closed executable rules.
 
 The font supplies each glyph's `code` beside its `codepoint` in `fonts.json`.
 Codes belong to the selected font; the note never repeats a code table.
 Unknown fields, glyph codes, languages and fonts are positioned findings.
-An encoding's output must decode unambiguously, including across adjacent
-mappings and spaces. The compiler refuses indistinguishable spellings rather
-than choosing a guessed reading. See [the executable rules](../encoding-core.md).
+A sound encoding's output must distinguish its sounds, including across
+adjacent mappings and spaces. Logographic encodings use `roundTrip: none`
+and return every registered reading. See [the executable rules](../encoding-core.md).
 
-Mappings match longest first; contextual rules precede their unconditional
-alternatives. A contextual mapping may use `after: vowel`, `after: consonant`
+Logographic mappings match longest first; their contextual rules precede
+unconditional alternatives. A contextual mapping may use `after: vowel`, `after: consonant`
 or one exact NFC letter such as `after: a` to test the preceding source letter.
 It may combine this with `before` and `at`; all supplied conditions must hold.
 The categories use `data.vowels`. These positive conditions need explicit
 allowed alternatives to refuse a predecessor, with no unconditional fallback.
 `after` governs encoding only; see [the executable rules](../encoding-core.md)
-for normalization and decoding details. A case rule may allow lowercase and initial-capital
+for normalization and decoding details. A logographic case rule may allow lowercase and initial-capital
 groups while refusing other mixed or uppercase group spellings. Encoding keeps
 authored case and never rewrites a word's Roman spelling.
 
 Outside literal markers, a run of Unicode Zs characters or U+0009 through
 U+000D writes one space. Other whitespace needs an explicit mapping. Standard
 Roman punctuation, verse and name controls are inherited from the shared
-standard; an explicit mapping can give a standard source its font glyph.
+standard. A logographic encoding's explicit mapping can give a standard
+source its font glyph; sound encodings retain the standard controls.
 
 ### Literal codes
 
@@ -447,7 +464,7 @@ The keys are checked where they sit:
 
 ## Native spellings and parts
 
-Every encoding uses the same order for a language word: its own `native`
+A logographic encoding uses this order for a language word: its own `native`
 entry for that encoding and face; otherwise the writings of all its parts;
 otherwise the encoding's rows. A face-specific entry precedes an entry for no
 face. Exact lexical forms precede folded lookup, so separately authored
@@ -478,7 +495,7 @@ A built part is an exact word or affix, then the same form with joining
 hyphens removed. Parts can themselves be built. A plural or present form can
 use the stem's writing followed by its explicitly named ending from
 `grammar.native`, whose entries use `{ending, enc, font?, text}`. These
-writings work under every encoding. Missing parts do not invent signs, and
+writings apply to logographic encodings. Sound encodings use their per-sound choices. Missing parts do not invent signs, and
 recursive parts terminate without a writing. Entries with genuinely different
 writings remain an ambiguity naming every matching gloss.
 
@@ -487,25 +504,22 @@ lexical writing or literal codes for a word. Roman words reach the lexical
 lookup before the codes-only source checks. Every remaining span, including
 literal payloads and punctuation, passes through the encoding's own validation.
 The refusal names an unwritten word, language and encoding and points to that
-word. An alphabetic encoding validates the whole Roman input before native
-overrides, so a native entry cannot bypass its spelling restrictions.
+word. Sound encodings validate and encode Roman input directly through the guide;
+a native entry does not override their sound choices.
 
 ### Reading script text
 
-Without a language, decoding is exactly the encoding's longest-output match.
-With a language, explicit native and composed writings are tried first,
-longest first; a shared writing uses the first listed sense. Literal marker
-spans decode through their inline codes. Unknown unmarked signs in a script
-accepting no letters become `⟦codes⟧` with a finding.
+Sound encodings decode their chosen forms directly, preserving stress, tone and
+boundaries and inserting the guide’s separators where needed. Typed text
+without invisible characters returns its plain sound skeleton; a lexicon does
+not fill in missing sounds or replace that reading.
 
-For an unmarked word, the lexicon can recover its unwritten sounds from the
-plain decoded skeleton. A unique skeleton gives its form; a shared skeleton
-gives the first authored form. Each word's citation precedes its variants and derived forms, before the next word's citation. Registered names retain their authored order. Complete names are matched longest first across word separators and receive one pair of braces. A known ordinary word keeps its encoded case without a false unknown-word finding. An unknown skeleton keeps the
-plain decoding and produces a located finding. This is decided per word: a
-passage can mix typed words with encoded words. A word carrying any invisible
-mark keeps exact decoding without skeleton recovery; an explicit authored
-native exception still has precedence. Stress marks are preserved by exact
-rows. Names are represented with braces according to the language's rules.
+Logographic encodings declare `rules.roundTrip: none`. Explicit native and
+composed writings are matched longest first. A shared writing returns every
+registered reading in authored order, as `[sun | day]`; a single reading stays
+plain. Literal spans decode through their font codes. Unknown unmarked signs
+in a codes-only script become `⟦codes⟧` with a finding. Logographs make no
+exact round-trip promise.
 
 ## Emphasis in a script
 
@@ -674,7 +688,7 @@ data:
 the beats of one line, a whole number above zero; `kind` is `accentual`, the
 only kind: a beat falls on a stressed syllable and the length of a syllable is
 not counted. A div that states `scan=` with the declared name and a `lang=`
-whose language note states `data.sounds.stress` is counted line by line:
+with a configured language note is counted line by line:
 
 ```markdown
 ::: {.verse lang=vyl scan=trimeter}
@@ -683,13 +697,19 @@ Lokamen lonak zaron.
 :::
 ```
 
-**The stress rule** is `data.sounds.stress`, `{ two, longer, mark }`. `two`
-(`first` or `last`) places the stress in a word of two syllables; `longer`
-(`first`, `antepenultimate`, `penultimate` or `final`) places it in a word of
-three or more, on its first syllable or counted from its end; `mark` (`acute`, `grave` or `circumflex`) is a
-diacritic that moves the stress to the syllable it sits on. Syllables are vowel
-groups: a vowel is a letter whose base is `a`, `e`, `i`, `o` or `u`, and a pair
-that the language lists in `data.sounds.syllables.vowelPairs` is one syllable.
+**Pronouncing Thalorna determines every reading.** The scan uses the shared
+sound reader, taking the longest guide group first. Each vowel sound makes one
+syllable; `y` alone is a consonant. A diaeresis or an acute on the second vowel
+starts another syllable. A grave changes vowel quality, never stress. An acute
+chooses the stressed syllable; otherwise a tone does; otherwise stress falls
+on the first of two syllables or the penultimate of a longer word. The only
+syllable of a one-syllable word is stressed.
+
+A hyphen keeps sounds apart without adding another word or stress. Dictionary
+coverage cannot change these boundaries. The language's `sounds.syllables.vowelPairs`
+may describe which vowels its words allow together, but cannot change the guide's
+reading. Neither word classes nor poetic beat declarations alter pronunciation.
+Invalid guide spellings are errors on the verse line.
 
 **The beat convention, in plain words:**
 
@@ -721,11 +741,9 @@ anything, each an error:
 
 > `` `hexamter` is not a declared metre: `scan=` names the `name` of a `data.metres` entry of a `doc` note; did you mean `hexameter`? ``
 
-> `` `scan=` counts beats by a language's stress rule: the div needs a `lang=` ``
+> `` `scan=` needs a `lang=` to look up word classes in its language note ``
 
-> ``the language `vyl` states no `data.sounds.stress`, which `scan=` counts beats by``
-
-> ``the language `vyl` is not a configured language with a `note`, so it has no stress rule for `scan=` to count beats by``
+> ``the language `vyl` is not a configured language with a `note` for `scan=` to look up word classes``
 
 A repeated metre name is an error too:
 
@@ -913,7 +931,7 @@ its poems keep. This note is the guide's own sample and carries no canon beyond
 what the guide's examples need to run.
 ```
 
-The language note holds the dictionary, the grammar, the stress rule and the
+The language note holds the dictionary, the grammar and the
 core flag:
 
 **`assets/content/Skills/Vylari.md`**
@@ -921,52 +939,121 @@ core flag:
 ```markdown
 ---
 shortcode: vylarilng
-name: { full: Vylari Language }
+name:
+  full: Vylari Language
 type: skill
 subType: language
 data:
-  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789"
+  roman: ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚáéíóúËëÀà0123456789
   core: true
   fields:
-    - { name: Law, holds: "Oaths, seals and roads." }
+    - name: Law
+      holds: Oaths, seals and roads.
   affixes:
-    - {
-        form: "-andar",
-        gloss: "doing it: the present participle",
-        replaces: vowel,
-        attachesTo: [v],
-      }
-    - { form: "-thos", gloss: "done, suffered: the past participle" }
+    - form: -andar
+      gloss: "doing it: the present participle"
+      replaces: vowel
+      attachesTo:
+        - v
+    - form: -thos
+      gloss: "done, suffered: the past participle"
   grammar:
     plural:
-      - { ending: os, becomes: oi }
-      - { ending: on, becomes: oi }
-      - { ending: a, becomes: ai }
-      - { ending: "", becomes: oi }
+      - ending: os
+        becomes: oi
+      - ending: on
+        becomes: oi
+      - ending: a
+        becomes: ai
+      - ending: ""
+        becomes: oi
     verbs:
       replaces: then
-      persons: { I: men, you: zen, heShe: zor, we: mar, youAll: zar, they: zoi }
+      persons:
+        I: men
+        you: zen
+        heShe: zor
+        we: mar
+        youAll: zar
+        they: zoi
     agreement:
-      classes: [adj, pron]
-      endings: [os, a, on]
+      classes:
+        - adj
+        - pron
+      endings:
+        - os
+        - a
+        - on
     participles:
-      root: [athen, ethen]
-      affixes: ["-andar", "-thos"]
+      root:
+        - athen
+        - ethen
+      affixes:
+        - -andar
+        - -thos
   sounds:
-    stress: { two: first, longer: penultimate }
     syllables:
-      vowelPairs: [ai, au]
+      vowelPairs:
+        - ai
+        - au
+    letters:
+      [
+        a,
+        e,
+        i,
+        o,
+        u,
+        ai,
+        oi,
+        b,
+        d,
+        f,
+        h,
+        l,
+        m,
+        n,
+        p,
+        s,
+        t,
+        v,
+        w,
+        z,
+        g,
+        k,
+        ch,
+        sh,
+        th,
+        dh,
+        kh,
+        gh,
+        zh,
+        j,
+        y,
+        q,
+        ts,
+        ng,
+        r,
+      ]
   words:
     - form: zaron
       class: n
       field: Law
       gloss: an oath
       concept: oath-noun
-      native:
-        - { enc: vylsemaronenc, text: "󰉆󰉈󰈿󰈽󰈼" }
-    - { form: lonak, class: n, field: Law, gloss: a road, concept: road-noun }
-    - { form: lokathen, class: v, field: Law, gloss: to walk, concept: walk-verb }
-    - { form: alathos, class: pron, field: Law, gloss: "he, that one" }
+    - form: lonak
+      class: n
+      field: Law
+      gloss: a road
+      concept: road-noun
+    - form: lokathen
+      class: v
+      field: Law
+      gloss: to walk
+      concept: walk-verb
+    - form: alathos
+      class: pron
+      field: Law
+      gloss: he, that one
 ---
 
 The imperial tongue of the sample setting, written in the Semaron script and
@@ -985,25 +1072,6 @@ name:
 data:
   language: vyl
   font: semaron-kuriale
-  accepts:
-    - a-z
-    - A-Z
-    - 0-9
-    - "'"
-    - "-"
-    - "`"
-    - Á
-    - É
-    - Í
-    - Ó
-    - Ú
-    - á
-    - é
-    - í
-    - ó
-    - ú
-    - ’
-  vowels: aeiouAEIOUáéíóúÁÉÍÓÚ
   mappings:
     "0": DIGIT_ZERO
     "1": DIGIT_ONE
@@ -1081,86 +1149,15 @@ data:
     Ts: TSALEMA_MAJ
     ng: ENGARIS_MIN
     Ng: ENGARIS_MAJ
-    .: POINT
-    á:
-      - ANKRON_MIN
-      - STRESS
-    é:
-      - ELZA_MIN
-      - STRESS
-    í:
-      - ILTHERA_MIN
-      - STRESS
-    ó:
-      - ORNETHE_MIN
-      - STRESS
-    ú:
-      - ULMERA_MIN
-      - STRESS
-    Á:
-      - ANKRON_MAJ
-      - STRESS
-    É:
-      - ELZA_MAJ
-      - STRESS
-    Í:
-      - ILTHERA_MAJ
-      - STRESS
-    Ó:
-      - ORNETHE_MAJ
-      - STRESS
-    Ú:
-      - ULMERA_MAJ
-      - STRESS
+    ai: SOUND_AI
+    oi: SOUND_OI
   rules:
     normalization: NFC
     matching: longest-first
-    case:
-      single-letter: preserve
-      consonant-group: lowercase-or-initial-uppercase
-      other-group-cases: forbidden
-    stress:
-      modifier: STRESS
-      position: after-stressed-vowel
-      printing: false
-      effect: stress-only
-      changes-sound: false
-      changes-length: false
-      vowel-group-position: first-vowel
-    vowel-groups:
-      reading: established
-      allow-splitting: false
-      unrecognized-adjacent-vowels: separate
-      groups:
-        - ai
-        - au
-        - ei
-        - oi
-        - ou
-        - ae
-        - ie
-        - uo
-        - aa
-        - ii
-        - uu
-    diaeresis:
-      allowed: false
-    contextual-mappings:
-      - match: ny
-        before: vowel
-        emit: NYELIS_MIN
-      - match: Ny
-        before: vowel
-        emit: NYELIS_MAJ
-    y:
-      kind: consonant
-      sound: y in yes
-      vowel-reading: false
-    grave-accent:
-      allowed: false
+    roundTrip: exact
 ---
 
-These mappings write the sample vocabulary in Semaron Kuriale. They preserve its letter case and use the font's published glyph codes. Contextual groups take their stated before-vowel spelling, and stress is retained after the accented vowel so that the written distinction can be read back exactly.
+These mappings choose one form for each sound the sample language allows. Capital glyphs retain their case. The ai and oi sounds use their shared invisible forms, and stress and boundaries follow Pronouncing Thalorna.
 ```
 
 A note with a run. The couplet uses a word the lexicon does not hold:
@@ -1195,53 +1192,125 @@ language note gains an entry:
 ```markdown
 ---
 shortcode: vylarilng
-name: { full: Vylari Language }
+name:
+  full: Vylari Language
 type: skill
 subType: language
 data:
-  roman: "ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚÝáéíóúýËëÀà0123456789"
+  roman: ABDEFGHIKLMNOPRSTUVWYZabdefghiklmnoprstuvwyzÁÉÍÓÚáéíóúËëÀà0123456789
   core: true
   fields:
-    - { name: Law, holds: "Oaths, seals and roads." }
+    - name: Law
+      holds: Oaths, seals and roads.
   affixes:
-    - {
-        form: "-andar",
-        gloss: "doing it: the present participle",
-        replaces: vowel,
-        attachesTo: [v],
-      }
-    - { form: "-thos", gloss: "done, suffered: the past participle" }
+    - form: -andar
+      gloss: "doing it: the present participle"
+      replaces: vowel
+      attachesTo:
+        - v
+    - form: -thos
+      gloss: "done, suffered: the past participle"
   grammar:
     plural:
-      - { ending: os, becomes: oi }
-      - { ending: on, becomes: oi }
-      - { ending: a, becomes: ai }
-      - { ending: "", becomes: oi }
+      - ending: os
+        becomes: oi
+      - ending: on
+        becomes: oi
+      - ending: a
+        becomes: ai
+      - ending: ""
+        becomes: oi
     verbs:
       replaces: then
-      persons: { I: men, you: zen, heShe: zor, we: mar, youAll: zar, they: zoi }
+      persons:
+        I: men
+        you: zen
+        heShe: zor
+        we: mar
+        youAll: zar
+        they: zoi
     agreement:
-      classes: [adj, pron]
-      endings: [os, a, on]
+      classes:
+        - adj
+        - pron
+      endings:
+        - os
+        - a
+        - on
     participles:
-      root: [athen, ethen]
-      affixes: ["-andar", "-thos"]
+      root:
+        - athen
+        - ethen
+      affixes:
+        - -andar
+        - -thos
   sounds:
-    stress: { two: first, longer: penultimate }
     syllables:
-      vowelPairs: [ai, au]
+      vowelPairs:
+        - ai
+        - au
+    letters:
+      [
+        a,
+        e,
+        i,
+        o,
+        u,
+        ai,
+        oi,
+        b,
+        d,
+        f,
+        h,
+        l,
+        m,
+        n,
+        p,
+        s,
+        t,
+        v,
+        w,
+        z,
+        g,
+        k,
+        ch,
+        sh,
+        th,
+        dh,
+        kh,
+        gh,
+        zh,
+        j,
+        y,
+        q,
+        ts,
+        ng,
+        r,
+      ]
   words:
     - form: zaron
       class: n
       field: Law
       gloss: an oath
       concept: oath-noun
-      native:
-        - { enc: vylsemaronenc, text: "󰉆󰉈󰈿󰈽󰈼" }
-    - { form: lonak, class: n, field: Law, gloss: a road, concept: road-noun }
-    - { form: lokathen, class: v, field: Law, gloss: to walk, concept: walk-verb }
-    - { form: alathos, class: pron, field: Law, gloss: "he, that one" }
-    - { form: thiruthrimar, class: n, field: Law, gloss: a sworn witness }
+    - form: lonak
+      class: n
+      field: Law
+      gloss: a road
+      concept: road-noun
+    - form: lokathen
+      class: v
+      field: Law
+      gloss: to walk
+      concept: walk-verb
+    - form: alathos
+      class: pron
+      field: Law
+      gloss: he, that one
+    - form: thiruthrimar
+      class: n
+      field: Law
+      gloss: a sworn witness
 ---
 
 The imperial tongue of the sample setting, written in the Semaron script and

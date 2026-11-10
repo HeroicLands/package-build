@@ -178,7 +178,7 @@ error, located at its `type:` line — the key whose value made the note what it
 is:
 
 ```text
-Regions/Aelwyth/Weyshott.md:4:1: error: this note has no body, so it is a stub — and a stub carries a `description`, which is the only sentence a reader gets and what every table listing it prints
+Regions/Eilwith/Weyshott.md:4:1: error: this note has no body, so it is a stub — and a stub carries a `description`, which is the only sentence a reader gets and what every table listing it prints
 ```
 
 A body that reduces to a placeholder is located **by searching the file for the
@@ -186,7 +186,7 @@ phrase the rule matched**, which is the implicit-position rule: the finding is
 about a literal, so it lands on that literal rather than on the frontmatter:
 
 ```text
-Regions/Aelwyth/Harad.md:14:1: error: this note's body says only "_To be written._", so it publishes a page that tells a reader nothing — empty the body to make this a stub, or write it
+Regions/Eilwith/Harad.md:14:1: error: this note's body says only "_To be written._", so it publishes a page that tells a reader nothing — empty the body to make this a stub, or write it
 ```
 
 A link into a stub is refused, and because the stub is in the index the message
@@ -194,7 +194,7 @@ can name the file to open rather than reporting that the address resolves
 nowhere:
 
 ```text
-Regions/Aelwyth/Aelwyth_Region.md:41:14: error: address [[place-weyshott]] names a stub at Regions/Aelwyth/Weyshott.md, which has no body and therefore no page — name it in prose, or write the note
+Regions/Eilwith/Eilwith_Region.md:41:14: error: address [[place-weyshott]] names a stub at Regions/Eilwith/Weyshott.md, which has no body and therefore no page — name it in prose, or write the note
 ```
 
 A body that may be a draft that forgot its marker is a **warning**, because the

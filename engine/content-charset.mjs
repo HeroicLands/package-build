@@ -382,7 +382,7 @@ function phoneticRanges(text) {
             // These are the existing sounds declarations: language notes and doc spelling guides.
             if (language || type === "doc") {
                 const yamlStart = text.indexOf(frontmatter.yaml);
-                for (const key of language ? ["letters", "finals"] : ["letters"]) {
+                for (const key of ["letters"]) {
                     const rows = doc.getIn(["data", "sounds", key], true);
                     if (!isSeq(rows)) continue;
                     for (let index = 0; index < rows.items.length; index++) {

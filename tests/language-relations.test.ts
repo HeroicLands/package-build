@@ -74,34 +74,28 @@ beforeAll(async () => {
                 "      - {letters: [â], kind: long vowel, like: father, ipa: aː}",
                 "    edges:",
                 "      - {edge: closeConsonant, sounds: [n, r]}",
-                "      - {edge: syllabic, sounds: any}",
+                "      - {edge: vowelPair, sounds: any}",
                 "      - {edge: openCluster, sounds: []}",
                 "    clusters: {max: 2}",
-                "    stress: {two: last, longer: final}",
                 "    finals:",
-                "      - {final: ang, like: father then ng, ipa: aŋ}",
+                "      - {final: ang}",
                 "    syllables:",
                 "      onsets: single",
                 "      codas: [b, d]",
                 "      finals: any",
                 "      vowelPairs: []",
                 "      initialVowel: true",
-                "      harmony: {back: [a, o], front: [e, ö], neutral: [i], neutralAs: front}",
+                "      harmony: {back: [a, o], front: [e, i], neutral: [i], neutralAs: front}",
                 "    joining:",
                 "      - {first: [a, â], second: [a, â], written: â, example: méga + andáhr}",
                 "    joins:",
                 "      - {meeting: V+C, rule: double, letters: [p, t], where: between stems}",
-                "    marks:",
-                "      - {mark: acute, letters: [á, é], kind: stress, limit: one}",
                 "    skeleton:",
                 "      - {second: [m, n], third: [r], between: u}",
                 "      - {second: [l, r], between: ''}",
                 "      - {second: any, between: a}",
                 "    frames:",
                 "      - {frame: bare, shape: K1aK2K3, class: [n], makes: the thing itself, examples: {r-m-k: ramk, d-l-k: dalk}}",
-                "    readPast:",
-                '      - {written: á, readAs: a, what: "the acute, a stress mark"}',
-                '      - {written: "\'", what: the seam}',
                 "  soundChanges:",
                 "    - name: From Dunhari to Sovidur",
                 "      from: skill-dunharlng",
@@ -424,7 +418,7 @@ describe("the sound relations", () => {
     it("hold edges, `any` a list of one and none an empty list", async () => {
         expect(await rows("SELECT edge, sounds FROM edges ORDER BY position")).toEqual([
             { edge: "closeConsonant", sounds: ["n", "r"] },
-            { edge: "syllabic", sounds: ["any"] },
+            { edge: "vowelPair", sounds: ["any"] },
             { edge: "openCluster", sounds: [] },
         ]);
     });
@@ -433,15 +427,6 @@ describe("the sound relations", () => {
         expect(await rows("SELECT language, max FROM clusters")).toEqual([
             { language: DUNHARI, max: 2 },
         ]);
-    });
-
-    it("hold spellings read past", async () => {
-        expect(await rows("SELECT written, readAs, what FROM read_past ORDER BY position")).toEqual(
-            [
-                { written: "á", readAs: "a", what: "the acute, a stress mark" },
-                { written: "'", readAs: null, what: "the seam" },
-            ],
-        );
     });
 
     it("hold one row per step of each sound-change set, `where` read quoted", async () => {
@@ -484,13 +469,8 @@ describe("the sound relations", () => {
         ]);
     });
 
-    it("hold the stress rule and the finals", async () => {
-        expect(await rows("SELECT language, two, longer, mark FROM stress")).toEqual([
-            { language: DUNHARI, two: "last", longer: "final", mark: null },
-        ]);
-        expect(await rows('SELECT final, "like", ipa FROM finals')).toEqual([
-            { final: "ang", like: "father then ng", ipa: "aŋ" },
-        ]);
+    it("hold the finals", async () => {
+        expect(await rows("SELECT final FROM finals")).toEqual([{ final: "ang" }]);
     });
 
     it("hold the syllable rules as one row, `any` a list of one and harmony in columns", async () => {
@@ -506,7 +486,7 @@ describe("the sound relations", () => {
                 neverInitial: null,
                 signature: null,
                 harmony_back: ["a", "o"],
-                harmony_front: ["e", "ö"],
+                harmony_front: ["e", "i"],
                 harmony_neutral: ["i"],
                 harmony_neutralAs: "front",
                 harmony_partners: null,
@@ -525,7 +505,7 @@ describe("the sound relations", () => {
             await rows(
                 `SELECT mark, letters, kind, "limit" FROM marks WHERE language = '${DUNHARI}'`,
             ),
-        ).toEqual([{ mark: "acute", letters: ["á", "é"], kind: "stress", limit: "one" }]);
+        ).toEqual([]);
     });
 
     it("hold the skeleton vowel and the frames, a frame's examples by root", async () => {
@@ -638,10 +618,8 @@ describe("an empty corpus", () => {
                 "SELECT letters FROM letters WHERE list_contains(letters, 'a')",
                 "SELECT edge FROM edges WHERE list_contains(sounds, 'n')",
                 "SELECT max + 1 AS n FROM clusters",
-                "SELECT written, readAs FROM read_past",
                 'SELECT name, step_position + 1 AS n, step, "where" FROM sound_changes',
-                "SELECT stress FROM stress",
-                'SELECT final, "like" FROM finals',
+                "SELECT final FROM finals",
                 "SELECT onsets FROM syllables WHERE initialVowel AND list_contains(codas, 'b')",
                 "SELECT written FROM joining WHERE list_contains(first, 'a')",
                 "SELECT rule FROM joins WHERE list_contains(letters, 'p')",

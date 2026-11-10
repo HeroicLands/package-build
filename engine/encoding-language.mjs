@@ -185,7 +185,7 @@ function literalEnd(text, at) {
 }
 
 /**
- * Encode using the lexicon's own and composed writings before the encoding rows.
+ * Encode sound choices directly, or logographs through registered native writings.
  * @param {ReturnType<import("./encoding.mjs").compileEncoding>} enc
  * @param {string} text
  * @param {{font?:string,verse?:boolean,lexicon?:{language:string,data:Record<string,any>}}} [options]
@@ -193,6 +193,20 @@ function literalEnd(text, at) {
  */
 export function encodeWithLanguage(enc, text, options = {}) {
     options = optionsFor(enc, options);
+    if (enc.sound) {
+        try {
+            const pieces = encodePieces(enc, text, options);
+            return { text: pieces.map((piece) => piece.to).join(""), pieces, findings: [] };
+        } catch (error) {
+            if (!(error instanceof EncodingError)) throw error;
+            return {
+                text: "",
+                pieces: [],
+                findings: [finding(text, error.offset ?? 0, error.message)],
+            };
+        }
+    }
+
     const findings = [],
         pieces = [];
     // Codes-only lexicons supply native words; encodePieces checks the remaining spans.
@@ -343,7 +357,7 @@ export function encodeWithLanguage(enc, text, options = {}) {
 }
 
 /**
- * Decode with explicit writings first and recover unmarked words from the lexicon.
+ * Decode sound choices directly or list registered logographic readings.
  * @param {ReturnType<import("./encoding.mjs").compileEncoding>} enc
  * @param {string} text
  * @param {{font?:string,lexicon?:{language:string,data:Record<string,any>}}} [options]
@@ -351,7 +365,7 @@ export function encodeWithLanguage(enc, text, options = {}) {
  */
 export function decodeWithLanguage(enc, text, options = {}) {
     options = optionsFor(enc, options);
-    if (!options.lexicon) {
+    if (enc.sound || !options.lexicon) {
         try {
             return { text: decodeText(enc, text, options), findings: [] };
         } catch (error) {
@@ -468,7 +482,24 @@ export function decodeWithLanguage(enc, text, options = {}) {
         }
         const native = nativeAt(at);
         if (native) {
-            appendWord(native.name && !named ? `{${native.form}}` : native.form);
+            const readings =
+                enc.roundTrip === "none" ?
+                    [
+                        ...new Set([
+                            ...own
+                                .filter((entry) => entry.text === native.text && !entry.recovery)
+                                .map((entry) => entry.form),
+                            ...enc.shared.rows
+                                .filter((row) => row.to === native.text && lexical(row.from))
+                                .map((row) => row.from),
+                        ]),
+                    ]
+                :   [];
+            appendWord(
+                readings.length > 1 ? `[${readings.join(" | ")}]`
+                : native.name && !named ? `{${native.form}}`
+                : native.form,
+            );
             at += native.text.length;
             continue;
         }
@@ -508,7 +539,7 @@ export function decodeWithLanguage(enc, text, options = {}) {
         at = wordEnd(at);
         const raw = text.slice(start, at);
         const decoded = plain(raw, start);
-        if (MARKS.test(raw)) {
+        if (enc.roundTrip === "none" || MARKS.test(raw)) {
             out += decoded;
             continue;
         }

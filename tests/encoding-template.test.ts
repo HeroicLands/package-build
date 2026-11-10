@@ -8,7 +8,7 @@ import {
     encodePieces,
     decodeText,
     EncodingError,
-} from "../engine/encoding.mjs";
+} from "./helpers/encoding-row-note.js";
 const read = (file: string) =>
     JSON.parse(
         fs.readFileSync(new URL(`./fixtures/encoding-notes/${file}.json`, import.meta.url), "utf8"),

@@ -7,7 +7,7 @@ import {
     decodeText,
     encodePieces,
     EncodingError,
-} from "../engine/encoding.mjs";
+} from "./helpers/encoding-row-note.js";
 
 const codes = {
     A: "α",
@@ -118,11 +118,11 @@ describe("diaeresis splits mapped vowel groups", () => {
             expect(roundTrip(enc, word)).toBe(word);
         expect(roundTrip(make(["ai", "ia"]), "kaia")).toBe("kaia");
     });
-    it("uses declared groups only and keeps canonical aliases conventional", () => {
+    it("uses declared groups only and keeps logographic aliases conventional", () => {
         const none = compile(note());
         expect(roundTrip(none, "kau kae kii")).toBe("kau kae kii");
-        const enc = make(["au"], { c: "K" }, { roundTrip: "canonical" });
-        expect(decodeText(enc, encodeText(enc, "caü"))).toBe("kaü");
+        const enc = make(["au"], { c: "K" }, { roundTrip: "none" });
+        expect(decodeText(enc, encodeText(enc, "caü"))).toBe("[k | c]aü");
     });
     it("preserves bare exact input and refuses only newly derived input that loses its split", () => {
         for (const mappings of [
@@ -132,10 +132,10 @@ describe("diaeresis splits mapped vowel groups", () => {
             const exact = compile(note({ "vowel-groups": groups(["au"]) }, mappings));
             expect(roundTrip(exact, "kau")).toBe("kau");
             expect(() => encodeText(exact, "kaü")).toThrow(/diaeresis|split/i);
-            const canonical = compile(
-                note({ "vowel-groups": groups(["au"]), roundTrip: "canonical" }, mappings),
+            const logographic = compile(
+                note({ "vowel-groups": groups(["au"]), roundTrip: "none" }, mappings),
             );
-            expect(roundTrip(canonical, "kaü")).toBe("kau");
+            expect(roundTrip(logographic, "kaü")).toBe("kau");
         }
     });
     it("retains authored NFC source offsets and bounded context", () => {

@@ -49,7 +49,7 @@ export function compileTestEncoding(value: any) {
                 stated.find((r: any) => (Array.isArray(r) ? r[0] : r.from) === " ")?.[1] ??
                 " ",
             vowels: value.vowels ?? "aeiouAEIOU",
-            roundTrip: "canonical",
+            roundTrip: "none",
             rows: [...own, ...identity],
             faces: Object.fromEntries(
                 listed.filter((f: any) => f.rows).map((f: any) => [f.font, { rows: f.rows }]),

@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
  * SPDX-License-Identifier: GPL-3.0-or-later */
 import { describe, expect, it } from "vitest";
-import { compileEncoding, encodeText, decodeText } from "../engine/encoding.mjs";
+import { compileEncoding, encodeText, decodeText } from "./helpers/encoding-row-note.js";
 const compile = (mappings: object, codes: Record<string, string> = { A: "0", B: "1" }) =>
     compileEncoding(
         {

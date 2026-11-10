@@ -20,7 +20,7 @@ const fonts = (root: string, missing = false) => ({
     },
 });
 const raw =
-    "---\ntype: doc\nshortcode: bad\ndata:\n  language: vyl\n  font: face\n  mappings: {a: A}\n  rules:\n    normalization: NFD\n    matching: longest-first\n---\n";
+    "---\ntype: doc\nshortcode: bad\ndata:\n  language: vyl\n  font: face\n  mappings: {a: A}\n  rules:\n    normalization: NFD\n    matching: longest-first\n    roundTrip: none\n---\n";
 const load = (root: string, missing = false) =>
     encodingsFromRecords(
         [

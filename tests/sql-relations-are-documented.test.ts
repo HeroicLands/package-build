@@ -70,7 +70,6 @@ describe("the relations a query can read", () => {
                 "letters",
                 "edges",
                 "clusters",
-                "stress",
                 "finals",
                 "syllables",
                 "joining",
@@ -79,7 +78,6 @@ describe("the relations a query can read", () => {
                 "skeleton",
                 "frames",
                 "calling_names",
-                "read_past",
                 "sound_changes",
                 "elements",
                 "roots",
@@ -95,6 +93,7 @@ describe("the relations a query can read", () => {
                 "near_names",
             ]),
         );
+        expect(relations).not.toContain("stress");
     });
 
     it("are each a row of the relations table in the authoring guide", () => {

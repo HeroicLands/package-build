@@ -2,7 +2,7 @@
 
 /**
  * **A verse div declares its metre, and the build counts its beats.** The
- * language states its stress rule as data, a `doc` note declares the metre, and
+ * shared guide supplies pronunciation, a `doc` note declares the metre, and
  * a div with `scan=` and `lang=` is warned at each line that cannot scan.
  */
 
@@ -28,18 +28,9 @@ import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 import { scanVerse } from "../engine/content-verse.mjs";
 import { runContext, scanRuns } from "../engine/content-scripts.mjs";
-import {
-    lineBeats,
-    metreBooksFromRecords,
-    metresFromRecords,
-    nucleiOf,
-    stressIndex,
-} from "../engine/verse-metre.mjs";
+import { lineBeats, metreBooksFromRecords, metresFromRecords } from "../engine/verse-metre.mjs";
 
-const PAIRS = ["ai", "au", "oi", "aa", "ii", "uu"];
-const RULE = { two: "first", longer: "penultimate", mark: "acute" };
-
-const language = (stress: object | undefined, extra: object = {}) => ({
+const language = (extra: object = {}) => ({
     type: "skill",
     subType: "language",
     shortcode: "vylarilng",
@@ -47,7 +38,6 @@ const language = (stress: object | undefined, extra: object = {}) => ({
     address: { canonical: "demo-note-skill-vylarilng" },
     data: {
         roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZáéíóú.,-",
-        sounds: { stress, syllables: { vowelPairs: PAIRS } },
         words: [
             { form: "zar", class: "n", gloss: "an oath" },
             { form: "lon", class: "v", gloss: "to go" },
@@ -94,12 +84,12 @@ const config = {
 };
 
 const bare = {
-    ...language(undefined),
+    ...language(),
     shortcode: "barelng",
     address: { canonical: "demo-note-skill-barelng" },
 };
 
-const ctx = runContext(config, [language(RULE), bare, metres]);
+const ctx = runContext(config, [language(), bare, metres]);
 
 const fence = (attrs: string, ...lines: string[]) =>
     ["::: {.verse " + attrs + "}", ...lines, ":::"].join("\n");
@@ -117,59 +107,7 @@ const errors = (source: string) =>
             `${w.line}:${w.column}: ${w.message}`,
     );
 
-const book = (rule: object | undefined = RULE) =>
-    metreBooksFromRecords([language(rule)], config).get("vyl");
-
-describe("the stress rule", () => {
-    const place = (word: string, rule: object = RULE, pairs: string[] = PAIRS) =>
-        stressIndex(word, rule, pairs);
-
-    it("counts syllables by vowel groups, a pair of the language's own as one", () => {
-        expect(nucleiOf("alathas", PAIRS)).toEqual(["a", "a", "a"]);
-        expect(nucleiOf("talothoi", PAIRS)).toEqual(["a", "o", "oi"]);
-        expect(nucleiOf("talothoi", [])).toEqual(["a", "o", "o", "i"]);
-        expect(nucleiOf("kaan", PAIRS)).toEqual(["aa"]);
-        expect(nucleiOf("yormalis", PAIRS)).toEqual(["o", "a", "i"]);
-        expect(nucleiOf("k'aralzon", PAIRS)).toEqual(["a", "a", "o"]);
-    });
-
-    it("stresses the first or last syllable of a word of two", () => {
-        expect(place("zaros", { ...RULE, two: "first" })).toBe(0);
-        expect(place("zaros", { ...RULE, two: "last" })).toBe(1);
-    });
-
-    it("stresses the rule's syllable of a longer word", () => {
-        expect(place("alathas", { ...RULE, longer: "antepenultimate" })).toBe(0);
-        expect(place("alathas", { ...RULE, longer: "penultimate" })).toBe(1);
-        expect(place("alathas", { ...RULE, longer: "final" })).toBe(2);
-        expect(place("ulthalonar", { ...RULE, longer: "antepenultimate" })).toBe(1);
-        expect(place("ulthalonar", { ...RULE, longer: "penultimate" })).toBe(2);
-        expect(place("alathas", { ...RULE, longer: "first" })).toBe(0);
-        expect(place("ulthalonar", { ...RULE, longer: "first" })).toBe(0);
-    });
-
-    it("stresses the only syllable of a word of one", () => {
-        expect(place("zar")).toBe(0);
-    });
-
-    it("moves the stress to the syllable the rule's mark sits on", () => {
-        expect(place("alathás")).toBe(2);
-        expect(place("álatha")).toBe(0);
-        expect(place("alátha")).toBe(1);
-        expect(place("zarós")).toBe(1);
-        expect(place("malkothoí")).toBe(2);
-    });
-
-    it("takes no stress from a mark the rule does not name", () => {
-        expect(place("alathás", { two: "first", longer: "penultimate" })).toBe(1);
-        expect(place("alathà")).toBe(1);
-    });
-
-    it("counts a diphthong as one syllable when placing the stress", () => {
-        expect(place("malkothoi")).toBe(1);
-        expect(place("malkothoi", RULE, [])).toBe(2);
-    });
-});
+const book = () => metreBooksFromRecords([language()], config).get("vyl");
 
 describe("a metre's declaration", () => {
     it("is read from the metres of a doc note, by name", () => {
@@ -200,7 +138,7 @@ describe("the beats of a line", () => {
 
     it("keeps a beat for multi-syllable words with any content class or no entry", () => {
         expect(beats("howra")).toEqual([1, 1]);
-        expect(beats("quxar")).toEqual([1, 1]);
+        expect(beats("quzar")).toEqual([1, 1]);
     });
 
     it("gives a one-syllable noun, verb, adjective or numeral a beat", () => {
@@ -228,7 +166,7 @@ describe("the beats of a line", () => {
     });
 
     it("counts a one-syllable word the lexicon is not read for as a content word", () => {
-        expect(beats("qux")).toEqual([1, 1]);
+        expect(beats("quz")).toEqual([1, 1]);
     });
 
     it("counts a word whose entries differ in class as a beat that may be left out", () => {
@@ -236,7 +174,7 @@ describe("the beats of a line", () => {
     });
 
     it("reads a derived form by the class of its word", () => {
-        const derived = language(RULE, {
+        const derived = language({
             grammar: { plural: [{ ending: "", becomes: "s" }] },
         });
         const derivedBook = metreBooksFromRecords([derived], config).get("vyl");
@@ -245,7 +183,7 @@ describe("the beats of a line", () => {
 
     it("inherits family word classes and derives forms with the child's rules", () => {
         const child = {
-            ...language(RULE, {
+            ...language({
                 family: "skill-vylarilng",
                 words: [{ form: "ul", class: "n", gloss: "an ember" }],
                 grammar: { plural: [{ ending: "", becomes: "en" }] },
@@ -257,9 +195,7 @@ describe("the beats of a line", () => {
             ...config,
             languages: { child: { tag: "art-x-child", note: "skill-childlng" } },
         };
-        const inherited = metreBooksFromRecords([child, language(RULE)], inheritedConfig).get(
-            "child",
-        );
+        const inherited = metreBooksFromRecords([child, language()], inheritedConfig).get("child");
         expect(lineBeats("pra ir", inherited)).toEqual({ min: 0, max: 0 });
         expect(lineBeats("ul", inherited)).toEqual({ min: 1, max: 1 });
         expect([...(inherited?.classes.get("zaren") ?? [])]).toEqual(["n"]);
@@ -270,7 +206,7 @@ describe("the beats of a line", () => {
         "keeps every nearest-generation class of the local or inherited homograph %s",
         (homograph) => {
             const ancestor = {
-                ...language(RULE, {
+                ...language({
                     words: [
                         { form: "sa", class: "adj" },
                         { form: "ol", class: "v" },
@@ -280,7 +216,7 @@ describe("the beats of a line", () => {
                 shortcode: "rootlng",
                 address: { canonical: "demo-note-skill-rootlng" },
             };
-            const parent = language(RULE, {
+            const parent = language({
                 family: "skill-rootlng",
                 words: [
                     { form: "sa", class: "v" },
@@ -289,7 +225,7 @@ describe("the beats of a line", () => {
                 ],
             });
             const child = {
-                ...language(RULE, {
+                ...language({
                     family: "skill-vylarilng",
                     words: [
                         { form: "sa", class: "n" },
@@ -316,8 +252,8 @@ describe("the beats of a line", () => {
         },
     );
 
-    it("reads each part of a compound and ignores the caesura it is not written with", () => {
-        expect(beats("zar-zaros ul")).toEqual([2, 2]);
+    it("reads a compound as one word", () => {
+        expect(beats("zar-zaros ul")).toEqual([1, 1]);
     });
 });
 
@@ -346,7 +282,7 @@ describe("the warning", () => {
             name: { full: "zaros" },
             address: { canonical: "demo-note-place-ashkarad" },
         };
-        const withNames = runContext(config, [language(RULE), metres, place]);
+        const withNames = runContext(config, [language(), metres, place]);
         const source = fence("scan=trimeter lang=vyl", "[[place-ashkarad|]] zaros zaros");
         expect(scanRuns(source, withNames).warnings).toEqual([]);
     });
@@ -367,7 +303,7 @@ describe("the warning", () => {
             referenceTargets: new Map(),
             foreignReferences: foreign,
         });
-        const withNames = runContext(config, [language(RULE), metres], {
+        const withNames = runContext(config, [language(), metres], {
             referenceName: (target) => resolveReference(index, target)?.name,
         });
         const source = fence("scan=trimeter lang=vyl", "[[sohl-note-place-ashkarad|]] zaros");
@@ -388,7 +324,7 @@ describe("the warning", () => {
         ]);
         const preview = previewIndex({
             config: { ...config, site: { base: "/demo/" } },
-            records: [language(RULE), metres],
+            records: [language(), metres],
             foreign: { index: foreign, references: foreign },
         });
         const source = fence("scan=trimeter lang=vyl", "[[sohl-note-place-ashkarad#hill|]] zaros");
@@ -424,7 +360,7 @@ describe("the warning", () => {
             shortcode: "ashkarad",
             name: { full: "zaros" },
         };
-        const records = [language(RULE), metres, place];
+        const records = [language(), metres, place];
         const source = fence("scan=trimeter lang=vyl", "[[place-ashkarad|]] zaros");
         const shorter = runContext(config, records, { referenceName: () => "zaros" });
         const longer = runContext(config, records, { referenceName: () => "zaros zaros" });
@@ -585,19 +521,20 @@ describe("a `scan=` that cannot mean anything", () => {
 
     it("is refused without a `lang=`", () => {
         expect(errors(fence("scan=hexameter", "zaros"))).toEqual([
-            "1:13: `scan=` counts beats by a language's stress rule: the div needs a `lang=`",
+            "1:13: `scan=` needs a `lang=` to look up word classes in its language note",
         ]);
     });
 
-    it("is refused for a language that states no stress rule", () => {
-        expect(errors(fence("scan=hexameter lang=bare", "zaros"))).toEqual([
-            "1:33: the language `bare` states no `data.sounds.stress`, which `scan=` counts beats by",
+    it("scans a language without pronunciation metadata", () => {
+        expect(errors(fence("scan=hexameter lang=bare", "zaros"))).toEqual([]);
+        expect(warnings(fence("scan=hexameter lang=bare", "zaros"))).toEqual([
+            "2:1: this line has 1 beats; the metre `hexameter` has 6",
         ]);
     });
 
     it("is refused for a language that is only a tag", () => {
         expect(errors(fence("scan=hexameter lang=en", "zaros"))).toEqual([
-            "1:33: the language `en` is not a configured language with a `note`, so it has no stress rule for `scan=` to count beats by",
+            "1:33: the language `en` is not a configured language with a `note` for `scan=` to look up word classes",
         ]);
     });
 

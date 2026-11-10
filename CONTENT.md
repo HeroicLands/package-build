@@ -155,7 +155,7 @@ them — `given` names listed by gender, and every other list the patterns name.
 from them, and checks a name it is given against them. See
 [name lists](docs/reference/format-details.md#name-lists).
 
-A language note or spelling guide can declare a pronunciation mark with
+A spelling guide can declare a pronunciation mark with
 `kind: tone` in `data.sounds.marks`. It marks a rising or falling pitch.
 
 A language note states its words in `data.words`, beside `data.names`, with

@@ -6,7 +6,7 @@ const data = {
     language: "test",
     font: "face",
     mappings: { a: "A", b: "B" },
-    rules: { normalization: "NFC", matching: "longest-first" },
+    rules: { normalization: "NFC", matching: "longest-first", roundTrip: "none" },
 };
 const record = {
     type: "doc",
@@ -177,7 +177,7 @@ it("resolves short native references in the author's package for build and brows
         findings: [],
     });
     expect(decodeWithLanguage(compiled, "β α", { lexicon })).toMatchObject({
-        text: "ab ba",
+        text: "[ab | aba | b] [ba | a]",
         findings: [],
     });
     expect(encodeWithLanguage(compiled, "abb", { lexicon })).toMatchObject({
@@ -189,7 +189,7 @@ it("resolves short native references in the author's package for build and brows
         findings: [],
     });
     expect(decodeWithLanguage(compiled, "βαα", { lexicon })).toMatchObject({
-        text: "abb",
+        text: "[abb | abab]",
         findings: [],
     });
     const foreign = encodingsFromRecords(

@@ -32,11 +32,13 @@ it("does not exempt unsupported characters, controls, normalization or malformed
 });
 it("recognizes only declared IPA scalar fields in language notes and spelling guides", () => {
     const note = (type: string, extra = "") =>
-        `---\ntype: ${type}\nsubType: language\ndata:\n  sounds:\n    letters:\n      - {letters: [sh], kind: consonant, ipa: ʃ, like: ship}\n    finals:\n      - {final: ang, like: sing, ipa: aŋ}\n${extra}---\n`;
+        `---\ntype: ${type}\nsubType: language\ndata:\n  sounds:\n    letters:\n      - {letters: [sh], kind: consonant, ipa: ʃ, like: ship}\n${extra}---\n`;
     expect(checkText(note("skill"), "guide.md")).toEqual([]);
     expect(checkText(note("doc"), "guide.md")).toEqual([]);
-    expect(checkText(note("skill").replace("ipa: aŋ", "ipa: aʃ"), "guide.md")).toEqual([]);
-    expect(checkText(note("doc").replace("ipa: aŋ", "ipa: aʃ"), "guide.md")).toHaveLength(1);
+    for (const type of ["skill", "doc"])
+        expect(
+            checkText(note(type, "    finals:\n      - {final: ang, ipa: aʃ}\n"), "guide.md"),
+        ).toHaveLength(1);
     expect(
         checkText(note("skill").replace("type: skill", "type: skill\ntype: doc"), "guide.md")
             .length,

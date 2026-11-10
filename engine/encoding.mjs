@@ -12,6 +12,7 @@
  */
 
 /** Pure encoding-note compiler and script execution. No files or Node APIs are needed. */
+import { soundAt, spellSounds } from "./encoding-sounds.mjs";
 import { templateProgram } from "./encoding-template.mjs";
 const OPEN = "⟦";
 const CLOSE = "⟧";
@@ -186,9 +187,23 @@ function tier(rows, shared = [], prefix = []) {
 /**
  * Validate and compile an encoding note with a separately resolved font code table.
  * @param {any} data Encoding-note data with mappings and executable rules.
- * @param {{codes?: Record<string,string>, name?: string}} [options] Font glyph codes and canonical note identity.
+ * @param {{codes?: Record<string,string>, name?: string, sounds?: any[]}} [options] Font codes, the language’s guide-subset sound inventory, and canonical note identity.
  */
 export function compileEncoding(data, options = {}) {
+    if (
+        data?.language === "zxx" &&
+        (Object.keys(data.mappings ?? {}).length || data.rules?.["contextual-mappings"]?.length)
+    )
+        fault("mappings", "A zxx encoding writes literal codage; mappings must be empty");
+    if (
+        data?.rules?.roundTrip !== "none" &&
+        data?.language !== "zxx" &&
+        options.sounds === undefined
+    )
+        fault(
+            "options.sounds",
+            "An exact sound encoding needs its language's data.sounds.letters inventory; supply options.sounds",
+        );
     const program = templateProgram(data, options, fault);
     try {
         return compileRows(program.definition, program.metadata);
@@ -248,8 +263,8 @@ export function compileRows(definition, metadata = {}) {
         fault("separator", "separator cannot contain a line break or literal marker");
     const vowels = d.vowels ?? "";
     string(vowels, "vowels");
-    if (d.roundTrip !== undefined && !["exact", "canonical"].includes(d.roundTrip))
-        fault("roundTrip", "roundTrip is exact or canonical");
+    if (d.roundTrip !== undefined && !["exact", "none"].includes(d.roundTrip))
+        fault("roundTrip", "roundTrip is exact or none");
     if (d.groupCase !== undefined && d.groupCase !== "initial")
         fault("groupCase", "groupCase is initial");
     const controls = d.controls ?? {};
@@ -262,7 +277,7 @@ export function compileRows(definition, metadata = {}) {
         fault("controls.literalClose", "literalClose must be U+E0113");
     if (controls.literalEscape !== undefined && controls.literalEscape !== ESCAPE_MARK)
         fault("controls.literalEscape", "literalEscape must be U+E0115");
-    const sharedRows = rows(d.rows, "rows", vowels, d.roundTrip === "canonical");
+    const sharedRows = rows(d.rows, "rows", vowels, d.roundTrip === "none");
     const codeRows = rows(d.codes ?? [], "codes", "", false);
     const separatorRow = { from: " ", to: d.separator, key: "separator" };
     const prefix = d.separator ? [separatorRow] : [];
@@ -280,13 +295,13 @@ export function compileRows(definition, metadata = {}) {
         faces.set(
             font,
             tier(
-                rows(face.rows ?? [], `faces.${font}.rows`, vowels, d.roundTrip === "canonical"),
+                rows(face.rows ?? [], `faces.${font}.rows`, vowels, d.roundTrip === "none"),
                 sharedRows,
                 [...prefix, ...controlRows],
             ),
         );
     }
-    if (d.roundTrip !== "canonical") {
+    if (d.roundTrip !== "none") {
         for (const group of [
             sharedRows,
             ...[...faces.values()].map((face) => [...sharedRows, ...face.rows]),
@@ -573,6 +588,21 @@ function encodeRawPieces(
             at = end;
             continue;
         }
+        if (enc.sound) {
+            if (first === "-") {
+                out.push(piece(first, enc.sound.controls.compoundBoundary, at, at + 1, null));
+                at++;
+                continue;
+            }
+            const sound = soundAt(enc.sound, text, at, bound, (offset, message) =>
+                textError(text, offset, message),
+            );
+            if (sound) {
+                out.push(piece(sound.from, sound.to, at, sound.end, sound));
+                at = sound.end;
+                continue;
+            }
+        }
         if (!enc.template) checkGroupCase(enc, groups, text, at, bound);
         const row = enc.accepted.has(first) ? rowAt(enc, groups, text, at, limit) : null;
         if (!row)
@@ -761,15 +791,16 @@ function sourceDetails(enc, text, options) {
 }
 
 /**
- * Validate Roman spelling and literal syntax without requiring ordinary mapping coverage.
- * Accepted words may instead have authoritative native writings in the language note.
+ * Validate sound spelling and coverage, or logographic source spelling and literal syntax.
+ * Logographic words may have registered native writings in the language note.
  * @param {ReturnType<typeof compileEncoding>} enc - Compiled encoding and its font codes.
  * @param {string} text - Authored Roman source, normalized to NFC for template rules.
  * @param {{font?:string,start?:number,end?:number}} [options] - Face and authored UTF-16 bounds.
  * @returns {void} Throws EncodingError at the authored UTF-16 offset and code-point column.
  */
 export function validateSource(enc, text, options = {}) {
-    sourceDetails(enc, text, options);
+    if (enc.sound) encodePieces(enc, text, options);
+    else sourceDetails(enc, text, options);
 }
 
 /**
@@ -780,6 +811,28 @@ export function validateSource(enc, text, options = {}) {
  */
 export function encodePieces(enc, text, options = {}) {
     if (!enc?.template) return encodeRawPieces(enc, text, options);
+    if (enc.sound) {
+        const { normalized, sourceAt, begin, bound } = sourceProjection(enc, text, options);
+        try {
+            return encodeRawPieces(enc, normalized, { ...options, start: begin, end: bound }).map(
+                (one) => ({
+                    ...one,
+                    from: text.slice(sourceAt[one.start], sourceAt[one.end]),
+                    start: sourceAt[one.start],
+                    end: sourceAt[one.end],
+                }),
+            );
+        } catch (error) {
+            if (error instanceof EncodingError && error.offset !== undefined)
+                throw new EncodingError(error.message, {
+                    text,
+                    offset: sourceAt[error.offset],
+                    key: error.key,
+                });
+            throw error;
+        }
+    }
+
     const { normalized, folded, stops, sourceAt, begin, bound } = sourceDetails(enc, text, options);
     try {
         const pieces = encodeRawPieces(enc, folded, {
@@ -914,13 +967,14 @@ function decodeRawText(enc, text, { font } = {}) {
 }
 
 /**
- * Decode exact output or the conventional reading of an explicitly canonical note.
+ * Decode exact output or the registered readings of a logographic note.
  * @param {ReturnType<typeof compileEncoding>} enc - Compiled encoding note.
  * @param {string} text - Native text with optional literal spans.
  * @param {{font?: string}} [options] - Selected encoding face.
  * @returns {string} Roman source, with literals kept between their visible markers.
  */
 export function decodeText(enc, text, options = {}) {
+    if (enc?.sound) return decodeSoundText(enc, text, options);
     if (!enc?.template) return decodeRawText(enc, text, options);
     return decodeTemplatePieces(enc, text, options)
         .map((one) => one.from)
@@ -981,14 +1035,22 @@ function decodeTemplatePieces(enc, text, options = {}) {
             const preferred = cursor.rows.find(
                 (row) => !row.before || beforeHolds(row.before, following, enc.vowels),
             );
-            // Canonical source can omit the vowel or marker that selected a form.
-            // Prefer applicable aliases, then retain the first authored reading.
-            const row = preferred ?? (enc.roundTrip === "canonical" ? cursor.row : undefined);
+            // A logographic source can omit the marker that selected a form.
+            // Context selects a segmentation; a logograph retains every registered reading.
+            const row = preferred ?? (enc.roundTrip === "none" ? cursor.row : undefined);
             if (!row) {
                 failedContext = Math.min(failedContext, at);
                 continue;
             }
-            paths.set(at, { from: row.from, row, next });
+            const alternatives =
+                enc.roundTrip === "none" && row.from !== " " ?
+                    [...new Set(cursor.rows.map((candidate) => candidate.from))]
+                :   [row.from];
+            paths.set(at, {
+                from: alternatives.length > 1 ? `[${alternatives.join(" | ")}]` : row.from,
+                row,
+                next,
+            });
         }
     }
     if (!paths.has(0)) {
@@ -1105,4 +1167,63 @@ function splitsDeclaredGroup(enc, text, at, begin, bound) {
         }
     }
     return false;
+}
+
+/** Decode each selected sound form without lexical recovery. */
+function decodeSoundText(enc, text, options) {
+    const readings = tiers(enc, options.font)[0].readings;
+    if (typeof text !== "string") throw new EncodingError("Text must be a string");
+    const pieces = [];
+    for (let at = 0; at < text.length;) {
+        if (text.startsWith(OPEN_MARK, at)) {
+            const end = span(text, at, OPEN_MARK, CLOSE_MARK);
+            pieces.push({
+                from: OPEN + decodeCodes(enc, text, at + OPEN_MARK.length, end) + CLOSE,
+            });
+            at = end + CLOSE_MARK.length;
+            continue;
+        }
+        if (text.startsWith(CLOSE_MARK, at))
+            textError(text, at, "The closing literal mark has no opening mark");
+        const first = firstAt(text, at);
+        if (first === enc.sound.controls.compoundBoundary) {
+            pieces.push({ from: "-" });
+            at += first.length;
+            continue;
+        }
+        const roman = enc.sound.outputs.get(first);
+        if (roman !== undefined) {
+            at += first.length;
+            let from = roman;
+            const tone =
+                text.startsWith(enc.sound.controls.toneRising, at) ? "\u030C"
+                : text.startsWith(enc.sound.controls.toneFalling, at) ? "\u0302"
+                : "";
+            if (tone) {
+                if (!/^(aa|ii|uu)$/iu.test(roman))
+                    textError(text, at, "Tone must follow a held vowel sound");
+                from = (roman[0] + tone).normalize("NFC") + roman.slice(1);
+                at += enc.sound.controls.toneRising.length;
+            }
+            if (text.startsWith(enc.sound.controls.stress, at)) {
+                if (!/^[aeiouàìòù]/iu.test(roman))
+                    textError(text, at, "Stress must follow a vowel sound");
+                from = (from[0] + "\u0301").normalize("NFC") + from.slice(1);
+                at += enc.sound.controls.stress.length;
+            }
+            pieces.push({
+                from,
+                sound:
+                    enc.sound.inventory.has(roman.toLowerCase()) ? roman.toLowerCase() : undefined,
+            });
+            continue;
+        }
+        const row = (readings.get(first) ?? []).find((row) => text.startsWith(row.to, at));
+        if (!row) refused(enc, text, at, readings.has(first), true);
+        pieces.push({ from: row.from });
+        at += row.to.length;
+    }
+    return spellSounds(pieces)
+        .map((piece) => piece.from)
+        .join("");
 }

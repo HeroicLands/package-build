@@ -2090,7 +2090,6 @@ export function scanRuns(source, ctx = {}, syntax) {
         metres: ctx.metres,
         languages: ctx.languages,
         metreBooks: ctx.metreBooks,
-        lexicons: ctx.lexicons,
         referenceName: ctx.referenceName,
         attributeColumns,
     });

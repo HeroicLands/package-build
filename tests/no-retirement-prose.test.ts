@@ -25,6 +25,16 @@ const RETIRED_KEY =
 
 const ALLOWLIST: { file: string; line: RegExp; reason: string }[] = [
     {
+        file: "engine/encoding-standard.mjs",
+        line: /legacyShort/,
+        reason: "Names the reserved shared-control identifier.",
+    },
+    {
+        file: "docs/api.md",
+        line: /`legacyShort`/,
+        reason: "Documents the reserved shared-control identifier.",
+    },
+    {
         file: "engine/address-diff.mjs",
         line: /renamed|is no longer/,
         reason:

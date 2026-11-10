@@ -94,3 +94,75 @@ describe("Build & Test install steps off Linux", () => {
         },
     );
 });
+
+describe("Typst archive download", () => {
+    it("retries into a private file and extracts only after curl succeeds", () => {
+        const step = installSteps.find(
+            (item: { name: string }) => item.name === "Typst, for the book tests",
+        );
+        expect(step).toBeDefined();
+        expect(step.run).toMatch(/archive=\$\(mktemp\)/);
+        expect(step.run).toMatch(/trap .*\$archive.* EXIT/);
+        expect(step.run).toMatch(/curl .*--retry \d+.*-o "\$archive"/);
+        expect(step.run).toMatch(/tar -xJf "\$archive"/);
+        expect(step.run).not.toMatch(/curl[^\n]*\|\s*tar/);
+    });
+});
+
+describe("Typst installation on Linux", () => {
+    const step = installSteps.find(
+        (item: { name: string }) => item.name === "Typst, for the book tests",
+    );
+
+    beforeEach(() => {
+        stub("uname", "echo Linux");
+        stub("mktemp", `: > "${stubs}/archive"; echo "${stubs}/archive"`);
+        stub("rm", '/bin/rm "$@"');
+        stub("curl", `printf '%s\n' "$@" > "${stubs}/curl-args"; echo curl >> "${calls}"; exit 22`);
+        stub("tar", `echo tar >> "${calls}"; exit 0`);
+    });
+
+    it.each(["typst 0.15.1", "typst 0.15.1 (unknown commit)", "typst 0.15.1 (abc123)"])(
+        "uses the pinned version already on PATH: %s",
+        (output) => {
+            stub("typst", `echo "${output}"`);
+            const result = runStep(step.run);
+            expect(result.status, result.stderr).toBe(0);
+            expect(installAttempts()).toEqual([]);
+        },
+    );
+
+    it.each(["missing", "wrong", "adjacent"])(
+        "downloads when the version is %s and never extracts a failed download",
+        (version) => {
+            if (version === "wrong") stub("typst", 'echo "typst 0.15.0"');
+            if (version === "adjacent") stub("typst", 'echo "typst 0.15.10"');
+            const result = runStep(step.run);
+            expect(result.status).not.toBe(0);
+            expect(installAttempts()).toEqual(["curl"]);
+            const args = fs.readFileSync(path.join(stubs, "curl-args"), "utf8").split("\n");
+            expect(args).toEqual(
+                expect.arrayContaining([
+                    "--retry",
+                    "3",
+                    "--retry-delay",
+                    "1",
+                    "--max-time",
+                    "60",
+                    "-o",
+                    path.join(stubs, "archive"),
+                ]),
+            );
+            expect(fs.existsSync(path.join(stubs, "archive"))).toBe(false);
+        },
+    );
+
+    it("rejects a wrong version even if the fallback extraction succeeds", () => {
+        stub("typst", 'echo "typst 0.14.0"');
+        stub("curl", `echo curl >> "${calls}"`);
+        const result = runStep(step.run);
+        expect(result.status).not.toBe(0);
+        expect(installAttempts()).toEqual(["curl", "tar"]);
+        expect(result.stderr).toContain("typst 0.15.1 is required");
+    });
+});

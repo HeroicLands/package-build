@@ -554,7 +554,7 @@ describe("text set in one of the faces", () => {
             );
             fs.writeFileSync(
                 path.join(content, "Rules", "Encoding.md"),
-                "---\ntype: doc\nsubType: reference\nshortcode: semaron\nname: {full: Test Semaron Encoding}\ndata:\n  language: und\n  font: semaron-kuriale\n  mappings: {k: KALPEZA_MIN}\n  rules: {normalization: NFC, matching: longest-first}\n---\n\nThe selected native writing.\n",
+                "---\ntype: doc\nsubType: reference\nshortcode: semaron\nname: {full: Test Semaron Encoding}\ndata:\n  language: und\n  font: semaron-kuriale\n  mappings: {k: KALPEZA_MIN}\n  rules: {normalization: NFC, matching: longest-first, roundTrip: none}\n---\n\nThe selected native writing.\n",
             );
             const result = buildSite({
                 config: defineConfig({

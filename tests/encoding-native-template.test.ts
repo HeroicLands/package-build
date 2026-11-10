@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Tom Rodriguez ("Toasty")
  * SPDX-License-Identifier: GPL-3.0-or-later */
 import { describe, expect, it } from "vitest";
-import { compileEncoding, encodeText } from "../engine/encoding.mjs";
+import { compileEncoding, encodeText } from "./helpers/encoding-row-note.js";
 import { encodeWithLanguage, decodeWithLanguage } from "../engine/encoding-language.mjs";
 
 const name = "demo-note-doc-signs";

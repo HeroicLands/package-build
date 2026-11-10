@@ -648,6 +648,16 @@
                     "glyph": "ignorable",
                     "kind": "control",
                     "code": "STRESS"
+                },
+                {
+                    "codepoint": "U+E0121",
+                    "code": "SOUND_AI",
+                    "name": "SHARED SOUND AI"
+                },
+                {
+                    "codepoint": "U+E0124",
+                    "code": "SOUND_OI",
+                    "name": "SHARED SOUND OI"
                 }
             ]
         },

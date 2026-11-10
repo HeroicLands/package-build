@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import { describe, expect, it } from "vitest";
-import { compileEncoding, compileRows, encodeText } from "../engine/encoding.mjs";
+import { compileEncoding, compileRows, encodeText } from "./helpers/encoding-row-note.js";
 import { STANDARD_CONTROLS } from "../engine/encoding-standard.mjs";
 import { scanSpans } from "../engine/content-spans.mjs";
 import { renderRuns, scanRuns } from "../engine/content-scripts.mjs";

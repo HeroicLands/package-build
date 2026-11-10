@@ -30,6 +30,8 @@
  * - a sound stands once in each mutation of `data.sounds.mutations`;
  * - a cluster stands in one group of `data.sounds.clusters.groups`, and a
  *   language stating groups states no `innerCluster` edge;
+ * - explicit vowel positions contain guide vowel units, with pairs allowing
+ *   sequences and harmony members and skeleton vowels one unit each;
  * - every vowel `data.sounds.syllables.harmony.partners` keys is a vowel of
  *   the harmony, and every partner one of its `front` vowels;
  * - every Address in `data.scope` resolves, and every type it names is a note
@@ -73,7 +75,24 @@ import {
 import { LANGUAGE_SUBTYPE } from "./word-terms.mjs";
 import { WORD_CLASS_BASES } from "./word-classes.mjs";
 import { nearest } from "./near-miss.mjs";
+import { guideSoundAt } from "./encoding-sounds.mjs";
 import { romanInventoryProblems } from "./roman-characters.mjs";
+
+/** Whether a spelling consists of whole shared-guide vowel units. */
+function guideVowels(value, single = true) {
+    if (typeof value !== "string" || !value.length) return false;
+    try {
+        let at = 0;
+        while (at < value.length) {
+            const sound = guideSoundAt(value, at);
+            if (!sound?.vowel || (single && sound.end !== value.length)) return false;
+            at = sound.end;
+        }
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 /** The bases a frame's `class` names. */
 const CLASS_BASES = new Set(WORD_CLASS_BASES.map((item) => item.token));
@@ -768,9 +787,32 @@ export function checkLanguageData(note, { index, types } = {}) {
     // ── Sounds ───────────────────────────────────────────────────────────────
     const sounds = isMap(data.sounds) ? data.sounds : {};
     findings.push(...letterTongueFindings(sounds.letters, { declared, index, finding }));
+    const checkVowel = (value, path, single = true) => {
+        if (typeof value !== "string" || guideVowels(value, single)) return;
+        findings.push(
+            finding(
+                path,
+                "error",
+                `\`${label(path)}\` must be ` +
+                    (single ? "one whole vowel unit" : "a sequence of vowel units") +
+                    " of the shared pronunciation guide",
+            ),
+        );
+    };
+    listOf(sounds.syllables?.vowelPairs).forEach((value, i) =>
+        checkVowel(value, ["data", "sounds", "syllables", "vowelPairs", i], false),
+    );
+    listOf(sounds.skeleton).forEach((row, i) => {
+        if (isMap(row) && row.between !== "")
+            checkVowel(row.between, ["data", "sounds", "skeleton", i, "between"]);
+    });
     const edgeAt = new Map();
     listOf(sounds.edges).forEach((row, i) => {
         if (!isMap(row) || typeof row.edge !== "string") return;
+        if (row.edge === "vowelPair")
+            listOf(row.sounds).forEach((value, j) =>
+                checkVowel(value, ["data", "sounds", "edges", i, "sounds", j], false),
+            );
         if (edgeAt.has(row.edge))
             findings.push(
                 finding(
@@ -831,12 +873,16 @@ export function checkLanguageData(note, { index, types } = {}) {
     });
 
     const harmony = isMap(sounds.syllables?.harmony) ? sounds.syllables.harmony : {};
+    for (const set of ["back", "front", "neutral"])
+        listOf(harmony[set]).forEach((value, i) =>
+            checkVowel(value, ["data", "sounds", "syllables", "harmony", set, i]),
+        );
     if (isMap(harmony.partners)) {
         const front = new Set(listOf(harmony.front));
         const vowels = new Set([...listOf(harmony.back), ...front, ...listOf(harmony.neutral)]);
         for (const [vowel, partner] of Object.entries(harmony.partners)) {
             const path = ["data", "sounds", "syllables", "harmony", "partners", vowel];
-            if (!vowels.has(vowel))
+            if (!guideVowels(vowel) || !vowels.has(vowel))
                 findings.push(
                     finding(
                         path,
@@ -845,7 +891,7 @@ export function checkLanguageData(note, { index, types } = {}) {
                         true,
                     ),
                 );
-            else if (typeof partner === "string" && !front.has(partner))
+            else if (typeof partner === "string" && (!guideVowels(partner) || !front.has(partner)))
                 findings.push(
                     finding(
                         path,
@@ -954,6 +1000,12 @@ export function checkLanguageData(note, { index, types } = {}) {
 
     // ── Naming ───────────────────────────────────────────────────────────────
     const naming = isMap(data.naming) ? data.naming : {};
+    listOf(naming.edges).forEach((row, i) => {
+        if (isMap(row) && row.edge === "vowelPair")
+            listOf(row.sounds).forEach((value, j) =>
+                checkVowel(value, ["data", "naming", "edges", i, "sounds", j], false),
+            );
+    });
     /**
      * A finding at the second of two entries sharing a key.
      *

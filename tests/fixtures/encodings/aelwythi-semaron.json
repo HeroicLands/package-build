@@ -1,7 +1,7 @@
 {
     "name": "aelwythi-semaron",
     "fonts": ["semaron-kuriale"],
-    "roundTrip": "canonical",
+    "roundTrip": "none",
     "accepts": [
         "a-z",
         "A-Z",

@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/** Prove ordinary output tokens uniquely decodable without adding invisible metadata. */
+/** Prove ordinary output tokens uniquely decodable. */
 
 /**
  * Check codeword integrity with a trie and finite Sardinas–Patterson residuals.

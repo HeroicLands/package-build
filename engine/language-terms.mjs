@@ -21,7 +21,7 @@
  * A leaf module, importing nothing: the note vocabulary reads these
  * declarations as it loads, and `language-data.mjs` checks what the values
  * mean. Every closed list here — the edges, element positions, register
- * kinds, stress rules, joins, marks, onsets, harmony sets, cluster uses and
+ * kinds, joins, marks, onsets, harmony sets, cluster uses and
  * calling-name uses — holds the labels the setting's own tables use, one word
  * for each.
  *
@@ -61,7 +61,7 @@ export const TONGUE_PLACEHOLDER = "<tongue>";
 
 /**
  * The edges of a word a sound rule names: what may open it, close it, stand
- * inside it, and what counts as a syllable.
+ * inside it.
  */
 export const EDGE_KINDS = Object.freeze([
     "openConsonant",
@@ -71,7 +71,6 @@ export const EDGE_KINDS = Object.freeze([
     "innerCluster",
     "vowelPair",
     "glide",
-    "syllabic",
 ]);
 
 /** What each edge kind holds, for the reference and for a finding. */
@@ -83,7 +82,6 @@ export const EDGE_MEANINGS = Object.freeze({
     innerCluster: "the pairs that may stand together inside a word",
     vowelPair: "the vowels that may stand together",
     glide: "the glides that may follow a consonant",
-    syllabic: "the consonants that may carry a syllable",
 });
 
 /** The word a sound rule's `sounds` takes in place of a list: every sound. */
@@ -126,22 +124,6 @@ export const HELD_CLIPS = Object.freeze(["first"]);
 
 /** How often a group of clusters stands inside a word. */
 export const CLUSTER_USES = Object.freeze(["common", "sparing"]);
-
-/** The syllable a word of two stresses. */
-export const STRESS_TWO = Object.freeze(["first", "last"]);
-
-/** The syllable a word of three or more stresses, counted from its end. */
-export const STRESS_LONGER = Object.freeze(["first", "antepenultimate", "penultimate", "final"]);
-
-/**
- * The diacritics that mark a stress the rule would not choose, with the
- * combining character each is written with.
- */
-export const STRESS_MARKS = Object.freeze({
-    acute: "\u0301",
-    grave: "\u0300",
-    circumflex: "\u0302",
-});
 
 /** Which sounds meet where two parts of a word join. */
 export const JOIN_MEETINGS = Object.freeze(["C+C", "V+C", "V+V"]);
@@ -477,34 +459,6 @@ export const CLUSTER_FIELDS = Object.freeze([
     }),
 ]);
 
-/**
- * The keys of one `data.sounds.readPast` entry.
- *
- * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
- */
-export const READ_PAST_FIELDS = Object.freeze([
-    Object.freeze({
-        name: "written",
-        kind: "string",
-        required: true,
-        shape: "a string",
-        describe: "A mark or spelling the pages write.",
-    }),
-    Object.freeze({
-        name: "readAs",
-        kind: "string",
-        shape: "a string",
-        describe: "What a word is read with in its place; absent where it is read as nothing.",
-    }),
-    Object.freeze({
-        name: "what",
-        kind: "string",
-        required: true,
-        shape: "a string",
-        describe: "What the mark or spelling is.",
-    }),
-]);
-
 /** A list of sounds, or `any` for every one. */
 const SOUNDS_OR_ANY = Object.freeze({
     kind: "string-or-list",
@@ -514,8 +468,8 @@ const SOUNDS_OR_ANY = Object.freeze({
 });
 
 /**
- * The keys of one `data.sounds.finals` entry: a syllable final, for a
- * language whose syllables are parsed by them.
+ * The keys of one `data.sounds.finals` entry: an allowed syllable final,
+ * pronounced by the shared guide.
  *
  * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
  */
@@ -526,19 +480,6 @@ export const FINAL_FIELDS = Object.freeze([
         required: true,
         shape: "a final as written, such as `ang`",
         describe: "The final.",
-    }),
-    Object.freeze({
-        name: "like",
-        kind: "string",
-        required: true,
-        shape: "a string",
-        describe: "What it sounds like.",
-    }),
-    Object.freeze({
-        name: "ipa",
-        kind: "string",
-        shape: "a string in the International Phonetic Alphabet, such as `ʃ`",
-        describe: "Its sound, in the International Phonetic Alphabet.",
     }),
 ]);
 
@@ -623,8 +564,7 @@ export const JOIN_FIELDS = Object.freeze([
 ]);
 
 /**
- * The keys of one `data.sounds.marks` entry: a mark the language writes on a
- * letter.
+ * The keys of one spelling guide `data.sounds.marks` entry.
  *
  * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
  */
@@ -674,7 +614,7 @@ export const HARMONY_FIELDS = Object.freeze([
         required: true,
         shape: "a list of vowels",
         entries: STRINGS,
-        describe: "The back vowels.",
+        describe: "The back vowels, each one whole shared-guide vowel unit.",
     }),
     Object.freeze({
         name: "front",
@@ -682,14 +622,14 @@ export const HARMONY_FIELDS = Object.freeze([
         required: true,
         shape: "a list of vowels",
         entries: STRINGS,
-        describe: "The front vowels.",
+        describe: "The front vowels, each one whole shared-guide vowel unit.",
     }),
     Object.freeze({
         name: "neutral",
         kind: "list",
         shape: "a list of vowels",
         entries: STRINGS,
-        describe: "The vowels of neither set.",
+        describe: "The vowels of neither set, each one whole shared-guide vowel unit.",
     }),
     Object.freeze({
         name: "neutralAs",
@@ -706,40 +646,6 @@ export const HARMONY_FIELDS = Object.freeze([
         describe:
             "The front vowel each vowel turns to in an affix's front form, keyed by the vowel; " +
             "every key is a vowel of the harmony and every value one of its `front` vowels.",
-    }),
-]);
-
-/**
- * The keys of a language's `data.sounds.stress`.
- *
- * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
- */
-export const STRESS_FIELDS = Object.freeze([
-    Object.freeze({
-        name: "two",
-        kind: "string",
-        required: true,
-        allowed: STRESS_TWO,
-        shape: `one of ${STRESS_TWO.join(", ")}`,
-        describe: "The stressed syllable of a word of two syllables.",
-    }),
-    Object.freeze({
-        name: "longer",
-        kind: "string",
-        required: true,
-        allowed: STRESS_LONGER,
-        shape: `one of ${STRESS_LONGER.join(", ")}`,
-        describe:
-            "The stressed syllable of a word of three or more: `first`, or counted from its end.",
-    }),
-    Object.freeze({
-        name: "mark",
-        kind: "string",
-        allowed: Object.freeze(Object.keys(STRESS_MARKS)),
-        shape: `one of ${Object.keys(STRESS_MARKS).join(", ")}`,
-        describe:
-            "The diacritic that marks a stress the rule would not choose; it moves the stress to " +
-            "the syllable it sits on.",
     }),
 ]);
 
@@ -779,7 +685,8 @@ export const SYLLABLE_FIELDS = Object.freeze([
         kind: "list",
         shape: "a list of vowel pairs",
         entries: STRINGS,
-        describe: "The vowels that may stand together; none where empty.",
+        describe:
+            "Sequences of shared-guide vowel units that may stand together; none where empty. Word formation only; pronunciation follows the shared guide.",
     }),
     Object.freeze({
         name: "initialVowel",
@@ -839,7 +746,8 @@ export const SKELETON_FIELDS = Object.freeze([
         name: "between",
         kind: "string",
         shape: "a vowel, such as `a`",
-        describe: "The vowel set between the second and third consonants; nothing where absent.",
+        describe:
+            "One whole shared-guide vowel unit between the second and third consonants; nothing where absent or empty.",
     }),
 ]);
 
@@ -932,13 +840,14 @@ export const SOUND_FIELDS = Object.freeze([
     Object.freeze({
         name: "letters",
         kind: "list",
-        shape: "list of `{ letters, kind, like?, place?, ipa?, tongue? }`",
+        shape: "list of guide spellings, such as `[a, e, ai]`, or guide rows",
         entries: Object.freeze({
-            kind: "map",
-            shape: "a map — `{ letters, kind, like?, place?, ipa?, tongue? }`",
+            kind: "scalar-or-map",
+            shape: "a guide spelling or a guide row — `{ letters, kind, like?, place?, ipa?, tongue? }`",
             fields: LETTER_FIELDS,
         }),
-        describe: "The letters the language writes, and the sounds they stand for.",
+        describe:
+            "The language’s allowed subset of the shared guide, selected by canonical spelling; guide rows retain the guide’s spelling, IPA and kind.",
     }),
     Object.freeze({
         name: "edges",
@@ -959,22 +868,15 @@ export const SOUND_FIELDS = Object.freeze([
         describe: "How many consonants may stand together.",
     }),
     Object.freeze({
-        name: "stress",
-        kind: "map",
-        shape: "a map — `{ two, longer, mark? }`",
-        fields: STRESS_FIELDS,
-        describe: "Where a word's stress falls, as a rule a program reads.",
-    }),
-    Object.freeze({
         name: "finals",
         kind: "list",
-        shape: "list of `{ final, like, ipa? }`",
+        shape: "list of `{ final }`",
         entries: Object.freeze({
             kind: "map",
-            shape: "a map — `{ final, like, ipa? }`",
+            shape: "a map — `{ final }`",
             fields: FINAL_FIELDS,
         }),
-        describe: "The syllable finals, for a language whose syllables are parsed by them.",
+        describe: "The allowed syllable finals; each follows the shared pronunciation guide.",
     }),
     Object.freeze({
         name: "syllables",
@@ -1007,17 +909,6 @@ export const SOUND_FIELDS = Object.freeze([
         describe: "What happens where two parts of a word meet, one entry per meeting.",
     }),
     Object.freeze({
-        name: "marks",
-        kind: "list",
-        shape: "list of `{ mark, letters, kind, limit }`",
-        entries: Object.freeze({
-            kind: "map",
-            shape: "a map — `{ mark, letters, kind, limit }`",
-            fields: MARK_FIELDS,
-        }),
-        describe: "The marks the language writes on its letters.",
-    }),
-    Object.freeze({
         name: "skeleton",
         kind: "list",
         shape: "list of `{ second, between? }`",
@@ -1040,17 +931,6 @@ export const SOUND_FIELDS = Object.freeze([
         describe: "The patterns a root is set in.",
     }),
     Object.freeze({
-        name: "readPast",
-        kind: "list",
-        shape: "list of `{ written, readAs?, what }`",
-        entries: Object.freeze({
-            kind: "map",
-            shape: "a map — `{ written, readAs?, what }`",
-            fields: READ_PAST_FIELDS,
-        }),
-        describe: "Marks and spellings a word is read through before the sound rules hold it.",
-    }),
-    Object.freeze({
         name: "mutations",
         kind: "list",
         shape: "list of `{ mutation, sound, becomes, example? }`",
@@ -1071,9 +951,31 @@ export const SOUND_FIELDS = Object.freeze([
  *
  * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
  */
-export const GUIDE_SOUND_FIELDS = Object.freeze(
-    SOUND_FIELDS.filter((field) => field.name === "letters" || field.name === "marks"),
-);
+export const GUIDE_SOUND_FIELDS = Object.freeze([
+    Object.freeze({
+        ...SOUND_FIELDS.find((field) => field.name === "letters"),
+        name: "letters",
+        kind: "list",
+        shape: "list of `{ letters, kind, like?, place?, ipa?, tongue? }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a guide sound row",
+            fields: LETTER_FIELDS,
+        }),
+        describe: "The guide's letters and their pronunciation; language notes select a subset.",
+    }),
+    Object.freeze({
+        name: "marks",
+        kind: "list",
+        shape: "list of `{ mark, letters, kind, limit }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ mark, letters, kind, limit }`",
+            fields: MARK_FIELDS,
+        }),
+        describe: "The guide’s marks and their meanings.",
+    }),
+]);
 
 /**
  * The keys of one `data.soundChanges` entry.
@@ -1931,8 +1833,8 @@ export const LANGUAGE_DATA_FIELDS = Object.freeze([
         name: "sounds",
         kind: "map",
         shape:
-            "a map — `{ letters?, edges?, clusters?, stress?, finals?, syllables?, joining?, " +
-            "joins?, marks?, skeleton?, frames?, readPast?, mutations? }`",
+            "a map — `{ letters?, edges?, clusters?, finals?, syllables?, joining?, " +
+            "joins?, skeleton?, frames?, mutations? }`",
         fields: SOUND_FIELDS,
         describe:
             "The letters the language writes and the rules its words keep. A language skill " +
@@ -1990,8 +1892,6 @@ export const RETIRED_KEYS = Object.freeze(RETIRED_FIELDS.map((field) => field.na
 export const LETTER_KEYS = Object.freeze(LETTER_FIELDS.map((field) => field.name));
 /** The keys of {@link EDGE_FIELDS}, in declared order. */
 export const EDGE_KEYS = Object.freeze(EDGE_FIELDS.map((field) => field.name));
-/** The keys of {@link READ_PAST_FIELDS}, in declared order. */
-export const READ_PAST_KEYS = Object.freeze(READ_PAST_FIELDS.map((field) => field.name));
 /** The keys of {@link SOUND_CHANGE_STEP_FIELDS}, in declared order. */
 export const SOUND_CHANGE_STEP_KEYS = Object.freeze(
     SOUND_CHANGE_STEP_FIELDS.map((field) => field.name),

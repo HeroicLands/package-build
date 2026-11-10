@@ -41,7 +41,7 @@ it("checks unused authoritative words and names without allowing native entries 
             encodeWithLanguage(context.encodings.get(encodingName), "c", {
                 lexicon: { language: "aelw", data: bad.data },
             }).text,
-        ).toBe("\u{F0230}");
+        ).toBe("");
         const note = {
             file: path.join(root, "assets/content/Aelwythi.md"),
             fm: bad,
@@ -53,8 +53,8 @@ it("checks unused authoritative words and names without allowing native entries 
             }),
         ).toMatchObject({ text: "", findings: [{ offset: 0 }] });
         const findings = checkEncodingLexicon(note, context);
-        expect(findings).toHaveLength(4);
-        for (const form of ["x", "cove", "xarin", "xil"])
+        expect(findings).toHaveLength(5);
+        for (const form of ["c", "x", "cove", "xarin", "xil"])
             expect(
                 findings.some((f) =>
                     f.message.startsWith(`\`${form}\` is not valid Roman spelling`),
@@ -89,7 +89,7 @@ it.each([{}, { a: "ANKRON_MIN" }])(
                     font: "semaron-kuriale",
                     accepts: ["a-z"],
                     mappings,
-                    rules: { normalization: "NFC", matching: "longest-first" },
+                    rules: { normalization: "NFC", matching: "longest-first", roundTrip: "none" },
                 },
             };
             const context = runContext(config, [language, encoding]);
@@ -140,12 +140,12 @@ it("excludes English translation labels from own-language orthography and name r
         const enc = context.encodings.get(encodingName),
             lexicon = { language: "aelw", data: language.data };
         expect(decodeWithLanguage(enc, encodeText(enc, "Say"), { lexicon })).toMatchObject({
-            text: "{say}",
+            text: "Say",
             findings: [],
         });
         const translated = decodeWithLanguage(enc, encodeText(enc, "Bad"), { lexicon });
         expect(translated.text).toBe("Bad");
-        expect(translated.findings).toHaveLength(1);
+        expect(translated.findings).toHaveLength(0);
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }

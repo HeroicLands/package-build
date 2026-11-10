@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
+import { SHARED_SOUNDS } from "../../engine/encoding-standard.mjs";
 export const template = JSON.parse(
     fs.readFileSync(
         new URL("../fixtures/encoding-notes/aelwythi-semaron.json", import.meta.url),
@@ -15,6 +16,31 @@ export const codes = JSON.parse(
         "utf8",
     ),
 );
+export const sounds = YAML.parse(
+    fs
+        .readFileSync(
+            new URL("../fixtures/sound-guides/Pronouncing_Thalorna.md", import.meta.url),
+            "utf8",
+        )
+        .split("---")[1],
+).data.sounds.letters;
+const sourceMappings = template.mappings;
+template.mappings = {};
+for (const [index, row] of sounds.entries()) {
+    const roman = row.letters[0];
+    const selected = sourceMappings[roman];
+    const code = SHARED_SOUNDS[row.ipa].code;
+    codes[code] = SHARED_SOUNDS[row.ipa].invisible;
+    template.mappings[roman] = typeof selected === "string" ? selected : code;
+    const capital = roman[0].toUpperCase() + roman.slice(1);
+    if (capital !== roman && typeof sourceMappings[capital] === "string")
+        template.mappings[capital] = sourceMappings[capital];
+}
+for (const [from, code] of Object.entries(sourceMappings))
+    if (/^\d$/u.test(from)) template.mappings[from] = code;
+template.rules = { normalization: "NFC", matching: "longest-first", roundTrip: "exact" };
+delete template.accepts;
+delete template.vowels;
 export const encodingName = "demo-note-doc-aelwsemaronenc";
 export const languageNote = {
     type: "skill",
@@ -23,6 +49,7 @@ export const languageNote = {
     name: { full: "Aelwythi" },
     data: {
         roman: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        sounds: { letters: sounds },
         words: [
             {
                 form: "say",

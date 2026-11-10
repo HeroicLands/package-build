@@ -29,7 +29,7 @@
  *   an alias or a part of its name, as a rank or an office title, or as the
  *   name of an anchor, which is cited with its anchor. A folder note carries
  *   no name;
- * - `retired`, `tongues`, `letters`, `edges`, `read_past`, `sound_changes`,
+ * - `retired`, `tongues`, `letters`, `edges`, `sound_changes`,
  *   `elements` and `roots` — one row per entry, the list keys always lists;
  * - `scope` — one row per value, with the `kind` of `data.scope` it is under;
  * - `clusters` — one row per language stating `data.sounds.clusters`;
@@ -45,6 +45,7 @@
  * @module
  */
 
+import { SHARED_SOUNDS } from "./encoding-standard.mjs";
 import { isLanguageRecord, noteAddressOf } from "./word-rows.mjs";
 import {
     ANY_NAME,
@@ -59,7 +60,6 @@ import {
     MARK_KEYS,
     MUTATION_KEYS,
     OLDER_KEYS,
-    READ_PAST_KEYS,
     REGISTER_KEYS,
     RETIRED_KEYS,
     ROOT_KEYS,
@@ -130,8 +130,6 @@ export const HELD_FROM_COLUMNS = Object.freeze([
 export const NEAR_NAME_COLUMNS = Object.freeze([...IDENTITY, "near", "given", "min_syllables"]);
 /** Every column of the `negation` relation, in order: one row per language. */
 export const NEGATION_COLUMNS = Object.freeze(["language", "particle", "mutation"]);
-/** Every column of the `stress` relation, in order. */
-export const STRESS_COLUMNS = Object.freeze(["language", "two", "longer", "mark"]);
 /** Every column of the `finals` relation, in order. */
 export const FINAL_COLUMNS = Object.freeze([...IDENTITY, ...FINAL_KEYS]);
 /** Every column of the `syllables` relation, in order: one row per language. */
@@ -169,8 +167,6 @@ export const FRAME_COLUMNS = Object.freeze([
     "makes",
     "examples",
 ]);
-/** Every column of the `read_past` relation, in order. */
-export const READ_PAST_COLUMNS = Object.freeze([...IDENTITY, ...READ_PAST_KEYS]);
 /** Every column of the `sound_changes` relation, in order: one row per step. */
 export const SOUND_CHANGE_COLUMNS = Object.freeze([
     ...IDENTITY,
@@ -235,7 +231,6 @@ export const LANGUAGE_COLUMN_TYPES = Object.freeze({
     name_draws: { position: "BIGINT", elements: LIST },
     held_from: { position: "BIGINT", joining: LIST, elements: LIST },
     near_names: { position: "BIGINT", min_syllables: "BIGINT" },
-    stress: {},
     finals: { position: "BIGINT" },
     syllables: {
         codas: LIST,
@@ -260,7 +255,6 @@ export const LANGUAGE_COLUMN_TYPES = Object.freeze({
         class: LIST,
         examples: "STRUCT(root VARCHAR, form VARCHAR)[]",
     },
-    read_past: { position: "BIGINT" },
     sound_changes: { position: "BIGINT", step_position: "BIGINT" },
     elements: { position: "BIGINT", variants: LIST, examples: LIST },
     roots: { position: "BIGINT" },
@@ -519,10 +513,22 @@ export function scopeRows(records) {
  * @returns {object[]}
  */
 export function letterRows(records) {
-    return listRows(records, (data) => soundsOf(data).letters, LETTER_KEYS, {
-        lists: ["letters", "tongue"],
-        sources: soundSourcesOf,
-    });
+    return listRows(
+        records,
+        (data) =>
+            (Array.isArray(soundsOf(data).letters) ? soundsOf(data).letters : []).map((value) => {
+                if (typeof value !== "string") return value;
+                const sound = Object.values(SHARED_SOUNDS).find((sound) => sound.roman === value);
+                return sound ?
+                        { letters: [sound.roman], ipa: sound.ipa, kind: sound.kind }
+                    :   { letters: [value] };
+            }),
+        LETTER_KEYS,
+        {
+            lists: ["letters", "tongue"],
+            sources: soundSourcesOf,
+        },
+    );
 }
 
 /**
@@ -704,16 +710,6 @@ export function nearNameRows(records) {
 }
 
 /**
- * The `read_past` rows: one per `data.sounds.readPast` entry.
- *
- * @param {Iterable<Record<string, any>>} records - Index records.
- * @returns {object[]}
- */
-export function readPastRows(records) {
-    return listRows(records, (data) => soundsOf(data).readPast, READ_PAST_KEYS);
-}
-
-/**
  * The `sound_changes` rows: one per step of each `data.soundChanges` set, with
  * the set's `position`, `name`, `from_language`, `to_language` and `takes`,
  * and the step's `step_position` within it.
@@ -799,27 +795,6 @@ export function cognateRows(records) {
 }
 
 /**
- * The `stress` rows: one per language stating `data.sounds.stress`.
- *
- * @param {Iterable<Record<string, any>>} records - Index records.
- * @returns {object[]}
- */
-export function stressRows(records) {
-    const rows = [];
-    for (const [language, record] of languagesOf(records)) {
-        const stress = soundsOf(isMap(record.data) ? record.data : {}).stress;
-        if (isMap(stress))
-            rows.push({
-                language,
-                two: stress.two ?? null,
-                longer: stress.longer ?? null,
-                mark: stress.mark ?? null,
-            });
-    }
-    return rows;
-}
-
-/**
  * The `finals` rows: one per `data.sounds.finals` entry.
  *
  * @param {Iterable<Record<string, any>>} records - Index records.
@@ -894,8 +869,7 @@ export function joinRows(records) {
 }
 
 /**
- * The `marks` rows: one per `data.sounds.marks` entry of a language note or a
- * spelling guide.
+ * The `marks` rows: one per spelling guide `data.sounds.marks` entry.
  *
  * @param {Iterable<Record<string, any>>} records - Index records.
  * @returns {object[]}
@@ -903,7 +877,7 @@ export function joinRows(records) {
 export function markRows(records) {
     return listRows(records, (data) => soundsOf(data).marks, MARK_KEYS, {
         lists: ["letters"],
-        sources: soundSourcesOf,
+        sources: (items) => soundSourcesOf(items).filter(([, record]) => record.type === "doc"),
     });
 }
 
@@ -998,7 +972,6 @@ export const LANGUAGE_RELATIONS = Object.freeze([
     ["clusters", clusterRows, CLUSTER_COLUMNS],
     ["cluster_groups", clusterGroupRows, CLUSTER_GROUP_COLUMNS],
     ["mutations", mutationRows, MUTATION_COLUMNS],
-    ["stress", stressRows, STRESS_COLUMNS],
     ["finals", finalRows, FINAL_COLUMNS],
     ["syllables", syllableRows, SYLLABLE_COLUMNS],
     ["joining", joiningRows, JOINING_COLUMNS],
@@ -1006,7 +979,6 @@ export const LANGUAGE_RELATIONS = Object.freeze([
     ["marks", markRows, MARK_COLUMNS],
     ["skeleton", skeletonRows, SKELETON_COLUMNS],
     ["frames", frameRows, FRAME_COLUMNS],
-    ["read_past", readPastRows, READ_PAST_COLUMNS],
     ["sound_changes", soundChangeRows, SOUND_CHANGE_COLUMNS],
     ["elements", elementRows, ELEMENT_COLUMNS],
     ["roots", rootRows, ROOT_COLUMNS],

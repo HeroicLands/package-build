@@ -19,6 +19,7 @@ import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
 import { positionOfFrontmatterPath, positionOfYamlPath } from "./diagnostics.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { addressSuffixes } from "./address-render.mjs";
+import { languageRecordsByName } from "./encoding-lexicon.mjs";
 import { faceSlug } from "./script-fonts.mjs";
 
 function codePointPosition(raw, position) {
@@ -113,13 +114,15 @@ export function fontCodes(fonts, font) {
  * @param {Iterable<Record<string, any>>} records - Content index records.
  * @param {{languages?: Record<string, any>, contentPackage?: string, rootDir?: string, paths?: {content?: string}}} [config] - Consumer context.
  * @param {import("./script-fonts.mjs").ScriptFonts} [fonts] - Installed glyph metadata.
- * @returns {{encodings: Map<string, ReturnType<typeof compileEncoding>>, definitions: Map<string,{data:Record<string,any>,codes:Record<string,string>}>, findings:object[]}} Runtime and serializable document inputs.
+ * @returns {{encodings: Map<string, ReturnType<typeof compileEncoding>>, definitions: Map<string,{data:Record<string,any>,codes:Record<string,string>,sounds?:any[]}>, findings:object[]}} Runtime and serializable document inputs.
  */
 export function encodingsFromRecords(records, config = {}, fonts) {
     const encodings = new Map(),
         definitions = new Map(),
         findings = [];
-    for (const record of records ?? []) {
+    records = [...(records ?? [])];
+    const languages = languageRecordsByName(records, config);
+    for (const record of records) {
         if (
             !isNoteRecord(record) ||
             record.type !== "doc" ||
@@ -152,16 +155,56 @@ export function encodingsFromRecords(records, config = {}, fonts) {
                     { key: "language" },
                 );
             const codes = fontCodes(fonts, data.font);
-            const encoding = compileEncoding(data, { codes, name });
+            const sounds = languages.get(data.language)?.data?.sounds?.letters;
+            if (data.rules?.roundTrip !== "none" && data.language !== "zxx" && !sounds)
+                throw new EncodingError(
+                    `Exact encoding language \`${data.language}\` needs data.sounds.letters on its configured language note`,
+                    { key: "language" },
+                );
+            const encoding = compileEncoding(data, { codes, name, ...(sounds ? { sounds } : {}) });
             if (encodings.has(name))
                 throw new EncodingError(`Encoding document \`${name}\` is repeated`);
             encodings.set(name, encoding);
-            definitions.set(name, { data, codes });
+            definitions.set(name, { data, codes, ...(sounds ? { sounds } : {}) });
             if ((record.package ?? config.contentPackage) === config.contentPackage) {
                 for (const alias of addressSuffixes(identity))
                     if (alias !== "default") encodings.set(alias, encoding);
             }
         } catch (error) {
+            if (error.key?.startsWith("options.sounds")) {
+                const language = languages.get(record.data?.language);
+                if (language) {
+                    const languageFile =
+                        typeof language.file === "string" ?
+                            language.file
+                        :   path.resolve(
+                                config.paths?.content ?? config.rootDir ?? ".",
+                                language.file?.path ?? "",
+                            );
+                    const source =
+                        language.raw ??
+                        (fs.existsSync(languageFile) && fs.statSync(languageFile).isFile() ?
+                            fs.readFileSync(languageFile, "utf8")
+                        :   "");
+                    const tail = error.key
+                        .slice("options.sounds".length)
+                        .split(".")
+                        .filter(Boolean)
+                        .map((part) => (/^\d+$/.test(part) ? Number(part) : part));
+                    Object.assign(error, {
+                        file: languageFile,
+                        ...codePointPosition(
+                            source,
+                            positionOfFrontmatterPath(source, [
+                                "data",
+                                "sounds",
+                                "letters",
+                                ...tail,
+                            ]),
+                        ),
+                    });
+                }
+            }
             const own = !error.file || error.file === file;
             const key =
                 error.key?.startsWith("mappings.") ?

@@ -13,6 +13,7 @@
 
 /** Compile the closed encoding-note template into the engine's internal row program. */
 import { STANDARD_ROWS, STANDARD_CONTROLS } from "./encoding-standard.mjs";
+import { soundProgram } from "./encoding-sounds.mjs";
 import { assertUniqueOutputs } from "./encoding-integrity.mjs";
 
 const map = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -32,7 +33,7 @@ const codeName = /^[A-Za-z0-9_]+$/;
 /**
  * Validate note data and resolve its code references without reading files.
  * @param {any} data - Encoding-note data, excluding ordinary document metadata.
- * @param {{codes?: Record<string,string>, name?: string}} options - Selected font codes and document identity.
+ * @param {{codes?: Record<string,string>, name?: string, sounds?: any[]}} options - Selected font codes and document identity.
  * @param {(key:string,message:string)=>never} fault - Schema-error constructor supplied by the engine.
  */
 export function templateProgram(data, options, fault) {
@@ -51,7 +52,7 @@ export function templateProgram(data, options, fault) {
             exact(value[name], expected, `${key}.${name}`);
     };
     closed(data, ["language", "font", "accepts", "vowels", "mappings", "rules"], "");
-    closed(options, ["codes", "name"], "options");
+    closed(options, ["codes", "name", "sounds"], "options");
     for (const key of ["language", "font"])
         if (typeof data[key] !== "string" || !slug.test(data[key]))
             fault(key, `${key} must be a lowercase slug`);
@@ -72,7 +73,7 @@ export function templateProgram(data, options, fault) {
         if (!Array.isArray(sequence) || (!sequence.length && !allowEmpty))
             fault(
                 key,
-                "A mapping is a glyph code or a code sequence; an empty sequence requires canonical round trips",
+                "A mapping is a glyph code or a code sequence; an empty sequence requires roundTrip: none",
             );
         return sequence
             .map((name) => {
@@ -106,9 +107,49 @@ export function templateProgram(data, options, fault) {
     const rules = data.rules;
     exact(rules.normalization, "NFC", "rules.normalization");
     exact(rules.matching, "longest-first", "rules.matching");
-    if (rules.roundTrip !== undefined && !["exact", "canonical"].includes(rules.roundTrip))
-        fault("rules.roundTrip", "roundTrip is exact or canonical");
-    const canonical = rules.roundTrip === "canonical";
+    if (rules.roundTrip !== undefined && !["exact", "none"].includes(rules.roundTrip))
+        fault("rules.roundTrip", "roundTrip is exact or none");
+    closed(data.mappings, Object.keys(map(data.mappings) ? data.mappings : {}), "mappings");
+    const none = rules.roundTrip === "none";
+    if (!none && options.sounds !== undefined) {
+        const sound = soundProgram(data, options, fault);
+        sound.capitals = new Map(
+            Object.entries(data.mappings).map(([from, value]) => [
+                from,
+                options.codes[Array.isArray(value) ? value[0] : value],
+            ]),
+        );
+        const rows = [...STANDARD_ROWS, ...sound.rows];
+        return {
+            definition: {
+                name: "encoding-note",
+                fonts: [data.font],
+                accepts: [
+                    ...new Set([
+                        ...Object.keys(data.mappings).join(""),
+                        ..."áéíóúÁÉÍÓÚäëïöüÄËÏÖÜàìòùÀÌÒÙǎǐǔâîûǍǏǓÂÎÛ’-'",
+                        ...STANDARD_ROWS.flatMap((row) => [
+                            ...(Array.isArray(row) ? row[0] : row.from),
+                        ]),
+                    ]),
+                ],
+                separator: " ",
+                roundTrip: "exact",
+                rows,
+                codes: Object.entries(options.codes),
+                controls: STANDARD_CONTROLS,
+            },
+            rowKeys: rows.map((row) => `mappings.${Array.isArray(row) ? row[0] : row.from}`),
+            metadata: {
+                name: options.name ?? `${data.language}-${data.font}`,
+                language: data.language,
+                font: data.font,
+                sound,
+                template: { normalization: "NFC", vowelGroups: [], maxVowelGroup: 0 },
+            },
+        };
+    }
+
     if (rules.case !== undefined)
         fixed(
             rules.case,
@@ -200,7 +241,6 @@ export function templateProgram(data, options, fault) {
             fault("rules.stress.modifier", "Stress is the nonprinting U+E0114 modifier");
         if (!vowels) fault("vowels", "Stress rules require declared vowels");
     }
-    closed(data.mappings, Object.keys(map(data.mappings) ? data.mappings : {}), "mappings");
     const validateSource = (from, key) => {
         if (!scalar(from) || !from || from !== from.normalize("NFC"))
             fault(key, "Mapping sources must be nonempty NFC Unicode scalar text");
@@ -234,7 +274,7 @@ export function templateProgram(data, options, fault) {
     for (const [from, output] of Object.entries(data.mappings)) {
         const key = `mappings.${from}`;
         validateSource(from, key);
-        const to = resolve(output, key, canonical);
+        const to = resolve(output, key, none);
         validateOutput(from, to, key);
         mappings.push([from, to]);
     }
@@ -311,7 +351,7 @@ export function templateProgram(data, options, fault) {
                     "A contextual mapping repeats the same source and conditions",
                 );
             validateSource(row.match, `${key}.match`);
-            const to = resolve(row.emit, `${key}.emit`, canonical);
+            const to = resolve(row.emit, `${key}.emit`, none);
             validateOutput(row.match, to, `${key}.emit`);
             seen.add(condition);
             contextual.push({
@@ -345,7 +385,7 @@ export function templateProgram(data, options, fault) {
         const context = contextual.indexOf(row);
         return context < 0 ? "rules" : `rules.contextual-mappings.${context}`;
     };
-    if (!canonical)
+    if (!none)
         assertUniqueOutputs(
             [
                 ...rows.map((row) =>
@@ -389,7 +429,7 @@ export function templateProgram(data, options, fault) {
                 ...STANDARD_ROWS.flatMap((r) => [...(Array.isArray(r) ? r[0] : r.from)]),
             ],
             separator: " ",
-            roundTrip: canonical ? "canonical" : "exact",
+            roundTrip: none ? "none" : "exact",
             vowels,
             rows,
             codes: Object.entries(options.codes),

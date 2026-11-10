@@ -17,3 +17,6 @@ site-theme
 # point: Prettier would turn a setext heading into an ATX one, realign a table
 # and rewrite the emphasis markers the renderers are tested on.
 tests/fixtures/parity
+
+# The pronunciation guide fixture is checksum-pinned; keep its source bytes intact.
+tests/fixtures/sound-guides/Pronouncing_Thalorna.md

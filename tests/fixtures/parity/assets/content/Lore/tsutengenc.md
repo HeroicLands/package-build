@@ -19,6 +19,7 @@ data:
     rules:
         normalization: NFC
         matching: longest-first
+        roundTrip: none
 ---
 
 The corpus retains the shared word separator between Tantsou spellings.

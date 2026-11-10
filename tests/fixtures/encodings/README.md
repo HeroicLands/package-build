@@ -10,7 +10,8 @@ The engine-contract canto cases in `vectors.json` use the current `***` source
 and decode the canto control to `***` followed by an LF newline, so subsequent
 text remains on a separate line when encoded again. Those expected readings
 follow the engine contract; `SOURCE-SHA256SUMS` records the original captured
-source bytes. The captured encoding definitions remain unchanged.
+source bytes. The row-program fixture states `roundTrip: none` where its outputs have aliases;
+these internal fixtures do not declare language sound inventories.
 
 The conformance test copies each definition alone to an empty directory. Its
 compiler receives only the parsed file, and cannot read a standard, codage,

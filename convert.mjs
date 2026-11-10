@@ -36,10 +36,14 @@ function keys(value, allowed, where) {
 }
 function definition(value, name) {
     if (!object(value)) throw new TypeError("An encoding definition must be an object");
-    keys(value, ["data", "codes"], `encodings.${name}`);
+    keys(value, ["data", "codes", "sounds"], `encodings.${name}`);
     let known = compiled.get(value);
     if (!known) {
-        known = compileEncoding(value.data, { codes: value.codes, name });
+        known = compileEncoding(value.data, {
+            codes: value.codes,
+            name,
+            ...(value.sounds ? { sounds: value.sounds } : {}),
+        });
         compiled.set(value, known);
     }
     return known;

@@ -21,17 +21,16 @@
  *     - { name: hexameter, beats: 6, kind: accentual }
  * ```
  *
- * A div that states `scan=` with the `name` and `lang=` with a language
- * whose note states `data.sounds.stress` is counted line by line, and a line
+ * A div that states `scan=` with the `name` and `lang=` naming a configured
+ * language note is counted line by line, and a line
  * that cannot have the metre's beats is a warning at that line. No `scan=`
  * means no check.
  *
- * **Syllables** are vowel groups: a vowel is a letter whose base is `a`, `e`,
- * `i`, `o` or `u`, and a pair of vowels the language lists in
- * `data.sounds.syllables.vowelPairs` is one syllable. **The stressed
- * syllable** follows `data.sounds.stress`: `two` for a word of two, `longer`
- * for a word of three or more, and a vowel carrying the rule's `mark` is
- * stressed wherever it sits.
+ * **Pronunciation** follows Pronouncing Thalorna alone, through the same
+ * guide reader as sound encodings. Each vowel sound is a syllable. An acute
+ * chooses the stressed syllable, otherwise a tone does, otherwise the first
+ * of two or the penultimate of a longer word is stressed. A hyphen prevents
+ * grouping across it without dividing a compound into separate words.
  *
  * **Beats** follow the accentual convention:
  *
@@ -53,7 +52,7 @@ import { nearest } from "./near-miss.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { METRE_KINDS, METRE_NAME } from "./metre-declaration.mjs";
 import { lexiconsFromRecords } from "./encoding-lexicon.mjs";
-import { STRESS_LONGER, STRESS_MARKS, STRESS_TWO } from "./language-terms.mjs";
+import { guideSoundAt } from "./encoding-sounds.mjs";
 import { parseWordClass } from "./word-classes.mjs";
 import { derivedForms, foldWord } from "./word-forms.mjs";
 import { WORD } from "./word-pattern.mjs";
@@ -110,9 +109,6 @@ export { METRE_KINDS, METRE_NAME, checkMetresField } from "./metre-declaration.m
 /** The bases whose one-syllable words carry a beat. */
 export const BEAT_BASES = Object.freeze(["n", "v", "adj", "num", "name"]);
 
-/** The characters a compound is split at. */
-const JOINS = /[–-]/u;
-
 /** A letter, which a counted word holds at least one of. */
 const LETTER = /\p{L}/u;
 
@@ -122,64 +118,54 @@ const isMap = (value) => value !== null && typeof value === "object" && !Array.i
 /** A list value, or an empty one. */
 const listOf = (value) => (Array.isArray(value) ? value : []);
 
-/** A character's base letter, lowercase. */
-const baseOf = (char) => char.normalize("NFD")[0].toLowerCase();
+/** A pronunciation failure that can be reported on the verse line. */
+class GuidePronunciationError extends Error {}
 
-/** Whether a character is a vowel: its base letter is a, e, i, o or u. */
-const isVowel = (char) => "aeiou".includes(baseOf(char));
-
-/**
- * The syllables of a word, each as the vowel group that makes it.
- *
- * @param {string} word - The word.
- * @param {Iterable<string>} pairs - The vowel pairs that are one syllable.
- * @returns {string[]} The nuclei, in order; none for a word with no vowel.
- */
-export function nucleiOf(word, pairs) {
-    const chars = Array.from(String(word).normalize("NFC"));
-    const known = new Set(pairs);
-    const longest = Math.max(1, ...Array.from(known, (pair) => Array.from(pair).length));
+/** The vowel sounds of a word, read by the shared guide. */
+function guideNuclei(word) {
+    const text = String(word).normalize("NFC");
     const nuclei = [];
-    for (let at = 0; at < chars.length; at++) {
-        if (!isVowel(chars[at])) continue;
-        let taken = 1;
-        for (let size = Math.min(longest, chars.length - at); size > 1; size--) {
-            const group = chars.slice(at, at + size);
-            if (!group.every(isVowel)) continue;
-            if (known.has(group.join("")) || known.has(group.map(baseOf).join(""))) {
-                taken = size;
-                break;
-            }
-        }
-        nuclei.push(chars.slice(at, at + taken).join(""));
-        at += taken - 1;
+    const fail = (_offset, message) => {
+        throw new GuidePronunciationError(`Cannot scan \`${text}\`: ${message}`);
+    };
+    for (let at = 0; at < text.length;) {
+        const sound = guideSoundAt(text, at, text.length, fail);
+        if (sound?.vowel) nuclei.push(sound);
+        at = sound?.end ?? at + String.fromCodePoint(text.codePointAt(at)).length;
     }
+    if (nuclei.filter((sound) => sound.stress).length > 1)
+        fail(0, "A word carries at most one acute");
+    if (nuclei.filter((sound) => sound.tone).length > 1) fail(0, "A word carries at most one tone");
     return nuclei;
 }
 
 /**
- * The index of the stressed syllable of a word.
+ * The syllables of a word, each as its guide vowel group in NFC.
  *
- * @param {string} word - The word.
- * @param {{two: string, longer: string, mark?: string}} rule - The language's
- *   `data.sounds.stress`.
- * @param {Iterable<string>} pairs - The vowel pairs that are one syllable.
+ * @param {string} word - The word as written.
+ * @returns {string[]} The nuclei, in order; none for a word with no vowel.
+ */
+export function nucleiOf(word) {
+    return guideNuclei(word).map((sound) => sound.from);
+}
+
+/** The stressed nucleus, with acute taking precedence over tone. */
+function stressedNucleus(nuclei) {
+    const acute = nuclei.findIndex((sound) => sound.stress);
+    if (acute >= 0) return acute;
+    const tone = nuclei.findIndex((sound) => sound.tone);
+    if (tone >= 0) return tone;
+    return Math.max(0, nuclei.length - 2);
+}
+
+/**
+ * The guide's stressed syllable of a word.
+ *
+ * @param {string} word - The word as written.
  * @returns {number} The 0-based syllable; 0 for a word of one syllable or none.
  */
-export function stressIndex(word, rule, pairs) {
-    const nuclei = nucleiOf(word, pairs);
-    const mark = rule.mark === undefined ? undefined : STRESS_MARKS[rule.mark];
-    if (mark) {
-        const marked = nuclei.findIndex((nucleus) => nucleus.normalize("NFD").includes(mark));
-        if (marked >= 0) return marked;
-    }
-    const count = nuclei.length;
-    if (count <= 1) return 0;
-    if (count === 2) return rule.two === "last" ? 1 : 0;
-    if (rule.longer === "first") return 0;
-    if (rule.longer === "antepenultimate") return count - 3;
-    if (rule.longer === "final") return count - 1;
-    return count - 2;
+export function stressIndex(word) {
+    return stressedNucleus(guideNuclei(word));
 }
 
 /**
@@ -187,20 +173,14 @@ export function stressIndex(word, rule, pairs) {
  *
  * @typedef {object} MetreBook
  * @property {string} language - The language's configured name.
- * @property {{two: string, longer: string, mark?: string}} rule - Its stress rule.
- * @property {ReadonlySet<string>} pairs - Its vowel pairs.
  * @property {ReadonlyMap<string, ReadonlySet<string>>} classes - Each lexicon
  *   form, and each form its rules derive, folded, with the class bases of its
  *   entries.
  */
 
-/** Whether a stress value is a complete rule. */
-const isRule = (stress) =>
-    isMap(stress) && STRESS_TWO.includes(stress.two) && STRESS_LONGER.includes(stress.longer);
-
 /**
  * Each configured language's metre book: one per language whose `note` names a
- * language note stating a complete `data.sounds.stress`.
+ * language note. The lexicon supplies word classes, never pronunciation.
  *
  * @param {Iterable<Record<string, any>>|undefined} records - Index records.
  * @param {{languages?: Readonly<Record<string, {tag: string, note?: string}>>, contentPackage?: string}} config -
@@ -211,9 +191,6 @@ export function metreBooksFromRecords(records, config = {}) {
     const books = new Map();
     for (const [language, lexicon] of lexiconsFromRecords(records, config)) {
         const data = lexicon.data;
-        const sounds = isMap(data.sounds) ? data.sounds : {};
-        if (!isRule(sounds.stress)) continue;
-        const syllables = isMap(sounds.syllables) ? sounds.syllables : {};
         const classes = new Map();
         const add = (form, word) => {
             const base = parseWordClass(word.class).base;
@@ -229,8 +206,6 @@ export function metreBooksFromRecords(records, config = {}) {
             language,
             Object.freeze({
                 language,
-                rule: Object.freeze({ ...sounds.stress }),
-                pairs: new Set(listOf(syllables.vowelPairs).filter((p) => typeof p === "string")),
                 classes,
             }),
         );
@@ -278,12 +253,13 @@ export function metresFromRecords(records) {
  */
 function wordBeats(word, book) {
     const folded = foldWord(word);
-    const count = nucleiOf(folded, book.pairs).length;
+    const nuclei = guideNuclei(word);
+    const count = nuclei.length;
     if (count === 0) return { min: 0, max: 0 };
     const bases = book.classes.get(folded);
     if (count > 1) {
         const functionWord = bases && [...bases].every((base) => !BEAT_BASES.includes(base));
-        const first = stressIndex(folded, book.rule, book.pairs) === 0;
+        const first = stressedNucleus(nuclei) === 0;
         return { min: functionWord ? 0 : 1, max: count >= 4 && !first ? 2 : 1 };
     }
     if (!bases) return { min: 1, max: 1 };
@@ -304,13 +280,10 @@ export function lineBeats(text, book) {
     let min = 0;
     let max = 0;
     for (const [whole] of String(text).matchAll(WORD)) {
-        const parts = book.classes.has(foldWord(whole)) ? [whole] : whole.split(JOINS);
-        for (const part of parts) {
-            if (!LETTER.test(part)) continue;
-            const beats = wordBeats(part, book);
-            min += beats.min;
-            max += beats.max;
-        }
+        if (!LETTER.test(whole)) continue;
+        const beats = wordBeats(whole, book);
+        min += beats.min;
+        max += beats.max;
     }
     return { min, max };
 }
@@ -333,7 +306,7 @@ export function metreMessage({ min, max }, metre) {
  * @param {ReadonlyArray<{start: number, end: number, indent: string, attributes: Record<string, string>, classes: string[]}>} blocks -
  *   The divs, from {@link module:engine/content-verse.scanVerse}.
  * @param {string[]} lines - The source's lines.
- * @param {{languages?: Readonly<Record<string, {tag: string}>>, metres?: ReadonlyMap<string, import("./metre-declaration.mjs").Metre>, metreBooks?: ReadonlyMap<string, MetreBook>, lexicons?: ReadonlyMap<string, unknown>, referenceName?: (target: string) => string|undefined, attributeColumns: (line: string, key: string) => {key: number, value: number}}} ctx -
+ * @param {{languages?: Readonly<Record<string, {tag: string}>>, metres?: ReadonlyMap<string, import("./metre-declaration.mjs").Metre>, metreBooks?: ReadonlyMap<string, MetreBook>, referenceName?: (target: string) => string|undefined, attributeColumns: (line: string, key: string) => {key: number, value: number}}} ctx -
  *   The metres and books, and how the div says its columns and where its
  *   keys sit.
  * @returns {{errors: object[], warnings: object[]}} The findings at 1-based
@@ -366,7 +339,7 @@ export function metreFindings(blocks, lines, ctx) {
         if (lang === undefined) {
             error(
                 at("scan", "key"),
-                "`scan=` counts beats by a language's stress rule: the div needs a `lang=`",
+                "`scan=` needs a `lang=` to look up word classes in its language note",
             );
             continue;
         }
@@ -374,9 +347,7 @@ export function metreFindings(blocks, lines, ctx) {
         if (!book) {
             error(
                 at("lang", "value"),
-                ctx.lexicons?.has(lang) ?
-                    `the language \`${lang}\` states no \`data.sounds.stress\`, which \`scan=\` counts beats by`
-                :   `the language \`${lang}\` is not a configured language with a \`note\`, so it has no stress rule for \`scan=\` to count beats by`,
+                `the language \`${lang}\` is not a configured language with a \`note\` for \`scan=\` to look up word classes`,
             );
             continue;
         }
@@ -440,7 +411,14 @@ export function metreFindings(blocks, lines, ctx) {
                     continue;
                 }
                 if (tokens.some((token) => token.meta?.unresolvedReference)) continue;
-                const beats = lineBeats(text, book);
+                let beats;
+                try {
+                    beats = lineBeats(text, book);
+                } catch (cause) {
+                    if (!(cause instanceof GuidePronunciationError)) throw cause;
+                    error(sourcePosition(reading.from), cause.message);
+                    continue;
+                }
                 if (metre.beats >= beats.min && metre.beats <= beats.max) continue;
                 warnings.push({
                     ...sourcePosition(reading.from),

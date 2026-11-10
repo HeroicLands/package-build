@@ -87,10 +87,10 @@ const VELITH = [
     "      vowelPairs: [ai, ei]",
     "      harmony:",
     "        back: [a, ai]",
-    "        front: [y, ë]",
+    "        front: [iy, ë]",
     "        neutral: [e, ei]",
     "        neutralAs: back",
-    "        partners: {a: ë, e: ë, y: y}",
+    "        partners: {a: ë, e: ë, iy: iy}",
     "    mutations:",
     '      - {mutation: wearing, sound: p, becomes: v, example: "pelvai > velvai"}',
     "      - {mutation: wearing, sound: t, becomes: s}",
@@ -317,9 +317,9 @@ describe("vowel partners", () => {
 
     it("refuse a partner that is no front vowel, at the value", () => {
         one(
-            edit("e: ë, y: y}", "e: a, y: y}"),
+            edit("e: ë, iy: iy}", "e: a, iy: iy}"),
             /the partner `a` of `e` is not one of the harmony's `front` vowels/,
-            "a, y: y}",
+            "a, iy: iy}",
         );
     });
 });
@@ -671,7 +671,7 @@ describe("the relations", () => {
                 harmony_partners: [
                     { vowel: "a", partner: "ë" },
                     { vowel: "e", partner: "ë" },
-                    { vowel: "y", partner: "y" },
+                    { vowel: "iy", partner: "iy" },
                 ],
             },
         ]);

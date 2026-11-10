@@ -3,7 +3,7 @@
 import { expect, it } from "vitest";
 import * as converter from "../convert.mjs";
 import { wordBooksFromRecords, unknownWords, unknownWordMessage } from "../engine/run-words.mjs";
-import { template, codes, encodingName } from "./helpers/encoding-note.js";
+import { template, codes, sounds, encodingName } from "./helpers/encoding-note.js";
 
 const lexical = {
     words: [
@@ -31,7 +31,7 @@ const lexical = {
 const data = {
     format: 2,
     contentPackage: "demo",
-    encodings: { [encodingName]: { data: template, codes } },
+    encodings: { [encodingName]: { data: template, codes, sounds } },
     languages: {
         aelw: { name: "Aelwythi", lexicon: { language: "aelw", data: lexical } },
         bare: { name: "Bare" },
@@ -71,7 +71,7 @@ it("flags aaaaaaa although its native output and decoding collide with known au"
                     rules: {
                         normalization: "NFC",
                         matching: "longest-first",
-                        roundTrip: "canonical",
+                        roundTrip: "none",
                         "contextual-mappings": [{ match: "a", at: "start", emit: "CATCH" }],
                     },
                 },
@@ -100,7 +100,7 @@ it("flags aaaaaaa although its native output and decoding collide with known au"
         const before = converter.encode(collision, "aelw", input, { enc });
         expect(before).toMatchObject({ text: "𞨕", findings: [] });
         expect(converter.decode(collision, "aelw", before.text, { enc })).toMatchObject({
-            text: "au",
+            text: "[au | a]",
             findings: [],
         });
         expect(check(collision, "aelw", input).findings.map((p: any) => p.word)).toEqual(

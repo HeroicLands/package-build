@@ -128,7 +128,7 @@ const DOC = paths((NOTE_VOCABULARY as any).doc.data);
 const SUBJECT = [
     ...DOC.filter((key) => /^(map|metres|concepts)(\.|$)/.test(key)),
     ...SKILL.filter((key) =>
-        /^(core|emphasis|script|grammar\.(agreement|participles|native)|affixes\.(attachesTo|replaces|native)|words\.(concept|native)|sounds\.stress|sounds\.syllables\.vowelPairs)(\.|$)/.test(
+        /^(core|emphasis|script|grammar\.(agreement|participles|native)|affixes\.(attachesTo|replaces|native)|words\.(concept|native)|sounds\.syllables\.vowelPairs)(\.|$)/.test(
             key,
         ),
     ),

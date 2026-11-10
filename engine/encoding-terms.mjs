@@ -28,7 +28,7 @@ const fixed = (name, value) => ({
 const block = (name, describe, fields) => ({ name, kind: "map", shape: "a map", describe, fields });
 const sequence = {
     kind: "string-or-list",
-    shape: "a glyph code or list of codes (empty only with canonical round trips)",
+    shape: "one glyph code for a sound; a code sequence for a logograph",
     entries: {
         kind: "string",
         shape: "a glyph code",
@@ -42,9 +42,9 @@ export const ENCODING_RULE_FIELDS = Object.freeze([
     {
         ...text(
             "roundTrip",
-            "Exact by default; canonical permits aliases and empty code sequences and decodes an authored conventional spelling.",
+            "Exact sound conversion by default, requiring the configured language note’s guide-subset data.sounds.letters. Logographic none declares no round-trip promise and returns every registered reading.",
         ),
-        allowed: ["exact", "canonical"],
+        allowed: ["exact", "none"],
     },
     {
         name: "word-separators",
@@ -96,7 +96,7 @@ export const ENCODING_RULE_FIELDS = Object.freeze([
             shape: "true or false",
             required: true,
             describe:
-                "False forbids the diaeresis; true derives plain-vowel mappings and restores splits where a declared group's native mapping distinguishes joined and separate vowels. Exact conversion refuses an unrecoverable derived group split; canonical conversion keeps its conventional reading.",
+                "For logographic glyph matching, false forbids diaeresis and true permits derived plain-vowel mappings. Sound encodings follow the shared guide and omit this block.",
         },
     ]),
     block("grave-accent", "Whether grave-accent mappings are allowed.", [
@@ -169,9 +169,13 @@ export const ENCODING_NOTE_FIELDS = Object.freeze([
             shape: "characters or a range",
             describe: "Accepted Roman characters or a range.",
         },
-        describe: "Accepted Roman letters and additions to standard punctuation.",
+        describe:
+            "Logographic source characters and additions to standard punctuation. Sound encodings derive accepted spellings from the guide and language inventory.",
     },
-    text("vowels", "The letters a contextual vowel match reads as vowels."),
+    text(
+        "vowels",
+        "Vowel characters used for logographic glyph-selection conditions. Sound encodings derive vowel classes from the guide and omit this key.",
+    ),
     {
         name: "mappings",
         kind: "map",
@@ -180,7 +184,8 @@ export const ENCODING_NOTE_FIELDS = Object.freeze([
             ...sequence,
             describe: "The font code or sequence written for this Roman string.",
         },
-        describe: "Roman source strings mapped to codes published by the selected font.",
+        describe:
+            "For a sound encoding, one guide spelling per allowed sound mapped to its chosen visible or shared invisible glyph code; optional capital forms and digits are accepted. For logographs, source words mapped to font codes.",
     },
     {
         name: "rules",
@@ -188,6 +193,6 @@ export const ENCODING_NOTE_FIELDS = Object.freeze([
         shape: "the closed encoding rules vocabulary",
         fields: ENCODING_RULE_FIELDS,
         describe:
-            "Executable normalization, matching, case, stress, vowel groups, accents and contextual mappings.",
+            "Sound encodings use normalization, matching and roundTrip only. Additional glyph-selection rules belong to logographic encodings.",
     },
 ]);

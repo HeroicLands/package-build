@@ -174,9 +174,24 @@ jobs:
                   set -euo pipefail
                   if [ "$(uname -s)" = Linux ]; then
                       ver=v0.15.1
-                      url="https://github.com/typst/typst/releases/download/$ver/typst-x86_64-unknown-linux-musl.tar.xz"
-                      curl -fsSL "$url" | tar -xJ --strip-components=1 -C /usr/local/bin \
-                          typst-x86_64-unknown-linux-musl/typst
+                      pinned_typst() {
+                          case "$(typst --version 2>/dev/null || true)" in
+                              "typst ${ver#v}"|"typst ${ver#v} "*) return 0 ;;
+                              *) return 1 ;;
+                          esac
+                      }
+                      if ! pinned_typst; then
+                          url="https://github.com/typst/typst/releases/download/$ver/typst-x86_64-unknown-linux-musl.tar.xz"
+                          archive=$(mktemp)
+                          trap 'rm -f "$archive"' EXIT
+                          curl -fsSL --retry 3 --retry-delay 1 --max-time 60 -o "$archive" "$url"
+                          tar -xJf "$archive" --strip-components=1 -C /usr/local/bin \
+                              typst-x86_64-unknown-linux-musl/typst
+                      fi
+                      if ! pinned_typst; then
+                          echo "typst ${ver#v} is required on Linux." >&2
+                          exit 1
+                      fi
                   elif ! command -v typst >/dev/null 2>&1; then
                       echo "typst is not on PATH; install it to run the book tests off Linux." >&2
                       exit 1

@@ -46,14 +46,17 @@ const installFonts = (root: string) =>
     });
 const encodingData = (language = "vyl") => ({
     ...template,
+    rules: { normalization: "NFC", matching: "longest-first", roundTrip: "none" },
     language,
     mappings: Object.fromEntries(
-        Object.entries(template.mappings).map(([from, to]) => [
-            from,
-            Array.isArray(to) ?
-                to.map((code) => code.replace(/^KALPEZ_/, "KALPEZA_"))
-            :   (to as string).replace(/^KALPEZ_/, "KALPEZA_"),
-        ]),
+        Object.entries(template.mappings)
+            .filter(([, to]) => typeof to === "string" && !to.startsWith("SOUND_"))
+            .map(([from, to]) => [
+                from,
+                Array.isArray(to) ?
+                    to.map((code) => code.replace(/^KALPEZ_/, "KALPEZA_"))
+                :   (to as string).replace(/^KALPEZ_/, "KALPEZA_"),
+            ]),
     ),
 });
 
@@ -227,7 +230,7 @@ describe("native presentation metadata", () => {
                     language: "vyl",
                     font: "qalezu-hand",
                     mappings: { k: "LAGUN", a: "RETHU" },
-                    rules: { normalization: "NFC", matching: "longest-first" },
+                    rules: { normalization: "NFC", matching: "longest-first", roundTrip: "none" },
                 },
             },
             "The other hand.",

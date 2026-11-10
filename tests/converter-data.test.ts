@@ -13,7 +13,13 @@ import { runContext, renderRuns } from "../engine/content-scripts.mjs";
 import { encodeWithLanguage, decodeWithLanguage } from "../engine/encoding-language.mjs";
 import { serializeLexicon } from "../engine/encoding-lexicon.mjs";
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
-import { installEncodingNote, template, codes, encodingName } from "./helpers/encoding-note.js";
+import {
+    installEncodingNote,
+    template,
+    codes,
+    sounds,
+    encodingName,
+} from "./helpers/encoding-note.js";
 let root: string, config: any, records: any[];
 beforeAll(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "converter-note-"));
@@ -25,7 +31,7 @@ describe("converter build artifact", () => {
         const generated = buildConverterData(config, records);
         expect(validateData(generated)).toBe(generated);
         expect(generated.format).toBe(2);
-        expect(generated.encodings[encodingName]).toEqual({ data: template, codes });
+        expect(generated.encodings[encodingName]).toEqual({ data: template, codes, sounds });
         expect(generated.languages.aelw).toMatchObject({ name: "Aelwythi" });
         expect(generated.languages.aelw).not.toHaveProperty("enc");
         expect(generated.languages.aelw.lexicon!.data).not.toHaveProperty("roman");
@@ -182,7 +188,7 @@ it(
         const artifact = JSON.parse(
             fs.readFileSync(path.join(root, "build/stage/data/from-manifest.json"), "utf8"),
         );
-        expect(artifact.encodings[encodingName]).toEqual({ data: template, codes });
+        expect(artifact.encodings[encodingName]).toEqual({ data: template, codes, sounds });
     },
     SUBPROCESS_TEST_TIMEOUT,
 );

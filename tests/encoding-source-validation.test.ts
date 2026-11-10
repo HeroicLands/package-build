@@ -2,7 +2,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later */
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
-import { compileEncoding, encodeText, validateSource, EncodingError } from "../engine/encoding.mjs";
+import {
+    compileEncoding,
+    encodeText,
+    validateSource,
+    EncodingError,
+} from "./helpers/encoding-row-note.js";
 const read = (name: string) =>
     JSON.parse(
         fs.readFileSync(new URL(`./fixtures/encoding-notes/${name}.json`, import.meta.url), "utf8"),

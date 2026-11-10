@@ -100,11 +100,10 @@ const DUNHARI = [
     "      - {edge: closeCluster, sounds: [nd, rd]}",
     "      - {edge: vowelPair, sounds: [ai, au]}",
     "      - {edge: openCluster, sounds: []}",
-    "      - {edge: syllabic, sounds: any}",
+    "      - {edge: glide, sounds: any}",
     "    clusters: {max: 2}",
-    "    stress: {two: first, longer: penultimate, mark: acute}",
     "    finals:",
-    '      - {final: ang, like: "the a of father, then ng"}',
+    "      - {final: ang}",
     "    syllables:",
     "      onsets: single",
     "      codas: [b, d, sh]",
@@ -115,17 +114,13 @@ const DUNHARI = [
     "      finalVowel: false",
     "      neverInitial: [r]",
     "      signature: [q, gh]",
-    "      harmony: {back: [a, o, u], front: [e, ö, ü], neutral: [i], neutralAs: front}",
+    "      harmony: {back: [a, o, u], front: [e, i, iy], neutral: [i], neutralAs: front}",
     "    joining:",
     '      - {first: [a, â], second: [a, â], written: â, example: "méga + andáhr = mégândáhr"}',
     "      - {first: [i], second: [a, u], written: y+}",
     "    joins:",
     "      - {meeting: V+V, rule: insert, letters: [y]}",
     "      - {meeting: V+C, rule: double, letters: [p, t], where: between stems}",
-    "    marks:",
-    "      - {mark: acute, letters: [á, é], kind: stress, limit: one}",
-    "      - {mark: macron, letters: [ā, ē], kind: length, limit: any}",
-    "      - {mark: diaeresis, letters: [ë], kind: apart, limit: any}",
     "    skeleton:",
     "      - {second: [m, n], third: [r, m], between: u}",
     '      - {second: [l, r, m], between: ""}',
@@ -133,9 +128,6 @@ const DUNHARI = [
     "    frames:",
     "      - {frame: bare, shape: K1aK2K3, class: [n], makes: the thing itself, examples: {d-l-k: dalk}}",
     "      - {frame: deed, shape: K1uK2áK3, class: [v, n], makes: the doing of it}",
-    "    readPast:",
-    '      - {written: á, readAs: a, what: "the acute, a stress mark"}',
-    '      - {written: "\'", what: the seam between two stems}',
     "  soundChanges:",
     "    - name: From Dunhari to Sovidur",
     "      from: skill-dunharlng",
@@ -246,7 +238,6 @@ describe("a language note's register, sounds and history", () => {
             "innerCluster",
             "vowelPair",
             "glide",
-            "syllabic",
         ]);
         expect(ELEMENT_POSITIONS).toEqual(["opening", "closing", "either", "link"]);
     });
@@ -508,17 +499,6 @@ describe("the sounds", () => {
         );
     });
 
-    it("refuse a spelling read past with nothing said of it, at the row", () => {
-        one(
-            edit(
-                '{written: á, readAs: a, what: "the acute, a stress mark"}',
-                "{written: á, readAs: a}",
-            ),
-            /`data\.sounds\.readPast\[0\]` must state `what`/,
-            "{written: á",
-        );
-    });
-
     it("refuse a key the sounds do not declare, at the key", () => {
         one(
             edit("    clusters: {max: 2}", "    clusters: {max: 2}\n    tones: level"),
@@ -618,59 +598,11 @@ describe("sound-change sets", () => {
 });
 
 describe("the sound rules beside the letters", () => {
-    it("refuse a stress rule outside the closed list, at the value", () => {
+    it("refuse language pronunciation overrides as unknown sound keys", () => {
         one(
-            edit("longer: penultimate", "longer: last"),
-            /`data\.sounds\.stress\.longer` should be `first` or `antepenultimate` or `penultimate` or `final`/,
-            "last",
-        );
-    });
-
-    it("refuse a stress rule written as a sentence, at the value", () => {
-        one(
-            edit(
-                "stress: {two: first, longer: penultimate, mark: acute}",
-                "stress: penultimate or final",
-            ),
-            /`data\.sounds\.stress` .*a map/,
-            "penultimate or final",
-        );
-    });
-
-    it("refuse a stress rule with no `two` or no `longer`, at the rule", () => {
-        one(
-            edit(
-                "stress: {two: first, longer: penultimate, mark: acute}",
-                "stress: {longer: penultimate}",
-            ),
-            /`data\.sounds\.stress` must state `two`/,
+            edit("  sounds:", "  sounds:\n    stress: {two: last, longer: final}"),
+            /"stress" is not a key of `data\.sounds`/,
             "stress:",
-        );
-        one(
-            edit("stress: {two: first, longer: penultimate, mark: acute}", "stress: {two: first}"),
-            /`data\.sounds\.stress` must state `longer`/,
-            "stress:",
-        );
-    });
-
-    it("refuse a stress rule's two-syllable position or mark outside the closed lists, at the value", () => {
-        one(
-            edit("two: first", "two: middle"),
-            /`data\.sounds\.stress\.two` should be `first` or `last`/,
-            "middle",
-        );
-        one(
-            edit("mark: acute", "mark: tilde"),
-            /`data\.sounds\.stress\.mark` should be `acute` or `grave` or `circumflex`/,
-            "tilde",
-        );
-    });
-
-    it("refuse a key a stress rule does not take, at the key", () => {
-        one(
-            edit("mark: acute}", "mark: acute, weight: heavy}"),
-            /"weight" is not a key of `data\.sounds\.stress`/,
-            "weight",
         );
     });
 
@@ -684,19 +616,6 @@ describe("the sound rules beside the letters", () => {
             edit("rule: insert,", "rule: add,"),
             /`data\.sounds\.joins\[0\]\.rule` should be/,
             "add",
-        );
-    });
-
-    it("refuse a mark's kind or limit outside the closed lists, at the value", () => {
-        one(
-            edit("kind: stress, limit: one", "kind: pitch, limit: one"),
-            /`data\.sounds\.marks\[0\]\.kind` should be `stress` or `length` or `apart` or `quality` or `tone`/,
-            "pitch",
-        );
-        one(
-            edit("kind: stress, limit: one", "kind: stress, limit: two"),
-            /`data\.sounds\.marks\[0\]\.limit` should be `one` or `any`/,
-            "two",
         );
     });
 
@@ -782,18 +701,8 @@ describe("calling names", () => {
     });
 });
 
-describe("first-syllable stress", () => {
-    it("is a rule a language note states", () => {
-        expect(
-            dunhari(edit("longer: penultimate", "longer: first")).filter((finding: any) =>
-                /stress/.test(finding.message),
-            ),
-        ).toEqual([]);
-    });
-});
-
-describe("letters and finals in the International Phonetic Alphabet", () => {
-    it("are stated beside a letter row and a final", () => {
+describe("letters in the International Phonetic Alphabet", () => {
+    it("are stated beside a letter row", () => {
         expect(
             dunhari(
                 edit(
@@ -848,14 +757,9 @@ const GUIDE = (rows: string[]) =>
 
 const guide = (text: string) => lint({ "Lore/Pronouncing.md": text });
 
-describe.each([
-    [
-        "a language note",
-        (rows: string[]) => DUNHARI.replace("    marks:\n", rows.join("\n") + "\n"),
-        dunhari,
-    ],
-    ["a spelling guide", GUIDE, guide],
-] as const)("%s's mark kinds", (_name, note, validate) => {
+describe("a spelling guide's mark kinds", () => {
+    const note = GUIDE;
+    const validate = guide;
     it("accepts rising and falling tone marks", () => {
         const text = note([
             "    marks:",
@@ -874,6 +778,16 @@ describe.each([
         expect(findings, JSON.stringify(findings)).toHaveLength(1);
         expect(findings[0].message).toMatch(/`data\.sounds\.marks\[0\]\.kind` should be/);
         expect(at(text, findings[0]).startsWith("pitch")).toBe(true);
+    });
+    it("refuses an unknown limit at the value", () => {
+        const text = note([
+            "    marks:",
+            "      - {mark: acute, letters: [á], kind: stress, limit: two}",
+        ]);
+        const findings = validate(text);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toMatch(/`data\.sounds\.marks\[0\]\.limit` should be/);
+        expect(at(text, findings[0]).startsWith("two")).toBe(true);
     });
 });
 

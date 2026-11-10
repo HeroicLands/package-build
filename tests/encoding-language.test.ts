@@ -112,7 +112,7 @@ it("prefers exact cased entries, recognizes variants, and honors authored marked
         findings: [],
     });
     expect(decodeWithLanguage(compiled, marked, { lexicon })).toMatchObject({
-        text: "marked",
+        text: "[marked | á]",
         findings: [],
     });
     expect(decodeWithLanguage(compiled, encodeText(compiled, "rá"), { lexicon }).text).toBe(

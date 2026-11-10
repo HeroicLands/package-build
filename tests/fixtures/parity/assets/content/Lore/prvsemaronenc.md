@@ -50,6 +50,7 @@ data:
     rules:
         normalization: NFC
         matching: longest-first
+        roundTrip: none
 ---
 
 The prv spellings used by the renderer corpus.

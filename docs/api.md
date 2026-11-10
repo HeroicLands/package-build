@@ -1535,7 +1535,7 @@ not change `isAllowedCodePoint(0x0301)`, which returns `false`, or renderers.
 
 `checkText` admits phonetic characters only inside valid `[text]{.ipa}` body
 spans and string scalars at `data.sounds.letters[].ipa` on language notes or
-`doc` spelling guides, and `data.sounds.finals[].ipa` on language notes. It uses
+`doc` spelling guides. It uses
 the existing span parser and YAML scalar source ranges; arbitrary `ipa` keys,
 other fields, malformed spans and literal code examples of span syntax gain no allowance. The ordinary
 character tiers and NFC diagnostics remain unchanged, including inside phonetic
@@ -3114,35 +3114,69 @@ see [encoding text](encoding-core.md). No files are read. Text errors expose a
 UTF-16 `offset` and one-based code-point `line` and `column`; definition errors
 expose their schema `key`.
 
-| Export            | Signature                                   | Returns              | Use it when                                                                         |
-| ----------------- | ------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------- |
-| `EncodingError`   | `new EncodingError(message, details)`       | error                | locating a schema fault or unidentified character                                   |
-| `compileEncoding` | `compileEncoding(data, {codes, name})`      | compiled encoding    | validating executable document mappings and rules                                   |
-| `compileRows`     | `compileRows(definition)`                   | internal row program | executing captured row-conformance fixtures; application inputs use compileEncoding |
-| `validateSource`  | `validateSource(encoding, text, options)`   | void                 | validating accepted Roman spelling and rules independently of mapping coverage      |
-| `encodePieces`    | `encodePieces(encoding, text, options)`     | piece array          | retaining original UTF-16 `start` and `end` offsets while encoding                  |
-| `encodeText`      | `encodeText(encoding, text, {font, verse})` | string               | encoding exactly by rows and inline codes                                           |
-| `decodeText`      | `decodeText(encoding, text, {font})`        | string               | decoding by longest output matches                                                  |
+| Export            | Signature                                      | Returns              | Use it when                                                                         |
+| ----------------- | ---------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------- |
+| `EncodingError`   | `new EncodingError(message, details)`          | error                | locating a schema fault or unidentified character                                   |
+| `compileEncoding` | `compileEncoding(data, {codes, sounds, name})` | compiled encoding    | validating executable document mappings and rules                                   |
+| `compileRows`     | `compileRows(definition)`                      | internal row program | executing captured row-conformance fixtures; application inputs use compileEncoding |
+| `validateSource`  | `validateSource(encoding, text, options)`      | void                 | validating guide spelling and sound coverage, or logographic source syntax          |
+| `encodePieces`    | `encodePieces(encoding, text, options)`        | piece array          | retaining original UTF-16 `start` and `end` offsets while encoding                  |
+| `encodeText`      | `encodeText(encoding, text, {font, verse})`    | string               | encoding exactly by rows and inline codes                                           |
+| `decodeText`      | `decodeText(encoding, text, {font})`           | string               | decoding by longest output matches                                                  |
 
-Encoding rules default to exact, uniquely decodable outputs. A note may state
-`rules.roundTrip: canonical` to permit aliases and empty code sequences;
-`decodeText` then returns the authored conventional reading without restoring
-erased Roman characters. Contextual rules accept `after` (one exact NFC Unicode letter, `vowel` or
-`consonant`), `before: vowel|consonant` and `at: start|end|line-start`; supplied conditions combine with AND. `after` governs forward encoding only. Accent
-permission blocks accept explicit Boolean values. See [Encoding text](encoding-core.md).
+Exact sound encodings require `sounds`, the configured language note's
+`data.sounds.letters` subset of Pronouncing Thalorna. Each allowed sound has
+one visible or shared invisible form in `mappings`. The inventory selects canonical spellings such as `[a, e, ai]`; complete
+guide rows are also accepted. The guide determines
+longest tokens, marks and separators before the language subset is checked;
+a language cannot supply a different pronunciation or a vowel reading of `y`.
+Stress, rising and falling tone, and compound boundaries use shared controls.
+`decodeText` reverses the
+choices without lexical recovery. Logographs explicitly select
+`rules.roundTrip: none` and return all registered readings, using `[sun | day]`
+for multiple readings. Literal `zxx` codage requires no sound inventory.
+
+`engine/encoding-standard` exports `SHARED_SOUNDS` (IPA keys with `roman`,
+`ipa`, `kind`, `code` and `invisible`), `SHARED_SOUND_CONTROLS` (`stress`, `compoundBoundary`,
+`toneRising`, `toneFalling` and the reserved `legacyShort`),
+`SHARED_SOUND_CODES` (all sound aliases plus `STRESS`, `SHORT`,
+`COMPOUND_BOUNDARY`, `TONE_RISING` and `TONE_FALLING`), and
+`validateGuideSounds(letters)`, which
+returns inventory finding messages for canonical spelling references or guide rows. Consumer guards derive their inputs from
+the actual guide at runtime. See [Encoding text](encoding-core.md).
+
+`engine/encoding-sounds` exports `guideSoundAt(text, at = 0, bound = text.length,
+fail?)` for reading one global guide token without a font or language inventory.
+It returns `{from, plain, end, roman, ipa, kind, vowel, stress, tone}` or `undefined`
+for punctuation. Positions use UTF-16 offsets; `plain` keeps input case without
+stress, separation or tone marks, and `roman` is the guide's spelling. `stress`
+records an explicit acute; `tone` is `toneRising`, `toneFalling` or undefined.
+Tone implies stress only when the word has no acute. `vowel`
+is false for consonantal `y`. Invalid sound spellings throw an error with
+`offset`, or call the supplied throwing `fail(offset, message)` callback.
+
+`checkLanguageData` uses this reader for explicit vowel positions: each harmony
+member and nonempty `sounds.skeleton[].between` is one complete guide vowel
+unit. `sounds.syllables.vowelPairs`, `sounds.edges` with `edge: vowelPair`, and
+`naming.edges` with that edge accept sequences of those units. Harmony partners
+also belong to the declared harmony and its front set. Shape and unknown-key
+findings come from `lintNote` with `NOTE_SCHEMAS` and `NOTE_VOCABULARY`; its
+language check also includes these semantic findings. Written finals export
+only `final`; the `marks` relation contains authoritative guide-note rows.
 
 ### `engine.encodingLanguage`
 
 Pure language-aware conversion takes a compiled encoding and optional plain
 `lexicon: {language, data}` from `serializeLexicon`. The build and browser use
 the same functions. Findings retain input offsets; an encoding refusal returns
-no partial encoded output. Decoding preserves the plain skeleton of an unknown
-unmarked word and reports it.
+no partial encoded output. Sound encodings use direct sound choices even when
+a lexicon is supplied. Logographs use lexical writings and return every
+registered reading of a shared sign.
 
-| Export               | Signature                                                    | Returns                    | Use it when                                                            |
-| -------------------- | ------------------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------- |
-| `encodeWithLanguage` | `encodeWithLanguage(encoding, text, {font, verse, lexicon})` | `{text, pieces, findings}` | writing authored native entries or complete parts before encoding rows |
-| `decodeWithLanguage` | `decodeWithLanguage(encoding, text, {font, lexicon})`        | `{text, findings}`         | reading native exceptions and recovering unmarked lexical skeletons    |
+| Export               | Signature                                                    | Returns                    | Use it when                                              |
+| -------------------- | ------------------------------------------------------------ | -------------------------- | -------------------------------------------------------- |
+| `encodeWithLanguage` | `encodeWithLanguage(encoding, text, {font, verse, lexicon})` | `{text, pieces, findings}` | encoding sound choices or logographic native writings    |
+| `decodeWithLanguage` | `decodeWithLanguage(encoding, text, {font, lexicon})`        | `{text, findings}`         | decoding sounds directly or listing logographic readings |
 
 ### `engine.encodingNotes`
 

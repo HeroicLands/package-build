@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createRenderer } from "../engine/content-render.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 import { previewStyles } from "../engine/site-preview.mjs";
-import { compileEncoding } from "../engine/encoding.mjs";
+import { compileEncoding } from "./helpers/encoding-row-note.js";
 import { hasClass, rules } from "./helpers/theme-css.ts";
 
 const poem = (attrs = "", title = "") =>

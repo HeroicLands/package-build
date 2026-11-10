@@ -2402,7 +2402,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                             required: true,
                             describe:
                                 "How the beats are counted: `accentual`, one beat for each " +
-                                "stressed syllable the language's stress rule and the beat " +
+                                "stressed syllable the shared pronunciation guide and the beat " +
                                 "convention give.",
                         },
                     ]),

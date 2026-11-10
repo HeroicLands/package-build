@@ -6,7 +6,7 @@ import {
     decodeText,
     encodePieces,
     encodeText,
-} from "../engine/encoding.mjs";
+} from "./helpers/encoding-row-note.js";
 import { encodeWithLanguage, decodeWithLanguage } from "../engine/encoding-language.mjs";
 import { renderRuns, scanRuns } from "../engine/content-scripts.mjs";
 import { plainRomanVerse } from "../engine/roman-verse.mjs";

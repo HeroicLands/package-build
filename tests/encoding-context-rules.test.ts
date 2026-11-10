@@ -8,7 +8,7 @@ import {
     decodeText,
     validateSource,
     EncodingError,
-} from "../engine/encoding.mjs";
+} from "./helpers/encoding-row-note.js";
 const codes = { A: "α", B: "β", K: "κ", S: "σ", BEFORE: "γ", FINAL: "δ", INITIAL: "ε", LINE: "ζ" };
 const note = (rules: object = {}, mappings: object = { a: "A", b: "B", k: "K", s: "S" }) => ({
     language: "test",
@@ -89,19 +89,19 @@ describe("authored contextual encoding rules", () => {
         expect(() => compile(note({ "contextual-mappings": [row] }))).toThrow(EncodingError);
     });
 });
-describe("explicit canonical round trips", () => {
+describe("explicit logographic round trips", () => {
     it("keeps exact default integrity and permits conventional aliases only when declared", () => {
         const mappings = { k: "K", q: "K", a: [] };
         expect(() => compile(note({}, mappings))).toThrow(EncodingError);
-        const enc = compile(note({ roundTrip: "canonical" }, mappings));
+        const enc = compile(note({ roundTrip: "none" }, mappings));
         expect(encodeText(enc, "ka qa")).toBe("κ κ");
-        expect(decodeText(enc, "κ κ")).toBe("k k");
+        expect(decodeText(enc, "κ κ")).toBe("[k | q] [k | q]");
         expect(encodeText(enc, "a")).toBe("");
         expect(decodeText(enc, "")).toBe("");
     });
-    it("permits zero output only for canonical mappings and conditional emissions", () => {
+    it("permits zero output only for logographic mappings and conditional emissions", () => {
         const rules = {
-            roundTrip: "canonical",
+            roundTrip: "none",
             "contextual-mappings": [{ match: "s", at: "end", emit: [] }],
         };
         const enc = compile(note(rules, { a: "A", s: "S", "-": [] }));
@@ -111,23 +111,23 @@ describe("explicit canonical round trips", () => {
             compile(note({ ...rules, roundTrip: "exact" }, { a: "A", s: "S", "-": [] })),
         ).toThrow(EncodingError);
     });
-    it("returns first authored conventional readings when deleted markers hide the original context", () => {
+    it("returns all registered readings when deleted markers hide the original context", () => {
         const enc = compile(
             note(
                 {
-                    roundTrip: "canonical",
+                    roundTrip: "none",
                     "contextual-mappings": [{ match: "k", before: "consonant", emit: "K" }],
                 },
                 { a: "A", k: "K", q: "K" },
             ),
         );
-        expect(decodeText(enc, "κα")).toBe("ka");
+        expect(decodeText(enc, "κα")).toBe("[k | q]a");
         expect(encodeText(enc, "qa")).toBe("κα");
     });
-    it("retains exact concatenation checks, canonical longest-native matching and strict literals", () => {
+    it("retains exact concatenation checks, logographic longest-native matching and strict literals", () => {
         const mappings = { a: "A", b: "B", k: ["A", "B"] };
         expect(() => compile(note({}, mappings))).toThrow(/ambiguous|uniquely/i);
-        const enc = compile(note({ roundTrip: "canonical" }, mappings));
+        const enc = compile(note({ roundTrip: "none" }, mappings));
         expect(decodeText(enc, "αβ")).toBe("k");
         expect(decodeText(enc, encodeText(enc, "⟦A U+1F600⟧"))).toBe("⟦A U+1F600⟧");
         expect(() => encodeText(enc, "⟦U+D800⟧")).toThrow(EncodingError);
@@ -143,7 +143,7 @@ describe("explicit canonical round trips", () => {
             );
         const data = read("aelwythi-semaron"),
             table = read("semaron-codes");
-        data.rules.roundTrip = "canonical";
+        data.rules.roundTrip = "none";
         const enc = compileEncoding(data, { codes: table });
         for (const source of ["CH", "aí", "ë", "à"])
             expect(() => encodeText(enc, source)).toThrow(EncodingError);
@@ -198,12 +198,12 @@ describe("explicit accent permissions", () => {
     });
 });
 
-describe("shared word separators and canonical alias selection", () => {
+describe("shared word separators and logographic alias selection", () => {
     it("preserves internal dividers as shared spaces and removes only authored edge markers", () => {
         const enc = compile(
             note(
                 {
-                    roundTrip: "canonical",
+                    roundTrip: "none",
                     "word-separators": ["-"],
                     "contextual-mappings": [
                         { match: "-", at: "start", emit: [] },
@@ -216,7 +216,7 @@ describe("shared word separators and canonical alias selection", () => {
         expect(encodeText(enc, "-a-b-")).toBe("α β");
         expect(decodeText(enc, "α β")).toBe("a b");
         const separatorOnly = compile(
-            note({ roundTrip: "canonical", "word-separators": ["-"] }, { a: "A" }),
+            note({ roundTrip: "none", "word-separators": ["-"] }, { a: "A" }),
         );
         expect(encodeText(separatorOnly, "a-a")).toBe("α α");
         expect(() => compile(note({ "word-separators": ["-"] }, { a: "A" }))).toThrow(
@@ -225,7 +225,7 @@ describe("shared word separators and canonical alias selection", () => {
     });
     it("refuses separator conflicts, duplicates and syntax delimiters", () => {
         expect(() =>
-            compile(note({ roundTrip: "canonical", "word-separators": ["-"] }, { "-": "K" })),
+            compile(note({ roundTrip: "none", "word-separators": ["-"] }, { "-": "K" })),
         ).toThrow(expect.objectContaining({ key: "rules.word-separators.0" }));
         for (const source of [
             "",
@@ -241,30 +241,30 @@ describe("shared word separators and canonical alias selection", () => {
             "\u{E0112}",
             "\u0000",
         ])
-            expect(() =>
-                compile(note({ roundTrip: "canonical", "word-separators": [source] })),
-            ).toThrow(expect.objectContaining({ key: "rules.word-separators.0" }));
-        expect(() =>
-            compile(note({ roundTrip: "canonical", "word-separators": ["-", "-"] })),
-        ).toThrow(expect.objectContaining({ key: "rules.word-separators.1" }));
+            expect(() => compile(note({ roundTrip: "none", "word-separators": [source] }))).toThrow(
+                expect.objectContaining({ key: "rules.word-separators.0" }),
+            );
+        expect(() => compile(note({ roundTrip: "none", "word-separators": ["-", "-"] }))).toThrow(
+            expect.objectContaining({ key: "rules.word-separators.1" }),
+        );
     });
-    it("prefers an applicable authored alias for the visible decoded suffix", () => {
+    it("lists each registered reading for a shared glyph", () => {
         const enc = compile(
             note(
                 {
-                    roundTrip: "canonical",
+                    roundTrip: "none",
                     "contextual-mappings": [{ match: "c", before: "vowel", emit: "K" }],
                 },
                 { a: "A", b: "B", k: "K" },
             ),
         );
-        expect(decodeText(enc, encodeText(enc, "ca kb"))).toBe("ca kb");
+        expect(decodeText(enc, encodeText(enc, "ca kb"))).toBe("[c | k]a [c | k]b");
     });
     it("falls back to the authored reading when an inherent vowel erased its condition", () => {
         const enc = compile(
             note(
                 {
-                    roundTrip: "canonical",
+                    roundTrip: "none",
                     "contextual-mappings": [{ match: "k", before: "vowel", emit: "INITIAL" }],
                 },
                 { a: [], b: "B", k: "K" },

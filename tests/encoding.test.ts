@@ -171,7 +171,7 @@ describe("encoding semantics", () => {
     it("handles conditional line starts, canonical duplicate/omitted rows, and zero-space decoding without guessing", () => {
         const e = compileEncoding(
             definition({
-                roundTrip: "canonical",
+                roundTrip: "none",
                 separator: "",
                 rows: [
                     ["a", "A"],
@@ -244,6 +244,7 @@ describe("encoding semantics", () => {
         });
         expect(Object.keys(result.metafile!.inputs).sort()).toEqual([
             "engine/encoding-integrity.mjs",
+            "engine/encoding-sounds.mjs",
             "engine/encoding-standard.mjs",
             "engine/encoding-template.mjs",
             "engine/encoding.mjs",

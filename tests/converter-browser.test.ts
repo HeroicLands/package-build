@@ -58,11 +58,11 @@ import { encode, decode, validateData } from "../convert.mjs";
 import { compileEncoding } from "../engine/encoding.mjs";
 import { encodeWithLanguage, decodeWithLanguage } from "../engine/encoding-language.mjs";
 import { build } from "esbuild";
-import { template, codes, encodingName, languageNote } from "./helpers/encoding-note.js";
+import { template, codes, sounds, encodingName, languageNote } from "./helpers/encoding-note.js";
 const bare = {
     format: 2,
     contentPackage: "demo",
-    encodings: { [encodingName]: { data: template, codes } },
+    encodings: { [encodingName]: { data: template, codes, sounds } },
     languages: { aelw: { name: "Aelwythi" } },
 };
 describe("browser conversion parity", () => {
@@ -78,7 +78,7 @@ describe("browser conversion parity", () => {
         expect(result.outputFiles[0].text).toContain("validateData");
     });
     it("uses the same authored template and glyph codes as the pure compiler", () => {
-        const compiled = compileEncoding(template, { codes, name: encodingName });
+        const compiled = compileEncoding(template, { codes, sounds, name: encodingName });
         for (const roman of [
             "say",
             "thikke",
@@ -107,7 +107,7 @@ describe("browser conversion parity", () => {
             data: { words: languageNote.data.words, register: languageNote.data.register },
         };
         const data = { ...bare, languages: { aelw: { name: "Aelwythi", lexicon } } };
-        const compiled = compileEncoding(template, { codes, name: encodingName });
+        const compiled = compileEncoding(template, { codes, sounds, name: encodingName });
         for (const form of ["say", "saith", "thikke", "Adwell"]) {
             const expected = encodeWithLanguage(compiled, form, { lexicon });
             const actual = encode(data, "aelw", form, { enc: "aelwsemaronenc" });
@@ -146,7 +146,7 @@ describe("browser conversion parity", () => {
         );
     });
 });
-it("infers the encoding's language for lexical native overrides and reverse reading", () => {
+it("infers the encoding's language without lexical overrides for sound scripts", () => {
     const lexicon = {
         language: "aelw",
         data: {
@@ -162,10 +162,14 @@ it("infers the encoding's language for lexical native overrides and reverse read
     };
     const data = { ...bare, languages: { aelw: { name: "Aelwythi", lexicon } } };
     expect(encode(data, null, "say", { enc: "aelwsemaronenc" })).toMatchObject({
-        text: "\u{F0231}",
+        text: codes.SIRETHA_MIN + codes.ANKRON_MIN + codes.YALZEMIS_MIN,
         findings: [],
     });
-    expect(decode(data, undefined, "\u{F0231}", { enc: encodingName })).toMatchObject({
+    expect(
+        decode(data, undefined, codes.SIRETHA_MIN + codes.ANKRON_MIN + codes.YALZEMIS_MIN, {
+            enc: encodingName,
+        }),
+    ).toMatchObject({
         text: "say",
         findings: [],
     });
@@ -180,6 +184,7 @@ it("resolves short document references in the consumer namespace and admits full
             rules: { normalization: "NFC", matching: "longest-first" },
         },
         codes,
+        sounds: sounds.filter((row) => row.letters[0] === "a"),
     };
     const lexicon = {
         language: "aelw",
@@ -206,7 +211,7 @@ it("resolves short document references in the consumer namespace and admits full
         "note-doc-aelwsemaronenc",
         encodingName,
     ])
-        expect(encode(data, null, "a", { enc })).toMatchObject({ text: "\u{F0231}", findings: [] });
+        expect(encode(data, null, "a", { enc })).toMatchObject({ text: "\u{F0230}", findings: [] });
     expect(encode(data, null, "a", { enc: peer })).toMatchObject({
         text: "\u{F0200}",
         findings: [],
@@ -236,6 +241,7 @@ it("supports hyphenated own and foreign package identities without foreign suffi
                     rules: { normalization: "NFC", matching: "longest-first" },
                 },
                 codes,
+                sounds: sounds.filter((row) => row.letters[0] === "a"),
             },
         },
     };
