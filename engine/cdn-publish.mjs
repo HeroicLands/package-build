@@ -189,6 +189,8 @@ export function cdnCredentials(env) {
  *   it.
  * @property {(key: string) => Promise<Buffer|undefined>} read - An object's
  *   bytes, `undefined` when there is none.
+ * @property {((uploads: Pick<CdnUpload, "key"|"body">[]) => Promise<void>)|undefined} writeMany -
+ *   Write pictures as a batch; a rejected batch marks every picture in it failed.
  * @property {((key: string, body: Buffer, contentType: string) => Promise<void>)|undefined} write -
  *   Store an object; absent on a read-only store.
  * @property {string} describe - What the store is, for the log. Never a
@@ -413,45 +415,54 @@ export function internalStore({
     }
     const target = `${destination.replace(/\/+$/, "")}/`;
     const reader = publicStore(INTERNAL_CDN_HOST, fetchImpl);
-    return {
-        ...reader,
-        describe: `${destination} (${INTERNAL_CDN_HOST})`,
-        async write(key, body) {
-            validateCdnKey(key);
-            let scratch;
-            let operation = "create temporary directory";
-            let failure;
-            try {
-                scratch = fs.mkdtempSync(path.join(os.tmpdir(), "package-build-cdn-"));
+    /** @param {Pick<CdnUpload, "key"|"body">[]} uploads - Objects to stage and transfer. */
+    const writeMany = async (uploads) => {
+        for (const upload of uploads) validateCdnKey(upload.key);
+        let scratch;
+        let operation = "create temporary directory";
+        let failure;
+        try {
+            scratch = fs.mkdtempSync(path.join(os.tmpdir(), "package-build-cdn-"));
+            for (const { key, body } of uploads) {
                 const file = path.join(scratch, ...key.split("/"));
                 operation = "create staged directories";
                 fs.mkdirSync(path.dirname(file), { recursive: true });
                 operation = "write staged file";
                 fs.writeFileSync(file, body);
-                operation = "rsync transfer";
-                await transfer([
-                    "--recursive",
-                    "--relative",
-                    "--ignore-times",
-                    "--chmod=D755,F644",
-                    "--omit-dir-times",
-                    "--rsh=ssh -o BatchMode=yes -o StrictHostKeyChecking=yes",
-                    "--",
-                    `${scratch}/./${key}`,
-                    target,
-                ]);
-            } catch (error) {
-                failure = internalFailure(error, operation);
-            } finally {
-                if (scratch) {
-                    try {
-                        fs.rmSync(scratch, { recursive: true, force: true });
-                    } catch (error) {
-                        failure ??= internalFailure(error, "remove temporary directory");
-                    }
+            }
+            operation = "rsync transfer";
+            await transfer([
+                "--recursive",
+                "--relative",
+                "--ignore-times",
+                "--chmod=D755,F644",
+                "--omit-dir-times",
+                "--rsh=ssh -o BatchMode=yes -o StrictHostKeyChecking=yes",
+                "--",
+                ...[...new Set(uploads.map(({ key }) => key.split("/")[0]))].map(
+                    (name) => `${scratch}/./${name}`,
+                ),
+                target,
+            ]);
+        } catch (error) {
+            failure = internalFailure(error, operation);
+        } finally {
+            if (scratch) {
+                try {
+                    fs.rmSync(scratch, { recursive: true, force: true });
+                } catch (error) {
+                    failure ??= internalFailure(error, "remove temporary directory");
                 }
             }
-            if (failure) throw new Error(failure);
+        }
+        if (failure) throw new Error(failure);
+    };
+    return {
+        ...reader,
+        describe: `${destination} (${INTERNAL_CDN_HOST})`,
+        writeMany,
+        async write(key, body) {
+            await writeMany([{ key, body }]);
         },
     };
 }
@@ -582,10 +593,10 @@ async function pooled(items, limit, work) {
 /**
  * Upload a plan.
  *
- * A picture that fails is recorded and the rest carry on, so one refused file
- * costs one file rather than the run. The set file is written only when every
- * picture it lists is on the CDN: a set naming a file the CDN lacks sends a
- * world to fetch nothing.
+ * Individual read or write failures are recorded while other pictures proceed.
+ * When a batch write fails, every picture in that batch is recorded as failed;
+ * the transfer may have copied some of them. The set file is withheld whenever
+ * a picture fails.
  *
  * @param {CdnPlan} plan - From {@link planCdnPublish}, with no findings.
  * @param {object} opts
@@ -596,8 +607,8 @@ async function pooled(items, limit, work) {
  *   failed: {upload: CdnUpload, message: string}[],
  *   set: "uploaded"|"skipped"|"withheld", published: Set<string>}>} What was
  *   (or, in a dry run, would be) uploaded, skipped and refused; what became of
- *   the set file; and every address whose picture is on the CDN at its
- *   planned size once the run ends — or would be, in a dry run.
+ *   the set file; and every address confirmed at its planned size or successfully
+ *   uploaded — or that would be uploaded, in a dry run.
  */
 export async function publishToCdn(plan, { store, dryRun = false, log = () => {} }) {
     for (const upload of plan.uploads) validateCdnKey(upload.key);
@@ -617,14 +628,26 @@ export async function publishToCdn(plan, { store, dryRun = false, log = () => {}
             if (size === upload.body.length) {
                 skipped.push(upload);
             } else {
-                if (!dryRun) await write(upload.key, upload.body, upload.contentType);
+                if (!dryRun && !store.writeMany)
+                    await write(upload.key, upload.body, upload.contentType);
                 uploaded.push(upload);
             }
-            published.add(upload.address);
+            const confirmed = dryRun || !store.writeMany || size === upload.body.length;
+            if (confirmed) published.add(upload.address);
         } catch (err) {
             failed.push({ upload, message: err instanceof Error ? err.message : String(err) });
         }
     });
+    if (!dryRun && store.writeMany && uploaded.length) {
+        try {
+            await store.writeMany(uploaded);
+            for (const upload of uploaded) published.add(upload.address);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            for (const upload of uploaded) failed.push({ upload, message });
+            uploaded.length = 0;
+        }
+    }
     const byKey = (a, b) => (a.key < b.key ? -1 : 1);
     uploaded.sort(byKey);
     skipped.sort(byKey);
@@ -634,7 +657,7 @@ export async function publishToCdn(plan, { store, dryRun = false, log = () => {}
 
     const setPlan = /** @type {NonNullable<CdnPlan["set"]>} */ (plan.set);
     if (failed.length) {
-        log(`withheld ${setPlan.key}: ${failed.length} of its pictures did not upload`);
+        log(`withheld ${setPlan.key}: ${failed.length} of its pictures could not be confirmed`);
         return { uploaded, skipped, failed, set: "withheld", published };
     }
     const current = await store.read(setPlan.key);

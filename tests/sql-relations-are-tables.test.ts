@@ -48,7 +48,11 @@ describe("relations built from a file", () => {
             const count = async (relation: string) =>
                 Number((await db.query(`SELECT count(*) AS n FROM ${relation}`)).rows[0].n);
             expect(await count("entries")).toBe(1);
-            for (const file of fs.readdirSync(path.join(dir, "work"))) {
+            const sources = fs
+                .readdirSync(path.join(dir, "work"))
+                .filter((file) => file.endsWith(".jsonl"));
+            expect(sources.length).toBeGreaterThan(0);
+            for (const file of sources) {
                 fs.rmSync(path.join(dir, "work", file));
             }
             fs.rmSync(depFile);

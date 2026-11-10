@@ -545,10 +545,19 @@ describe("internal CDN transport", () => {
             }) as typeof fetch,
             transfer: async (args: string[]) => {
                 transfers.push(args);
-                const source = args.at(-2)!;
-                stagedPaths.push(source);
-                const key = source.split("/./")[1];
-                objects.set(key, fs.readFileSync(source));
+                for (const source of args.slice(args.indexOf("--") + 1, -1)) {
+                    stagedPaths.push(source);
+                    const root = source.split("/./")[0];
+                    const relative = source.split("/./")[1];
+                    const collect = (file: string) => {
+                        if (fs.statSync(file).isDirectory()) {
+                            for (const name of fs.readdirSync(file)) collect(path.join(file, name));
+                        } else {
+                            objects.set(path.relative(root, file), fs.readFileSync(file));
+                        }
+                    };
+                    collect(path.join(root, relative));
+                }
             },
         });
         const dry = await publishToCdn(plan, { store, dryRun: true });
@@ -558,6 +567,7 @@ describe("internal CDN transport", () => {
         const first = await publishToCdn(plan, { store });
         expect(first.failed).toEqual([]);
         expect(first.uploaded).toHaveLength(6);
+        expect(transfers).toHaveLength(2);
         expect(objects.get("tpkg/icons/anvil.svg")?.toString()).toContain('fill="currentColor"');
         expect(objects.get("tpkg/art.json")).toEqual(plan.set!.body);
         expect(JSON.parse(objects.get("tpkg/art.json")!.toString()).assets[0].source).toMatch(
@@ -574,7 +584,7 @@ describe("internal CDN transport", () => {
         const second = await publishToCdn(plan, { store });
         expect(second.skipped).toHaveLength(6);
         expect(second.set).toBe("skipped");
-        expect(transfers).toHaveLength(7);
+        expect(transfers).toHaveLength(2);
     });
 
     it("rejects unsafe destinations and keys before a transfer", async () => {
@@ -626,7 +636,11 @@ describe("internal CDN transport", () => {
             ],
             set: { key: "tpkg/art.json", body: Buffer.from("{}"), set: { assets: [] } },
         };
+        plan.uploads.push({ ...plan.uploads[0], key: "tpkg/images/b.png", address: "b" });
         const result = await publishToCdn(plan as any, { store });
+        expect(result.uploaded).toEqual([]);
+        expect(result.failed).toHaveLength(2);
+        expect(result.published.size).toBe(0);
         expect(result.set).toBe("withheld");
         expect(result.failed[0].message).toMatch(/rsync.*failed/);
         expect(result.failed[0].message).not.toContain("secret-in-ssh-error");
@@ -711,6 +725,7 @@ it.skipIf(!HAS_RSYNC_RECEIVER)(
         try {
             const root = path.join(scratch, "receiver");
             fs.mkdirSync(path.join(root, "cdn"), { recursive: true });
+            fs.chmodSync(path.join(root, "cdn"), 0o700);
             fs.writeFileSync(path.join(root, "cdn", "unrelated.txt"), "keep");
             // Homebrew's receiver script names Apple's different /usr/bin/rsync.
             // Keep the installed receiver logic, selecting the same rsync as the sender.
@@ -752,10 +767,13 @@ it.skipIf(!HAS_RSYNC_RECEIVER)(
                     expect(result.status).toBe(0);
                 },
             });
-            await store.write!(
-                "tpkg/icons/quote' space.svg",
-                Buffer.from("first"),
-                "image/svg+xml",
+            await store.writeMany!([
+                { key: "tpkg/icons/quote' space.svg", body: Buffer.from("first") } as any,
+                { key: "tpkg/images/second.png", body: Buffer.from("second") } as any,
+                { key: "other/images/third.png", body: Buffer.from("third") } as any,
+            ]);
+            expect(fs.readFileSync(path.join(root, "cdn/tpkg/images/second.png"), "utf8")).toBe(
+                "second",
             );
             await store.write!("tpkg/art.json", Buffer.from("first"), "application/json");
             await store.write!("tpkg/art.json", Buffer.from("other"), "application/json");
@@ -764,6 +782,10 @@ it.skipIf(!HAS_RSYNC_RECEIVER)(
             ).toBe("first");
             expect(fs.readFileSync(path.join(root, "cdn/tpkg/art.json"), "utf8")).toBe("other");
             expect(fs.readFileSync(path.join(root, "cdn/unrelated.txt"), "utf8")).toBe("keep");
+            expect(fs.readFileSync(path.join(root, "cdn/other/images/third.png"), "utf8")).toBe(
+                "third",
+            );
+            expect(fs.statSync(path.join(root, "cdn")).mode & 0o777).toBe(0o700);
         } finally {
             fs.rmSync(scratch, { recursive: true, force: true });
         }

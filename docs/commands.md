@@ -1372,8 +1372,12 @@ name. `default.json` is refused: it is the shipped set's name.
 
 A picture whose object already exists at the same size is skipped, and the set
 file is skipped when its bytes are unchanged, so a second run uploads nothing.
-A picture that fails to upload is reported and the rest carry on; the set file
-is then withheld, since it would list a file the CDN does not hold.
+Cloudflare uploads report each failed picture and continue with the rest.
+Internal publication stages the planned pictures together and sends them in
+one rsync call, then publishes the set file in a separate call. A failed
+picture transfer marks the whole staged batch failed and withholds the set
+file, even if rsync copied some pictures before failing. The set file is
+published only when all its pictures are confirmed on the CDN.
 
 **Refusals and reports.** A file under `icons/` or `images/` whose name is no
 address — a basename that is not a shortcode, or two files claiming one — and
@@ -1865,6 +1869,12 @@ Its own command rather than a step of `package compile` or
 not reproducible and hides a dependency's version change behind a passing
 run. Each cache is stamped complete only once its fetch finishes, so a
 half-finished one reads as cold.
+
+Dependency manifest and archive requests use up to five attempts for server
+errors and network or response-body failures. Each attempt has a 60-second
+timeout covering the response body. Retries wait 1, 2, 4 and 8 seconds, each
+with less than 250 milliseconds of jitter. Client errors fail immediately;
+the final error names the requested URL and preserves the network cause.
 
 `lint`, `links`, `site`, `pdf`, `map`, `reachability`, and `package compile`
 check the declared dependencies' content-index cache before reading notes or

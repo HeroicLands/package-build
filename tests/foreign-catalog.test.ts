@@ -11,16 +11,19 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { ClassicLevel } from "classic-level";
+import { zipSync } from "fflate";
 
 import {
     pinnedManifestUrl,
     itemCatalogRelationships,
     foreignItemCatalogDirs,
     fetchCatalogFromPath,
+    fetchCatalog,
     itemPackManifest,
     fetchAllMetadata,
     fetchAllCatalogs,
@@ -509,5 +512,188 @@ describe("the catalogue actually reaches the actors pass", () => {
             itemsSourceDirs: [path.join(dir, "items")],
         });
         expect(compiler.foreignSourceDirs).toEqual([]);
+    });
+});
+
+describe("dependency download retries", () => {
+    let root: string;
+    const rel = { id: "example", manifest: "https://example.test/manifest", verified: "1" };
+    const manifest = { version: "1", download: "https://example.test/archive" };
+    const response = (status: number) => new Response("", { status, statusText: "failure" });
+
+    beforeEach(() => {
+        root = fs.mkdtempSync(path.join(os.tmpdir(), "catalog-retry-"));
+        vi.useFakeTimers();
+        vi.spyOn(Math, "random").mockReturnValue(0);
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+    const run = () => fetchCatalog({ paths: { foreignCache: root } }, rel);
+    const settle = async (promise: Promise<unknown>) => {
+        const result = promise.then(
+            () => undefined,
+            (error) => error,
+        );
+        await vi.runAllTimersAsync();
+        return result;
+    };
+
+    it("recovers transient failures and publishes a complete catalogue", async () => {
+        vi.useRealTimers();
+        const pack = path.join(root, "fixture-pack");
+        const db = new ClassicLevel(pack);
+        await db.open();
+        await db.close();
+        const files: Record<string, Uint8Array> = {};
+        for (const file of fs.readdirSync(pack)) {
+            files[`packs/items/${file}`] = fs.readFileSync(path.join(pack, file));
+        }
+        const archive = zipSync(files);
+        vi.useFakeTimers();
+        const cancel = vi.fn().mockResolvedValue(undefined);
+        const transient = { ok: false, status: 503, statusText: "failure", body: { cancel } };
+        const fetcher = vi
+            .fn()
+            .mockResolvedValueOnce(transient)
+            .mockResolvedValueOnce(
+                Response.json({
+                    ...manifest,
+                    packs: [{ name: "items", type: "Item", path: "packs/items" }],
+                }),
+            )
+            .mockResolvedValueOnce(transient)
+            .mockResolvedValueOnce({
+                ok: true,
+                arrayBuffer: () => Promise.reject(new Error("body")),
+            })
+            .mockResolvedValueOnce(new Response(archive));
+        vi.stubGlobal("fetch", fetcher);
+        const result = run();
+        await vi.runAllTimersAsync();
+        vi.useRealTimers();
+        const dir = await result;
+        expect(fetcher).toHaveBeenCalledTimes(5);
+        expect(cancel).toHaveBeenCalledTimes(2);
+        expect(dir).toBe(path.join(root, "example@1"));
+        expect(fs.existsSync(path.join(dir, ".complete"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "items", "items"))).toBe(true);
+    });
+
+    it("reports the final server response after bounded attempts", async () => {
+        const fetcher = vi.fn().mockResolvedValue(response(504));
+        vi.stubGlobal("fetch", fetcher);
+        const error = await settle(run());
+        expect(fetcher).toHaveBeenCalledTimes(5);
+        expect(String(error)).toContain("HTTP 504 failure");
+    });
+
+    it("does not retry a client error", async () => {
+        const fetcher = vi.fn().mockResolvedValue(response(404));
+        vi.stubGlobal("fetch", fetcher);
+        const error = await settle(run());
+        expect(fetcher).toHaveBeenCalledTimes(1);
+        expect(String(error)).toContain("HTTP 404 failure");
+    });
+
+    it("retries archive server errors but stops at a client error", async () => {
+        const fetcher = vi
+            .fn()
+            .mockResolvedValueOnce(Response.json(manifest))
+            .mockResolvedValueOnce(response(503))
+            .mockResolvedValueOnce(response(404));
+        vi.stubGlobal("fetch", fetcher);
+        const error = await settle(run());
+        expect(fetcher).toHaveBeenCalledTimes(3);
+        expect(String(error)).toContain("HTTP 404 failure");
+        expect(fs.existsSync(path.join(root, "example@1", ".complete"))).toBe(false);
+    });
+
+    it("backs off exponentially between attempts", async () => {
+        const times: number[] = [];
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(() => {
+                times.push(Date.now());
+                return Promise.resolve(response(503));
+            }),
+        );
+        await settle(run());
+        expect(times.map((time) => time - times[0])).toEqual([0, 1000, 3000, 7000, 15000]);
+    });
+
+    it("adds bounded jitter to each backoff", async () => {
+        vi.mocked(Math.random).mockReturnValue(0.5);
+        const times: number[] = [];
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(() => {
+                times.push(Date.now());
+                return Promise.resolve(response(503));
+            }),
+        );
+        await settle(run());
+        expect(times.map((time) => time - times[0])).toEqual([0, 1125, 3250, 7375, 15500]);
+    });
+
+    it("times out hanging requests and preserves the final abort cause", async () => {
+        const causes: Error[] = [];
+        const fetcher = vi.fn(
+            (_url, { signal }) =>
+                new Promise((_resolve, reject) => {
+                    signal.addEventListener("abort", () => {
+                        const cause = new Error("request aborted");
+                        causes.push(cause);
+                        reject(cause);
+                    });
+                }),
+        );
+        vi.stubGlobal("fetch", fetcher);
+        const start = Date.now();
+        const error = await settle(run());
+        expect(fetcher).toHaveBeenCalledTimes(5);
+        expect(Date.now() - start).toBe(315000);
+        expect(error.cause).toBe(causes[4]);
+        expect(error.message).toContain(rel.manifest);
+    });
+
+    it("times out a hanging archive body read", async () => {
+        const fetcher = vi
+            .fn()
+            .mockResolvedValueOnce(Response.json(manifest))
+            .mockImplementation((_url, { signal }) =>
+                Promise.resolve({
+                    ok: true,
+                    arrayBuffer: () =>
+                        new Promise((_resolve, reject) => {
+                            signal.addEventListener("abort", () =>
+                                reject(new Error("body aborted")),
+                            );
+                        }),
+                }),
+            );
+        vi.stubGlobal("fetch", fetcher);
+        const error = await settle(run());
+        expect(fetcher).toHaveBeenCalledTimes(6);
+        expect(error.cause.message).toBe("body aborted");
+        expect(error.message).toContain(`${manifest.download}: body aborted`);
+        expect(fs.existsSync(path.join(root, "example@1", ".complete"))).toBe(false);
+    });
+
+    it("retains the final network error and leaves no complete cache", async () => {
+        const cause = new Error("last connection failed");
+        const fetcher = vi
+            .fn()
+            .mockResolvedValueOnce(Response.json(manifest))
+            .mockRejectedValue(cause);
+        vi.stubGlobal("fetch", fetcher);
+        const error = await settle(run());
+        expect(fetcher).toHaveBeenCalledTimes(6);
+        expect(error.cause).toBe(cause);
+        expect(error.message).toContain(`${manifest.download}: ${cause.message}`);
+        expect(fs.existsSync(path.join(root, "example@1", ".complete"))).toBe(false);
     });
 });

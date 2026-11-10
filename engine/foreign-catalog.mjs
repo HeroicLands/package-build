@@ -238,13 +238,54 @@ const isComplete = (dir) =>
  * @returns {Promise<object>} The parsed manifest.
  */
 async function fetchManifest(url) {
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) {
-        throw new Error(
-            `could not read the manifest at ${url}: HTTP ${res.status} ${res.statusText}`,
-        );
+    const bytes = await fetchBytes(url, `could not read the manifest at ${url}`);
+    return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+const DOWNLOAD_ATTEMPTS = 5;
+const DOWNLOAD_DELAY_MS = 1000;
+const DOWNLOAD_JITTER_MS = 250;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+
+/**
+ * Read a complete response, retrying transient failures with bounded delays.
+ *
+ * @param {string} url - The resource URL.
+ * @param {string} context - The failure description.
+ * @returns {Promise<Uint8Array>} The complete response body.
+ */
+async function fetchBytes(url, context) {
+    for (let attempt = 0; ; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+        let response;
+        try {
+            response = await fetch(url, { redirect: "follow", signal: controller.signal });
+            if (response.ok) return new Uint8Array(await response.arrayBuffer());
+        } catch (cause) {
+            if (attempt === DOWNLOAD_ATTEMPTS - 1) {
+                const message = cause instanceof Error ? cause.message : String(cause);
+                throw new Error(`${context}: ${message}`, { cause });
+            }
+        } finally {
+            clearTimeout(timeout);
+        }
+        if (response && !response.ok) {
+            // Release the response connection before retrying.
+            await response.body?.cancel().catch(() => {});
+            const error = new Error(`${context}: HTTP ${response.status} ${response.statusText}`);
+            if (
+                response.status < 500 ||
+                response.status >= 600 ||
+                attempt === DOWNLOAD_ATTEMPTS - 1
+            ) {
+                throw error;
+            }
+        }
+        const delay =
+            DOWNLOAD_DELAY_MS * 2 ** attempt + Math.floor(Math.random() * DOWNLOAD_JITTER_MS);
+        await new Promise((resolve) => setTimeout(resolve, delay));
     }
-    return await res.json();
 }
 
 /**
@@ -328,11 +369,8 @@ async function extractItemPacks(id, version, manifest, root, dir) {
  * @returns {Promise<void>}
  */
 async function downloadAndUnzip(url, dest) {
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) {
-        throw new Error(`could not download ${url}: HTTP ${res.status} ${res.statusText}`);
-    }
-    writeZipEntries(unzipSync(new Uint8Array(await res.arrayBuffer())), dest);
+    const bytes = await fetchBytes(url, `could not download ${url}`);
+    writeZipEntries(unzipSync(bytes), dest);
 }
 
 /**

@@ -371,10 +371,14 @@ async function openDatabase(
     shared,
 ) {
     const { DuckDBInstance } = await import("@duckdb/node-api");
-    const base = shared?.base ?? dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
-    fs.mkdirSync(base, { recursive: true });
-    const jsonl = path.join(base, "notes.jsonl");
     const encoded = records.map((record) => sqlRecord(encodeAddresses(record)));
+    const base = path.resolve(
+        shared?.base ?? dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-")),
+    );
+    fs.mkdirSync(base, { recursive: true });
+    const spillDir = shared?.spillDir ?? fs.mkdtempSync(path.join(base, "duckdb-"));
+    if (shared) shared.spillDir = spillDir;
+    const jsonl = path.join(base, "notes.jsonl");
 
     const memoryLimit = testMemoryLimit === true ? "256 MB" : "2 GB";
     let instance;
@@ -388,14 +392,20 @@ async function openDatabase(
                 if (!shared) instance?.closeSync();
                 else shared.connections.delete(connection);
             } finally {
-                if (!shared && !dir) fs.rmSync(base, { recursive: true, force: true });
+                if (!shared) {
+                    fs.rmSync(spillDir, { recursive: true, force: true });
+                    if (!dir) fs.rmSync(base, { recursive: true, force: true });
+                }
             }
         }
     };
     try {
         instance =
             shared?.instance ??
-            (await DuckDBInstance.create(":memory:", { memory_limit: memoryLimit }));
+            (await DuckDBInstance.create(":memory:", {
+                memory_limit: memoryLimit,
+                temp_directory: spillDir,
+            }));
         if (shared) shared.instance = instance;
         connection = await instance.connect();
         if (shared) shared.connections.add(connection);
@@ -651,6 +661,7 @@ export function createNotesDatabaseScope(records, options = {}) {
     const shared = {
         base: fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-session-")),
         instance: undefined,
+        spillDir: undefined,
         connections: new Set(),
         tables: new Map(),
     };

@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
-import { openNotesDatabase } from "../engine/sql-tables.mjs";
+import { createNotesDatabaseScope, openNotesDatabase } from "../engine/sql-tables.mjs";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -183,6 +183,49 @@ describe("SQL memory projection", () => {
         },
     );
 
+    it.each(["standalone", "caller", "session"])(
+        "keeps real spill files in the %s scratch lifetime",
+        async (owner) => {
+            const callerDir = fs.mkdtempSync(path.join(os.tmpdir(), "sql-caller-"));
+            const sentinel = path.join(callerDir, "keep.txt");
+            fs.writeFileSync(sentinel, "keep");
+            const scope =
+                owner === "session" ?
+                    createNotesDatabaseScope([], { testMemoryLimit: true })
+                :   undefined;
+            const db =
+                scope ?
+                    await scope.database("all")
+                :   await openNotesDatabase([], {
+                        testMemoryLimit: true,
+                        ...(owner === "caller" ? { dir: callerDir } : {}),
+                    });
+            let spillDir = "";
+            try {
+                const setting = await db.query("SELECT current_setting('temp_directory') AS dir");
+                spillDir = String(setting.rows[0].dir);
+                expect(path.isAbsolute(spillDir)).toBe(true);
+                if (owner === "caller") expect(path.dirname(spillDir)).toBe(callerDir);
+                await db.query(
+                    "CREATE TEMP TABLE spill_test AS SELECT i, md5(i::VARCHAR) AS payload FROM range(8000000) t(i)",
+                );
+                const files = await db.query("SELECT path FROM duckdb_temporary_files()");
+                expect(files.rows.length).toBeGreaterThan(0);
+                for (const row of files.rows) expect(path.dirname(String(row.path))).toBe(spillDir);
+                expect(fs.existsSync(path.join(process.cwd(), ".tmp.duckdb"))).toBe(false);
+            } finally {
+                await db.close();
+                if (scope) expect(fs.existsSync(spillDir)).toBe(true);
+                scope?.dispose();
+                if (spillDir && path.isAbsolute(spillDir))
+                    await vi.waitFor(() => expect(fs.existsSync(spillDir)).toBe(false));
+                expect(fs.readFileSync(sentinel, "utf8")).toBe("keep");
+                fs.rmSync(callerDir, { recursive: true, force: true });
+            }
+        },
+        30000,
+    );
+
     it.each([false, true])("sets the explicit memory limit (test override: %s)", async (small) => {
         const db = await openNotesDatabase([], { testMemoryLimit: small });
         try {
@@ -254,11 +297,15 @@ describe("SQL memory projection", () => {
             try {
                 await expect(
                     openNotesDatabase([], {
+                        dir,
                         dependencies: stage === "dependency" ? [{ id: "other", file }] : [],
                     }),
                 ).rejects.toThrow();
                 expect(instanceClose).toHaveBeenCalledTimes(1);
                 expect(connectionClose).toHaveBeenCalledTimes(stage === "connect" ? 0 : 1);
+                expect(fs.readdirSync(dir).filter((name) => name.startsWith("duckdb-"))).toEqual(
+                    [],
+                );
             } finally {
                 fs.rmSync(dir, { recursive: true, force: true });
             }
