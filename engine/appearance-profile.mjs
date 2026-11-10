@@ -23,6 +23,9 @@
  *   a word of that field's vocabulary to a positive weight. A word's chance is
  *   its weight over the sum of the map's weights; a word left out is never
  *   drawn.
+ * - `hair_texture`, `hair_style`, `facial_hair`, `face_shape`, `nose`, `brow`
+ *   and `mouth` are weighted the same way and may be left out; a culture that
+ *   leaves one out draws none of it.
  * - `height` maps a gender word to a `{min, max}` range, each a height in
  *   metres or feet and inches. `female` and `male` are required; a gender with
  *   no range of its own draws from the span of every range stated.
@@ -59,6 +62,26 @@ export const PROFILE_SUBTYPE = "culture";
  */
 export function requiredHeightGenders() {
     return Object.freeze(["female", "male"]);
+}
+
+/**
+ * The profile keys a culture may leave unstated: the fine features of head and
+ * face. A culture that states one weights it; one that does not draws none, and
+ * the being states none. A function for the reason {@link requiredHeightGenders}
+ * is.
+ *
+ * @returns {readonly string[]} The keys.
+ */
+export function optionalProfileKeys() {
+    return Object.freeze([
+        "hair_texture",
+        "hair_style",
+        "facial_hair",
+        "face_shape",
+        "nose",
+        "brow",
+        "mouth",
+    ]);
 }
 
 /** The genders every profile states a height range for. */
@@ -149,7 +172,8 @@ export function profileProblems(profile, lookVocabulary) {
     for (const key of lookKeys) {
         const weights = profile[key];
         if (weights === undefined || weights === null) {
-            shape([], `\`data.appearanceProfile\` must state \`${key}\``, true);
+            if (!optionalProfileKeys().includes(key))
+                shape([], `\`data.appearanceProfile\` must state \`${key}\``, true);
             continue;
         }
         if (!isPlainMap(weights)) {

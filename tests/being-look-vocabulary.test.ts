@@ -22,6 +22,13 @@ const CLOSED_FIELDS = [
     "appearance.hair_color",
     "appearance.skin_color",
     "appearance.complexion",
+    "appearance.hair_texture",
+    "appearance.hair_style",
+    "appearance.facial_hair",
+    "appearance.face_shape",
+    "appearance.nose",
+    "appearance.brow",
+    "appearance.mouth",
 ] as const;
 
 const { NOTE_VOCABULARY } = vocabularyModule;

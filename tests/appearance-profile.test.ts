@@ -109,6 +109,31 @@ describe("a culture's appearance profile", () => {
         expect(lint(culture(profileLines()))).toEqual([]);
     });
 
+    it("weights the head and face features, each optional", () => {
+        const features = {
+            hair_texture: "        hair_texture: { straight: 3, wavy: 1 }",
+            hair_style: "        hair_style: { braided: 2, short: 1 }",
+            facial_hair: "        facial_hair: { none: 2, full_beard: 1 }",
+            face_shape: "        face_shape: { angular: 1 }",
+            nose: "        nose: { aquiline: 1, straight: 1 }",
+            brow: "        brow: { heavy: 1 }",
+            mouth: "        mouth: { thin: 1 }",
+        };
+        expect(lint(culture(profileLines(features)))).toEqual([]);
+        expect(lint(culture(profileLines()))).toEqual([]);
+    });
+
+    it("refuses a head or face word outside its list, at the word", () => {
+        const note = culture(profileLines({ nose: "        nose: { aquiline: 1, pointy: 2 }" }));
+        const findings = lint(note);
+        expect(findings).toHaveLength(1);
+        const pos = at(note.raw, "pointy");
+        expect(formatDiagnostic(findings[0])).toMatch(
+            new RegExp(`^${file}:${pos.line}:${pos.column}: error: `),
+        );
+        expect(findings[0].message).toContain("data.appearanceProfile.nose");
+    });
+
     it("refuses a word outside the vocabulary at the word, naming what it meant", () => {
         const note = culture(
             profileLines({ eye_color: "        eye_color: { brown: 6, dark_browm: 3 }" }),

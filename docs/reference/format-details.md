@@ -4659,6 +4659,14 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `appearance.hair_color`            | a word                                         | Hair colour — see [a being's look](#a-beings-look)                                                                                                    |
 | `appearance.skin_color`            | a word                                         | Skin colour — see [a being's look](#a-beings-look)                                                                                                    |
 | `appearance.complexion`            | `word[]`, required with `appearance`           | The skin's condition, a list of words — see [a being's look](#a-beings-look)                                                                          |
+| `appearance.hair_texture`          | a word                                         | How the hair lies — see [a being's look](#a-beings-look)                                                                                              |
+| `appearance.hair_style`            | a word                                         | How the hair is worn — see [a being's look](#a-beings-look)                                                                                           |
+| `appearance.facial_hair`           | a word                                         | Facial hair, where the being has any — see [a being's look](#a-beings-look)                                                                           |
+| `appearance.face_shape`            | a word                                         | The shape of the face — see [a being's look](#a-beings-look)                                                                                          |
+| `appearance.nose`                  | a word                                         | The shape of the nose — see [a being's look](#a-beings-look)                                                                                          |
+| `appearance.brow`                  | a word                                         | The brow — see [a being's look](#a-beings-look)                                                                                                       |
+| `appearance.mouth`                 | a word                                         | The mouth — see [a being's look](#a-beings-look)                                                                                                      |
+| `portrait.prompt`                  | `string`                                       | The exact text the portrait was generated from; present only once a portrait exists — see [a being's portrait](#a-beings-portrait)                    |
 | `appearance.extra_features`        | `string[]`                                     | The visible physical marks no word covers — see [a being's look](#a-beings-look)                                                                      |
 
 Author `data.height` as a string of decimal metres (`1.91m` or `1.91 m`) or
@@ -4689,10 +4697,19 @@ data:
 vocabulary**, so every package describes a face in the same terms and a
 misspelt or invented word is caught. `data.gender`, `data.frame`,
 `data.appearance.eye_color`, `data.appearance.hair_color` and
-`data.appearance.skin_color` each take one word from their own list.
+`data.appearance.skin_color` each take one word from their own list, as do
+the features of head and face: `data.appearance.hair_texture`, `hair_style`,
+`facial_hair`, `face_shape`, `nose`, `brow` and `mouth`.
 Any other value — a word from another field's list, a variant spelling such as
 `gray` for `grey`, or an empty string — is an error at the value, naming the
 words the field takes. Leave a field out when the fact is unrecorded.
+
+**The head and face are stated one feature at a time.** `hair_texture` says how
+the hair lies, `hair_style` how it is worn, `facial_hair` what the being grows
+on the face (`none` for a bare face; leave the field out for a being the fact
+does not apply to), and `face_shape`, `nose`, `brow` and `mouth` the face
+itself. Every one is optional. A hair style such as `bald` or `shaved` is a
+`hair_style` word, not an `extra_features` entry.
 
 **`data.appearance.complexion` is a list, and a being that states an appearance
 must state it.** A face carries more than one condition at once, so the field
@@ -4746,6 +4763,12 @@ data:
     hair_color: greying_black
     skin_color: olive
     complexion: [weathered, freckled]
+    hair_texture: wavy
+    hair_style: braided
+    face_shape: angular
+    nose: aquiline
+    brow: heavy
+    mouth: thin
     extra_features:
       - a burn scar across the back of the left hand
       - ink-stained fingers
@@ -4870,7 +4893,107 @@ The words, and what each means:
 | `weathered`   | Weathered   | Worn and lined by sun and wind; the skin of outdoor work.                                                                                           |
 | `wrinkled`    | Wrinkled    | Deeply lined by age.                                                                                                                                |
 
+**`data.appearance.hair_texture`**
+
+| Word       | Label    | Meaning                                         |
+| ---------- | -------- | ----------------------------------------------- |
+| `straight` | Straight | Falls flat from the root, without wave or curl. |
+| `wavy`     | Wavy     | Loose waves, bending but not forming curls.     |
+| `curly`    | Curly    | Defined curls that spring back when pulled.     |
+| `coily`    | Coily    | Tight coils, springy and dense.                 |
+
+**`data.appearance.hair_style`**
+
+| Word              | Label           | Meaning                                               |
+| ----------------- | --------------- | ----------------------------------------------------- |
+| `bald`            | Bald            | No hair on the head, by nature or age.                |
+| `shaved`          | Shaved          | The head kept shaved, so that bare scalp is the look. |
+| `cropped`         | Cropped         | Cut very short, close to the scalp.                   |
+| `short`           | Short           | Cut above the collar.                                 |
+| `shoulder_length` | Shoulder-Length | Hanging to the shoulders.                             |
+| `long`            | Long            | Hanging past the shoulders.                           |
+| `braided`         | Braided         | Worn in one or more plaits.                           |
+| `locked`          | Locked          | Twisted or matted into locks.                         |
+| `knotted`         | Knotted         | Gathered into a knot or bun.                          |
+| `shaved_sides`    | Shaved Sides    | The sides shaved, with a strip left along the crown.  |
+
+**`data.appearance.facial_hair`**
+
+| Word            | Label         | Meaning                                            |
+| --------------- | ------------- | -------------------------------------------------- |
+| `none`          | None          | A bare face, whether shaved or naturally hairless. |
+| `stubble`       | Stubble       | A short growth of a day or two.                    |
+| `moustache`     | Moustache     | A moustache and a bare chin.                       |
+| `goatee`        | Goatee        | Hair on the chin, with the cheeks bare.            |
+| `short_beard`   | Short Beard   | A beard kept close to the jaw.                     |
+| `full_beard`    | Full Beard    | A full beard to the collar.                        |
+| `long_beard`    | Long Beard    | A beard that hangs past the collar.                |
+| `braided_beard` | Braided Beard | A beard worn in plaits.                            |
+
+**`data.appearance.face_shape`**
+
+| Word      | Label   | Meaning                                            |
+| --------- | ------- | -------------------------------------------------- |
+| `oval`    | Oval    | Longer than wide, softly rounded at brow and chin. |
+| `round`   | Round   | As wide as it is long, with full cheeks.           |
+| `square`  | Square  | A strong, level jaw and a broad forehead.          |
+| `long`    | Long    | Narrow and elongated, with a long chin.            |
+| `heart`   | Heart   | A broad brow narrowing to a small chin.            |
+| `angular` | Angular | Pronounced bones at cheek, brow and jaw.           |
+| `broad`   | Broad   | Wide across the cheeks and jaw.                    |
+
+**`data.appearance.nose`**
+
+| Word       | Label    | Meaning                                          |
+| ---------- | -------- | ------------------------------------------------ |
+| `straight` | Straight | A straight bridge of ordinary width.             |
+| `aquiline` | Aquiline | An arched bridge.                                |
+| `hooked`   | Hooked   | A strongly curved bridge, the tip bent downward. |
+| `broad`    | Broad    | Wide across the bridge and nostrils.             |
+| `narrow`   | Narrow   | Thin through the bridge and nostrils.            |
+| `upturned` | Upturned | The tip tilting upward.                          |
+| `snub`     | Snub     | Short, with a low bridge and a blunt tip.        |
+| `crooked`  | Crooked  | Bent to one side, as from an old break.          |
+
+**`data.appearance.brow`**
+
+| Word       | Label    | Meaning                                 |
+| ---------- | -------- | --------------------------------------- |
+| `heavy`    | Heavy    | A thick, prominent ridge over the eyes. |
+| `bushy`    | Bushy    | Dense, untrimmed hair.                  |
+| `thin`     | Thin     | Sparse, fine hair.                      |
+| `arched`   | Arched   | A pronounced curve.                     |
+| `straight` | Straight | Level, without a curve.                 |
+
+**`data.appearance.mouth`**
+
+| Word    | Label | Meaning                         |
+| ------- | ----- | ------------------------------- |
+| `full`  | Full  | Full lips.                      |
+| `thin`  | Thin  | Narrow lips.                    |
+| `wide`  | Wide  | Stretching far across the face. |
+| `small` | Small | A small mouth, set close.       |
+
 <!-- being-look:end -->
+
+#### A being's portrait
+
+**`data.portrait.prompt` holds the exact text a being's portrait was generated
+from**, so the picture is a record of what the note says. The block exists only
+once a portrait does. A being with no `portrait` block has no portrait yet and
+is valid: nothing is reported for it, and nothing is generated in bulk to fill
+it. The picture's own facts — model, seed, prediction — stay in the image file.
+
+```yaml
+data:
+  portrait:
+    prompt: >-
+      A weathered woman with braided dark hair, an angular face and a thin
+      mouth, head and shoulders, soft ink wash on a plain ochre background.
+```
+
+`package-build lint` reports a `prompt` that is blank, or that is not a string,
+at the value. Any other key under `portrait` is an error at the key.
 
 #### Appearance profiles
 
@@ -4879,12 +5002,16 @@ The words, and what each means:
 [the command](../commands.md#package-build-npc-new). Only a `lore` note of
 `subType: culture` takes the key; on any other note it is an error at the key.
 
-The profile has six keys, all required:
+The profile has six required keys and seven optional ones:
 
 - `frame`, `eye_color`, `hair_color`, `skin_color` and `complexion` each map
   words of that field's [vocabulary](#a-beings-look) to positive weights. A
   word's chance of being drawn is its weight over the sum of the weights in its
   map; a word left out is never drawn.
+- `hair_texture`, `hair_style`, `facial_hair`, `face_shape`, `nose`, `brow` and
+  `mouth` are weighted the same way and may be left out. A culture that states
+  one has it drawn for every person; a culture that leaves one out has none of
+  it drawn, and the person states none.
 - `height` maps a `gender` word to a range, `{min, max}`, each a height in
   metres or feet and inches as `data.height` takes it. `female` and `male` are
   required. A gender with no range of its own draws from the span of every
@@ -4914,6 +5041,9 @@ data:
     hair_color: { black: 6, dark_brown: 3 }
     skin_color: { tawny: 5, olive: 3, brown: 2 }
     complexion: { clear: 3, weathered: 2, smooth: 2 }
+    hair_texture: { straight: 4, wavy: 4, curly: 1 }
+    hair_style: { short: 3, long: 3, braided: 2 }
+    facial_hair: { none: 4, short_beard: 3, full_beard: 1 }
     height:
       female:
         min: 4' 11"
@@ -7375,12 +7505,19 @@ not a different cultural identity. See
 | `subjects`                            | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                   |
 | `parents`                             | `Address[]`                                                                   | `culture` only: the larger cultures this one belongs to; each target is a culture lore note — see [culture parents](#culture-parents-and-inherited-fields)   |
 | `events`                              | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                |
-| `appearanceProfile`                   | `{ frame, eye_color, hair_color, skin_color, complexion, height }`            | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                     |
+| `appearanceProfile`                   | `{ frame, eye_color, hair_color, skin_color, complexion, height, … }`         | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                     |
 | `appearanceProfile.frame`             | map of `frame` words to positive weights, required                            | How often each frame is drawn                                                                                                                                |
 | `appearanceProfile.eye_color`         | map of `eye_color` words to positive weights, required                        | How often each eye colour is drawn                                                                                                                           |
 | `appearanceProfile.hair_color`        | map of `hair_color` words to positive weights, required                       | How often each hair colour is drawn                                                                                                                          |
 | `appearanceProfile.skin_color`        | map of `skin_color` words to positive weights, required                       | How often each skin colour is drawn                                                                                                                          |
 | `appearanceProfile.complexion`        | map of `complexion` words to positive weights, required                       | How often each complexion is drawn                                                                                                                           |
+| `appearanceProfile.hair_texture`      | map of `hair_texture` words to positive weights, optional                     | How often each hair texture word is drawn; a culture that omits it draws none                                                                                |
+| `appearanceProfile.hair_style`        | map of `hair_style` words to positive weights, optional                       | How often each hair style word is drawn; a culture that omits it draws none                                                                                  |
+| `appearanceProfile.facial_hair`       | map of `facial_hair` words to positive weights, optional                      | How often each facial hair word is drawn; a culture that omits it draws none                                                                                 |
+| `appearanceProfile.face_shape`        | map of `face_shape` words to positive weights, optional                       | How often each face shape word is drawn; a culture that omits it draws none                                                                                  |
+| `appearanceProfile.nose`              | map of `nose` words to positive weights, optional                             | How often each nose word is drawn; a culture that omits it draws none                                                                                        |
+| `appearanceProfile.brow`              | map of `brow` words to positive weights, optional                             | How often each brow word is drawn; a culture that omits it draws none                                                                                        |
+| `appearanceProfile.mouth`             | map of `mouth` words to positive weights, optional                            | How often each mouth word is drawn; a culture that omits it draws none                                                                                       |
 | `appearanceProfile.height`            | map of `gender` words to `{ min, max }`, required                             | Height ranges by gender; `female` and `male` are required                                                                                                    |
 | `appearanceProfile.height.<name>.min` | height in metres or feet and inches, required                                 | The shortest height drawn for that gender                                                                                                                    |
 | `appearanceProfile.height.<name>.max` | height in metres or feet and inches, required                                 | The tallest height drawn for that gender                                                                                                                     |

@@ -123,10 +123,12 @@ import {
 import { checkCultureParents } from "./culture-parents.mjs";
 import {
     checkAppearanceProfile,
+    optionalProfileKeys,
     profileLookKeys,
     requiredHeightGenders,
 } from "./appearance-profile.mjs";
 import { checkExtraFeatures } from "./appearance-features.mjs";
+import { checkPortraitPrompt } from "./portrait-prompt.mjs";
 import { LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
 import {
     AFFIX_FIELDS,
@@ -468,6 +470,66 @@ export const BEING_LOOK_VOCABULARY = Object.freeze({
         ["weathered", "Weathered", "Worn and lined by sun and wind; the skin of outdoor work."],
         ["wrinkled", "Wrinkled", "Deeply lined by age."],
     ]),
+    "appearance.hair_texture": lookWords([
+        ["straight", "Straight", "Falls flat from the root, without wave or curl."],
+        ["wavy", "Wavy", "Loose waves, bending but not forming curls."],
+        ["curly", "Curly", "Defined curls that spring back when pulled."],
+        ["coily", "Coily", "Tight coils, springy and dense."],
+    ]),
+    "appearance.hair_style": lookWords([
+        ["bald", "Bald", "No hair on the head, by nature or age."],
+        ["shaved", "Shaved", "The head kept shaved, so that bare scalp is the look."],
+        ["cropped", "Cropped", "Cut very short, close to the scalp."],
+        ["short", "Short", "Cut above the collar."],
+        ["shoulder_length", "Shoulder-Length", "Hanging to the shoulders."],
+        ["long", "Long", "Hanging past the shoulders."],
+        ["braided", "Braided", "Worn in one or more plaits."],
+        ["locked", "Locked", "Twisted or matted into locks."],
+        ["knotted", "Knotted", "Gathered into a knot or bun."],
+        ["shaved_sides", "Shaved Sides", "The sides shaved, with a strip left along the crown."],
+    ]),
+    "appearance.facial_hair": lookWords([
+        ["none", "None", "A bare face, whether shaved or naturally hairless."],
+        ["stubble", "Stubble", "A short growth of a day or two."],
+        ["moustache", "Moustache", "A moustache and a bare chin."],
+        ["goatee", "Goatee", "Hair on the chin, with the cheeks bare."],
+        ["short_beard", "Short Beard", "A beard kept close to the jaw."],
+        ["full_beard", "Full Beard", "A full beard to the collar."],
+        ["long_beard", "Long Beard", "A beard that hangs past the collar."],
+        ["braided_beard", "Braided Beard", "A beard worn in plaits."],
+    ]),
+    "appearance.face_shape": lookWords([
+        ["oval", "Oval", "Longer than wide, softly rounded at brow and chin."],
+        ["round", "Round", "As wide as it is long, with full cheeks."],
+        ["square", "Square", "A strong, level jaw and a broad forehead."],
+        ["long", "Long", "Narrow and elongated, with a long chin."],
+        ["heart", "Heart", "A broad brow narrowing to a small chin."],
+        ["angular", "Angular", "Pronounced bones at cheek, brow and jaw."],
+        ["broad", "Broad", "Wide across the cheeks and jaw."],
+    ]),
+    "appearance.nose": lookWords([
+        ["straight", "Straight", "A straight bridge of ordinary width."],
+        ["aquiline", "Aquiline", "An arched bridge."],
+        ["hooked", "Hooked", "A strongly curved bridge, the tip bent downward."],
+        ["broad", "Broad", "Wide across the bridge and nostrils."],
+        ["narrow", "Narrow", "Thin through the bridge and nostrils."],
+        ["upturned", "Upturned", "The tip tilting upward."],
+        ["snub", "Snub", "Short, with a low bridge and a blunt tip."],
+        ["crooked", "Crooked", "Bent to one side, as from an old break."],
+    ]),
+    "appearance.brow": lookWords([
+        ["heavy", "Heavy", "A thick, prominent ridge over the eyes."],
+        ["bushy", "Bushy", "Dense, untrimmed hair."],
+        ["thin", "Thin", "Sparse, fine hair."],
+        ["arched", "Arched", "A pronounced curve."],
+        ["straight", "Straight", "Level, without a curve."],
+    ]),
+    "appearance.mouth": lookWords([
+        ["full", "Full", "Full lips."],
+        ["thin", "Thin", "Narrow lips."],
+        ["wide", "Wide", "Stretching far across the face."],
+        ["small", "Small", "A small mouth, set close."],
+    ]),
 });
 
 /** The values of one field of {@link BEING_LOOK_VOCABULARY}. */
@@ -533,8 +595,12 @@ const APPEARANCE_PROFILE_FIELD = Object.freeze({
                 name: key,
                 kind: "map",
                 shape: "a map of words to weights",
-                required: true,
-                describe: `Weighted \`${key}\` words; a word left out is never drawn.`,
+                required: !optionalProfileKeys().includes(key),
+                describe:
+                    `Weighted \`${key}\` words; a word left out is never drawn.` +
+                    (optionalProfileKeys().includes(key) ?
+                        " May be left out, and then none is drawn."
+                    :   ""),
                 values: Object.freeze({
                     kind: "number",
                     shape: "a positive weight",
@@ -1802,6 +1868,13 @@ export const NOTE_VOCABULARY = Object.freeze({
             lookField("appearance.eye_color", "Eye colour"),
             lookField("appearance.hair_color", "Hair colour"),
             lookField("appearance.skin_color", "Skin colour"),
+            lookField("appearance.hair_texture", "Hair texture"),
+            lookField("appearance.hair_style", "How the hair is worn"),
+            lookField("appearance.facial_hair", "Facial hair, where the being has any"),
+            lookField("appearance.face_shape", "The shape of the face"),
+            lookField("appearance.nose", "The shape of the nose"),
+            lookField("appearance.brow", "The brow"),
+            lookField("appearance.mouth", "The mouth"),
             {
                 ...lookField("appearance.complexion", "The skin's condition"),
                 ...COMPLEXION_LIST,
@@ -1812,6 +1885,15 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "condition is established. Required once a being states an appearance; a " +
                     "single word outside a list is an error. See " +
                     "[a being's look](format-details.md#a-beings-look) for what each word means.",
+            },
+            {
+                name: "portrait.prompt",
+                ...TEXT,
+                check: (note) => checkPortraitPrompt(note),
+                describe:
+                    "The exact text the being's portrait was generated from, present only once a " +
+                    "portrait exists. A note without `portrait` has no portrait yet and is valid. " +
+                    "See [a being's portrait](format-details.md#a-beings-portrait).",
             },
             {
                 name: "appearance.extra_features",

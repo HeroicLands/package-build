@@ -43,7 +43,9 @@
  * - `type: being`, `subType: npc`, `tags: [generated, draft]`.
  * - `frame`, and `appearance.eye_color`, `hair_color`, `skin_color` and
  *   `complexion` — weighted draws from the culture's appearance profile;
- *   `complexion` is a list of the one word drawn.
+ *   `complexion` is a list of the one word drawn. `hair_texture`, `hair_style`,
+ *   `facial_hair`, `face_shape`, `nose`, `brow` and `mouth` are drawn the same
+ *   way for each the profile states, and omitted for each it does not.
  * - `height` — from the profile's range for the gender, in feet and inches.
  * - `weight` — from the height and the frame's body-mass band, in pounds.
  * - `born` — an adult age of {@link ADULT_AGE} years before the configured
@@ -344,6 +346,38 @@ function article(next) {
     return /^(?:8|11(?!\d)|18(?!\d)|[aeiou])/i.test(next) ? "an" : "a";
 }
 
+/** The hair clause of a look: texture, style and colour, or a bare head. */
+function hairPhrase(look) {
+    const label = (field, word) => wordLabel(field, word).toLowerCase();
+    if (look.hair_style === "bald" || look.hair_style === "shaved")
+        return `a ${label("appearance.hair_style", look.hair_style)} head`;
+    const words = [
+        look.hair_style && label("appearance.hair_style", look.hair_style),
+        look.hair_texture && label("appearance.hair_texture", look.hair_texture),
+        look.hair_color && label("appearance.hair_color", look.hair_color),
+    ].filter(Boolean);
+    return words.length ? `${words.join(" ")} hair` : "";
+}
+
+/** The clauses of a look that describe the face, in the order they are read. */
+function faceParts(look) {
+    const label = (field, word) => wordLabel(field, word).toLowerCase();
+    return [
+        look.face_shape &&
+            `${article(label("appearance.face_shape", look.face_shape))} ${label("appearance.face_shape", look.face_shape)} shape`,
+        look.nose &&
+            `${article(label("appearance.nose", look.nose))} ${label("appearance.nose", look.nose)} nose`,
+        look.brow && `${label("appearance.brow", look.brow)} brows`,
+        look.mouth &&
+            `${article(label("appearance.mouth", look.mouth))} ${label("appearance.mouth", look.mouth)} mouth`,
+        look.facial_hair &&
+            look.facial_hair !== "none" &&
+            (look.facial_hair === "stubble" ?
+                "stubble"
+            :   `${article(label("appearance.facial_hair", look.facial_hair))} ${label("appearance.facial_hair", look.facial_hair)}`),
+    ].filter(Boolean);
+}
+
 /**
  * The Appearance section's paragraph, in the Folk wording: "Ahmetega Zekar is
  * a 39-year-old man who stands 6'4" tall with a heavy build. He has tawny
@@ -376,10 +410,13 @@ export function appearanceParagraph({ name, age, gender, height, frame, appearan
     const parts = [
         look.skin_color && `${wordLabel("appearance.skin_color", look.skin_color)} skin`,
         complexion.length && `${series(complexion)} complexion`,
-        look.hair_color && `${wordLabel("appearance.hair_color", look.hair_color)} hair`,
+        hairPhrase(look),
         look.eye_color && `${wordLabel("appearance.eye_color", look.eye_color)} eyes`,
     ].filter(Boolean);
     if (parts.length) sentences.push(`${who.subject} ${who.has} ${series(parts)}.`);
+
+    const facial = faceParts(look);
+    if (facial.length) sentences.push(`${who.possessive} face has ${series(facial)}.`);
 
     const features = (Array.isArray(look.extra_features) ? look.extra_features : []).filter(
         (f) => typeof f === "string" && f.trim(),
@@ -537,6 +574,7 @@ export function generateNpc(spec, context) {
     const appearance = { ...look };
     for (const key of profileLookKeys(BEING_LOOK_VOCABULARY)) {
         if (key === "frame" || given(look[key])) continue;
+        if (profile[key] === undefined || profile[key] === null) continue;
         const word = weighted(profile[key], draw(`data.appearance.${key}`));
         appearance[key] = key === "complexion" ? [word] : word;
     }

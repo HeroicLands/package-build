@@ -152,6 +152,10 @@ describe("a generated npc", () => {
                 const { fm } = split(generateNpc(spec(name, { gender }), CONTEXT).text);
                 const d = fm.data;
                 for (const key of PROFILE_LOOK_KEYS) {
+                    if (!(key in PROFILE)) {
+                        expect(d.appearance, `${name} ${key}`).not.toHaveProperty(key);
+                        continue;
+                    }
                     const value = key === "frame" ? d.frame : d.appearance[key];
                     const words = (BEING_LOOK_VOCABULARY as any)[vocabularyKey(key)].map(
                         (w: { value: string }) => w.value,
@@ -450,6 +454,86 @@ describe("a generated npc's name", () => {
 
     it("needs the language's name lists", () => {
         expect(() => generateNpc(unnamed(), { ...CONTEXT, names: undefined })).toThrow(/names/);
+    });
+});
+
+describe("a generated npc's head and face", () => {
+    const FACE = {
+        hair_texture: { coily: 1 },
+        hair_style: { braided: 1 },
+        facial_hair: { full_beard: 1 },
+        face_shape: { angular: 1 },
+        nose: { aquiline: 1 },
+        brow: { heavy: 1 },
+        mouth: { thin: 1 },
+    };
+
+    it("draws each feature the profile weights, and none it does not", () => {
+        const withFace = split(
+            generateNpc(spec("Ahmetega Zekar"), {
+                ...CONTEXT,
+                profile: { ...PROFILE, ...FACE },
+            }).text,
+        );
+        expect(withFace.fm.data.appearance).toMatchObject({
+            hair_texture: "coily",
+            hair_style: "braided",
+            facial_hair: "full_beard",
+            face_shape: "angular",
+            nose: "aquiline",
+            brow: "heavy",
+            mouth: "thin",
+        });
+        const without = split(generateNpc(spec("Ahmetega Zekar"), CONTEXT).text);
+        for (const key of Object.keys(FACE))
+            expect(without.fm.data.appearance, key).not.toHaveProperty(key);
+    });
+
+    it("draws the same features for the same seed", () => {
+        const context = { ...CONTEXT, profile: { ...PROFILE, ...FACE } };
+        expect(generateNpc(spec("Ahmetega Zekar"), context).text).toBe(
+            generateNpc(spec("Ahmetega Zekar"), context).text,
+        );
+    });
+
+    it("never alters a feature the spec gives", () => {
+        const { fm } = split(
+            generateNpc(spec("Ahmetega Zekar", { appearance: { nose: "snub" } }), {
+                ...CONTEXT,
+                profile: { ...PROFILE, ...FACE },
+            }).text,
+        );
+        expect(fm.data.appearance.nose).toBe("snub");
+    });
+
+    it("describes the head and face in the paragraph", () => {
+        const text = appearanceParagraph({
+            name: "Ahmetega Zekar",
+            age: 39,
+            gender: "male",
+            appearance: {
+                hair_color: "black",
+                hair_texture: "coily",
+                hair_style: "braided",
+                facial_hair: "stubble",
+                face_shape: "oval",
+                nose: "aquiline",
+                brow: "heavy",
+                mouth: "thin",
+                extra_features: [],
+            },
+        });
+        expect(text).toContain("braided coily black hair");
+        expect(text).toContain(
+            "His face has an oval shape, an aquiline nose, heavy brows, a thin mouth, and stubble.",
+        );
+        expect(
+            appearanceParagraph({
+                name: "Agosi",
+                gender: "female",
+                appearance: { hair_style: "bald", facial_hair: "none", extra_features: [] },
+            }),
+        ).toContain("She has a bald head.");
     });
 });
 

@@ -91,6 +91,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             "height",
             "weight",
             "appearance.extra_features",
+            "portrait.prompt",
         ],
         fm: () => ({
             type: "being",
@@ -108,6 +109,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     complexion: ["weathered"],
                     extra_features: ["a burn scar on the left forearm"],
                 },
+                portrait: { prompt: "A weathered woman with braided dark hair." },
             },
         }),
     },

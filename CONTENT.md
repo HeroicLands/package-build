@@ -134,8 +134,9 @@ data:
 ```
 
 A being's `data.gender`, `data.frame`, `data.appearance.eye_color`,
-`hair_color`, `skin_color` and `complexion` take their words from one closed
-vocabulary, and any other value is a located build error naming the words the
+`hair_color`, `skin_color`, `complexion`, `hair_texture`, `hair_style`,
+`facial_hair`, `face_shape`, `nose`, `brow` and `mouth` take their words from one
+closed vocabulary, and any other value is a located build error naming the words the
 field takes. `complexion` is a list, required once a being states an
 appearance. `data.appearance.extra_features` lists the being's visible
 physical marks, each a short plain description of one. See
@@ -143,8 +144,8 @@ physical marks, each a short plain description of one. See
 
 A `lore` note of `subType: culture` may state `data.appearanceProfile`: words
 of that vocabulary, each with a positive weight, for `frame`, `eye_color`,
-`hair_color`, `skin_color` and `complexion`, and a `height` range for at least
-`female` and `male`. `package-build npc new` draws a new npc of that culture
+`hair_color`, `skin_color` and `complexion`, optionally the head and face
+features too, and a `height` range for at least `female` and `male`. `package-build npc new` draws a new npc of that culture
 from it. See
 [appearance profiles](docs/reference/format-details.md#appearance-profiles).
 
