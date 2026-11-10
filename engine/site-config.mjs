@@ -52,7 +52,7 @@ export const DEPLOY_ROOT = "build/site";
  * `logo` is a path on the asset host rather than an address.
  */
 export const BRAND = Object.freeze({
-    logo: "images/brand/sohl-icon-white.webp",
+    logo: "images/brand/hl-dragon-white.svg",
     licenseURL: "https://www.heroiclands.org/license/",
     discordURL: "https://discord.gg/EwMfkNd3az",
 });

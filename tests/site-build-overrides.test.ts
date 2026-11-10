@@ -128,7 +128,7 @@ describe("site build runtime URLs", () => {
             );
             expect(html).toContain('href="https://www.heroiclands.org/author/"');
             expect(html).toContain('href="https://example.org/credit/"');
-            expect(html).toContain(`${assets}/images/brand/sohl-icon-white.webp`);
+            expect(html).toContain(`${assets}/images/brand/hl-dragon-white.svg`);
             expect(html).toContain(`src="${assets}/sohl/images/map.webp?size=2#detail"`);
             expect(html).toContain('src="https://example.org/image.webp"');
             expect(html).toContain('href="https://cdn.heroiclands.org/sohl/images/map.webp"');
