@@ -2730,8 +2730,9 @@ there is none or several, and `effectiveRecord` returns the effective record.
 
 `deriveRecord` builds a derivative's record from a master's record and a list of
 extra properties to repeat, and `writeDerivativeProvenance` writes it into a WebP
-or an SVG over whatever managed fields the file held. With no list, a private
-master field cannot reach the file. A prompt and generation details
+or an SVG. It removes inherited EXIF and XMP metadata before writing the selected
+fields. WebP image, animation and color-profile chunks retain their bytes. SVG
+drawings retain their markup while metadata containers are removed. A prompt and generation details
 (`hl:prompt`, `hl:generator`) are never repeated: asking for them is an error.
 `hl:name` and `hl:primarynote` are repeated only when the caller passes
 `notePublic: true`, which is the visibility the content index records for the

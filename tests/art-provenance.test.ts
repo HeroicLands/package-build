@@ -28,6 +28,7 @@ import {
     readSvgProvenance,
     readTextChunk,
     readWebpProvenance,
+    readWebpChunks,
     writeDerivativeProvenance,
     writeProvenance,
     writeSvgProvenance,
@@ -1263,6 +1264,83 @@ describe("deriveRecord", () => {
         );
         const messages = checkProvenance([m, d, unmarked]).map((f) => f.message);
         expect(messages.some((x) => /masters:/.test(x))).toBe(false);
+    });
+
+    it("removes inherited EXIF and foreign XMP while retaining WebP pixels and color", async () => {
+        const packet =
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:private="urn:private"><private:prompt>private-fixture</private:prompt></rdf:Description></rdf:RDF></x:xmpmeta>';
+        const input = await sharp(png)
+            .withExif({ IFD0: { ImageDescription: "private-fixture" } })
+            .withXmp(packet)
+            .withIccProfile("srgb")
+            .webp()
+            .toBuffer();
+        const before = readWebpChunks(input).chunks;
+        expect(before.map((chunk) => chunk.type)).toEqual(
+            expect.arrayContaining(["EXIF", "XMP ", "ICCP"]),
+        );
+        const output = writeDerivativeProvenance(input, MASTER);
+        const after = readWebpChunks(output.bytes).chunks;
+        expect(after.some((chunk) => chunk.type === "EXIF")).toBe(false);
+        expect(after.find((chunk) => chunk.type === "VP8X")!.data[0] & 0x08).toBe(0);
+        expect(readWebpProvenance(output.bytes).packet).not.toContain("private-fixture");
+        expect(output.foreignXmp).toBe("discarded");
+        const retained = (chunks: typeof before) =>
+            chunks
+                .filter((chunk) => ["VP8 ", "VP8L", "ALPH", "ICCP"].includes(chunk.type))
+                .map((chunk) => chunk.raw);
+        expect(retained(after)).toEqual(retained(before));
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(input).raw().toBuffer(),
+        );
+        expect(readWebpProvenance(output.bytes).record).toEqual(deriveRecord(MASTER));
+        const again = writeDerivativeProvenance(output.bytes, MASTER);
+        expect(again.bytes).toEqual(output.bytes);
+        expect(again.changed).toBe(false);
+        expect(
+            readWebpChunks(writeWebpProvenance(input, MASTER).bytes).chunks.find(
+                (chunk) => chunk.type === "EXIF",
+            )?.raw,
+        ).toEqual(before.find((chunk) => chunk.type === "EXIF")?.raw);
+    });
+
+    it("preserves the encoded animation when removing derivative metadata", async () => {
+        const input = await sharp(
+            Buffer.concat([Buffer.alloc(8 * 8 * 3, 9), Buffer.alloc(8 * 8 * 3, 200)]),
+            { raw: { width: 8, height: 16, channels: 3, pageHeight: 8 } },
+        )
+            .withExif({ IFD0: { ImageDescription: "private-fixture" } })
+            .webp({ loop: 0, delay: [100, 100] })
+            .toBuffer();
+        const output = writeDerivativeProvenance(input, MASTER);
+        const frames = (bytes: Buffer) =>
+            readWebpChunks(bytes)
+                .chunks.filter((chunk) => ["ANIM", "ANMF"].includes(chunk.type))
+                .map((chunk) => chunk.raw);
+        expect(frames(input)).toHaveLength(3);
+        expect(frames(output.bytes)).toEqual(frames(input));
+        expect(readWebpChunks(output.bytes).chunks.some((chunk) => chunk.type === "EXIF")).toBe(
+            false,
+        );
+        expect(await sharp(output.bytes, { animated: true }).raw().toBuffer()).toEqual(
+            await sharp(input, { animated: true }).raw().toBuffer(),
+        );
+    });
+
+    it("removes nested SVG metadata and foreign XMP while preserving its drawing", async () => {
+        const drawing = '<rect width="8" height="8" fill="red"/>';
+        const input = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:s="http://www.w3.org/2000/svg" xmlns:x="adobe:ns:meta/" width="8" height="8"><metadata><s:metadata>private-fixture</s:metadata></metadata><x:xmpmeta>private-fixture</x:xmpmeta>${drawing}</svg>`;
+        const output = writeDerivativeProvenance(input, MASTER);
+        const text = output.bytes.toString("utf8");
+        expect(text).not.toContain("private-fixture");
+        expect(text).toContain(drawing);
+        expect(readSvgProvenance(output.bytes).record).toEqual(deriveRecord(MASTER));
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+        const again = writeDerivativeProvenance(output.bytes, MASTER);
+        expect(again.bytes).toEqual(output.bytes);
+        expect(again.changed).toBe(false);
     });
 
     it("writes no private master field into a WebP or an SVG, and leaves pixels alone", async () => {

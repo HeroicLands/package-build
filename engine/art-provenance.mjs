@@ -1236,6 +1236,9 @@ const WEBP_HEADER = 8;
 /** The `VP8X` flag that says an `XMP ` chunk follows the image data. */
 const WEBP_XMP_FLAG = 0x04;
 
+/** The `VP8X` flag for EXIF metadata. */
+const WEBP_EXIF_FLAG = 0x08;
+
 /** The `VP8X` flag that says the image has an alpha channel. */
 const WEBP_ALPHA_FLAG = 0x10;
 
@@ -1544,8 +1547,10 @@ export function deriveRecord(master, options = {}) {
 /**
  * Write a derivative's provenance into a WebP or an SVG.
  *
- * The record is {@link deriveRecord} of the master and replaces every managed
- * field the file holds; image data and other bytes are unchanged.
+ * The record is {@link deriveRecord} of the master. WebP output carries its
+ * encoded image, animation and color-profile chunks plus the selected XMP.
+ * SVG output carries its drawing and the selected provenance; inherited
+ * metadata and XMP elements are removed.
  *
  * @param {Buffer|Uint8Array|string} input - The derivative file.
  * @param {ProvenanceRecord} master - The master's record.
@@ -1557,16 +1562,43 @@ export function deriveRecord(master, options = {}) {
  */
 export function writeDerivativeProvenance(input, master, options = {}) {
     const record = deriveRecord(master, options);
-    const fields = {};
-    for (const field of FIELDS) {
-        fields[field] = field in record ? record[field] : null;
-    }
-    fields.formerNames = record.formerNames ?? null;
+    const original = Buffer.from(input);
     const format = sniffFormat(input);
     if (format === "png") throw new Error("a PNG is a master, never a derivative");
-    return format === "webp" ?
-            writeWebpProvenance(input, fields)
-        :   writeSvgProvenance(input, fields);
+    if (format === "webp") {
+        const { chunks } = readWebpChunks(original);
+        const imageChunks = new Set(["VP8X", "VP8 ", "VP8L", "ALPH", "ANIM", "ANMF", "ICCP"]);
+        const kept = chunks
+            .filter((chunk) => imageChunks.has(chunk.type))
+            .map((chunk) => {
+                const raw = Buffer.from(chunk.raw);
+                if (chunk.type === "VP8X") raw[WEBP_HEADER] &= ~(WEBP_EXIF_FLAG | WEBP_XMP_FLAG);
+                return raw;
+            });
+        const size = Buffer.alloc(4);
+        size.writeUInt32LE(4 + kept.reduce((total, chunk) => total + chunk.length, 0));
+        const clean = Buffer.concat([Buffer.from("RIFF"), size, Buffer.from("WEBP"), ...kept]);
+        const result = writeWebpProvenance(clean, record);
+        const inherited = webpPacket(chunks);
+        return {
+            ...result,
+            foreignXmp: inherited === null || retainForeign(inherited).empty ? "none" : "discarded",
+            changed: !result.bytes.equals(original),
+        };
+    }
+    const text = decodeSvg(input);
+    const { elements } = locateSvg(text);
+    const metadataNames = new Set(["metadata", "xmpmeta", "RDF"]);
+    let clean = "";
+    let at = 0;
+    for (const element of elements) {
+        if (!metadataNames.has(element.name.split(":").at(-1)) || element.start < at) continue;
+        clean += text.slice(at, element.start);
+        at = element.selfClosing ? element.end : element.closeEnd;
+    }
+    clean += text.slice(at);
+    const result = writeSvgProvenance(clean, record);
+    return { ...result, changed: !result.bytes.equals(original) };
 }
 
 /**
