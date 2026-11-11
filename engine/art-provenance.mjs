@@ -46,39 +46,39 @@
  * the next write fills in the other. {@link checkProvenance} reports a file
  * whose two values differ.
  *
- * ## Derivatives
+ * ## Formats
  *
- * This module writes the record into two formats: the PNG `iTXt` XMP chunk
- * ({@link writeProvenance}) and the SVG `<metadata>` element
- * ({@link writeSvgProvenance}). In both, the packet is a standard `x:xmpmeta` /
+ * This module writes the record into three formats: the PNG `iTXt` XMP chunk
+ * ({@link writeProvenance}), the SVG `<metadata>` element
+ * ({@link writeSvgProvenance}) and the WebP `XMP ` chunk
+ * ({@link writeWebpProvenance}). In each, the packet is a standard `x:xmpmeta` /
  * `rdf:RDF` document with every namespace declared, and `dc:identifier` and
  * `hl:address` carry the Address.
  *
- * ## Optional fields shared by both formats
+ * ## Masters and derivatives
  *
- * `role` (`hl:role`) names what the image is for, such as `icon`,
- * `icon-source`, `banner`, `media` or `background`. `derivedFrom`
- * (`hl:derivedFrom`) names a former path or address of the image this one was
- * made from. `digitalSourceType` is written as `Iptc4xmpExt:DigitalSourceType`
- * and accepts a short token (`trainedAlgorithmicMedia`, `algorithmicMedia`,
- * `digitalCreation`, `compositeWithTrainedAlgorithmicMedia`) or a full URI. A
- * PNG that has no record yet and is written without the field receives
- * `trainedAlgorithmicMedia`; the value `none` (or `null`) writes no
- * `DigitalSourceType` at all and stays absent on later writes. An SVG never
- * receives a default.
+ * A master is a PNG or an SVG; a derivative, rendered from it, is a WebP or an
+ * SVG. They are the same image and carry the same `hl:address`; every address
+ * names exactly one master and any number of derivatives (the same master in
+ * several sizes or formats). `hl:derived` (record field `derived`) with the
+ * value `true` marks a derivative; a master does not carry it. A rewrite keeps
+ * it.
  *
- * ## SVG
+ * A derivative is another rendering of the master, possibly resized, and the
+ * master is the canonical version. A derivative's properties are the master's,
+ * found by address: {@link findMaster} resolves the master among a set of files
+ * and {@link effectiveRecord} returns a file's properties, the master's record
+ * for a derivative with the values the derivative repeats applying. A derivative
+ * may repeat a subset of the master's properties. Each repeated value must equal
+ * the master's, and a property the master does not carry may not be stated.
  *
- * {@link writeSvgProvenance} embeds the same XMP packet inside one
- * `<metadata id="hl-provenance">` element, placed as the first child of the
- * root `<svg>` after any leading `<title>` and `<desc>`. The write is a string
- * splice: the managed element is inserted, or replaced where it stands, and
- * every other byte of the file is unchanged. A self-closing root becomes an
- * open and close pair; nothing else about it changes. The merge rules are those
- * of the PNG writer, and the element holds only the packet, with no text-chunk
- * counterpart. A root with a prefixed name, a file with no root element, a file
- * with more than one `id="hl-provenance"` and text that is not valid UTF-8 are
- * refused.
+ * {@link deriveRecord} turns a master's record into a derivative's: the
+ * address, `hl:derived`, `dc:rights` and the creator (`dc:creator`, the
+ * attribution), plus the properties the caller names. Generation details
+ * (`prompt`, `generator`) are never carried, and `hl:name` and `hl:primarynote`
+ * only when the caller says the image's primary note is public. {@link writeDerivativeProvenance}
+ * writes it over whatever a WebP or SVG file holds, so a private master field
+ * reaches a derivative only when it is asked for.
  *
  * ## The note an image shows
  *
@@ -142,7 +142,10 @@
  *
  * {@link checkProvenance} reports, as `file:line:column: severity: message`, a
  * file with no address, an address that is not a complete Address, an
- * (address, role) pair two files share, a `dc:identifier` that differs from
+ * address with two masters, a derivative whose address has no master in the set,
+ * a derivative that repeats a property with a value different from its
+ * master's or states one its master does not carry, a WebP without
+ * `hl:derived`, a PNG with it, an `hl:derived` whose value is not `true`, a `dc:identifier` that differs from
  * `hl:address`, a `hl:primarynote` that is malformed or that names no note in
  * the index, a `hl:name` that differs from the named note's `name.full`, a
  * `hl:primarynote` that differs from the being or affiliation the image
@@ -209,6 +212,7 @@ const FIELDS = Object.freeze([
     "name",
     "primaryNote",
     "role",
+    "derived",
     "derivedFrom",
     "prompt",
     "generator",
@@ -259,6 +263,9 @@ const COMPLETE_ADDRESS = {
  * @property {string} [role] - What the image is for, such as `icon`,
  *   `icon-source`, `banner`, `media` or `background`. Written as `hl:role` in
  *   the XMP packet only.
+ * @property {string} [derived] - `true` on a derivative, the distribution copy
+ *   of a master; absent on a master. Written as `hl:derived` in the XMP packet
+ *   only. A write accepts `true` or the string `true`, and `null` removes it.
  * @property {string} [derivedFrom] - A former path or address of the image this
  *   one was made from. Written as `hl:derivedFrom` in the XMP packet only.
  * @property {string} [digitalSourceType] - The IPTC digital source type, as a
@@ -442,6 +449,7 @@ const XMP_PROPERTIES = Object.freeze([
     ["name", "hl:name", "plain"],
     ["primaryNote", "hl:primarynote", "plain"],
     ["role", "hl:role", "plain"],
+    ["derived", "hl:derived", "plain"],
     ["derivedFrom", "hl:derivedFrom", "plain"],
     ["prompt", "hl:prompt", "plain"],
     ["generator", "hl:generator", "plain"],
@@ -773,6 +781,9 @@ function validateRecord(record) {
                 "<package>-<system>-<type>-<shortcode> Address",
         );
     }
+    if (record.derived !== undefined && record.derived !== "true") {
+        throw new Error(`derived must be "true" or absent, not ${JSON.stringify(record.derived)}`);
+    }
     if (record.generator !== undefined) {
         let parsed;
         try {
@@ -822,7 +833,7 @@ function mergeRecord(existing, fields) {
     for (const field of FIELDS) {
         if (field === "digitalSourceType" || fields[field] === undefined) continue;
         if (fields[field] === null) delete record[field];
-        else record[field] = fields[field];
+        else record[field] = field === "derived" && fields[field] === true ? "true" : fields[field];
     }
     const dst = fields.digitalSourceType;
     if (dst === null || dst === "none") {
@@ -1390,6 +1401,174 @@ export function writeWebpProvenance(input, fields, options = {}) {
     };
 }
 
+/** Read a file of any of the three formats. */
+function readAny(bytes) {
+    const format = sniffFormat(bytes);
+    return (
+        format === "png" ? readProvenance(bytes)
+        : format === "webp" ? readWebpProvenance(bytes)
+        : readSvgProvenance(bytes)
+    );
+}
+
+/** The address a file's read result names. */
+function addressOf({ xmp, standard }) {
+    return xmp.address ?? xmp.identifier ?? standard.address;
+}
+
+/**
+ * Find the master of an address among a set of files.
+ *
+ * The master is the PNG or SVG with that `hl:address` and no `hl:derived`. A
+ * WebP is never a master, and files that cannot be read are skipped.
+ *
+ * @param {{file: string, bytes: Buffer|string}[]} entries - The files.
+ * @param {string} address - The address.
+ * @returns {{file: string, record: ProvenanceRecord}|{reason: "no-master"|"several-masters",
+ *   files?: string[]}} The master, or why there is none.
+ */
+export function findMaster(entries, address) {
+    const masters = [];
+    for (const { file, bytes } of entries) {
+        let read;
+        try {
+            if (sniffFormat(bytes) === "webp") continue;
+            read = readAny(bytes);
+        } catch {
+            continue;
+        }
+        if (read.xmp.derived === undefined && addressOf(read) === address) {
+            masters.push({ file, record: read.record });
+        }
+    }
+    if (masters.length === 0) return { reason: "no-master" };
+    if (masters.length > 1) return { reason: "several-masters", files: masters.map((m) => m.file) };
+    return masters[0];
+}
+
+/**
+ * The properties of a file: a master's own record, or for a derivative the
+ * record of the master that has its address, with the values the derivative
+ * repeats applying. The result carries no `derived`.
+ *
+ * @param {{file: string, bytes: Buffer|string}} entry - The file.
+ * @param {{file: string, bytes: Buffer|string}[]} entries - The files that may
+ *   hold the master.
+ * @returns {ProvenanceRecord} The effective record.
+ * @throws {Error} When the file is a derivative and the set holds no master or
+ *   several for its address.
+ */
+export function effectiveRecord(entry, entries) {
+    const { record } = readAny(entry.bytes);
+    if (record.derived === undefined) return record;
+    const master = findMaster(entries, record.address);
+    if (master.reason) {
+        throw new Error(
+            `${entry.file}: ${master.reason === "no-master" ? "no master" : "several masters"} for address ${record.address}`,
+        );
+    }
+    const effective = { ...master.record };
+    for (const field of REPEATABLE) {
+        if (record[field] !== undefined) effective[field] = record[field];
+    }
+    return effective;
+}
+
+/** Shorten a value for a message. */
+function brief(value) {
+    const text = Array.isArray(value) ? value.join(", ") : String(value);
+    const flat = text.replace(/\s+/g, " ").trim();
+    return JSON.stringify(flat.length > 60 ? `${flat.slice(0, 57)}...` : flat);
+}
+
+/** The record properties a derivative may repeat from its master. */
+const REPEATABLE = Object.freeze([
+    ...FIELDS.filter((field) => field !== "address" && field !== "derived"),
+    "formerNames",
+]);
+
+/** Generation details, which no derivative carries. */
+const NEVER_REPEATED = Object.freeze(["prompt", "generator"]);
+
+/** The note fields, repeated only for a public primary note. */
+const NOTE_FIELDS = Object.freeze(["name", "primaryNote"]);
+
+/** The record fields a derivative carries unless told otherwise. */
+const DERIVATIVE_FIELDS = Object.freeze(["address", "creator", "rights"]);
+
+/**
+ * The record of a derivative made from a master.
+ *
+ * The record holds `address` (unchanged), `derived` set to `true`, `rights`
+ * (`dc:rights`) and `creator` (`dc:creator`, the attribution), and the master's
+ * value of each property named in `repeat`. Every other field of the master is
+ * left out.
+ *
+ * @param {ProvenanceRecord} master - The master's record.
+ * `prompt` and `generator` (generation details) are never repeated, and `name`
+ * and `primaryNote` are repeated only when `notePublic` is `true`.
+ *
+ * @param {ProvenanceRecord} master - The master's record.
+ * @param {{repeat?: string[], notePublic?: boolean}} [options] - `repeat` names
+ *   further record fields to repeat, such as `description`. `notePublic` is
+ *   whether the image's primary note is public, as the content index's note
+ *   visibility says; only then may `name` and `primaryNote` be named.
+ * @returns {ProvenanceRecord} The derivative's record.
+ * @throws {Error} When the master has no valid address, `repeat` names a field
+ *   that cannot be repeated, names `prompt` or `generator`, or names `name` or
+ *   `primaryNote` while `notePublic` is not `true`.
+ */
+export function deriveRecord(master, options = {}) {
+    const repeat = options.repeat ?? [];
+    for (const field of repeat) {
+        if (NEVER_REPEATED.includes(field)) {
+            throw new Error(`${field} is generation detail and is never repeated on a derivative`);
+        }
+        if (NOTE_FIELDS.includes(field) && options.notePublic !== true) {
+            throw new Error(
+                `${field} is repeated on a derivative only when the primary note is public`,
+            );
+        }
+        if (!REPEATABLE.includes(field)) throw new Error(`${field} cannot be repeated`);
+    }
+    const record = {};
+    for (const field of [...DERIVATIVE_FIELDS, ...repeat]) {
+        if (master[field] !== undefined) record[field] = master[field];
+    }
+    record.identifier = record.address;
+    record.derived = "true";
+    validateRecord(record);
+    return record;
+}
+
+/**
+ * Write a derivative's provenance into a WebP or an SVG.
+ *
+ * The record is {@link deriveRecord} of the master and replaces every managed
+ * field the file holds; image data and other bytes are unchanged.
+ *
+ * @param {Buffer|Uint8Array|string} input - The derivative file.
+ * @param {ProvenanceRecord} master - The master's record.
+ * @param {{repeat?: string[], notePublic?: boolean}} [options] - As for
+ *   {@link deriveRecord}.
+ * @returns {ReturnType<typeof writeWebpProvenance>|ReturnType<typeof writeSvgProvenance>}
+ *   What the format's writer returns.
+ * @throws {Error} When the file is a PNG, or the writer refuses it.
+ */
+export function writeDerivativeProvenance(input, master, options = {}) {
+    const record = deriveRecord(master, options);
+    const fields = {};
+    for (const field of FIELDS) {
+        fields[field] = field in record ? record[field] : null;
+    }
+    fields.formerNames = record.formerNames ?? null;
+    const format = sniffFormat(input);
+    if (format === "png") throw new Error("a PNG is a master, never a derivative");
+    return format === "webp" ?
+            writeWebpProvenance(input, fields)
+        :   writeSvgProvenance(input, fields);
+}
+
 /**
  * The format of a file, by signature rather than by file name.
  *
@@ -1455,7 +1634,8 @@ export function checkProvenance(entries, options = {}) {
     const findings = [];
     const add = (file, message) =>
         findings.push({ file, line: 1, column: 1, severity: "error", message });
-    const owners = new Map();
+    const masterFiles = new Map();
+    const derivatives = [];
     for (const { file, bytes } of entries) {
         const format = sniffFormat(bytes);
         const isPng = format === "png";
@@ -1479,6 +1659,15 @@ export function checkProvenance(entries, options = {}) {
             );
         }
         const address = xmp.address ?? xmp.identifier ?? standard.address;
+        if (xmp.derived !== undefined && xmp.derived !== "true") {
+            add(file, `hl:derived ${JSON.stringify(xmp.derived)} must be "true"`);
+        }
+        if (format === "webp" && xmp.derived === undefined) {
+            add(file, "a WebP is a derivative and must carry hl:derived");
+        }
+        if (isPng && xmp.derived !== undefined) {
+            add(file, "a PNG is a master and must not carry hl:derived");
+        }
         if (
             xmp.address !== undefined &&
             xmp.identifier !== undefined &&
@@ -1497,10 +1686,15 @@ export function checkProvenance(entries, options = {}) {
                 `malformed address ${JSON.stringify(address)}: expected <package>-<system>-<type>-<shortcode>`,
             );
         } else {
-            const key = `${address}\u0000${xmp.role ?? ""}`;
-            const list = owners.get(key) ?? { address, role: xmp.role ?? "", files: [] };
-            list.files.push(file);
-            owners.set(key, list);
+            if (xmp.derived === undefined) {
+                if (format !== "webp") {
+                    const list = masterFiles.get(address) ?? [];
+                    list.push({ file, record: read.record });
+                    masterFiles.set(address, list);
+                }
+            } else {
+                derivatives.push({ file, address, xmp });
+            }
         }
         if (xmp.primaryNote !== undefined) {
             if (!COMPLETE_ADDRESS.test(xmp.primaryNote)) {
@@ -1551,11 +1745,36 @@ export function checkProvenance(entries, options = {}) {
             }
         }
     }
-    for (const { address, role, files } of owners.values()) {
-        if (files.length < 2) continue;
-        const what = role === "" ? `address ${address}` : `address ${address} with role ${role}`;
-        for (const file of files) {
-            add(file, `${what} is shared by ${files.length} files: ${files.join(", ")}`);
+    for (const [address, masters] of masterFiles) {
+        if (masters.length < 2) continue;
+        const names = masters.map((m) => m.file);
+        for (const file of names) {
+            add(file, `address ${address} has ${masters.length} masters: ${names.join(", ")}`);
+        }
+    }
+    for (const { file, address, xmp } of derivatives) {
+        const masters = masterFiles.get(address);
+        if (!masters) {
+            add(file, `a derivative of address ${address} has no master among the checked files`);
+            continue;
+        }
+        if (masters.length > 1) continue;
+        const master = masters[0];
+        for (const field of REPEATABLE) {
+            if (xmp[field] === undefined) continue;
+            const name = XMP_PROPERTIES.find(([f]) => f === field)[1];
+            const mine = master.record[field];
+            if (mine === undefined) {
+                add(
+                    file,
+                    `${name} ${brief(xmp[field])} is not carried by its master ${master.file}`,
+                );
+            } else if (JSON.stringify(mine) !== JSON.stringify(xmp[field])) {
+                add(
+                    file,
+                    `${name} ${brief(xmp[field])} is stale: its master ${master.file} has ${brief(mine)}`,
+                );
+            }
         }
     }
     return findings;

@@ -15,6 +15,7 @@ import {
     readWebpChunks,
     readWebpProvenance,
     sniffFormat,
+    writeDerivativeProvenance,
     writeProvenance,
     writeSvgProvenance,
     writeWebpProvenance,
@@ -136,10 +137,19 @@ describe("resolvePrimaryNote", () => {
     });
 });
 
-describe.each(FORMATS)("$label provenance", ({ input, write, read }) => {
-    const WITH = (address: string, i = index) => write(input(), { address }, { index: i });
-    const check = (bytes: Buffer, i: object | undefined = index) =>
-        checkProvenance([{ file: "a", bytes }], i ? { index: i } : {});
+describe.each(FORMATS)("$label provenance", ({ label, input, write, read }) => {
+    // A WebP is always a derivative.
+    const MARK = label.startsWith("WebP") ? { derived: true } : {};
+    const WITH = (address: string, i = index) => write(input(), { address, ...MARK }, { index: i });
+    // A WebP is a derivative and carries no note fields of its own, so the
+    // check runs on a PNG master holding the record the WebP was written with.
+    const check = (bytes: Buffer, i: object | undefined = index) => {
+        let subject = bytes;
+        if (label.startsWith("WebP")) {
+            subject = masterWithPacket(readWebpProvenance(bytes).packet!);
+        }
+        return checkProvenance([{ file: "a", bytes: subject }], i ? { index: i } : {});
+    };
 
     it("fills both fields for a portrait and reads them back byte-exact", () => {
         const out = WITH(IMG("portrait"));
@@ -188,7 +198,7 @@ describe.each(FORMATS)("$label provenance", ({ input, write, read }) => {
         expect(check(second.bytes, renamed)).toEqual([]);
     });
     it("writes only hl:name for a banner given only a name, and keeps it on rewrite", () => {
-        const first = write(input(), { address: IMG("banner"), name: "Harbour Dawn" });
+        const first = write(input(), { ...MARK, address: IMG("banner"), name: "Harbour Dawn" });
         expect(read(first.bytes)).toMatchObject({ name: "Harbour Dawn" });
         expect(read(first.bytes).primaryNote).toBeUndefined();
         const again = write(first.bytes, { kind: "banner" }, { index });
@@ -197,6 +207,7 @@ describe.each(FORMATS)("$label provenance", ({ input, write, read }) => {
     });
     it("reads back only hl:primarynote for a note-only file, kept on rewrite", () => {
         const first = write(input(), {
+            ...MARK,
             address: IMG("view"),
             primaryNote: "thalorna-note-place-harbor",
         });
@@ -213,6 +224,7 @@ describe.each(FORMATS)("$label provenance", ({ input, write, read }) => {
     });
     it("reports a malformed and an unknown hl:primarynote, and never a lone name", () => {
         const set = write(input(), {
+            ...MARK,
             address: IMG("view"),
             primaryNote: "thalorna-note-place-harbor",
         });
@@ -220,11 +232,12 @@ describe.each(FORMATS)("$label provenance", ({ input, write, read }) => {
             replaceInPacket(set.bytes, "thalorna-note-place-harbor", value);
         expect(check(patch("thalorna-note-place-nowhere"))[0].message).toContain("names no note");
         expect(check(patch("harbor"))[0].message).toContain("malformed hl:primarynote");
-        const lone = write(input(), { address: IMG("view"), name: "Anything" });
+        const lone = write(input(), { ...MARK, address: IMG("view"), name: "Anything" });
         expect(check(lone.bytes)).toEqual([]);
     });
     it("reports an hl:primarynote that differs from the being the image resolves to", () => {
         const out = write(input(), {
+            ...MARK,
             address: IMG("portrait"),
             primaryNote: "thalorna-note-being-twina",
         });
@@ -239,6 +252,19 @@ describe.each(FORMATS)("$label provenance", ({ input, write, read }) => {
 });
 
 /** Replace text inside a file's XMP packet, rebuilding the chunk that holds it. */
+/** A PNG master whose XMP packet is the given one without `hl:derived`. */
+function masterWithPacket(packet: string): Buffer {
+    const chunks = readChunks(png);
+    const at = chunks.findIndex((chunk) => chunk.type === "IDAT");
+    const text = packet.replace("<hl:derived>true</hl:derived>", "");
+    return Buffer.concat([
+        png.subarray(0, 8),
+        ...chunks.slice(0, at).map((chunk) => chunk.raw),
+        makeTextChunk(XMP_KEYWORD, text).raw,
+        ...chunks.slice(at).map((chunk) => chunk.raw),
+    ]);
+}
+
 function replaceInPacket(bytes: Buffer, from: string, to: string): Buffer {
     const format = sniffFormat(bytes);
     if (format === "svg") return Buffer.from(bytes.toString("utf8").replace(from, to));
@@ -303,10 +329,17 @@ describe("WebP container", () => {
     });
     it("is sniffed by its signature, whatever the file is called", () => {
         expect(sniffFormat(lossy)).toBe("webp");
-        const out = writeWebpProvenance(lossy, { address: IMG("portrait") }, { index });
-        expect(checkProvenance([{ file: "looks-like.svg", bytes: out.bytes }], { index })).toEqual(
-            [],
-        );
+        const out = writeDerivativeProvenance(lossy, { address: IMG("portrait") });
+        const master = writeProvenance(png, { address: IMG("portrait") }, { index });
+        expect(
+            checkProvenance(
+                [
+                    { file: "looks-like.svg", bytes: out.bytes },
+                    { file: "m.png", bytes: master.bytes },
+                ],
+                { index },
+            ),
+        ).toEqual([]);
         expect(
             checkProvenance([{ file: "bare.webp", bytes: lossy }], { index })[0].message,
         ).toContain("XMP packet is missing");
@@ -443,7 +476,11 @@ describe("from an indexed tree", () => {
             [png, writeProvenance, (b: Buffer) => readProvenance(b).xmp],
             [lossy, writeWebpProvenance, (b: Buffer) => readWebpProvenance(b).xmp],
         ] as const) {
-            const out = (write as any)(bytes, { address }, { index: idx });
+            const out = (write as any)(
+                bytes,
+                { address, ...(write === writeWebpProvenance ? { derived: true } : {}) },
+                { index: idx },
+            );
             expect(read(out.bytes)).toMatchObject({
                 name: "Grey Wolf",
                 primaryNote: "thalorna-sohl-being-wolf",
@@ -458,12 +495,20 @@ describe("from an indexed tree", () => {
             [SVG, writeSvgProvenance, (b: Buffer) => readSvgProvenance(b).xmp],
             [lossy, writeWebpProvenance, (b: Buffer) => readWebpProvenance(b).xmp],
         ] as const) {
-            const out = (write as any)(bytes, { address }, { index: idx });
+            const out = (write as any)(
+                bytes,
+                { address, ...(write === writeWebpProvenance ? { derived: true } : {}) },
+                { index: idx },
+            );
             expect(read(out.bytes)).toMatchObject({
                 name: "Akira Shūyu",
                 primaryNote: "thalorna-sohl-being-akirashuyu",
             });
-            expect(checkProvenance([{ file: "x", bytes: out.bytes }], { index: idx })).toEqual([]);
+            const subject =
+                write === writeWebpProvenance ?
+                    masterWithPacket(readWebpProvenance(out.bytes).packet!)
+                :   out.bytes;
+            expect(checkProvenance([{ file: "x", bytes: subject }], { index: idx })).toEqual([]);
         }
     });
 });

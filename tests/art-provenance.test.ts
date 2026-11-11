@@ -17,6 +17,9 @@ import {
     XMP_KEYWORD,
     checkProvenance,
     formatFinding,
+    deriveRecord,
+    effectiveRecord,
+    findMaster,
     makeTextChunk,
     masterFileName,
     planRenames,
@@ -24,8 +27,11 @@ import {
     readProvenance,
     readSvgProvenance,
     readTextChunk,
+    readWebpProvenance,
+    writeDerivativeProvenance,
     writeProvenance,
     writeSvgProvenance,
+    writeWebpProvenance,
 } from "../engine/art-provenance.mjs";
 
 const PROMPT = `A "drake" of the deep, café-lit — naïve & <wild>, 'quoted'\r\nsecond line\ttabbed 日本語 🐉`;
@@ -387,7 +393,7 @@ describe("checkProvenance", () => {
             { file: "b.png", bytes: written("thalorna-note-being-same") },
         ]);
         expect(findings).toHaveLength(2);
-        expect(findings[0].message).toMatch(/shared by 2 files/);
+        expect(findings[0].message).toMatch(/has 2 masters/);
     });
 
     it("refuses a file whose text chunks were lost", () => {
@@ -670,36 +676,205 @@ describe("description, source and processing", () => {
     });
 });
 
-describe("checkProvenance by address and role", () => {
-    const png2 = (address: string, role?: string) =>
-        writeProvenance(png, { ...FIELDS, address, ...(role ? { role } : {}) }).bytes;
-    const svg2 = (address: string, role?: string) =>
-        writeSvgProvenance("<svg/>", { ...FIELDS, address, ...(role ? { role } : {}) }).bytes;
+describe("checkProvenance by master and derivative", () => {
+    const A = "thalorna-note-being-aaa";
+    let webp: Buffer;
+    beforeAll(async () => {
+        webp = await sharp(png).webp().toBuffer();
+    });
+    const png2 = (address: string, extra = {}) =>
+        writeProvenance(png, { ...FIELDS, address, ...extra }).bytes;
+    const svg2 = (address: string, extra = {}) =>
+        writeSvgProvenance("<svg/>", { ...FIELDS, address, ...extra }).bytes;
+    const webp2 = (address: string, extra: object = {}) =>
+        writeWebpProvenance(webp, { ...FIELDS, address, ...extra }).bytes;
+    const webpD = (address: string) =>
+        writeDerivativeProvenance(webp, { ...FIELDS, address }).bytes;
+    const svgD = (address: string) =>
+        writeDerivativeProvenance("<svg/>", { ...FIELDS, address }).bytes;
 
-    it("accepts the same address with different roles, across formats", () => {
-        const a = "thalorna-note-being-aaa";
+    it("accepts a PNG master and its WebP derivative as a pair", () => {
         expect(
             checkProvenance([
-                { file: "a.png", bytes: png2(a) },
-                { file: "b.svg", bytes: svg2(a, "icon-source") },
-                { file: "c.png", bytes: png2(a, "icon") },
+                { file: "a.png", bytes: png2(A) },
+                { file: "a.webp", bytes: webpD(A) },
             ]),
         ).toEqual([]);
     });
 
-    it("refuses the same address and role twice, and an absent role equals the empty role", () => {
-        const a = "thalorna-note-being-aaa";
-        const same = checkProvenance([
-            { file: "a.svg", bytes: svg2(a, "icon") },
-            { file: "b.png", bytes: png2(a, "icon") },
+    it("accepts an SVG as a master and as a derivative", () => {
+        expect(checkProvenance([{ file: "a.svg", bytes: svg2(A) }])).toEqual([]);
+        expect(
+            checkProvenance([
+                { file: "a.svg", bytes: svg2(A) },
+                { file: "b.svg", bytes: svgD(A) },
+            ]),
+        ).toEqual([]);
+        expect(
+            checkProvenance([
+                { file: "a.png", bytes: png2(A) },
+                { file: "b.svg", bytes: svgD(A) },
+            ]),
+        ).toEqual([]);
+    });
+
+    it("accepts several derivatives of one master", () => {
+        expect(
+            checkProvenance([
+                { file: "a.png", bytes: png2(A) },
+                { file: "a.webp", bytes: webpD(A) },
+                { file: "b.webp", bytes: webpD(A) },
+                { file: "c.svg", bytes: svgD(A) },
+            ]),
+        ).toEqual([]);
+    });
+
+    it("refuses two masters with one address", () => {
+        const masters = checkProvenance([
+            { file: "a.svg", bytes: svg2(A) },
+            { file: "b.png", bytes: png2(A) },
         ]);
-        expect(same).toHaveLength(2);
-        expect(same[0].message).toMatch(/with role icon is shared by 2 files/);
-        const bare = checkProvenance([
-            { file: "a.svg", bytes: svg2(a) },
-            { file: "b.png", bytes: png2(a) },
+        expect(masters).toHaveLength(2);
+        expect(masters[0].message).toMatch(/has 2 masters/);
+    });
+
+    it("refuses a derivative whose address has no master", () => {
+        const found = checkProvenance([
+            { file: "a.webp", bytes: webpD(A) },
+            { file: "m.png", bytes: png2("thalorna-note-being-other") },
         ]);
-        expect(bare).toHaveLength(2);
+        expect(found).toHaveLength(1);
+        expect(found[0].file).toBe("a.webp");
+        expect(found[0].message).toMatch(/no master/);
+    });
+
+    describe("a derivative that repeats master properties", () => {
+        const NOTE = "thalorna-note-being-bbb";
+        const extra = {
+            name: "Abyssdrake",
+            primaryNote: NOTE,
+            formerNames: ["old/a.png"],
+            description: "credited",
+        };
+        const values: Record<string, unknown> = { ...extra, prompt: PROMPT, generator: GENERATOR };
+        const masterWith = (more: object) => ({
+            file: "m.png",
+            bytes: png2(A, more),
+        });
+
+        it("never counts hl:derived as stale or missing on the master", () => {
+            const master = masterWith({});
+            for (const bytes of [webpD(A), svgD(A)]) {
+                expect(readProvenance(master.bytes).xmp.derived).toBeUndefined();
+                expect(checkProvenance([master, { file: "d", bytes }])).toEqual([]);
+            }
+        });
+
+        it("passes when each repeated value equals the master's", () => {
+            const master = masterWith(extra);
+            const record = readProvenance(master.bytes).record;
+            for (const bytes of [
+                writeDerivativeProvenance(webp, record, {
+                    repeat: Object.keys(extra),
+                    notePublic: true,
+                }).bytes,
+                writeDerivativeProvenance("<svg/>", record, {
+                    repeat: Object.keys(extra),
+                    notePublic: true,
+                }).bytes,
+            ]) {
+                expect(checkProvenance([master, { file: "d", bytes }])).toEqual([]);
+            }
+        });
+
+        it("reports a repeated value that differs, naming the property and both values", () => {
+            const master = masterWith(extra);
+            for (const [field, value] of Object.entries({
+                name: "Other",
+                description: "x ".repeat(60),
+            })) {
+                const bytes = writeWebpProvenance(webpD(A), { [field]: value }).bytes;
+                const found = checkProvenance([master, { file: "d.webp", bytes }]);
+                expect(found).toHaveLength(1);
+                expect(found[0].message).toMatch(/is stale: its master m\.png has/);
+                expect(found[0].message).toContain(field === "name" ? "hl:name" : "hl:description");
+                expect(found[0].message.length).toBeLessThan(260);
+            }
+            const former = writeSvgProvenance(svgD(A), { formerNames: ["other.png"] }).bytes;
+            expect(checkProvenance([master, { file: "d.svg", bytes: former }])[0].message).toMatch(
+                /hl:formerNames .* is stale/,
+            );
+        });
+
+        it("reports a property the master does not carry", () => {
+            const master = masterWith({ prompt: null });
+            for (const [field, name] of [
+                ["prompt", "dc:description|hl:prompt"],
+                ["name", "hl:name"],
+                ["primaryNote", "hl:primarynote"],
+                ["description", "hl:description"],
+            ] as const) {
+                for (const bytes of [
+                    writeWebpProvenance(webpD(A), { [field]: values[field] }).bytes,
+                    writeSvgProvenance(svgD(A), { [field]: values[field] }).bytes,
+                ]) {
+                    const found = checkProvenance([master, { file: "d", bytes }]);
+                    expect(found, field).toHaveLength(1);
+                    expect(found[0].message).toMatch(/is not carried by its master m\.png/);
+                    expect(found[0].message).toMatch(new RegExp(name));
+                }
+            }
+        });
+    });
+
+    it("refuses a WebP without hl:derived and a PNG with it", () => {
+        const bare = checkProvenance([{ file: "a.webp", bytes: webp2(A) }]);
+        expect(bare.map((f) => f.message)).toEqual([
+            expect.stringMatching(/WebP is a derivative and must carry hl:derived/),
+        ]);
+        const derivedPng = checkProvenance([{ file: "a.png", bytes: png2(A, { derived: true }) }]);
+        expect(derivedPng.map((f) => f.message)).toContainEqual(
+            expect.stringMatching(/PNG is a master and must not carry hl:derived/),
+        );
+    });
+
+    it("refuses an hl:derived value other than true", () => {
+        for (const bytes of [
+            Buffer.from(svgD(A).toString().replace(">true<", ">false<")),
+            webpD(A).toString("latin1").includes("<hl:derived>true<") ?
+                Buffer.from(
+                    webpD(A).toString("latin1").replace("<hl:derived>true<", "<hl:derived>yes_<"),
+                    "latin1",
+                )
+            :   Buffer.alloc(0),
+        ]) {
+            const found = checkProvenance([{ file: "x", bytes }]);
+            expect(found.map((f) => f.message).join("\n")).toMatch(/hl:derived .* must be "true"/);
+        }
+        expect(() => writeSvgProvenance("<svg/>", { ...FIELDS, derived: "false" })).toThrow(
+            /derived/,
+        );
+    });
+
+    it("reads hl:derived back from each format and keeps it on rewrite", () => {
+        const reads = [
+            [webpD(A), (b: Buffer) => readWebpProvenance(b).xmp, writeWebpProvenance],
+            [svgD(A), (b: Buffer) => readSvgProvenance(b).xmp, writeSvgProvenance],
+            [png2(A, { derived: true }), (b: Buffer) => readProvenance(b).xmp, writeProvenance],
+        ] as const;
+        for (const [bytes, read, write] of reads) {
+            expect(read(bytes).derived).toBe("true");
+            const again = (write as any)(bytes, { title: "Other" });
+            expect(read(again.bytes).derived).toBe("true");
+            expect((write as any)(bytes, { derived: null }).record.derived).toBeUndefined();
+        }
+        expect(readProvenance(png2(A)).xmp.derived).toBeUndefined();
+    });
+
+    it("leaves a master that carries no hl:derived byte for byte as it was", () => {
+        const once = png2(A);
+        expect(writeProvenance(once, {}).changed).toBe(false);
+        expect(readProvenance(once).packet).not.toContain("hl:derived");
     });
 
     it("sniffs content, not the extension, and reports SVG faults", () => {
@@ -953,5 +1128,183 @@ describe("dc:identifier", () => {
         );
         expect(checkProvenance([{ file: "a.svg", bytes: svg }])).toHaveLength(1);
         expect(writeProvenance(differing, {}).record.identifier).toBe(FIELDS.address);
+    });
+});
+
+describe("deriveRecord", () => {
+    const MASTER = {
+        ...FIELDS,
+        address: "thalorna-note-being-abyssdrk",
+        name: "Abyssdrake",
+        primaryNote: "thalorna-note-being-abyssdrk",
+        role: "portrait",
+        formerNames: ["old/abyss.png"],
+        description: "Credited to a private person",
+        source: "https://example.test/private",
+        processing: "upscaled",
+        digitalSourceType: DIGITAL_SOURCE_TRAINED_ALGORITHMIC,
+    };
+
+    it("repeats the properties asked for and refuses one that cannot be", () => {
+        expect(deriveRecord(MASTER, { repeat: ["description", "kind"] })).toEqual({
+            address: MASTER.address,
+            identifier: MASTER.address,
+            derived: "true",
+            creator: MASTER.creator,
+            rights: MASTER.rights,
+            description: MASTER.description,
+            kind: MASTER.kind,
+        });
+        expect(() => deriveRecord(MASTER, { repeat: ["derived"] })).toThrow(/cannot be repeated/);
+        expect(() => deriveRecord(MASTER, { repeat: ["bogus"] })).toThrow(/cannot be repeated/);
+    });
+
+    it("never repeats a prompt or generation details, whatever notePublic says", () => {
+        for (const field of ["prompt", "generator"]) {
+            for (const notePublic of [undefined, true, false]) {
+                expect(() => deriveRecord(MASTER, { repeat: [field], notePublic })).toThrow(
+                    new RegExp(`${field} is generation detail`),
+                );
+            }
+        }
+    });
+
+    it("repeats hl:name and hl:primarynote only for a public note", () => {
+        for (const field of ["name", "primaryNote"]) {
+            for (const notePublic of [undefined, false]) {
+                expect(() => deriveRecord(MASTER, { repeat: [field], notePublic })).toThrow(
+                    new RegExp(`${field} is repeated on a derivative only when .* public`),
+                );
+            }
+        }
+        const record = deriveRecord(MASTER, { repeat: ["name", "primaryNote"], notePublic: true });
+        expect(record).toMatchObject({ name: MASTER.name, primaryNote: MASTER.primaryNote });
+        expect(record).not.toHaveProperty("prompt");
+        expect(record).not.toHaveProperty("generator");
+        const gmOnly = deriveRecord(MASTER, { notePublic: false });
+        expect(gmOnly).not.toHaveProperty("name");
+        expect(gmOnly).not.toHaveProperty("primaryNote");
+    });
+
+    it("writes a public note's name and Address equal to the master's, never generation details", async () => {
+        const webp = await sharp(png).webp().toBuffer();
+        const m = { file: "m.png", bytes: writeProvenance(png, MASTER).bytes };
+        const record = readProvenance(m.bytes).record;
+        const out = writeDerivativeProvenance(webp, record, {
+            repeat: ["name", "primaryNote"],
+            notePublic: true,
+        });
+        const { xmp, packet } = readWebpProvenance(out.bytes);
+        expect(xmp).toMatchObject({ name: MASTER.name, primaryNote: MASTER.primaryNote });
+        expect(packet).not.toContain("hl:prompt");
+        expect(packet).not.toContain("hl:generator");
+        expect(checkProvenance([m, { file: "d.webp", bytes: out.bytes }])).toEqual([]);
+        const gm = writeDerivativeProvenance(webp, record, { notePublic: false });
+        expect(readWebpProvenance(gm.bytes).xmp.name).toBeUndefined();
+        expect(readWebpProvenance(gm.bytes).xmp.primaryNote).toBeUndefined();
+    });
+
+    it("keeps only the address, rights, attribution and hl:derived by default", () => {
+        expect(deriveRecord(MASTER)).toEqual({
+            address: MASTER.address,
+            identifier: MASTER.address,
+            derived: "true",
+            creator: MASTER.creator,
+            rights: MASTER.rights,
+        });
+        expect(deriveRecord({ address: MASTER.address })).toEqual({
+            address: MASTER.address,
+            identifier: MASTER.address,
+            derived: "true",
+        });
+        expect(() => deriveRecord({ prompt: "x" })).toThrow(/address/);
+    });
+
+    it("resolves a derivative's properties from the master by address", async () => {
+        const webp = await sharp(png).webp().toBuffer();
+        const m = { file: "m.png", bytes: writeProvenance(png, MASTER).bytes };
+        const d = {
+            file: "d.webp",
+            bytes: writeDerivativeProvenance(webp, { ...MASTER, rights: "Other terms" }).bytes,
+        };
+        const set = [m, d];
+        expect(findMaster(set, MASTER.address)).toMatchObject({ file: "m.png" });
+        expect(findMaster([d], MASTER.address)).toEqual({ reason: "no-master" });
+        expect(findMaster([m, m], MASTER.address)).toMatchObject({ reason: "several-masters" });
+        const own = readProvenance(m.bytes).record;
+        expect(effectiveRecord(m, set)).toEqual(own);
+        expect(effectiveRecord(d, set)).toEqual({ ...own, rights: "Other terms" });
+        const plain = {
+            file: "p.webp",
+            bytes: writeDerivativeProvenance(webp, { address: MASTER.address }).bytes,
+        };
+        expect(effectiveRecord(plain, set)).toEqual(own);
+        const named = {
+            file: "n.webp",
+            bytes: writeDerivativeProvenance(webp, MASTER, { repeat: ["kind"] }).bytes,
+        };
+        expect(effectiveRecord(named, set)).toEqual(own);
+        expect(() => effectiveRecord(d, [d])).toThrow(/no master/);
+    });
+
+    it("never takes an unmarked WebP as a master", async () => {
+        const webp = await sharp(png).webp().toBuffer();
+        const unmarked = { file: "u.webp", bytes: writeWebpProvenance(webp, MASTER).bytes };
+        const m = { file: "m.png", bytes: writeProvenance(png, MASTER).bytes };
+        const d = {
+            file: "d.webp",
+            bytes: writeDerivativeProvenance(webp, MASTER).bytes,
+        };
+        expect(findMaster([unmarked], MASTER.address)).toEqual({ reason: "no-master" });
+        expect(findMaster([unmarked, m], MASTER.address)).toMatchObject({ file: "m.png" });
+        expect(() => effectiveRecord(d, [unmarked])).toThrow(/no master/);
+        expect(checkProvenance([d, unmarked]).map((f) => f.message)).toEqual(
+            expect.arrayContaining([expect.stringContaining("has no master")]),
+        );
+        const messages = checkProvenance([m, d, unmarked]).map((f) => f.message);
+        expect(messages.some((x) => /masters:/.test(x))).toBe(false);
+    });
+
+    it("writes no private master field into a WebP or an SVG, and leaves pixels alone", async () => {
+        const webp = await sharp(png).webp().toBuffer();
+        const dirty = writeWebpProvenance(webp, MASTER).bytes;
+        const svgDirty = writeSvgProvenance("<svg/>", MASTER).bytes;
+        for (const [input, read] of [
+            [dirty, (b: Buffer) => readWebpProvenance(b)],
+            [svgDirty, (b: Buffer) => readSvgProvenance(b)],
+        ] as const) {
+            const out = writeDerivativeProvenance(input, MASTER);
+            const { packet, xmp } = read(out.bytes);
+            expect(Object.keys(xmp).sort()).toEqual(
+                ["address", "creator", "derived", "identifier", "rights"].sort(),
+            );
+            expect(xmp.creator).toBe(MASTER.creator);
+            expect(xmp.rights).toBe(MASTER.rights);
+            for (const leaked of [
+                "hl:prompt",
+                "hl:generator",
+                "hl:name",
+                "hl:primarynote",
+                "hl:formerNames",
+                "hl:description",
+                "hl:role",
+                "dc:description",
+                "dc:source",
+                "DigitalSourceType",
+                "drake",
+            ]) {
+                expect(packet, leaked).not.toContain(leaked);
+            }
+        }
+        const derived = writeDerivativeProvenance(webp, MASTER).bytes;
+        const pixels = async (b: Buffer) => (await sharp(b).raw().toBuffer()).toString("base64");
+        expect(await pixels(derived)).toBe(await pixels(webp));
+        expect(
+            checkProvenance([
+                { file: "m.png", bytes: writeProvenance(png, MASTER).bytes },
+                { file: "d.webp", bytes: derived },
+            ]),
+        ).toEqual([]);
+        expect(() => writeDerivativeProvenance(png, MASTER)).toThrow(/master/);
     });
 });
