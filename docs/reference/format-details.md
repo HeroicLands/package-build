@@ -2737,20 +2737,26 @@ other flags remain. The ICC profile stays byte for byte, including its text.
 `foreignXmp` reports `discarded` when an inherited packet contains properties
 outside the managed record or cannot be interpreted, and `none` otherwise.
 
-An SVG derivative keeps allowed SVG drawing elements and their drawing and
-presentation attributes, text and style content, XLink `href`, and XML `lang`,
-`space`, and `base`. It discards other elements and attributes, including
-metadata, title, description, editor namespaces, comments, and processing
-instructions. Drawing values and style content remain part of the image. Internal general
-entities and default attributes are expanded; external DTDs, external entities,
-and parameter entities are refused.
-The master SVG writer retains foreign properties in its managed metadata packet
-when the packet meets the writer's retention rules, and keeps other markup. Its
-`foreignXmp` result describes that managed packet only. The master WebP writer
-keeps non-XMP chunks and applies the same retention rules to foreign XMP.
+An SVG derivative keeps allowed SVG drawing elements and presentation
+attributes, rendering text, style content, XLink `href`, and XML `lang`,
+`space`, and `base`. It discards other elements and attributes, non-rendering
+text, metadata, titles, descriptions, editor namespaces, XML and CSS comments,
+and processing instructions. CSS strings and drawing values remain part of the
+image. A resource reference in an `href`, XML `base`, animation or CSS must be
+an empty reference, a fragment, or an absolute HTTP or HTTPS URL. Embedded
+`data:` resources and local paths are refused. Internal general entities and
+default attributes are expanded; external DTDs, external entities, and
+parameter entities are refused. SVG `foreignXmp` reports whether foreign or
+unreadable XMP was discarded.
 
-A prompt and generation details
-(`hl:prompt`, `hl:generator`) are never repeated: asking for them is an error.
+The master SVG writer retains foreign properties and comments in its managed
+metadata packet when the packet meets the writer's retention rules, and keeps
+other markup. Its `foreignXmp` result describes that managed packet only. The
+master WebP writer keeps non-XMP chunks and applies the same retention rules to
+foreign XMP.
+
+A prompt and generation details (`hl:prompt`, `hl:generator`) are never
+repeated: asking for them is an error.
 `hl:name` and `hl:primarynote` are repeated only when the caller passes
 `notePublic: true`, which is the visibility the content index records for the
 image's primary note; asking for them otherwise is an error. The check does not

@@ -161,6 +161,7 @@
 import zlib from "node:zlib";
 
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
+import { checkSvgResource, cleanSvgCss } from "./svg-derivative-css.mjs";
 import { ParseOption, XmlCData, XmlDocument, XmlElement, XmlText } from "libxml2-wasm";
 
 import { readCanonicalKey } from "./address.mjs";
@@ -686,6 +687,10 @@ function retainForeign(packet) {
         description;
         description = description.nextSibling
     ) {
+        if (description.nodeType === 8) {
+            retained.push(serializer.serializeToString(description));
+            continue;
+        }
         if (description.nodeType !== 1) continue;
         if (description.namespaceURI !== RDF_NAMESPACE || description.localName !== "Description") {
             return { kept: false, reason: "the RDF contains unsupported markup" };
@@ -697,8 +702,17 @@ function retainForeign(packet) {
         }
         for (let child = description.firstChild; child;) {
             const next = child.nextSibling;
-            if (child.nodeType === 1 && managed.has(`${child.namespaceURI}|${child.localName}`))
+            if (child.nodeType === 1 && managed.has(`${child.namespaceURI}|${child.localName}`)) {
+                const retainComments = (node) => {
+                    for (let nested = node.firstChild; nested; nested = nested.nextSibling) {
+                        if (nested.nodeType === 8)
+                            description.insertBefore(document.createComment(nested.data), child);
+                        else retainComments(nested);
+                    }
+                };
+                retainComments(child);
                 description.removeChild(child);
+            }
             child = next;
         }
         const foreignAttributes = Array.from({ length: description.attributes.length }, (_, i) =>
@@ -713,6 +727,7 @@ function retainForeign(packet) {
         ).some(
             (n) =>
                 n.nodeType === 1 ||
+                n.nodeType === 8 ||
                 ((n.nodeType === 3 || n.nodeType === 4) && n.data.trim() !== ""),
         );
         if (foreignAttributes || foreignChildren)
@@ -742,6 +757,14 @@ function hasForeignXmp(packet) {
             return `${OWN_BINDINGS[prefix]}|${local}`;
         }),
     );
+    const rdf = document.getElementsByTagNameNS(RDF_NAMESPACE, "RDF");
+    const containsComment = (node) => {
+        for (let child = node.firstChild; child; child = child.nextSibling) {
+            if (child.nodeType === 8 || containsComment(child)) return true;
+        }
+        return false;
+    };
+    for (let i = 0; i < rdf.length; i++) if (containsComment(rdf.item(i))) return true;
     const descriptions = document.getElementsByTagNameNS(RDF_NAMESPACE, "Description");
     if (!descriptions.length) return true;
     for (let i = 0; i < descriptions.length; i++) {
@@ -1652,12 +1675,21 @@ const SVG_DRAWING_ELEMENTS = new Set(
     ),
 );
 
-/** SVG drawing and presentation attributes retained in a derivative. */
-const SVG_DRAWING_ATTRIBUTES = new Set(
-    `id class style transform transform-origin viewBox preserveAspectRatio x y x1 x2 y1 y2 cx cy r rx ry d points width height pathLength href target type media fill fill-opacity fill-rule stroke stroke-width stroke-opacity stroke-linecap stroke-linejoin stroke-miterlimit stroke-dasharray stroke-dashoffset opacity color color-interpolation color-interpolation-filters color-rendering display visibility overflow clip clip-path clip-rule mask filter flood-color flood-opacity lighting-color stop-color stop-opacity offset vector-effect paint-order shape-rendering image-rendering text-rendering pointer-events cursor font font-family font-size font-size-adjust font-stretch font-style font-variant font-weight letter-spacing word-spacing text-anchor text-decoration dominant-baseline alignment-baseline baseline-shift direction unicode-bidi writing-mode textLength lengthAdjust dx dy rotate startOffset method spacing marker marker-start marker-mid marker-end markerWidth markerHeight markerUnits refX refY orient gradientUnits gradientTransform spreadMethod fx fy fr patternUnits patternContentUnits patternTransform maskUnits maskContentUnits clipPathUnits filterUnits primitiveUnits in in2 result mode operator k1 k2 k3 k4 values type tableValues slope intercept amplitude exponent offset order kernelMatrix divisor bias targetX targetY edgeMode kernelUnitLength preserveAlpha surfaceScale diffuseConstant specularConstant specularExponent limitingConeAngle azimuth elevation xChannelSelector yChannelSelector scale stdDeviation radius baseFrequency numOctaves seed stitchTiles baseProfile version xmlns attributeName attributeType begin dur end min max restart repeatCount repeatDur fill calcMode keyTimes keySplines from to by additive accumulate keyPoints path rotate requiredExtensions systemLanguage`.split(
+/** SVG presentation attributes from https://www.w3.org/TR/SVG/latest/attindex.html
+ * and https://www.w3.org/TR/SVG11/attindex.html, plus CSS transform-box. */
+const SVG_PRESENTATION_ATTRIBUTES = new Set(
+    `alignment-baseline baseline-shift clip clip-path clip-rule color color-interpolation color-interpolation-filters color-profile color-rendering cursor direction display dominant-baseline enable-background fill fill-opacity fill-rule filter flood-color flood-opacity font font-family font-size font-size-adjust font-stretch font-style font-variant font-weight glyph-orientation-horizontal glyph-orientation-vertical image-rendering kerning letter-spacing lighting-color marker marker-end marker-mid marker-start mask mask-type opacity overflow paint-order path-length pointer-events shape-rendering stop-color stop-opacity stroke stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width text-anchor text-decoration text-overflow text-rendering transform transform-box transform-origin unicode-bidi vector-effect visibility white-space word-spacing writing-mode`.split(
         " ",
     ),
 );
+
+/** Drawing attributes from the W3C SVG attribute indexes, plus presentation attributes. */
+const SVG_DRAWING_ATTRIBUTES = new Set([
+    ...SVG_PRESENTATION_ATTRIBUTES,
+    ...`accumulate additive amplitude attributeName attributeType azimuth baseFrequency baseProfile begin bias by calcMode class clipPathUnits cx cy d diffuseConstant divisor dur dx dy edgeMode elevation end exponent externalResourcesRequired filterRes filterUnits fr from fx fy gradientTransform gradientUnits height href id in in2 intercept k1 k2 k3 k4 kernelMatrix kernelUnitLength keyPoints keySplines keyTimes lengthAdjust limitingConeAngle markerHeight markerUnits markerWidth maskContentUnits maskUnits max media method min mode numOctaves offset operator order orient origin path pathLength patternContentUnits patternTransform patternUnits playbackorder points pointsAtX pointsAtY pointsAtZ preserveAlpha preserveAspectRatio primitiveUnits r radius refX refY repeatCount repeatDur requiredExtensions requiredFeatures restart result rotate rx ry scale seed side slope spacing specularConstant specularExponent spreadMethod startOffset stdDeviation stitchTiles style surfaceScale systemLanguage tableValues target targetX targetY textLength timelinebegin to type values version viewBox viewTarget width x x1 x2 xChannelSelector y y1 y2 yChannelSelector z zoomAndPan`.split(
+        " ",
+    ),
+]);
 
 /** Refuse external and parameter entities before expanding a self-contained SVG. */
 function checkSvgDtd(text) {
@@ -1730,14 +1762,44 @@ function cleanSvgDrawing(text) {
     try {
         const root = target.createRoot("svg", SVG_NAMESPACE);
         let xlinkDeclared = false;
+        let foreignXmp = false;
+        const inspectXmp = (element) => {
+            if (
+                (element.namespaceUri === X_NAMESPACE && element.name === "xmpmeta") ||
+                (element.namespaceUri === RDF_NAMESPACE && element.name === "RDF")
+            ) {
+                foreignXmp ||= hasForeignXmp(
+                    element.toString({ format: false, noDeclaration: true }),
+                );
+            }
+            for (let child = element.firstChild; child; child = child.next) {
+                if (child instanceof XmlElement) inspectXmp(child);
+            }
+        };
+        inspectXmp(source.root);
         const copyAttributes = (from, to) => {
+            const animated = from.attrs.find(
+                (attribute) => !attribute.namespaceUri && attribute.name === "attributeName",
+            )?.value;
+            const animationValues = new Set(["from", "to", "by", "values"]);
             for (const attribute of from.attrs) {
                 if (!attribute.namespaceUri && SVG_DRAWING_ATTRIBUTES.has(attribute.name)) {
-                    to.setAttr(attribute.name, attribute.value);
+                    if (attribute.name === "href") checkSvgResource(attribute.value);
+                    const value =
+                        (
+                            attribute.name === "style" ||
+                            SVG_PRESENTATION_ATTRIBUTES.has(attribute.name) ||
+                            (animationValues.has(attribute.name) &&
+                                (animated === "style" || SVG_PRESENTATION_ATTRIBUTES.has(animated)))
+                        ) ?
+                            cleanSvgCss(attribute.value)
+                        :   attribute.value;
+                    to.setAttr(attribute.name, value);
                 } else if (
                     attribute.namespaceUri === XLINK_NAMESPACE &&
                     attribute.name === "href"
                 ) {
+                    checkSvgResource(attribute.value);
                     if (!xlinkDeclared) {
                         root.addNsDeclaration(XLINK_NAMESPACE, "xlink");
                         xlinkDeclared = true;
@@ -1747,14 +1809,42 @@ function cleanSvgDrawing(text) {
                     attribute.namespaceUri === XML_NAMESPACE &&
                     ["space", "lang", "base"].includes(attribute.name)
                 ) {
+                    if (attribute.name === "base") checkSvgResource(attribute.value);
                     to.setAttr(attribute.name, attribute.value, "xml");
                 }
             }
         };
         const copy = (from, to) => {
             copyAttributes(from, to);
+            const animated = from.attrs.find(
+                (a) => !a.namespaceUri && a.name === "attributeName",
+            )?.value;
+            const hrefTarget =
+                animated === "href" ||
+                (typeof animated === "string" &&
+                    animated.endsWith(":href") &&
+                    from.namespaceForPrefix(animated.slice(0, -5)) === XLINK_NAMESPACE);
+            if (hrefTarget) {
+                for (const attr of from.attrs) {
+                    if (["from", "to", "by", "values"].includes(attr.name)) {
+                        for (const uri of attr.value.split(";")) checkSvgResource(uri);
+                    }
+                }
+            }
+            if (from.name === "style") {
+                let css = "";
+                for (let node = from.firstChild; node; node = node.next) {
+                    if (node instanceof XmlText || node instanceof XmlCData) css += node.content;
+                }
+                to.addText(cleanSvgCss(css));
+                return;
+            }
             for (let node = from.firstChild; node; node = node.next) {
-                if (node instanceof XmlText || node instanceof XmlCData) to.addText(node.content);
+                if (
+                    (node instanceof XmlText || node instanceof XmlCData) &&
+                    ["text", "tspan", "textPath"].includes(from.name)
+                )
+                    to.addText(node.content);
                 else if (
                     node instanceof XmlElement &&
                     (node.namespaceUri === SVG_NAMESPACE || !node.namespaceUri) &&
@@ -1765,7 +1855,7 @@ function cleanSvgDrawing(text) {
             }
         };
         copy(source.root, root);
-        return target.toString({ format: false, noDeclaration: true });
+        return { text: target.toString({ format: false, noDeclaration: true }), foreignXmp };
     } finally {
         source.dispose();
         target.dispose();
@@ -1779,14 +1869,16 @@ function cleanSvgDrawing(text) {
  * `VP8X`, `VP8 `, `VP8L`, `ALPH`, `ANIM`, `ANMF` and `ICCP` chunks plus
  * selected XMP. Other chunks and trailing bytes are discarded; the EXIF flag
  * is cleared and XMP flag set. ICC bytes, including profile text, are retained.
- * SVG output keeps allowed drawing elements and attributes, text, styles,
- * XLink href and XML language, space and base attributes. Other elements and
- * attributes, comments, processing instructions, titles and descriptions are
- * discarded. Drawing values and style content remain in the output. Internal
- * general entities and default attributes are expanded; external DTDs, external
- * entities and parameter entities are refused.
- * WebP `foreignXmp` says whether inherited foreign or unreadable XMP was
- * discarded. The master writers use their own metadata-preserving rules.
+ * SVG output keeps allowed drawing elements and presentation attributes,
+ * rendering text, styles, XLink href and XML language, space and base attributes.
+ * Other elements and attributes, non-rendering text, XML and CSS comments,
+ * processing instructions, titles and descriptions are discarded. CSS strings
+ * and drawing values remain. Resource references in href, XML base, animations
+ * and CSS accept fragments, empty references and absolute HTTP(S) URLs; local
+ * paths and embedded data are refused. Internal general entities and default
+ * attributes are expanded; external DTDs, external entities and parameter
+ * entities are refused. `foreignXmp` reports discarded foreign or unreadable
+ * inherited XMP for either format. Master writers preserve eligible foreign XMP.
  *
  * @param {Buffer|Uint8Array|string} input - The derivative file.
  * @param {ProvenanceRecord} master - The master's record.
@@ -1794,7 +1886,9 @@ function cleanSvgDrawing(text) {
  *   {@link deriveRecord}.
  * @returns {ReturnType<typeof writeWebpProvenance>|ReturnType<typeof writeSvgProvenance>}
  *   What the format's writer returns.
- * @throws {Error} When the file is a PNG, or the writer refuses it.
+ * @throws {Error} When the file is a PNG, an SVG contains a local or embedded
+ *   resource, external or parameter entities, or the writer otherwise refuses
+ *   the input.
  */
 export function writeDerivativeProvenance(input, master, options = {}) {
     const record = deriveRecord(master, options);
@@ -1827,8 +1921,12 @@ export function writeDerivativeProvenance(input, master, options = {}) {
     const text = decodeSvg(input);
     locateSvg(text);
     const clean = cleanSvgDrawing(text);
-    const result = writeSvgProvenance(clean, record);
-    return { ...result, changed: !result.bytes.equals(original) };
+    const result = writeSvgProvenance(clean.text, record);
+    return {
+        ...result,
+        foreignXmp: clean.foreignXmp ? "discarded" : "none",
+        changed: !result.bytes.equals(original),
+    };
 }
 
 /**
