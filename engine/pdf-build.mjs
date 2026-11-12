@@ -86,7 +86,10 @@ import { runContext } from "./content-scripts.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
-import { noteFile } from "./index-records.mjs";
+import { createContentSession } from "./content-session.mjs";
+import { assertPrivateArtRoots } from "./art-masters.mjs";
+import { readCanonicalKey, renderAddress } from "./address.mjs";
+import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { coverage, isPrintable, recordKey } from "./pdf-coverage.mjs";
 import {
     elsewhereFor,
@@ -119,6 +122,7 @@ import {
     bookImageWidthIn,
     PDF_IMAGE_INCHES,
     PDF_PAGE,
+    PDF_EDITIONS,
     pdfColumnWidth,
     pdfTextHeight,
     pdfTextWidth,
@@ -133,7 +137,7 @@ import {
     resolveDanglingLabels,
 } from "./pdf-render.mjs";
 import { draftNoticeTypst } from "./draft-notice.mjs";
-import { isDraftNote } from "./note-vocabulary.mjs";
+import { isDraftNote, isGmNote } from "./note-vocabulary.mjs";
 import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
@@ -198,6 +202,13 @@ const STAGED_PLATES = "plates";
 /** Where the book draws the map from a place, beside its Typst source. */
 const BOOK_MAP_DIR = "maps";
 
+/** Resolve an asset file through the same indexed pathname as a body image. */
+function bookAssetKey(file, config) {
+    const relative = path.relative(config.paths.assets, path.resolve(config.rootDir, file));
+    if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+    return assetPathnameKey(relative.split(path.sep).join("/"), config);
+}
+
 /**
  * Copy every banner the document tree names into the output directory.
  *
@@ -219,7 +230,15 @@ const BOOK_MAP_DIR = "maps";
  * @returns {Map<string, string>} Declared path → the staged file's path,
  *   relative to the `.typ`.
  */
-export function stageBanners(entries, config, outDir, findings, treeFile, treeText = "") {
+export function stageBanners(
+    entries,
+    config,
+    outDir,
+    findings,
+    treeFile,
+    treeText = "",
+    masterByPath = new Map(),
+) {
     const staged = new Map();
     const seen = new Set();
     for (const entry of entries ?? []) {
@@ -245,11 +264,13 @@ export function stageBanners(entries, config, outDir, findings, treeFile, treeTe
             });
             continue;
         }
-        const to = `${STAGED_PLATES}/${within.split(path.sep).join("/")}`;
+        const master = masterByPath.get(bookAssetKey(from, config));
+        const relative = within.split(path.sep).join("/");
+        const to = `${STAGED_PLATES}/${master ? `${relative.replace(/\.[^.]+$/, "")}.jpg` : relative}`;
         const dest = path.join(outDir, to);
         try {
             fs.mkdirSync(path.dirname(dest), { recursive: true });
-            fs.copyFileSync(from, dest);
+            if (!master) fs.copyFileSync(from, dest);
         } catch (err) {
             findings.push({
                 file: treeFile,
@@ -276,11 +297,14 @@ export function stageBanners(entries, config, outDir, findings, treeFile, treeTe
  *
  * @param {string} stem - The book's file stem.
  * @param {string} version - The version being released.
+ * @param {"screen"|"print"} [edition] - Output edition, screen by default.
  * @returns {string} `<stem>-<version>.pdf`, or `<stem>.pdf` unversioned.
  */
-export function pdfFileName(stem, version) {
+export function pdfFileName(stem, version, edition = "screen") {
+    if (!Object.hasOwn(PDF_EDITIONS, edition)) throw new Error(`unknown PDF edition ${edition}`);
     const safe = String(stem || "content").replace(/[^\w.-]+/g, "-");
-    return version ? `${safe}-${version}.pdf` : `${safe}.pdf`;
+    const name = edition === "print" ? `${safe}-print` : safe;
+    return version ? `${name}-${version}.pdf` : `${name}.pdf`;
 }
 
 /**
@@ -337,9 +361,11 @@ function readDocumentTree(file, field) {
  * @param {object} [opts.config] - A resolved configuration; loaded when absent.
  * @param {string} [opts.version] - The version stamped in each file name.
  * @param {string} [opts.out] - Where the books are written, overriding `pdf.out`.
+ * @param {"screen"|"print"} [opts.edition] - Output edition, screen by default.
  * @returns {Array<{id: string, title: string, file: string}>} One entry per book.
  */
-export function listBookAssets({ config, version = "", out } = {}) {
+export function listBookAssets({ config, version = "", out, edition = "screen" } = {}) {
+    if (!Object.hasOwn(PDF_EDITIONS, edition)) throw new Error(`unknown PDF edition ${edition}`);
     const resolved = config ?? loadPackConfig();
     if (!resolved.pdf || !publishesContentPages(resolved)) return [];
     const outDir = path.resolve(
@@ -349,7 +375,10 @@ export function listBookAssets({ config, version = "", out } = {}) {
     return resolved.pdf.books.map((book) => ({
         id: book.id,
         title: book.title,
-        file: path.relative(process.cwd(), path.join(outDir, pdfFileName(book.out, version))),
+        file: path.relative(
+            process.cwd(),
+            path.join(outDir, pdfFileName(book.out, version, edition)),
+        ),
     }));
 }
 
@@ -395,6 +424,7 @@ function configFileFor(config, rootDir) {
  *   when absent.
  * @param {string} [opts.out] - Where to write, overriding `pdf.out`.
  * @param {string} [opts.version] - Stamped on the title page and the file name.
+ * @param {"screen"|"print"} [opts.edition] - Output edition, screen by default.
  * @param {boolean} [opts.compile] - Whether to run Typst. False leaves the
  *   `.typ` source, which is what the unit tests read, and runs a single pass:
  *   a reference to a note another book is home to prints `p. ?`. True renders
@@ -420,9 +450,11 @@ export async function buildPdf({
     book,
     out,
     version = "",
+    edition = "screen",
     compile = true,
     readPages = readEntryPages,
 } = {}) {
+    if (!Object.hasOwn(PDF_EDITIONS, edition)) throw new Error(`unknown PDF edition ${edition}`);
     const resolved = config ?? loadPackConfig();
     const findings = [];
     const none = (reason) => ({
@@ -487,6 +519,8 @@ export async function buildPdf({
         out || resolved.pdf.out || path.join("build", "dist"),
     );
 
+    assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [outDir]);
+
     const world = await prepareWorld(resolved, { contentBase, findings });
     if (!world) return none(null);
 
@@ -517,7 +551,14 @@ export async function buildPdf({
                         "front-matter file",
                     ])
                 :   []),
-            ].filter(([, file]) => !fs.existsSync(file));
+            ].filter(
+                ([field, file]) =>
+                    !fs.existsSync(file) &&
+                    !(
+                        field.endsWith(".coverImage") &&
+                        world.masterByPath.has(bookAssetKey(file, resolved))
+                    ),
+            );
             for (const [field, file, what] of missing) {
                 findings.push({
                     ...atKey(field),
@@ -648,6 +689,7 @@ export async function buildPdf({
                     outDir,
                     contentBase,
                     version,
+                    edition,
                     findings: local,
                     elsewhere,
                     homes,
@@ -796,13 +838,45 @@ async function prepareWorld(resolved, { contentBase, findings }) {
     // The corpus, once — the same records the index, the site and the SQL
     // tables read, so the book cannot select a note the other surfaces do not
     // have.
-    const parsed = new Map();
-    const records = indexRecordsFor({
-        contentBase,
-        config: resolved,
-        skipDirectories: resolved.skipDirectories,
-        parsed,
-    });
+    const session =
+        resolved.art?.masterRoots?.length ?
+            await createContentSession({ config: resolved, contentBase })
+        :   null;
+    if (session?.problems.length) {
+        findings.push(...session.problems);
+        session.dispose();
+        return null;
+    }
+    const parsed = session?.parsed ?? new Map();
+    const records =
+        session?.records ??
+        indexRecordsFor({
+            contentBase,
+            config: resolved,
+            skipDirectories: resolved.skipDirectories,
+            parsed,
+        });
+    const masters = session?.masters ?? new Map();
+    session?.dispose();
+    const addressText = (record) => {
+        const tuple = readCanonicalKey(record.address?.canonical);
+        return tuple ? renderAddress(tuple) : undefined;
+    };
+    const publicNotes = new Map(
+        records
+            .filter((record) => isNoteRecord(record) && !isGmNote(record))
+            .map((record) => [addressText(record), record]),
+    );
+    const masterByPath = new Map();
+    for (const record of records) {
+        const master = masters.get(addressText(record));
+        if (!master || !record.asset?.path) continue;
+        const key = `${record.package}/assets/${record.asset.path}`;
+        const note = publicNotes.get(master.record.primaryNote);
+        const provenance = { ...master.record };
+        if (note) provenance.name = note.name?.full;
+        masterByPath.set(key, { ...master, record: provenance, notePublic: Boolean(note) });
+    }
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "content-pdf-"));
     // The one database over the corpus: the books' filters, the generated
@@ -893,6 +967,7 @@ async function prepareWorld(resolved, { contentBase, findings }) {
         assets,
         md,
         glyphs,
+        masterByPath,
     };
 }
 
@@ -1000,7 +1075,7 @@ async function buildBook(book, shared) {
 
     const { treeFile, treeText, plan } = selection;
     // The directory this book stages its pictures in, beside its source.
-    const stageDir = pdfFileName(book.out, "").replace(/\.pdf$/, "");
+    const stageDir = pdfFileName(book.out, "", shared.edition).replace(/\.pdf$/, "");
     const inBook = (relative) => `${stageDir}/${relative}`;
     /**
      * {@link stagedImagePath}, with the file placed in this book's directory.
@@ -1010,7 +1085,13 @@ async function buildBook(book, shared) {
      */
     const stage = (src) => {
         const staged = stagedImagePath(src, resolved);
-        return staged && { ...staged, to: inBook(staged.to) };
+        if (!staged) return null;
+        const master = world.masterByPath.get(assetPathnameKey(src, resolved));
+        return {
+            ...staged,
+            ...(master ? { master } : {}),
+            to: inBook(master ? `${staged.to.replace(/\.[^.]+$/, "")}.jpg` : staged.to),
+        };
     };
     const { records, site, gates, byFile, sqlTables, assets, md, glyphs } = world;
 
@@ -1142,7 +1223,7 @@ async function buildBook(book, shared) {
             const dest = path.join(outDir, staged.to);
             try {
                 fs.mkdirSync(path.dirname(dest), { recursive: true });
-                fs.copyFileSync(staged.from, dest);
+                if (!staged.master) fs.copyFileSync(staged.from, dest);
             } catch (err) {
                 findings.push({
                     file,
@@ -1536,13 +1617,16 @@ async function buildBook(book, shared) {
                 findings,
                 treeFile,
                 treeText,
+                world.masterByPath,
             ),
         ].map(([declared, to]) => [declared, inBook(to)]),
     );
     for (const [declared, to] of banners) {
         const from = path.resolve(resolved.rootDir, declared);
+        const master = world.masterByPath.get(bookAssetKey(from, resolved));
         imageCandidates.set(`banner:${declared}`, {
             from,
+            ...(master ? { master } : {}),
             to,
             relative: path.relative(resolved.rootDir, from),
             file: treeFile,
@@ -1577,7 +1661,7 @@ async function buildBook(book, shared) {
             findings.push({ file, ...where(), severity: "error", message: err.message });
             return;
         }
-        if (!staged || !fs.existsSync(staged.from)) {
+        if (!staged || (!staged.master && !fs.existsSync(staged.from))) {
             findings.push({
                 file,
                 ...where(),
@@ -1588,7 +1672,7 @@ async function buildBook(book, shared) {
         }
         const target = path.join(outDir, staged.to);
         fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.copyFileSync(staged.from, target);
+        if (!staged.master) fs.copyFileSync(staged.from, target);
         addMapPage(entry.anchor, { path: staged.to, title });
         const candidate = imageCandidates.get(staged.to);
         const use = {
@@ -1648,12 +1732,15 @@ async function buildBook(book, shared) {
     // two sizes that fill the page when cropped.
     let cover = "";
     if (book.coverImage) {
-        cover = inBook(`cover/${path.basename(book.coverImage)}`);
+        const master = world.masterByPath.get(bookAssetKey(book.coverImage, resolved));
+        const basename = path.basename(book.coverImage);
+        cover = inBook(`cover/${master ? `${basename.replace(/\.[^.]+$/, "")}.jpg` : basename}`);
         try {
             fs.mkdirSync(path.dirname(path.join(outDir, cover)), { recursive: true });
-            fs.copyFileSync(book.coverImage, path.join(outDir, cover));
+            if (!master) fs.copyFileSync(book.coverImage, path.join(outDir, cover));
             imageCandidates.set(`cover:${book.coverImage}`, {
                 from: book.coverImage,
+                ...(master ? { master } : {}),
                 to: cover,
                 relative: path.relative(resolved.rootDir, book.coverImage),
                 file: treeFile,
@@ -1696,12 +1783,12 @@ async function buildBook(book, shared) {
     // declaration is in one string, and Typst treats a dangling one as fatal.
     const source = resolveDanglingLabels(assembled, findings);
 
-    const stem = pdfFileName(book.out, version);
+    const stem = pdfFileName(book.out, version, shared.edition);
     const typPath = path.join(outDir, stem.replace(/\.pdf$/, ".typ"));
     const pdfPath = path.join(outDir, stem);
     fs.writeFileSync(typPath, source);
 
-    const imageReports = await resamplePdfImages(imageCandidates, outDir);
+    const imageReports = await resamplePdfImages(imageCandidates, outDir, shared.edition);
 
     const stats = { ...plan.stats, entries: plan.entries.length, bytes: source.length };
     return { built: true, imageReports, typ: typPath, pdf: pdfPath, stats };

@@ -3022,7 +3022,7 @@ Build the books the content tree publishes as.
 **SYNOPSIS**
 
 ```
-package-build pdf [--book <id>] [--out <path>] [--book-version <version>] [--compile] [--list-assets]
+package-build pdf [--book <id>] [--edition screen|print] [--out <path>] [--book-version <version>] [--compile] [--list-assets]
 ```
 
 **DESCRIPTION**
@@ -3054,6 +3054,10 @@ Each book reads its tree from its inline `contents` or the file its
 `<out>.pdf`. Every book is written into `--out`, or the configured `pdf.out`,
 or `build/dist`.
 
+The default `screen` edition uses the book's stem; `--edition print` adds
+`-print` before the version in the output name and uses a separate staging
+directory. `--list-assets` lists the selected edition.
+
 A book's `coverImage`, `document` and `front` files are checked first; a
 missing one is an error at its key in the configuration, and that book is not
 built while the others are. An `--book` naming no declared book is an error at
@@ -3084,6 +3088,7 @@ exactly these files and lists them in the release notes.
 | Option           | Type    | Default                  | Description                                                             |
 | ---------------- | ------- | ------------------------ | ----------------------------------------------------------------------- |
 | `--book`         | string  | every declared book      | Build only the book with this `id`.                                     |
+| `--edition`      | string  | `screen`                 | Select `screen` or `print` images and output names.                     |
 | `--out`          | string  | the configured `pdf.out` | Write the books here instead.                                           |
 | `--book-version` | string  | —                        | Stamp this version on the title page and in each file name.             |
 | `--compile`      | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops.      |

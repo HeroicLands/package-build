@@ -98,11 +98,17 @@ book is written into the directory `pdf.out` names. A package that publishes
 one book and keeps a file name of the form `<package>-<version>.pdf` declares
 `out: <package>`.
 
+The default screen edition uses the book's stem. `--edition print` adds `-print`
+to the stem before the version; for example, `guide.pdf` and `guide-print.pdf`
+have separate staged image directories. See [assets](../authoring/assets.md) for
+the edition image profiles.
+
 `package-build pdf` builds every declared book in the order declared. `--book
 <id>` builds the one book with that `id`:
 
 ```bash
 package-build pdf --book vedyara
+package-build pdf --edition print
 ```
 
 Coverage and home books, described below, are computed over every declared

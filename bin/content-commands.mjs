@@ -2098,6 +2098,11 @@ function pdfCommand() {
                     describe: "Build only the book with this `id`. Every declared book by default.",
                     type: "string",
                 })
+                .option("edition", {
+                    describe: "Choose the screen or print edition.",
+                    choices: ["screen", "print"],
+                    default: "screen",
+                })
                 .option("out", {
                     describe: "Write the books here instead of the configured `pdf.out`.",
                     type: "string",
@@ -2125,6 +2130,7 @@ function pdfCommand() {
             try {
                 if (argv.listAssets) {
                     const assets = listBookAssets({
+                        edition: argv.edition,
                         ...(argv.out ? { out: argv.out } : {}),
                         ...(argv.bookVersion ? { version: String(argv.bookVersion) } : {}),
                     });
@@ -2132,6 +2138,7 @@ function pdfCommand() {
                     return;
                 }
                 const result = await buildPdf({
+                    edition: argv.edition,
                     ...(argv.book !== undefined ? { book: String(argv.book) } : {}),
                     ...(argv.out ? { out: argv.out } : {}),
                     ...(argv.bookVersion ? { version: String(argv.bookVersion) } : {}),
