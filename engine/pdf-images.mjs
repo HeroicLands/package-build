@@ -167,11 +167,16 @@ export function bookImageWidthIn({ type, role, width } = {}) {
  *   uses: Array<{width: number, height: number}>}>} candidates
  * @param {string} outDir - PDF staging directory.
  * @param {"screen"|"print"} [edition] - Master image profile.
+ * @param {string} [cacheDir] - Disposable build cache directory.
  * @returns {Promise<object[]>} Image reports with the authored file location.
  */
-export async function resamplePdfImages(candidates, outDir, edition = "screen") {
+export async function resamplePdfImages(
+    candidates,
+    outDir,
+    edition = "screen",
+    cacheDir = path.resolve("build/.cache/art"),
+) {
     const reports = [];
-    const cacheDir = path.resolve(outDir, "..", ".cache", "art");
     assertPrivateArtRoots(
         [...candidates.values()]
             .filter((candidate) => candidate.master)

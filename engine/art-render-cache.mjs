@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 
 const signature = Buffer.from("HLART1\0", "ascii");
 const headerSize = signature.length + 64;
@@ -34,8 +35,16 @@ export function artRendererIdentity(renderer) {
             renderer,
             new URL("./art-provenance.mjs", import.meta.url),
             new URL("./art-provenance-core.mjs", import.meta.url),
+            new URL("./svg-derivative-css.mjs", import.meta.url),
         ])
             hash.update(fs.readFileSync(new URL(file)));
+        const require = createRequire(import.meta.url);
+        for (const name of ["@xmldom/xmldom", "libxml2-wasm"]) {
+            const manifest = JSON.parse(
+                fs.readFileSync(require.resolve(`${name}/package.json`), "utf8"),
+            );
+            hash.update(`${name}:${manifest.version}\n`);
+        }
         identities.set(renderer, hash.digest("hex"));
     }
     return identities.get(renderer);

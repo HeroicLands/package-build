@@ -521,7 +521,12 @@ it("renders stable derivatives and preserves targets across a private master mov
         },
     ];
     const out = path.join(root, "render");
-    const prepared = await renderArtMasters(master.masters, notes, out);
+    const prepared = await renderArtMasters(
+        master.masters,
+        notes,
+        out,
+        path.join(root, "build/.cache/art"),
+    );
     const first = fs.readFileSync(prepared.get(address)!);
     for (const secret of ["sample-note-being-hidden", "Private name", "private text"]) {
         expect(original.includes(Buffer.from(secret))).toBe(true);
@@ -574,7 +579,12 @@ it("renders stable derivatives and preserves targets across a private master mov
         masterRecords: masterAssetRecords(moved.masters),
     });
     expect(movedRecords).toEqual(records);
-    const repeated = await renderArtMasters(moved.masters, notes, out);
+    const repeated = await renderArtMasters(
+        moved.masters,
+        notes,
+        out,
+        path.join(root, "build/.cache/art"),
+    );
     expect(fs.readFileSync(repeated.get(address)!).equals(first)).toBe(true);
     const movedStage = stagePackageAssets({
         assetsBase: assets,
@@ -633,7 +643,12 @@ it("withholds private note names and safely excludes unknown classification", as
             tags: ["gm"],
         },
     ];
-    const prepared = await renderArtMasters(master.masters, notes, path.join(root, "render"));
+    const prepared = await renderArtMasters(
+        master.masters,
+        notes,
+        path.join(root, "render"),
+        path.join(root, "build/.cache/art"),
+    );
     const outputBytes = fs.readFileSync(prepared.get(address)!);
     for (const secret of ["sample-note-being-person", "Private name", "private text"])
         expect(outputBytes.includes(Buffer.from(secret))).toBe(false);
@@ -697,7 +712,12 @@ it.each([
                 tags: publicNote ? [] : ["gm"],
             },
         ];
-        const rendered = await renderArtMasters(master.masters, notes, path.join(root, "render"));
+        const rendered = await renderArtMasters(
+            master.masters,
+            notes,
+            path.join(root, "render"),
+            path.join(root, "build/.cache/art"),
+        );
         const output = fs.readFileSync(rendered.get(fields.address)!);
         for (const value of ["sample-note-being-hidden", "Private name", "private text"]) {
             expect(bytes.includes(Buffer.from(value))).toBe(true);

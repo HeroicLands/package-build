@@ -16,6 +16,7 @@ import {
     writeSvgProvenance,
 } from "../engine/art-provenance.mjs";
 import { cachedArtRender } from "../engine/art-render-cache.mjs";
+import { pathToFileURL } from "node:url";
 
 const roots: string[] = [];
 const directory = () => {
@@ -25,6 +26,37 @@ const directory = () => {
 };
 afterEach(() => {
     for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+});
+
+it("changes renderer identity when the SVG sanitizer changes", async () => {
+    fs.mkdirSync("build", { recursive: true });
+    const root = fs.mkdtempSync(path.resolve("build/cache-identity-"));
+    roots.push(root);
+    const identities = [];
+    for (const variant of ["first", "second"]) {
+        const snapshot = path.join(root, variant);
+        fs.mkdirSync(snapshot);
+        for (const name of [
+            "art-render-cache.mjs",
+            "art-provenance.mjs",
+            "art-provenance-core.mjs",
+            "svg-derivative-css.mjs",
+            "art-master-render.mjs",
+        ]) {
+            fs.copyFileSync(path.resolve("engine", name), path.join(snapshot, name));
+        }
+        if (variant === "second")
+            fs.appendFileSync(path.join(snapshot, "svg-derivative-css.mjs"), "\n// Variant.\n");
+        const module = await import(
+            pathToFileURL(path.join(snapshot, "art-render-cache.mjs")).href
+        );
+        identities.push(
+            module.artRendererIdentity(
+                pathToFileURL(path.join(snapshot, "art-master-render.mjs")).href,
+            ),
+        );
+    }
+    expect(identities[0]).not.toBe(identities[1]);
 });
 
 it("reuses complete renders and invalidates source, settings and public metadata", async () => {
@@ -149,7 +181,9 @@ it.each(["png", "svg"])(
             },
         ];
         const run = async () =>
-            fs.readFileSync((await renderArtMasters(masters, notes, out)).get(record.address)!);
+            fs.readFileSync(
+                (await renderArtMasters(masters, notes, out, cache)).get(record.address)!,
+            );
         const read = format === "png" ? readWebpProvenance : readSvgProvenance;
         const publicBytes = await run();
         expect(read(publicBytes).record.name).toBe("Public identity");
@@ -196,7 +230,7 @@ it("book cache separates profiles, placements and public metadata", async () => 
         record,
     ).bytes;
     fs.writeFileSync(source, bytes);
-    const out = path.join(root, "build/dist");
+    const out = path.join(root, "exports");
     const cache = path.join(root, "build/.cache/art");
     const candidate = {
         from: source,
@@ -208,10 +242,11 @@ it("book cache separates profiles, placements and public metadata", async () => 
     };
     const candidates = new Map<string, any>([[record.address, candidate]]);
     const run = async (edition: "screen" | "print") => {
-        await resamplePdfImages(candidates, out, edition);
+        await resamplePdfImages(candidates, out, edition, cache);
         return fs.readFileSync(path.join(out, candidate.to));
     };
     const screen = await run("screen");
+    expect(fs.existsSync(path.join(root, ".cache"))).toBe(false);
     expect(await run("screen")).toEqual(screen);
     expect(fs.readdirSync(cache)).toHaveLength(1);
     expect((await sharp(screen).metadata()).width).toBe(300);

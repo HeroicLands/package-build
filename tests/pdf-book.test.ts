@@ -189,6 +189,14 @@ it(
             expect(overlap.status, overlap.out).not.toBe(0);
             expect(overlap.out).toContain("overlaps output");
             expect(fs.readdirSync(privateRoot)).toEqual(["picture.png"]);
+            const cacheParent = path.join(dir, "build", ".cache");
+            fs.mkdirSync(cacheParent, { recursive: true });
+            fs.symlinkSync(privateRoot, path.join(cacheParent, "art"));
+            const cacheOverlap = build(dir, "--no-compile", "--out", "exports");
+            expect(cacheOverlap.status, cacheOverlap.out).not.toBe(0);
+            expect(cacheOverlap.out).toContain("overlaps output");
+            expect(fs.readFileSync(master)).toEqual(original);
+            fs.unlinkSync(path.join(cacheParent, "art"));
             const output = path.join(dir, "build/dist");
             fs.mkdirSync(output, { recursive: true });
             fs.symlinkSync(master, path.join(output, "sohl-core.typ"));

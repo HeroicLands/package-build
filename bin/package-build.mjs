@@ -1526,6 +1526,7 @@ function cdnPublishCommand() {
                         session.masters,
                         session.records,
                         path.join(config.rootDir, "build", "art"),
+                        path.join(config.rootDir, "build", ".cache", "art"),
                     );
                     artRecords = shippingAssetRecords(session.records);
                 } finally {

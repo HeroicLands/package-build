@@ -138,6 +138,7 @@ export async function stagePackageBuildAssets({
                 artSession.masters,
                 artSession.records,
                 path.join(config.rootDir, "build", "art"),
+                path.join(config.rootDir, "build", ".cache", "art"),
             );
         } finally {
             if (!session) artSession.dispose();

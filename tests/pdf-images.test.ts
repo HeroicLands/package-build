@@ -59,7 +59,12 @@ describe("PDF raster staging", () => {
                 file: "assets/content/person.md",
                 uses: [{ width: PDF_IMAGE_INCHES.medium, height: 8 }],
             };
-            const reports = await resamplePdfImages(new Map([["image", candidate]]), root);
+            const reports = await resamplePdfImages(
+                new Map([["image", candidate]]),
+                root,
+                "screen",
+                path.join(root, "build/.cache/art"),
+            );
             const output = await fs.readFile(staged);
             expect(output.length).toBeLessThan(source.length);
             expect((await sharp(output).metadata()).width).toBe(
@@ -98,7 +103,14 @@ describe("PDF raster staging", () => {
                     { width: pdfColumnWidth(2), height: 8 },
                 ],
             };
-            expect(await resamplePdfImages(new Map([["image", candidate]]), root)).toHaveLength(0);
+            expect(
+                await resamplePdfImages(
+                    new Map([["image", candidate]]),
+                    root,
+                    "screen",
+                    path.join(root, "build/.cache/art"),
+                ),
+            ).toHaveLength(0);
             expect(await fs.readFile(file)).toEqual(source);
         } finally {
             await fs.rm(root, { recursive: true, force: true });

@@ -521,7 +521,7 @@ export async function buildPdf({
 
     assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [
         outDir,
-        path.resolve(outDir, "..", ".cache", "art"),
+        path.resolve(resolved.rootDir, "build", ".cache", "art"),
     ]);
 
     const world = await prepareWorld(resolved, { contentBase, findings });
@@ -1791,7 +1791,12 @@ async function buildBook(book, shared) {
     const pdfPath = path.join(outDir, stem);
     fs.writeFileSync(typPath, source);
 
-    const imageReports = await resamplePdfImages(imageCandidates, outDir, shared.edition);
+    const imageReports = await resamplePdfImages(
+        imageCandidates,
+        outDir,
+        shared.edition,
+        path.resolve(resolved.rootDir, "build", ".cache", "art"),
+    );
 
     const stats = { ...plan.stats, entries: plan.entries.length, bytes: source.length };
     return { built: true, imageReports, typ: typPath, pdf: pdfPath, stats };
