@@ -54,6 +54,7 @@ import {
     siteBuildConfig,
 } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
+import { assertPrivateArtRoots } from "../engine/art-masters.mjs";
 import { buildPdf, listBookAssets } from "../engine/pdf-build.mjs";
 import { summaryLines } from "../engine/pdf-coverage.mjs";
 import {
@@ -1556,6 +1557,7 @@ function contentBuildOutputs(config, packaging) {
     const roots = [
         config.paths.content,
         ...DEPLOYED_ASSET_TYPES.map((entry) => path.resolve(config.paths.assets, entry.root)),
+        ...(config.art?.masterRoots ?? []),
     ];
     const stage = path.resolve(packaging.rootDir, packaging.stageDir);
     const outputs = [
@@ -1565,6 +1567,7 @@ function contentBuildOutputs(config, packaging) {
         stage,
         path.join(config.rootDir, "build/calendars"),
     ];
+    assertPrivateArtRoots(config.art?.masterRoots ?? [], outputs);
     const contains = (parent, child) => {
         const relative = path.relative(path.resolve(parent), path.resolve(child));
         return (
@@ -1624,9 +1627,9 @@ function contentBuildCommand() {
             try {
                 const config = loadPackConfig();
                 const marker = path.join(config.paths.contentIndex, ".publication-ready");
-                fs.rmSync(marker, { force: true });
                 const packaging = loadPackageBuildConfig();
                 const outputs = contentBuildOutputs(config, packaging);
+                fs.rmSync(marker, { force: true });
                 for (const output of outputs) fs.rmSync(output, { recursive: true, force: true });
                 cachedMetadataIndexes(config);
                 session = await createContentSession({ config, timings, trackChanges: true });

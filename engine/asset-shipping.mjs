@@ -289,6 +289,8 @@ export function assetsManifest(staged, stageDir) {
  *   The repository's per-file transform.
  * @param {readonly string[]} [opts.shippingLicenses] - Licences the package
  *   adds to {@link SHIPPING_LICENSES}.
+ * @param {Map<string, string>} [opts.preparedMasters] - Rendered private inputs by address.
+ * @param {object[]} [opts.records] - Asset records for this build.
  * @returns {{staged: object[], excluded: {record: object, reason: string}[],
  *   findings: object[], manifest: AssetSet|null}}
  *   What was staged and left out, and the findings that stopped the stage —
@@ -302,22 +304,27 @@ export function stagePackageAssets({
     title,
     transform,
     shippingLicenses = [],
+    preparedMasters,
+    records: suppliedRecords,
 }) {
     const findings = [];
     const hasPictures = DEPLOYED_ASSET_TYPES.some(({ root }) =>
         fs.existsSync(path.join(assetsBase, root)),
     );
-    if (!hasPictures) return { staged: [], excluded: [], findings, manifest: null };
-    const records = collectAssetRecords(assetsBase, { contentPackage, problems: findings });
+    if (!hasPictures && !preparedMasters?.size)
+        return { staged: [], excluded: [], findings, manifest: null };
+    const records =
+        suppliedRecords ?? collectAssetRecords(assetsBase, { contentPackage, problems: findings });
     if (findings.length) return { staged: [], excluded: [], findings, manifest: null };
 
     const { staged, excluded } = selectStagedAssets(records, shippingLicenses);
     const planned = staged.map((record) => {
-        const from = path.join(assetsBase, ...record.asset.path.split("/"));
+        const prepared = preparedMasters?.get(record.address.canonical);
+        const from = prepared ?? path.join(assetsBase, ...record.asset.path.split("/"));
         return {
             record,
             from,
-            transformed: transform ? transform(from) : null,
+            transformed: !prepared && transform ? transform(from) : null,
             to: path.join(
                 stageDir,
                 .../** @type {string} */ (deployedAssetPath(record)).split("/"),

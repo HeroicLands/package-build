@@ -15,22 +15,64 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readCanonicalKey } from "./address.mjs";
+import { renderAddress } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
-import { readProvenance, readSvgProvenance, sniffFormat } from "./art-provenance.mjs";
+import { readProvenance, readSvgProvenance, sniffFormat } from "./art-provenance-core.mjs";
+import { imageDimensions } from "./asset-types.mjs";
+
+const GENERATED_SOURCE_TYPES = new Set([
+    "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia",
+    "http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia",
+]);
+const HUMAN_SOURCE_TYPE = "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation";
+
+/**
+ * Refuse an ordinary asset source that reaches a private master root.
+ * @param {readonly string[]} roots Private master roots.
+ * @param {readonly string[]} sources Asset and output roots.
+ * @returns {void}
+ */
+export function assertPrivateArtRoots(roots, sources) {
+    if (!roots.length) return;
+    const physical = (value) =>
+        fs.existsSync(value) ? fs.realpathSync(value) : path.resolve(value);
+    const inside = (left, right) => {
+        const rel = path.relative(physical(left), physical(right));
+        return (
+            rel === "" ||
+            (!rel.startsWith(`..${path.sep}`) && rel !== ".." && !path.isAbsolute(rel))
+        );
+    };
+    const visited = new Set();
+    const check = (source) => {
+        for (const root of roots)
+            if (inside(root, source) || inside(source, root))
+                throw new Error(`private master root overlaps an asset staging source: ${root}`);
+        if (!fs.existsSync(source)) return;
+        const real = physical(source);
+        if (visited.has(real)) return;
+        visited.add(real);
+        if (fs.statSync(source).isDirectory())
+            for (const name of fs.readdirSync(source)) check(path.join(source, name));
+    };
+    for (const source of sources) check(source);
+}
 
 /**
  * Read each PNG and SVG in the configured roots once.
  * @param {readonly string[]} roots Private input directories.
  * @param {string} contentPackage The package owning the inputs.
- * @returns {{masters: Map<string, {file: string, record: import('./art-provenance.mjs').ProvenanceRecord}>, findings: object[]}} Parsed masters and located findings.
+ * @returns {{masters: Map<string, {file: string, record: import('./art-provenance-core.mjs').ProvenanceRecord}>, findings: object[], paths: string[]}} Parsed masters, input paths and located findings.
  */
 export function collectArtMasters(roots, contentPackage) {
     const masters = new Map();
     const findings = [];
+    const paths = [];
     const reported = new Set();
     const add = (file, message) =>
         findings.push({ file, line: 1, column: 1, severity: "error", message });
     const visit = (dir) => {
+        paths.push(dir);
         let entries;
         try {
             entries = fs
@@ -51,6 +93,7 @@ export function collectArtMasters(roots, contentPackage) {
                 ![".png", ".svg"].includes(path.extname(entry.name).toLowerCase())
             )
                 continue;
+            paths.push(file);
             try {
                 const bytes = fs.readFileSync(file);
                 const format = sniffFormat(bytes);
@@ -88,5 +131,56 @@ export function collectArtMasters(roots, contentPackage) {
         }
     };
     for (const root of roots) visit(root);
-    return { masters, findings };
+    return { masters, findings, paths };
+}
+
+/**
+ * Make public asset records without private source paths or provenance.
+ * @param {ReturnType<typeof collectArtMasters>["masters"]} masters Parsed masters.
+ * @returns {Record<string, any>[]} Asset records.
+ */
+export function masterAssetRecords(masters) {
+    return [...masters].map(([address, master]) => {
+        const tuple = readCanonicalKey(address);
+        const extension = path.extname(master.file).toLowerCase();
+        const dimensions = imageDimensions(master.file, extension);
+        const root = tuple.type === "icon" ? "icons" : "images";
+        return {
+            package: tuple.package,
+            type: tuple.type,
+            shortcode: tuple.shortcode,
+            address: { canonical: address },
+            asset: {
+                path: `${root}/${tuple.shortcode}${extension === ".svg" ? ".svg" : ".webp"}`,
+                attribution: master.record.creator ?? "",
+                source: "",
+                ai:
+                    GENERATED_SOURCE_TYPES.has(master.record.digitalSourceType) ? true
+                    : master.record.digitalSourceType === HUMAN_SOURCE_TYPE ? false
+                    : null,
+                license: master.record.license ?? "",
+                notes: "",
+                role: "",
+                width: dimensions?.width ?? "",
+                height: dimensions?.height ?? "",
+            },
+        };
+    });
+}
+
+/**
+ * Adapt indexed asset Addresses to the shipping record shape.
+ * @param {readonly Record<string, any>[]} records Indexed records.
+ * @returns {Record<string, any>[]} Asset records with canonical address strings.
+ */
+export function shippingAssetRecords(records) {
+    return records
+        .filter((record) => record.asset)
+        .map((record) => ({
+            ...record,
+            address: {
+                ...record.address,
+                canonical: renderAddress(readCanonicalKey(record.address.canonical)),
+            },
+        }));
 }

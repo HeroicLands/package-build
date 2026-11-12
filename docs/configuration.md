@@ -592,6 +592,22 @@ Any other key on one list entry is refused:
 See [`itemBuilders`](#itembuilders) under Derived values for how the YAML
 name form resolves before reaching here.
 
+### `art.masterRoots`
+
+**Type:** array of paths · **Optional** · default `[]`.
+
+Private PNG and SVG master directories resolve against `rootDir`; absolute paths
+are accepted. Keep them separate from `paths.assets`, staging sources, and
+`build/art`. Each master carries its own image Address and provenance. Builds
+render public derivatives under `build/art` and select package assets by the
+embedded license and source type.
+
+```yaml
+art:
+  masterRoots:
+    - ../private-art
+```
+
 ### `paths`
 
 **Type:** object · **Optional** · every key defaults to the conventional

@@ -88,6 +88,9 @@ import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
 import { loadAssetTransform, stagePackageBuildAssets } from "../engine/build-assets.mjs";
+import { createContentSession } from "../engine/content-session.mjs";
+import { assertPrivateArtRoots, shippingAssetRecords } from "../engine/art-masters.mjs";
+import { renderArtMasters } from "../engine/art-master-render.mjs";
 import { emitDiagnostic, formatDiagnostic } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
@@ -1479,6 +1482,31 @@ function cdnPublishCommand() {
                 );
             }
 
+            const roots = packConfig.art?.masterRoots ?? [];
+            assertPrivateArtRoots(roots, [
+                packConfig.paths.assets,
+                path.join(config.rootDir, "build", "art"),
+            ]);
+            let artRecords;
+            let preparedMasters;
+            if (roots.length) {
+                const session = await createContentSession({ config: packConfig });
+                try {
+                    if (session.problems.length) {
+                        reportFindings(session.problems, {});
+                        process.exitCode = 1;
+                        return;
+                    }
+                    preparedMasters = await renderArtMasters(
+                        session.masters,
+                        session.records,
+                        path.join(config.rootDir, "build", "art"),
+                    );
+                    artRecords = shippingAssetRecords(session.records);
+                } finally {
+                    session.dispose();
+                }
+            }
             const plan = planCdnPublish({
                 assetsBase: packConfig.paths.assets,
                 contentPackage: packConfig.contentPackage,
@@ -1487,6 +1515,8 @@ function cdnPublishCommand() {
                 setName: name,
                 transform: await loadAssetTransform(config),
                 shippingLicenses: config.shippingLicenses,
+                records: artRecords,
+                preparedMasters,
             });
             if (plan.findings.length) {
                 const located = plan.findings.map((finding) => ({

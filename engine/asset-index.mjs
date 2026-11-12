@@ -19,6 +19,8 @@
  * the same JSON Lines index. There is no asset-specific index and no asset
  * emitter that a consumer has to know about separately — one file, two record
  * shapes, and the module says so.
+ * Configured private masters supply their records by embedded Address; their
+ * public paths identify rendered derivatives.
  *
  * **What an asset record is not.** It carries no frontmatter, no anchors, no
  * `foundry` block and no page address. A file declares nothing about itself, so
@@ -520,15 +522,17 @@ function* walkAssetRoot(rootDir, extensions) {
  *   cannot be addressed is pushed here as a diagnostic and skipped. Omitted, it
  *   throws — the contract the emitter needs, since an index missing an asset
  *   asserts that the address does not exist.
+ * @param {Record<string, any>[]} [options.masterRecords] - Records derived from private masters.
  * @returns {Array<Record<string, any>>} One record per addressable file, in walk
  *   order; the caller imposes the index's total order.
  * @throws {Error} When any finding is made and no `problems` array was
  *   supplied. Its message is every finding as a located diagnostic line, one
  *   per line; `file` and `position` name the first.
  */
-export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
+export function collectAssetRecords(assetsBase, { contentPackage, problems, masterRecords = [] }) {
     const records = [];
     const findings = [];
+    const masterAddresses = new Set(masterRecords.map((record) => record.address.canonical));
 
     // Collected rather than thrown at the point of discovery, so an emitter and
     // a reader see the same set: the emitter throws on the first of them below,
@@ -553,6 +557,8 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
                 );
                 continue;
             }
+            const address = canonicalKey(contentPackage, ASSET_SYSTEM, type, shortcode);
+            if (masterAddresses.has(address)) continue;
             const already = claimed.get(shortcode);
             if (already) {
                 report(
@@ -618,6 +624,8 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
             });
         }
     }
+
+    records.push(...masterRecords);
 
     if (findings.length) {
         if (!problems) {

@@ -507,6 +507,8 @@ export function internalStore({
  * @param {readonly string[]} [opts.shippingLicenses] - The licences the
  *   package adds to the shipping list, so the set leaves out what the stage
  *   leaves out.
+ * @param {object[]} [opts.records] - Asset records for this build.
+ * @param {Map<string, string>} [opts.preparedMasters] - Rendered private inputs by address.
  * @returns {CdnPlan} The plan.
  */
 export function planCdnPublish({
@@ -517,18 +519,22 @@ export function planCdnPublish({
     setName,
     transform,
     shippingLicenses = [],
+    records: suppliedRecords,
+    preparedMasters,
 }) {
     const findings = [];
     const cdnRoot = `${host.replace(/\/+$/, "")}/${contentPackage}/`;
-    const records = collectAssetRecords(assetsBase, { contentPackage, problems: findings });
+    const records =
+        suppliedRecords ?? collectAssetRecords(assetsBase, { contentPackage, problems: findings });
     if (findings.length) return { findings, records, uploads: [], set: null, cdnRoot };
 
     const { staged, excluded } = selectStagedAssets(records, shippingLicenses);
     const shipped = new Set(staged);
     const uploads = [...staged, ...excluded.map(({ record }) => record)]
         .map((record) => {
-            const from = path.join(assetsBase, ...record.asset.path.split("/"));
-            const transformed = transform ? transform(from) : null;
+            const prepared = preparedMasters?.get(record.address.canonical);
+            const from = prepared ?? path.join(assetsBase, ...record.asset.path.split("/"));
+            const transformed = !prepared && transform ? transform(from) : null;
             const body =
                 transformed != null ? Buffer.from(transformed, "utf8") : fs.readFileSync(from);
             const target = /** @type {string} */ (deployedAssetPath(record));

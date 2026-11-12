@@ -47,6 +47,7 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {object[]} records
  * @property {Map<string, ContentNoteSource>} parsed
  * @property {object[]} problems
+ * @property {ReturnType<import("./art-masters.mjs").collectArtMasters>["masters"]} masters
  * @property {ReturnType<typeof loadForeignIndexes>} foreign
  * @property {ContentSyntax} syntax
  * @property {(options?: ContentSessionContext) => void} assertContext
@@ -96,6 +97,13 @@ export async function createContentSession({
     const inventory = timings.sync("source capture", () =>
         captureContentSources(tree, assets, scope),
     );
+    const roots = config.art?.masterRoots ?? [];
+    const artModule = roots.length ? await import("./art-masters.mjs") : undefined;
+    artModule?.assertPrivateArtRoots(roots, [assets]);
+    const art =
+        artModule ?
+            artModule.collectArtMasters(roots, config.contentPackage)
+        :   { masters: new Map(), findings: [], paths: [] };
     const fingerprint = (file) => {
         const stat = fs.statSync(file, { throwIfNoEntry: false });
         return stat ? `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}` : "absent";
@@ -108,12 +116,14 @@ export async function createContentSession({
                         tree,
                         ...DEPLOYED_ASSET_TYPES.map((entry) => path.resolve(assets, entry.root)),
                         ...inventory.paths.map((entry) => entry.file),
+                        ...art.paths,
                     ]),
                 ].map((file) => [file, fingerprint(file)]),
             )
         :   undefined;
     const parsed = new Map();
     const problems = [];
+    problems.push(...art.findings);
     const foreign = timings.sync("dependency indexes", () =>
         loadForeignIndexes(config, [config.contentPackage]),
     );
@@ -152,6 +162,7 @@ export async function createContentSession({
             foreignIndex: foreign.index,
             syntax,
             timings,
+            masterRecords: artModule ? artModule.masterAssetRecords(art.masters) : [],
         }),
     );
     const memo = (key, make) => {
@@ -176,6 +187,7 @@ export async function createContentSession({
         records,
         parsed,
         problems,
+        masters: art.masters,
         foreign,
         syntax,
         /** Refuse a stale capture after any build phase changes an input. */

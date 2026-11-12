@@ -841,6 +841,7 @@ export async function noteTree(
         prepareTables,
     } = {},
 ) {
+    if (config.art?.masterRoots?.length) cache = false;
     for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
         const read = await readTree(config, { cache, toolchain, loadForeign, prepareTables });
         if (read) return read;
