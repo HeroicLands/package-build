@@ -17,6 +17,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { writeSvgProvenance } from "../engine/art-provenance-core.mjs";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
@@ -77,6 +78,36 @@ describe("forbidGeneratedArt", () => {
         fs.rmSync(forbidding, { recursive: true, force: true });
         fs.rmSync(permitting, { recursive: true, force: true });
     });
+
+    it(
+        "names the private master when generated art is forbidden",
+        () => {
+            const root = buildFixture(true);
+            try {
+                const directory = path.join(root, "private");
+                fs.mkdirSync(directory);
+                const source = path.join(directory, "master.svg");
+                fs.writeFileSync(
+                    source,
+                    writeSvgProvenance('<svg xmlns="http://www.w3.org/2000/svg"/>', {
+                        address: "sohl-none-image-example",
+                        digitalSourceType: "trainedAlgorithmicMedia",
+                    }).bytes,
+                );
+                fs.appendFileSync(
+                    path.join(root, "package-build.config.yaml"),
+                    "art:\n  masterRoots: [private]\n",
+                );
+                const { out } = runLint(root);
+                expect(out).toContain("private/master.svg");
+                expect(out).toMatch(/machine-generated/);
+                expect(out).not.toContain("assets/images/example.webp");
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     it(
         "fails the build and names the record and its file when `true`",

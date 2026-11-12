@@ -17,23 +17,33 @@ import path from "node:path";
 import { readCanonicalKey } from "./address.mjs";
 import { renderAddress } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
-import { readProvenance, readSvgProvenance, sniffFormat } from "./art-provenance-core.mjs";
+import {
+    DIGITAL_SOURCE_TOKENS,
+    readProvenance,
+    readSvgProvenance,
+    sniffFormat,
+} from "./art-provenance-core.mjs";
 import { imageDimensions } from "./asset-types.mjs";
+import { copyArtSource, setArtSource } from "./art-source.mjs";
 
 const GENERATED_SOURCE_TYPES = new Set([
-    "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia",
-    "http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia",
+    DIGITAL_SOURCE_TOKENS.trainedAlgorithmicMedia,
+    DIGITAL_SOURCE_TOKENS.compositeWithTrainedAlgorithmicMedia,
 ]);
-const HUMAN_SOURCE_TYPE = "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation";
+const HUMAN_SOURCE_TYPE = DIGITAL_SOURCE_TOKENS.digitalCreation;
 
 /**
  * Refuse an ordinary asset source that reaches a private master root.
  * @param {readonly string[]} roots Private master roots.
  * @param {readonly string[]} sources Asset and output roots.
- * @param {{inspectChildren?: boolean}} [options] Whether source copying or writing follows child links.
+ * @param {{inspectChildren?: boolean, role?: "input"|"output"}} [options] Path role and whether it follows child links.
  * @returns {void}
  */
-export function assertPrivateArtRoots(roots, sources, { inspectChildren = true } = {}) {
+export function assertPrivateArtRoots(
+    roots,
+    sources,
+    { inspectChildren = true, role = "output" } = {},
+) {
     if (!roots.length) return;
     const physical = (value) => {
         let ancestor = path.resolve(value);
@@ -57,7 +67,9 @@ export function assertPrivateArtRoots(roots, sources, { inspectChildren = true }
     const check = (source) => {
         for (const root of roots)
             if (inside(root, source) || inside(source, root))
-                throw new Error(`private master root overlaps an asset staging source: ${root}`);
+                throw new Error(
+                    `private master root ${root} overlaps ${role} ${source}; move one of them`,
+                );
         if (!fs.existsSync(source)) return;
         const real = physical(source);
         if (visited.has(real)) return;
@@ -94,6 +106,10 @@ export function collectArtMasters(roots, contentPackage) {
         }
         for (const entry of entries) {
             const file = path.join(dir, entry.name);
+            if (entry.isSymbolicLink()) {
+                add(file, "symbolic links are not supported inside private master roots");
+                continue;
+            }
             if (entry.isDirectory()) {
                 visit(file);
                 continue;
@@ -155,26 +171,29 @@ export function masterAssetRecords(masters) {
         const extension = path.extname(master.file).toLowerCase();
         const dimensions = imageDimensions(master.file, extension);
         const root = tuple.type === "icon" ? "icons" : "images";
-        return {
-            package: tuple.package,
-            type: tuple.type,
-            shortcode: tuple.shortcode,
-            address: { canonical: address },
-            asset: {
-                path: `${root}/${tuple.shortcode}${extension === ".svg" ? ".svg" : ".webp"}`,
-                attribution: master.record.creator ?? "",
-                source: "",
-                ai:
-                    GENERATED_SOURCE_TYPES.has(master.record.digitalSourceType) ? true
-                    : master.record.digitalSourceType === HUMAN_SOURCE_TYPE ? false
-                    : null,
-                license: master.record.license ?? "",
-                notes: "",
-                role: "",
-                width: dimensions?.width ?? "",
-                height: dimensions?.height ?? "",
+        return setArtSource(
+            {
+                package: tuple.package,
+                type: tuple.type,
+                shortcode: tuple.shortcode,
+                address: { canonical: address },
+                asset: {
+                    path: `${root}/${tuple.shortcode}${extension === ".svg" ? ".svg" : ".webp"}`,
+                    attribution: master.record.creator ?? "",
+                    source: "",
+                    ai:
+                        GENERATED_SOURCE_TYPES.has(master.record.digitalSourceType) ? true
+                        : master.record.digitalSourceType === HUMAN_SOURCE_TYPE ? false
+                        : null,
+                    license: master.record.license ?? "",
+                    notes: "",
+                    role: "",
+                    width: dimensions?.width ?? "",
+                    height: dimensions?.height ?? "",
+                },
             },
-        };
+            master.file,
+        );
     });
 }
 
@@ -186,11 +205,13 @@ export function masterAssetRecords(masters) {
 export function shippingAssetRecords(records) {
     return records
         .filter((record) => record.asset)
-        .map((record) => ({
-            ...record,
-            address: {
-                ...record.address,
-                canonical: renderAddress(readCanonicalKey(record.address.canonical)),
-            },
-        }));
+        .map((record) =>
+            copyArtSource(record, {
+                ...record,
+                address: {
+                    ...record.address,
+                    canonical: renderAddress(readCanonicalKey(record.address.canonical)),
+                },
+            }),
+        );
 }

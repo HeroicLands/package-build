@@ -55,6 +55,7 @@ import {
 } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { assertPrivateArtRoots } from "../engine/art-masters.mjs";
+import { artSource } from "../engine/art-source.mjs";
 import { GENERATED_DRAWING_DIR } from "../engine/generated-sections.mjs";
 import { buildPdf, listBookAssets } from "../engine/pdf-build.mjs";
 import { summaryLines } from "../engine/pdf-coverage.mjs";
@@ -1293,7 +1294,7 @@ function lintCommand() {
                             .filter(isAssetRecord)
                             .filter((record) => record.asset.ai === true)
                             .map((record) => ({
-                                file: path.join(config.paths.assets, record.asset.path),
+                                file: artSource(record, config.paths.assets),
                                 severity: "error",
                                 message:
                                     `\`${encodeAddresses(record.address.canonical)}\` is ` +

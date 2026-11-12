@@ -1610,12 +1610,42 @@ function normalizeArt(value, rootDir) {
     rejectUnknownKeys(input, ["masterRoots"], "art.");
     const roots = input.masterRoots === undefined ? [] : input.masterRoots;
     if (!Array.isArray(roots)) fail("art.masterRoots", "must be an array of directories");
+    const resolved = roots.map((root, index) =>
+        path.resolve(rootDir, requireNonEmptyString(root, `art.masterRoots[${index}]`)),
+    );
+    const physical = (value) => {
+        let current = value;
+        const suffix = [];
+        while (!fs.existsSync(current)) {
+            const parent = path.dirname(current);
+            if (parent === current) return value;
+            suffix.unshift(path.basename(current));
+            current = parent;
+        }
+        return path.resolve(fs.realpathSync(current), ...suffix);
+    };
+    const contains = (parent, child) => {
+        const relative = path.relative(parent, child);
+        return (
+            relative === "" ||
+            (relative !== ".." &&
+                !relative.startsWith(`..${path.sep}`) &&
+                !path.isAbsolute(relative))
+        );
+    };
+    for (let i = 0; i < resolved.length; i++) {
+        for (let j = 0; j < i; j++) {
+            const left = physical(resolved[i]);
+            const right = physical(resolved[j]);
+            if (contains(left, right) || contains(right, left))
+                fail(
+                    `art.masterRoots[${i}]`,
+                    `overlaps art.masterRoots[${j}] (${resolved[i]} and ${resolved[j]})`,
+                );
+        }
+    }
     return Object.freeze({
-        masterRoots: Object.freeze(
-            roots.map((root, index) =>
-                path.resolve(rootDir, requireNonEmptyString(root, `art.masterRoots[${index}]`)),
-            ),
-        ),
+        masterRoots: Object.freeze(resolved),
     });
 }
 

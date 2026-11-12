@@ -322,7 +322,7 @@ function sourceMalformedAlerts(markdown) {
  * @typedef {object} ImageSources
  * @property {(src: string) => string} [resolveSrc] - From a body image's address
  *   to the `src` the target draws.
- * @property {(src: string) => ({role?: string, width?: number|"", height?: number|""}|undefined)} [lookupAsset] -
+ * @property {(src: string, env?: object) => ({role?: string, width?: number|"", height?: number|""}|undefined)} [lookupAsset] -
  *   From an address to the asset it names.
  */
 
@@ -498,6 +498,7 @@ export function createRenderer(target, options = {}) {
                         md.render(prepare(markdown, env), {
                             footnoteNumbers: env.footnoteNumbers,
                             docId: env.docId,
+                            runs: env.runs,
                         }),
                     )
             ),

@@ -14,7 +14,7 @@
 /**
  * Provenance embedded in a PNG, WebP or SVG image.
  *
- * A master carries its own identity: the Address of the note it illustrates, a
+ * A master carries its image or icon Address, the primary note it shows, a
  * display name, the prompt that produced it, how it was generated, and the
  * rights it is published under. Nothing about where an image came from lives in
  * a filename, a sidecar or a database.
@@ -249,8 +249,8 @@ const COMPLETE_ADDRESS = {
  * The record a master carries.
  *
  * @typedef {object} ProvenanceRecord
- * @property {string} [address] - The complete Address of the note that uses the
- *   image, such as `thalorna-note-being-abyssdrk`.
+ * @property {string} [address] - The complete image or icon Address, such as
+ *   `sample-none-image-example`.
  * @property {string} [identifier] - The Address again, as `dc:identifier`.
  *   Every write sets it to `address`; a record read from a file that holds only
  *   one of the two carries that value in both.

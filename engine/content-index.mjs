@@ -120,6 +120,7 @@ import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
 import { requiredModulePackages, resolveItemDefaults } from "./item-entries.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
+import { copyArtSource } from "./art-source.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
 import { isAddressTuple, ownDocumentSystem, readCanonicalKey, renderAddress } from "./address.mjs";
@@ -1480,7 +1481,9 @@ export function collectContentIndex(
 
     phase("index order");
     for (const record of assetRecords) {
-        records.push(/** @type {Record<string, any>} */ (sortKeysDeep(record)));
+        records.push(
+            copyArtSource(record, /** @type {Record<string, any>} */ (sortKeysDeep(record))),
+        );
     }
 
     // Source path, then the canonical address, then the note id. The walk
@@ -1505,7 +1508,10 @@ export function collectContentIndex(
             String(a.id ?? "").localeCompare(String(b.id ?? ""), "en"),
     );
     const decoded = records.map((record) =>
-        decodeIndexAddresses(record, addressContext ?? { package: contentPackage }),
+        copyArtSource(
+            record,
+            decodeIndexAddresses(record, addressContext ?? { package: contentPackage }),
+        ),
     );
     phaseEnd?.();
     return decoded;
@@ -1651,7 +1657,9 @@ export function indexRecordsFor({
 } = {}) {
     const resolved = config ?? loadPackConfig();
     if (!masterRecords && resolved.art?.masterRoots?.length) {
-        assertPrivateArtRoots(resolved.art.masterRoots, [assetsBase ?? resolved.paths.assets]);
+        assertPrivateArtRoots(resolved.art.masterRoots, [assetsBase ?? resolved.paths.assets], {
+            role: "input",
+        });
         const collected = collectArtMasters(resolved.art.masterRoots, resolved.contentPackage);
         if (problems) problems.push(...collected.findings);
         else if (collected.findings.length) {

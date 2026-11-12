@@ -96,11 +96,14 @@ export async function stagePackageBuildAssets({
 } = {}) {
     const assetsBase = packConfig.paths.assets;
     const roots = packConfig.art?.masterRoots ?? [];
+    assertPrivateArtRoots(
+        roots,
+        [assetsBase, ...config.assets.map(({ from }) => path.resolve(config.rootDir, from))],
+        { role: "input" },
+    );
     assertPrivateArtRoots(roots, [
-        assetsBase,
         path.join(config.rootDir, "build", "art"),
         path.resolve(config.rootDir, config.stageDir),
-        ...config.assets.map(({ from }) => path.resolve(config.rootDir, from)),
         ...config.assets.map(({ to }) =>
             path.resolve(config.rootDir, path.join(config.stageDir, to)),
         ),

@@ -90,6 +90,7 @@ import { loadPackageBuildConfig } from "../config.mjs";
 import { loadAssetTransform, stagePackageBuildAssets } from "../engine/build-assets.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { assertPrivateArtRoots, shippingAssetRecords } from "../engine/art-masters.mjs";
+import { artSource } from "../engine/art-source.mjs";
 import { renderArtMasters } from "../engine/art-master-render.mjs";
 import { emitDiagnostic, formatDiagnostic } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
@@ -1506,10 +1507,8 @@ function cdnPublishCommand() {
             }
 
             const roots = packConfig.art?.masterRoots ?? [];
-            assertPrivateArtRoots(roots, [
-                packConfig.paths.assets,
-                path.join(config.rootDir, "build", "art"),
-            ]);
+            assertPrivateArtRoots(roots, [packConfig.paths.assets], { role: "input" });
+            assertPrivateArtRoots(roots, [path.join(config.rootDir, "build", "art")]);
             let artRecords;
             let preparedMasters;
             if (roots.length) {
@@ -1582,7 +1581,7 @@ function cdnPublishCommand() {
             const failures = result.failed.map(({ upload, message }) => ({
                 file: path.relative(
                     process.cwd(),
-                    path.join(packConfig.paths.assets, ...upload.record.asset.path.split("/")),
+                    artSource(upload.record, packConfig.paths.assets),
                 ),
                 severity: "error",
                 message: `${upload.key} did not upload: ${message}`,

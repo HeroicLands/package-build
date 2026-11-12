@@ -99,7 +99,7 @@ export async function createContentSession({
     );
     const roots = config.art?.masterRoots ?? [];
     const artModule = roots.length ? await import("./art-masters.mjs") : undefined;
-    artModule?.assertPrivateArtRoots(roots, [assets]);
+    artModule?.assertPrivateArtRoots(roots, [assets], { role: "input" });
     const art =
         artModule ?
             artModule.collectArtMasters(roots, config.contentPackage)

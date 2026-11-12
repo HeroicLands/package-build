@@ -14,7 +14,7 @@
 /**
  * Provenance embedded in a PNG, WebP or SVG image.
  *
- * A master carries its own identity: the Address of the note it illustrates, a
+ * A master carries its image or icon Address, the primary note it shows, a
  * display name, the prompt that produced it, how it was generated, and the
  * rights it is published under. Nothing about where an image came from lives in
  * a filename, a sidecar or a database.

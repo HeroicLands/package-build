@@ -53,6 +53,12 @@ describe("defineConfig", () => {
         expect(() => defineConfig({ ...minimal(), art: { other: [] } } as any)).toThrow(
             /art\.other/,
         );
+        expect(() => defineConfig({ ...minimal(), art: { masterRoots: ["one", "one"] } })).toThrow(
+            /art\.masterRoots\[1\].*art\.masterRoots\[0\]/,
+        );
+        expect(() =>
+            defineConfig({ ...minimal(), art: { masterRoots: ["one", "one/sub"] } }),
+        ).toThrow(/overlaps/);
     });
     it("returns a config carrying every field it was given", () => {
         const config = defineConfig({

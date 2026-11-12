@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -35,6 +35,9 @@ import { stagePackageAssets } from "../engine/asset-shipping.mjs";
 import { planCdnPublish } from "../engine/cdn-publish.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
 import { noteTree } from "../engine/note-cache.mjs";
+import { checkArtSlotSizes } from "../engine/art-fields.mjs";
+import { artSource } from "../engine/art-source.mjs";
+import { publishToCdn } from "../engine/cdn-publish.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { emitContentIndex } from "../engine/content-index.mjs";
 import { stagePackageBuildAssets } from "../engine/build-assets.mjs";
@@ -43,6 +46,9 @@ import { generatePacksJson } from "../engine/generate.mjs";
 import { cleanPacks, compilePacks, unpackPacks } from "../engine/compendiums.mjs";
 import { buildPackageSite } from "../engine/site-render.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
+import { runContext } from "../engine/content-scripts.mjs";
+import { renderFoundryMarkdown } from "../engine/helpers.mjs";
+import * as provenanceCore from "../engine/art-provenance-core.mjs";
 
 const root = path.resolve("build/art-masters-test");
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -53,7 +59,49 @@ it("refuses a staging source containing a link into private masters", () => {
     fs.mkdirSync(privateRoot, { recursive: true });
     fs.mkdirSync(publicRoot, { recursive: true });
     fs.symlinkSync(privateRoot, path.join(publicRoot, "linked"));
-    expect(() => assertPrivateArtRoots([privateRoot], [publicRoot])).toThrow(/overlap/);
+    expect(() => assertPrivateArtRoots([privateRoot], [publicRoot], { role: "input" })).toThrow(
+        `private master root ${privateRoot} overlaps input ${path.join(publicRoot, "linked")}`,
+    );
+});
+
+it("reports links in master roots and refuses physical aliases", () => {
+    const privateRoot = path.join(root, "private");
+    fs.mkdirSync(privateRoot, { recursive: true });
+    fs.writeFileSync(
+        path.join(root, "package.json"),
+        JSON.stringify({ name: "sample", version: "1.0.0" }),
+    );
+    fs.writeFileSync(path.join(privateRoot, "master.svg"), "<svg/>");
+    fs.symlinkSync(path.join(privateRoot, "master.svg"), path.join(privateRoot, "linked.svg"));
+    fs.symlinkSync(privateRoot, path.join(privateRoot, "linked-directory"));
+    fs.symlinkSync(privateRoot, path.join(root, "alias"));
+    const result = collectArtMasters([privateRoot], "sample");
+    expect(
+        result.findings.some(
+            (finding) =>
+                finding.file.endsWith("linked.svg") && finding.message.includes("symbolic links"),
+        ),
+    ).toBe(true);
+    expect(
+        result.findings.some(
+            (finding) =>
+                finding.file.endsWith("linked-directory") &&
+                finding.message.includes("symbolic links"),
+        ),
+    ).toBe(true);
+    expect(() =>
+        configFromData(
+            {
+                contentPackage: "sample",
+                packageKind: "modules",
+                stats: { lastModifiedBy: "samplebuilder000" },
+                compatibility: { minimum: "14", verified: "14" },
+                packs: [],
+                art: { masterRoots: ["private", "alias"] },
+            },
+            path.join(root, "package-build.config.yaml"),
+        ),
+    ).toThrow(/overlaps/);
 });
 
 it("resolves a missing output through an existing symlink parent", () => {
@@ -276,6 +324,51 @@ it("round-trips the exact license ID in PNG and SVG master provenance", async ()
     ).toBe(fields.license);
 });
 
+it("locates diagnostics at the master without publishing the source path", async () => {
+    const privateRoot = path.join(root, "private");
+    fs.mkdirSync(privateRoot, { recursive: true });
+    const source = path.join(privateRoot, "master.png");
+    const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: "white" } })
+        .png()
+        .toBuffer();
+    fs.writeFileSync(source, writeProvenance(png, { address: "sample-none-image-example" }).bytes);
+    const assets = path.join(root, "assets");
+    const master = collectArtMasters([privateRoot], "sample");
+    const records = collectAssetRecords(assets, {
+        contentPackage: "sample",
+        masterRecords: masterAssetRecords(master.masters),
+    });
+    const findings = checkArtSlotSizes(
+        [{ type: "place", data: { banner: "image-example" } }, ...records],
+        { config: { contentPackage: "sample" }, assetsBase: assets },
+    );
+    expect(findings[0].file).toBe(source);
+    expect(JSON.stringify(records)).not.toContain(privateRoot);
+    const copied = shippingAssetRecords(records);
+    expect(artSource(copied[0], assets)).toBe(source);
+    const body = path.join(root, "body.webp");
+    fs.writeFileSync(body, "fixture");
+    const plan = planCdnPublish({
+        assetsBase: assets,
+        contentPackage: "sample",
+        host: "https://example.test",
+        setFile: "set.json",
+        setName: "Sample",
+        records: copied,
+        preparedMasters: new Map([["sample-none-image-example", body]]),
+    });
+    const result = await publishToCdn(plan, {
+        store: {
+            describe: "fixture",
+            size: async () => {
+                throw new Error("fixture failure");
+            },
+        } as any,
+        dryRun: true,
+    });
+    expect(artSource(result.failed[0].upload.record, assets)).toBe(source);
+});
+
 it("indexes PNG and SVG identities and reports missing and duplicate identities", async () => {
     fs.mkdirSync(root, { recursive: true });
     const png = await sharp({ create: { width: 1, height: 1, channels: 3, background: "white" } })
@@ -325,10 +418,30 @@ it("refuses malformed addresses and derivative SVGs", () => {
 
 it("renders stable derivatives and preserves targets across a private master move", async () => {
     const privateRoot = path.join(root, "private");
+    const secondRoot = path.join(root, "second");
     const assets = path.join(root, "assets");
     fs.mkdirSync(privateRoot, { recursive: true });
+    fs.mkdirSync(secondRoot, { recursive: true });
+    fs.writeFileSync(
+        path.join(root, "package.json"),
+        JSON.stringify({ name: "sample", version: "1.0.0" }),
+    );
+    const config = configFromData(
+        {
+            contentPackage: "sample",
+            packageKind: "modules",
+            stats: { lastModifiedBy: "samplebuilder000" },
+            compatibility: { minimum: "14", verified: "14" },
+            packs: [],
+            art: { masterRoots: ["private", "second"] },
+        },
+        path.join(root, "package-build.config.yaml"),
+    );
+    const foreign = "sample-note-being-hidden Private name private text";
+    const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:p="urn:private"><p:credit>${foreign}</p:credit></rdf:Description></rdf:RDF></x:xmpmeta>`;
     const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: "white" } })
-        .withExif({ IFD0: { ImageDescription: "foreign-private-fixture" } })
+        .withExif({ IFD0: { ImageDescription: foreign } })
+        .withXmp(packet)
         .png()
         .toBuffer();
     const address = "sample-none-image-example";
@@ -344,7 +457,19 @@ it("renders stable derivatives and preserves targets across a private master mov
     }).bytes;
     const source = path.join(privateRoot, "source.png");
     fs.writeFileSync(source, original);
-    const master = collectArtMasters([privateRoot], "sample");
+    const master = collectArtMasters([privateRoot, secondRoot], "sample");
+    const sessionBefore = await createContentSession({ config });
+    const runs = runContext(config, sessionBefore.records);
+    expect(
+        renderFoundryMarkdown(
+            "![Example](images/example.webp)\n",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            runs,
+        ),
+    ).toContain('width="2" height="2"');
     const records = collectAssetRecords(assets, {
         contentPackage: "sample",
         masterRecords: masterAssetRecords(master.masters),
@@ -369,8 +494,10 @@ it("renders stable derivatives and preserves targets across a private master mov
     const out = path.join(root, "render");
     const prepared = await renderArtMasters(master.masters, notes, out);
     const first = fs.readFileSync(prepared.get(address)!);
-    expect(original.includes(Buffer.from("foreign-private-fixture"))).toBe(true);
-    expect(first.includes(Buffer.from("foreign-private-fixture"))).toBe(false);
+    for (const secret of ["sample-note-being-hidden", "Private name", "private text"]) {
+        expect(original.includes(Buffer.from(secret))).toBe(true);
+        expect(first.includes(Buffer.from(secret))).toBe(false);
+    }
     const metadata = readWebpProvenance(first).record;
     expect(metadata).toMatchObject({
         address,
@@ -405,8 +532,14 @@ it("renders stable derivatives and preserves targets across a private master mov
     });
     expect(plan.uploads[0].body.equals(first)).toBe(true);
     expect(plan.uploads[0].target).toBe("images/example.webp");
-    fs.renameSync(source, path.join(privateRoot, "renamed.png"));
-    const moved = collectArtMasters([privateRoot], "sample");
+    fs.mkdirSync(path.join(secondRoot, "nested"));
+    const movedFile = path.join(secondRoot, "nested", "renamed.png");
+    fs.renameSync(source, movedFile);
+    const moved = collectArtMasters([privateRoot, secondRoot], "sample");
+    const sessionAfter = await createContentSession({ config });
+    expect(sessionAfter.records.filter((record) => record.asset)).toEqual(
+        sessionBefore.records.filter((record) => record.asset),
+    );
     const movedRecords = collectAssetRecords(assets, {
         contentPackage: "sample",
         masterRecords: masterAssetRecords(moved.masters),
@@ -414,14 +547,37 @@ it("renders stable derivatives and preserves targets across a private master mov
     expect(movedRecords).toEqual(records);
     const repeated = await renderArtMasters(moved.masters, notes, out);
     expect(fs.readFileSync(repeated.get(address)!).equals(first)).toBe(true);
-    expect(fs.readFileSync(path.join(privateRoot, "renamed.png")).equals(original)).toBe(true);
+    const movedStage = stagePackageAssets({
+        assetsBase: assets,
+        contentPackage: "sample",
+        stageDir: path.join(root, "stage-after"),
+        title: "Sample",
+        records: movedRecords,
+        preparedMasters: repeated,
+    });
+    expect(movedStage.manifest?.assets).toEqual(staged.manifest?.assets);
+    const movedPlan = planCdnPublish({
+        assetsBase: assets,
+        contentPackage: "sample",
+        host: "https://example.test",
+        setFile: "set.json",
+        setName: "Sample",
+        records: movedRecords,
+        preparedMasters: repeated,
+    });
+    expect(movedPlan.uploads[0].target).toBe(plan.uploads[0].target);
+    expect(movedPlan.uploads[0].body.equals(plan.uploads[0].body)).toBe(true);
+    expect(fs.readFileSync(movedFile).equals(original)).toBe(true);
     expect(fs.readFileSync(stale, "utf8")).toBe("stale public derivative");
+    sessionBefore.dispose();
+    sessionAfter.dispose();
 });
 
 it("withholds private note names and safely excludes unknown classification", async () => {
     const privateRoot = path.join(root, "private");
     fs.mkdirSync(privateRoot, { recursive: true });
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>';
+    const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg"><metadata><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:p="urn:private"><p:credit>sample-note-being-person Private name private text</p:credit></rdf:Description></rdf:RDF></x:xmpmeta></metadata><rect width="1" height="1"/></svg>';
     const address = "sample-none-image-example";
     const bytes = writeSvgProvenance(svg, {
         address,
@@ -449,7 +605,10 @@ it("withholds private note names and safely excludes unknown classification", as
         },
     ];
     const prepared = await renderArtMasters(master.masters, notes, path.join(root, "render"));
-    const output = readSvgProvenance(fs.readFileSync(prepared.get(address)!)).record;
+    const outputBytes = fs.readFileSync(prepared.get(address)!);
+    for (const secret of ["sample-note-being-person", "Private name", "private text"])
+        expect(outputBytes.includes(Buffer.from(secret))).toBe(false);
+    const output = readSvgProvenance(outputBytes).record;
     expect(output.name).toBeUndefined();
     expect(output.primaryNote).toBeUndefined();
     expect(output.prompt).toBeUndefined();
@@ -464,6 +623,68 @@ it("withholds private note names and safely excludes unknown classification", as
     expect(stage.staged).toHaveLength(0);
     expect(stage.excluded).toHaveLength(1);
 });
+
+it.each([
+    { format: "png", publicNote: false },
+    { format: "svg", publicNote: true },
+])(
+    "keeps private metadata out of $format derivatives (public note: $publicNote)",
+    async ({ format, publicNote }) => {
+        const privateRoot = path.join(root, "private");
+        fs.mkdirSync(privateRoot, { recursive: true });
+        const secret = "sample-note-being-hidden Private name private text";
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:p="urn:private"><p:credit>${secret}</p:credit></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        const fields = {
+            address: "sample-none-image-example",
+            primaryNote: publicNote ? "sample-note-being-public" : "sample-note-being-hidden",
+            name: "Private name",
+            prompt: "private text",
+            creator: "Author",
+            rights: "Terms",
+        };
+        const bytes =
+            format === "png" ?
+                writeProvenance(
+                    await sharp({
+                        create: { width: 2, height: 2, channels: 3, background: "white" },
+                    })
+                        .withExif({ IFD0: { ImageDescription: secret } })
+                        .withXmp(packet)
+                        .png()
+                        .toBuffer(),
+                    fields,
+                ).bytes
+            :   writeSvgProvenance(
+                    `<svg xmlns="http://www.w3.org/2000/svg"><metadata>${packet}</metadata><rect width="1" height="1"/></svg>`,
+                    fields,
+                ).bytes;
+        fs.writeFileSync(path.join(privateRoot, `master.${format}`), bytes);
+        const master = collectArtMasters([privateRoot], "sample");
+        const notes = [
+            {
+                type: "being",
+                address: { canonical: fields.primaryNote },
+                name: { full: publicNote ? "Public name" : "Private name" },
+                tags: publicNote ? [] : ["gm"],
+            },
+        ];
+        const rendered = await renderArtMasters(master.masters, notes, path.join(root, "render"));
+        const output = fs.readFileSync(rendered.get(fields.address)!);
+        for (const value of ["sample-note-being-hidden", "Private name", "private text"]) {
+            expect(bytes.includes(Buffer.from(value))).toBe(true);
+            expect(output.includes(Buffer.from(value))).toBe(false);
+        }
+        const record =
+            format === "png" ? readWebpProvenance(output).record : readSvgProvenance(output).record;
+        expect(record).toMatchObject({
+            address: fields.address,
+            creator: "Author",
+            rights: "Terms",
+        });
+        expect(record.primaryNote).toBe(publicNote ? fields.primaryNote : undefined);
+        expect(record.name).toBe(publicNote ? "Public name" : undefined);
+    },
+);
 
 it("captures masters once per session and observes changed inputs in a fresh session", async () => {
     const privateRoot = path.join(root, "private");
@@ -497,11 +718,23 @@ it("captures masters once per session and observes changed inputs in a fresh ses
     expect(first.records.some((record) => record.address?.canonical?.shortcode === "first")).toBe(
         true,
     );
+    expect(
+        artSource(
+            first.records.find((record) => record.asset),
+            config.paths.assets,
+        ),
+    ).toBe(file);
+    expect(JSON.stringify(first.records)).not.toContain(privateRoot);
     expect(shippingAssetRecords(first.records)[0].address.canonical).toBe(
         "sample-none-image-first",
     );
+    const parse = vi.spyOn(provenanceCore, "readSvgProvenance");
     const firstTree = await noteTree(config, { toolchain: "test" });
-    expect(firstTree.cache.tree).toBe("off");
+    expect(parse).toHaveBeenCalledTimes(1);
+    expect(firstTree.cache.tree).toBe("miss");
+    expect((await noteTree(config, { toolchain: "test" })).cache.tree).toBe("hit");
+    expect(parse).toHaveBeenCalledTimes(2);
+    parse.mockRestore();
     const code = `require('./sohl/item-builders.mjs');
 const { indexRecordsFor } = await import('./engine/content-index.mjs');
 const { configFromData } = require('./engine/pack-config.mjs');
@@ -550,8 +783,18 @@ if (!indexRecordsFor({config}).some(record => record.address?.canonical?.shortco
         true,
     );
     const secondTree = await noteTree(config, { toolchain: "test" });
+    expect(secondTree.cache.tree).toBe("miss");
     expect(
         secondTree.records.some((record) => record.address?.canonical?.shortcode === "second"),
+    ).toBe(true);
+    fs.writeFileSync(
+        path.join(privateRoot, "two.svg"),
+        writeSvgProvenance(svg, { address: "sample-none-image-third" }).bytes,
+    );
+    const thirdTree = await noteTree(config, { toolchain: "test" });
+    expect(thirdTree.cache.tree).toBe("miss");
+    expect(
+        thirdTree.records.some((record) => record.address?.canonical?.shortcode === "third"),
     ).toBe(true);
     first.dispose();
     second.dispose();

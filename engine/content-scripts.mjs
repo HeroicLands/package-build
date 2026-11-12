@@ -40,6 +40,7 @@
  */
 
 import MarkdownIt from "markdown-it";
+import { assetImageInfoByPathname } from "./art-fields.mjs";
 import { blockTokens } from "./markdown-blocks.mjs";
 
 import { scanBlocks, BLOCK_CONTAINERS } from "./content-blocks.mjs";
@@ -101,6 +102,8 @@ const CONFIG = "package-build.config.yaml";
  *
  * @typedef {object} RunContext
  * @property {string} [contentPackage] - The citing content package.
+ * @property {Map<string, {type: string, role?: string, width: number|"", height: number|""}>} [assetInfo] - Indexed image dimensions and roles.
+ * @property {object} [assetConfig] - Configuration resolving image addresses.
  * @property {Readonly<Record<string, {tag: string}>>} [languages] - The
  *   configured languages.
  * @property {ReadonlyMap<string, import("./script-fonts.mjs").Face>} [faces] -
@@ -238,6 +241,8 @@ export function runContext(config, records, { referenceName: indexedName } = {})
     };
     const context = Object.freeze({
         ...base,
+        assetInfo: assetImageInfoByPathname(records),
+        assetConfig: config,
         encodings,
         encodingDefinitions: loaded.definitions,
         encodingFindings: loaded.findings,

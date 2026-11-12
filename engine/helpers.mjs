@@ -136,13 +136,14 @@ const renderer = createRenderer("foundry", {
                 return src;
             }
         },
-        lookupAsset: (src) => {
+        lookupAsset: (src, env) => {
             // A body image is free to write the bare, own-package form,
             // so the address is normalized to the pathname the cache
             // below keys by before it is looked up.
             try {
-                const key = assetPathnameKey(src, loadPackConfig());
-                return key ? localAssetImageInfo().get(key) : undefined;
+                const config = env?.runs?.assetConfig ?? loadPackConfig();
+                const key = assetPathnameKey(src, config);
+                return key ? (env?.runs?.assetInfo ?? localAssetImageInfo()).get(key) : undefined;
             } catch {
                 return undefined;
             }
