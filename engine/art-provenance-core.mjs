@@ -12,7 +12,7 @@
  */
 
 /**
- * Provenance embedded in a PNG, WebP or SVG master.
+ * Provenance embedded in a PNG, WebP or SVG image.
  *
  * A master carries its own identity: the Address of the note it illustrates, a
  * display name, the prompt that produced it, how it was generated, and the

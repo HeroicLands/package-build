@@ -2768,12 +2768,13 @@ default attributes are expanded; external DTDs, external entities, and
 parameter entities are refused. SVG `foreignXmp` reports whether foreign or
 unreadable XMP was discarded.
 
-The master PNG, SVG and WebP writers retain eligible foreign properties and
+The PNG, SVG and WebP provenance writers retain eligible foreign properties and
 comments inside `rdf:RDF` when the packet meets the retention rules. Comments
 outside `rdf:RDF` are dropped. `foreignXmp` reports retained foreign properties
 and comments within `rdf:RDF`, or a discarded packet when it cannot be retained
-safely. The master SVG writer keeps other markup; the master WebP writer keeps
-non-XMP chunks.
+safely. The SVG provenance writer keeps other markup; the WebP provenance writer
+keeps non-XMP chunks. The public derivative writer discards foreign XMP as
+described above.
 
 A prompt and generation details (`hl:prompt`, `hl:generator`) are never
 repeated: asking for them is an error.
