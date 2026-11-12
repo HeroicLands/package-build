@@ -232,7 +232,7 @@ describe("an office's holders are derived from the beings that hold it", () => {
 });
 
 describe("a unique item is linked to the places and beings involved", () => {
-    const item = (body: string, data: object = { unique: true }) =>
+    const item = (body: string, data: object = { kind: "miscgear", unique: true }) =>
         note({ type: "miscgear", shortcode: "hammer", name: { full: "Joe's Hammer" }, data }, body);
     const lint = (files: Record<string, string>) =>
         withTree(
@@ -286,12 +286,17 @@ describe("a unique item is linked to the places and beings involved", () => {
     });
 
     it("asks nothing of a common item", () => {
-        expect(lint({ "Hammer.md": item("Ten feet of rope.", {}) })).toEqual([]);
+        expect(lint({ "Hammer.md": item("Ten feet of rope.", { kind: "miscgear" }) })).toEqual([]);
     });
 
     it("takes `true` alone, and only on gear", () => {
         expect(
-            lint({ "Hammer.md": item("Forged for [[being-joe|Joe]].", { unique: "yes" }) }),
+            lint({
+                "Hammer.md": item("Forged for [[being-joe|Joe]].", {
+                    kind: "miscgear",
+                    unique: "yes",
+                }),
+            }),
         ).toEqual([expect.objectContaining({ message: expect.stringMatching(/unique/) })]);
         const place = withTree(
             {

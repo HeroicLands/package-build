@@ -1749,7 +1749,9 @@ this tree never cites — so `deps fetch` fetches nothing for it and a wikilink
 into it fails, naming the key, rather than resolving against a stale
 declaration or an index nobody fetched:
 
-Run `package-build deps fetch` before compiling content that addresses a
+`deps fetch` also fetches the content index of each module a fetched package
+requires, transitively, without a declaration of its own. Run
+`package-build deps fetch` before compiling content that addresses a
 declared dependency's notes or embeds its Items. Compilation reads the cached
 index and Item catalogue for the declared version; it does not fetch them on
 demand.

@@ -97,6 +97,7 @@ import {
 } from "./note-vocabulary.mjs";
 // The art slots, declared once. The linter states no art key of its own.
 import { ART_SLOTS } from "./art-fields.mjs";
+import { checkSystemItemKeys } from "./item-entries.mjs";
 
 /**
  * `sohl:` keys every type accepts, whatever its schema says.
@@ -1604,6 +1605,7 @@ export function lintNote(
         // block's *shape* and holds whether or not this system declares a
         // vocabulary for the note's type.
         findings.push(...checkEmbeddedShortcodes(note, blockName));
+        findings.push(...checkSystemItemKeys(note, blockName));
         // A block is checked only where its system speaks about this type. A
         // type a system's registry does not name is a type it says nothing
         // about — SoHL's `mysticalability` is not an HM3 type at all — and

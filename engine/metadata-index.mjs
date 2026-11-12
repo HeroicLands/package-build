@@ -52,6 +52,8 @@ import { formatDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
 // own index can name its file without importing this module back.
 import { metadataFileName, PACKAGEBUILD_PACKAGE } from "./packages.mjs";
 import { packageBuildRecords } from "./packagebuild-index.mjs";
+import { isPackageRecord } from "./index-records.mjs";
+import { systemPackages } from "./item-entries.mjs";
 
 export { metadataFileName };
 import {
@@ -243,25 +245,38 @@ export function cachedMetadataFiles(config) {
  */
 export function cachedMetadataIndexes(config) {
     const files = [];
-    const root = config.paths.metadataCache;
     for (const rel of metadataRelationships(config)) {
-        const cached =
-            fs.existsSync(root) ?
-                fs
-                    .readdirSync(root)
-                    .filter((name) => name.startsWith(`${rel.id}@`))
-                    .map((name) => path.join(root, name))
-                    .filter(isComplete)
-            :   [];
-        if (!cached.length) {
+        const file = cachedIndexFile(config, rel.id);
+        if (!file) {
             throw new Error(
                 `${rel.id} is a declared dependency but its content index has ` +
                     `not been fetched. Run \`package-build deps fetch\` first.`,
             );
         }
-        files.push({ id: rel.id, file: newestIndex(cached) });
+        files.push({ id: rel.id, file });
     }
     return files;
+}
+
+/**
+ * The newest complete cached index file of one package, or nothing when none
+ * is cached.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {string} id - The package id.
+ * @returns {string|undefined} The index file.
+ */
+export function cachedIndexFile(config, id) {
+    const root = config.paths.metadataCache;
+    const cached =
+        fs.existsSync(root) ?
+            fs
+                .readdirSync(root)
+                .filter((name) => name.startsWith(`${id}@`))
+                .map((name) => path.join(root, name))
+                .filter(isComplete)
+        :   [];
+    return cached.length ? newestIndex(cached) : undefined;
 }
 
 /**
@@ -373,8 +388,10 @@ function publishedEvents(record) {
  * @param {Iterable<string>} localPackages - Packages this build publishes.
  * @param {Record<string, string>} [bases] - Where each package is served.
  * @returns {{index: Map<string, object>, packages: Set<string>,
+ *   requires: Map<string, string[]>,
  *   stale: Array<{package: string, reason: string}>}} The resolved addresses,
- *   which packages contributed, and what could not be read.
+ *   which packages contributed, the modules each publishes as required, and
+ *   what could not be read.
  */
 export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) {
     const local = new Set(localPackages);
@@ -382,6 +399,7 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
     const packages = new Set();
     const stale = [];
     const referenceRecords = [];
+    const requires = new Map();
 
     /**
      * Fold one package's records into the index.
@@ -414,6 +432,12 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
 
         const pageAliases = [];
         for (const [recordIndex, record] of records.entries()) {
+            if (isPackageRecord(record)) {
+                requires.set(pkg, [
+                    ...new Set([...(requires.get(pkg) ?? []), ...record.packageModules]),
+                ]);
+                continue;
+            }
             decodeIndexAddresses(
                 record,
                 noteAddressContext(config),
@@ -578,7 +602,13 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
     // every lookup stays one path.
     ingest(PACKAGEBUILD_PACKAGE, packageBuildRecords());
 
-    for (const file of cachedMetadataFiles(config)) {
+    /**
+     * Read and fold one cached index file.
+     *
+     * @param {string} file - The cached index file.
+     * @returns {void}
+     */
+    const load = (file) => {
         let records;
         try {
             records = fs
@@ -588,17 +618,36 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 .map((line) => JSON.parse(line));
         } catch (err) {
             stale.push({ package: packageOfCache(file), reason: `unreadable: ${err.message}` });
-            continue;
+            return;
         }
         const pkg = records[0]?.package ?? packageOfCache(file);
-        if (local.has(pkg)) continue;
+        if (local.has(pkg)) return;
         ingest(pkg, records, file);
+    };
+
+    for (const file of cachedMetadataFiles(config)) load(file);
+
+    // The modules a loaded package publishes as required are read from the
+    // cache too, transitively, so a module reached only through another module
+    // resolves without being declared. A game system is never entered.
+    const systems = systemPackages(config);
+    const attempted = new Set(packages);
+    const queue = [...requires].filter(([pkg]) => !systems.has(pkg)).flatMap(([, ids]) => ids);
+    while (queue.length) {
+        const id = queue.shift();
+        if (attempted.has(id) || local.has(id) || systems.has(id)) continue;
+        attempted.add(id);
+        const file = cachedIndexFile(config, id);
+        if (!file) continue;
+        load(file);
+        queue.push(...(requires.get(id) ?? []));
     }
 
     return {
         index,
         references: buildReferenceTargets(referenceRecords, index, config),
         packages,
+        requires,
         stale,
     };
 }

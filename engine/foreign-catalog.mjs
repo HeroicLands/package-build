@@ -67,6 +67,8 @@ import {
     isComplete as metadataIsComplete,
     markComplete as markMetadataComplete,
 } from "./metadata-index.mjs";
+import { isPackageRecord } from "./index-records.mjs";
+import { systemPackages } from "./item-entries.mjs";
 
 /** Written once a fetch completes, so a half-finished cache is never used. */
 const STAMP = ".complete";
@@ -591,6 +593,20 @@ export async function fetchCatalogFromPath(config, rel, source) {
  * @returns {Promise<string>} The cached index file.
  */
 export async function fetchMetadata(config, rel) {
+    return (await fetchMetadataWithManifest(config, rel)).file;
+}
+
+/**
+ * Fetch one dependency's content index and return it with the manifest it was
+ * read through, so a caller can follow the manifest's own requirement edges.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {{id: string, manifest: string, verified?: string}} rel - The declared
+ *   relationship.
+ * @returns {Promise<{file: string, manifest: object}>} The cached index file
+ *   and the parsed manifest.
+ */
+async function fetchMetadataWithManifest(config, rel) {
     const { url, pinned } = pinnedManifestUrl(rel.manifest, rel.verified);
     const manifest = await fetchManifest(url);
     const version = manifest.version;
@@ -619,7 +635,7 @@ export async function fetchMetadata(config, rel) {
 
     if (metadataIsComplete(dir)) {
         log.info(`${rel.id}@${version}: index already cached`);
-        return path.join(dir, path.basename(new URL(indexUrl).pathname));
+        return { file: path.join(dir, path.basename(new URL(indexUrl).pathname)), manifest };
     }
 
     // Rebuild from empty: a previous run may have died partway, and a stale
@@ -638,7 +654,7 @@ export async function fetchMetadata(config, rel) {
     const file = path.join(dir, path.basename(new URL(indexUrl).pathname));
     fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
     markMetadataComplete(dir);
-    return file;
+    return { file, manifest };
 }
 
 /**
@@ -734,20 +750,70 @@ function findLocalIndex(root, name) {
 }
 
 /**
- * Fetch every declared dependency's content index.
+ * The modules a fetched index's package record publishes as required.
+ *
+ * @param {string} file - The cached index file.
+ * @returns {string[]} The module ids; empty when the package requires none.
+ */
+function publishedModules(file) {
+    const modules = new Set();
+    for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+        if (!line.trim()) continue;
+        const record = JSON.parse(line);
+        if (isPackageRecord(record)) for (const id of record.packageModules) modules.add(id);
+    }
+    return [...modules];
+}
+
+/**
+ * Fetch every declared dependency's content index, and the index of every
+ * module reachable from them.
  *
  * A wider set than {@link fetchAllCatalogs}: an index is fetched for *every*
  * dependency, plus every other relationship declaring `itemCatalog: true`; a
  * catalogue only for those declaring `itemCatalog: true`. See
  * {@link metadataRelationships} for why the two sets differ.
  *
+ * **Follows the modules each fetched package requires, transitively.** The
+ * package's own index record names them and its manifest's
+ * `relationships.requires` names where each manifest lives, so a module reached
+ * only through another module is fetched without being declared. Each module is
+ * fetched once, which ends a cycle. A game system is fetched when declared and
+ * is never followed, nor fetched when only a module requires it.
+ *
  * @param {object} config - The resolved build configuration.
- * @returns {Promise<number>} How many indexes were fetched.
+ * @returns {Promise<number>} How many indexes were fetched or already cached.
  */
 export async function fetchAllMetadata(config) {
-    const rels = metadataRelationships(config);
-    for (const rel of rels) await fetchMetadata(config, rel);
-    return rels.length;
+    const systems = systemPackages(config);
+    const queue = metadataRelationships(config);
+    const seen = new Set([config.contentPackage, ...queue.map((rel) => rel.id)]);
+    let count = 0;
+    while (queue.length) {
+        const rel = queue.shift();
+        const { file, manifest } = await fetchMetadataWithManifest(config, rel);
+        count += 1;
+        if (systems.has(rel.id)) continue;
+        for (const id of publishedModules(file)) {
+            if (seen.has(id) || systems.has(id)) continue;
+            seen.add(id);
+            const edge = (manifest.relationships?.requires ?? []).find((entry) => entry.id === id);
+            if (!edge?.manifest) {
+                throw new Error(
+                    `${rel.id}: its index requires module \`${id}\`, but its manifest's ` +
+                        `\`relationships.requires\` gives no \`manifest\` URL for it, so its ` +
+                        `content index cannot be fetched.`,
+                );
+            }
+            queue.push({
+                id,
+                manifest: edge.manifest,
+                kind: "requires",
+                verified: edge.compatibility?.verified,
+            });
+        }
+    }
+    return count;
 }
 
 /**

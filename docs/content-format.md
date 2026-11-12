@@ -263,6 +263,23 @@ A being states its gender, frame and appearance in words from one closed vocabul
 
 A culture note may state what its people look like in `data.appearanceProfile`: weighted words for frame, eyes, hair, skin, complexion and, optionally, hair texture and style, facial hair, face shape, nose, brow and mouth, and height ranges by gender, all from the same vocabulary. A culture's tongue is its language, and the note `languages:` names for that language may state `data.names`: the patterns its speakers' names are built by and the lists each part is drawn from. `package-build npc new` writes a complete npc note from a spec of a culture and a gender, drawing the name from those lists and everything else the spec leaves out from the profile. See [appearance profiles](reference/format-details.md#appearance-profiles), [name lists](reference/format-details.md#name-lists) and [the command](commands.md#package-build-npc-new).
 
+A being lists the items it has, and a culture lore note the items its people
+typically carry, in `data.items`. An entry is `{key?, model?, name?, img?, kind?,
+chance?, system?: {subType?, quantity?, weight?}}`; with `model` alone, an item
+note supplies the rest, and without `model` the entry states `name` and `kind`
+and defines the item inline. `kind` is one of `weapon`, `armor`, `clothing`,
+`container`, `miscgear`, `projectile`, `concoction`, `disease`, `poisontoxin`,
+`maladiction`, `physcond`, `quirk`, `disorder`, `privation`, `fear`, `language`,
+`script`, `arcaneability`, `spell`, `psychicgift`, `incantation` or
+`divination`. A `model` must resolve to an item note of the note's own package or
+of a package it requires as a module, directly or through the modules those
+require, and never to a game system's item at any level. A `key` is unique
+within `data.items` and within each system's `items` list. An item note
+(`weapongear`, `armorgear`, `containergear`, `miscgear`, `projectilegear`,
+`concoctiongear`, `affliction`, `trauma` or `mysticalability`) states the same
+shape in its `data` block with `kind` required. See
+[items in a note](reference/format-details.md#items-in-a-note).
+
 A culture may name its larger cultures in `data.parents`. Each entry names a
 culture lore note. An omitted `data.appearanceProfile` inherits through those
 parents, and so does the culture's language; the content-index JSONL contains

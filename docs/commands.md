@@ -1860,6 +1860,9 @@ package-build deps fetch [--from <zip|dir>] [--id <id>]
 The only action is `fetch`, which fills three caches under `build/cache/`:
 the **content index** of every declared dependency and of every
 `recommends` or `conflicts` relationship that declares `itemCatalog: true`,
+the content index of every module those packages require, followed
+transitively through each package's own published requirements (a game system
+is never followed, and a cycle ends at the first module fetched twice),
 the **item catalogue** of those that additionally declare `itemCatalog: true`,
 and the **site navigation** —
 `https://www.heroiclands.org/nav.json`, the header menu every package site

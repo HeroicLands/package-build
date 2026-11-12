@@ -194,7 +194,7 @@ describe("a `type` is an address segment", () => {
     });
 
     it("leaves an alphanumeric type alone", () => {
-        expect(lintNote(note("weapongear"), opts)).toEqual([]);
+        expect(lintNote(note("weapongear", { data: { kind: "weapon" } }), opts)).toEqual([]);
     });
 
     it("still reports a missing type as a missing schema, not a charset violation", () => {

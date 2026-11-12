@@ -79,7 +79,7 @@ describe("the `data:` container is closed", () => {
     it("accepts every key the type declares", () => {
         const findings = lintNote(
             note("weapongear", {
-                data: { weight: 4, value: 20, quality: 0, durability: 12 },
+                data: { kind: "weapon", weight: 4, value: 20, quality: 0, durability: 12 },
             }),
             opts,
         );
@@ -87,19 +87,25 @@ describe("the `data:` container is closed", () => {
     });
 
     it("reports an unknown `data:` key and suggests the near miss", () => {
-        const findings = lintNote(note("weapongear", { data: { wieght: 4 } }), opts);
+        const findings = lintNote(
+            note("weapongear", { data: { wieght: 4, kind: "weapon" } }),
+            opts,
+        );
         expect(messages(findings)).toContain("`data:` property declared by weapongear");
         expect(messages(findings)).toContain('Did you mean "weight"?');
     });
 
     it("does not guess when nothing is close", () => {
-        const findings = lintNote(note("weapongear", { data: { elephant: 1 } }), opts);
+        const findings = lintNote(
+            note("weapongear", { data: { elephant: 1, kind: "weapon" } }),
+            opts,
+        );
         expect(messages(findings)).toContain("`data:` property declared by weapongear");
         expect(messages(findings)).not.toContain("Did you mean");
     });
 
     it("locates the offending key at its own line and column", () => {
-        const subject = note("weapongear", { data: { wieght: 4 } });
+        const subject = note("weapongear", { data: { wieght: 4, kind: "weapon" } });
         const findings = lintNote(subject, opts);
         // `---`, `type:`, `data:`, then the key — file line 4, indented four.
         expect(findings[0]).toMatchObject({ line: 4, column: 5 });
@@ -123,7 +129,7 @@ describe("the `data:` container is closed", () => {
     });
 
     it("accepts an emptied map, which the property editor writes as a list", () => {
-        expect(lintNote(note("weapongear", { data: [] }), opts)).toEqual([]);
+        expect(lintNote(note("lore", { data: [] }), opts)).toEqual([]);
     });
 
     it("checks a type whose vocabulary is empty just as strictly", () => {
@@ -133,7 +139,9 @@ describe("the `data:` container is closed", () => {
 
     it("makes no claim when no vocabulary is supplied", () => {
         expect(
-            lintNote(note("weapongear", { data: { wieght: 4 } }), { schemas: NOTE_SCHEMAS as any }),
+            lintNote(note("weapongear", { data: { wieght: 4, kind: "weapon" } }), {
+                schemas: NOTE_SCHEMAS as any,
+            }),
         ).toEqual([]);
     });
 
@@ -288,7 +296,7 @@ describe("locating a key inside the frontmatter fence", () => {
 describe("lintFrontmatter carries the vocabulary through", () => {
     it("reports the container's findings over a whole index", () => {
         const index = {
-            notes: [note("weapongear", { data: { wieght: 4 } })],
+            notes: [note("weapongear", { data: { wieght: 4, kind: "weapon" } })],
             shortcodeHit: () => ({}),
         } as any;
         const r = lintFrontmatter(index, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });

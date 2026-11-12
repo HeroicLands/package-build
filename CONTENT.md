@@ -94,6 +94,23 @@ default target type is `affiliation`. Explicit `null` means complete anarchy;
 omission leaves government unknown. Governing bodies receive their place lists
 from those references. See [place governments](docs/authoring/frontmatter.md#place-governments).
 
+A being lists the items it has, and a culture lore note the items its people
+typically carry, in `data.items`. An entry is `{key?, model?, name?, img?, kind?,
+chance?, system?: {subType?, quantity?, weight?}}`; with `model` alone, an item
+note supplies the rest, and without `model` the entry states `name` and `kind`
+and defines the item inline. `kind` is one of `weapon`, `armor`, `clothing`,
+`container`, `miscgear`, `projectile`, `concoction`, `disease`, `poisontoxin`,
+`maladiction`, `physcond`, `quirk`, `disorder`, `privation`, `fear`, `language`,
+`script`, `arcaneability`, `spell`, `psychicgift`, `incantation` or
+`divination`. A `model` must resolve to an item note of the note's own package or
+of a package it requires as a module, directly or through the modules those
+require, and never to a game system's item at any level. A `key` is unique
+within `data.items` and within each system's `items` list. An item note
+(`weapongear`, `armorgear`, `containergear`, `miscgear`, `projectilegear`,
+`concoctiongear`, `affliction`, `trauma` or `mysticalability`) states the same
+shape in its `data` block with `kind` required. See
+[items in a note](docs/reference/format-details.md#items-in-a-note).
+
 A polity (`affiliation`, `subType: polity`) lists settlements without notes in
 `data.settlements`. Each row names its settlement, polity, location, type,
 fortification, stronghold, holder, population, market and short notes. Polity

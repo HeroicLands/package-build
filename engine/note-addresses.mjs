@@ -79,6 +79,25 @@ export const STRUCTURED_ADDRESSES = Object.freeze([
         text: true,
     },
     { path: ["data", "seeAlso", "*", "address"], shape: "value", lenient: true },
+    // A listed item's model is read leniently: a value that is no Address stays
+    // as written, for the items check to refuse at its own key.
+    ...["being", "lore"].flatMap((noteType) => [
+        {
+            noteType,
+            path: ["data", "items", "*", "model"],
+            shape: "value",
+            lenient: true,
+        },
+        {
+            noteType,
+            path: ["data", "items", "*", "img"],
+            shape: "value",
+            type: "icon",
+            accepts: ["icon", "image"],
+            system: "none",
+            lenient: true,
+        },
+    ]),
     {
         path: ["packFolder"],
         shape: "scalar-or-map",

@@ -104,7 +104,12 @@ function lint(subject: ReturnType<typeof note>) {
 
 /** A gear note of `type` stating `data`. */
 const gear = (type: string, data: Record<string, unknown>) =>
-    note({ type, shortcode: "blade", name: { full: "Blade" }, data });
+    note({
+        type,
+        shortcode: "blade",
+        name: { full: "Blade" },
+        data: { kind: "miscgear", ...data },
+    });
 
 /** A work of literature naming `subjects`. */
 const work = (subjects: unknown[]) =>

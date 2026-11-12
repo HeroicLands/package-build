@@ -92,6 +92,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             "weight",
             "appearance.extra_features",
             "portrait.prompt",
+            "items",
         ],
         fm: () => ({
             type: "being",
@@ -110,6 +111,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     extra_features: ["a burn scar on the left forearm"],
                 },
                 portrait: { prompt: "A weathered woman with braided dark hair." },
+                items: [{ key: "blade", model: "weapongear-sword", system: { quantity: 1 } }],
             },
         }),
     },
@@ -190,13 +192,14 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     "lore:culture": {
-        covers: ["appearanceProfile", "parents"],
+        covers: ["appearanceProfile", "parents", "items"],
         fm: () => ({
             type: "lore",
             subType: "culture",
             shortcode: "cultureone",
             data: {
                 parents: [],
+                items: [{ model: "miscgear-rope", chance: 40 }],
                 appearanceProfile: {
                     frame: { light: 1, medium: 2 },
                     eye_color: { brown: 1 },

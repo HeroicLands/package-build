@@ -113,6 +113,12 @@ import { checkNoteEvents } from "./note-events.mjs";
 // list the compiled Item is held to, so the lint and the compile cannot differ.
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 import { EVENT_ENTRY } from "./note-event-terms.mjs";
+import {
+    ITEMS_FIELD,
+    ITEM_NOTE_FIELDS,
+    checkCultureItems,
+    checkItemNote,
+} from "./item-entries.mjs";
 import { CULTURE_FIELD, checkCultureSubType } from "./culture-choice.mjs";
 import {
     POST_AUTHOR_FIELD,
@@ -1746,6 +1752,12 @@ export const NOTE_VOCABULARY = Object.freeze({
             { name: "archetypes", ...TEXT_LIST, describe: "Archetypal behaviours the being fits." },
             { name: "occupation", ...TEXT, describe: "What the being does for a living." },
             {
+                ...ITEMS_FIELD,
+                describe:
+                    "The items the being has, each an entry that names an item note by `model` " +
+                    "or defines an item inline with `name` and `kind`.",
+            },
+            {
                 name: "lore",
                 ...LINKS,
                 ref: "lore",
@@ -2079,9 +2091,11 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     affliction: Object.freeze({
         stubbable: true,
+        check: checkItemNote,
         subTypes: Object.freeze(["disease", "poisontoxin", "maladiction"]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
+            ...ITEM_NOTE_FIELDS,
             { name: "transmission", ...TEXT, describe: "How it passes from one host to another." },
             {
                 name: "outcome",
@@ -2130,9 +2144,10 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     armorgear: Object.freeze({
         stubbable: true,
+        check: checkItemNote,
         // Quantity is always one, so the specification refuses the key rather
         // than defaulting it.
-        data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR]),
+        data: Object.freeze([TEMPLATE_PRIORITY, ...ITEM_NOTE_FIELDS, ...GEAR]),
     }),
 
     armorlocation: Object.freeze({
@@ -2148,9 +2163,11 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     concoctiongear: Object.freeze({
         stubbable: true,
+        check: checkItemNote,
         subTypes: Object.freeze(["mundane", "exotic", "elixir"]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
+            ...ITEM_NOTE_FIELDS,
             ...GEAR,
             QUANTITY,
             {
@@ -2164,8 +2181,10 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     containergear: Object.freeze({
         stubbable: true,
+        check: checkItemNote,
         data: Object.freeze([
             TEMPLATE_PRIORITY,
+            ...ITEM_NOTE_FIELDS,
             ...GEAR,
             { name: "capacity", ...NUM, describe: "How much it holds." },
         ]),
@@ -2173,7 +2192,8 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     miscgear: Object.freeze({
         stubbable: true,
-        data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR, QUANTITY]),
+        check: checkItemNote,
+        data: Object.freeze([TEMPLATE_PRIORITY, ...ITEM_NOTE_FIELDS, ...GEAR, QUANTITY]),
     }),
 
     mystery: Object.freeze({
@@ -2212,6 +2232,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     mysticalability: Object.freeze({
         stubbable: true,
+        check: checkItemNote,
         subTypes: Object.freeze([
             "spiritrite",
             "spiritaction",
@@ -2226,6 +2247,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
+            ...ITEM_NOTE_FIELDS,
             {
                 name: "assocSkill",
                 ...LINK,
@@ -2248,8 +2270,9 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     projectilegear: Object.freeze({
         stubbable: true,
+        check: checkItemNote,
         subTypes: Object.freeze(["none", "arrow", "bolt", "bullet", "dart", "other"]),
-        data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR, QUANTITY]),
+        data: Object.freeze([TEMPLATE_PRIORITY, ...ITEM_NOTE_FIELDS, ...GEAR, QUANTITY]),
     }),
 
     skill: Object.freeze({
@@ -2352,6 +2375,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     trauma: Object.freeze({
         stubbable: true,
+        check: checkItemNote,
         subTypes: Object.freeze([
             "injury",
             "fear",
@@ -2367,6 +2391,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
+            ...ITEM_NOTE_FIELDS,
             {
                 name: "healingCheckDurationFormula",
                 ...TEXT,
@@ -2402,10 +2427,11 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     weapongear: Object.freeze({
         stubbable: true,
+        check: checkItemNote,
         // No `subTypes`, deliberately: SoHL distinguishes a weapon's uses with
         // strike modes rather than by kind, and HM3's document type follows
         // from which of those a note describes.
-        data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR]),
+        data: Object.freeze([TEMPLATE_PRIORITY, ...ITEM_NOTE_FIELDS, ...GEAR]),
     }),
 
     /* ----- core documents ------------------------------------------- */
@@ -2591,6 +2617,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             ...checkLiteratureNote(note),
             ...checkCultureSubType(note, context),
             ...checkGlossary(note, context),
+            ...checkCultureItems(note),
         ],
         data: Object.freeze([
             ...CALENDAR_FIELDS,
@@ -2612,6 +2639,13 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             ...LITERATURE_FIELDS,
             EVENTS_FIELD,
+            {
+                ...ITEMS_FIELD,
+                describe:
+                    "Culture only: the items its people typically carry, each an entry with a " +
+                    "`chance` of being drawn that names an item note by `model` or defines an " +
+                    "item inline with `name` and `kind`.",
+            },
             APPEARANCE_PROFILE_FIELD,
             {
                 ...GLOSSARY_FIELD,
