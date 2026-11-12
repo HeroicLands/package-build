@@ -14,6 +14,55 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { deriveRecord, provenancePacket } from "./art-provenance-core.mjs";
+import { writeDerivativeProvenance } from "./art-provenance.mjs";
+
+/** The resolution and compression of each book edition. */
+export const PDF_EDITIONS = Object.freeze({
+    screen: Object.freeze({ dpi: 150, quality: 76 }),
+    print: Object.freeze({ dpi: 300, quality: 82 }),
+});
+
+/**
+ * Render a master as a JPEG for its largest book placement.
+ * @param {Buffer|Uint8Array} bytes Master PNG or SVG bytes.
+ * @param {import("./art-provenance-core.mjs").ProvenanceRecord} master Master provenance.
+ * @param {Array<{width: number, height: number}>} uses Placements in inches.
+ * @param {"screen"|"print"} edition Edition profile.
+ * @param {boolean} notePublic Whether the indexed primary note is public.
+ * @returns {Promise<Buffer>} JPEG with selected public provenance.
+ */
+export async function renderPdfMaster(bytes, master, uses, edition, notePublic) {
+    const profile = PDF_EDITIONS[edition];
+    if (!profile) throw new Error(`unknown PDF edition ${edition}`);
+    const input =
+        (
+            Buffer.from(bytes)
+                .subarray(0, 8)
+                .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+        ) ?
+            bytes
+        :   writeDerivativeProvenance(bytes, master).bytes;
+    const metadata = await sharp(input).metadata();
+    if (!metadata.width || !metadata.height) throw new Error("master has no image dimensions");
+    const ratio = metadata.width / metadata.height;
+    const width = Math.max(
+        1,
+        Math.round(
+            Math.max(...uses.map(({ width, height }) => Math.min(width, height * ratio))) *
+                profile.dpi,
+        ),
+    );
+    const repeat = ["derivedFrom", "license", ...(notePublic ? ["name", "primaryNote"] : [])];
+    const record = deriveRecord({ ...master, derivedFrom: master.address }, { repeat, notePublic });
+    return sharp(input)
+        .resize({ width, withoutEnlargement: true })
+        .flatten({ background: "#ffffff" })
+        .toColourspace("srgb")
+        .jpeg({ quality: profile.quality })
+        .withXmp(provenancePacket(record))
+        .toBuffer();
+}
 
 /** Print geometry in inches; Typst's default column gutter is 4% of the text width. */
 export const PDF_PAGE = Object.freeze({
@@ -110,11 +159,26 @@ export function bookImageWidthIn({ type, role, width } = {}) {
  * @param {Map<string, {from: string, to: string, relative: string, file: string,
  *   uses: Array<{width: number, height: number}>}>} candidates
  * @param {string} outDir - PDF staging directory.
+ * @param {"screen"|"print"} [edition] - Master image profile.
  * @returns {Promise<object[]>} Image reports with the authored file location.
  */
-export async function resamplePdfImages(candidates, outDir) {
+export async function resamplePdfImages(candidates, outDir, edition = "screen") {
     const reports = [];
     for (const candidate of candidates.values()) {
+        if (candidate.master) {
+            const source = await fs.readFile(candidate.master.file);
+            const output = await renderPdfMaster(
+                source,
+                candidate.master.record,
+                candidate.uses,
+                edition,
+                candidate.master.notePublic,
+            );
+            const destination = path.join(outDir, candidate.to);
+            await fs.mkdir(path.dirname(destination), { recursive: true });
+            await fs.writeFile(destination, output);
+            continue;
+        }
         const extension = path.extname(candidate.to).toLowerCase();
         if (![".jpg", ".jpeg", ".png", ".webp", ".avif"].includes(extension)) continue;
         const relative = candidate.relative.replaceAll(path.sep, "/");

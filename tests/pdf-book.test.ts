@@ -10,6 +10,7 @@ import sharp from "sharp";
 
 import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 import { BOOK_ROLE_SLOTS, PDF_PAGE, pdfTextWidth } from "../engine/pdf-images.mjs";
+import { writeProvenance, readJpegProvenance } from "../engine/art-provenance.mjs";
 
 /** Inches as Typst writes them, to the precision the renderer emits. */
 const typstIn = (inches: number) => `${Math.round(inches * 1000) / 1000}in`;
@@ -164,6 +165,86 @@ function build(dir: string, ...args: string[]) {
 afterAll(() => {
     if (root) fs.rmSync(root, { recursive: true, force: true });
 });
+
+it(
+    "stages book images from the addressed master without a public derivative",
+    async () => {
+        const dir = makeRepo("content");
+        try {
+            const masters = path.join(dir, "private-masters");
+            fs.mkdirSync(masters);
+            const png = await sharp({
+                create: { width: 600, height: 400, channels: 3, background: "#ff0000" },
+            })
+                .png()
+                .toBuffer();
+            const source = writeProvenance(png, {
+                address: "sohl-none-image-portrait",
+                creator: "Artist",
+                rights: "Rights",
+            }).bytes;
+            fs.writeFileSync(path.join(masters, "unrelated.png"), source);
+            fs.appendFileSync(
+                path.join(dir, "package-build.config.yaml"),
+                "art:\n    masterRoots: [private-masters]\n",
+            );
+            const configFile = path.join(dir, "package-build.config.yaml");
+            fs.writeFileSync(
+                configFile,
+                fs
+                    .readFileSync(configFile, "utf8")
+                    .replace(
+                        "          document: book.yaml",
+                        "          document: book.yaml\n          coverImage: assets/images/portrait.webp",
+                    ),
+            );
+            const treeFile = path.join(dir, "book.yaml");
+            fs.writeFileSync(
+                treeFile,
+                fs
+                    .readFileSync(treeFile, "utf8")
+                    .replace(
+                        "    contents:",
+                        "    page:\n      banner: assets/images/portrait.webp\n    contents:",
+                    ),
+            );
+            fs.appendFileSync(
+                path.join(dir, "assets/content/Gear/dagger.md"),
+                "\n![Portrait](images/portrait.webp){size=medium}\n",
+            );
+            const built = build(dir, "--no-compile");
+            expect(built.status, built.out).toBe(0);
+            const dist = path.join(dir, "build/dist");
+            const typ = fs.readFileSync(path.join(dist, "sohl-core.typ"), "utf8");
+            expect(typ.includes("assets/images/portrait.jpg"), built.out).toBe(true);
+            expect(typ).toContain("cover/portrait.jpg");
+            expect(typ).toContain("plates/assets/images/portrait.jpg");
+            const jpeg = fs.readFileSync(path.join(dist, "sohl-core/assets/images/portrait.jpg"));
+            expect(readJpegProvenance(jpeg).record.derivedFrom).toBe("sohl-none-image-portrait");
+            expect((await sharp(jpeg).metadata()).width).toBe(Math.round((3.2 / 2.54) * 150));
+            const printed = build(dir, "--no-compile", "--edition", "print");
+            expect(printed.status, printed.out).toBe(0);
+            expect(fs.readFileSync(path.join(dist, "sohl-core-print.typ"), "utf8")).toContain(
+                "sohl-core-print/assets/images/portrait.jpg",
+            );
+            expect(
+                (
+                    await sharp(
+                        path.join(dist, "sohl-core-print/assets/images/portrait.jpg"),
+                    ).metadata()
+                ).width,
+            ).toBe(Math.round((3.2 / 2.54) * 300));
+            expect(build(dir, "--list-assets", "--edition", "print").out).toContain(
+                "sohl-core-print.pdf",
+            );
+            expect(build(dir, "--no-compile", "--edition", "invalid").status).not.toBe(0);
+            expect(fs.readFileSync(path.join(masters, "unrelated.png"))).toEqual(source);
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    },
+    SUBPROCESS_TEST_TIMEOUT,
+);
 
 it.skipIf(!HAS_TYPST)(
     "reduces a book's embedded raster image while keeping authored art",
