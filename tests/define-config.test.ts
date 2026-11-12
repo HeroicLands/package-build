@@ -33,6 +33,27 @@ function minimal(): ContentBuildConfigInput {
 }
 
 describe("defineConfig", () => {
+    it("normalizes private art roots and rejects invalid declarations", () => {
+        const roots = ["../private-art", "/private/more"];
+        const config = defineConfig({ ...minimal(), art: { masterRoots: roots } });
+        expect(config.art.masterRoots).toEqual(["/private-art", "/private/more"]);
+        roots.push("later");
+        expect(config.art.masterRoots).toHaveLength(2);
+        expect(Object.isFrozen(config.art.masterRoots)).toBe(true);
+        expect(defineConfig(minimal()).art.masterRoots).toEqual([]);
+        expect(() => defineConfig({ ...minimal(), art: { masterRoots: [""] } })).toThrow(
+            /art\.masterRoots/,
+        );
+        expect(() => defineConfig({ ...minimal(), art: { masterRoots: "art" } } as any)).toThrow(
+            /art\.masterRoots/,
+        );
+        expect(() => defineConfig({ ...minimal(), art: { masterRoots: null } } as any)).toThrow(
+            /art\.masterRoots/,
+        );
+        expect(() => defineConfig({ ...minimal(), art: { other: [] } } as any)).toThrow(
+            /art\.other/,
+        );
+    });
     it("returns a config carrying every field it was given", () => {
         const config = defineConfig({
             ...minimal(),

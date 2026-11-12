@@ -715,6 +715,7 @@ export function publishesContentPages(config) {
  * @property {Record<string, any> & {inputs?: string}} [site] Site settings;
  *                                          inputs names the optional local input provider.
  * @property {PathsInput} [paths]           Layout overrides. See {@link DEFAULT_PATHS}.
+ * @property {{masterRoots?: string[]}} [art] Private input directories for image masters.
  * @property {string[]} [skipDirectories]   Directory names the content walk ignores
  *                                          wherever they appear (e.g. Obsidian's
  *                                          `Templates`). Default `[]`.
@@ -772,6 +773,7 @@ export function publishesContentPages(config) {
  * @property {Readonly<Record<string, any> & {inputs: string}>} site Frozen site settings;
  *                                     inputs is the local provider path or an empty string.
  * @property {Readonly<ResolvedPaths>} paths
+ * @property {Readonly<{masterRoots: readonly string[]}>} art Private master input roots.
  * @property {Readonly<StatsSpec>|null} stats  `null` for a `documentation`
  *                                     package, which stamps no `_stats`.
  * @property {Readonly<Record<string, Function>>} itemBuilders  Derived: the
@@ -842,6 +844,7 @@ const CONFIG_KEYS = [
     "stats",
     "itemBuilders",
     "paths",
+    "art",
     "skipDirectories",
     "forbidGeneratedArt",
     "icons",
@@ -1596,6 +1599,22 @@ function normalizePaths(value, rootDir) {
         resolved[key] = path.resolve(rootDir, raw);
     }
     return Object.freeze(/** @type {ResolvedPaths} */ (resolved));
+}
+
+/** Resolve private master roots against the package root. */
+function normalizeArt(value, rootDir) {
+    if (value !== undefined && !isPlainObject(value)) fail("art", "must be an object");
+    const input = /** @type {Record<string, unknown>} */ (value ?? {});
+    rejectUnknownKeys(input, ["masterRoots"], "art.");
+    const roots = input.masterRoots === undefined ? [] : input.masterRoots;
+    if (!Array.isArray(roots)) fail("art.masterRoots", "must be an array of directories");
+    return Object.freeze({
+        masterRoots: Object.freeze(
+            roots.map((root, index) =>
+                path.resolve(rootDir, requireNonEmptyString(root, `art.masterRoots[${index}]`)),
+            ),
+        ),
+    });
 }
 
 /**
@@ -3244,6 +3263,7 @@ export function defineConfig(config) {
         // rather than rooting a path against nothing.
         assetRoot: documentation ? null : `${packageKind}/${foundryPackage}/assets`,
         paths: normalizePaths(input.paths, rootDir),
+        art: normalizeArt(input.art, rootDir),
         // The package-wide system, derived. A **system** package is its
         // own system, which is true by construction and needs no declaration. A
         // **module** takes the one it requires, or the one system it declares
