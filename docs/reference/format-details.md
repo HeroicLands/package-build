@@ -2761,7 +2761,8 @@ text, metadata, titles, descriptions, editor namespaces, XML comments, CSS
 comment contents, and processing instructions. Empty CSS comment separators
 preserve token boundaries. CSS strings and drawing values remain part of the
 image. A resource reference in an `href`, XML `base`, animation or CSS must be
-an empty reference, a fragment, or an absolute HTTP or HTTPS URL. Embedded
+an empty reference, a fragment, or an absolute HTTP or HTTPS URL without user
+information. Embedded
 `data:` resources and local paths are refused. Internal general entities and
 default attributes are expanded; external DTDs, external entities, and
 parameter entities are refused. SVG `foreignXmp` reports whether foreign or

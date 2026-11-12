@@ -1527,6 +1527,35 @@ describe("deriveRecord", () => {
         expect(output).toContain('href="https://example.test/a.png"');
     });
 
+    it("refuses SVG resource user information without echoing it", () => {
+        for (const url of [
+            "https://user:password@example.test/a",
+            "http://user@example.test/a",
+            "https://:password@example.test/a",
+        ]) {
+            for (const element of [
+                `<image href="${url}"/>`,
+                `<rect style="fill:url('${url}')"/>`,
+                `<image><set attributeName="href" to="${url}"/></image>`,
+                `<rect><animate attributeName="fill" to="url('${url}')"/></rect>`,
+            ]) {
+                const svg = `<svg xmlns="http://www.w3.org/2000/svg">${element}</svg>`;
+                expect(() => writeDerivativeProvenance(svg, MASTER)).toThrowError(/SVG.*resource/i);
+                try {
+                    writeDerivativeProvenance(svg, MASTER);
+                } catch (error) {
+                    expect((error as Error).message).not.toContain(url);
+                    expect((error as Error).message).not.toContain("password");
+                }
+            }
+        }
+        const safe = `<svg xmlns="http://www.w3.org/2000/svg"><use href="#shape"/><image href="https://example.test/a?size=small&amp;mode=dark"/><image href="http://example.test/b"/></svg>`;
+        const output = writeDerivativeProvenance(safe, MASTER).bytes.toString("utf8");
+        expect(output).toContain("size=small");
+        expect(output).toContain('href="#shape"');
+        expect(output).toContain("http://example.test/b");
+    });
+
     it("drops non-rendering text and CSS comments while retaining drawing text and presentation", async () => {
         const input = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">private-root<defs><style>/* private-css */ .a { fill: red; content: "/* quoted */"; } </style></defs><g>private-group<rect class="a" width="20" height="20" mask-type="alpha" transform-box="fill-box" style="fill: red; /* private-inline */ stroke: none"/><text y="12">Visible<tspan> text</tspan></text></g></svg>`;
         const output = writeDerivativeProvenance(input, MASTER).bytes;

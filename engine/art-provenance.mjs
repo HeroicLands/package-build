@@ -419,7 +419,7 @@ function cleanSvgDrawing(text) {
  * contents, processing instructions, titles and descriptions are discarded.
  * Empty CSS comment separators preserve token boundaries. CSS strings and
  * drawing values remain. Resource references in href, XML base, animations
- * and CSS accept fragments, empty references and absolute HTTP(S) URLs; local
+ * and CSS accept fragments, empty references and absolute HTTP(S) URLs without user information; local
  * paths and embedded data are refused. Internal general entities and default
  * attributes are expanded; external DTDs, external entities and parameter
  * entities are refused. `foreignXmp` reports discarded foreign or unreadable
