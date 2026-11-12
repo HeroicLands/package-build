@@ -230,11 +230,13 @@ use the same generated tables.
 `data.territorial_population` counts inhabitants: listed and noted settlements
 throughout its subordinate chain must account for that total within five percent.
 A polity with settlements, a seat, or subordinate polities requires this total.
-Each polity declares at most one superior.
+Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Populations use at most two significant digits. Each settlement
-has short `notes`; a populated settlement note also requires `type`, `market`
-and a `government` that resolves to a polity.
+has short `data.notes`; a populated settlement note also requires `data.type`,
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
+If the settlement sum falls outside the tolerance, list the settlements or
+record an owner exception for that polity.
 
 ```yaml
 type: affiliation
@@ -260,6 +262,23 @@ See [polity settlement tables](reference/format-details.md#a-politys-settlements
 A being states its gender, frame and appearance in words from one closed vocabulary: `data.gender`, `data.frame`, and `data.appearance.eye_color`, `hair_color`, `skin_color`, `complexion` and the head and face features `hair_texture`, `hair_style`, `facial_hair`, `face_shape`, `nose`, `brow` and `mouth` each take only the words listed for them, and any other value is an error at the value. `complexion` is a list, required once a being states an appearance. `data.appearance.extra_features` lists the being's visible physical marks, each a short plain description of one, and an entry stating a colour, a skin condition or anything that is not a mark is an error. `data.portrait.prompt` holds the text a portrait was generated from, and a being without a portrait states no `portrait` block. See [a being's look](reference/format-details.md#a-beings-look) and [a being's portrait](reference/format-details.md#a-beings-portrait).
 
 A culture note may state what its people look like in `data.appearanceProfile`: weighted words for frame, eyes, hair, skin, complexion and, optionally, hair texture and style, facial hair, face shape, nose, brow and mouth, and height ranges by gender, all from the same vocabulary. A culture's tongue is its language, and the note `languages:` names for that language may state `data.names`: the patterns its speakers' names are built by and the lists each part is drawn from. `package-build npc new` writes a complete npc note from a spec of a culture and a gender, drawing the name from those lists and everything else the spec leaves out from the profile. See [appearance profiles](reference/format-details.md#appearance-profiles), [name lists](reference/format-details.md#name-lists) and [the command](commands.md#package-build-npc-new).
+
+A being lists the items it has, and a culture lore note the items its people
+typically carry, in `data.items`. An entry is `{key?, model?, name?, img?, kind?,
+chance?, system?: {subType?, quantity?, weight?}}`; with `model` alone, an item
+note supplies the rest, and without `model` the entry states `name` and `kind`
+and defines the item inline. `kind` is one of `weapon`, `armor`, `clothing`,
+`container`, `miscgear`, `projectile`, `concoction`, `disease`, `poisontoxin`,
+`maladiction`, `physcond`, `quirk`, `disorder`, `privation`, `fear`, `language`,
+`script`, `arcaneability`, `spell`, `psychicgift`, `incantation` or
+`divination`. A `model` must resolve to an item note of the note's own package or
+of a package it requires as a module, directly or through the modules those
+require, and never to a game system's item at any level. A `key` is unique
+within `data.items` and within each system's `items` list. An item note
+(`weapongear`, `armorgear`, `containergear`, `miscgear`, `projectilegear`,
+`concoctiongear`, `affliction`, `trauma` or `mysticalability`) states the same
+shape in its `data` block with `kind` required. See
+[items in a note](reference/format-details.md#items-in-a-note).
 
 A culture may name its larger cultures in `data.parents`. Each entry names a
 culture lore note. An omitted `data.appearanceProfile` inherits through those

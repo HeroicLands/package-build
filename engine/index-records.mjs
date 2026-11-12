@@ -181,7 +181,21 @@ export function isAssetRecord(record) {
  * @returns {boolean} True for a note's own record.
  */
 export function isNoteRecord(record) {
-    return !record?.documents && !isAssetRecord(record);
+    return !record?.documents && !isAssetRecord(record) && !isPackageRecord(record);
+}
+
+/**
+ * Whether a record is the package's own: the one record that states the modules
+ * the package requires, once for the whole package.
+ *
+ * It describes no note and no file, so a pass enumerating notes skips it. A
+ * package that requires no module publishes none.
+ *
+ * @param {Record<string, any>} record - An index record.
+ * @returns {boolean} True for a package's record.
+ */
+export function isPackageRecord(record) {
+    return Array.isArray(record?.packageModules);
 }
 
 /**

@@ -117,6 +117,7 @@ import { asciiName } from "./name-sort.mjs";
 
 export { asciiName };
 import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
+import { requiredModulePackages } from "./item-entries.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
@@ -1126,6 +1127,8 @@ export function resolveCultures(
  *   records, the address context and the configured kinds). Not consulted
  *   for the records when `syntax` is given. Every pass that reads the whole
  *   tree runs whatever the cache holds.
+ * @param {readonly string[]} [options.requiredModules] - The content packages
+ *   this package requires as modules, published on the package's own record.
  * @returns {Array<Record<string, any>>} The records, in a total order that does
  *   not depend on directory-read order.
  */
@@ -1150,6 +1153,7 @@ export function collectContentIndex(
         nameTypes,
         timings,
         cache,
+        requiredModules = [],
     },
 ) {
     // Each phase runs until the next begins; the caller's stage closes the last.
@@ -1428,6 +1432,12 @@ export function collectContentIndex(
     // about the content, and the artifact is meant to be byte-identical across
     // two runs over an unchanged tree. Collected above, ahead of the notes —
     // see `resolveRole` — rather than walked a second time here.
+    // The package publishes the modules it requires once, so a package listing
+    // its items follows the chain of required modules from the index whether or
+    // not an intermediate module holds item notes.
+    if (requiredModules.length)
+        records.push({ package: contentPackage, packageModules: [...requiredModules].sort() });
+
     phase("index order");
     for (const record of assetRecords) {
         records.push(/** @type {Record<string, any>} */ (sortKeysDeep(record)));
@@ -1632,6 +1642,7 @@ export function indexRecordsFor({
         nameTypes: nameTypes ?? resolved.itemTypes,
         timings,
         cache,
+        requiredModules: requiredModulePackages(resolved),
     });
 }
 

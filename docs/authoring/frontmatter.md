@@ -81,6 +81,23 @@ A being's `data.archetypes` names the roles it can fill in an adventure. Choose 
 
 A being's look is stated in a closed vocabulary. `data.gender` and `data.frame` take one word each, as do `data.appearance.eye_color`, `hair_color`, `skin_color`, `hair_texture`, `hair_style`, `facial_hair`, `face_shape`, `nose`, `brow` and `mouth`; `data.appearance.complexion` takes a list of words, `[]` where no condition is established, and is required once a being states an appearance. A value outside a field's list — a variant spelling such as `gray`, a word from another field's list, or an empty string — is an error naming the words the field takes. Leave a field out when the fact is unrecorded. `data.appearance.extra_features` lists the visible physical marks no word covers, each a short plain description of one, such as `a burn scar on the left forearm`. `data.portrait.prompt` holds the exact text a being's portrait was generated from; a being with no portrait states no `portrait` block. The [look reference](../reference/format-details.md#a-beings-look) gives every word and what it means.
 
+A being lists the items it has, and a culture lore note the items its people
+typically carry, in `data.items`. An entry is `{key?, model?, name?, img?, kind?,
+chance?, system?: {subType?, quantity?, weight?}}`; with `model` alone, an item
+note supplies the rest, and without `model` the entry states `name` and `kind`
+and defines the item inline. `kind` is one of `weapon`, `armor`, `clothing`,
+`container`, `miscgear`, `projectile`, `concoction`, `disease`, `poisontoxin`,
+`maladiction`, `physcond`, `quirk`, `disorder`, `privation`, `fear`, `language`,
+`script`, `arcaneability`, `spell`, `psychicgift`, `incantation` or
+`divination`. A `model` must resolve to an item note of the note's own package or
+of a package it requires as a module, directly or through the modules those
+require, and never to a game system's item at any level. A `key` is unique
+within `data.items` and within each system's `items` list. An item note
+(`weapongear`, `armorgear`, `containergear`, `miscgear`, `projectilegear`,
+`concoctiongear`, `affliction`, `trauma` or `mysticalability`) states the same
+shape in its `data` block with `kind` required. See
+[items in a note](../reference/format-details.md#items-in-a-note).
+
 A `sohl:`, `hm3:` or `dnd5e:` block holds values for that Foundry system. Its `system:` child contains values sent to the system's DataModel. The system block can override shared routing and art where the declared field permits it. `data.pack` and `data.packFolder` are shared routes; a system-specific route belongs in that system block. The [detailed mapping reference](../reference/format-details.md#mappings-every-type-shares) and [system-block explanation](../reference/format-details.md#frontmatter-has-three-regions) cover precedence and emitted fields.
 
 One body describes the subject for both systems. A being's `{#appearance}` and `{#dossier}` sections feed SoHL Actor `system.appearance` and `system.dossier`, and HM3 Actor `system.description` and `system.biography`. An Item's `{#description}` page becomes a shared JournalEntryPage. Its resolved `@UUID[...]` pointer is stored in SoHL Item `system.docHtml` and HM3 Item `system.description`. An Item with no `{#description}` anchor uses its first page. Other H1 pages remain linkable.

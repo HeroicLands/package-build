@@ -7,6 +7,7 @@ types:
             - templatePriority
             - archetypes
             - occupation
+            - items
             - lore
             - culture
             - homes
@@ -83,6 +84,10 @@ types:
     affliction:
         data:
             - templatePriority
+            - kind
+            - name
+            - img
+            - system
             - transmission
             - outcome
             - healingRate
@@ -101,6 +106,10 @@ types:
     armorgear:
         data:
             - templatePriority
+            - kind
+            - name
+            - img
+            - system
             - weight
             - value
             - quality
@@ -120,6 +129,10 @@ types:
     concoctiongear:
         data:
             - templatePriority
+            - kind
+            - name
+            - img
+            - system
             - weight
             - value
             - quality
@@ -137,6 +150,10 @@ types:
     containergear:
         data:
             - templatePriority
+            - kind
+            - name
+            - img
+            - system
             - weight
             - value
             - quality
@@ -149,6 +166,10 @@ types:
     miscgear:
         data:
             - templatePriority
+            - kind
+            - name
+            - img
+            - system
             - weight
             - value
             - quality
@@ -178,6 +199,10 @@ types:
     mysticalability:
         data:
             - templatePriority
+            - kind
+            - name
+            - img
+            - system
             - assocSkill
             - assocAffiliation
             - masteryLevel
@@ -198,6 +223,10 @@ types:
     projectilegear:
         data:
             - templatePriority
+            - kind
+            - name
+            - img
+            - system
             - weight
             - value
             - quality
@@ -257,6 +286,10 @@ types:
     trauma:
         data:
             - templatePriority
+            - kind
+            - name
+            - img
+            - system
             - healingCheckDurationFormula
             - healingCheckDurationBase
             - bloodLossAdvanceDurationFormula
@@ -278,6 +311,10 @@ types:
     weapongear:
         data:
             - templatePriority
+            - kind
+            - name
+            - img
+            - system
             - weight
             - value
             - quality
@@ -300,6 +337,7 @@ types:
             - form
             - subjects
             - events
+            - items
             - appearanceProfile
             - glossary
         subTypes:

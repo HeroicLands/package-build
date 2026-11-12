@@ -4744,6 +4744,17 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `templatePriority`                 | `number`                                       | Template priority, _null_ = not a template                                                                                                            |
 | `archetypes`                       | `Archetype[]`                                  | What sort of character this is. **Always an array** — character and npc require at least one; creature may omit it or write `[]`; `null` is an error. |
 | `occupation`                       | `string`                                       | Name of the character's occupation                                                                                                                    |
+| `items`                            | `Item[]`                                       | The items the being has — see [items in a note](#items-in-a-note)                                                                                     |
+| `items[].key`                      | `string`                                       | The entry's name among the note's items; unique within `data.items`                                                                                   |
+| `items[].model`                    | `Address`                                      | An item note this entry is an instance of, never a game system's                                                                                      |
+| `items[].name`                     | `string`                                       | The item's name; required with `kind` when there is no `model`                                                                                        |
+| `items[].img`                      | `Address`                                      | The item's image, an `icon` or `image` Address                                                                                                        |
+| `items[].kind`                     | one of the item kinds                          | What sort of thing the item is; required with `name` when there is no `model`                                                                         |
+| `items[].chance`                   | `number` from 0 to 100                         | On a culture, the percent chance that the item is drawn                                                                                               |
+| `items[].system`                   | `{subType, quantity, weight}`                  | Numbers about the item                                                                                                                                |
+| `items[].system.subType`           | `string`                                       | The item's own genre within its kind                                                                                                                  |
+| `items[].system.quantity`          | `number`                                       | How many of the item there are                                                                                                                        |
+| `items[].system.weight`            | `number`                                       | What the item weighs                                                                                                                                  |
 | `lore`                             | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                                                                      |
 | `culture`                          | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
 | `homes`                            | `Address[]`                                    | Place the being calls home                                                                                                                            |
@@ -5169,6 +5180,88 @@ gender.
 `package-build npc new` refuses a culture with no resolved profile, naming the
 culture note. A culture may obtain the complete profile from its
 [parents](#culture-parents-and-inherited-fields).
+
+#### Items in a note
+
+**A note lists the items it has or typically carries in `data.items`.** A
+`being` lists what it has, and a `culture` lore note lists what its people
+typically carry. Gear is a thing in the world and only its numbers belong to a
+game system, so the list names the setting's own items and states nothing about
+any one system. `sohl.items` and `hm3.items` stay the lists of a system's own
+entries, such as skills and attributes.
+
+Each entry is a map of these keys, and none is required except as the table says:
+
+| Key               | Values                 | Meaning                                                                                              |
+| ----------------- | ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `key`             | `string`               | The entry's name among the note's items; unique within `data.items`                                  |
+| `model`           | `Address`              | An item note this entry is an instance of; every other key overrides what that note supplies         |
+| `name`            | `string`               | The item's name; required with `kind` when there is no `model`                                       |
+| `img`             | `Address`              | The item's image, an `icon` or `image` Address                                                       |
+| `kind`            | one of the item kinds  | What sort of thing the item is; required with `name` when there is no `model`                        |
+| `chance`          | `number` from 0 to 100 | On a culture, the percent chance that the item is drawn, each item on its own; it does not mean mass |
+| `system.subType`  | `string`               | The item's own genre within its kind                                                                 |
+| `system.quantity` | `number`               | How many of the item there are                                                                       |
+| `system.weight`   | `number`               | What the item weighs                                                                                 |
+
+An entry with `model` alone is the normal case: the item note holds the name,
+image and numbers. An entry without `model` defines an item inline, and is part
+of the setting because it is written in a note of the setting.
+
+```yaml
+data:
+  items:
+    - key: blade
+      model: weapongear-longsword
+    - key: coin
+      name: Silver coin
+      kind: miscgear
+      system: { quantity: 12 }
+```
+
+**The item kinds** are `weapon`, `armor`, `clothing`, `container`, `miscgear`,
+`projectile`, `concoction`, `disease`, `poisontoxin`, `maladiction`, `physcond`,
+`quirk`, `disorder`, `privation`, `fear`, `language`, `script`, `arcaneability`,
+`spell`, `psychicgift`, `incantation` and `divination`. A kind sorts an item for
+the setting. It is not a Foundry field, has no mapping to a system's item types,
+and is ignored in every `<system>.items` entry.
+
+**An item note states its kind.** The gear, affliction, trauma and mystical
+ability types (`weapongear`, `armorgear`, `containergear`, `miscgear`,
+`projectilegear`, `concoctiongear`, `affliction`, `trauma` and `mysticalability`)
+carry the same keys in `data` as an entry does: `kind` is required, and `name`,
+`img` and `system` (`subType`, `quantity`, `weight`) are optional. The note's
+`sohl` and `hm3` blocks hold each system's own `type` and fields.
+
+**The Address rule decides what `model` may name.** The Address must resolve to
+an item note of this package or of a package this package requires as a module,
+directly or through the modules those require (`relationships.requires` entries
+whose `type` is `module`). A game system is never reachable, at any level: an
+item defined by a system is refused, and so is an item of a module that is
+reached only through a system. A package publishes the modules it requires once, on its own index record, and
+`package-build deps fetch` fetches the index of each module reached through
+those records, transitively, using the manifest URL in the publishing package's
+`relationships.requires`; no declaration of the transitively reached module is
+needed. A module that has not been fetched resolves nothing, and the finding
+names `deps fetch`. Write
+the note Address (`weapongear-longsword`, `kethira-note-weapongear-longsword`);
+the `note` system segment is the only one a `model` accepts.
+
+**Each `key` is used once.** Within `data.items`, and within each system's own
+`items` list, a `key` names one entry. The same `key` may appear once in
+`data.items` and once in each system's list, which is how a system entry is tied
+to the entry it adds to.
+
+Findings, each at the key at fault with a message that says how to correct it:
+
+- an entry without `model` that lacks `name` or `kind`;
+- a `kind` outside the list above, a `chance` outside 0 to 100, a `quantity` or
+  `weight` that is not a number;
+- a `model` that is not an Address, names a system's document, a system, a
+  package that is not required, a type that is not an item type, or no note;
+- a `key` used twice in one list;
+- an item note without `data.kind`;
+- `data.items` on a lore note that is not a culture.
 
 #### Name lists
 
@@ -6070,20 +6163,27 @@ Represents an affliction.
 - divine: Transmission through divine means
 - spirit: Transmission through spirit means
 
-| `data` property               | Values              | Description                                                                               |
-| ----------------------------- | ------------------- | ----------------------------------------------------------------------------------------- |
-| `templatePriority`            | `number`            | Template priority, _null_ = not a template                                                |
-| `transmission`                | `TransmissionTypes` | Method of transmission                                                                    |
-| `outcome`                     | `death \| cured`    | Result after affliction has run its course                                                |
-| `healingRate`                 | `number`            | Likelihood of positive outcome of healing test                                            |
-| `contagionIndex`              | `number`            | how contagious the disease is                                                             |
-| `outcomeTraumas`              | `SafeExpression`    | Expression returning traumas that result from affliction recovery                         |
-| `onsetDurationFormula`        | `RollFormula`       | Formula to calculate duration until onset after contracting affliction                    |
-| `onsetDurationBase`           | `number`            | That duration in seconds, stated outright instead of rolled                               |
-| `healingCheckDurationFormula` | `RollFormula`       | Formula to calculate duration until next healing check (measured from last healing check) |
-| `healingCheckDurationBase`    | `number`            | That duration in seconds, stated outright instead of rolled                               |
-| `resolutionDurationFormula`   | `RollFormula`       | Formula to calculate duration after onset to resolution                                   |
-| `resolutionDurationBase`      | `number`            | That duration in seconds, stated outright instead of rolled                               |
+| `data` property               | Values                                    | Description                                                                                           |
+| ----------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `templatePriority`            | `number`                                  | Template priority, _null_ = not a template                                                            |
+| `kind`                        | one of the [item kinds](#items-in-a-note) | Required. What sort of item this is, for the setting; it reaches no game system                       |
+| `name`                        | `string`                                  | The item's name when a list entry reads it                                                            |
+| `img`                         | `Address`                                 | The item's image, an `icon` or `image` Address                                                        |
+| `system`                      | `{subType, quantity, weight}`             | Numbers about the item shared by every game system: `subType` a word, `quantity` and `weight` numbers |
+| `system.subType`              | `string`                                  | The item's own genre within its kind                                                                  |
+| `system.quantity`             | `number`                                  | How many of the item there are                                                                        |
+| `system.weight`               | `number`                                  | What the item weighs                                                                                  |
+| `transmission`                | `TransmissionTypes`                       | Method of transmission                                                                                |
+| `outcome`                     | `death \| cured`                          | Result after affliction has run its course                                                            |
+| `healingRate`                 | `number`                                  | Likelihood of positive outcome of healing test                                                        |
+| `contagionIndex`              | `number`                                  | how contagious the disease is                                                                         |
+| `outcomeTraumas`              | `SafeExpression`                          | Expression returning traumas that result from affliction recovery                                     |
+| `onsetDurationFormula`        | `RollFormula`                             | Formula to calculate duration until onset after contracting affliction                                |
+| `onsetDurationBase`           | `number`                                  | That duration in seconds, stated outright instead of rolled                                           |
+| `healingCheckDurationFormula` | `RollFormula`                             | Formula to calculate duration until next healing check (measured from last healing check)             |
+| `healingCheckDurationBase`    | `number`                                  | That duration in seconds, stated outright instead of rolled                                           |
+| `resolutionDurationFormula`   | `RollFormula`                             | Formula to calculate duration after onset to resolution                                               |
+| `resolutionDurationBase`      | `number`                                  | That duration in seconds, stated outright instead of rolled                                           |
 
 If `sohl` is present, this becomes an `affliction` item.
 
@@ -6140,16 +6240,23 @@ for traumas produced by the affliction's outcome. The optional
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values           | Description                                                                   |
-| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
-| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
-| `weight`           | `number`         | Gear weight                                                                   |
-| `value`            | `number`         | Gear value                                                                    |
-| `quality`          | `number`         | Gear quality                                                                  |
-| `durability`       | `number`         | Gear durability                                                               |
-| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
-| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
-| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
+| `data` property    | Values                                    | Description                                                                                           |
+| ------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `templatePriority` | `number`                                  | Template priority, _null_ = not a template                                                            |
+| `kind`             | one of the [item kinds](#items-in-a-note) | Required. What sort of item this is, for the setting; it reaches no game system                       |
+| `name`             | `string`                                  | The item's name when a list entry reads it                                                            |
+| `img`              | `Address`                                 | The item's image, an `icon` or `image` Address                                                        |
+| `system`           | `{subType, quantity, weight}`             | Numbers about the item shared by every game system: `subType` a word, `quantity` and `weight` numbers |
+| `system.subType`   | `string`                                  | The item's own genre within its kind                                                                  |
+| `system.quantity`  | `number`                                  | How many of the item there are                                                                        |
+| `system.weight`    | `number`                                  | What the item weighs                                                                                  |
+| `weight`           | `number`                                  | Gear weight                                                                                           |
+| `value`            | `number`                                  | Gear value                                                                                            |
+| `quality`          | `number`                                  | Gear quality                                                                                          |
+| `durability`       | `number`                                  | Gear durability                                                                                       |
+| `made`             | an event Address                          | The event in which it was made — `lore-forging`, or `place-ironfells#raising`                         |
+| `lost`             | an event Address                          | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`                              |
+| `unique`           | `boolean`                                 | `true` for a one-of-a-kind item; its note links a place or a being                                    |
 
 If a `sohl` property is present, a SoHL item of type "armorgear" is created.
 
@@ -6212,19 +6319,26 @@ if a `sohl` property is present, a SoHL item of type "attribute" is created.
 - exotic: A complex and valuable concoction, often a mixture of different herbs and/or chemicals, with medicinal or other unique properties or effects, but not magical in nature.
 - elixir: An arcane alchemical concoction of great power.
 
-| `data` property    | Values                          | Description                                                                   |
-| ------------------ | ------------------------------- | ----------------------------------------------------------------------------- |
-| `templatePriority` | `number`                        | Template priority, _null_ = not a template                                    |
-| `weight`           | `number`                        | Gear weight                                                                   |
-| `value`            | `number`                        | Gear value                                                                    |
-| `quality`          | `number`                        | Gear quality                                                                  |
-| `durability`       | `number`                        | Gear durability                                                               |
-| `made`             | an event Address                | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
-| `lost`             | an event Address                | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
-| `unique`           | `boolean`                       | `true` for a one-of-a-kind item; its note links a place or a being            |
-| `quantity`         | `number`                        | Gear quantity (default: 1)                                                    |
-| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)                               |
-| `strength`         | `number`                        | Strength: higher the number, greater the strength                             |
+| `data` property    | Values                                    | Description                                                                                           |
+| ------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `templatePriority` | `number`                                  | Template priority, _null_ = not a template                                                            |
+| `kind`             | one of the [item kinds](#items-in-a-note) | Required. What sort of item this is, for the setting; it reaches no game system                       |
+| `name`             | `string`                                  | The item's name when a list entry reads it                                                            |
+| `img`              | `Address`                                 | The item's image, an `icon` or `image` Address                                                        |
+| `system`           | `{subType, quantity, weight}`             | Numbers about the item shared by every game system: `subType` a word, `quantity` and `weight` numbers |
+| `system.subType`   | `string`                                  | The item's own genre within its kind                                                                  |
+| `system.quantity`  | `number`                                  | How many of the item there are                                                                        |
+| `system.weight`    | `number`                                  | What the item weighs                                                                                  |
+| `weight`           | `number`                                  | Gear weight                                                                                           |
+| `value`            | `number`                                  | Gear value                                                                                            |
+| `quality`          | `number`                                  | Gear quality                                                                                          |
+| `durability`       | `number`                                  | Gear durability                                                                                       |
+| `made`             | an event Address                          | The event in which it was made — `lore-forging`, or `place-ironfells#raising`                         |
+| `lost`             | an event Address                          | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`                              |
+| `unique`           | `boolean`                                 | `true` for a one-of-a-kind item; its note links a place or a being                                    |
+| `quantity`         | `number`                                  | Gear quantity (default: 1)                                                                            |
+| `potency`          | `na \| mild \| strong \| great`           | Concoction Potency (mundane/exotic concoctions)                                                       |
+| `strength`         | `number`                                  | Strength: higher the number, greater the strength                                                     |
 
 if a `sohl` property is present, a SoHL item of type "concoctiongear" is created.
 
@@ -6243,17 +6357,24 @@ if a `sohl` property is present, a SoHL item of type "concoctiongear" is created
 
 Note: `data.quantity` may not be specified; quantity is always set to 1.
 
-| `data` property    | Values           | Description                                                                   |
-| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
-| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
-| `weight`           | `number`         | Gear weight                                                                   |
-| `value`            | `number`         | Gear value                                                                    |
-| `quality`          | `number`         | Gear quality                                                                  |
-| `durability`       | `number`         | Gear durability                                                               |
-| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
-| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
-| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
-| `capacity`         | `number`         | HM3 container capacity (in lbs)                                               |
+| `data` property    | Values                                    | Description                                                                                           |
+| ------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `templatePriority` | `number`                                  | Template priority, _null_ = not a template                                                            |
+| `kind`             | one of the [item kinds](#items-in-a-note) | Required. What sort of item this is, for the setting; it reaches no game system                       |
+| `name`             | `string`                                  | The item's name when a list entry reads it                                                            |
+| `img`              | `Address`                                 | The item's image, an `icon` or `image` Address                                                        |
+| `system`           | `{subType, quantity, weight}`             | Numbers about the item shared by every game system: `subType` a word, `quantity` and `weight` numbers |
+| `system.subType`   | `string`                                  | The item's own genre within its kind                                                                  |
+| `system.quantity`  | `number`                                  | How many of the item there are                                                                        |
+| `system.weight`    | `number`                                  | What the item weighs                                                                                  |
+| `weight`           | `number`                                  | Gear weight                                                                                           |
+| `value`            | `number`                                  | Gear value                                                                                            |
+| `quality`          | `number`                                  | Gear quality                                                                                          |
+| `durability`       | `number`                                  | Gear durability                                                                                       |
+| `made`             | an event Address                          | The event in which it was made — `lore-forging`, or `place-ironfells#raising`                         |
+| `lost`             | an event Address                          | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`                              |
+| `unique`           | `boolean`                                 | `true` for a one-of-a-kind item; its note links a place or a being                                    |
+| `capacity`         | `number`                                  | HM3 container capacity (in lbs)                                                                       |
 
 if a `sohl` property is present, a SoHL item of type "containergear" is created.
 
@@ -6271,17 +6392,24 @@ SoHL reads a container’s capacity in pounds from `sohl.maxCapacity`.
 
 ### type: miscgear
 
-| `data` property    | Values           | Description                                                                   |
-| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
-| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
-| `weight`           | `number`         | Gear weight                                                                   |
-| `value`            | `number`         | Gear value                                                                    |
-| `quality`          | `number`         | Gear quality                                                                  |
-| `durability`       | `number`         | Gear durability                                                               |
-| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
-| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
-| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
-| `quantity`         | `number`         | HM3 gear quantity (default: 1)                                                |
+| `data` property    | Values                                    | Description                                                                                           |
+| ------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `templatePriority` | `number`                                  | Template priority, _null_ = not a template                                                            |
+| `kind`             | one of the [item kinds](#items-in-a-note) | Required. What sort of item this is, for the setting; it reaches no game system                       |
+| `name`             | `string`                                  | The item's name when a list entry reads it                                                            |
+| `img`              | `Address`                                 | The item's image, an `icon` or `image` Address                                                        |
+| `system`           | `{subType, quantity, weight}`             | Numbers about the item shared by every game system: `subType` a word, `quantity` and `weight` numbers |
+| `system.subType`   | `string`                                  | The item's own genre within its kind                                                                  |
+| `system.quantity`  | `number`                                  | How many of the item there are                                                                        |
+| `system.weight`    | `number`                                  | What the item weighs                                                                                  |
+| `weight`           | `number`                                  | Gear weight                                                                                           |
+| `value`            | `number`                                  | Gear value                                                                                            |
+| `quality`          | `number`                                  | Gear quality                                                                                          |
+| `durability`       | `number`                                  | Gear durability                                                                                       |
+| `made`             | an event Address                          | The event in which it was made — `lore-forging`, or `place-ironfells#raising`                         |
+| `lost`             | an event Address                          | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`                              |
+| `unique`           | `boolean`                                 | `true` for a one-of-a-kind item; its note links a place or a being                                    |
+| `quantity`         | `number`                                  | HM3 gear quantity (default: 1)                                                                        |
 
 if a `sohl` property is present, a SoHL item of type "miscgear" is created.
 
@@ -6352,15 +6480,22 @@ if a `sohl` property is present, a SoHL item of type "mystery" is created.
 - alchemy: The preparation of substances imbued with mystical potency.
 - divination: The practice of obtaining hidden knowledge or foreknowledge by mystical means.
 
-| `data` property    | Values    | Description                                                    |
-| ------------------ | --------- | -------------------------------------------------------------- |
-| `templatePriority` | `number`  | Template priority, _null_ = not a template                     |
-| `assocSkill`       | `Address` | Associated skill                                               |
-| `assocAffiliation` | `Address` | Associated affiliation                                         |
-| `masteryLevel`     | `number`  | Mastery Level                                                  |
-| `level`            | `number`  | Magnitude of the mystery                                       |
-| `charges.value`    | `number`  | Current number of charges available, _null_ = charges not used |
-| `charges.max`      | `number`  | Maximum number of charges, _null_ = no maximum                 |
+| `data` property    | Values                                    | Description                                                                                           |
+| ------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `templatePriority` | `number`                                  | Template priority, _null_ = not a template                                                            |
+| `kind`             | one of the [item kinds](#items-in-a-note) | Required. What sort of item this is, for the setting; it reaches no game system                       |
+| `name`             | `string`                                  | The item's name when a list entry reads it                                                            |
+| `img`              | `Address`                                 | The item's image, an `icon` or `image` Address                                                        |
+| `system`           | `{subType, quantity, weight}`             | Numbers about the item shared by every game system: `subType` a word, `quantity` and `weight` numbers |
+| `system.subType`   | `string`                                  | The item's own genre within its kind                                                                  |
+| `system.quantity`  | `number`                                  | How many of the item there are                                                                        |
+| `system.weight`    | `number`                                  | What the item weighs                                                                                  |
+| `assocSkill`       | `Address`                                 | Associated skill                                                                                      |
+| `assocAffiliation` | `Address`                                 | Associated affiliation                                                                                |
+| `masteryLevel`     | `number`                                  | Mastery Level                                                                                         |
+| `level`            | `number`                                  | Magnitude of the mystery                                                                              |
+| `charges.value`    | `number`                                  | Current number of charges available, _null_ = charges not used                                        |
+| `charges.max`      | `number`                                  | Maximum number of charges, _null_ = no maximum                                                        |
 
 if a `sohl` property is present, a SoHL item of type "mysticalability" is created.
 
@@ -6391,17 +6526,24 @@ the item’s base mastery and level from `sohl.masteryLevelBase` and
 - dart
 - other
 
-| `data` property    | Values           | Description                                                                   |
-| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
-| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
-| `weight`           | `number`         | Gear weight                                                                   |
-| `value`            | `number`         | Gear value                                                                    |
-| `quality`          | `number`         | Gear quality                                                                  |
-| `durability`       | `number`         | Gear durability                                                               |
-| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
-| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
-| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
-| `quantity`         | `number`         | HM3 gear quantity (default: 1)                                                |
+| `data` property    | Values                                    | Description                                                                                           |
+| ------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `templatePriority` | `number`                                  | Template priority, _null_ = not a template                                                            |
+| `kind`             | one of the [item kinds](#items-in-a-note) | Required. What sort of item this is, for the setting; it reaches no game system                       |
+| `name`             | `string`                                  | The item's name when a list entry reads it                                                            |
+| `img`              | `Address`                                 | The item's image, an `icon` or `image` Address                                                        |
+| `system`           | `{subType, quantity, weight}`             | Numbers about the item shared by every game system: `subType` a word, `quantity` and `weight` numbers |
+| `system.subType`   | `string`                                  | The item's own genre within its kind                                                                  |
+| `system.quantity`  | `number`                                  | How many of the item there are                                                                        |
+| `system.weight`    | `number`                                  | What the item weighs                                                                                  |
+| `weight`           | `number`                                  | Gear weight                                                                                           |
+| `value`            | `number`                                  | Gear value                                                                                            |
+| `quality`          | `number`                                  | Gear quality                                                                                          |
+| `durability`       | `number`                                  | Gear durability                                                                                       |
+| `made`             | an event Address                          | The event in which it was made — `lore-forging`, or `place-ironfells#raising`                         |
+| `lost`             | an event Address                          | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`                              |
+| `unique`           | `boolean`                                 | `true` for a one-of-a-kind item; its note links a place or a being                                    |
+| `quantity`         | `number`                                  | HM3 gear quantity (default: 1)                                                                        |
 
 if a `sohl` property is present, a SoHL item of type "projectilegear" is created.
 
@@ -7455,15 +7597,22 @@ SoHL reads a skill’s base mastery from `sohl.masteryLevelBase`.
 - shock: A prolonged physiological state of shock lasting hours or days, following severe trauma or blood loss — distinct from the transient combat-shock states.
 - coma: A prolonged state of unconsciousness.
 
-| `data` property                   | Values        | Description                                                            |
-| --------------------------------- | ------------- | ---------------------------------------------------------------------- |
-| `templatePriority`                | `number`      | Template priority, _null_ = not a template                             |
-| `healingCheckDurationFormula`     | `RollFormula` | Formula for the interval between healing checks                        |
-| `healingCheckDurationBase`        | `number`      | That interval in seconds, stated outright instead of rolled            |
-| `bloodLossAdvanceDurationFormula` | `RollFormula` | Formula for the interval between blood-loss advances                   |
-| `bloodLossAdvanceDurationBase`    | `number`      | That interval in seconds. Setting it is what makes the wound bleed     |
-| `courseDurationFormula`           | `RollFormula` | Formula for the interval between course tests — shock, coma, infection |
-| `courseDurationBase`              | `number`      | That interval in seconds, stated outright instead of rolled            |
+| `data` property                   | Values                                    | Description                                                                                           |
+| --------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `templatePriority`                | `number`                                  | Template priority, _null_ = not a template                                                            |
+| `kind`                            | one of the [item kinds](#items-in-a-note) | Required. What sort of item this is, for the setting; it reaches no game system                       |
+| `name`                            | `string`                                  | The item's name when a list entry reads it                                                            |
+| `img`                             | `Address`                                 | The item's image, an `icon` or `image` Address                                                        |
+| `system`                          | `{subType, quantity, weight}`             | Numbers about the item shared by every game system: `subType` a word, `quantity` and `weight` numbers |
+| `system.subType`                  | `string`                                  | The item's own genre within its kind                                                                  |
+| `system.quantity`                 | `number`                                  | How many of the item there are                                                                        |
+| `system.weight`                   | `number`                                  | What the item weighs                                                                                  |
+| `healingCheckDurationFormula`     | `RollFormula`                             | Formula for the interval between healing checks                                                       |
+| `healingCheckDurationBase`        | `number`                                  | That interval in seconds, stated outright instead of rolled                                           |
+| `bloodLossAdvanceDurationFormula` | `RollFormula`                             | Formula for the interval between blood-loss advances                                                  |
+| `bloodLossAdvanceDurationBase`    | `number`                                  | That interval in seconds. Setting it is what makes the wound bleed                                    |
+| `courseDurationFormula`           | `RollFormula`                             | Formula for the interval between course tests — shock, coma, infection                                |
+| `courseDurationBase`              | `number`                                  | That interval in seconds, stated outright instead of rolled                                           |
 
 if a `sohl` property is present, a SoHL item of type "trauma" is created.
 
@@ -7496,16 +7645,23 @@ build.
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values           | Description                                                                   |
-| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
-| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
-| `weight`           | `number`         | Gear weight                                                                   |
-| `value`            | `number`         | Gear value                                                                    |
-| `quality`          | `number`         | Gear quality                                                                  |
-| `durability`       | `number`         | Gear durability                                                               |
-| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
-| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
-| `unique`           | `boolean`        | `true` for a one-of-a-kind item; its note links a place or a being            |
+| `data` property    | Values                                    | Description                                                                                           |
+| ------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `templatePriority` | `number`                                  | Template priority, _null_ = not a template                                                            |
+| `kind`             | one of the [item kinds](#items-in-a-note) | Required. What sort of item this is, for the setting; it reaches no game system                       |
+| `name`             | `string`                                  | The item's name when a list entry reads it                                                            |
+| `img`              | `Address`                                 | The item's image, an `icon` or `image` Address                                                        |
+| `system`           | `{subType, quantity, weight}`             | Numbers about the item shared by every game system: `subType` a word, `quantity` and `weight` numbers |
+| `system.subType`   | `string`                                  | The item's own genre within its kind                                                                  |
+| `system.quantity`  | `number`                                  | How many of the item there are                                                                        |
+| `system.weight`    | `number`                                  | What the item weighs                                                                                  |
+| `weight`           | `number`                                  | Gear weight                                                                                           |
+| `value`            | `number`                                  | Gear value                                                                                            |
+| `quality`          | `number`                                  | Gear quality                                                                                          |
+| `durability`       | `number`                                  | Gear durability                                                                                       |
+| `made`             | an event Address                          | The event in which it was made — `lore-forging`, or `place-ironfells#raising`                         |
+| `lost`             | an event Address                          | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`                              |
+| `unique`           | `boolean`                                 | `true` for a one-of-a-kind item; its note links a place or a being                                    |
 
 if a `sohl` property is present, a SoHL item of type "weapongear" is created,
 carrying every strike mode the weapon has — melee and missile alike — on
@@ -7623,6 +7779,17 @@ not a different cultural identity. See
 | `subjects`                            | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                   |
 | `parents`                             | `Address[]`                                                                   | `culture` only: the larger cultures this one belongs to; each target is a culture lore note — see [culture parents](#culture-parents-and-inherited-fields)   |
 | `events`                              | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                |
+| `items`                               | `Item[]`                                                                      | `culture` only: the items its people typically carry, each with an optional `chance` — see [items in a note](#items-in-a-note)                               |
+| `items[].key`                         | `string`                                                                      | The entry's name among the note's items; unique within `data.items`                                                                                          |
+| `items[].model`                       | `Address`                                                                     | An item note this entry is an instance of, never a game system's                                                                                             |
+| `items[].name`                        | `string`                                                                      | The item's name; required with `kind` when there is no `model`                                                                                               |
+| `items[].img`                         | `Address`                                                                     | The item's image, an `icon` or `image` Address                                                                                                               |
+| `items[].kind`                        | one of the item kinds                                                         | What sort of thing the item is; required with `name` when there is no `model`                                                                                |
+| `items[].chance`                      | `number` from 0 to 100                                                        | On a culture, the percent chance that the item is drawn                                                                                                      |
+| `items[].system`                      | `{subType, quantity, weight}`                                                 | Numbers about the item                                                                                                                                       |
+| `items[].system.subType`              | `string`                                                                      | The item's own genre within its kind                                                                                                                         |
+| `items[].system.quantity`             | `number`                                                                      | How many of the item there are                                                                                                                               |
+| `items[].system.weight`               | `number`                                                                      | What the item weighs                                                                                                                                         |
 | `appearanceProfile`                   | `{ frame, eye_color, hair_color, skin_color, complexion, height, … }`         | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                     |
 | `appearanceProfile.frame`             | map of `frame` words to positive weights, required                            | How often each frame is drawn                                                                                                                                |
 | `appearanceProfile.eye_color`         | map of `eye_color` words to positive weights, required                        | How often each eye colour is drawn                                                                                                                           |
@@ -8457,11 +8624,13 @@ use the same generated tables.
 `data.territorial_population` counts inhabitants: listed and noted settlements
 throughout its subordinate chain must account for that total within five percent.
 A polity with settlements, a seat, or subordinate polities requires this total.
-Each polity declares at most one superior.
+Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Populations use at most two significant digits. Each settlement
-has short `notes`; a populated settlement note also requires `type`, `market`
-and a `government` that resolves to a polity.
+has short `data.notes`; a populated settlement note also requires `data.type`,
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
+If the settlement sum falls outside the tolerance, list the settlements or
+record an owner exception for that polity.
 
 ```yaml
 type: affiliation

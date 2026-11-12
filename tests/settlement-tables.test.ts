@@ -113,8 +113,12 @@ function fixture(change: (notes: any[]) => void = () => {}, body = "") {
         dispose: () => fs.rmSync(root, { recursive: true, force: true }),
     };
 }
-function checked(change: (notes: any[]) => void, check: (f: ReturnType<typeof fixture>) => void) {
-    const f = fixture(change);
+function checked(
+    change: (notes: any[]) => void,
+    check: (f: ReturnType<typeof fixture>) => void,
+    body = "",
+) {
+    const f = fixture(change, body);
     try {
         check(f);
     } finally {
@@ -177,6 +181,29 @@ describe("polity settlement guards", () => {
                 (f) => expect(f.findings.some((x) => x.message.includes(key))).toBe(true),
             ),
     );
+    it("reports the remedies when a declared total has no inventoried settlements", () => {
+        const fm = {
+            type: "affiliation",
+            subType: "polity",
+            shortcode: "empty",
+            data: { territorial_population: 100 },
+        };
+        const note = {
+            fm,
+            file: "empty.md",
+            raw: "---\ndata:\n  territorial_population: 100\n---\n",
+        };
+        const findings = checkSettlementTables(note, {
+            index: { notes: [note], contentPackage: "sohl" },
+        });
+        expect(
+            findings.some((finding) =>
+                finding.message.includes(
+                    "list the settlements or record an owner exception for that polity",
+                ),
+            ),
+        ).toBe(true);
+    });
     it.each(["Capital", "place-capital"])("rejects a listed and noted identity %s", (name) =>
         checked(
             (n) => {
@@ -198,13 +225,91 @@ describe("polity settlement guards", () => {
                     true,
                 ),
         ));
-    it("accepts a plain holder name containing an address-like fragment", () =>
+    it.each(["Old-place-road", "Inn/Ferry", "North/South Ford", "Place-Capital", "Being-Gate"])(
+        "accepts the plain settlement and holder name %s",
+        (name) =>
+            checked(
+                (n) => {
+                    n[1].data.settlements[0].settlement = name;
+                    n[1].data.settlements[0].holder = name;
+                },
+                (f) => expect(f.findings).toEqual([]),
+            ),
+    );
+    it("rejects an anchored holder address whose note is missing", () =>
         checked(
             (n) => {
-                n[1].data.settlements[0].holder = "Old-place-road";
+                n[1].data.settlements[0].holder = "being-keeper#profile";
             },
-            (f) => expect(f.findings.some((x) => x.message.includes("holder"))).toBe(false),
+            (f) =>
+                expect(f.findings.some((x) => x.message.includes("holder must resolve"))).toBe(
+                    true,
+                ),
         ));
+    it("resolves a polity address carrying a section anchor", () =>
+        checked(
+            (n) => {
+                n[1].data.settlements[0].polity = "affiliation/crown#section";
+            },
+            (f) => expect(f.findings).toEqual([]),
+            "## Section\n\nA described polity.",
+        ));
+    it("reports completeness remedies for a polity with a seat and a subordinate", () =>
+        checked(
+            (n) => {
+                n[1].data.territorial_population = 2000;
+            },
+            (f) =>
+                expect(
+                    f.findings.some((x) =>
+                        x.message.includes(
+                            "list the settlements or record an owner exception for that polity",
+                        ),
+                    ),
+                ).toBe(true),
+        ));
+    it.each(["affiliation/crown", "note-affiliation-crown", "sohl-note-affiliation-crown"])(
+        "accepts the explicit polity address %s",
+        (address) =>
+            checked(
+                (n) => {
+                    n[1].data.settlements[0].polity = address;
+                },
+                (f) =>
+                    expect(f.findings.some((x) => x.message.includes("polity must resolve"))).toBe(
+                        false,
+                    ),
+            ),
+    );
+    it.each(["place/vale", "note-place-vale", "sohl-note-place-vale"])(
+        "rejects the wrong holder address %s",
+        (address) =>
+            checked(
+                (n) => {
+                    n[1].data.settlements[0].holder = address;
+                },
+                (f) =>
+                    expect(f.findings.some((x) => x.message.includes("holder must resolve"))).toBe(
+                        true,
+                    ),
+            ),
+    );
+    it.each([
+        "affiliation/missing",
+        "note-affiliation-missing",
+        "sohl-note-affiliation-missing",
+        "affiliation/missing#section",
+    ])("rejects an unresolved explicit polity address %s", (address) =>
+        checked(
+            (n) => {
+                n[1].data.settlements[0].polity = address;
+            },
+            (f) =>
+                expect(f.findings.some((x) => x.message.includes("polity must resolve"))).toBe(
+                    true,
+                ),
+        ),
+    );
     it.each([
         ["location", "affiliation-crown"],
         ["location", "place-missing"],
@@ -518,5 +623,60 @@ describe("indexed settlement output", () => {
         } finally {
             f.dispose();
         }
+    });
+});
+
+describe("settlement graph reuse", () => {
+    it("builds each graph once for a representative corpus", () => {
+        const polities = Array.from({ length: 211 }, (_, i) => ({
+            package: "sample",
+            type: "affiliation",
+            subType: "polity",
+            shortcode: `p${i}`,
+            data: {},
+        }));
+        const settlements = Array.from({ length: 500 }, (_, i) => ({
+            package: "sample",
+            type: "place",
+            subType: "settlement",
+            shortcode: `s${i}`,
+            data: {
+                government: `affiliation-p${i % polities.length}`,
+                type: "village",
+                population: 100,
+                market: "local",
+                notes: "A settlement.",
+            },
+        }));
+        const places = Array.from({ length: 2289 }, (_, i) => ({
+            package: "sample",
+            type: "place",
+            subType: "region",
+            shortcode: `r${i}`,
+        }));
+        const records = [...polities, ...settlements, ...places];
+        let indexReads = 0;
+        const index = {
+            get notes() {
+                indexReads++;
+                return records;
+            },
+            contentPackage: "sample",
+        };
+        for (const fm of [...polities, ...settlements])
+            checkSettlementTables({ fm, file: "sample.md", raw: "" }, { index });
+        expect(indexReads).toBe(1);
+        let filters = 0;
+        const rendered = new Proxy(records, {
+            get(target, key, receiver) {
+                if (key === "filter") filters++;
+                return Reflect.get(target, key, receiver);
+            },
+        });
+        for (const polity of polities) {
+            settlementMarkdown(polity, rendered);
+            settlementMarkdown(polity, rendered, { recursive: true });
+        }
+        expect(filters).toBe(1);
     });
 });

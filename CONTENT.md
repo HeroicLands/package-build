@@ -94,6 +94,23 @@ default target type is `affiliation`. Explicit `null` means complete anarchy;
 omission leaves government unknown. Governing bodies receive their place lists
 from those references. See [place governments](docs/authoring/frontmatter.md#place-governments).
 
+A being lists the items it has, and a culture lore note the items its people
+typically carry, in `data.items`. An entry is `{key?, model?, name?, img?, kind?,
+chance?, system?: {subType?, quantity?, weight?}}`; with `model` alone, an item
+note supplies the rest, and without `model` the entry states `name` and `kind`
+and defines the item inline. `kind` is one of `weapon`, `armor`, `clothing`,
+`container`, `miscgear`, `projectile`, `concoction`, `disease`, `poisontoxin`,
+`maladiction`, `physcond`, `quirk`, `disorder`, `privation`, `fear`, `language`,
+`script`, `arcaneability`, `spell`, `psychicgift`, `incantation` or
+`divination`. A `model` must resolve to an item note of the note's own package or
+of a package it requires as a module, directly or through the modules those
+require, and never to a game system's item at any level. A `key` is unique
+within `data.items` and within each system's `items` list. An item note
+(`weapongear`, `armorgear`, `containergear`, `miscgear`, `projectilegear`,
+`concoctiongear`, `affliction`, `trauma` or `mysticalability`) states the same
+shape in its `data` block with `kind` required. See
+[items in a note](docs/reference/format-details.md#items-in-a-note).
+
 A polity (`affiliation`, `subType: polity`) lists settlements without notes in
 `data.settlements`. Each row names its settlement, polity, location, type,
 fortification, stronghold, holder, population, market and short notes. Polity
@@ -112,11 +129,13 @@ use the same generated tables.
 `data.territorial_population` counts inhabitants: listed and noted settlements
 throughout its subordinate chain must account for that total within five percent.
 A polity with settlements, a seat, or subordinate polities requires this total.
-Each polity declares at most one superior.
+Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Populations use at most two significant digits. Each settlement
-has short `notes`; a populated settlement note also requires `type`, `market`
-and a `government` that resolves to a polity.
+has short `data.notes`; a populated settlement note also requires `data.type`,
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
+If the settlement sum falls outside the tolerance, list the settlements or
+record an owner exception for that polity.
 
 ```yaml
 type: affiliation

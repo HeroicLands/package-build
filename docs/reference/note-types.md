@@ -65,6 +65,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 | `data.templatePriority`          | number                                         | Template priority; unset means the note is not a template.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `data.archetypes`                | list of strings                                | Archetypal behaviours the being fits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `data.occupation`                | string                                         | What the being does for a living.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `data.items`                     | list of item entries                           | The items the being has, each an entry that names an item note by `model` or defines an item inline with `name` and `kind`.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `data.lore`                      | list of Addresses                              | Lore concerning this being — the law it lives under, the customs it is subject to, the traditions it was raised in.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `data.culture`                   | an Address                                     | The being's primary culture, as a culture lore note.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `data.homes`                     | list of Addresses                              | Places the being calls home.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -95,11 +96,21 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Inner keys** — a key a field's value does not declare is an error at its own line and column.
 
-| Key                                     | Shape                                                                                                                        | Required | Meaning                                                                                                                    |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `data.affiliations.<Address>.rank`      | the level on that body's own ladder, as a whole number — an ordinary member is `1`, and `0` is the rung for someone cast out | no       | The level on the body's own `governance.ranks` ladder; required unless a declared office is held by appointment.           |
-| `data.affiliations.<Address>.office`    | a post from that body's `governance.offices`, or a list of them                                                              | no       | A post the body names in its `governance.offices`, where one is held, or a list of the posts one being holds in that body. |
-| `data.affiliations.<Address>.societies` | a list of society names                                                                                                      | no       | The societies the membership is held in, by name. SoHL carries one, the first, as the affiliation item's `system.society`. |
+| Key                                     | Shape                                                                                                                        | Required | Meaning                                                                                                                                                                        |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.items[].key`                      | string                                                                                                                       | no       | The entry's name among the items of its note, unique within `data.items`; a system list's entry of the same `key` states what that system adds.                                |
+| `data.items[].model`                    | an Address                                                                                                                   | no       | The item note this entry is an instance of — a note of this package or of a required module, never of a game system. The entry's other fields override what the note supplies. |
+| `data.items[].name`                     | string                                                                                                                       | no       | The item's name.                                                                                                                                                               |
+| `data.items[].img`                      | an Address                                                                                                                   | no       | The item's image — an `icon` or `image` Address.                                                                                                                               |
+| `data.items[].kind`                     | one of the item kinds                                                                                                        | no       | What sort of thing the item is.                                                                                                                                                |
+| `data.items[].chance`                   | a number from 0 to 100                                                                                                       | no       | On a culture or occupation, the percent chance that the item is drawn, each item on its own.                                                                                   |
+| `data.items[].system`                   | a map of `subType`, `quantity` and `weight`                                                                                  | no       | Numbers about the item.                                                                                                                                                        |
+| `data.items[].system.subType`           | string                                                                                                                       | no       | The item's own genre within its kind, as a word.                                                                                                                               |
+| `data.items[].system.quantity`          | number                                                                                                                       | no       | How many of the item there are.                                                                                                                                                |
+| `data.items[].system.weight`            | number                                                                                                                       | no       | What the item weighs.                                                                                                                                                          |
+| `data.affiliations.<Address>.rank`      | the level on that body's own ladder, as a whole number — an ordinary member is `1`, and `0` is the rung for someone cast out | no       | The level on the body's own `governance.ranks` ladder; required unless a declared office is held by appointment.                                                               |
+| `data.affiliations.<Address>.office`    | a post from that body's `governance.offices`, or a list of them                                                              | no       | A post the body names in its `governance.offices`, where one is held, or a list of the posts one being holds in that body.                                                     |
+| `data.affiliations.<Address>.societies` | a list of society names                                                                                                      | no       | The societies the membership is held in, by name. SoHL carries one, the first, as the affiliation item's `system.society`.                                                     |
 
 **System mappings**
 
@@ -236,21 +247,33 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `disease`, `poisontoxin`, `maladiction`.
 
-| Field                              | Shape      | Meaning                                                              |
-| ---------------------------------- | ---------- | -------------------------------------------------------------------- |
-| `data.icon`                        | an Address | The document's profile art — an `icon` address, resolved into `img`. |
-| `data.templatePriority`            | number     | Template priority; unset means the note is not a template.           |
-| `data.transmission`                | string     | How it passes from one host to another.                              |
-| `data.outcome`                     | string     | Where it ends once it has run its course — `death` or `cured`.       |
-| `data.healingRate`                 | number     | How readily a healing test goes well.                                |
-| `data.contagionIndex`              | number     | How contagious it is.                                                |
-| `data.outcomeTraumas`              | string     | Expression returning the traumas recovery leaves behind.             |
-| `data.onsetDurationFormula`        | string     | Roll formula for the delay between contraction and onset.            |
-| `data.onsetDurationBase`           | number     | That delay in seconds, stated outright instead of rolled.            |
-| `data.healingCheckDurationFormula` | string     | Roll formula for the interval between healing checks.                |
-| `data.healingCheckDurationBase`    | number     | That interval in seconds, stated outright instead of rolled.         |
-| `data.resolutionDurationFormula`   | string     | Roll formula for the time from onset to resolution.                  |
-| `data.resolutionDurationBase`      | number     | That time in seconds, stated outright instead of rolled.             |
+| Field                              | Shape                                       | Meaning                                                                                                                              |
+| ---------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`                        | an Address                                  | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
+| `data.templatePriority`            | number                                      | Template priority; unset means the note is not a template.                                                                           |
+| `data.kind`                        | one of the item kinds                       | What sort of thing the item is, one of the item kinds. Required; it categorises the item for the setting and reaches no game system. |
+| `data.name`                        | string                                      | The item's name as a list entry reads it.                                                                                            |
+| `data.img`                         | an Address                                  | The item's image — an `icon` or `image` Address.                                                                                     |
+| `data.system`                      | a map of `subType`, `quantity` and `weight` | Numbers about the item, shared by every game system.                                                                                 |
+| `data.transmission`                | string                                      | How it passes from one host to another.                                                                                              |
+| `data.outcome`                     | string                                      | Where it ends once it has run its course — `death` or `cured`.                                                                       |
+| `data.healingRate`                 | number                                      | How readily a healing test goes well.                                                                                                |
+| `data.contagionIndex`              | number                                      | How contagious it is.                                                                                                                |
+| `data.outcomeTraumas`              | string                                      | Expression returning the traumas recovery leaves behind.                                                                             |
+| `data.onsetDurationFormula`        | string                                      | Roll formula for the delay between contraction and onset.                                                                            |
+| `data.onsetDurationBase`           | number                                      | That delay in seconds, stated outright instead of rolled.                                                                            |
+| `data.healingCheckDurationFormula` | string                                      | Roll formula for the interval between healing checks.                                                                                |
+| `data.healingCheckDurationBase`    | number                                      | That interval in seconds, stated outright instead of rolled.                                                                         |
+| `data.resolutionDurationFormula`   | string                                      | Roll formula for the time from onset to resolution.                                                                                  |
+| `data.resolutionDurationBase`      | number                                      | That time in seconds, stated outright instead of rolled.                                                                             |
+
+**Inner keys** — a key a field's value does not declare is an error at its own line and column.
+
+| Key                    | Shape  | Required | Meaning                                          |
+| ---------------------- | ------ | -------- | ------------------------------------------------ |
+| `data.system.subType`  | string | no       | The item's own genre within its kind, as a word. |
+| `data.system.quantity` | number | no       | How many of the item there are.                  |
+| `data.system.weight`   | number | no       | What the item weighs.                            |
 
 **System mappings**
 
@@ -271,17 +294,29 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape                   | Meaning                                                                                                                             |
-| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
-| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
-| `data.value`            | number                  | What the thing is worth.                                                                                                            |
-| `data.quality`          | number                  | How well it is made.                                                                                                                |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
-| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
+| Field                   | Shape                                       | Meaning                                                                                                                              |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address                                  | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
+| `data.templatePriority` | number                                      | Template priority; unset means the note is not a template.                                                                           |
+| `data.kind`             | one of the item kinds                       | What sort of thing the item is, one of the item kinds. Required; it categorises the item for the setting and reaches no game system. |
+| `data.name`             | string                                      | The item's name as a list entry reads it.                                                                                            |
+| `data.img`              | an Address                                  | The item's image — an `icon` or `image` Address.                                                                                     |
+| `data.system`           | a map of `subType`, `quantity` and `weight` | Numbers about the item, shared by every game system.                                                                                 |
+| `data.weight`           | number                                      | What the thing weighs.                                                                                                               |
+| `data.value`            | number                                      | What the thing is worth.                                                                                                             |
+| `data.quality`          | number                                      | How well it is made.                                                                                                                 |
+| `data.durability`       | number                                      | How much wear it takes before it fails.                                                                                              |
+| `data.made`             | an Address of one event                     | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                         |
+| `data.lost`             | an Address of one event                     | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                              |
+| `data.unique`           | `true` or `false`                           | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common.  |
+
+**Inner keys** — a key a field's value does not declare is an error at its own line and column.
+
+| Key                    | Shape  | Required | Meaning                                          |
+| ---------------------- | ------ | -------- | ------------------------------------------------ |
+| `data.system.subType`  | string | no       | The item's own genre within its kind, as a word. |
+| `data.system.quantity` | number | no       | How many of the item there are.                  |
+| `data.system.weight`   | number | no       | What the item weighs.                            |
 
 **System mappings**
 
@@ -316,20 +351,32 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `mundane`, `exotic`, `elixir`.
 
-| Field                   | Shape                   | Meaning                                                                                                                             |
-| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
-| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
-| `data.value`            | number                  | What the thing is worth.                                                                                                            |
-| `data.quality`          | number                  | How well it is made.                                                                                                                |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
-| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
-| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                                                 |
-| `data.potency`          | string                  | Potency — `na`, `mild`, `strong` or `great`.                                                                                        |
-| `data.strength`         | number                  | Strength; the higher, the stronger.                                                                                                 |
+| Field                   | Shape                                       | Meaning                                                                                                                              |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address                                  | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
+| `data.templatePriority` | number                                      | Template priority; unset means the note is not a template.                                                                           |
+| `data.kind`             | one of the item kinds                       | What sort of thing the item is, one of the item kinds. Required; it categorises the item for the setting and reaches no game system. |
+| `data.name`             | string                                      | The item's name as a list entry reads it.                                                                                            |
+| `data.img`              | an Address                                  | The item's image — an `icon` or `image` Address.                                                                                     |
+| `data.system`           | a map of `subType`, `quantity` and `weight` | Numbers about the item, shared by every game system.                                                                                 |
+| `data.weight`           | number                                      | What the thing weighs.                                                                                                               |
+| `data.value`            | number                                      | What the thing is worth.                                                                                                             |
+| `data.quality`          | number                                      | How well it is made.                                                                                                                 |
+| `data.durability`       | number                                      | How much wear it takes before it fails.                                                                                              |
+| `data.made`             | an Address of one event                     | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                         |
+| `data.lost`             | an Address of one event                     | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                              |
+| `data.unique`           | `true` or `false`                           | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common.  |
+| `data.quantity`         | number                                      | How many of the thing there are; one when unstated.                                                                                  |
+| `data.potency`          | string                                      | Potency — `na`, `mild`, `strong` or `great`.                                                                                         |
+| `data.strength`         | number                                      | Strength; the higher, the stronger.                                                                                                  |
+
+**Inner keys** — a key a field's value does not declare is an error at its own line and column.
+
+| Key                    | Shape  | Required | Meaning                                          |
+| ---------------------- | ------ | -------- | ------------------------------------------------ |
+| `data.system.subType`  | string | no       | The item's own genre within its kind, as a word. |
+| `data.system.quantity` | number | no       | How many of the item there are.                  |
+| `data.system.weight`   | number | no       | What the item weighs.                            |
 
 **System mappings**
 
@@ -345,18 +392,30 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape                   | Meaning                                                                                                                             |
-| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
-| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
-| `data.value`            | number                  | What the thing is worth.                                                                                                            |
-| `data.quality`          | number                  | How well it is made.                                                                                                                |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
-| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
-| `data.capacity`         | number                  | How much it holds.                                                                                                                  |
+| Field                   | Shape                                       | Meaning                                                                                                                              |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address                                  | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
+| `data.templatePriority` | number                                      | Template priority; unset means the note is not a template.                                                                           |
+| `data.kind`             | one of the item kinds                       | What sort of thing the item is, one of the item kinds. Required; it categorises the item for the setting and reaches no game system. |
+| `data.name`             | string                                      | The item's name as a list entry reads it.                                                                                            |
+| `data.img`              | an Address                                  | The item's image — an `icon` or `image` Address.                                                                                     |
+| `data.system`           | a map of `subType`, `quantity` and `weight` | Numbers about the item, shared by every game system.                                                                                 |
+| `data.weight`           | number                                      | What the thing weighs.                                                                                                               |
+| `data.value`            | number                                      | What the thing is worth.                                                                                                             |
+| `data.quality`          | number                                      | How well it is made.                                                                                                                 |
+| `data.durability`       | number                                      | How much wear it takes before it fails.                                                                                              |
+| `data.made`             | an Address of one event                     | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                         |
+| `data.lost`             | an Address of one event                     | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                              |
+| `data.unique`           | `true` or `false`                           | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common.  |
+| `data.capacity`         | number                                      | How much it holds.                                                                                                                   |
+
+**Inner keys** — a key a field's value does not declare is an error at its own line and column.
+
+| Key                    | Shape  | Required | Meaning                                          |
+| ---------------------- | ------ | -------- | ------------------------------------------------ |
+| `data.system.subType`  | string | no       | The item's own genre within its kind, as a word. |
+| `data.system.quantity` | number | no       | How many of the item there are.                  |
+| `data.system.weight`   | number | no       | What the item weighs.                            |
 
 **System mappings**
 
@@ -374,18 +433,30 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape                   | Meaning                                                                                                                             |
-| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
-| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
-| `data.value`            | number                  | What the thing is worth.                                                                                                            |
-| `data.quality`          | number                  | How well it is made.                                                                                                                |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
-| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
-| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                                                 |
+| Field                   | Shape                                       | Meaning                                                                                                                              |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address                                  | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
+| `data.templatePriority` | number                                      | Template priority; unset means the note is not a template.                                                                           |
+| `data.kind`             | one of the item kinds                       | What sort of thing the item is, one of the item kinds. Required; it categorises the item for the setting and reaches no game system. |
+| `data.name`             | string                                      | The item's name as a list entry reads it.                                                                                            |
+| `data.img`              | an Address                                  | The item's image — an `icon` or `image` Address.                                                                                     |
+| `data.system`           | a map of `subType`, `quantity` and `weight` | Numbers about the item, shared by every game system.                                                                                 |
+| `data.weight`           | number                                      | What the thing weighs.                                                                                                               |
+| `data.value`            | number                                      | What the thing is worth.                                                                                                             |
+| `data.quality`          | number                                      | How well it is made.                                                                                                                 |
+| `data.durability`       | number                                      | How much wear it takes before it fails.                                                                                              |
+| `data.made`             | an Address of one event                     | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                         |
+| `data.lost`             | an Address of one event                     | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                              |
+| `data.unique`           | `true` or `false`                           | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common.  |
+| `data.quantity`         | number                                      | How many of the thing there are; one when unstated.                                                                                  |
+
+**Inner keys** — a key a field's value does not declare is an error at its own line and column.
+
+| Key                    | Shape  | Required | Meaning                                          |
+| ---------------------- | ------ | -------- | ------------------------------------------------ |
+| `data.system.subType`  | string | no       | The item's own genre within its kind, as a word. |
+| `data.system.quantity` | number | no       | How many of the item there are.                  |
+| `data.system.weight`   | number | no       | What the item weighs.                            |
 
 **System mappings**
 
@@ -427,16 +498,28 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `spiritrite`, `spiritaction`, `spiritpower`, `ritualaction`, `divineincantation`, `arcaneincantation`, `arcanetalent`, `spirittalent`, `alchemy`, `divination`.
 
-| Field                   | Shape      | Meaning                                                              |
-| ----------------------- | ---------- | -------------------------------------------------------------------- |
-| `data.icon`             | an Address | The document's profile art — an `icon` address, resolved into `img`. |
-| `data.templatePriority` | number     | Template priority; unset means the note is not a template.           |
-| `data.assocSkill`       | an Address | The skill it is associated with.                                     |
-| `data.assocAffiliation` | an Address | The affiliation it is associated with.                               |
-| `data.masteryLevel`     | number     | Mastery before any modifier.                                         |
-| `data.level`            | number     | The magnitude of the ability.                                        |
-| `data.charges.value`    | number     | Charges available now; unset means charges are not used.             |
-| `data.charges.max`      | number     | Most charges it can hold; unset means no maximum.                    |
+| Field                   | Shape                                       | Meaning                                                                                                                              |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address                                  | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
+| `data.templatePriority` | number                                      | Template priority; unset means the note is not a template.                                                                           |
+| `data.kind`             | one of the item kinds                       | What sort of thing the item is, one of the item kinds. Required; it categorises the item for the setting and reaches no game system. |
+| `data.name`             | string                                      | The item's name as a list entry reads it.                                                                                            |
+| `data.img`              | an Address                                  | The item's image — an `icon` or `image` Address.                                                                                     |
+| `data.system`           | a map of `subType`, `quantity` and `weight` | Numbers about the item, shared by every game system.                                                                                 |
+| `data.assocSkill`       | an Address                                  | The skill it is associated with.                                                                                                     |
+| `data.assocAffiliation` | an Address                                  | The affiliation it is associated with.                                                                                               |
+| `data.masteryLevel`     | number                                      | Mastery before any modifier.                                                                                                         |
+| `data.level`            | number                                      | The magnitude of the ability.                                                                                                        |
+| `data.charges.value`    | number                                      | Charges available now; unset means charges are not used.                                                                             |
+| `data.charges.max`      | number                                      | Most charges it can hold; unset means no maximum.                                                                                    |
+
+**Inner keys** — a key a field's value does not declare is an error at its own line and column.
+
+| Key                    | Shape  | Required | Meaning                                          |
+| ---------------------- | ------ | -------- | ------------------------------------------------ |
+| `data.system.subType`  | string | no       | The item's own genre within its kind, as a word. |
+| `data.system.quantity` | number | no       | How many of the item there are.                  |
+| `data.system.weight`   | number | no       | What the item weighs.                            |
 
 **System mappings**
 
@@ -450,18 +533,30 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `none`, `arrow`, `bolt`, `bullet`, `dart`, `other`.
 
-| Field                   | Shape                   | Meaning                                                                                                                             |
-| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
-| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
-| `data.value`            | number                  | What the thing is worth.                                                                                                            |
-| `data.quality`          | number                  | How well it is made.                                                                                                                |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
-| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
-| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                                                 |
+| Field                   | Shape                                       | Meaning                                                                                                                              |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address                                  | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
+| `data.templatePriority` | number                                      | Template priority; unset means the note is not a template.                                                                           |
+| `data.kind`             | one of the item kinds                       | What sort of thing the item is, one of the item kinds. Required; it categorises the item for the setting and reaches no game system. |
+| `data.name`             | string                                      | The item's name as a list entry reads it.                                                                                            |
+| `data.img`              | an Address                                  | The item's image — an `icon` or `image` Address.                                                                                     |
+| `data.system`           | a map of `subType`, `quantity` and `weight` | Numbers about the item, shared by every game system.                                                                                 |
+| `data.weight`           | number                                      | What the thing weighs.                                                                                                               |
+| `data.value`            | number                                      | What the thing is worth.                                                                                                             |
+| `data.quality`          | number                                      | How well it is made.                                                                                                                 |
+| `data.durability`       | number                                      | How much wear it takes before it fails.                                                                                              |
+| `data.made`             | an Address of one event                     | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                         |
+| `data.lost`             | an Address of one event                     | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                              |
+| `data.unique`           | `true` or `false`                           | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common.  |
+| `data.quantity`         | number                                      | How many of the thing there are; one when unstated.                                                                                  |
+
+**Inner keys** — a key a field's value does not declare is an error at its own line and column.
+
+| Key                    | Shape  | Required | Meaning                                          |
+| ---------------------- | ------ | -------- | ------------------------------------------------ |
+| `data.system.subType`  | string | no       | The item's own genre within its kind, as a word. |
+| `data.system.quantity` | number | no       | How many of the item there are.                  |
+| `data.system.weight`   | number | no       | What the item weighs.                            |
 
 **System mappings**
 
@@ -737,16 +832,28 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `injury`, `fear`, `morale`, `pall`, `psycond`, `physcond`, `auralshock`, `fatigue`, `infection`, `shock`, `coma`.
 
-| Field                                  | Shape      | Meaning                                                              |
-| -------------------------------------- | ---------- | -------------------------------------------------------------------- |
-| `data.icon`                            | an Address | The document's profile art — an `icon` address, resolved into `img`. |
-| `data.templatePriority`                | number     | Template priority; unset means the note is not a template.           |
-| `data.healingCheckDurationFormula`     | string     | Roll formula for the interval between healing checks.                |
-| `data.healingCheckDurationBase`        | number     | That interval in seconds, stated outright instead of rolled.         |
-| `data.bloodLossAdvanceDurationFormula` | string     | Roll formula for the interval between blood-loss advances.           |
-| `data.bloodLossAdvanceDurationBase`    | number     | That interval in seconds. Setting it is what makes the wound bleed.  |
-| `data.courseDurationFormula`           | string     | Roll formula for the interval between course tests.                  |
-| `data.courseDurationBase`              | number     | That interval in seconds, stated outright instead of rolled.         |
+| Field                                  | Shape                                       | Meaning                                                                                                                              |
+| -------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`                            | an Address                                  | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
+| `data.templatePriority`                | number                                      | Template priority; unset means the note is not a template.                                                                           |
+| `data.kind`                            | one of the item kinds                       | What sort of thing the item is, one of the item kinds. Required; it categorises the item for the setting and reaches no game system. |
+| `data.name`                            | string                                      | The item's name as a list entry reads it.                                                                                            |
+| `data.img`                             | an Address                                  | The item's image — an `icon` or `image` Address.                                                                                     |
+| `data.system`                          | a map of `subType`, `quantity` and `weight` | Numbers about the item, shared by every game system.                                                                                 |
+| `data.healingCheckDurationFormula`     | string                                      | Roll formula for the interval between healing checks.                                                                                |
+| `data.healingCheckDurationBase`        | number                                      | That interval in seconds, stated outright instead of rolled.                                                                         |
+| `data.bloodLossAdvanceDurationFormula` | string                                      | Roll formula for the interval between blood-loss advances.                                                                           |
+| `data.bloodLossAdvanceDurationBase`    | number                                      | That interval in seconds. Setting it is what makes the wound bleed.                                                                  |
+| `data.courseDurationFormula`           | string                                      | Roll formula for the interval between course tests.                                                                                  |
+| `data.courseDurationBase`              | number                                      | That interval in seconds, stated outright instead of rolled.                                                                         |
+
+**Inner keys** — a key a field's value does not declare is an error at its own line and column.
+
+| Key                    | Shape  | Required | Meaning                                          |
+| ---------------------- | ------ | -------- | ------------------------------------------------ |
+| `data.system.subType`  | string | no       | The item's own genre within its kind, as a word. |
+| `data.system.quantity` | number | no       | How many of the item there are.                  |
+| `data.system.weight`   | number | no       | What the item weighs.                            |
 
 **System mappings**
 
@@ -764,17 +871,29 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape                   | Meaning                                                                                                                             |
-| ----------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                                                |
-| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                                          |
-| `data.weight`           | number                  | What the thing weighs.                                                                                                              |
-| `data.value`            | number                  | What the thing is worth.                                                                                                            |
-| `data.quality`          | number                  | How well it is made.                                                                                                                |
-| `data.durability`       | number                  | How much wear it takes before it fails.                                                                                             |
-| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                        |
-| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                             |
-| `data.unique`           | `true` or `false`       | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common. |
+| Field                   | Shape                                       | Meaning                                                                                                                              |
+| ----------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address                                  | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
+| `data.templatePriority` | number                                      | Template priority; unset means the note is not a template.                                                                           |
+| `data.kind`             | one of the item kinds                       | What sort of thing the item is, one of the item kinds. Required; it categorises the item for the setting and reaches no game system. |
+| `data.name`             | string                                      | The item's name as a list entry reads it.                                                                                            |
+| `data.img`              | an Address                                  | The item's image — an `icon` or `image` Address.                                                                                     |
+| `data.system`           | a map of `subType`, `quantity` and `weight` | Numbers about the item, shared by every game system.                                                                                 |
+| `data.weight`           | number                                      | What the thing weighs.                                                                                                               |
+| `data.value`            | number                                      | What the thing is worth.                                                                                                             |
+| `data.quality`          | number                                      | How well it is made.                                                                                                                 |
+| `data.durability`       | number                                      | How much wear it takes before it fails.                                                                                              |
+| `data.made`             | an Address of one event                     | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`.                         |
+| `data.lost`             | an Address of one event                     | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.                              |
+| `data.unique`           | `true` or `false`                           | `true` for a one-of-a-kind item, such as a named weapon; its note links the places and beings involved. Absent, the item is common.  |
+
+**Inner keys** — a key a field's value does not declare is an error at its own line and column.
+
+| Key                    | Shape  | Required | Meaning                                          |
+| ---------------------- | ------ | -------- | ------------------------------------------------ |
+| `data.system.subType`  | string | no       | The item's own genre within its kind, as a word. |
+| `data.system.quantity` | number | no       | How many of the item there are.                  |
+| `data.system.weight`   | number | no       | What the item weighs.                            |
 
 **System mappings**
 
@@ -807,6 +926,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.form`              | string                                                                              | The kind of work in its people's own terms — an epic, a saga, a praise-song, an elegy. Free text.                                                                                                                                                                                                                                                                                                                                                                |
 | `data.subjects`          | list of Addresses                                                                   | The beings, places, gods and other notes the work concerns, and each event it concerns, named as `place-ironfells#sack`.                                                                                                                                                                                                                                                                                                                                         |
 | `data.events`            | list of event entries                                                               | What happened to or at this subject — each entry one dated, attributed event: a founding, a war, a fall, or an occasion that recurs.                                                                                                                                                                                                                                                                                                                             |
+| `data.items`             | list of item entries                                                                | Culture only: the items its people typically carry, each an entry with a `chance` of being drawn that names an item note by `model` or defines an item inline with `name` and `kind`.                                                                                                                                                                                                                                                                            |
 | `data.appearanceProfile` | an appearance profile                                                               | What this culture's people look like, for `package-build npc new`: `frame`, `eye_color`, `hair_color`, `skin_color`, `complexion`, `hair_texture`, `hair_style`, `facial_hair`, `face_shape`, `nose`, `brow` and `mouth` each map words of that field's vocabulary to positive weights, and `height` maps a gender to a `{min, max}` range, `female` and `male` required. A culture note only. See [appearance profiles](format-details.md#appearance-profiles). |
 | `data.glossary`          | list of `{ name, name_sort?, common?, definition?, pronunciation?, language? }`     | `culture` only: Its own glossary entries: common vocabulary, dictionary words with a contextual meaning, and phrases, compounds or terms of art. A named dictionary word supplies its senses and class unless `definition` supplies the sense. Common marks belong to this owner. Every entry resolves to a language. Empty when unstated. See [glossary terms](format-details.md#glossary-terms).                                                               |
 
@@ -872,6 +992,16 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.events[].stated`                     | `{ calendar, text }`                                                                                             | no       | The date as one tradition writes it in its own reckoning.                                                                                                                                   |
 | `data.events[].stated.calendar`            | an Address, or a lore shortcode                                                                                  | yes      | The calendar that tradition reckons in — a `lore` note with `subType: calendar`.                                                                                                            |
 | `data.events[].stated.text`                | a string                                                                                                         | yes      | The date as that tradition writes it.                                                                                                                                                       |
+| `data.items[].key`                         | string                                                                                                           | no       | The entry's name among the items of its note, unique within `data.items`; a system list's entry of the same `key` states what that system adds.                                             |
+| `data.items[].model`                       | an Address                                                                                                       | no       | The item note this entry is an instance of — a note of this package or of a required module, never of a game system. The entry's other fields override what the note supplies.              |
+| `data.items[].name`                        | string                                                                                                           | no       | The item's name.                                                                                                                                                                            |
+| `data.items[].img`                         | an Address                                                                                                       | no       | The item's image — an `icon` or `image` Address.                                                                                                                                            |
+| `data.items[].kind`                        | one of the item kinds                                                                                            | no       | What sort of thing the item is.                                                                                                                                                             |
+| `data.items[].chance`                      | a number from 0 to 100                                                                                           | no       | On a culture or occupation, the percent chance that the item is drawn, each item on its own.                                                                                                |
+| `data.items[].system`                      | a map of `subType`, `quantity` and `weight`                                                                      | no       | Numbers about the item.                                                                                                                                                                     |
+| `data.items[].system.subType`              | string                                                                                                           | no       | The item's own genre within its kind, as a word.                                                                                                                                            |
+| `data.items[].system.quantity`             | number                                                                                                           | no       | How many of the item there are.                                                                                                                                                             |
+| `data.items[].system.weight`               | number                                                                                                           | no       | What the item weighs.                                                                                                                                                                       |
 | `data.appearanceProfile.frame`             | a map of words to weights                                                                                        | yes      | Weighted `frame` words; a word left out is never drawn.                                                                                                                                     |
 | `data.appearanceProfile.eye_color`         | a map of words to weights                                                                                        | yes      | Weighted `eye_color` words; a word left out is never drawn.                                                                                                                                 |
 | `data.appearanceProfile.hair_color`        | a map of words to weights                                                                                        | yes      | Weighted `hair_color` words; a word left out is never drawn.                                                                                                                                |

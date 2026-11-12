@@ -115,6 +115,7 @@
 import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { getFrontmatter } from "./frontmatter.mjs";
 import { BEING_LOOK_VOCABULARY, NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
+import { ITEM_NOTE_TYPES } from "./item-entries.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
 import { cultureNamesItself } from "./culture-choice.mjs";
@@ -284,6 +285,17 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     }),
     ...DURATION_LABELS,
     ...GEAR_UNITS,
+    items: Object.freeze({ withheld: "list machinery, which no infobox row draws on" }),
+    ...Object.fromEntries(
+        ITEM_NOTE_TYPES.flatMap((type) =>
+            ["kind", "name", "img", "system"].map((key) => [
+                `${type}.${key}`,
+                Object.freeze({
+                    withheld: "listing machinery, read by the notes that list this item",
+                }),
+            ]),
+        ),
+    ),
 
     templatePriority: Object.freeze({
         withheld: "template machinery, not a fact about the subject",
