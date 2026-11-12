@@ -63,6 +63,8 @@ import v8 from "node:v8";
 import { AddressEntries, AddressLink } from "./address-values.mjs";
 import { isAddressTuple, readCanonicalKey, renderAddress } from "./address.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
+import { collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
+import { formatDiagnostic } from "./diagnostics.mjs";
 import { walkMarkdownFiles, parseMarkdownFile } from "./helpers.mjs";
 import { cachedMetadataFiles, loadForeignIndexes } from "./metadata-index.mjs";
 import { configFileIn } from "./note-calendars.mjs";
@@ -330,6 +332,26 @@ function filesUnder(dir, keep) {
         .sort();
 }
 
+/** Fingerprint master bytes and directory entries without retaining file data. */
+function masterFingerprintParts(root) {
+    const parts = [];
+    const walk = (dir) => {
+        parts.push(dir);
+        if (!fs.existsSync(dir)) return;
+        for (const entry of fs
+            .readdirSync(dir, { withFileTypes: true })
+            .sort((a, b) => a.name.localeCompare(b.name))) {
+            const file = path.join(dir, entry.name);
+            if (entry.isSymbolicLink()) parts.push(file, fs.readlinkSync(file));
+            else if (entry.isDirectory()) walk(file);
+            else if (entry.isFile() && /\.(?:png|svg)$/i.test(entry.name))
+                parts.push(file, digest(fs.readFileSync(file)));
+        }
+    };
+    walk(root);
+    return parts;
+}
+
 /**
  * The version an installed package declares, resolved from `from`.
  *
@@ -397,6 +419,7 @@ function packageFingerprint(config) {
             fs.readFileSync(path.join(fonts.root, "fonts.json"))
         :   "",
         ...cachedMetadataFiles(config).flatMap((file) => [file, fs.readFileSync(file)]),
+        ...(config.art?.masterRoots ?? []).flatMap(masterFingerprintParts),
     );
 }
 
@@ -919,6 +942,11 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
         prepareTables ?? (await import("./sql-tables.mjs")).prepareTreeSqlTables;
     const contentBase = path.resolve(config.paths.content);
     const skipDirectories = config.skipDirectories;
+    if (cache && configMovedOn(config)) throw inputsChanged(config);
+    const before = cache ? packageFingerprint(config) : "";
+    const art = collectArtMasters(config.art?.masterRoots ?? [], config.contentPackage);
+    if (art.findings.length) throw new Error(art.findings.map(formatDiagnostic).join("\n"));
+    const masterRecords = masterAssetRecords(art.masters);
     const prepare = (records, parsed, files) =>
         prepareTreeSqlTables(contentBase, {
             config,
@@ -932,8 +960,6 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
 
     // A configuration the file has moved on from is the caller's to resolve
     // again; reading the tree again with it would answer the same way.
-    if (cache && configMovedOn(config)) throw inputsChanged(config);
-    const before = cache ? packageFingerprint(config) : "";
     const foreign = readForeign(config, loadForeign);
     if (cache && packageFingerprint(config) !== before) return undefined;
 
@@ -945,6 +971,7 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
             skipDirectories,
             parsed,
             foreignIndex: foreign.index,
+            masterRecords,
         });
         return {
             records,
@@ -978,6 +1005,7 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
             collectAssetRecords(path.resolve(config.paths.assets), {
                 contentPackage: config.contentPackage,
                 problems: [],
+                masterRecords,
             })
         :   [],
     );
@@ -1079,6 +1107,7 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
         parsed,
         foreignIndex: foreign.index,
         cache: memo,
+        masterRecords,
     });
     if (configMovedOn(config)) throw inputsChanged(config);
     if (packageFingerprint(config) !== before) return undefined;

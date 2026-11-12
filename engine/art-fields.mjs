@@ -45,6 +45,7 @@
  */
 
 import path from "node:path";
+import { artSource } from "./art-source.mjs";
 
 import { encodeAddresses } from "./address-values.mjs";
 import { ASSET_SYSTEM, isAssetType } from "./asset-types.mjs";
@@ -333,7 +334,7 @@ export function checkArtSlotSizes(records = [], { config, assetsBase = "" } = {}
             if (!file || !width || !height) continue;
             if (Number(width) === slot.size.width && Number(height) === slot.size.height) continue;
             findings.push({
-                file: path.join(assetsBase, file),
+                file: artSource(asset, assetsBase),
                 severity: "error",
                 message:
                     `${width}×${height} is not the ${slot.size.width}×${slot.size.height} ` +

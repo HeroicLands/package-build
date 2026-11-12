@@ -8,6 +8,13 @@ publishes fresh indexes, emits calendars, stages assets, checks content and link
 and compiles packs in one invocation. See the [command reference](docs/commands.md#package-build-content-build)
 for ordering, publication readiness and failure behavior.
 
+Private PNG and SVG art masters can be declared in `art.masterRoots`. Each
+master carries its image Address and can state creator, rights, an exact
+`hl:license` ID and IPTC digital source type. Public derivatives use the Address for their target;
+see [masters and derivatives](docs/reference/format-details.md#masters-and-derivatives).
+The note-rendering cache includes master fingerprints in its input key and
+reuses the index only while those inputs remain unchanged.
+
 A single note renders as the body of its site page with
 `@heroiclands/package-build/note-page`. `renderNoteFile(path, { root })` needs
 only the package's fetched dependency indexes (`package-build deps fetch`), and

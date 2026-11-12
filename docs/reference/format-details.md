@@ -2705,6 +2705,23 @@ resolves to. Each finding is `file:line:column: error: message` at the file.
 
 ##### Masters and derivatives
 
+`hl:license` is an optional exact machine-readable license identifier on a
+master, such as `CC-BY-SA-4.0`. It is distinct from the free-text `dc:rights`
+statement. Private master roots are configured with `art.masterRoots`; each
+PNG or SVG master carries its image or icon Address. Missing, malformed and
+duplicate identities are errors at the source files. A master marked as a
+derivative is refused. A master supplies the record and public output for its
+Address when a public asset also carries that Address.
+
+The index uses the embedded creator, license and IPTC digital source type.
+Trained-model generation and generative augmentation are classified as
+machine-generated; human digital creation is classified as non-generated.
+Other and absent source types have unknown classification, recorded as
+`asset.ai: null`, and are excluded from package shipping. Derivatives repeat identity, creator, rights and parent
+trace; an indexed public primary note also supplies its name and Address.
+Prompts, generation details, private paths and the master license field are
+not embedded in public derivatives.
+
 A **master** is a PNG or an SVG. A **derivative** is a WebP or an SVG rendered
 from a master, possibly at another size. A master and its derivatives are one
 image: they carry the same `hl:address`, and the master is the canonical
@@ -2744,17 +2761,20 @@ text, metadata, titles, descriptions, editor namespaces, XML comments, CSS
 comment contents, and processing instructions. Empty CSS comment separators
 preserve token boundaries. CSS strings and drawing values remain part of the
 image. A resource reference in an `href`, XML `base`, animation or CSS must be
-an empty reference, a fragment, or an absolute HTTP or HTTPS URL. Embedded
+an empty reference, a fragment, or an absolute HTTP or HTTPS URL without user
+information. Embedded
 `data:` resources and local paths are refused. Internal general entities and
 default attributes are expanded; external DTDs, external entities, and
 parameter entities are refused. SVG `foreignXmp` reports whether foreign or
 unreadable XMP was discarded.
 
-The master SVG writer retains foreign properties and comments in its managed
-metadata packet when the packet meets the writer's retention rules, and keeps
-other markup. Its `foreignXmp` result describes that managed packet only. The
-master WebP writer keeps non-XMP chunks and applies the same retention rules to
-foreign XMP.
+The PNG, SVG and WebP provenance writers retain eligible foreign properties and
+comments inside `rdf:RDF` when the packet meets the retention rules. Comments
+outside `rdf:RDF` are dropped. `foreignXmp` reports retained foreign properties
+and comments within `rdf:RDF`, or a discarded packet when it cannot be retained
+safely. The SVG provenance writer keeps other markup; the WebP provenance writer
+keeps non-XMP chunks. The public derivative writer discards foreign XMP as
+described above.
 
 A prompt and generation details (`hl:prompt`, `hl:generator`) are never
 repeated: asking for them is an error.

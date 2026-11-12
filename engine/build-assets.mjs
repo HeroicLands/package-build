@@ -23,6 +23,9 @@ import { rowsStagingPictureRoots, stagePackageAssets } from "./asset-shipping.mj
 import { baseStyleStageEntry } from "./base-styles.mjs";
 import { phoneticAssetEntries } from "./phonetic-fonts.mjs";
 import { checkScriptFonts, copyScriptFonts, STAGED_FONTS_DIR } from "./script-font-delivery.mjs";
+import { createContentSession } from "./content-session.mjs";
+import { assertPrivateArtRoots, shippingAssetRecords } from "./art-masters.mjs";
+import { renderArtMasters } from "./art-master-render.mjs";
 
 /**
  * A finding for each `packageBuild.assets` row that would stage a picture root
@@ -92,6 +95,19 @@ export async function stagePackageBuildAssets({
     session,
 } = {}) {
     const assetsBase = packConfig.paths.assets;
+    const roots = packConfig.art?.masterRoots ?? [];
+    assertPrivateArtRoots(
+        roots,
+        [assetsBase, ...config.assets.map(({ from }) => path.resolve(config.rootDir, from))],
+        { role: "input" },
+    );
+    assertPrivateArtRoots(roots, [
+        path.join(config.rootDir, "build", "art"),
+        path.resolve(config.rootDir, config.stageDir),
+        ...config.assets.map(({ to }) =>
+            path.resolve(config.rootDir, path.join(config.stageDir, to)),
+        ),
+    ]);
     const findings = [
         ...pictureRootRowFindings(config.assets, {
             rootDir: config.rootDir,
@@ -106,6 +122,26 @@ export async function stagePackageBuildAssets({
     }
 
     const transform = await loadAssetTransform(config);
+    let artSession = session;
+    let preparedMasters;
+    if (roots.length) {
+        artSession ??= await createContentSession({ config: packConfig });
+        try {
+            artSession.assertContext({ config: packConfig });
+            if (artSession.problems.length) {
+                const error = new Error(artSession.problems.map(formatDiagnostic).join("\n"));
+                error.located = true;
+                throw error;
+            }
+            preparedMasters = await renderArtMasters(
+                artSession.masters,
+                artSession.records,
+                path.join(config.rootDir, "build", "art"),
+            );
+        } finally {
+            if (!session) artSession.dispose();
+        }
+    }
 
     // `to:` is relative to the staged package root, so a
     // repository's table reads `lang`, not `build/stage/lang`.
@@ -130,6 +166,8 @@ export async function stagePackageBuildAssets({
             :   packConfig.contentPackage,
         transform,
         shippingLicenses: config.shippingLicenses,
+        preparedMasters,
+        records: preparedMasters ? shippingAssetRecords(artSession.records) : undefined,
     });
     if (pictures.findings.length) {
         const error = new Error(pictures.findings.map(formatDiagnostic).join("\n"));

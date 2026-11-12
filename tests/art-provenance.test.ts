@@ -1063,18 +1063,22 @@ describe("foreign XMP retention", () => {
     });
 
     it("retains comments in a master's RDF packet and reports them", async () => {
-        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="${RDF}"><!-- outer-comment --><rdf:Description xmlns:hl="${HL_NAMESPACE}"><hl:address>${FIELDS.address}<!-- nested-comment --></hl:address><!-- inner-comment --></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><!-- outside-rdf --><rdf:RDF xmlns:rdf="${RDF}"><!-- outer-comment --><rdf:Description xmlns:hl="${HL_NAMESPACE}" xmlns:p="urn:foreign"><hl:address>${FIELDS.address}<!-- nested-comment --></hl:address><!-- inner-comment --><p:credit>Artist</p:credit></rdf:Description></rdf:RDF></x:xmpmeta>`;
         const { out, read } = retain(packet);
         expect(out.foreignXmp).toBe("kept");
         expect(read.packet).toContain("<!-- outer-comment -->");
         expect(read.packet).toContain("<!-- inner-comment -->");
         expect(read.packet).toContain("<!-- nested-comment -->");
+        expect(read.packet).toContain("<p:credit>Artist</p:credit>");
+        expect(read.packet).not.toContain("outside-rdf");
         expect(writeProvenance(out.bytes, {}).bytes).toEqual(out.bytes);
         const webp = await sharp(png).withXmp(packet).webp().toBuffer();
         const svg = `<svg xmlns="http://www.w3.org/2000/svg"><metadata id="hl-provenance">${packet}</metadata></svg>`;
         for (const result of [writeWebpProvenance(webp, FIELDS), writeSvgProvenance(svg, FIELDS)]) {
             expect(result.foreignXmp).toBe("kept");
             const bytes = result.bytes.toString("utf8");
+            expect(bytes).not.toContain("outside-rdf");
+            expect(bytes).toContain("<p:credit>Artist</p:credit>");
             for (const comment of ["outer-comment", "inner-comment", "nested-comment"])
                 expect(bytes).toContain(comment);
         }
@@ -1525,6 +1529,35 @@ describe("deriveRecord", () => {
         const output = writeDerivativeProvenance(safe, MASTER).bytes.toString("utf8");
         expect(output).toContain('href="#r"');
         expect(output).toContain('href="https://example.test/a.png"');
+    });
+
+    it("refuses SVG resource user information without echoing it", () => {
+        for (const url of [
+            "https://user:password@example.test/a",
+            "http://user@example.test/a",
+            "https://:password@example.test/a",
+        ]) {
+            for (const element of [
+                `<image href="${url}"/>`,
+                `<rect style="fill:url('${url}')"/>`,
+                `<image><set attributeName="href" to="${url}"/></image>`,
+                `<rect><animate attributeName="fill" to="url('${url}')"/></rect>`,
+            ]) {
+                const svg = `<svg xmlns="http://www.w3.org/2000/svg">${element}</svg>`;
+                expect(() => writeDerivativeProvenance(svg, MASTER)).toThrowError(/SVG.*resource/i);
+                try {
+                    writeDerivativeProvenance(svg, MASTER);
+                } catch (error) {
+                    expect((error as Error).message).not.toContain(url);
+                    expect((error as Error).message).not.toContain("password");
+                }
+            }
+        }
+        const safe = `<svg xmlns="http://www.w3.org/2000/svg"><use href="#shape"/><image href="https://example.test/a?size=small&amp;mode=dark"/><image href="http://example.test/b"/></svg>`;
+        const output = writeDerivativeProvenance(safe, MASTER).bytes.toString("utf8");
+        expect(output).toContain("size=small");
+        expect(output).toContain('href="#shape"');
+        expect(output).toContain("http://example.test/b");
     });
 
     it("drops non-rendering text and CSS comments while retaining drawing text and presentation", async () => {

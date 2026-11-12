@@ -39,7 +39,7 @@ const AGE_WORDS = Object.freeze({
     elder: ["deep wrinkles", "weathered skin", "age spots", "coarse thinning hair"],
 });
 const EXCLUDED =
-    /(?:^\s*ink\s*$|\b(?:ink(?:ed|ing)|ink[ -]*(?:and[ -]*wash|wash|outlin(?:e|es|ed|ing)|illustration|painting|drawing|sketch|contours?|style)|(?:drawn|rendered|painted)[ -]+in[ -]+ink|pen[ -]+and[ -]+ink|outlin(?:e|es|ed|ing)|cartoon(?:ish)?|cel(?:[ -]*shad(?:e|ed|ing))?|flat[ -]+colou?r(?:s|ed|ing)?|full[ -]+(?:body|length))\b)/iu;
+    /(?:^\s*ink\s*$|\b(?:ink(?:ed|ing)|ink[ -]*(?:and[ -]*wash|wash|outlin(?:e|es|ed|ing)|illustrations?|paintings?|drawings?|sketch(?:es)?|contours?|style)|(?:drawn|rendered|painted)[ -]+in[ -]+ink|pen[ -]+and[ -]+ink|outlin(?:e|es|ed|ing)|cartoon(?:ish|s)?|cel(?:[ -]*shad(?:e|ed|ing))?|flat[ _–-]*colou?r(?:s|ed|ing)?|full[ _–-]*(?:body|length))\b)/iu;
 
 /**
  * Check one authored value for an excluded style direction.

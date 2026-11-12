@@ -119,6 +119,8 @@ export { asciiName };
 import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
 import { requiredModulePackages, resolveItemDefaults } from "./item-entries.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
+import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
+import { copyArtSource } from "./art-source.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
 import { isAddressTuple, ownDocumentSystem, readCanonicalKey, renderAddress } from "./address.mjs";
@@ -1091,6 +1093,7 @@ export function resolveCultures(
  *   the three asset roots. Omitted, no asset is indexed — which is what a caller
  *   walking a bare content fixture wants, and what an asset-free package gets
  *   anyway.
+ * @param {Record<string, any>[]} [options.masterRecords] - Prepared private-master asset records.
  * @param {object} [options.manifest] - The package manifest, which the Foundry
  *   entries are derived against.
  * @param {object} [options.addressContext] - Address resolution context.
@@ -1153,6 +1156,7 @@ export function collectContentIndex(
         timings,
         cache,
         requiredModules = [],
+        masterRecords,
     },
 ) {
     // Each phase runs until the next begins; the caller's stage closes the last.
@@ -1217,7 +1221,9 @@ export function collectContentIndex(
     // cross-file numbering sets. A package with no `assetsBase` resolves no
     // role, which is the one it would have resolved anyway.
     const assetRecords =
-        assetsBase ? collectAssetRecords(assetsBase, { contentPackage, problems }) : [];
+        assetsBase ?
+            collectAssetRecords(assetsBase, { contentPackage, problems, masterRecords })
+        :   [];
     const assetIndex = assetAddressIndex(assetRecords, { config: { contentPackage } });
     const resolveRole = (address) => embedRole(assetIndex, address);
     const decodeContext = withDeclaredAddresses(
@@ -1475,7 +1481,9 @@ export function collectContentIndex(
 
     phase("index order");
     for (const record of assetRecords) {
-        records.push(/** @type {Record<string, any>} */ (sortKeysDeep(record)));
+        records.push(
+            copyArtSource(record, /** @type {Record<string, any>} */ (sortKeysDeep(record))),
+        );
     }
 
     // Source path, then the canonical address, then the note id. The walk
@@ -1500,7 +1508,10 @@ export function collectContentIndex(
             String(a.id ?? "").localeCompare(String(b.id ?? ""), "en"),
     );
     const decoded = records.map((record) =>
-        decodeIndexAddresses(record, addressContext ?? { package: contentPackage }),
+        copyArtSource(
+            record,
+            decodeIndexAddresses(record, addressContext ?? { package: contentPackage }),
+        ),
     );
     phaseEnd?.();
     return decoded;
@@ -1598,6 +1609,7 @@ function dependencyAddresses(config) {
  * scope.
  *
  * @param {object} [opts]
+ * @param {Record<string, any>[]} [opts.masterRecords] - Prepared private-master asset records.
  * @param {string} [opts.contentBase] - The tree, defaulting to the configured one.
  * @param {string} [opts.assetsBase] - The asset roots' parent, defaulting to
  *   the configured one. Stated separately from `contentBase` because the two
@@ -1641,8 +1653,22 @@ export function indexRecordsFor({
     foreignIndex,
     timings,
     cache,
+    masterRecords,
 } = {}) {
     const resolved = config ?? loadPackConfig();
+    if (!masterRecords && resolved.art?.masterRoots?.length) {
+        assertPrivateArtRoots(resolved.art.masterRoots, [assetsBase ?? resolved.paths.assets], {
+            role: "input",
+        });
+        const collected = collectArtMasters(resolved.art.masterRoots, resolved.contentPackage);
+        if (problems) problems.push(...collected.findings);
+        else if (collected.findings.length) {
+            const error = new Error(collected.findings.map(formatDiagnostic).join("\n"));
+            error.located = true;
+            throw error;
+        }
+        masterRecords = masterAssetRecords(collected.masters);
+    }
     const tree = contentBase ?? resolved.paths.content;
     if (!fs.existsSync(tree) && needsContentTree(resolved)) {
         throw new Error(`no content tree at ${tree}`);
@@ -1678,6 +1704,7 @@ export function indexRecordsFor({
         timings,
         cache,
         requiredModules: requiredModulePackages(resolved),
+        masterRecords,
     });
 }
 
@@ -2019,6 +2046,12 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
     const tree = path.resolve(contentBase ?? publication?.contentBase ?? resolved.paths.content);
     const dir = outDir ?? resolved.paths.contentIndex;
     const contentPackage = resolved.contentPackage;
+    assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [
+        path.join(dir, metadataFileName(contentPackage)),
+        ...["dictionary", "terms"].map((relation) =>
+            path.join(dir, `${contentPackage}-${relation}.jsonl`),
+        ),
+    ]);
 
     if (!fs.existsSync(tree) && needsContentTree(resolved)) {
         throw new Error(`no content tree at ${tree}`);

@@ -754,7 +754,7 @@ export function renderImageFigures(body, resolveSrc = (src) => src, lookupAsset 
  *   address into the one this surface serves. Foundry is handed the path inside
  *   the install; a renderer that resolves the address itself — the book stages
  *   its own copy — passes nothing and gets the address as authored.
- * @param {(src: string) => {type?: string, role?: string, width?: number|"", height?: number|""}|undefined}
+ * @param {(src: string, env?: any) => {type?: string, role?: string, width?: number|"", height?: number|""}|undefined}
  *   [lookupAsset] - What the resolved asset record says about the address, as
  *   authored — before `resolveSrc` runs. The default answers nothing, which is
  *   what an address resolving to no asset record gets anyway.
@@ -776,7 +776,7 @@ export function imagePlugin(resolveSrc = (src) => src, lookupAsset = () => undef
             const token = tokens[idx];
             if (!token.meta?.block) return base(tokens, idx, options, env, self);
             const src = token.attrGet("src") ?? "";
-            const asset = lookupAsset(src);
+            const asset = lookupAsset(src, env);
             return `${imageFigureHtml({
                 src: resolveSrc(src),
                 alt: token.content ?? "",

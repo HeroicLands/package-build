@@ -54,6 +54,9 @@ import {
     siteBuildConfig,
 } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
+import { assertPrivateArtRoots } from "../engine/art-masters.mjs";
+import { artSource } from "../engine/art-source.mjs";
+import { GENERATED_DRAWING_DIR } from "../engine/generated-sections.mjs";
 import { buildPdf, listBookAssets } from "../engine/pdf-build.mjs";
 import { summaryLines } from "../engine/pdf-coverage.mjs";
 import {
@@ -1291,7 +1294,7 @@ function lintCommand() {
                             .filter(isAssetRecord)
                             .filter((record) => record.asset.ai === true)
                             .map((record) => ({
-                                file: path.join(config.paths.assets, record.asset.path),
+                                file: artSource(record, config.paths.assets),
                                 severity: "error",
                                 message:
                                     `\`${encodeAddresses(record.address.canonical)}\` is ` +
@@ -1562,6 +1565,7 @@ function contentBuildOutputs(config, packaging) {
     const roots = [
         config.paths.content,
         ...DEPLOYED_ASSET_TYPES.map((entry) => path.resolve(config.paths.assets, entry.root)),
+        ...(config.art?.masterRoots ?? []),
     ];
     const stage = path.resolve(packaging.rootDir, packaging.stageDir);
     const outputs = [
@@ -1570,7 +1574,13 @@ function contentBuildOutputs(config, packaging) {
         config.paths.stage,
         stage,
         path.join(config.rootDir, "build/calendars"),
+        path.join(config.rootDir, "build", "map", "foundry"),
+        path.join(path.dirname(config.paths.stage), "assets", GENERATED_DRAWING_DIR),
     ];
+    const assetDestinations = packaging.assets.map(({ to }) =>
+        path.resolve(packaging.rootDir, path.join(packaging.stageDir, to)),
+    );
+    assertPrivateArtRoots(config.art?.masterRoots ?? [], [...outputs, ...assetDestinations]);
     const contains = (parent, child) => {
         const relative = path.relative(path.resolve(parent), path.resolve(child));
         return (
@@ -1580,7 +1590,7 @@ function contentBuildOutputs(config, packaging) {
                 !path.isAbsolute(relative))
         );
     };
-    for (const output of [...outputs, ...packaging.assets.map(({ to }) => path.resolve(stage, to))])
+    for (const output of [...outputs, ...assetDestinations])
         for (const root of roots)
             if (contains(root, output) || contains(output, root))
                 throw new Error(
@@ -1630,9 +1640,9 @@ function contentBuildCommand() {
             try {
                 const config = loadPackConfig();
                 const marker = path.join(config.paths.contentIndex, ".publication-ready");
-                fs.rmSync(marker, { force: true });
                 const packaging = loadPackageBuildConfig();
                 const outputs = contentBuildOutputs(config, packaging);
+                fs.rmSync(marker, { force: true });
                 for (const output of outputs) fs.rmSync(output, { recursive: true, force: true });
                 cachedMetadataIndexes(config);
                 session = await createContentSession({ config, timings, trackChanges: true });
@@ -2379,6 +2389,7 @@ function siteBuildCommand() {
                     base: siteBase(config),
                     out: root,
                     search: config.site.search,
+                    masterRoots: config.art?.masterRoots,
                     progress: (message) => log.info(message),
                 });
                 if (search) {
@@ -3267,6 +3278,8 @@ function packageCommand() {
                 // `unpack` writes the extracted JSON there and `compile` reads
                 // it back. Created here rather than at module scope so that
                 // asking the CLI its version needs no configuration.
+                if (!fs.existsSync(config.paths.unpack))
+                    assertPrivateArtRoots(config.art?.masterRoots ?? [], [config.paths.unpack]);
                 fs.mkdirSync(config.paths.unpack, {
                     recursive: true,
                 });

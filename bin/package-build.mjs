@@ -88,12 +88,16 @@ import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
 import { loadAssetTransform, stagePackageBuildAssets } from "../engine/build-assets.mjs";
+import { createContentSession } from "../engine/content-session.mjs";
+import { assertPrivateArtRoots, shippingAssetRecords } from "../engine/art-masters.mjs";
+import { artSource } from "../engine/art-source.mjs";
+import { renderArtMasters } from "../engine/art-master-render.mjs";
 import { emitDiagnostic, formatDiagnostic } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments, siteBase } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
-import { cleanBuildArtifacts, resetStage } from "../stage.mjs";
+import { BUILD_ARTIFACT_DIRS, cleanBuildArtifacts, resetStage } from "../stage.mjs";
 import {
     CDN_ENV,
     INTERNAL_CDN_HOST,
@@ -425,6 +429,16 @@ function cleanCommand() {
             }),
         handler: handler((args) => {
             const config = loadPackageBuildConfig();
+            const roots = loadPackConfig().art?.masterRoots ?? [];
+            assertPrivateArtRoots(
+                roots,
+                [
+                    ...BUILD_ARTIFACT_DIRS,
+                    ...config.cleanExtra,
+                    ...(args.distclean ? ["node_modules"] : []),
+                ].map((dir) => path.resolve(config.rootDir, dir)),
+                { inspectChildren: false },
+            );
             const removed = cleanBuildArtifacts(config.rootDir, {
                 includeNodeModules: args.distclean,
                 extra: config.cleanExtra,
@@ -457,6 +471,11 @@ function stageCommand() {
             }),
         handler: handler(() => {
             const config = loadPackageBuildConfig();
+            assertPrivateArtRoots(
+                loadPackConfig().art?.masterRoots ?? [],
+                [path.resolve(config.rootDir, config.stageDir)],
+                { inspectChildren: false },
+            );
             const removed = resetStage(config.rootDir, config.stageDir);
             console.log(removed ? `Removed ${config.stageDir}` : "Stage is already empty.");
         }),
@@ -476,6 +495,9 @@ function calendarsCommand() {
             }),
         handler: handler((args) => {
             const config = loadPackConfig();
+            assertPrivateArtRoots(config.art?.masterRoots ?? [], [
+                path.join(config.rootDir, "build", "calendars"),
+            ]);
             const result = emitCalendarArtifacts({
                 config,
                 calendariaVersion: args.calendariaVersion,
@@ -638,6 +660,7 @@ function schemaCommand() {
             });
 
             const out = path.join(config.rootDir, "build", SCHEMA_ARTIFACT_FILE);
+            assertPrivateArtRoots(loadPackConfig().art?.masterRoots ?? [], [out]);
             const text = await formatGenerated(JSON.stringify(artifact), out);
             const counts = Object.entries(artifact.documents)
                 .map(([kind, subtypes]) => `${Object.keys(subtypes).length} ${kind}`)
@@ -673,6 +696,9 @@ function manifestCommand() {
         handler: handler(async () => {
             const config = loadPackageBuildConfig();
             const shared = loadPackConfig();
+            assertPrivateArtRoots(shared.art?.masterRoots ?? [], [
+                path.resolve(config.rootDir, config.stageDir),
+            ]);
             // Refused rather than written: a manifest is the file Foundry reads
             // to install a package, and a documentation package is not one. An
             // emitted `module.json` would advertise an installable package with
@@ -759,6 +785,7 @@ function siteRootCommand() {
                 base: siteBase(shared),
                 out,
                 search: shared.site.search,
+                masterRoots: shared.art?.masterRoots,
             });
             for (const file of files) {
                 console.log(`✅ Wrote ${path.relative(config.rootDir, file)}.`);
@@ -1479,6 +1506,29 @@ function cdnPublishCommand() {
                 );
             }
 
+            const roots = packConfig.art?.masterRoots ?? [];
+            assertPrivateArtRoots(roots, [packConfig.paths.assets], { role: "input" });
+            assertPrivateArtRoots(roots, [path.join(config.rootDir, "build", "art")]);
+            let artRecords;
+            let preparedMasters;
+            if (roots.length) {
+                const session = await createContentSession({ config: packConfig });
+                try {
+                    if (session.problems.length) {
+                        reportFindings(session.problems, {});
+                        process.exitCode = 1;
+                        return;
+                    }
+                    preparedMasters = await renderArtMasters(
+                        session.masters,
+                        session.records,
+                        path.join(config.rootDir, "build", "art"),
+                    );
+                    artRecords = shippingAssetRecords(session.records);
+                } finally {
+                    session.dispose();
+                }
+            }
             const plan = planCdnPublish({
                 assetsBase: packConfig.paths.assets,
                 contentPackage: packConfig.contentPackage,
@@ -1487,6 +1537,8 @@ function cdnPublishCommand() {
                 setName: name,
                 transform: await loadAssetTransform(config),
                 shippingLicenses: config.shippingLicenses,
+                records: artRecords,
+                preparedMasters,
             });
             if (plan.findings.length) {
                 const located = plan.findings.map((finding) => ({
@@ -1529,7 +1581,7 @@ function cdnPublishCommand() {
             const failures = result.failed.map(({ upload, message }) => ({
                 file: path.relative(
                     process.cwd(),
-                    path.join(packConfig.paths.assets, ...upload.record.asset.path.split("/")),
+                    artSource(upload.record, packConfig.paths.assets),
                 ),
                 severity: "error",
                 message: `${upload.key} did not upload: ${message}`,

@@ -352,6 +352,10 @@ at the package root, through the same transform, and the package's asset set,
 `asset-sets/default.json`, lists what was staged. Everything else stays in the repository. See
 [what a package ships](reference/format-details.md#what-a-package-ships).
 
+Configured `art.masterRoots` are read by embedded image Address. Their PNG and
+SVG inputs are rendered under `build/art`; eligible derivatives enter the stage
+and the CDN plan receives the remaining derivatives. Master files stay private.
+
 The pictures are written beside whatever a `packageBuild.assets` row copied
 into `icons/` or `images/`, and nothing there is removed. A picture whose
 deployed path is already a file a row staged is an error, and no picture is
