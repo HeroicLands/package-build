@@ -1099,8 +1099,17 @@ describe("foreign XMP retention", () => {
                 await sharp(Buffer.from(input)).raw().toBuffer(),
             );
         }
-        const clean = writeSvgProvenance("<svg/>", FIELDS);
-        expect(writeSvgProvenance(clean.bytes, {}).foreignXmp).toBe("none");
+        const cleanPng = writeProvenance(png, FIELDS);
+        const cleanWebp = writeWebpProvenance(await sharp(png).webp().toBuffer(), FIELDS);
+        const cleanSvg = writeSvgProvenance(
+            '<svg>\r\n<metadata id="other"><x/></metadata>\r\n</svg>',
+            FIELDS,
+        );
+        expect(writeProvenance(cleanPng.bytes, {}).foreignXmp).toBe("none");
+        expect(writeWebpProvenance(cleanWebp.bytes, {}).foreignXmp).toBe("none");
+        expect(writeSvgProvenance(cleanSvg.bytes, {}).foreignXmp).toBe("none");
+        expect(cleanSvg.text).toContain('<metadata id="other"><x/></metadata>');
+        expect(cleanSvg.text.replaceAll("\r\n", "")).not.toContain("\n");
     });
 });
 
