@@ -1709,7 +1709,7 @@ export function formatFinding(finding) {
 }
 
 /**
- * Check a set of masters, PNG, WebP and SVG alike.
+ * Check PNG and SVG masters and their WebP and SVG derivatives.
  *
  * The format of each file is sniffed from its content. A file is refused for a
  * missing address, an address that is not a complete Address, an
