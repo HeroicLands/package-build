@@ -115,7 +115,10 @@
  *
  * A file may already hold an XMP packet from another tool, such as an editor's
  * edit history. The policy is to **keep it and replace only the properties this
- * module manages**: the packet's `rdf:Description` blocks stay, `dc:title`,
+ * module manages**: eligible properties and comments inside `rdf:RDF` stay;
+ * comments outside `rdf:RDF` are dropped. `foreignXmp` describes retained
+ * foreign properties and comments inside `rdf:RDF`. The packet's
+ * `rdf:Description` blocks stay, `dc:title`,
  * `dc:creator`, `dc:rights`, `dc:description` and the managed `hl:` and
  * `Iptc4xmpExt:DigitalSourceType` properties are removed from them, and one
  * `rdf:Description` block of this module's own is written. A packet that
@@ -1039,7 +1042,8 @@ function applyPrimaryNote(record, index) {
  * @returns {{bytes: Buffer, record: ProvenanceRecord, foreignXmp: "none"|"kept"|"discarded",
  *   changed: boolean, primary?: import("./art-primary-note.mjs").PrimaryNoteResult}} The new file, the record it carries, what became of
  *   another tool's XMP packet (`none` when the file held none, `kept` when its
- *   other properties were retained, `discarded` when it could not be retained
+ *   foreign properties or comments inside `rdf:RDF` were retained, `discarded`
+ *   when it could not be retained
  *   safely, with `foreignXmpReason` saying why), and whether any byte differs
  *   from the input; with `index`, `primary` is what the resolver answered, so a
  *   caller can report an image with several notes.

@@ -1063,18 +1063,22 @@ describe("foreign XMP retention", () => {
     });
 
     it("retains comments in a master's RDF packet and reports them", async () => {
-        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="${RDF}"><!-- outer-comment --><rdf:Description xmlns:hl="${HL_NAMESPACE}"><hl:address>${FIELDS.address}<!-- nested-comment --></hl:address><!-- inner-comment --></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><!-- outside-rdf --><rdf:RDF xmlns:rdf="${RDF}"><!-- outer-comment --><rdf:Description xmlns:hl="${HL_NAMESPACE}" xmlns:p="urn:foreign"><hl:address>${FIELDS.address}<!-- nested-comment --></hl:address><!-- inner-comment --><p:credit>Artist</p:credit></rdf:Description></rdf:RDF></x:xmpmeta>`;
         const { out, read } = retain(packet);
         expect(out.foreignXmp).toBe("kept");
         expect(read.packet).toContain("<!-- outer-comment -->");
         expect(read.packet).toContain("<!-- inner-comment -->");
         expect(read.packet).toContain("<!-- nested-comment -->");
+        expect(read.packet).toContain("<p:credit>Artist</p:credit>");
+        expect(read.packet).not.toContain("outside-rdf");
         expect(writeProvenance(out.bytes, {}).bytes).toEqual(out.bytes);
         const webp = await sharp(png).withXmp(packet).webp().toBuffer();
         const svg = `<svg xmlns="http://www.w3.org/2000/svg"><metadata id="hl-provenance">${packet}</metadata></svg>`;
         for (const result of [writeWebpProvenance(webp, FIELDS), writeSvgProvenance(svg, FIELDS)]) {
             expect(result.foreignXmp).toBe("kept");
             const bytes = result.bytes.toString("utf8");
+            expect(bytes).not.toContain("outside-rdf");
+            expect(bytes).toContain("<p:credit>Artist</p:credit>");
             for (const comment of ["outer-comment", "inner-comment", "nested-comment"])
                 expect(bytes).toContain(comment);
         }

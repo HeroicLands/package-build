@@ -115,7 +115,10 @@
  *
  * A file may already hold an XMP packet from another tool, such as an editor's
  * edit history. The policy is to **keep it and replace only the properties this
- * module manages**: the packet's `rdf:Description` blocks stay, `dc:title`,
+ * module manages**: eligible properties and comments inside `rdf:RDF` stay;
+ * comments outside `rdf:RDF` are dropped. `foreignXmp` describes retained
+ * foreign properties and comments inside `rdf:RDF`. The packet's
+ * `rdf:Description` blocks stay, `dc:title`,
  * `dc:creator`, `dc:rights`, `dc:description` and the managed `hl:` and
  * `Iptc4xmpExt:DigitalSourceType` properties are removed from them, and one
  * `rdf:Description` block of this module's own is written. A packet that
