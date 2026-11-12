@@ -52,74 +52,41 @@ const manifest = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, "package.json"),
 const declared = Object.keys(manifest.dependencies ?? {});
 const declaredDev = Object.keys(manifest.devDependencies ?? {});
 
-/**
- * `from "x"`, `import "x"`, `import("x")`, and `require("x")` — enough for this
- * package, which is plain ESM with no computed specifiers.
- *
- * The lookbehind keeps the keyword from matching inside a string literal:
- * `["from", "to"]` would otherwise read as importing `", "`. A hyphen counts
- * for the same reason — `"file-import", label: "` is a Font Awesome glyph name
- * beside the next key, not an import of `, label: `.
- *
- * It cannot do the same for a **comment**, where the keyword is a real word and
- * the quotes are real quotes — so comments are removed before this ever runs
- * (see {@link blankComments}).
- */
-const SPECIFIER = /(?<!["'\w$.-])\b(?:from|import|require)\b\s*\(?\s*["']([^"']+)["']/g;
-
-/**
- * The source with every comment's characters replaced by spaces.
- *
- * English prose matches {@link SPECIFIER} whenever it contains the word `from`
- * — or `import`, or `require` — followed by a quoted phrase, which ordinary
- * explanatory comments in this codebase do:
- *
- * ```js
- * // writing a compile-time `null` over it would say "this phase takes no time",
- * // which is a different claim from "this note does not set the phase".
- * ```
- *
- * That reported `sohl/item-fields.mjs` as importing an undeclared package named
- * `this note does not set the phase`, and costs a debugging cycle before
- * anyone suspected the prose. A comment is not code, so nothing in one is an
- * import.
- *
- * Blanking rather than deleting is what keeps the finding honest: every
- * character is replaced one-for-one (newlines survive untouched), so offsets and
- * line numbers are the same as in the file a reader opens.
- *
- * Comments are located by parsing, not by a second regex — `//` inside a string
- * literal is not a comment, and only a parser knows the difference.
- */
-function blankComments(source: string): string {
-    const comments: { start: number; end: number }[] = [];
-    parse(source, {
-        ecmaVersion: "latest",
-        sourceType: "module",
-        allowHashBang: true,
-        onComment: (_block, _text, start, end) => comments.push({ start, end }),
-    });
-
-    let out = "";
-    let cursor = 0;
-    for (const { start, end } of comments) {
-        out += source.slice(cursor, start);
-        out += source.slice(start, end).replace(/[^\n]/g, " ");
-        cursor = end;
-    }
-    return out + source.slice(cursor);
-}
-
-/** The external packages a source text imports, with the line each was seen on. */
+/** The external packages imported by module syntax, with their source lines. */
 function importsIn(source: string): { pkg: string; line: number }[] {
-    const code = blankComments(source);
+    const tree = parse(source, { ecmaVersion: "latest", sourceType: "module", locations: true });
     const seen: { pkg: string; line: number }[] = [];
-    for (const match of code.matchAll(SPECIFIER)) {
-        const pkg = packageOf(match[1] ?? "");
-        if (!pkg) continue;
-        const line = code.slice(0, match.index).split("\n").length;
-        seen.push({ pkg, line });
+    function visit(value: unknown): void {
+        if (!value || typeof value !== "object") return;
+        if (Array.isArray(value)) {
+            value.forEach(visit);
+            return;
+        }
+        const node = value as Record<string, any>;
+        let specifier: any;
+        if (
+            [
+                "ImportDeclaration",
+                "ExportNamedDeclaration",
+                "ExportAllDeclaration",
+                "ImportExpression",
+            ].includes(node.type)
+        ) {
+            specifier = node.source;
+        } else if (
+            node.type === "CallExpression" &&
+            node.callee?.type === "Identifier" &&
+            node.callee.name === "require"
+        ) {
+            specifier = node.arguments[0];
+        }
+        if (specifier?.type === "Literal" && typeof specifier.value === "string") {
+            const pkg = packageOf(specifier.value);
+            if (pkg) seen.push({ pkg, line: node.loc.start.line });
+        }
+        for (const child of Object.values(node)) visit(child);
     }
+    visit(tree);
     return seen;
 }
 
@@ -209,6 +176,27 @@ const PROSE_FROM_329 = [
 ].join("\n");
 
 describe("the scanner reads code, not prose", () => {
+    it("reads module syntax rather than diagnostic strings", () => {
+        const source = [
+            'const diagnostic = ["the portrait was generated from", "error"];',
+            'import missing from "undeclared-package";',
+            'export { thing } from "export-package";',
+            'export * from "@scope/export/deep";',
+            'import "side-effect";',
+            'const lazy = import("lazy-package");',
+            'const required = require("required-package");',
+            'import fs from "node:fs";',
+        ].join("\n");
+        expect(importsIn(source)).toEqual([
+            { pkg: "undeclared-package", line: 2 },
+            { pkg: "export-package", line: 3 },
+            { pkg: "@scope/export", line: 4 },
+            { pkg: "side-effect", line: 5 },
+            { pkg: "lazy-package", line: 6 },
+            { pkg: "required-package", line: 7 },
+        ]);
+    });
+
     it("finds no import in the line comment that cost a cycle", () => {
         // It was reported as `… → this note does not set the phase`, a package
         // name nothing in the message suggested was a sentence.
@@ -259,14 +247,5 @@ describe("the scanner reads code, not prose", () => {
         const source = 'const docs = "https://example.invalid/"; import yaml from "yaml";';
 
         expect(importsIn(source)).toEqual([{ pkg: "yaml", line: 1 }]);
-    });
-
-    it("blanks a comment in place, moving nothing after it", () => {
-        const source = ["/* one", "   two */ code();", "// three"].join("\n");
-        const blanked = blankComments(source);
-
-        expect(blanked).toHaveLength(source.length);
-        expect(blanked.split("\n")).toHaveLength(source.split("\n").length);
-        expect(blanked.split("\n")[1]).toBe("          code();");
     });
 });
