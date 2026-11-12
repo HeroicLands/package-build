@@ -425,6 +425,36 @@ describe("a system-agnostic module stamps no system version", () => {
         );
     });
 
+    it("validates mirror manifest prerequisites and URL shapes", () => {
+        const check = (relationship: object) =>
+            resolveIn(repoDir(), {
+                ...minimal(),
+                relationships: { systems: [{ id: "other", ...relationship }] },
+            });
+        const base = {
+            manifest: "https://public.test/system.json",
+            buildManifest: "https://mirror.test/system.json",
+            compatibility: { verified: "1" },
+        };
+        expect(() => check(base)).not.toThrow();
+        expect(() => check({ ...base, manifest: undefined })).toThrow(/needs a `manifest`/);
+        expect(() => check({ ...base, compatibility: undefined })).toThrow(
+            /needs `compatibility.verified`/,
+        );
+        for (const value of [
+            "ftp://host/file",
+            "https://user:pass@host/file",
+            "https://host/file?q=1",
+            "https://host/file#x",
+            "https://host/",
+        ]) {
+            expect(() => check({ ...base, buildManifest: value })).toThrow(
+                /must be HTTP\(S\) URLs/,
+            );
+            expect(() => check({ ...base, manifest: value })).toThrow(/must be HTTP\(S\) URLs/);
+        }
+    });
+
     it("throws when a related system's verified build is below its own minimum", () => {
         expect(() =>
             resolveIn(repoDir(), {

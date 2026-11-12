@@ -85,6 +85,38 @@ describe("which relationships supply an item catalogue", () => {
             relationships,
         } as never);
 
+    it("retains the build mirror without publishing it to Foundry", async () => {
+        const { publishedRelationships } = await import("../manifest.mjs");
+        const config = withRelationships({
+            systems: [
+                {
+                    id: "sohl",
+                    manifest: LATEST,
+                    buildManifest: "https://forge.test/v1/system.json",
+                    compatibility: { verified: "1" },
+                    itemCatalog: true,
+                },
+            ],
+        });
+        expect(itemCatalogRelationships(config)[0].buildManifest).toBe(
+            "https://forge.test/v1/system.json",
+        );
+        expect(publishedRelationships(config.relationships).systems[0]).not.toHaveProperty(
+            "buildManifest",
+        );
+        expect(() =>
+            withRelationships({
+                systems: [
+                    {
+                        id: "sohl",
+                        manifest: LATEST,
+                        buildManifest: "https://forge.test/system.json",
+                    },
+                ],
+            }),
+        ).toThrow(/verified/);
+    });
+
     it("takes only the relationships that opted in", () => {
         const config = withRelationships({
             systems: [
@@ -660,6 +692,24 @@ describe("dependency download retries", () => {
         expect(error.message).toContain(rel.manifest);
     });
 
+    it("retries metadata server failures with the same timeout", async () => {
+        const { fetchMetadata } = await import("../engine/foreign-catalog.mjs");
+        const fetcher = vi
+            .fn()
+            .mockResolvedValueOnce(
+                Response.json({
+                    version: "1",
+                    flags: { metadataUrl: "https://example.test/index.jsonl" },
+                }),
+            )
+            .mockResolvedValue(response(503));
+        vi.stubGlobal("fetch", fetcher);
+        const error = await settle(fetchMetadata({ paths: { metadataCache: root } }, rel));
+        expect(fetcher).toHaveBeenCalledTimes(6);
+        expect(String(error)).toContain("index.jsonl: HTTP 503");
+        expect(fetcher.mock.calls[1][1].signal).toBeInstanceOf(AbortSignal);
+    });
+
     it("times out a hanging archive body read", async () => {
         const fetcher = vi
             .fn()
@@ -695,5 +745,383 @@ describe("dependency download retries", () => {
         expect(error.cause).toBe(cause);
         expect(error.message).toContain(`${manifest.download}: ${cause.message}`);
         expect(fs.existsSync(path.join(root, "example@1", ".complete"))).toBe(false);
+    });
+});
+
+describe("mirrored dependency releases", () => {
+    it("keeps asset names within the original release directory", async () => {
+        const { mirroredAssetUrl } = await import("../engine/foreign-catalog.mjs");
+        const original = "https://public.test/releases/v1/system.json";
+        const mirror = "https://forge.test/releases/v1/system.json";
+        expect(
+            mirroredAssetUrl("https://public.test/releases/v1/system.zip", original, mirror),
+        ).toBe("https://forge.test/releases/v1/system.zip");
+        for (const asset of [
+            "https://other.test/releases/v1/system.zip",
+            "https://public.test/releases/v2/system.zip",
+            "https://public.test/releases/v1/nested/system.zip",
+            "https://public.test/releases/v1/%2fsecret",
+            "https://public.test/releases/v1/system.zip?token=x",
+        ])
+            expect(() => mirroredAssetUrl(asset, original, mirror)).toThrow(/not beside/);
+    });
+
+    it("fetches exact metadata bytes from the mirror and reports a missing asset", async () => {
+        const http = await import("node:http");
+        const { fetchMetadata } = await import("../engine/foreign-catalog.mjs");
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "mirror-"));
+        const bytes = Buffer.from([0, 255, 10, 65]);
+        const pack = path.join(root, "source-pack");
+        const db = new ClassicLevel(pack);
+        await db.open();
+        await db.close();
+        const entries: Record<string, Uint8Array> = {};
+        for (const name of fs.readdirSync(pack))
+            entries[`packs/items/${name}`] = fs.readFileSync(path.join(pack, name));
+        const archive = zipSync(entries);
+        const requests: string[] = [];
+        const token = (await import("node:crypto")).randomBytes(32).toString("hex");
+        const tokenFile = path.join(root, "token");
+        fs.writeFileSync(tokenFile, `${token}\n`, { mode: 0o600 });
+        vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+        let authorized = true;
+        let missing = false;
+        const server = http.createServer((req, res) => {
+            authorized &&= req.headers.authorization === `token ${token}`;
+            requests.push(req.url!);
+            if (req.url === "/mirror/system.json") {
+                res.end(
+                    JSON.stringify({
+                        version: "1",
+                        download: "https://public.test/release/system.zip",
+                        packs: [{ name: "items", type: "Item", path: "packs/items" }],
+                        flags: { metadataUrl: "https://public.test/release/index.jsonl" },
+                    }),
+                );
+            } else if (!missing && req.url === "/mirror/index.jsonl") res.end(bytes);
+            else if (!missing && req.url === "/mirror/system.zip") res.end(archive);
+            else {
+                res.statusCode = 404;
+                res.end("missing");
+            }
+        });
+        await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+        try {
+            const address = server.address();
+            if (!address || typeof address === "string") throw new Error("server address missing");
+            const rel = {
+                id: "example",
+                manifest: "https://public.test/release/system.json",
+                buildManifest: `http://127.0.0.1:${address.port}/mirror/system.json`,
+                verified: "1",
+            };
+            const config = { paths: { metadataCache: root } };
+            const file = await fetchMetadata(config, rel);
+            expect(fs.readFileSync(file)).toEqual(bytes);
+            expect(requests).toEqual(["/mirror/system.json", "/mirror/index.jsonl"]);
+            const catalog = await fetchCatalog(
+                { paths: { foreignCache: path.join(root, "catalog") } },
+                rel,
+            );
+            expect(fs.existsSync(path.join(catalog, ".complete"))).toBe(true);
+            expect(requests.slice(-2)).toEqual(["/mirror/system.json", "/mirror/system.zip"]);
+            expect(authorized).toBe(true);
+            missing = true;
+            await expect(
+                fetchMetadata({ paths: { metadataCache: path.join(root, "cold") } }, rel),
+            ).rejects.toThrow(/index\.jsonl: HTTP 404/);
+        } finally {
+            await new Promise<void>((resolve, reject) =>
+                server.close((err) => (err ? reject(err) : resolve())),
+            );
+            vi.unstubAllEnvs();
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+    it("refuses a token on non-loopback HTTP before any request", async () => {
+        const { fetchMetadata } = await import("../engine/foreign-catalog.mjs");
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "mirror-transport-"));
+        const tokenFile = path.join(root, "token");
+        fs.writeFileSync(tokenFile, (await import("node:crypto")).randomBytes(32).toString("hex"));
+        vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+        const fetcher = vi.fn();
+        vi.stubGlobal("fetch", fetcher);
+        try {
+            await expect(
+                fetchMetadata(
+                    { paths: { metadataCache: root } },
+                    {
+                        id: "example",
+                        manifest: "https://public.test/system.json",
+                        buildManifest: "http://mirror.test/system.json",
+                        verified: "1",
+                    },
+                ),
+            ).rejects.toThrow(/example.*PACKAGE_BUILD_FORGE_TOKEN_FILE.*HTTPS/);
+            expect(fetcher).not.toHaveBeenCalled();
+        } finally {
+            vi.unstubAllGlobals();
+            vi.unstubAllEnvs();
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it("refuses cross-origin redirects without sending the token", async () => {
+        const http = await import("node:http");
+        const { fetchMetadata } = await import("../engine/foreign-catalog.mjs");
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "mirror-auth-"));
+        const token = (await import("node:crypto")).randomBytes(32).toString("hex");
+        const tokenFile = path.join(root, "token");
+        fs.writeFileSync(tokenFile, token, { mode: 0o600 });
+        vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+        let received = false;
+        const other = http.createServer((_req, res) => {
+            received = true;
+            res.end();
+        });
+        await new Promise<void>((resolve) => other.listen(0, "127.0.0.1", resolve));
+        const otherAddress = other.address();
+        if (!otherAddress || typeof otherAddress === "string")
+            throw new Error("server address missing");
+        const server = http.createServer((_req, res) => {
+            res.writeHead(302, { location: `http://127.0.0.1:${otherAddress.port}/elsewhere` });
+            res.end();
+        });
+        await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+        try {
+            const address = server.address();
+            if (!address || typeof address === "string") throw new Error("server address missing");
+            const rel = {
+                id: "example",
+                manifest: "https://public.test/release/system.json",
+                buildManifest: `http://127.0.0.1:${address.port}/system.json`,
+                verified: "1",
+            };
+            const config = { paths: { metadataCache: root } };
+            await expect(fetchMetadata(config, rel)).rejects.toThrow(/mirror redirect refused/);
+            expect(received).toBe(false);
+            fs.writeFileSync(tokenFile, `${token}\nsecond`);
+            await expect(fetchMetadata(config, rel)).rejects.toThrow(/one non-empty token/);
+            fs.writeFileSync(tokenFile, "");
+            await expect(fetchMetadata(config, rel)).rejects.toThrow(/one non-empty token/);
+            vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", path.join(root, "missing"));
+            await expect(fetchMetadata(config, rel)).rejects.toThrow(
+                /example.*token file named by PACKAGE_BUILD_FORGE_TOKEN_FILE could not be read/,
+            );
+        } finally {
+            await Promise.all(
+                [server, other].map(
+                    (srv) =>
+                        new Promise<void>((resolve, reject) =>
+                            srv.close((err) => (err ? reject(err) : resolve())),
+                        ),
+                ),
+            );
+            vi.unstubAllEnvs();
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+    it("reports mirror authentication and parse failures without response text", async () => {
+        const { fetchMetadata } = await import("../engine/foreign-catalog.mjs");
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "mirror-errors-"));
+        const token = (await import("node:crypto")).randomBytes(32).toString("hex");
+        const tokenFile = path.join(root, "token");
+        fs.writeFileSync(tokenFile, token);
+        vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+        const rel = {
+            id: "example",
+            manifest: "https://public.test/release/system.json",
+            buildManifest: "https://mirror.test/release/system.json",
+            verified: "1",
+        };
+        const config = { paths: { metadataCache: root } };
+        try {
+            const fetcher = vi
+                .fn()
+                .mockResolvedValueOnce(new Response(token, { status: 401, statusText: token }))
+                .mockResolvedValueOnce(new Response(token, { status: 200 }))
+                .mockResolvedValueOnce(new Response("", { status: 404 }));
+            vi.stubGlobal("fetch", fetcher);
+            for (const expected of [/HTTP 401/, /invalid JSON/, /HTTP 404/]) {
+                const error = await fetchMetadata(config, rel).then(
+                    () => "unexpected success",
+                    (err) => String(err),
+                );
+                expect(error).toMatch(expected);
+                expect(error).toContain("example");
+                if (expected.source.includes("401"))
+                    expect(error).toContain("PACKAGE_BUILD_FORGE_TOKEN_FILE");
+                expect(error.includes(token)).toBe(false);
+                expect(error).toContain(rel.buildManifest);
+            }
+            vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", "");
+            vi.stubGlobal(
+                "fetch",
+                vi.fn().mockResolvedValue(
+                    new Response("secret response", {
+                        status: 404,
+                        statusText: "secret response",
+                    }),
+                ),
+            );
+            const missing = await fetchMetadata(config, rel).then(
+                () => "unexpected success",
+                (err) => String(err),
+            );
+            expect(missing).toMatch(/example.*HTTP 404.*PACKAGE_BUILD_FORGE_TOKEN_FILE/);
+            expect(missing).not.toContain("secret response");
+            const publicFetch = vi.fn().mockResolvedValue(Response.json({ version: "1" }));
+            vi.stubGlobal("fetch", publicFetch);
+            await expect(
+                fetchMetadata(config, { id: rel.id, manifest: rel.manifest, verified: "1" }),
+            ).rejects.toThrow(/metadataUrl/);
+            expect(publicFetch.mock.calls[0][1].headers).toBeUndefined();
+        } finally {
+            vi.unstubAllGlobals();
+            vi.unstubAllEnvs();
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+    it("follows same-origin redirects and bounds redirect loops", async () => {
+        const { fetchMetadata } = await import("../engine/foreign-catalog.mjs");
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "mirror-redirect-"));
+        const token = (await import("node:crypto")).randomBytes(32).toString("hex");
+        const tokenFile = path.join(root, "token");
+        fs.writeFileSync(tokenFile, token);
+        vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+        const rel = {
+            id: "example",
+            manifest: "https://public.test/release/system.json",
+            buildManifest: "https://mirror.test/release/system.json",
+            verified: "1",
+        };
+        const config = { paths: { metadataCache: root } };
+        try {
+            const redirect = () =>
+                new Response(null, { status: 302, headers: { location: "/next" } });
+            const fetcher = vi
+                .fn()
+                .mockResolvedValueOnce(redirect())
+                .mockResolvedValueOnce(Response.json({ version: "1" }));
+            vi.stubGlobal("fetch", fetcher);
+            await expect(fetchMetadata(config, rel)).rejects.toThrow(/metadataUrl/);
+            expect(fetcher).toHaveBeenCalledTimes(2);
+            expect(
+                fetcher.mock.calls.every(
+                    ([, options]) => options.headers.Authorization === `token ${token}`,
+                ),
+            ).toBe(true);
+            const downgrade = vi.fn().mockResolvedValue(
+                new Response(null, {
+                    status: 302,
+                    headers: { location: "http://mirror.test/release/system.json" },
+                }),
+            );
+            vi.stubGlobal("fetch", downgrade);
+            await expect(fetchMetadata(config, rel)).rejects.toThrow(/mirror redirect refused/);
+            expect(downgrade).toHaveBeenCalledTimes(1);
+            const loop = vi.fn().mockImplementation(async () => redirect());
+            vi.stubGlobal("fetch", loop);
+            await expect(fetchMetadata(config, rel)).rejects.toThrow(/mirror redirect refused/);
+            expect(loop).toHaveBeenCalledTimes(11);
+        } finally {
+            vi.unstubAllGlobals();
+            vi.unstubAllEnvs();
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+    it("rejects decoded credential echoes before fields or cache paths are used", async () => {
+        const { fetchMetadata } = await import("../engine/foreign-catalog.mjs");
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "mirror-echo-"));
+        const token = (await import("node:crypto")).randomBytes(32).toString("hex");
+        const tokenFile = path.join(root, "private");
+        const cache = path.join(root, "cache");
+        fs.writeFileSync(tokenFile, token);
+        vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+        const captured: string[] = [];
+        for (const name of ["log", "info", "warn", "error"] as const) {
+            vi.spyOn(console, name).mockImplementation((...args) =>
+                captured.push(args.map(String).join(" ")),
+            );
+        }
+        const rel = {
+            id: "example",
+            manifest: "https://public.test/release/system.json",
+            buildManifest: "https://mirror.test/release/system.json",
+            verified: "1",
+        };
+        const config = { paths: { metadataCache: cache, foreignCache: cache } };
+        try {
+            const inputs = [
+                { version: token },
+                { version: "1", flags: { metadataUrl: `https://public.test/release/${token}` } },
+                { version: "1", download: `https://public.test/release/${token}` },
+                { version: "1", flags: { [token]: "value" } },
+            ];
+            for (const input of inputs) {
+                const escaped = JSON.stringify(input).replace(
+                    token,
+                    `\\u${token.charCodeAt(0).toString(16).padStart(4, "0")}${token.slice(1)}`,
+                );
+                vi.stubGlobal(
+                    "fetch",
+                    vi.fn().mockImplementation(async () => new Response(escaped)),
+                );
+                for (const action of [fetchMetadata, fetchCatalog]) {
+                    const error = await action(config, rel).then(
+                        () => "unexpected success",
+                        (err) => String(err),
+                    );
+                    expect(error).toContain("credential in response");
+                    expect(error.includes(token)).toBe(false);
+                    expect(fs.existsSync(cache)).toBe(false);
+                }
+            }
+            expect(captured.join(" ").includes(token)).toBe(false);
+        } finally {
+            vi.restoreAllMocks();
+            vi.unstubAllGlobals();
+            vi.unstubAllEnvs();
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it("retries a network failure after an authenticated redirect", async () => {
+        const { fetchMetadata } = await import("../engine/foreign-catalog.mjs");
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "mirror-retry-"));
+        const tokenFile = path.join(root, "private");
+        fs.writeFileSync(tokenFile, (await import("node:crypto")).randomBytes(32).toString("hex"));
+        vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+        vi.useFakeTimers();
+        const rel = {
+            id: "example",
+            manifest: "https://public.test/release/system.json",
+            buildManifest: "https://mirror.test/release/system.json",
+            verified: "1",
+        };
+        try {
+            const redirect = new Response(null, { status: 302, headers: { location: "/next" } });
+            const fetcher = vi
+                .fn()
+                .mockResolvedValueOnce(redirect)
+                .mockRejectedValueOnce(new Error("network"))
+                .mockResolvedValueOnce(
+                    Response.json({
+                        version: "1",
+                        flags: { metadataUrl: "https://public.test/release/index.jsonl" },
+                    }),
+                )
+                .mockResolvedValueOnce(new Response("index"));
+            vi.stubGlobal("fetch", fetcher);
+            const result = fetchMetadata({ paths: { metadataCache: root } }, rel);
+            await vi.runAllTimersAsync();
+            expect(fs.readFileSync(await result, "utf8")).toBe("index");
+            expect(fetcher).toHaveBeenCalledTimes(4);
+        } finally {
+            vi.useRealTimers();
+            vi.unstubAllGlobals();
+            vi.unstubAllEnvs();
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 });

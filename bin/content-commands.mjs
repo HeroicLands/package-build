@@ -3013,6 +3013,9 @@ function depsCommand() {
                 type: "string",
                 choices: ["fetch"],
             });
+            yargs.epilog(
+                "PACKAGE_BUILD_FORGE_TOKEN_FILE names a private token file for authenticated build mirrors.",
+            );
             yargs.option("from", {
                 describe:
                     "Fill the cache from a locally built artifact — a package " +

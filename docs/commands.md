@@ -58,7 +58,8 @@ The command entries below list only their own options.
 the walk up from the working directory the CLI otherwise does — the only
 environment variable the toolchain itself reads for configuration
 resolution. `deploy`, `container` and `e2e` additionally read `FOUNDRYVTT_*`,
-and `cdn publish` reads `CDN_*`, documented where each applies.
+`cdn publish` reads `CDN_*`, and `deps fetch` reads `PACKAGE_BUILD_FORGE_TOKEN_FILE`,
+documented where each applies.
 
 An option name recurring across commands is not a recurring meaning —
 `--out`, `--check`, `--from` and `--strict` each carry their own default and
@@ -1873,11 +1874,20 @@ not reproducible and hides a dependency's version change behind a passing
 run. Each cache is stamped complete only once its fetch finishes, so a
 half-finished one reads as cold.
 
-Dependency manifest and archive requests use up to five attempts for server
+Dependency manifest, archive and content index requests use up to five attempts for server
 errors and network or response-body failures. Each attempt has a 60-second
 timeout covering the response body. Retries wait 1, 2, 4 and 8 seconds, each
 with less than 250 milliseconds of jitter. Client errors fail immediately;
-the final error names the requested URL and preserves the network cause.
+the final error names the requested URL. For authenticated mirror requests,
+network causes and response text are omitted.
+
+A relationship may set `buildManifest` to a mirrored release manifest. Its
+archive and content index are fetched from the same mirror directory, while the
+public `manifest` remains the Foundry install address. See the relationship
+configuration reference for the required version and URL rules. Set
+`PACKAGE_BUILD_FORGE_TOKEN_FILE` to a private file containing one read-only
+forge token to authenticate mirror requests. Authenticated mirrors require HTTPS,
+except for loopback HTTP hosts. Authenticated redirects stay on the mirror origin.
 
 `lint`, `links`, `site`, `pdf`, `map`, `reachability`, and `package compile`
 check the declared dependencies' content-index cache before reading notes or

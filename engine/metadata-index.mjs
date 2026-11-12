@@ -117,9 +117,10 @@ export const METADATA_RELATIONSHIP_KINDS = Object.freeze(["systems", "requires"]
  * there is no new configuration key to keep in step. Each entry carries the
  * producer's own `manifest` URL, so the fetcher needs no address of its own:
  * it reads that manifest and takes the `flags.metadataUrl` it advertises.
+ * A build mirror can provide those same release assets.
  *
  * @param {object} config - The resolved build configuration.
- * @returns {Array<{id: string, manifest: string, kind: string,
+ * @returns {Array<{id: string, manifest: string, buildManifest: string|undefined, kind: string,
  *   verified: string|undefined}>} The dependencies, in declaration order.
  */
 export function metadataRelationships(config) {
@@ -140,6 +141,7 @@ export function metadataRelationships(config) {
             out.push({
                 id: rel.id,
                 manifest: rel.manifest,
+                buildManifest: rel.buildManifest,
                 kind,
                 verified: rel.compatibility?.verified,
             });
