@@ -116,17 +116,18 @@
  * A file may already hold an XMP packet from another tool, such as an editor's
  * edit history. The policy is to **keep it and replace only the properties this
  * module manages**: the packet's `rdf:Description` blocks stay, `dc:title`,
- * `dc:creator`, `dc:rights`, `dc:description` and every `hl:` and
- * `Iptc4xmpExt:DigitalSourceType` property are removed from them, and one
- * `rdf:Description` block of this module's own is appended. A packet that
+ * `dc:creator`, `dc:rights`, `dc:description` and the managed `hl:` and
+ * `Iptc4xmpExt:DigitalSourceType` properties are removed from them, and one
+ * `rdf:Description` block of this module's own is written. A packet that
  * cannot be retained safely (it is not RDF, is not well-formed, uses an
  * unbound prefix, or binds a prefix this module uses to a different namespace)
  * is replaced whole, and the result says so in `foreignXmp` and gives the reason
  * in `foreignXmpReason`. Namespace declarations that sit on the foreign
  * `x:xmpmeta` or `rdf:RDF` element move onto this module's `rdf:RDF` (including
  * `dc`, `hl` and `Iptc4xmpExt` when bound to this module's namespaces), so
- * every retained property keeps its prefix bound. The SVG writer retains nothing
- * foreign: it replaces the one managed element. Only one XMP chunk survives: the first is rewritten and any
+ * every retained property keeps its prefix bound. The SVG writer applies the
+ * same rule to its managed metadata element; other elements remain unchanged.
+ * Only one XMP chunk survives: the first is rewritten and any
  * further ones are removed. An XMP packet stored in a `tEXt` or compressed
  * `iTXt` chunk is read the same way and rewritten as the one uncompressed
  * `iTXt` chunk.
@@ -159,7 +160,7 @@
 
 import zlib from "node:zlib";
 
-import { DOMParser } from "@xmldom/xmldom";
+import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import { ParseOption, XmlCData, XmlDocument, XmlElement, XmlText } from "libxml2-wasm";
 
 import { readCanonicalKey } from "./address.mjs";
@@ -616,7 +617,7 @@ function checkMarkup(xml, bindings) {
  *   holds nothing but this module's own block).
  */
 function retainForeign(packet) {
-    const rest = packet.replace(OWN_DESCRIPTION, "");
+    const rest = packet;
     const start = rest.indexOf("<rdf:RDF");
     const open = start < 0 ? -1 : rest.indexOf(">", start);
     const close = rest.lastIndexOf("</rdf:RDF>");
@@ -654,25 +655,71 @@ function retainForeign(packet) {
         if (prefix !== null) bindings[prefix] = value;
         declarations += ` ${name}="${value}"`;
     }
-    const inner = stripManaged(rest.slice(open + 1, close));
-    if (!/<rdf:Description\b/.test(inner)) {
-        return { kept: false, empty: true };
-    }
+    const inner = rest.slice(open + 1, close);
     const problem = checkMarkup(inner, bindings);
     if (problem) return { kept: false, reason: `the packet cannot be retained: ${problem}` };
-    return { kept: true, markup: `  ${inner.trim()}\n`, declarations };
-}
-
-/** Remove the managed properties from foreign XMP markup. */
-function stripManaged(xml) {
-    let out = xml;
-    for (const name of MANAGED_PROPERTIES) {
-        const q = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        out = out.replace(new RegExp(`<${q}\\b[^>]*/>`, "g"), "");
-        out = out.replace(new RegExp(`<${q}\\b[^>]*>[\\s\\S]*?</${q}>`, "g"), "");
-        out = out.replace(new RegExp(`(\\s)${q}=(?:"[^"]*"|'[^']*')`, "g"), "$1");
+    let invalid = false;
+    let document;
+    try {
+        document = new DOMParser({
+            onError: () => {
+                invalid = true;
+            },
+        }).parseFromString(
+            `<rdf:RDF xmlns:rdf="${RDF_NAMESPACE}"${declarations}>${inner}</rdf:RDF>`,
+            "application/xml",
+        );
+    } catch {
+        return { kept: false, reason: "the packet is not well-formed XML" };
     }
-    return out;
+    if (invalid) return { kept: false, reason: "the packet is not well-formed XML" };
+    const managed = new Set(
+        MANAGED_PROPERTIES.map((name) => {
+            const [prefix, local] = name.split(":");
+            return `${OWN_BINDINGS[prefix]}|${local}`;
+        }),
+    );
+    const serializer = new XMLSerializer();
+    const retained = [];
+    for (
+        let description = document.documentElement.firstChild;
+        description;
+        description = description.nextSibling
+    ) {
+        if (description.nodeType !== 1) continue;
+        if (description.namespaceURI !== RDF_NAMESPACE || description.localName !== "Description") {
+            return { kept: false, reason: "the RDF contains unsupported markup" };
+        }
+        for (let i = description.attributes.length - 1; i >= 0; i--) {
+            const attribute = description.attributes.item(i);
+            if (managed.has(`${attribute.namespaceURI}|${attribute.localName}`))
+                description.removeAttributeNode(attribute);
+        }
+        for (let child = description.firstChild; child;) {
+            const next = child.nextSibling;
+            if (child.nodeType === 1 && managed.has(`${child.namespaceURI}|${child.localName}`))
+                description.removeChild(child);
+            child = next;
+        }
+        const foreignAttributes = Array.from({ length: description.attributes.length }, (_, i) =>
+            description.attributes.item(i),
+        ).some(
+            (a) =>
+                a.namespaceURI !== "http://www.w3.org/2000/xmlns/" &&
+                !(a.namespaceURI === RDF_NAMESPACE && a.localName === "about"),
+        );
+        const foreignChildren = Array.from({ length: description.childNodes.length }, (_, i) =>
+            description.childNodes.item(i),
+        ).some(
+            (n) =>
+                n.nodeType === 1 ||
+                ((n.nodeType === 3 || n.nodeType === 4) && n.data.trim() !== ""),
+        );
+        if (foreignAttributes || foreignChildren)
+            retained.push(serializer.serializeToString(description));
+    }
+    if (!retained.length) return { kept: false, empty: true };
+    return { kept: true, markup: `  ${retained.join("\n  ")}\n`, declarations };
 }
 
 /** Whether an inherited packet has properties outside the managed record. */
@@ -922,7 +969,7 @@ function buildPacket(existing, record) {
         }
     }
     return {
-        text: packetHead(declarations) + foreign + descriptionBlock(record) + PACKET_TAIL,
+        text: packetHead(declarations) + descriptionBlock(record) + foreign + PACKET_TAIL,
         foreignXmp,
         ...(foreignReason === undefined ? {} : { foreignXmpReason: foreignReason }),
     };
@@ -1205,14 +1252,13 @@ export function readSvgProvenance(input) {
 }
 
 /** The managed `<metadata>` element holding a record. */
-function svgMetadataElement(record, eol) {
-    return (
-        `<metadata id="${SVG_METADATA_ID}">${eol}` +
-        `<x:xmpmeta xmlns:x="adobe:ns:meta/">${eol}` +
-        ` <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">${eol}` +
-        descriptionBlock(record, eol) +
-        ` </rdf:RDF>${eol}</x:xmpmeta>${eol}</metadata>`
-    );
+function svgMetadataElement(record, eol, existing) {
+    const built = buildPacket(existing, record);
+    const packet = built.text.slice(built.text.indexOf("\n") + 1, built.text.lastIndexOf("\n"));
+    return {
+        ...built,
+        element: `<metadata id="${SVG_METADATA_ID}">${eol}${packet.replaceAll("\n", eol)}${eol}</metadata>`,
+    };
 }
 
 /**
@@ -1230,9 +1276,11 @@ function svgMetadataElement(record, eol) {
  *   fields to set.
  * @param {{index?: object}} [options] - As for {@link writeProvenance}.
  * @returns {{text: string, bytes: Buffer, record: ProvenanceRecord, changed: boolean,
+ *   foreignXmp: "none"|"kept"|"discarded", foreignXmpReason?: string,
  *   primary?: import("./art-primary-note.mjs").PrimaryNoteResult}}
- *   The new file as text and as UTF-8 bytes, the record it carries, whether
- *   the text differs from the input, and with `index` what the resolver answered.
+ *   The new file as text and UTF-8 bytes, its record, the managed packet's
+ *   foreign XMP status and optional reason, whether the text differs from the
+ *   input, and with `index` what the resolver answered.
  * @throws {Error} When the SVG is refused (see {@link readSvgProvenance}), the
  *   merged record has no valid address or an invalid field, or a value holds a
  *   character XML cannot carry.
@@ -1240,14 +1288,17 @@ function svgMetadataElement(record, eol) {
 export function writeSvgProvenance(input, fields, options = {}) {
     const text = decodeSvg(input);
     const { elements, root, managed } = locateSvg(text);
-    const existing =
-        managed && !managed.selfClosing ?
-            readXmpRecord(text.slice(managed.end, managed.closeStart))
-        :   {};
+    const packet =
+        managed && !managed.selfClosing ? text.slice(managed.end, managed.closeStart) : null;
+    const existing = packet === null ? {} : readXmpRecord(packet);
     const record = mergeRecord(existing, fields);
     const primary = options.index ? applyPrimaryNote(record, options.index) : undefined;
     validateRecord(record);
-    const element = svgMetadataElement(record, lineEnding(text));
+    const { element, foreignXmp, foreignXmpReason } = svgMetadataElement(
+        record,
+        lineEnding(text),
+        packet,
+    );
 
     let out;
     if (managed) {
@@ -1269,6 +1320,8 @@ export function writeSvgProvenance(input, fields, options = {}) {
         text: out,
         bytes: Buffer.from(out, "utf8"),
         record,
+        foreignXmp,
+        ...(foreignXmpReason === undefined ? {} : { foreignXmpReason }),
         ...(primary ? { primary } : {}),
         changed: out !== text,
     };

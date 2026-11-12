@@ -973,7 +973,7 @@ describe("foreign XMP retention", () => {
                 XPACKET_END,
         );
         expect(out.foreignXmp).toBe("kept");
-        expect(read.packet).toContain("<photoshop:Credit>A. Artist</photoshop:Credit>");
+        expect(read.packet).toContain("A. Artist</photoshop:Credit>");
         expect(read.packet).toContain('xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"');
         ownFields(read);
         expect(writeProvenance(out.bytes, {}).bytes.equals(out.bytes)).toBe(true);
@@ -1062,11 +1062,45 @@ describe("foreign XMP retention", () => {
         ownFields(unbound.read);
     });
 
-    it("retains nothing foreign in an SVG", () => {
-        const out = writeSvgProvenance(SVG_BODY, SVG_FIELDS);
-        expect(wellFormed(out.text)).toBe(true);
-        expect(out.text.match(/<metadata id="hl-provenance"/g)).toHaveLength(1);
-        expect(out.text).toContain('<metadata id="other"><x/></metadata>');
+    it("keeps foreign properties sharing a managed description in PNG, WebP and SVG masters", async () => {
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="${RDF}"><rdf:Description rdf:about="" xmlns:hl="${HL_NAMESPACE}" xmlns:photoshop="${PS}" photoshop:Credit="Artist"><hl:address>${FIELDS.address}</hl:address><hl:prompt>old prompt</hl:prompt><photoshop:Instructions>Keep this</photoshop:Instructions><hl:other>Keep extra</hl:other></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        const webp = await sharp(png).withXmp(packet).webp().toBuffer();
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><metadata id="hl-provenance">${packet}</metadata><rect width="8" height="8"/></svg>`;
+        const pngInput = withChunks(png, [makeTextChunk(XMP_KEYWORD, packet).raw]);
+        const cases = [
+            {
+                input: pngInput,
+                write: (b: Buffer | string, fields: object) => writeProvenance(b as Buffer, fields),
+                read: (b: Buffer) => readProvenance(b),
+            },
+            {
+                input: webp,
+                write: (b: Buffer | string, fields: object) =>
+                    writeWebpProvenance(b as Buffer, fields),
+                read: (b: Buffer) => readWebpProvenance(b),
+            },
+            {
+                input: svg,
+                write: (b: Buffer | string, fields: object) => writeSvgProvenance(b, fields),
+                read: (b: Buffer) => readSvgProvenance(b),
+            },
+        ];
+        for (const { input, write, read } of cases) {
+            const out = write(input, { ...FIELDS, prompt: "new prompt" });
+            expect(out.foreignXmp).toBe("kept");
+            const result = read(out.bytes);
+            expect(result.packet).toContain("Keep this");
+            expect(result.packet).toContain("Keep extra");
+            expect(result.packet).toContain('photoshop:Credit="Artist"');
+            expect(result.record.prompt).toBe("new prompt");
+            expect(result.packet).not.toContain("old prompt");
+            expect(write(out.bytes, {}).bytes).toEqual(out.bytes);
+            expect(await sharp(out.bytes).raw().toBuffer()).toEqual(
+                await sharp(Buffer.from(input)).raw().toBuffer(),
+            );
+        }
+        const clean = writeSvgProvenance("<svg/>", FIELDS);
+        expect(writeSvgProvenance(clean.bytes, {}).foreignXmp).toBe("none");
     });
 });
 

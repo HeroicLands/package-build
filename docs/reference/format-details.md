@@ -2744,10 +2744,10 @@ metadata, title, description, editor namespaces, comments, and processing
 instructions. Drawing values and style content remain part of the image. Internal general
 entities and default attributes are expanded; external DTDs, external entities,
 and parameter entities are refused.
-The master SVG writer replaces its managed metadata element and keeps other
-markup. The master WebP writer keeps non-XMP chunks and retains foreign XMP
-when its packet meets the writer's retention rules; a description declaring
-`xmlns:hl` is treated as managed.
+The master SVG writer retains foreign properties in its managed metadata packet
+when the packet meets the writer's retention rules, and keeps other markup. Its
+`foreignXmp` result describes that managed packet only. The master WebP writer
+keeps non-XMP chunks and applies the same retention rules to foreign XMP.
 
 A prompt and generation details
 (`hl:prompt`, `hl:generator`) are never repeated: asking for them is an error.
