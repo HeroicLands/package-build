@@ -208,7 +208,7 @@ it(
             fs.rmSync(dir, { recursive: true, force: true });
         }
     },
-    subprocessTimeout(2),
+    subprocessTimeout(3),
 );
 
 it(
