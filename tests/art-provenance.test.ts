@@ -1579,6 +1579,20 @@ describe("deriveRecord", () => {
         );
     });
 
+    it("retains text in links inside a text context and drops non-rendering link text", async () => {
+        const input = `<svg xmlns="http://www.w3.org/2000/svg" width="60" height="30"><text x="2" y="20"><a href="#target">A</a></text></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER).bytes;
+        expect(output.toString("utf8")).toContain(">A</a>");
+        expect(await sharp(output).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+        const other = `<svg xmlns="http://www.w3.org/2000/svg"><a href="#target">private-outside</a><text><g><a href="#target">private-invalid</a></g><a href="#target"><tspan>Visible</tspan></a></text></svg>`;
+        const otherOutput = writeDerivativeProvenance(other, MASTER).bytes.toString("utf8");
+        expect(otherOutput).not.toContain("private-outside");
+        expect(otherOutput).not.toContain("private-invalid");
+        expect(otherOutput).toContain(">Visible</tspan>");
+    });
+
     it("reports discarded foreign SVG XMP, including an unrelated metadata element", () => {
         const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:p="urn:private"><p:prompt>hidden-foreign</p:prompt></rdf:Description></rdf:RDF></x:xmpmeta>`;
         const input = `<svg xmlns="http://www.w3.org/2000/svg"><metadata>${packet}</metadata></svg>`;

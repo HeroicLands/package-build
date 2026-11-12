@@ -1814,7 +1814,10 @@ function cleanSvgDrawing(text) {
                 }
             }
         };
-        const copy = (from, to) => {
+        const copy = (from, to, parentText = false) => {
+            const textContext =
+                from.name === "text" ||
+                (parentText && ["tspan", "textPath", "a"].includes(from.name));
             copyAttributes(from, to);
             const animated = from.attrs.find(
                 (a) => !a.namespaceUri && a.name === "attributeName",
@@ -1840,17 +1843,14 @@ function cleanSvgDrawing(text) {
                 return;
             }
             for (let node = from.firstChild; node; node = node.next) {
-                if (
-                    (node instanceof XmlText || node instanceof XmlCData) &&
-                    ["text", "tspan", "textPath"].includes(from.name)
-                )
+                if ((node instanceof XmlText || node instanceof XmlCData) && textContext)
                     to.addText(node.content);
                 else if (
                     node instanceof XmlElement &&
                     (node.namespaceUri === SVG_NAMESPACE || !node.namespaceUri) &&
                     SVG_DRAWING_ELEMENTS.has(node.name)
                 ) {
-                    copy(node, to.addElement(node.name));
+                    copy(node, to.addElement(node.name), textContext);
                 }
             }
         };
