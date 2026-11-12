@@ -685,7 +685,7 @@ export function publishesContentPages(config) {
  *                                          module, or documentation — the kind
  *                                          that publishes a site and a book
  *                                          while compiling nothing.
- * @property {StatsSpec} [stats]            Identity stamped into every
+ * @property {Pick<StatsSpec, "lastModifiedBy">} [stats] Identity stamped into every
  *                                          document's `_stats`. Required of a
  *                                          package that compiles documents, and
  *                                          refused by a `documentation` one,
