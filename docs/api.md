@@ -8,9 +8,9 @@ subType: reference
 # API reference
 
 `@heroiclands/package-build` exposes its programmatic surface through
-subpath entries, declared in `package.json`'s `exports` map. Every function
-and value documented here is a supported contract, not an internal seam —
-`./sohl` and `./hm3` included.
+subpath entries, declared in `package.json`'s `exports` map. The public functions
+and values documented here are supported contracts, including `./sohl` and
+`./hm3`. Reachable internal modules are explicitly identified as such.
 
 Rule functions take source text or already-loaded data and return findings or
 values. That lets one rule set serve a lint script, a build step and a unit
@@ -75,7 +75,7 @@ generation, wikilink resolution, id and folder derivation, the link
 manifest and the web-address rule, `BasePackCompiler`, and the generic
 Foundry document compilers (journals, macros, scenes) all live here.
 
-**Each module is re-exported as its own namespace, not flattened.** Several
+**Modules in the engine barrel are re-exported as namespaces.** Several
 namespaces deliberately re-export a neighbour's symbol so a caller keeps one
 import path — `helpers` re-exports the frontmatter readers and `makeId`;
 `wikilinks` re-exports the pack router. Flattened, every such name would
@@ -1261,7 +1261,8 @@ The asset record: one line of the content index per addressable file. The record
 
 ### `./engine/art-provenance`
 
-Import from `@heroiclands/package-build/engine/art-provenance`. These functions
+The supported provenance entry is
+`@heroiclands/package-build/engine/art-provenance`. These functions
 read and return image bytes; they do not open or write files. A master is a PNG
 or SVG without `derived`. A WebP or SVG derivative carries `derived: "true"`
 and the same embedded Address as its master. One Address identifies one master
@@ -1506,6 +1507,29 @@ are `{reason: "no-note"}` when no note names the image,
 `notes` is sorted by Address. A resolved note without `name.full` has `name: ""`.
 This index determines the subject; public visibility must be checked separately
 before selecting derivative note fields.
+
+### Internal art modules
+
+The wildcard export makes `@heroiclands/package-build/engine/art-masters`,
+`@heroiclands/package-build/engine/art-master-render`,
+`@heroiclands/package-build/engine/art-source` and
+`@heroiclands/package-build/engine/art-provenance-core` reachable. They are
+internal implementation modules, outside the supported API contract; use the
+provenance and primary-note entries documented above for consumer integrations.
+
+`art-provenance-core` is the synchronous provenance subset used by indexing.
+It also exposes internal XML and container helpers: `RDF_NAMESPACE`,
+`X_NAMESPACE`, `WEBP_HEADER`, `WEBP_EXIF_FLAG`, `WEBP_XMP_FLAG`, `decodeSvg`,
+`hasForeignXmp` and `locateSvg`. The public provenance entry adds the derivative
+privacy writer and owns the supported import surface.
+
+`art-masters` exports `assertPrivateArtRoots`, `collectArtMasters`,
+`masterAssetRecords` and `shippingAssetRecords` for private-root validation,
+master collection, asset-record projection and shipping-record adaptation.
+`art-master-render` exports `renderArtMasters` for public rendering under the
+build directory. `art-source` exports `setArtSource`, `copyArtSource` and
+`artSource` for diagnostic locations held only in memory. These functions serve
+the build pipeline and do not declare consumer namespaces in the engine barrel.
 
 ### `engine.assetShipping`
 
@@ -2577,7 +2601,8 @@ stored answer is keyed by a hash of its inputs, which are
 - the configuration file's bytes and the resolved configuration;
 - the bytes of every fetched dependency index, and the installed
   `@heroiclands/fonts` version and manifest;
-- every note's path and the hash of its text, and the package's asset records.
+- every note's path and the hash of its text, the package's asset records,
+  and fingerprints of the configured private master inputs.
 
 The dependencies' indexes and the configuration are read between two
 readings of those inputs, which are read again after the records are derived

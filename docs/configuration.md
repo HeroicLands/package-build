@@ -11,8 +11,8 @@ Every repository built by `@heroiclands/package-build` declares itself in one
 file at its root: `package-build.config.yaml` (`.yml` works identically). The
 whole contract is `defineConfig`, exported from `content-config.mjs`: it
 validates the object, fills every optional key with its default, and returns a
-deeply frozen copy. It performs no I/O and knows nothing about any particular
-package's content — the configuration is data, and the compilers read it.
+deeply frozen copy. The configuration declares package inputs and outputs;
+the compilers read the resolved values.
 
 The reserved `packageBuild:` section holds packaging settings and is validated
 by `resolvePackageBuildConfig` in
@@ -54,8 +54,8 @@ around its own evaluation.
 
 ### Quick reference
 
-25 top-level keys. `rootDir` is not one of them — a data configuration never
-writes it — and is documented under [Derived values](#derived-values) instead,
+`rootDir` is omitted from this table — a data configuration never writes it —
+and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
 authoring.
@@ -71,6 +71,7 @@ authoring.
 | [`packageKind`](#packagekind)               | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                         |
 | [`stats`](#stats)                           | object                                                                     | yes; refused in a `documentation` package                                                          | —                         |
 | [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                      |
+| [`art`](#artmasterroots)                    | object with `masterRoots: string[]`                                        | no                                                                                                 | `{masterRoots: []}`       |
 | [`paths`](#paths)                           | object                                                                     | no                                                                                                 | see [`paths`](#paths)     |
 | [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                                                                                 | `[]`                      |
 | [`forbidGeneratedArt`](#forbidgeneratedart) | boolean                                                                    | no                                                                                                 | `false`                   |
@@ -89,7 +90,7 @@ authoring.
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -200,7 +201,7 @@ build writes its `name` as `params.author`. `null` when `authors` is empty.
 as an unknown key, at the key's own line, because `authors` is the one list a
 package names its people in:
 
-> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish).``
+> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish).``
 
 `package.json`'s own `author` is npm's and is not read.
 
@@ -601,14 +602,46 @@ are accepted. Keep them separate from `paths.assets`, staging sources, and
 `build/art`. Each master carries its own image Address and provenance. Builds
 render public derivatives under `build/art` and select package assets by the
 embedded license and source type.
-Build, stage and cleanup commands refuse output paths that reach a private
-master root, including through a symbolic link.
+Build, stage and cleanup commands refuse private roots that overlap asset
+inputs or build outputs, including paths that resolve through symbolic links.
+Configured roots must be distinct and must not contain one another; physical
+aliases of the same directory are also refused. A symbolic link inside a master
+root is an error at that link, rather than another source of masters.
+
+The note-rendering cache includes master fingerprints in its existing input key.
+Unchanged master inputs permit cache reuse; changed inputs invalidate the cached
+tree. Public derivatives are rendered under `build/art`, separately from the
+note cache.
 
 ```yaml
 art:
   masterRoots:
     - ../private-art
 ```
+
+`art` accepts only `masterRoots`. Invalid shapes and unknown keys are refused:
+
+> ``package-build config: `art` must be an object.``
+
+> ``package-build config: `art.masterRoots` must be an array of directories.``
+
+> ``package-build config: `art.masterRoots[<index>]` must be a non-empty string.``
+
+> ``package-build config: `art.<key>` is not a recognized option (expected one of: masterRoots).``
+
+Overlapping configured entries name both indexes and resolved paths:
+
+> ``package-build config: `art.masterRoots[<index>]` overlaps art.masterRoots[<earlier-index>] (<path> and <earlier-path>).``
+
+A link inside a master root is reported at the link:
+
+> `<file>:1:1: error: symbolic links are not supported inside private master roots`
+
+An overlap with an input or output names the role and both paths:
+
+> `private master root <root> overlaps input <path>; move one of them`
+
+> `private master root <root> overlaps output <path>; move one of them`
 
 ### `paths`
 

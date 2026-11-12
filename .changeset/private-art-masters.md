@@ -4,4 +4,5 @@
 
 **Content and notes**
 
-- Build public image derivatives from private masters identified by their embedded addresses.
+- Declare private PNG and SVG master folders in `art.masterRoots` to render their public images by embedded identity.
+- A master's explicit `hl:license` and IPTC source type determine package shipping; generated images remain available through the CDN plan.
