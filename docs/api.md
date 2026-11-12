@@ -1259,6 +1259,254 @@ The asset record: one line of the content index per addressable file. The record
 | `PROVENANCE_SIDECAR_SUFFIX` | `const PROVENANCE_SIDECAR_SUFFIX`                               | `string` — `.yaml`            | naming a per-file record, which replaces an inherited one wholesale                                                                                                          |
 | `collectAssetRecords`       | `collectAssetRecords(assetsBase, { contentPackage, problems })` | `Array<Record<string, any>>`  | reading a package's asset roots into index records, without walking its notes                                                                                                |
 
+### `./engine/art-provenance`
+
+Import from `@heroiclands/package-build/engine/art-provenance`. These functions
+read and return image bytes; they do not open or write files. A master is a PNG
+or SVG without `derived`. A WebP or SVG derivative carries `derived: "true"`
+and the same embedded Address as its master. One Address identifies one master
+and any number of derivatives; neither a filename nor a sidecar supplies identity.
+
+`ProvenanceRecord` has optional string fields `address`, `identifier`, `kind`,
+`name`, `primaryNote`, `role`, `derived`, `derivedFrom`, `prompt`, `generator`,
+`title`, `creator`, `rights`, `license`, `digitalSourceType`, `created`, `software`,
+`description`, `source` and `processing`, plus `formerNames: string[]`.
+Writers require a complete `<package>-<system>-<type>-<shortcode>` Address.
+They set both `hl:address` and `dc:identifier` from `address`. Readers fill in
+either missing value from the other, retaining disagreements for the checker.
+`generator` is a JSON object serialized as a string; `prompt` is verbatim
+input, `source` states where the image was obtained, and `processing` describes
+how it was made. `description` is separate from the prompt.
+
+`license` is an explicit machine-readable identifier such as `CC-BY-SA-4.0`,
+stored as `hl:license`; the build does not extract a license from `rights` prose.
+`digitalSourceType` accepts a key of `DIGITAL_SOURCE_TOKENS` or a full URI and
+reads back as a URI. `none` or `null` removes it. A PNG with no addressed record
+receives `trainedAlgorithmicMedia` on write unless the caller supplies the field;
+SVG and WebP writers supply no default. Private-master asset indexing classifies
+`trainedAlgorithmicMedia` and `compositeWithTrainedAlgorithmicMedia` as generated,
+`digitalCreation` as human-created, and every other or absent classification as
+unknown. Existing shipping rules exclude generated and unknown classifications
+from packaged assets and require an allowed exact license ID.
+
+All three readers return `{xmp, standard, packet, record}`: the XMP fields,
+standard text fields, packet text or `null`, and their combined record with XMP
+winning. SVG and WebP have an empty `standard`. PNG uses an XMP `iTXt` chunk
+and the standard UTF-8 text chunks listed by `STANDARD_KEYWORDS`; SVG uses
+`<metadata id="hl-provenance">`; WebP uses one `XMP ` chunk.
+
+| Export                      | Signature                                                                                              | Returns / use                                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `readProvenance`            | `readProvenance(bytes: Buffer)`                                                                        | PNG read result; throws for unreadable PNGs                                                                                                           |
+| `readSvgProvenance`         | `readSvgProvenance(input: Buffer \| Uint8Array \| string)`                                             | SVG read result; refuses invalid UTF-8, missing or prefixed SVG roots and duplicate managed elements                                                  |
+| `readWebpProvenance`        | `readWebpProvenance(bytes: Buffer \| Uint8Array)`                                                      | WebP read result; throws for unreadable containers                                                                                                    |
+| `writeProvenance`           | `writeProvenance(bytes: Buffer, fields, {index}?)`                                                     | PNG write result                                                                                                                                      |
+| `writeSvgProvenance`        | `writeSvgProvenance(input: Buffer \| Uint8Array \| string, fields, {index}?)`                          | SVG write result, also containing `text: string`                                                                                                      |
+| `writeWebpProvenance`       | `writeWebpProvenance(input: Buffer \| Uint8Array, fields, {index}?)`                                   | WebP write result                                                                                                                                     |
+| `deriveRecord`              | `deriveRecord(master: ProvenanceRecord, {repeat?: string[], notePublic?: boolean}?)`                   | Selected derivative record; does not render or write an image                                                                                         |
+| `writeDerivativeProvenance` | `writeDerivativeProvenance(input: Buffer \| Uint8Array \| string, master: ProvenanceRecord, options?)` | WebP or SVG write result with inherited metadata discarded; `options` is as for `deriveRecord`; refuses PNG                                           |
+| `findMaster`                | `findMaster(entries, address: string)`                                                                 | `{file, record}` or `{reason: "no-master"}` or `{reason: "several-masters", files: string[]}`; skips unreadable files and WebPs                       |
+| `effectiveRecord`           | `effectiveRecord(entry, entries)`                                                                      | A master's record or a derivative's master record with repeated fields applied, without `derived`; throws when a derivative has no unique master      |
+| `sniffFormat`               | `sniffFormat(input: Buffer \| Uint8Array \| string)`                                                   | `"png"`, `"webp"` or `"svg"`; PNG and WebP signatures are recognized, everything else is treated as SVG                                               |
+| `checkProvenance`           | `checkProvenance(entries, {index}?)`                                                                   | `ProvenanceFinding[]`; an empty array means no findings                                                                                               |
+| `formatFinding`             | `formatFinding(finding: ProvenanceFinding)`                                                            | `file:line:column: severity: message`                                                                                                                 |
+| `masterFileName`            | `masterFileName(address: string, width: number, height: number)`                                       | `<shortcode>-creature.png` for 1152×896 or `<shortcode>-portrait.png` for 896×1152; throws for an invalid Address or other size                       |
+| `planRenames`               | `planRenames(masters: {path, address, width, height}[])`                                               | `{renames: {path, to, name}[], refused: {path, reason}[]}`; plans names within each input folder and refuses colliding targets without changing files |
+
+`entry` is `{file: string, bytes: Buffer | string}`; `entries` is an array of
+those objects. `file` identifies findings and lookup results. Rename-planning
+`path` values are `/`-separated paths relative to a masters directory.
+A `ProvenanceFinding` is `{file, line: 1, column: 1, severity: "error", message}`.
+The checker reports unreadable files, missing XMP, missing or malformed Addresses,
+disagreeing identifiers, multiple masters, missing derivative masters, invalid
+`derived` values, marked PNGs, unmarked WebPs, repeated fields absent from or
+unequal to the master, and PNG text/XMP loss or disagreement. With `index`, it
+also checks primary-note existence, name agreement and agreement with the resolved
+being or affiliation. Optional `name` and `primaryNote` remain independent.
+
+A write result contains `{bytes: Buffer, record, changed: boolean, foreignXmp}`,
+plus `foreignXmpReason` when applicable and the resolver result as `primary`
+when an index is supplied. `foreignXmp` is `"none"`, `"kept"` or `"discarded"`. Ordinary writers
+merge: `undefined` leaves a field alone, `null` removes it, and `formerNames`
+appends distinct names in order. `derived` accepts boolean `true` or the string
+`"true"`. Invalid Addresses, invalid field values and characters XML cannot carry
+are refused. They retain eligible foreign properties and
+comments inside `rdf:RDF`; comments outside it are discarded. An unsafe foreign
+packet is replaced with a reason. PNG pixel and color chunks remain byte-identical;
+WebP image and animation chunks remain byte-identical. The SVG writer edits its
+managed metadata element, retaining other source text.
+
+With `{index}`, writers derive `primaryNote` and a nonempty `name` from the
+single being or affiliation naming the image, overriding supplied values. A note
+without `name.full` supplies only `primaryNote`. Other resolution results leave
+the merged values alone and are returned as `primary`.
+
+`deriveRecord` starts with `address`, `identifier`, `derived: "true"`, and any
+master `creator` and `rights`. `repeat` selects additional master fields;
+`prompt` and `generator` are always refused, and `name` or `primaryNote` requires
+`notePublic: true`. A derivative may repeat only values its master carries,
+unchanged. `effectiveRecord` applies repeats; use `checkProvenance` to validate
+their agreement.
+
+The public build renderer uses the narrower allowlist: asset identity, creator,
+rights and parent-image trace (`derivedFrom` set to the asset Address), with
+`name` and `primaryNote` only for an indexed public note. It omits license,
+prompts and other generation details from image metadata; the public asset index
+retains the explicit license for shipping. `notePublic` is a caller assertion,
+not a visibility lookup by the derivative writer. Arbitrary `repeat` fields are
+not an approval to publish them.
+
+`writeDerivativeProvenance` replaces inherited metadata instead of merging it.
+WebP retains image, animation and ICC chunks, discards EXIF, other chunks and
+trailing bytes, then adds selected XMP. ICC bytes, including profile text, remain.
+SVG retains allowed drawing elements, rendering text, attributes and styles;
+non-rendering metadata, titles, descriptions, comments and processing instructions
+are discarded. Resource references accept fragments, empty references and absolute
+HTTP(S) URLs without user information. Local paths, embedded data, external DTDs,
+external entities and parameter entities are refused. Internal general entities
+and default attributes are expanded. Review retained drawing content and ICC data
+for material unsuitable for publication.
+
+The lower-level PNG/XMP helpers and constants are also exported:
+
+| Export                               | Signature / value                              | Returns / use                                                                                                                                                           |
+| ------------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HL_NAMESPACE`                       | `const`                                        | `https://heroiclands.org/ns/1.0/`                                                                                                                                       |
+| `XMP_KEYWORD`                        | `const`                                        | `XML:com.adobe.xmp`                                                                                                                                                     |
+| `SVG_METADATA_ID`                    | `const`                                        | `hl-provenance`                                                                                                                                                         |
+| `DIGITAL_SOURCE_TRAINED_ALGORITHMIC` | `const`                                        | IPTC URI for `trainedAlgorithmicMedia`                                                                                                                                  |
+| `DIGITAL_SOURCE_TOKENS`              | Frozen token-to-URI object                     | `trainedAlgorithmicMedia`, `algorithmicMedia`, `digitalCreation`, `compositeWithTrainedAlgorithmicMedia`                                                                |
+| `STANDARD_KEYWORDS`                  | Frozen field-to-keyword object                 | `title: Title`, `creator: Author`, `rights: Copyright`, `prompt: Description`, `created: Creation Time`, `software: Software`, `description: Comment`, `source: Source` |
+| `readChunks`                         | `readChunks(bytes: Buffer)`                    | `{type: string, data: Buffer, raw: Buffer}[]`; validates PNG signature, lengths, CRCs and `IEND`                                                                        |
+| `makeTextChunk`                      | `makeTextChunk(keyword: string, text: string)` | PNG chunk containing UTF-8 `iTXt`; keyword is Latin-1, 1–79 characters                                                                                                  |
+| `readTextChunk`                      | `readTextChunk(chunk)`                         | `{keyword, text}` or `null` for a non-text or unreadable chunk                                                                                                          |
+| `readXmpRecord`                      | `readXmpRecord(packet: string)`                | Fields present in the XMP packet as a `ProvenanceRecord`                                                                                                                |
+| `readStandardRecord`                 | `readStandardRecord(chunks)`                   | Fields in PNG standard text chunks as a `ProvenanceRecord`                                                                                                              |
+| `readWebpChunks`                     | `readWebpChunks(bytes: Buffer)`                | `{chunks: {type, data, raw}[], trailing: Buffer}`; validates container and chunk lengths                                                                                |
+
+This complete example creates a local SVG master and public derivative. Every
+file it writes is under `build/`. The `records` array uses the standard content
+index fields consumed by the primary-note resolver; in a build, pass the records
+from `indexRecordsFor` instead.
+
+```js
+import { mkdir, writeFile } from "node:fs/promises";
+import {
+  writeSvgProvenance,
+  writeDerivativeProvenance,
+  readSvgProvenance,
+  findMaster,
+  effectiveRecord,
+  checkProvenance,
+  formatFinding,
+} from "@heroiclands/package-build/engine/art-provenance";
+import {
+  buildPrimaryNoteIndex,
+  resolvePrimaryNote,
+} from "@heroiclands/package-build/engine/art-primary-note";
+
+const address = "example-none-image-portrait";
+const records = [
+  {
+    type: "being",
+    address: { canonical: "example-note-being-artist" },
+    name: { full: "The artist" },
+    namedImages: [{ address }],
+  },
+];
+const index = buildPrimaryNoteIndex(records);
+console.log(resolvePrimaryNote(index, address).note.name); // The artist
+const drawing =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="blue"/></svg>';
+const master = writeSvgProvenance(
+  drawing,
+  {
+    address,
+    creator: "Example artist",
+    rights: "Example artist, licensed under CC BY-SA 4.0",
+    license: "CC-BY-SA-4.0",
+    digitalSourceType: "digitalCreation",
+    source: "https://example.org/art",
+    processing: "Original vector drawing",
+    derivedFrom: address,
+  },
+  { index },
+);
+// This example explicitly treats the indexed primary note as public.
+const derivative = writeDerivativeProvenance(master.bytes, master.record, {
+  repeat: ["derivedFrom", "name", "primaryNote"],
+  notePublic: true,
+});
+await mkdir("build/api-art", { recursive: true });
+const entries = [
+  { file: "build/api-art/master.svg", bytes: master.bytes },
+  { file: "build/api-art/public.svg", bytes: derivative.bytes },
+];
+for (const entry of entries) await writeFile(entry.file, entry.bytes);
+console.log(readSvgProvenance(derivative.bytes).record.derived); // true
+console.log(findMaster(entries, address).file); // build/api-art/master.svg
+console.log(effectiveRecord(entries[1], entries).license); // CC-BY-SA-4.0
+const findings = checkProvenance(entries, { index });
+if (findings.length) throw new Error(findings.map(formatFinding).join("\n"));
+```
+
+For a PNG input, read its bytes and write a separate master copy and WebP output.
+Run this example from a package that declares `sharp` and
+`@heroiclands/package-build`, with an existing `input.png` in its working directory:
+
+```js
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import sharp from "sharp";
+import {
+  readProvenance,
+  readWebpProvenance,
+  writeProvenance,
+  writeDerivativeProvenance,
+} from "@heroiclands/package-build/engine/art-provenance";
+
+const master = writeProvenance(await readFile("input.png"), {
+  address: "example-none-image-sample",
+  creator: "Example artist",
+  rights: "Example artist, licensed under CC BY-SA 4.0",
+  license: "CC-BY-SA-4.0",
+  digitalSourceType: "digitalCreation",
+  source: "https://example.org/art",
+  processing: "Raster illustration",
+  derivedFrom: "example-none-image-sample",
+});
+const pixels = await sharp(master.bytes).webp().toBuffer();
+const publicImage = writeDerivativeProvenance(pixels, master.record, {
+  repeat: ["derivedFrom"],
+});
+await mkdir("build/api-art", { recursive: true });
+await writeFile("build/api-art/master.png", master.bytes);
+await writeFile("build/api-art/public.webp", publicImage.bytes);
+console.log(readProvenance(master.bytes).record.license); // CC-BY-SA-4.0
+console.log(readWebpProvenance(publicImage.bytes).record.address);
+// example-none-image-sample
+```
+
+### `./engine/art-primary-note`
+
+Import from `@heroiclands/package-build/engine/art-primary-note`. Resolution
+uses standard content-index records: each note's `type`, `name.full`,
+`address.canonical` and `namedImages`. It reads no source note, prose or path.
+Asset, package and generated-document records are excluded.
+
+| Export                  | Signature                                                   | Returns / use                                                                                                                                                     |
+| ----------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PRIMARY_NOTE_TYPES`    | Frozen `readonly string[]`                                  | `being` and `affiliation`                                                                                                                                         |
+| `buildPrimaryNoteIndex` | `buildPrimaryNoteIndex(records = [])`                       | `{notes: Map<string, {address, type, name}>, naming: Map<string, Set<string>>}` keyed by canonical Address; the naming sets contain note Addresses for each image |
+| `resolvePrimaryNote`    | `resolvePrimaryNote(index, imageAddress: string \| object)` | `{note: {address, type, name}}` for the single being or affiliation naming the image, or a reason result                                                          |
+
+Other note types do not compete with a being or affiliation. The reason results
+are `{reason: "no-note"}` when no note names the image,
+`{reason: "not-being-or-affiliation"}` when only other types name it, and
+`{reason: "several-notes", notes: string[]}` when several eligible notes name it;
+`notes` is sorted by Address. A resolved note without `name.full` has `name: ""`.
+This index determines the subject; public visibility must be checked separately
+before selecting derivative note fields.
+
 ### `engine.assetShipping`
 
 The deployed layout of a package's pictures, and which of them ship. A Foundry package holds its icons and images flat — `icons/<basename>`, `images/<basename>` — and the stage copies a picture only when its provenance says `ai: false` and its licence is on the shipping list. Its asset set, `asset-sets/default.json`, lists what it ships. The selection is one function, so the stage and any command publishing what the stage leaves out read the same answer.

@@ -1632,7 +1632,6 @@ const DERIVATIVE_FIELDS = Object.freeze(["address", "creator", "rights"]);
  * value of each property named in `repeat`. Every other field of the master is
  * left out.
  *
- * @param {ProvenanceRecord} master - The master's record.
  * `prompt` and `generator` (generation details) are never repeated, and `name`
  * and `primaryNote` are repeated only when `notePublic` is `true`.
  *
@@ -1709,7 +1708,7 @@ export function formatFinding(finding) {
 }
 
 /**
- * Check a set of masters, PNG, WebP and SVG alike.
+ * Check PNG and SVG masters and their WebP and SVG derivatives.
  *
  * The format of each file is sniffed from its content. A file is refused for a
  * missing address, an address that is not a complete Address, an
