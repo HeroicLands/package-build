@@ -497,6 +497,46 @@ for (const [system, Compiler] of [
                 ),
             ).toThrow(/IncompleteCompiler must declare a static itemCompiler/);
         });
+        it.each(["elixir", "potion", "simples"])(
+            "compiles a model with kind %s without mapping its type",
+            (kind) => {
+                const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
+                const model = completeAddress({
+                    package: "demo",
+                    system: "note",
+                    type: "weapongear",
+                    shortcode: "blade",
+                });
+                const note = {
+                    data: { kind, name: "Model name" },
+                    [system]: { type: "weapongear", system: { weight: 3 } },
+                };
+                setModelIndex(compiler, { addressHit: () => ({ fm: note }) } as any);
+                const catalogue = new Map([
+                    [
+                        "demo:weapongear:blade",
+                        {
+                            type: "weapongear",
+                            name: "Compiled",
+                            system: { shortcode: "blade", weight: 3 },
+                        },
+                    ],
+                ]);
+                const items = compiler.buildEmbeddedItems(
+                    catalogue,
+                    "actor0000000000",
+                    { data: { items: [{ model }] }, [system]: {} },
+                    "test",
+                );
+                expect(items).toHaveLength(1);
+                expect(items[0]).toMatchObject({
+                    type: "weapongear",
+                    name: "Model name",
+                    system: { weight: 3 },
+                });
+                expect(items[0]).not.toHaveProperty("kind");
+            },
+        );
         it("uses neutral model defaults and applies entry fields", () => {
             const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
             const model = completeAddress({

@@ -5279,7 +5279,8 @@ data:
 ```
 
 **The item kinds** are `weapon`, `armor`, `clothing`, `container`, `miscgear`,
-`projectile`, `concoction`, `disease`, `poisontoxin`, `maladiction`, `physcond`,
+`projectile`, `concoction`, `elixir`, `potion`, `simples`, `disease`, `poisontoxin`,
+`maladiction`, `physcond`,
 `quirk`, `disorder`, `privation`, `fear`, `language`, `script`, `arcaneability`,
 `spell`, `psychicgift`, `incantation` and `divination`. A kind sorts an item for
 the setting. It is not a Foundry field, has no mapping to a system's item types,
