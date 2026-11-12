@@ -1094,6 +1094,7 @@ export function resolveCultures(
  *   walking a bare content fixture wants, and what an asset-free package gets
  *   anyway.
  * @param {Record<string, any>[]} [options.masterRecords] - Prepared private-master asset records.
+ * @param {object[]} [options.warnings] - Receives nonfatal asset findings.
  * @param {object} [options.manifest] - The package manifest, which the Foundry
  *   entries are derived against.
  * @param {object} [options.addressContext] - Address resolution context.
@@ -1157,6 +1158,7 @@ export function collectContentIndex(
         cache,
         requiredModules = [],
         masterRecords,
+        warnings,
     },
 ) {
     // Each phase runs until the next begins; the caller's stage closes the last.
@@ -1222,7 +1224,7 @@ export function collectContentIndex(
     // role, which is the one it would have resolved anyway.
     const assetRecords =
         assetsBase ?
-            collectAssetRecords(assetsBase, { contentPackage, problems, masterRecords })
+            collectAssetRecords(assetsBase, { contentPackage, problems, masterRecords, warnings })
         :   [];
     const assetIndex = assetAddressIndex(assetRecords, { config: { contentPackage } });
     const resolveRole = (address) => embedRole(assetIndex, address);
@@ -1636,6 +1638,7 @@ function dependencyAddresses(config) {
  * @param {Map<string, object>} [opts.foreignIndex] - Captured dependency address view.
  * @param {ReturnType<typeof import("./content-timings.mjs").createContentTimings>} [opts.timings] -
  *   Invocation stage accounting.
+ * @param {object[]} [opts.warnings] - Receives nonfatal asset findings.
  * @param {NoteDerivationCache} [opts.cache] - Earlier parses and per-note
  *   records to answer from; see {@link collectContentIndex}.
  * @returns {object[]} One record per note, plus one per documentation entry.
@@ -1654,6 +1657,7 @@ export function indexRecordsFor({
     timings,
     cache,
     masterRecords,
+    warnings,
 } = {}) {
     const resolved = config ?? loadPackConfig();
     if (!masterRecords && resolved.art?.masterRoots?.length) {
@@ -1705,6 +1709,7 @@ export function indexRecordsFor({
         cache,
         requiredModules: requiredModulePackages(resolved),
         masterRecords,
+        warnings,
     });
 }
 

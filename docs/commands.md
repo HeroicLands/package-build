@@ -355,6 +355,8 @@ at the package root, through the same transform, and the package's asset set,
 Configured `art.masterRoots` are read by embedded image Address. Their PNG and
 SVG inputs are rendered under `build/art`; eligible derivatives enter the stage
 and the CDN plan receives the remaining derivatives. Master files stay private.
+When a master supersedes a public asset at the same Address, `content build`
+emits a warning naming the public file and Address.
 
 The pictures are written beside whatever a `packageBuild.assets` row copied
 into `icons/` or `images/`, and nothing there is removed. A picture whose

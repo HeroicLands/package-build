@@ -523,13 +523,17 @@ function* walkAssetRoot(rootDir, extensions) {
  *   throws — the contract the emitter needs, since an index missing an asset
  *   asserts that the address does not exist.
  * @param {Record<string, any>[]} [options.masterRecords] - Records derived from private masters.
+ * @param {object[]} [options.warnings] - Receives public assets superseded by masters.
  * @returns {Array<Record<string, any>>} One record per addressable file, in walk
  *   order; the caller imposes the index's total order.
  * @throws {Error} When any finding is made and no `problems` array was
  *   supplied. Its message is every finding as a located diagnostic line, one
  *   per line; `file` and `position` name the first.
  */
-export function collectAssetRecords(assetsBase, { contentPackage, problems, masterRecords = [] }) {
+export function collectAssetRecords(
+    assetsBase,
+    { contentPackage, problems, masterRecords = [], warnings },
+) {
     const records = [];
     const findings = [];
     const masterAddresses = new Set(masterRecords.map((record) => record.address.canonical));
@@ -558,7 +562,14 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems, mast
                 continue;
             }
             const address = canonicalKey(contentPackage, ASSET_SYSTEM, type, shortcode);
-            if (masterAddresses.has(address)) continue;
+            if (masterAddresses.has(address)) {
+                warnings?.push({
+                    file: absPath,
+                    severity: "warning",
+                    message: `public asset ${address} is superseded by a private master`,
+                });
+                continue;
+            }
             const already = claimed.get(shortcode);
             if (already) {
                 report(

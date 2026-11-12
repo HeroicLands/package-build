@@ -84,7 +84,7 @@ export function assertPrivateArtRoots(
  * Read each PNG and SVG in the configured roots once.
  * @param {readonly string[]} roots Private input directories.
  * @param {string} contentPackage The package owning the inputs.
- * @returns {{masters: Map<string, {file: string, record: import('./art-provenance-core.mjs').ProvenanceRecord}>, findings: object[], paths: string[]}} Parsed masters, input paths and located findings.
+ * @returns {{masters: Map<string, {file: string, record: import('./art-provenance-core.mjs').ProvenanceRecord, dimensions?: {width: number, height: number}}>, findings: object[], paths: string[]}} Parsed masters, input paths and located findings.
  */
 export function collectArtMasters(roots, contentPackage) {
     const masters = new Map();
@@ -150,7 +150,12 @@ export function collectArtMasters(roots, contentPackage) {
                         reported.add(address);
                     }
                     add(file, "duplicate master address");
-                } else masters.set(address, { file, record });
+                } else
+                    masters.set(address, {
+                        file,
+                        record,
+                        dimensions: imageDimensions(file, path.extname(file).toLowerCase(), bytes),
+                    });
             } catch (error) {
                 add(file, error.message);
             }
@@ -169,7 +174,7 @@ export function masterAssetRecords(masters) {
     return [...masters].map(([address, master]) => {
         const tuple = readCanonicalKey(address);
         const extension = path.extname(master.file).toLowerCase();
-        const dimensions = imageDimensions(master.file, extension);
+        const dimensions = master.dimensions;
         const root = tuple.type === "icon" ? "icons" : "images";
         return setArtSource(
             {

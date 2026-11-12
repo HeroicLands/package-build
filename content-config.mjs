@@ -1640,7 +1640,7 @@ function normalizeArt(value, rootDir) {
             if (contains(left, right) || contains(right, left))
                 fail(
                     `art.masterRoots[${i}]`,
-                    `overlaps art.masterRoots[${j}] (${resolved[i]} and ${resolved[j]})`,
+                    `overlaps \`art.masterRoots[${j}]\` (${resolved[i]} and ${resolved[j]})`,
                 );
         }
     }

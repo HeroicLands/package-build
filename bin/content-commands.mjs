@@ -1647,6 +1647,7 @@ function contentBuildCommand() {
                 cachedMetadataIndexes(config);
                 session = await createContentSession({ config, timings, trackChanges: true });
                 shared[CONTENT_SESSION] = session;
+                for (const warning of session.warnings) emitDiagnostic(warning);
                 let prepared = false;
                 const reportedProblems = new Set();
                 try {

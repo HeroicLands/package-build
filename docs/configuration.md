@@ -609,7 +609,8 @@ aliases of the same directory are also refused. A symbolic link inside a master
 root is an error at that link, rather than another source of masters.
 
 The note-rendering cache includes master fingerprints in its existing input key.
-Unchanged master inputs permit cache reuse; changed inputs invalidate the cached
+The fingerprint includes directory membership and each master’s identity, size,
+and modification and change timestamps. Changed inputs invalidate the cached
 tree. Public derivatives are rendered under `build/art`, separately from the
 note cache.
 
@@ -631,7 +632,7 @@ art:
 
 Overlapping configured entries name both indexes and resolved paths:
 
-> ``package-build config: `art.masterRoots[<index>]` overlaps art.masterRoots[<earlier-index>] (<path> and <earlier-path>).``
+> ``package-build config: `art.masterRoots[<index>]` overlaps `art.masterRoots[<earlier-index>]` (<path> and <earlier-path>).``
 
 A link inside a master root is reported at the link:
 
