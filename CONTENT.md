@@ -12,7 +12,8 @@ Private PNG and SVG art masters can be declared in `art.masterRoots`. Each
 master carries its image Address and can state creator, rights, an exact
 `hl:license` ID and IPTC digital source type. Public derivatives use the Address for their target;
 see [masters and derivatives](docs/reference/format-details.md#masters-and-derivatives).
-Note rendering reads a fresh index when private master roots are configured.
+The note-rendering cache includes master fingerprints in its input key and
+reuses the index only while those inputs remain unchanged.
 
 A single note renders as the body of its site page with
 `@heroiclands/package-build/note-page`. `renderNoteFile(path, { root })` needs
