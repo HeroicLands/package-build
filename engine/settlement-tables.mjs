@@ -17,7 +17,13 @@ import { declaredHeadings } from "./declared-sections.mjs";
 import { positionOfFrontmatterPath, formatDiagnostic } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
-import { isAddressTuple, renderAddress, parseAddress } from "./address.mjs";
+import {
+    isAddressTuple,
+    renderAddress,
+    parseAddress,
+    readQualifier,
+    splitAnchor,
+} from "./address.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { isGmNote, NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 import { SETTLEMENT_COLUMNS, SETTLEMENT_ROW_FIELDS } from "./settlement-terms.mjs";
@@ -79,6 +85,7 @@ const namesOf = (fm) =>
             .map((v) => v.trim().toLowerCase()),
     );
 
+// Indexes and record arrays are immutable for the lifetime of a build.
 const corpusCache = new WeakMap();
 const renderCache = new WeakMap();
 
@@ -96,16 +103,19 @@ function corpusOf(index) {
             ...notes.map((note) => fmOf(note).package),
         ].filter(Boolean),
     );
-    const explicit = (value) =>
-        isAddressTuple(value) ||
-        new RegExp(`^(?:(?:[a-z0-9]+-)?note-)?(?:${[...types].join("|")})-[a-zA-Z0-9]+$`).test(
-            ref(value),
+    const explicit = (value) => {
+        if (isAddressTuple(value)) return true;
+        const qualifier = readQualifier(splitAnchor(ref(value)).address, types, packages);
+        return (
+            qualifier !== null &&
+            (qualifier.reason === undefined || qualifier.reason === "shortcode-not-lowercase")
         );
+    };
     const keyOf = (value, type, sourcePackage = index.contentPackage) => {
         const tuple =
             isAddressTuple(value) ? value : (
                 parseAddress(
-                    ref(value),
+                    splitAnchor(ref(value)).address,
                     {
                         package: sourcePackage,
                         system: "note",
@@ -430,7 +440,7 @@ export function checkSettlementTables(note, { index } = {}) {
                 report(
                     "territorial population",
                     ["data", "territorial_population"],
-                    `settlements account for ${sum.toLocaleString("en-US")} people against territorial population ${total.toLocaleString("en-US")}; the allowed difference is five percent`,
+                    `settlements account for ${sum.toLocaleString("en-US")} people against territorial population ${total.toLocaleString("en-US")}; the allowed difference is five percent; list the settlements or record an owner exception for that polity.`,
                 );
         }
     }

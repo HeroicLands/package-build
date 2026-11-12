@@ -112,11 +112,13 @@ use the same generated tables.
 `data.territorial_population` counts inhabitants: listed and noted settlements
 throughout its subordinate chain must account for that total within five percent.
 A polity with settlements, a seat, or subordinate polities requires this total.
-Each polity declares at most one superior.
+Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Populations use at most two significant digits. Each settlement
-has short `notes`; a populated settlement note also requires `type`, `market`
-and a `government` that resolves to a polity.
+has short `data.notes`; a populated settlement note also requires `data.type`,
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
+If the settlement sum falls outside the tolerance, list the settlements or
+record an owner exception for that polity.
 
 ```yaml
 type: affiliation
