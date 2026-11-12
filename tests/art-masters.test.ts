@@ -142,7 +142,12 @@ it("refuses an asset row that reaches a private master through its destination",
         stagePackageBuildAssets({
             config: {
                 rootDir: root,
-                assets: [{ from: "public.txt", to: "../../private/master.svg" }],
+                assets: [
+                    {
+                        from: "public.txt",
+                        to: path.relative(path.join(root, "build", "stage"), master),
+                    },
+                ],
                 stageDir: "build/stage",
                 baseStyles: false,
             } as any,
@@ -223,7 +228,12 @@ it("refuses a directory destination containing a symlink to private masters", as
         stagePackageBuildAssets({
             config: {
                 rootDir: root,
-                assets: [{ from: "public", to: "../../outside" }],
+                assets: [
+                    {
+                        from: "public",
+                        to: path.relative(path.join(root, "build", "stage"), destination),
+                    },
+                ],
                 stageDir: "build/stage",
                 baseStyles: false,
             } as any,
@@ -517,7 +527,15 @@ if (!indexRecordsFor({config}).some(record => record.address?.canonical?.shortco
     await stagePackageBuildAssets({
         config: {
             rootDir: root,
-            assets: [{ from: "public.txt", to: "../../outside/public.txt" }],
+            assets: [
+                {
+                    from: "public.txt",
+                    to: path.relative(
+                        path.join(root, "build", "stage"),
+                        path.join(root, "outside", "public.txt"),
+                    ),
+                },
+            ],
             stageDir: "build/stage",
             baseStyles: false,
         } as any,
