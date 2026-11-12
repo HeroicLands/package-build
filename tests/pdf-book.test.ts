@@ -167,6 +167,43 @@ afterAll(() => {
 });
 
 it(
+    "refuses private master output directories and descendant symlinks before writing",
+    async () => {
+        const dir = makeRepo("content");
+        try {
+            const privateRoot = path.join(dir, "private-masters");
+            fs.mkdirSync(privateRoot);
+            const original = writeProvenance(
+                await sharp({ create: { width: 10, height: 10, channels: 3, background: "white" } })
+                    .png()
+                    .toBuffer(),
+                { address: "sohl-none-image-picture", creator: "Artist", rights: "Rights" },
+            ).bytes;
+            const master = path.join(privateRoot, "picture.png");
+            fs.writeFileSync(master, original);
+            fs.appendFileSync(
+                path.join(dir, "package-build.config.yaml"),
+                "art:\n    masterRoots: [private-masters]\n",
+            );
+            const overlap = build(dir, "--no-compile", "--out", "private-masters");
+            expect(overlap.status, overlap.out).not.toBe(0);
+            expect(overlap.out).toContain("overlaps output");
+            expect(fs.readdirSync(privateRoot)).toEqual(["picture.png"]);
+            const output = path.join(dir, "build/dist");
+            fs.mkdirSync(output, { recursive: true });
+            fs.symlinkSync(master, path.join(output, "sohl-core.typ"));
+            const linked = build(dir, "--no-compile");
+            expect(linked.status, linked.out).not.toBe(0);
+            expect(linked.out).toContain("overlaps output");
+            expect(fs.readFileSync(master)).toEqual(original);
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    },
+    SUBPROCESS_TEST_TIMEOUT,
+);
+
+it(
     "stages book images from the addressed master without a public derivative",
     async () => {
         const dir = makeRepo("content");

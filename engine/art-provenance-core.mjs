@@ -743,7 +743,7 @@ function retainForeign(packet) {
 }
 
 /** Whether an inherited packet has properties outside the managed record. */
-function hasForeignXmp(packet) {
+function hasForeignXmp(packet, properties = MANAGED_PROPERTIES) {
     let invalid = false;
     let document;
     try {
@@ -757,7 +757,7 @@ function hasForeignXmp(packet) {
     }
     if (invalid || !document.documentElement) return true;
     const managed = new Set(
-        MANAGED_PROPERTIES.map((name) => {
+        properties.map((name) => {
             const [prefix, local] = name.split(":");
             return `${OWN_BINDINGS[prefix]}|${local}`;
         }),
@@ -1021,7 +1021,7 @@ export function readJpegProvenance(input) {
         if (bytes[at++] !== 0xff) throw new Error("invalid JPEG marker");
         while (bytes[at] === 0xff) at++;
         const marker = bytes[at++];
-        if (marker === 0xda || marker === 0xd9) break;
+        if (marker === 0xd9) break;
         if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
         if (at + 2 > bytes.length) throw new Error("truncated JPEG segment");
         const length = bytes.readUInt16BE(at);
@@ -1033,6 +1033,22 @@ export function readJpegProvenance(input) {
             packet = data.subarray(prefix.length).toString("utf8");
         } else if (marker === 0xe1 || marker === 0xed || marker === 0xfe) foreignMetadata = true;
         at += length;
+        if (marker === 0xda) {
+            // Entropy data escapes FF as FF00; restart markers remain inside the scan.
+            while (at < bytes.length) {
+                if (bytes[at] !== 0xff) {
+                    at++;
+                    continue;
+                }
+                let next = at + 1;
+                while (bytes[next] === 0xff) next++;
+                if (bytes[next] === 0x00 || (bytes[next] >= 0xd0 && bytes[next] <= 0xd7)) {
+                    at = next + 1;
+                    continue;
+                }
+                break;
+            }
+        }
     }
     const xmp = packet === null ? {} : readXmpRecord(packet);
     return { xmp, standard: {}, packet, record: withIdentifier(xmp), foreignMetadata };
@@ -1822,7 +1838,13 @@ export function checkProvenance(entries, options = {}) {
                 if (!allowed.has(field)) add(file, `JPEG metadata must not carry ${field}`);
             if (!address || xmp.derivedFrom !== address)
                 add(file, "JPEG hl:derivedfrom must name its master address");
-            if (read.foreignMetadata || (packet !== null && hasForeignXmp(packet)))
+            const publicProperties = XMP_PROPERTIES.filter(([field]) => allowed.has(field)).map(
+                ([, property]) => property,
+            );
+            if (
+                read.foreignMetadata ||
+                (packet !== null && hasForeignXmp(packet, publicProperties))
+            )
                 add(file, "JPEG carries foreign metadata");
         }
         if (isPng && xmp.derived !== undefined) {

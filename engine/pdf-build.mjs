@@ -87,6 +87,7 @@ import { routerFor } from "./pack-router.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 import { createContentSession } from "./content-session.mjs";
+import { assertPrivateArtRoots } from "./art-masters.mjs";
 import { readCanonicalKey, renderAddress } from "./address.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { coverage, isPrintable, recordKey } from "./pdf-coverage.mjs";
@@ -517,6 +518,8 @@ export async function buildPdf({
         resolved.rootDir,
         out || resolved.pdf.out || path.join("build", "dist"),
     );
+
+    assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [outDir]);
 
     const world = await prepareWorld(resolved, { contentBase, findings });
     if (!world) return none(null);
