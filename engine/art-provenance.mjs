@@ -12,7 +12,7 @@
  */
 
 /**
- * Provenance embedded in a PNG, WebP or SVG master.
+ * Provenance embedded in a PNG, WebP or SVG image.
  *
  * A master carries its own identity: the Address of the note it illustrates, a
  * display name, the prompt that produced it, how it was generated, and the
@@ -115,7 +115,10 @@
  *
  * A file may already hold an XMP packet from another tool, such as an editor's
  * edit history. The policy is to **keep it and replace only the properties this
- * module manages**: the packet's `rdf:Description` blocks stay, `dc:title`,
+ * module manages**: eligible properties and comments inside `rdf:RDF` stay;
+ * comments outside `rdf:RDF` are dropped. `foreignXmp` describes retained
+ * foreign properties and comments inside `rdf:RDF`. The packet's
+ * `rdf:Description` blocks stay, `dc:title`,
  * `dc:creator`, `dc:rights`, `dc:description` and the managed `hl:` and
  * `Iptc4xmpExt:DigitalSourceType` properties are removed from them, and one
  * `rdf:Description` block of this module's own is written. A packet that
@@ -419,7 +422,7 @@ function cleanSvgDrawing(text) {
  * contents, processing instructions, titles and descriptions are discarded.
  * Empty CSS comment separators preserve token boundaries. CSS strings and
  * drawing values remain. Resource references in href, XML base, animations
- * and CSS accept fragments, empty references and absolute HTTP(S) URLs; local
+ * and CSS accept fragments, empty references and absolute HTTP(S) URLs without user information; local
  * paths and embedded data are refused. Internal general entities and default
  * attributes are expanded; external DTDs, external entities and parameter
  * entities are refused. `foreignXmp` reports discarded foreign or unreadable

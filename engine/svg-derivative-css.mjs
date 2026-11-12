@@ -13,21 +13,26 @@
 
 /** Resource references and comments in a public SVG drawing. @module */
 
-/** Accept a fragment or an absolute HTTP(S) resource without publishing local paths. */
+/** Accept a fragment or an absolute HTTP(S) resource without user information. */
 export function checkSvgResource(value) {
     const uri = value.trim();
     if (uri === "" || uri.startsWith("#")) return;
     if (/^https?:\/\//i.test(uri)) {
         try {
             const parsed = new URL(uri);
-            if ((parsed.protocol === "https:" || parsed.protocol === "http:") && parsed.hostname)
+            if (
+                (parsed.protocol === "https:" || parsed.protocol === "http:") &&
+                parsed.hostname &&
+                !parsed.username &&
+                !parsed.password
+            )
                 return;
         } catch {
             // The resource is refused below.
         }
     }
     throw new Error(
-        "SVG derivative resource references must be fragments or absolute HTTP(S) URLs; embedded data and local paths are not supported",
+        "SVG derivative resource references must be fragments or absolute HTTP(S) URLs without user information; embedded data and local paths are not supported",
     );
 }
 
