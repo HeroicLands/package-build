@@ -2359,6 +2359,57 @@ and `fields`, one section below per action. Both read the
 specification named by `--spec`, defaulting to the one this package ships,
 and write nothing.
 
+### `package-build items coverage`
+
+**NAME**
+
+`package-build items coverage` — report this package's item notes that lack a
+system block.
+
+**SYNOPSIS**
+
+```sh
+package-build items coverage --system <id> [--json]
+```
+
+**DESCRIPTION**
+
+The report lists each item note without a block for the selected system,
+grouped by its `data.kind`, with counts per kind and a total. Each text line
+locates the item note's `type` in the source. An item note without `data.kind`
+appears under `unspecified`. Entries listed in a being or culture are not
+separate item notes. The command reads the configured content tree, including
+its directory exclusions, and does not write files. The report runs only on
+request; build and lint do not run it. When every item has a block, text output says `0 items lack a <system> block`.
+
+**OPTIONS**
+
+- `--system`: a system ID declared by the package; required.
+- `--json`: write an object with `system`, `total`, and `groups`. Each group
+  has `kind`, `count`, and `items`; each item has its name, Address and source
+  location.
+
+**EXIT STATUS**
+
+0 when the report is produced, including when no item lacks a block. 1 for an
+unsupported system, invalid configuration, or a content-reading error.
+
+**EXAMPLES**
+
+```sh
+package-build items coverage --system sohl
+package-build items coverage --system sohl --json
+```
+
+```text
+assets/content/Gear/Blade.md:2:1: info: weapon (1 missing; 1 total): Blade (setting-note-weapongear-blade) has no sohl block
+```
+
+**SEE ALSO**
+
+[Items in a note](reference/format-details.md#items-in-a-note),
+[`package-build lint`](#package-build-lint-root).
+
 ### `package-build content-format schema`
 
 **NAME**
@@ -3617,6 +3668,7 @@ exactly as given, at every depth, and every field it leaves out is generated:
 | `shortcode`                                             | The name transliterated to lowercase letters and digits and cut to twelve characters; a counter replaces its tail where a being holds it. |
 | `type`, `subType`, `tags`                               | `being`, `npc`, `[generated, draft]`.                                                                                                     |
 | `data.icon`, `data.species`, `data.packFolder`          | The commonest value among the package's npcs of the same culture, else among all its npcs; left out where none states one.                |
+| `data.items`                                            | Items independently drawn from the culture and occupation lists; omitted when no item is drawn.                                           |
 | `data.archetypes`                                       | `[commoner]`, the archetype of a person who fits no more specific one.                                                                    |
 | `data.templatePriority`, `data.occupation`, `data.died` | `null`.                                                                                                                                   |
 | `data.lore`, `data.homes`                               | `[]`.                                                                                                                                     |
@@ -3625,6 +3677,8 @@ exactly as given, at every depth, and every field it leaves out is generated:
 | `data.frame`, `data.appearance.*`                       | Weighted draws from the culture's appearance profile; `extra_features` is `[]`.                                                           |
 | `data.height`                                           | From the profile's range for the gender, in feet and inches.                                                                              |
 | `data.weight`                                           | From the height and the frame's body-mass band, in pounds. A spec giving height and weight but no frame gets the frame they imply.        |
+
+Each item with `chance` is drawn independently at that percentage. An item without `chance` is always drawn, and the generated item omits `chance`. Each drawn entry retains its authored fields and model Address, so model defaults are resolved when the being is compiled. A spec that states `data.items` keeps that list. The optional `data.occupationNote` Address selects a `being` note of `subType: npc` as the occupation template; `data.occupation` remains display text. When drawn culture and occupation items share a `key`, the occupation item replaces the culture item. A repeated `key` within either source list is an error.
 
 Generation is seeded from the spec itself, through a canonical serialisation
 that sorts every map's keys: the same spec always writes the same note, whether

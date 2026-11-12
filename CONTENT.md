@@ -111,6 +111,12 @@ within `data.items` and within each system's `items` list. An item note
 shape in its `data` block with `kind` required. See
 [items in a note](docs/reference/format-details.md#items-in-a-note).
 
+A being's entries compile into embedded Items for each supported system when
+the model supplies that system's item type or a same-key system entry states
+one. Model defaults and entry fields merge with the same-key system entry;
+nested maps merge and lists replace. An item without a type for a system is
+omitted from that system's actor.
+
 A polity (`affiliation`, `subType: polity`) lists settlements without notes in
 `data.settlements`. Each row names its settlement, polity, location, type,
 fortification, stronghold, holder, population, market and short notes. Polity

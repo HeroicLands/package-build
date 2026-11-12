@@ -23,6 +23,8 @@ import {
     indexRecordsFor,
     serializeContentIndex,
 } from "../engine/content-index.mjs";
+import { encodeAddresses } from "../engine/address-values.mjs";
+import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
 import { isNoteRecord, isPackageRecord } from "../engine/index-records.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
@@ -33,10 +35,20 @@ import {
     requiredModulePackages,
     systemPackages,
 } from "../engine/item-entries.mjs";
-import { metadataCacheDir, metadataFileName, markComplete } from "../engine/metadata-index.mjs";
+import {
+    metadataCacheDir,
+    metadataFileName,
+    markComplete,
+    loadForeignIndexes,
+} from "../engine/metadata-index.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
+import { Actors } from "../sohl/actors.mjs";
+import { Hm3Actors } from "../hm3/actors.mjs";
+import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
+import { routerFor } from "../engine/pack-router.mjs";
+import { buildContentLinkIndex } from "../engine/helpers.mjs";
 
 const MANIFEST = "https://example.invalid/module.json";
 
@@ -109,7 +121,17 @@ beforeAll(() => {
     );
     // `modone` requires `modtwo`, which in turn names a system among its modules:
     // the system is never entered whatever a package publishes.
-    publish("modone", [item("weapongear", "axe", { kind: "weapon" })], ["modtwo"]);
+    publish(
+        "modone",
+        [
+            {
+                ...item("weapongear", "axe", { kind: "weapon", packFolder: "folder-weapons" }),
+                sohl: { type: "weapongear", templatePriority: null, system: { weight: 3 } },
+                hm3: { type: "weapongear", templatePriority: null, system: { weight: 3 } },
+            },
+        ],
+        ["modtwo"],
+    );
     publish("modtwo", [item("miscgear", "rope")], ["sohl"]);
     publish("stray", [item("miscgear", "lantern")]);
     publish("sohl", [item("weapongear", "dagger", { kind: "weapon" })]);
@@ -554,5 +576,227 @@ describe("an item note", () => {
         expect(lines.some((line) => /data\.system\.weight` should be number/.test(line))).toBe(
             true,
         );
+    });
+});
+
+describe("resolved item defaults in the content index", () => {
+    for (const [system, Compiler] of [
+        ["sohl", Actors],
+        ["hm3", Hm3Actors],
+    ] as const) {
+        for (const foreign of [false, true]) {
+            it(`${system} compiles a ${foreign ? "required-module" : "local"} model through the normal corpus`, async () => {
+                const content = path.join(root, `corpus-${(counter += 1)}`);
+                const model = foreign ? "modone-note-weapongear-axe" : "weapongear-blade";
+                if (!foreign)
+                    write(
+                        path.join(content, "model.md"),
+                        noteText({
+                            ...item("weapongear", "blade", { kind: "weapon", name: "Blade" }),
+                            [system]: {
+                                type: "weapongear",
+                                templatePriority: null,
+                                system: { weight: 3 },
+                            },
+                        }),
+                    );
+                write(
+                    path.join(content, "being.md"),
+                    noteText({ ...being([{ model }]), [system]: {} }),
+                );
+                const problems: object[] = [];
+                const corpus = await buildCompileCorpus({
+                    contentBase: content,
+                    skipDirectories: [],
+                    router: routerFor(config),
+                    config,
+                    problems,
+                });
+                expect(problems).toEqual([]);
+                if (foreign)
+                    corpus.linkIndex.foreign.set("modone-note-weapongear-axe", {
+                        anchors: {
+                            $lead: "Compendium.modone.docs.JournalEntry.axe.JournalEntryPage.intro",
+                        },
+                    });
+                const compiler = new Compiler({
+                    contentBase: content,
+                    dest: path.join(root, "out"),
+                    skipDirectories: [],
+                    corpus,
+                    packSystem: system,
+                });
+                await compiler.prepare();
+                const fm = corpus.records.find((r: any) => isNoteRecord(r) && r.type === "being");
+                const items = compiler.buildEmbeddedItems(
+                    compiler.itemsMap,
+                    "actor0000000000",
+                    fm,
+                    "test",
+                );
+                expect(items).toHaveLength(1);
+                expect(items[0]).toMatchObject({ type: "weapongear", system: { weight: 3 } });
+                if (foreign)
+                    expect(items[0].system[system === "sohl" ? "docHtml" : "description"]).toBe(
+                        "@UUID[Compendium.modone.docs.JournalEntry.axe.JournalEntryPage.intro]{axe}",
+                    );
+                expect(compiler.errorCount).toBe(0);
+            });
+        }
+    }
+    it("compiles a required module model from its index without a catalogue", () => {
+        const content = path.join(root, `resolved-${(counter += 1)}`);
+        write(
+            path.join(content, "being.md"),
+            noteText({ ...being([{ model: "modone-note-weapongear-axe" }]), sohl: {} }),
+        );
+        const parsed = new Map();
+        const records = indexRecordsFor({ contentBase: content, config, parsed });
+        const compiler = new Actors({
+            contentBase: content,
+            dest: path.join(root, "out"),
+            skipDirectories: [],
+            folderResolver: () => {
+                throw new Error("local folder resolver called");
+            },
+        });
+        compiler.corpus = { records } as any;
+        compiler.linkIndex = buildContentLinkIndex(content, routerFor(config), { config, records });
+        const fm = records.find((r: any) => isNoteRecord(r) && r.type === "being");
+        const items = compiler.buildEmbeddedItems(new Map(), "actor0000000000", fm, "test");
+        expect(items).toHaveLength(1);
+        expect(items[0]).toMatchObject({ name: "axe", system: { weight: 3, shortcode: "axe" } });
+        expect(items[0]).not.toHaveProperty("folder");
+        expect(compiler.errorCount).toBe(0);
+    });
+    it("compiles a model-only entry through the content index and item catalogue", () => {
+        const content = path.join(root, `resolved-${(counter += 1)}`);
+        const model = {
+            ...item("weapongear", "blade", {
+                kind: "weapon",
+                name: "Blade",
+                system: { quantity: 2 },
+            }),
+            sohl: { type: "weapongear", system: { weight: 3 } },
+        };
+        write(path.join(content, "model.md"), noteText(model));
+        write(
+            path.join(content, "being.md"),
+            noteText({ ...being([{ model: "weapongear-blade" }]), sohl: {} }),
+        );
+        const parsed = new Map();
+        const records = indexRecordsFor({ contentBase: content, config, parsed });
+        const linkIndex = buildContentLinkIndex(content, routerFor(config), { config, records });
+        const fm = records.find((r: any) => isNoteRecord(r) && r.type === "being");
+        const compiler = new Actors({
+            contentBase: content,
+            dest: path.join(root, "out"),
+            skipDirectories: [],
+        });
+        compiler.linkIndex = linkIndex;
+        compiler.corpus = { records } as any;
+        const catalogue = new Map([
+            [
+                "demo:weapongear:blade",
+                { type: "weapongear", name: "Compiled", system: { shortcode: "blade", weight: 3 } },
+            ],
+        ]);
+        const items = compiler.buildEmbeddedItems(catalogue, "actor0000000000", fm, "test");
+        expect(items).toHaveLength(1);
+        expect(items[0]).toMatchObject({ name: "Blade", system: { quantity: 2, weight: 3 } });
+        expect(compiler.errorCount).toBe(0);
+    });
+    it("retains entry identity and merges neutral fields from a local model", () => {
+        const content = path.join(root, `resolved-${(counter += 1)}`);
+        write(
+            path.join(content, "model.md"),
+            noteText(
+                item("weapongear", "blade", {
+                    kind: "weapon",
+                    name: "Blade",
+                    system: { quantity: 1, weight: 3 },
+                    packFolder: "weapons",
+                }),
+            ),
+        );
+        write(
+            path.join(content, "being.md"),
+            noteText(
+                being([
+                    {
+                        key: "blade",
+                        model: "weapongear-blade",
+                        chance: 60,
+                        system: { quantity: 2 },
+                    },
+                ]),
+            ),
+        );
+        const records = indexRecordsFor({ contentBase: content, config });
+        const record = records.find((r: any) => isNoteRecord(r) && r.type === "being");
+        expect(record.data.items[0]).toMatchObject({
+            key: "blade",
+            chance: 60,
+            kind: "weapon",
+            name: "Blade",
+            system: { quantity: 2, weight: 3 },
+        });
+        expect(encodeAddresses(record.authoredItems)).toEqual([
+            {
+                key: "blade",
+                model: "demo-note-weapongear-blade",
+                chance: 60,
+                system: { quantity: 2 },
+            },
+        ]);
+        const published = JSON.parse(serializeContentIndex([record]).trim());
+        const decoded = decodeIndexAddresses(published, { package: "demo" });
+        expect(encodeAddresses(decoded.authoredItems)).toEqual([
+            {
+                key: "blade",
+                model: "demo-note-weapongear-blade",
+                chance: 60,
+                system: { quantity: 2 },
+            },
+        ]);
+        expect(record.data.items[0].model).toBeDefined();
+        expect(record.data.items[0].packFolder).toBeUndefined();
+    });
+
+    it("transports authored and resolved entries through a published dependency index", () => {
+        publish("fixture", [
+            item("weapongear", "blade", { kind: "weapon", name: "Sword", system: { weight: 3 } }),
+            being([{ key: "blade", model: "weapongear-blade", system: { quantity: 2 } }]),
+        ]);
+        const consumer = {
+            ...config,
+            relationships: { requires: [{ id: "fixture", type: "module", manifest: MANIFEST }] },
+        };
+        const foreign = loadForeignIndexes(consumer, new Set(["demo"])).index;
+        const hit = foreign.get("fixture-sohl-being-subject");
+        expect(hit).toBeDefined();
+        expect(encodeAddresses(hit.data.items)).toMatchObject([
+            {
+                key: "blade",
+                model: "fixture-note-weapongear-blade",
+                kind: "weapon",
+                name: "Sword",
+                system: { quantity: 2, weight: 3 },
+            },
+        ]);
+        expect(encodeAddresses(hit.authoredItems)).toEqual([
+            { key: "blade", model: "fixture-note-weapongear-blade", system: { quantity: 2 } },
+        ]);
+    });
+
+    it("resolves defaults from a required module's published index", () => {
+        const content = path.join(root, `resolved-${(counter += 1)}`);
+        write(
+            path.join(content, "being.md"),
+            noteText(being([{ model: "modone-note-weapongear-axe", name: "Hatchet" }])),
+        );
+        const records = indexRecordsFor({ contentBase: content, config });
+        const record = records.find((r: any) => isNoteRecord(r) && r.type === "being");
+        expect(record.data.items[0]).toMatchObject({ kind: "weapon", name: "Hatchet" });
     });
 });

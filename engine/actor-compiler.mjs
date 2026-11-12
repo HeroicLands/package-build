@@ -50,9 +50,18 @@ import fs from "fs";
 import path from "path";
 import log from "loglevel";
 
-import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
+import {
+    canonicalKey,
+    isAddressTuple,
+    ownDocumentSystem,
+    parseAddress,
+    renderAddress,
+} from "./address.mjs";
+import { resolveItemDefaults, systemItemEntries } from "./system-item-entries.mjs";
+import { deepMerge } from "./deep-merge.mjs";
+export { deepMerge, isPlainObject } from "./deep-merge.mjs";
 import { makeId } from "./helpers.mjs";
-import { emitDiagnostic, locateFrontmatterKey } from "./diagnostics.mjs";
+import { emitDiagnostic, locateFrontmatterKey, positionOfFrontmatterPath } from "./diagnostics.mjs";
 // The `{#appearance}` / `{#dossier}` convention is the note format's, so the
 // extraction is shared; which field a section lands in stays the system's.
 export { extractAnchorSection, renderSection } from "./anchored-sections.mjs";
@@ -60,6 +69,7 @@ import { misplacedAnchorSection } from "./anchored-sections.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { beingDefaultArt } from "./art-fields.mjs";
 import { contentPackage } from "./content-package.mjs";
+import { isNoteRecord } from "./index-records.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into, and which note
 // types are actors at all. Looked up in the system's declared map, never
 // inferred from the type itself.
@@ -87,43 +97,6 @@ export function stripCompendiumFields(item) {
     // eslint-disable-next-line no-unused-vars
     const { _key, _stats, ownership, folder, ...rest } = item;
     return rest;
-}
-
-/**
- * Whether a value is a plain object, for {@link deepMerge}.
- *
- * @param {unknown} v - The value.
- * @returns {boolean} True for a plain object.
- */
-export function isPlainObject(v) {
-    return (
-        !isAddressTuple(v) &&
-        v !== null &&
-        typeof v === "object" &&
-        !Array.isArray(v) &&
-        Object.getPrototypeOf(v) === Object.prototype
-    );
-}
-
-/**
- * Recursively merge `overlay` onto `base`. Plain objects merge key-by-key;
- * everything else (arrays, primitives, null) replaces. Inputs are not
- * mutated.
- *
- * @param {any} base - The catalogue entry.
- * @param {any} overlay - The note's own values.
- * @returns {any} The merged value.
- */
-export function deepMerge(base, overlay) {
-    if (overlay === undefined) return base;
-    if (!isPlainObject(base) || !isPlainObject(overlay)) {
-        return overlay;
-    }
-    const out = { ...base };
-    for (const [k, v] of Object.entries(overlay)) {
-        out[k] = k in base ? deepMerge(base[k], v) : v;
-    }
-    return out;
 }
 
 /**
@@ -427,6 +400,13 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = [], system = n
  * becomes embedded items. Nothing above that line is a system's business.
  */
 export class SystemActorCompiler extends BasePackCompiler {
+    /** @type {Map<string, object>|undefined} */
+    #itemNotes;
+    /** @type {typeof import("./item-compiler.mjs").SystemItemCompiler} Required of each system subclass. */
+    static itemCompiler;
+
+    /** @type {string} Required of each system subclass: the item field holding its documentation pointer. */
+    static itemDescriptionField;
     static id = "actors";
     static label = "actor";
 
@@ -645,6 +625,168 @@ export class SystemActorCompiler extends BasePackCompiler {
         log.info(`Loaded ${this.itemsMap.size} predefined items for actor resolution`);
     }
 
+    /**
+     * Resolve neutral entries and return the system entries they did not consume.
+     * @param {Map<string, object>} itemsMap - The compiled item catalogue.
+     * @param {string} actorId - The owning actor's id.
+     * @param {object} fm - The actor's frontmatter.
+     * @param {object[]|null} declared - The system's authored item entries.
+     * @param {string} ctx - Diagnostic context.
+     * @returns {{items: object[], remaining: object[], remainingIndices: number[]}} The items and unmatched entries.
+     */
+    buildNeutralItems(itemsMap, actorId, fm, declared, ctx) {
+        const findModel = (value) => {
+            const tuple =
+                isAddressTuple(value) ? value : (
+                    parseAddress(value, {
+                        package: contentPackage(),
+                        system: "note",
+                    })
+                );
+            if (!isAddressTuple(tuple)) return undefined;
+            this.#itemNotes ??= new Map(
+                (this.corpus?.records ?? [])
+                    .filter(
+                        (record) =>
+                            isNoteRecord(record) &&
+                            record.package &&
+                            record.type &&
+                            record.shortcode,
+                    )
+                    .map((record) => [
+                        canonicalKey(record.package, "note", record.type, record.shortcode),
+                        record,
+                    ]),
+            );
+            const key = renderAddress(tuple);
+            const foreign = this.linkIndex?.foreign?.get(
+                canonicalKey(
+                    tuple.package,
+                    ownDocumentSystem(tuple.type),
+                    tuple.type,
+                    tuple.shortcode,
+                ),
+            );
+            return this.#itemNotes.get(key) ?? foreign?.itemRecord;
+        };
+        const planned = systemItemEntries(fm?.data?.items, declared, this.system, findModel);
+        for (const index of planned.missingType) {
+            const raw =
+                this.currentNote?.absPath ? fs.readFileSync(this.currentNote.absPath, "utf8") : "";
+            this.noteError(
+                `${ctx}: data.items[${index}] model's ${this.system} block has no type; ` +
+                    `add a type to the model's ${this.system} block or remove that block`,
+                positionOfFrontmatterPath(raw, ["data", "items", index, "model"]),
+            );
+            this.errorCount++;
+        }
+        const items = [];
+        for (const [index, entry] of planned.entries.entries()) {
+            const {
+                neutralModel,
+                systemModel,
+                neutral,
+                override,
+                index: sourceIndex,
+            } = planned.sources[index];
+            const source = neutralModel == null ? undefined : findModel(neutralModel);
+            const fieldsToApply = deepMerge(resolveItemDefaults(neutral, source), override ?? {});
+            const {
+                model: _model,
+                type: _type,
+                key: _key,
+                kind: _kind,
+                chance: _chance,
+                img,
+                ...fields
+            } = fieldsToApply;
+            const tuple = isAddressTuple(neutralModel) ? neutralModel : undefined;
+            const systemRead =
+                systemModel == null ? null : this.readModel(systemModel, sourceIndex, ctx);
+            if (systemModel != null && !systemRead) continue;
+            const useModel = tuple && source?.[this.system]?.type;
+            const read = systemRead ?? (useModel ? tuple : null);
+            if (useModel && !systemRead) {
+                const subtype = this.embeddedSubtype(source[this.system].type).subType;
+                const key = subtype && catalogueKey(subtype, tuple.shortcode, tuple.package);
+                if (key && !itemsMap.has(key)) {
+                    const ItemCompiler = this.constructor.itemCompiler;
+                    if (!ItemCompiler)
+                        throw new Error(
+                            `${this.constructor.name} must declare a static itemCompiler`,
+                        );
+                    const compiler = new ItemCompiler({
+                        contentBase: this.contentBase,
+                        dest: this.outputDir,
+                        skipDirectories: this.skipDirectories,
+                        packSystem: this.system,
+                    });
+                    compiler.linkIndex = this.linkIndex;
+                    compiler.currentNote = this.currentNote;
+                    const built = compiler.buildEntry(source, "");
+                    this.errorCount += compiler.errorCount;
+                    for (const [findingKey, finding] of compiler.emittedFindings)
+                        if (!this.emittedFindings.has(findingKey))
+                            this.emittedFindings.set(findingKey, finding);
+                    if (compiler.errorCount) continue;
+                    const documentation = this.linkIndex?.foreign?.get(renderAddress(tuple));
+                    const localDoc = this.corpus?.records?.find(
+                        (record) =>
+                            isAddressTuple(record.documents) &&
+                            renderAddress(record.documents) ===
+                                canonicalKey(
+                                    tuple.package,
+                                    ownDocumentSystem(tuple.type),
+                                    tuple.type,
+                                    tuple.shortcode,
+                                ),
+                    );
+                    const anchors = documentation?.anchors ?? localDoc?.foundry?.note?.anchors;
+                    const page = anchors?.description ?? anchors?.$lead;
+                    if (page)
+                        built.system[this.constructor.itemDescriptionField] =
+                            `@UUID[${page}]{${built.name}}`;
+                    else if (documentation?.uuid || localDoc?.foundry?.note?.uuid) {
+                        this.noteError(
+                            `${ctx}: data.items[${sourceIndex}] model's documentation has no published page; ` +
+                                "publish its documentation with a page or correct the model address and fetch the updated index",
+                            positionOfFrontmatterPath(
+                                this.currentNote?.absPath ?
+                                    fs.readFileSync(this.currentNote.absPath, "utf8")
+                                :   "",
+                                ["data", "items", sourceIndex, "model"],
+                            ),
+                        );
+                        this.errorCount++;
+                        continue;
+                    }
+                    itemsMap.set(key, built);
+                }
+            }
+            const overlay = { ...fields, system: fields.system ?? {} };
+            if (img) {
+                const path = this.artPathOf(img, "icon", "icon");
+                if (path) overlay.img = path;
+            }
+            const embedded = this.resolveEmbedded(
+                itemsMap,
+                actorId,
+                systemRead?.type ?? entry.type,
+                read?.shortcode ?? null,
+                overlay,
+                `data.items:${sourceIndex}`,
+                ctx,
+                {
+                    fmKey: "items",
+                    modelPackage: read?.package ?? null,
+                    modelType: useModel && !systemRead ? source[this.system].type : undefined,
+                },
+            );
+            if (embedded) items.push(embedded);
+        }
+        return { items, remaining: planned.remaining, remainingIndices: planned.remainingIndices };
+    }
+
     /** @inheritdoc */
     reportDetail(stats) {
         log.debug(
@@ -792,6 +934,7 @@ export class SystemActorCompiler extends BasePackCompiler {
      * @param {string|null} [at.modelPackage] - The package a `model:` names,
      *   where the template comes from another package's catalogue. Given one,
      *   the packaged address is what resolves and nothing local shadows it.
+     * @param {string} [at.modelType] - The model's type when the emitted type differs.
      * @returns {object|null} The embedded item, or null when it resolved to
      *   nothing — always with a finding emitted.
      */
@@ -803,7 +946,7 @@ export class SystemActorCompiler extends BasePackCompiler {
         overlay,
         indexKey,
         ctx,
-        { fmKey, modelPackage = null } = {},
+        { fmKey, modelPackage = null, modelType } = {},
     ) {
         // Where a finding about this reference points. The value locates the
         // exact entry in a list; the key is the fallback when it cannot be
@@ -819,8 +962,9 @@ export class SystemActorCompiler extends BasePackCompiler {
         }
         // A model names one package. Omitted packages are completed at the
         // read boundary; native embedded identities use the local catalogue.
+        const modelSubtype = modelType ? this.embeddedSubtype(modelType).subType : subType;
         const address = catalogueKey(
-            /** @type {string} */ (subType),
+            /** @type {string} */ (modelSubtype),
             shortcode ?? "",
             modelPackage ?? undefined,
         );

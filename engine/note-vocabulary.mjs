@@ -73,6 +73,7 @@
  */
 
 import { checkSeeAlso } from "./see-also.mjs";
+import { checkOccupationChoice } from "./occupation-choice.mjs";
 // The one charset, read rather than restated. A second spelling of the pattern
 // is how a disagreement between the three arises.
 import { ART_SLOTS } from "./art-slots.mjs";
@@ -1751,6 +1752,14 @@ export const NOTE_VOCABULARY = Object.freeze({
             TEMPLATE_PRIORITY,
             { name: "archetypes", ...TEXT_LIST, describe: "Archetypal behaviours the being fits." },
             { name: "occupation", ...TEXT, describe: "What the being does for a living." },
+            {
+                name: "occupationNote",
+                ...LINK,
+                ref: "being",
+                accepts: ["being"],
+                check: checkOccupationChoice,
+                describe: "An occupation template, as a being note of subType npc.",
+            },
             {
                 ...ITEMS_FIELD,
                 describe:

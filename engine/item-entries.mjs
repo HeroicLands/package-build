@@ -44,6 +44,7 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { isPlainMap } from "./data-keys.mjs";
 import { SHIPPED_SYSTEMS } from "./subtype-registry.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
+export { resolveItemDefaults } from "./system-item-entries.mjs";
 
 /**
  * What sort of thing an item is, from one system-neutral list. It categorises

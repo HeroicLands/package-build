@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { decodeNoteAddresses } from "../engine/note-addresses.mjs";
+import { isAddressTuple } from "../engine/address.mjs";
 
 /**
  * Every `data.` field, across every note type, that declares both a `kind`
@@ -47,6 +48,7 @@ const HITS: Record<string, unknown> = {
     "thalorna-note-skill-languageone": { subType: "language" },
     "thalorna-note-skill-languagetwo": { type: "skill", subType: "language" },
     "thalorna-note-being-ally": true,
+    "thalorna-note-being-porter": { type: "being", subType: "npc" },
     "thalorna-note-place-korrath": { type: "place", borders: [{ to: "vylar", bearing: "S" }] },
     "thalorna-note-place-tolvern": {
         type: "place",
@@ -84,6 +86,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
     being: {
         covers: [
             "culture",
+            "occupationNote",
             "affiliations",
             "socialTies",
             "born",
@@ -99,6 +102,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             shortcode: "subject",
             data: {
                 culture: "cultureone",
+                occupationNote: "porter",
                 calendar: "calendarone",
                 affiliations: { vrystwldtrbs: { rank: 5 } },
                 socialTies: { "being-ally": "patron" },
@@ -368,6 +372,17 @@ describe("every field declaring both a kind and a check", () => {
         }
         const coveredCount = Object.values(FIXTURES).reduce((n, f) => n + f.covers.length, 0);
         expect(coveredCount).toBe(fields.length);
+    });
+
+    it("checks the decoded occupation Address against its target subtype", () => {
+        const note = decodedNote("being", "occupationNote");
+        expect(isAddressTuple(note.fm.data.occupationNote)).toBe(true);
+        const field = (dataFields("being") ?? []).find((f: any) => f.name === "occupationNote");
+        const wrongTarget = {
+            ...index,
+            addressHit: () => ({ type: "being", subType: "character" }),
+        };
+        expect(field.check(note, { index: wrongTarget })).toHaveLength(1);
     });
 
     it("accepts its own documented form once the note boundary has decoded it", () => {

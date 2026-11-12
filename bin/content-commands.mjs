@@ -33,6 +33,7 @@
  *   npx package-build lexicon <language> [--map <map>] [--font <slug>] [--derived] [--json]
  *   npx package-build addresses diff --from <zip|dir> [--strict]
  *   npx package-build npc new (--spec <json> | --specfile <path>) [--seed <text>] [--out <path>]
+ *   npx package-build items coverage --system <id> [--json]
  *
  * In a consuming repository, wrapped as npm scripts — SoHL spells them:
  *   npm run build:compiledb                // → … package compile (all packs)
@@ -111,6 +112,7 @@ import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { markupFindings } from "../engine/markup-validation.mjs";
 import { runContext } from "../engine/content-scripts.mjs";
 import { coreReport, coreReportText } from "../engine/core-report.mjs";
+import { itemCoverage } from "../engine/items-coverage.mjs";
 import { checkScriptNoteFonts } from "../engine/script-emphasis.mjs";
 import {
     checkLexiconNatives,
@@ -155,6 +157,7 @@ import { createNameCatalog, createNamesReport, namesReportFinding } from "../eng
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import {
     emitDiagnostic,
+    formatDiagnostic,
     positionOfFrontmatterPath,
     positionOfLiteral,
     positionOfYamlPath,
@@ -180,6 +183,7 @@ import { profileFindings } from "../engine/appearance-profile.mjs";
 import { namesFindings } from "../engine/language-names.mjs";
 import { parseAddress, renderAddress } from "../engine/address.mjs";
 import { cultureKey, generateNpc, npcDefaults, npcSpecProblems } from "../engine/npc-generate.mjs";
+import { occupationKey } from "../engine/occupation-choice.mjs";
 import { cultureFieldSource, cultureHierarchyProblems } from "../engine/culture-parents.mjs";
 
 /**
@@ -304,6 +308,7 @@ export function registerContentCommands(cli) {
                 (_config, argv) => argv.action === "compile",
             ),
         )
+        .command(itemsCommand())
         .command(depsCommand())
         .command(docsCommand())
         .command(withIndexPreflight(lintCommand()))
@@ -3466,6 +3471,33 @@ function newNpc(config, argv) {
         throw new Error(`${languageKey}'s name lists have ${namesErrors.length} problem(s)`);
     }
 
+    const occupationWritten = spec.data.occupationNote;
+    const occupationAddress =
+        occupationWritten == null ? undefined : occupationKey(occupationWritten, index);
+    const occupationHit = occupationAddress ? index.addressHit(occupationAddress) : undefined;
+    if (occupationWritten != null && !occupationHit)
+        throw new Error(
+            `data.occupationNote ${JSON.stringify(occupationWritten)} names no note in this package or its dependencies`,
+        );
+    const occupation = occupationHit?.fm ?? occupationHit;
+    if (
+        occupationHit &&
+        (String(occupation.type ?? occupationHit.type) !== "being" || occupation.subType !== "npc")
+    )
+        throw new Error(
+            `data.occupationNote ${occupationAddress} must name a being with subType npc`,
+        );
+
+    const indexedItems = (address, target) => {
+        const source = target?.fm ?? target;
+        if (!Array.isArray(source?.data?.items)) return undefined;
+        if (!Array.isArray(target.authoredItems))
+            throw new Error(
+                `${address} has no authoredItems in its content index; publish the dependency with this package-build and run \`package-build deps fetch\``,
+            );
+        return target.authoredItems;
+    };
+
     const { taken, ...defaults } = npcDefaults(index, key);
     if (typeof spec.shortcode === "string" && taken.has(spec.shortcode))
         throw new Error(`\`shortcode: ${spec.shortcode}\` already names a being in this package`);
@@ -3474,6 +3506,8 @@ function newNpc(config, argv) {
         ({ text } = generateNpc(spec, {
             profile,
             names,
+            cultureItems: indexedItems(key, hit),
+            occupationItems: indexedItems(occupationAddress, occupationHit),
             language: languageKey,
             languageCode: code,
             seed: argv.seed,
@@ -3483,6 +3517,20 @@ function newNpc(config, argv) {
             taken,
         }));
     } catch (err) {
+        if (err?.itemConflict !== undefined) {
+            const conflict = err.itemConflict;
+            const sources = {
+                culture: { hit, address: key },
+                occupation: { hit: occupationHit, address: occupationAddress },
+            };
+            const second = sources[conflict.second.source];
+            const secondNote = located(second.hit);
+            throw noteError(
+                secondNote,
+                ["data", "items", conflict.second.index, "key"],
+                `item key ${JSON.stringify(conflict.key)} is repeated in ${second.address}: data.items[${conflict.first.index}] and data.items[${conflict.second.index}]; remove or change one entry's key`,
+            );
+        }
         // A name that does not fit is the spec's fault, so a spec file
         // locates it at the name it states.
         if (specFile && Array.isArray(err?.keyPath))
@@ -3517,7 +3565,8 @@ function npcCommand() {
         command: "npc <action>",
         describe:
             "Write a new NPC being note from a spec, its culture's appearance profile and " +
-            "its language's name lists",
+            "its language's name lists and culture items; data.occupationNote selects an " +
+            "occupation template for additional items",
         builder: (yargs) => {
             yargs.positional("action", {
                 describe: "The action to perform.",
@@ -3555,6 +3604,89 @@ function npcCommand() {
         handler: async (argv) => {
             try {
                 newNpc(loadPackConfig(), argv);
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/** Report item notes without a selected system's block. */
+function itemsCommand() {
+    return {
+        command: "items <action>",
+        describe: "List item notes missing a supported system's block",
+        builder: (yargs) =>
+            yargs
+                .positional("action", {
+                    type: "string",
+                    choices: ["coverage"],
+                    describe: "coverage: list item notes missing a system block, grouped by kind",
+                })
+                .option("system", {
+                    type: "string",
+                    demandOption: true,
+                    describe: "A system supported by the package",
+                })
+                .option("json", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Write the report as JSON",
+                }),
+        handler: (argv) => {
+            try {
+                const config = loadPackConfig();
+                if (!declaredSystems(config).includes(argv.system)) {
+                    throw new Error(`System ${argv.system} is not supported by this package`);
+                }
+                const problems = [];
+                const records = indexRecordsFor({
+                    config,
+                    contentBase: config.paths.content,
+                    skipDirectories: config.skipDirectories,
+                    problems,
+                });
+                if (problems.length) {
+                    for (const problem of problems) emitDiagnostic(problem);
+                    process.exitCode = 1;
+                    return;
+                }
+                const report = itemCoverage(config, records, argv.system);
+                if (argv.json) {
+                    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+                    return;
+                }
+                for (const group of report.groups) {
+                    for (const item of group.items) {
+                        process.stdout.write(
+                            formatDiagnostic({
+                                ...item,
+                                severity: "info",
+                                message: `${group.kind} (${group.count} missing; ${report.total} total): ${item.name}${item.address ? ` (${item.address})` : ""} has no ${report.system} block`,
+                            }) + "\n",
+                        );
+                    }
+                }
+                if (!report.total) {
+                    const file = packConfigPath();
+                    const text = fs.readFileSync(file, "utf8");
+                    const yamlPosition = positionOfYamlPath(text, ["contentPackage"], {
+                        key: true,
+                    });
+                    const position =
+                        yamlPosition.line ? yamlPosition : (
+                            positionOfLiteral(text, text.match(/\S+/u)?.[0] ?? "")
+                        );
+                    process.stdout.write(
+                        formatDiagnostic({
+                            file: path.relative(process.cwd(), file),
+                            ...position,
+                            severity: "info",
+                            message: `0 items lack a ${report.system} block`,
+                        }) + "\n",
+                    );
+                }
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
