@@ -19,7 +19,9 @@ import { readCanonicalKey, renderAddress } from "./address.mjs";
 import { writeDerivativeProvenance } from "./art-provenance.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
-import { masterAssetRecords } from "./art-masters.mjs";
+import { assertPrivateArtRoots, masterAssetRecords } from "./art-masters.mjs";
+import { deriveRecord } from "./art-provenance-core.mjs";
+import { artRendererIdentity, cachedArtRender } from "./art-render-cache.mjs";
 
 /**
  * Render private masters under the build directory.
@@ -29,6 +31,11 @@ import { masterAssetRecords } from "./art-masters.mjs";
  * @returns {Promise<Map<string, string>>} Rendered paths by Address.
  */
 export async function renderArtMasters(masters, records, outDir) {
+    const cacheDir = path.resolve(outDir, "..", ".cache", "art");
+    assertPrivateArtRoots(
+        [...masters.values()].map((master) => master.file),
+        [outDir, cacheDir],
+    );
     const notes = new Map();
     for (const record of records) {
         if (!isNoteRecord(record) || isGmNote(record)) continue;
@@ -38,10 +45,6 @@ export async function renderArtMasters(masters, records, outDir) {
     const files = new Map();
     for (const [address, master] of masters) {
         const bytes = fs.readFileSync(master.file);
-        const input =
-            path.extname(master.file).toLowerCase() === ".png" ?
-                await sharp(bytes).webp().toBuffer()
-            :   bytes;
         const note = notes.get(master.record.primaryNote);
         const publicMaster = { ...master.record, derivedFrom: address };
         if (note) {
@@ -49,14 +52,28 @@ export async function renderArtMasters(masters, records, outDir) {
             publicMaster.primaryNote = master.record.primaryNote;
         }
         const repeat = ["derivedFrom", ...(note ? ["name", "primaryNote"] : [])];
-        const result = writeDerivativeProvenance(input, publicMaster, {
-            repeat,
-            notePublic: Boolean(note),
-        });
+        const options = { repeat, notePublic: Boolean(note) };
+        const rendered = await cachedArtRender(
+            bytes,
+            {
+                renderer: artRendererIdentity(import.meta.url),
+                codec: sharp.versions,
+                format: path.extname(master.file).toLowerCase() === ".png" ? "webp" : "svg",
+                metadata: deriveRecord(publicMaster, options),
+            },
+            cacheDir,
+            async () => {
+                const input =
+                    path.extname(master.file).toLowerCase() === ".png" ?
+                        await sharp(bytes).webp().toBuffer()
+                    :   bytes;
+                return writeDerivativeProvenance(input, publicMaster, options).bytes;
+            },
+        );
         const target = masterAssetRecords(new Map([[address, master]]))[0].asset.path;
         const file = path.join(outDir, ...target.split("/"));
         fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.writeFileSync(file, result.bytes);
+        fs.writeFileSync(file, rendered);
         files.set(address, file);
     }
     return files;

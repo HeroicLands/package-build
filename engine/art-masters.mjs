@@ -45,7 +45,9 @@ export function assertPrivateArtRoots(
     { inspectChildren = true, role = "output" } = {},
 ) {
     if (!roots.length) return;
+    const physicalPaths = new Map();
     const physical = (value) => {
+        if (physicalPaths.has(value)) return physicalPaths.get(value);
         let ancestor = path.resolve(value);
         const suffix = [];
         while (!fs.existsSync(ancestor)) {
@@ -54,7 +56,9 @@ export function assertPrivateArtRoots(
             suffix.unshift(path.basename(ancestor));
             ancestor = parent;
         }
-        return path.resolve(fs.realpathSync(ancestor), ...suffix);
+        const resolved = path.resolve(fs.realpathSync(ancestor), ...suffix);
+        physicalPaths.set(value, resolved);
+        return resolved;
     };
     const inside = (left, right) => {
         const rel = path.relative(physical(left), physical(right));

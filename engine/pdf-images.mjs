@@ -16,12 +16,20 @@ import path from "node:path";
 import sharp from "sharp";
 import { deriveRecord, provenancePacket } from "./art-provenance-core.mjs";
 import { writeDerivativeProvenance } from "./art-provenance.mjs";
+import { assertPrivateArtRoots } from "./art-masters.mjs";
+import { artRendererIdentity, cachedArtRender } from "./art-render-cache.mjs";
 
 /** The resolution and compression of each book edition. */
 export const PDF_EDITIONS = Object.freeze({
     screen: Object.freeze({ dpi: 150, quality: 76 }),
     print: Object.freeze({ dpi: 300, quality: 82 }),
 });
+
+/** Select the public metadata for a book image. */
+function pdfMasterRecord(master, notePublic) {
+    const repeat = ["derivedFrom", "license", ...(notePublic ? ["name", "primaryNote"] : [])];
+    return deriveRecord({ ...master, derivedFrom: master.address }, { repeat, notePublic });
+}
 
 /**
  * Render a master as a JPEG for its largest book placement.
@@ -53,8 +61,7 @@ export async function renderPdfMaster(bytes, master, uses, edition, notePublic) 
                 profile.dpi,
         ),
     );
-    const repeat = ["derivedFrom", "license", ...(notePublic ? ["name", "primaryNote"] : [])];
-    const record = deriveRecord({ ...master, derivedFrom: master.address }, { repeat, notePublic });
+    const record = pdfMasterRecord(master, notePublic);
     return sharp(input)
         .resize({ width, withoutEnlargement: true })
         .flatten({ background: "#ffffff" })
@@ -164,15 +171,36 @@ export function bookImageWidthIn({ type, role, width } = {}) {
  */
 export async function resamplePdfImages(candidates, outDir, edition = "screen") {
     const reports = [];
+    const cacheDir = path.resolve(outDir, "..", ".cache", "art");
+    assertPrivateArtRoots(
+        [...candidates.values()]
+            .filter((candidate) => candidate.master)
+            .map((candidate) => candidate.master.file),
+        [outDir, cacheDir],
+    );
     for (const candidate of candidates.values()) {
         if (candidate.master) {
             const source = await fs.readFile(candidate.master.file);
-            const output = await renderPdfMaster(
+            const output = await cachedArtRender(
                 source,
-                candidate.master.record,
-                candidate.uses,
-                edition,
-                candidate.master.notePublic,
+                {
+                    renderer: artRendererIdentity(import.meta.url),
+                    codec: sharp.versions,
+                    format: "jpeg",
+                    profile: PDF_EDITIONS[edition],
+                    edition,
+                    uses: candidate.uses,
+                    metadata: pdfMasterRecord(candidate.master.record, candidate.master.notePublic),
+                },
+                cacheDir,
+                () =>
+                    renderPdfMaster(
+                        source,
+                        candidate.master.record,
+                        candidate.uses,
+                        edition,
+                        candidate.master.notePublic,
+                    ),
             );
             const destination = path.join(outDir, candidate.to);
             await fs.mkdir(path.dirname(destination), { recursive: true });

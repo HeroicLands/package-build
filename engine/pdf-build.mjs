@@ -519,7 +519,10 @@ export async function buildPdf({
         out || resolved.pdf.out || path.join("build", "dist"),
     );
 
-    assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [outDir]);
+    assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [
+        outDir,
+        path.resolve(outDir, "..", ".cache", "art"),
+    ]);
 
     const world = await prepareWorld(resolved, { contentBase, findings });
     if (!world) return none(null);

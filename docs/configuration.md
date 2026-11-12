@@ -612,7 +612,13 @@ The note-rendering cache includes master fingerprints in its existing input key.
 The fingerprint includes directory membership and each master’s identity, size,
 and modification and change timestamps. Changed inputs invalidate the cached
 tree. Public derivatives are rendered under `build/art`, separately from the
-note cache.
+note cache. Public WebP/SVG renders and screen/print JPEGs reuse a disposable
+content-addressed cache under `build/.cache/art`. Its key includes master bytes,
+renderer and codec identity, settings and selected public metadata. A cache hit
+checks both the input key and the stored-byte digest; missing or corrupt entries
+are regenerated. Deleting this cache reproduces the same render bytes. Cache
+entries contain public derivative bytes, never master bytes or private metadata,
+and are excluded from package and CDN asset selection.
 
 ```yaml
 art:

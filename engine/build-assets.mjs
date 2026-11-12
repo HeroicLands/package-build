@@ -103,6 +103,7 @@ export async function stagePackageBuildAssets({
     );
     assertPrivateArtRoots(roots, [
         path.join(config.rootDir, "build", "art"),
+        path.join(config.rootDir, "build", ".cache", "art"),
         path.resolve(config.rootDir, config.stageDir),
         ...config.assets.map(({ to }) =>
             path.resolve(config.rootDir, path.join(config.stageDir, to)),

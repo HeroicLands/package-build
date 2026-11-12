@@ -1508,7 +1508,10 @@ function cdnPublishCommand() {
 
             const roots = packConfig.art?.masterRoots ?? [];
             assertPrivateArtRoots(roots, [packConfig.paths.assets], { role: "input" });
-            assertPrivateArtRoots(roots, [path.join(config.rootDir, "build", "art")]);
+            assertPrivateArtRoots(roots, [
+                path.join(config.rootDir, "build", "art"),
+                path.join(config.rootDir, "build", ".cache", "art"),
+            ]);
             let artRecords;
             let preparedMasters;
             if (roots.length) {
