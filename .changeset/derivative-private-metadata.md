@@ -4,4 +4,4 @@
 
 **Content and notes**
 
-- WebP and SVG derivatives discard inherited EXIF and XMP metadata that can contain private portrait prompts or generation details. The selected attribution and public note information come from the master.
+- Writing a derivative WebP or SVG drops inherited metadata and keeps the image and selected provenance.

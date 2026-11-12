@@ -1283,7 +1283,7 @@ describe("deriveRecord", () => {
         const after = readWebpChunks(output.bytes).chunks;
         expect(after.some((chunk) => chunk.type === "EXIF")).toBe(false);
         expect(after.find((chunk) => chunk.type === "VP8X")!.data[0] & 0x08).toBe(0);
-        expect(readWebpProvenance(output.bytes).packet).not.toContain("private-fixture");
+        expect(output.bytes.includes(Buffer.from("private-fixture"))).toBe(false);
         expect(output.foreignXmp).toBe("discarded");
         const retained = (chunks: typeof before) =>
             chunks
@@ -1302,6 +1302,35 @@ describe("deriveRecord", () => {
                 (chunk) => chunk.type === "EXIF",
             )?.raw,
         ).toEqual(before.find((chunk) => chunk.type === "EXIF")?.raw);
+    });
+
+    it("drops unknown WebP chunks and trailing bytes while retaining alpha and color flags", async () => {
+        const rgba = Buffer.alloc(8 * 8 * 4, 128);
+        const image = await sharp(rgba, { raw: { width: 8, height: 8, channels: 4 } })
+            .withIccProfile("srgb")
+            .webp()
+            .toBuffer();
+        const chunk = Buffer.alloc(8 + 16);
+        chunk.write("JUNK", 0, "ascii");
+        chunk.writeUInt32LE(16, 4);
+        chunk.write("private-unknown", 8, "ascii");
+        const header = Buffer.from(image.subarray(0, 12));
+        header.writeUInt32LE(image.readUInt32LE(4) + chunk.length, 4);
+        const input = Buffer.concat([
+            header,
+            image.subarray(12),
+            chunk,
+            Buffer.from("private-trailing"),
+        ]);
+        const output = writeDerivativeProvenance(input, MASTER);
+        expect(output.bytes.includes(Buffer.from("private-unknown"))).toBe(false);
+        expect(output.bytes.includes(Buffer.from("private-trailing"))).toBe(false);
+        expect(
+            readWebpChunks(output.bytes).chunks.find((entry) => entry.type === "VP8X")!.data[0],
+        ).toBe(0x34);
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(image).raw().toBuffer(),
+        );
     });
 
     it("preserves the encoded animation when removing derivative metadata", async () => {
@@ -1325,6 +1354,126 @@ describe("deriveRecord", () => {
         expect(await sharp(output.bytes, { animated: true }).raw().toBuffer()).toEqual(
             await sharp(input, { animated: true }).raw().toBuffer(),
         );
+    });
+
+    it("replaces inherited managed fields with only permitted master fields", async () => {
+        const master = {
+            ...MASTER,
+            primaryNote: "thalorna-note-being-publicnote",
+            prompt: "master-private-prompt",
+            generator: '{"model":"master-private-generator"}',
+        };
+        const inherited = {
+            ...master,
+            name: "inherited-private-name",
+            primaryNote: "thalorna-none-being-inheritedprivate",
+            prompt: "inherited-private-prompt",
+            generator: '{"model":"inherited-private-generator"}',
+        };
+        const webp = await sharp(png).webp().toBuffer();
+        const inputs = [
+            writeWebpProvenance(webp, inherited).bytes,
+            writeSvgProvenance('<svg xmlns="http://www.w3.org/2000/svg"/>', inherited).bytes,
+        ];
+        for (const input of inputs) {
+            for (const notePublic of [false, true]) {
+                const options =
+                    notePublic ? { notePublic, repeat: ["name", "primaryNote"] } : { notePublic };
+                const output = writeDerivativeProvenance(input, master, options).bytes.toString(
+                    "utf8",
+                );
+                for (const value of [
+                    inherited.name,
+                    inherited.primaryNote,
+                    inherited.prompt,
+                    "inherited-private-generator",
+                    master.prompt,
+                    "master-private-generator",
+                ]) {
+                    expect(output).not.toContain(value);
+                }
+                for (const value of [master.name, master.primaryNote]) {
+                    if (notePublic) expect(output).toContain(value);
+                    else expect(output).not.toContain(value);
+                }
+            }
+        }
+    });
+
+    it("reports foreign properties sharing the managed XMP description", async () => {
+        const webp = await sharp(png).webp().toBuffer();
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:hl="https://heroiclands.org/ns/1.0/" xmlns:photoshop="urn:photoshop"><hl:prompt>private</hl:prompt><photoshop:Instructions>foreign-private</photoshop:Instructions></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        const input = await sharp(webp).withXmp(packet).webp().toBuffer();
+        const output = writeDerivativeProvenance(input, MASTER);
+        expect(output.foreignXmp).toBe("discarded");
+        expect(output.bytes.includes(Buffer.from("foreign-private"))).toBe(false);
+    });
+
+    it("removes SVG editor metadata while preserving the rendered drawing", async () => {
+        const input = `<?xml version="1.0"?><?inkscape private-editor?>
+<!-- private-generator -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:i="http://ns.adobe.com/AdobeIllustrator/10.0/" width="8" height="8" sodipodi:docname="private-path">
+<title>private-title</title><desc>private-description</desc><sodipodi:namedview inkscape:label="private-label"/><i:pgf>private-illustrator</i:pgf><!-- private-comment -->
+<defs><rect id="shape" width="8" height="8" fill="red"/></defs><use xlink:href="#shape" inkscape:label="private-layer"/></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER);
+        for (const secret of [
+            "private-editor",
+            "private-generator",
+            "private-path",
+            "private-title",
+            "private-description",
+            "private-label",
+            "private-illustrator",
+            "private-comment",
+            "private-layer",
+            "inkscape",
+            "sodipodi",
+        ]) {
+            expect(output.bytes.includes(Buffer.from(secret))).toBe(false);
+        }
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+    });
+
+    it("expands drawing entities without publishing unused declarations", async () => {
+        const input = `<!DOCTYPE svg [<!ENTITY drawingColor "red"><!ENTITY privateDeclaration "private-unused"><!ATTLIST rect height CDATA "8">]>
+<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" fill="&drawingColor;"/></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER);
+        expect(output.bytes.includes(Buffer.from("private-unused"))).toBe(false);
+        expect(output.bytes.includes(Buffer.from("DOCTYPE"))).toBe(false);
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+    });
+
+    it("accepts internal DTD text and refuses external or parameter entities", () => {
+        const svg = (subset: string) =>
+            `<!DOCTYPE svg [${subset}]><svg xmlns="http://www.w3.org/2000/svg"/>`;
+        expect(() =>
+            writeDerivativeProvenance(
+                svg(
+                    `<!-- SYSTEM PUBLIC %ignored; --> <!ENTITY note "SYSTEM PUBLIC"> <!ENTITY SYSTEM "red">`,
+                ),
+                MASTER,
+            ),
+        ).not.toThrow();
+        for (const subset of [
+            '<!ENTITY external SYSTEM "file:///private">',
+            '<!ENTITY é SYSTEM "file:///private">',
+            "%é;",
+            '<!ENTITY external PUBLIC "identifier" "file:///private">',
+            '<!ENTITY % private "value">',
+            "%private;",
+            '<!ENTITY nested "%private;">',
+        ]) {
+            expect(() => writeDerivativeProvenance(svg(subset), MASTER)).toThrow(
+                /SVG (external|parameter) entit/,
+            );
+        }
+        expect(() =>
+            writeDerivativeProvenance('<!DOCTYPE svg SYSTEM "file:///private"><svg/>', MASTER),
+        ).toThrow(/external DTD/);
     });
 
     it("removes nested SVG metadata and foreign XMP while preserving its drawing", async () => {

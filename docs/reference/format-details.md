@@ -2730,9 +2730,26 @@ there is none or several, and `effectiveRecord` returns the effective record.
 
 `deriveRecord` builds a derivative's record from a master's record and a list of
 extra properties to repeat, and `writeDerivativeProvenance` writes it into a WebP
-or an SVG. It removes inherited EXIF and XMP metadata before writing the selected
-fields. WebP image, animation and color-profile chunks retain their bytes. SVG
-drawings retain their markup while metadata containers are removed. A prompt and generation details
+or an SVG. A WebP derivative keeps `VP8X`, `VP8 `, `VP8L`, `ALPH`, `ANIM`,
+`ANMF`, and `ICCP` chunks and discards all other chunks and bytes after the
+RIFF container. It clears the EXIF flag and sets the XMP flag in `VP8X`; the
+other flags remain. The ICC profile stays byte for byte, including its text.
+`foreignXmp` reports `discarded` when an inherited packet contains properties
+outside the managed record or cannot be interpreted, and `none` otherwise.
+
+An SVG derivative keeps allowed SVG drawing elements and their drawing and
+presentation attributes, text and style content, XLink `href`, and XML `lang`,
+`space`, and `base`. It discards other elements and attributes, including
+metadata, title, description, editor namespaces, comments, and processing
+instructions. Drawing values and style content remain part of the image. Internal general
+entities and default attributes are expanded; external DTDs, external entities,
+and parameter entities are refused.
+The master SVG writer replaces its managed metadata element and keeps other
+markup. The master WebP writer keeps non-XMP chunks and retains foreign XMP
+when its packet meets the writer's retention rules; a description declaring
+`xmlns:hl` is treated as managed.
+
+A prompt and generation details
 (`hl:prompt`, `hl:generator`) are never repeated: asking for them is an error.
 `hl:name` and `hl:primarynote` are repeated only when the caller passes
 `notePublic: true`, which is the visibility the content index records for the
