@@ -30,12 +30,22 @@ const HUMAN_SOURCE_TYPE = "http://cv.iptc.org/newscodes/digitalsourcetype/digita
  * Refuse an ordinary asset source that reaches a private master root.
  * @param {readonly string[]} roots Private master roots.
  * @param {readonly string[]} sources Asset and output roots.
+ * @param {{inspectChildren?: boolean}} [options] Whether source copying or writing follows child links.
  * @returns {void}
  */
-export function assertPrivateArtRoots(roots, sources) {
+export function assertPrivateArtRoots(roots, sources, { inspectChildren = true } = {}) {
     if (!roots.length) return;
-    const physical = (value) =>
-        fs.existsSync(value) ? fs.realpathSync(value) : path.resolve(value);
+    const physical = (value) => {
+        let ancestor = path.resolve(value);
+        const suffix = [];
+        while (!fs.existsSync(ancestor)) {
+            const parent = path.dirname(ancestor);
+            if (parent === ancestor) return path.resolve(value);
+            suffix.unshift(path.basename(ancestor));
+            ancestor = parent;
+        }
+        return path.resolve(fs.realpathSync(ancestor), ...suffix);
+    };
     const inside = (left, right) => {
         const rel = path.relative(physical(left), physical(right));
         return (
@@ -52,7 +62,7 @@ export function assertPrivateArtRoots(roots, sources) {
         const real = physical(source);
         if (visited.has(real)) return;
         visited.add(real);
-        if (fs.statSync(source).isDirectory())
+        if (inspectChildren && fs.statSync(source).isDirectory())
             for (const name of fs.readdirSync(source)) check(path.join(source, name));
     };
     for (const source of sources) check(source);

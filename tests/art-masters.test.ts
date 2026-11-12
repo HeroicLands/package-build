@@ -37,6 +37,7 @@ import { configFromData } from "../engine/pack-config.mjs";
 import { noteTree } from "../engine/note-cache.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { stagePackageBuildAssets } from "../engine/build-assets.mjs";
+import { resetStage } from "../stage.mjs";
 
 const root = path.resolve("build/art-masters-test");
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -48,6 +49,97 @@ it("refuses a staging source containing a link into private masters", () => {
     fs.mkdirSync(publicRoot, { recursive: true });
     fs.symlinkSync(privateRoot, path.join(publicRoot, "linked"));
     expect(() => assertPrivateArtRoots([privateRoot], [publicRoot])).toThrow(/overlap/);
+});
+
+it("resolves a missing output through an existing symlink parent", () => {
+    const privateRoot = path.join(root, "private");
+    fs.mkdirSync(privateRoot, { recursive: true });
+    const link = path.join(root, "alias");
+    fs.symlinkSync(privateRoot, link);
+    expect(() => assertPrivateArtRoots([privateRoot], [path.join(link, "missing")])).toThrow(
+        /overlap/,
+    );
+    expect(fs.existsSync(path.join(privateRoot, "missing"))).toBe(false);
+});
+
+it.each([false, true])(
+    "refuses a stage destination inside private masters (symlink: %s)",
+    async (alias) => {
+        const privateRoot = path.join(root, "private");
+        fs.mkdirSync(privateRoot, { recursive: true });
+        const source = path.join(privateRoot, "master.svg");
+        fs.writeFileSync(source, "private input");
+        if (alias) fs.symlinkSync(privateRoot, path.join(root, "alias"));
+        await expect(
+            stagePackageBuildAssets({
+                config: {
+                    rootDir: root,
+                    assets: [],
+                    stageDir: alias ? "alias/stage" : "private/stage",
+                    baseStyles: false,
+                } as any,
+                packConfig: {
+                    rootDir: root,
+                    paths: { assets: path.join(root, "assets") },
+                    contentPackage: "sample",
+                    art: { masterRoots: [privateRoot] },
+                } as any,
+            }),
+        ).rejects.toThrow(/overlap/);
+        expect(fs.readFileSync(source, "utf8")).toBe("private input");
+        expect(fs.existsSync(path.join(privateRoot, "stage"))).toBe(false);
+    },
+);
+
+it.each([
+    { command: ["clean"], privateRoot: "build/private", stageDir: "build/stage" },
+    { command: ["stage", "reset"], privateRoot: "private", stageDir: "private" },
+    { command: ["manifest"], privateRoot: "private", stageDir: "private" },
+])("refuses $command before changing private masters", ({ command, privateRoot, stageDir }) => {
+    const directory = path.join(root, privateRoot);
+    fs.mkdirSync(directory, { recursive: true });
+    const source = path.join(directory, "master.svg");
+    fs.writeFileSync(source, "private input");
+    fs.writeFileSync(
+        path.join(root, "package.json"),
+        JSON.stringify({ name: "sample", version: "1.0.0" }),
+    );
+    const configFile = path.join(root, "package-build.config.yaml");
+    fs.writeFileSync(
+        configFile,
+        JSON.stringify({
+            contentPackage: "sample",
+            packageKind: "modules",
+            stats: { lastModifiedBy: "samplebuilder000" },
+            compatibility: { minimum: "14", verified: "14" },
+            packs: [],
+            art: { masterRoots: [privateRoot] },
+            packageBuild: { stageDir },
+        }),
+    );
+    const result = spawnSync(
+        process.execPath,
+        [path.resolve("bin/package-build.mjs"), ...command],
+        { cwd: root, encoding: "utf8", env: { ...process.env, PACKAGE_BUILD_CONFIG: configFile } },
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stderr + result.stdout).toMatch(/overlap/);
+    expect(fs.readFileSync(source, "utf8")).toBe("private input");
+});
+
+it("allows removing a stage containing a symlink to private masters", () => {
+    const privateRoot = path.join(root, "private");
+    const stage = path.join(root, "stage");
+    fs.mkdirSync(privateRoot, { recursive: true });
+    fs.mkdirSync(stage, { recursive: true });
+    const source = path.join(privateRoot, "master.svg");
+    fs.writeFileSync(source, "private input");
+    fs.symlinkSync(privateRoot, path.join(stage, "link"));
+    expect(() =>
+        assertPrivateArtRoots([privateRoot], [stage], { inspectChildren: false }),
+    ).not.toThrow();
+    expect(resetStage(root, "stage")).toBe(true);
+    expect(fs.readFileSync(source, "utf8")).toBe("private input");
 });
 
 it("round-trips the exact license ID in PNG and SVG master provenance", async () => {

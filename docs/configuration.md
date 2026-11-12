@@ -601,6 +601,8 @@ are accepted. Keep them separate from `paths.assets`, staging sources, and
 `build/art`. Each master carries its own image Address and provenance. Builds
 render public derivatives under `build/art` and select package assets by the
 embedded license and source type.
+Build, stage and cleanup commands refuse output paths that reach a private
+master root, including through a symbolic link.
 
 ```yaml
 art:

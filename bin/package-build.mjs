@@ -96,7 +96,7 @@ import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments, siteBase } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
-import { cleanBuildArtifacts, resetStage } from "../stage.mjs";
+import { BUILD_ARTIFACT_DIRS, cleanBuildArtifacts, resetStage } from "../stage.mjs";
 import {
     CDN_ENV,
     INTERNAL_CDN_HOST,
@@ -428,6 +428,16 @@ function cleanCommand() {
             }),
         handler: handler((args) => {
             const config = loadPackageBuildConfig();
+            const roots = loadPackConfig().art?.masterRoots ?? [];
+            assertPrivateArtRoots(
+                roots,
+                [
+                    ...BUILD_ARTIFACT_DIRS,
+                    ...config.cleanExtra,
+                    ...(args.distclean ? ["node_modules"] : []),
+                ].map((dir) => path.resolve(config.rootDir, dir)),
+                { inspectChildren: false },
+            );
             const removed = cleanBuildArtifacts(config.rootDir, {
                 includeNodeModules: args.distclean,
                 extra: config.cleanExtra,
@@ -460,6 +470,11 @@ function stageCommand() {
             }),
         handler: handler(() => {
             const config = loadPackageBuildConfig();
+            assertPrivateArtRoots(
+                loadPackConfig().art?.masterRoots ?? [],
+                [path.resolve(config.rootDir, config.stageDir)],
+                { inspectChildren: false },
+            );
             const removed = resetStage(config.rootDir, config.stageDir);
             console.log(removed ? `Removed ${config.stageDir}` : "Stage is already empty.");
         }),
@@ -479,6 +494,9 @@ function calendarsCommand() {
             }),
         handler: handler((args) => {
             const config = loadPackConfig();
+            assertPrivateArtRoots(config.art?.masterRoots ?? [], [
+                path.join(config.rootDir, "build", "calendars"),
+            ]);
             const result = emitCalendarArtifacts({
                 config,
                 calendariaVersion: args.calendariaVersion,
@@ -641,6 +659,7 @@ function schemaCommand() {
             });
 
             const out = path.join(config.rootDir, "build", SCHEMA_ARTIFACT_FILE);
+            assertPrivateArtRoots(loadPackConfig().art?.masterRoots ?? [], [out]);
             const text = await formatGenerated(JSON.stringify(artifact), out);
             const counts = Object.entries(artifact.documents)
                 .map(([kind, subtypes]) => `${Object.keys(subtypes).length} ${kind}`)
@@ -676,6 +695,9 @@ function manifestCommand() {
         handler: handler(async () => {
             const config = loadPackageBuildConfig();
             const shared = loadPackConfig();
+            assertPrivateArtRoots(shared.art?.masterRoots ?? [], [
+                path.resolve(config.rootDir, config.stageDir),
+            ]);
             // Refused rather than written: a manifest is the file Foundry reads
             // to install a package, and a documentation package is not one. An
             // emitted `module.json` would advertise an installable package with
