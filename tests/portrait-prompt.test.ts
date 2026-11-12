@@ -118,6 +118,34 @@ describe("a being's portrait prompt", () => {
             ),
         ).toBe(true);
     });
+    it.each([
+        "cartoons",
+        "ink drawings",
+        "ink sketches",
+        "ink illustrations",
+        "fullbody",
+        "full_body",
+        "full–body",
+        "flatcolor",
+    ])("locates excluded direction %s", (value) => {
+        const note = being([
+            "    portraitSettings:",
+            "        model: sdxl",
+            "        seed: sample",
+            "        ageBand: adult",
+            "        extras:",
+            `            - ${value}`,
+        ]);
+        expect(
+            lint(note).some(
+                (f: any) =>
+                    f.severity === "error" &&
+                    f.line === 12 &&
+                    f.message.includes("portraitSettings.extras[0]"),
+            ),
+        ).toBe(true);
+    });
+
     it("locates excluded directions in appearance and inline items without a portrait", () => {
         const base = ["    portraitSettings: {model: sdxl, seed: sample, ageBand: adult}"];
         const feature = being([

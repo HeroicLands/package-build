@@ -217,6 +217,18 @@ describe("portrait prompt composition", () => {
         "a bottle of ink",
         "ink on the fingers",
         "a pen and an ink pot",
+        "a quill and ink",
+        "a tattoo in blue ink",
+        "inkwell",
+        "ink-blue eyes",
+        "pink",
+        "linked",
+        "Celtic",
+        "cello",
+        "celadon",
+        "full beard",
+        "flat cap",
+        "outlaw’s hood",
     ])("keeps ink as a material in %s", (value) => {
         expect(() => composePortrait({ ...base, extra: [value] })).not.toThrow();
     });
