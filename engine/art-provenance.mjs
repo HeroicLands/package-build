@@ -116,17 +116,18 @@
  * A file may already hold an XMP packet from another tool, such as an editor's
  * edit history. The policy is to **keep it and replace only the properties this
  * module manages**: the packet's `rdf:Description` blocks stay, `dc:title`,
- * `dc:creator`, `dc:rights`, `dc:description` and every `hl:` and
- * `Iptc4xmpExt:DigitalSourceType` property are removed from them, and one
- * `rdf:Description` block of this module's own is appended. A packet that
+ * `dc:creator`, `dc:rights`, `dc:description` and the managed `hl:` and
+ * `Iptc4xmpExt:DigitalSourceType` properties are removed from them, and one
+ * `rdf:Description` block of this module's own is written. A packet that
  * cannot be retained safely (it is not RDF, is not well-formed, uses an
  * unbound prefix, or binds a prefix this module uses to a different namespace)
  * is replaced whole, and the result says so in `foreignXmp` and gives the reason
  * in `foreignXmpReason`. Namespace declarations that sit on the foreign
  * `x:xmpmeta` or `rdf:RDF` element move onto this module's `rdf:RDF` (including
  * `dc`, `hl` and `Iptc4xmpExt` when bound to this module's namespaces), so
- * every retained property keeps its prefix bound. The SVG writer retains nothing
- * foreign: it replaces the one managed element. Only one XMP chunk survives: the first is rewritten and any
+ * every retained property keeps its prefix bound. The SVG writer applies the
+ * same rule to its managed metadata element; other elements remain unchanged.
+ * Only one XMP chunk survives: the first is rewritten and any
  * further ones are removed. An XMP packet stored in a `tEXt` or compressed
  * `iTXt` chunk is read the same way and rewritten as the one uncompressed
  * `iTXt` chunk.
@@ -158,6 +159,10 @@
  */
 
 import zlib from "node:zlib";
+
+import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
+import { checkSvgResource, cleanSvgCss } from "./svg-derivative-css.mjs";
+import { ParseOption, XmlCData, XmlDocument, XmlElement, XmlText } from "libxml2-wasm";
 
 import { readCanonicalKey } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
@@ -613,7 +618,7 @@ function checkMarkup(xml, bindings) {
  *   holds nothing but this module's own block).
  */
 function retainForeign(packet) {
-    const rest = packet.replace(OWN_DESCRIPTION, "");
+    const rest = packet;
     const start = rest.indexOf("<rdf:RDF");
     const open = start < 0 ? -1 : rest.indexOf(">", start);
     const close = rest.lastIndexOf("</rdf:RDF>");
@@ -651,25 +656,134 @@ function retainForeign(packet) {
         if (prefix !== null) bindings[prefix] = value;
         declarations += ` ${name}="${value}"`;
     }
-    const inner = stripManaged(rest.slice(open + 1, close));
-    if (!/<rdf:Description\b/.test(inner)) {
-        return { kept: false, empty: true };
-    }
+    const inner = rest.slice(open + 1, close);
     const problem = checkMarkup(inner, bindings);
     if (problem) return { kept: false, reason: `the packet cannot be retained: ${problem}` };
-    return { kept: true, markup: `  ${inner.trim()}\n`, declarations };
+    let invalid = false;
+    let document;
+    try {
+        document = new DOMParser({
+            onError: () => {
+                invalid = true;
+            },
+        }).parseFromString(
+            `<rdf:RDF xmlns:rdf="${RDF_NAMESPACE}"${declarations}>${inner}</rdf:RDF>`,
+            "application/xml",
+        );
+    } catch {
+        return { kept: false, reason: "the packet is not well-formed XML" };
+    }
+    if (invalid) return { kept: false, reason: "the packet is not well-formed XML" };
+    const managed = new Set(
+        MANAGED_PROPERTIES.map((name) => {
+            const [prefix, local] = name.split(":");
+            return `${OWN_BINDINGS[prefix]}|${local}`;
+        }),
+    );
+    const serializer = new XMLSerializer();
+    const retained = [];
+    for (
+        let description = document.documentElement.firstChild;
+        description;
+        description = description.nextSibling
+    ) {
+        if (description.nodeType === 8) {
+            retained.push(serializer.serializeToString(description));
+            continue;
+        }
+        if (description.nodeType !== 1) continue;
+        if (description.namespaceURI !== RDF_NAMESPACE || description.localName !== "Description") {
+            return { kept: false, reason: "the RDF contains unsupported markup" };
+        }
+        for (let i = description.attributes.length - 1; i >= 0; i--) {
+            const attribute = description.attributes.item(i);
+            if (managed.has(`${attribute.namespaceURI}|${attribute.localName}`))
+                description.removeAttributeNode(attribute);
+        }
+        for (let child = description.firstChild; child;) {
+            const next = child.nextSibling;
+            if (child.nodeType === 1 && managed.has(`${child.namespaceURI}|${child.localName}`)) {
+                const retainComments = (node) => {
+                    for (let nested = node.firstChild; nested; nested = nested.nextSibling) {
+                        if (nested.nodeType === 8)
+                            description.insertBefore(document.createComment(nested.data), child);
+                        else retainComments(nested);
+                    }
+                };
+                retainComments(child);
+                description.removeChild(child);
+            }
+            child = next;
+        }
+        const foreignAttributes = Array.from({ length: description.attributes.length }, (_, i) =>
+            description.attributes.item(i),
+        ).some(
+            (a) =>
+                a.namespaceURI !== "http://www.w3.org/2000/xmlns/" &&
+                !(a.namespaceURI === RDF_NAMESPACE && a.localName === "about"),
+        );
+        const foreignChildren = Array.from({ length: description.childNodes.length }, (_, i) =>
+            description.childNodes.item(i),
+        ).some(
+            (n) =>
+                n.nodeType === 1 ||
+                n.nodeType === 8 ||
+                ((n.nodeType === 3 || n.nodeType === 4) && n.data.trim() !== ""),
+        );
+        if (foreignAttributes || foreignChildren)
+            retained.push(serializer.serializeToString(description));
+    }
+    if (!retained.length) return { kept: false, empty: true };
+    return { kept: true, markup: `  ${retained.join("\n  ")}\n`, declarations };
 }
 
-/** Remove the managed properties from foreign XMP markup. */
-function stripManaged(xml) {
-    let out = xml;
-    for (const name of MANAGED_PROPERTIES) {
-        const q = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        out = out.replace(new RegExp(`<${q}\\b[^>]*/>`, "g"), "");
-        out = out.replace(new RegExp(`<${q}\\b[^>]*>[\\s\\S]*?</${q}>`, "g"), "");
-        out = out.replace(new RegExp(`(\\s)${q}=(?:"[^"]*"|'[^']*')`, "g"), "$1");
+/** Whether an inherited packet has properties outside the managed record. */
+function hasForeignXmp(packet) {
+    let invalid = false;
+    let document;
+    try {
+        document = new DOMParser({
+            onError: () => {
+                invalid = true;
+            },
+        }).parseFromString(packet, "application/xml");
+    } catch {
+        return true;
     }
-    return out;
+    if (invalid || !document.documentElement) return true;
+    const managed = new Set(
+        MANAGED_PROPERTIES.map((name) => {
+            const [prefix, local] = name.split(":");
+            return `${OWN_BINDINGS[prefix]}|${local}`;
+        }),
+    );
+    const rdf = document.getElementsByTagNameNS(RDF_NAMESPACE, "RDF");
+    const containsComment = (node) => {
+        for (let child = node.firstChild; child; child = child.nextSibling) {
+            if (child.nodeType === 8 || containsComment(child)) return true;
+        }
+        return false;
+    };
+    for (let i = 0; i < rdf.length; i++) if (containsComment(rdf.item(i))) return true;
+    const descriptions = document.getElementsByTagNameNS(RDF_NAMESPACE, "Description");
+    if (!descriptions.length) return true;
+    for (let i = 0; i < descriptions.length; i++) {
+        const description = descriptions.item(i);
+        for (let j = 0; j < description.attributes.length; j++) {
+            const attribute = description.attributes.item(j);
+            if (
+                attribute.namespaceURI === "http://www.w3.org/2000/xmlns/" ||
+                (attribute.namespaceURI === RDF_NAMESPACE && attribute.localName === "about")
+            )
+                continue;
+            if (!managed.has(`${attribute.namespaceURI}|${attribute.localName}`)) return true;
+        }
+        for (let child = description.firstChild; child; child = child.nextSibling) {
+            if (child.nodeType === 1 && !managed.has(`${child.namespaceURI}|${child.localName}`))
+                return true;
+        }
+    }
+    return false;
 }
 
 /** Read a plain, alt or seq property out of XMP markup. */
@@ -878,7 +992,7 @@ function buildPacket(existing, record) {
         }
     }
     return {
-        text: packetHead(declarations) + foreign + descriptionBlock(record) + PACKET_TAIL,
+        text: packetHead(declarations) + descriptionBlock(record) + foreign + PACKET_TAIL,
         foreignXmp,
         ...(foreignReason === undefined ? {} : { foreignXmpReason: foreignReason }),
     };
@@ -1161,14 +1275,13 @@ export function readSvgProvenance(input) {
 }
 
 /** The managed `<metadata>` element holding a record. */
-function svgMetadataElement(record, eol) {
-    return (
-        `<metadata id="${SVG_METADATA_ID}">${eol}` +
-        `<x:xmpmeta xmlns:x="adobe:ns:meta/">${eol}` +
-        ` <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">${eol}` +
-        descriptionBlock(record, eol) +
-        ` </rdf:RDF>${eol}</x:xmpmeta>${eol}</metadata>`
-    );
+function svgMetadataElement(record, eol, existing) {
+    const built = buildPacket(existing, record);
+    const packet = built.text.slice(built.text.indexOf("\n") + 1, built.text.lastIndexOf("\n"));
+    return {
+        ...built,
+        element: `<metadata id="${SVG_METADATA_ID}">${eol}${packet.replaceAll("\n", eol)}${eol}</metadata>`,
+    };
 }
 
 /**
@@ -1186,9 +1299,11 @@ function svgMetadataElement(record, eol) {
  *   fields to set.
  * @param {{index?: object}} [options] - As for {@link writeProvenance}.
  * @returns {{text: string, bytes: Buffer, record: ProvenanceRecord, changed: boolean,
+ *   foreignXmp: "none"|"kept"|"discarded", foreignXmpReason?: string,
  *   primary?: import("./art-primary-note.mjs").PrimaryNoteResult}}
- *   The new file as text and as UTF-8 bytes, the record it carries, whether
- *   the text differs from the input, and with `index` what the resolver answered.
+ *   The new file as text and UTF-8 bytes, its record, the managed packet's
+ *   foreign XMP status and optional reason, whether the text differs from the
+ *   input, and with `index` what the resolver answered.
  * @throws {Error} When the SVG is refused (see {@link readSvgProvenance}), the
  *   merged record has no valid address or an invalid field, or a value holds a
  *   character XML cannot carry.
@@ -1196,14 +1311,17 @@ function svgMetadataElement(record, eol) {
 export function writeSvgProvenance(input, fields, options = {}) {
     const text = decodeSvg(input);
     const { elements, root, managed } = locateSvg(text);
-    const existing =
-        managed && !managed.selfClosing ?
-            readXmpRecord(text.slice(managed.end, managed.closeStart))
-        :   {};
+    const packet =
+        managed && !managed.selfClosing ? text.slice(managed.end, managed.closeStart) : null;
+    const existing = packet === null ? {} : readXmpRecord(packet);
     const record = mergeRecord(existing, fields);
     const primary = options.index ? applyPrimaryNote(record, options.index) : undefined;
     validateRecord(record);
-    const element = svgMetadataElement(record, lineEnding(text));
+    const { element, foreignXmp, foreignXmpReason } = svgMetadataElement(
+        record,
+        lineEnding(text),
+        packet,
+    );
 
     let out;
     if (managed) {
@@ -1225,6 +1343,8 @@ export function writeSvgProvenance(input, fields, options = {}) {
         text: out,
         bytes: Buffer.from(out, "utf8"),
         record,
+        foreignXmp,
+        ...(foreignXmpReason === undefined ? {} : { foreignXmpReason }),
         ...(primary ? { primary } : {}),
         changed: out !== text,
     };
@@ -1235,6 +1355,9 @@ const WEBP_HEADER = 8;
 
 /** The `VP8X` flag that says an `XMP ` chunk follows the image data. */
 const WEBP_XMP_FLAG = 0x04;
+
+/** The `VP8X` flag for EXIF metadata. */
+const WEBP_EXIF_FLAG = 0x08;
 
 /** The `VP8X` flag that says the image has an alpha channel. */
 const WEBP_ALPHA_FLAG = 0x10;
@@ -1541,11 +1664,222 @@ export function deriveRecord(master, options = {}) {
     return record;
 }
 
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+const XLINK_NAMESPACE = "http://www.w3.org/1999/xlink";
+const XML_NAMESPACE = "http://www.w3.org/XML/1998/namespace";
+
+/** SVG drawing elements retained in a derivative. */
+const SVG_DRAWING_ELEMENTS = new Set(
+    `svg g defs symbol use image switch a style path rect circle ellipse line polyline polygon text tspan textPath marker pattern mask clipPath linearGradient radialGradient stop filter feBlend feColorMatrix feComponentTransfer feComposite feConvolveMatrix feDiffuseLighting feDisplacementMap feDistantLight feDropShadow feFlood feFuncA feFuncB feFuncG feFuncR feGaussianBlur feImage feMerge feMergeNode feMorphology feOffset fePointLight feSpecularLighting feSpotLight feTile feTurbulence animate animateMotion animateTransform mpath set view`.split(
+        " ",
+    ),
+);
+
+/** SVG presentation attributes from https://www.w3.org/TR/SVG/latest/attindex.html
+ * and https://www.w3.org/TR/SVG11/attindex.html, plus CSS transform-box. */
+const SVG_PRESENTATION_ATTRIBUTES = new Set(
+    `alignment-baseline baseline-shift clip clip-path clip-rule color color-interpolation color-interpolation-filters color-profile color-rendering cursor direction display dominant-baseline enable-background fill fill-opacity fill-rule filter flood-color flood-opacity font font-family font-size font-size-adjust font-stretch font-style font-variant font-weight glyph-orientation-horizontal glyph-orientation-vertical image-rendering kerning letter-spacing lighting-color marker marker-end marker-mid marker-start mask mask-type opacity overflow paint-order path-length pointer-events shape-rendering stop-color stop-opacity stroke stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width text-anchor text-decoration text-overflow text-rendering transform transform-box transform-origin unicode-bidi vector-effect visibility white-space word-spacing writing-mode`.split(
+        " ",
+    ),
+);
+
+/** Drawing attributes from the W3C SVG attribute indexes, plus presentation attributes. */
+const SVG_DRAWING_ATTRIBUTES = new Set([
+    ...SVG_PRESENTATION_ATTRIBUTES,
+    ...`accumulate additive amplitude attributeName attributeType azimuth baseFrequency baseProfile begin bias by calcMode class clipPathUnits cx cy d diffuseConstant divisor dur dx dy edgeMode elevation end exponent externalResourcesRequired filterRes filterUnits fr from fx fy gradientTransform gradientUnits height href id in in2 intercept k1 k2 k3 k4 kernelMatrix kernelUnitLength keyPoints keySplines keyTimes lengthAdjust limitingConeAngle markerHeight markerUnits markerWidth maskContentUnits maskUnits max media method min mode numOctaves offset operator order orient origin path pathLength patternContentUnits patternTransform patternUnits playbackorder points pointsAtX pointsAtY pointsAtZ preserveAlpha preserveAspectRatio primitiveUnits r radius refX refY repeatCount repeatDur requiredExtensions requiredFeatures restart result rotate rx ry scale seed side slope spacing specularConstant specularExponent spreadMethod startOffset stdDeviation stitchTiles style surfaceScale systemLanguage tableValues target targetX targetY textLength timelinebegin to type values version viewBox viewTarget width x x1 x2 xChannelSelector y y1 y2 yChannelSelector z zoomAndPan`.split(
+        " ",
+    ),
+]);
+
+/** Refuse external and parameter entities before expanding a self-contained SVG. */
+function checkSvgDtd(text) {
+    const document = new DOMParser({ onError: () => {} }).parseFromString(text, "image/svg+xml");
+    const doctype = document.doctype;
+    if (!doctype) return;
+    if (doctype.systemId || doctype.publicId)
+        throw new Error("SVG external DTDs are not supported");
+    const subset = doctype.internalSubset ?? "";
+    let quote = "";
+    let declaration = "";
+    let words = 0;
+    for (let i = 0; i < subset.length; i++) {
+        if (!quote && subset.startsWith("<!--", i)) {
+            const end = subset.indexOf("-->", i + 4);
+            if (end < 0) throw new Error("SVG DTD comment is not closed");
+            i = end + 2;
+            continue;
+        }
+        const c = subset[i];
+        if (c === "%" && (!quote || /^%[^\s\d;][^\s;]*;/u.test(subset.slice(i)))) {
+            throw new Error("SVG parameter entities are not supported");
+        }
+        if (quote) {
+            if (c === quote) quote = "";
+            continue;
+        }
+        if (c === '"' || c === "'") {
+            quote = c;
+            continue;
+        }
+        if (subset.startsWith("<!", i)) {
+            declaration = "";
+            words = 0;
+            i++;
+            continue;
+        }
+        if (c === ">") {
+            declaration = "";
+            continue;
+        }
+        if (!/[\s<>'"=]/u.test(c)) {
+            let j = i + 1;
+            while (j < subset.length && !/[\s<>'"=]/u.test(subset[j])) j++;
+            const token = subset.slice(i, j);
+            if (!declaration) declaration = token;
+            else if (
+                declaration === "ENTITY" &&
+                words > 1 &&
+                (token === "SYSTEM" || token === "PUBLIC")
+            ) {
+                throw new Error("SVG external entities are not supported");
+            }
+            words++;
+            i = j - 1;
+        }
+    }
+}
+
+/** Rebuild the drawing without editor markup and metadata containers. */
+function cleanSvgDrawing(text) {
+    checkSvgDtd(text);
+    const source = XmlDocument.fromString(text, {
+        option:
+            ParseOption.XML_PARSE_NOENT |
+            ParseOption.XML_PARSE_NO_XXE |
+            ParseOption.XML_PARSE_DTDATTR,
+    });
+    const target = XmlDocument.create();
+    try {
+        const root = target.createRoot("svg", SVG_NAMESPACE);
+        let xlinkDeclared = false;
+        let foreignXmp = false;
+        const inspectXmp = (element) => {
+            if (
+                (element.namespaceUri === X_NAMESPACE && element.name === "xmpmeta") ||
+                (element.namespaceUri === RDF_NAMESPACE && element.name === "RDF")
+            ) {
+                foreignXmp ||= hasForeignXmp(
+                    element.toString({ format: false, noDeclaration: true }),
+                );
+            }
+            for (let child = element.firstChild; child; child = child.next) {
+                if (child instanceof XmlElement) inspectXmp(child);
+            }
+        };
+        inspectXmp(source.root);
+        const copyAttributes = (from, to) => {
+            const animated = from.attrs.find(
+                (attribute) => !attribute.namespaceUri && attribute.name === "attributeName",
+            )?.value;
+            const animationValues = new Set(["from", "to", "by", "values"]);
+            for (const attribute of from.attrs) {
+                if (!attribute.namespaceUri && SVG_DRAWING_ATTRIBUTES.has(attribute.name)) {
+                    if (attribute.name === "href") checkSvgResource(attribute.value);
+                    const value =
+                        (
+                            attribute.name === "style" ||
+                            SVG_PRESENTATION_ATTRIBUTES.has(attribute.name) ||
+                            (animationValues.has(attribute.name) &&
+                                (animated === "style" || SVG_PRESENTATION_ATTRIBUTES.has(animated)))
+                        ) ?
+                            cleanSvgCss(attribute.value)
+                        :   attribute.value;
+                    to.setAttr(attribute.name, value);
+                } else if (
+                    attribute.namespaceUri === XLINK_NAMESPACE &&
+                    attribute.name === "href"
+                ) {
+                    checkSvgResource(attribute.value);
+                    if (!xlinkDeclared) {
+                        root.addNsDeclaration(XLINK_NAMESPACE, "xlink");
+                        xlinkDeclared = true;
+                    }
+                    to.setAttr("href", attribute.value, "xlink");
+                } else if (
+                    attribute.namespaceUri === XML_NAMESPACE &&
+                    ["space", "lang", "base"].includes(attribute.name)
+                ) {
+                    if (attribute.name === "base") checkSvgResource(attribute.value);
+                    to.setAttr(attribute.name, attribute.value, "xml");
+                }
+            }
+        };
+        const copy = (from, to, parentText = false) => {
+            const textContext =
+                from.name === "text" ||
+                (parentText && ["tspan", "textPath", "a"].includes(from.name));
+            copyAttributes(from, to);
+            const animated = from.attrs.find(
+                (a) => !a.namespaceUri && a.name === "attributeName",
+            )?.value;
+            const hrefTarget =
+                animated === "href" ||
+                (typeof animated === "string" &&
+                    animated.endsWith(":href") &&
+                    from.namespaceForPrefix(animated.slice(0, -5)) === XLINK_NAMESPACE);
+            if (hrefTarget) {
+                for (const attr of from.attrs) {
+                    if (["from", "to", "by", "values"].includes(attr.name)) {
+                        for (const uri of attr.value.split(";")) checkSvgResource(uri);
+                    }
+                }
+            }
+            if (from.name === "style") {
+                let css = "";
+                for (let node = from.firstChild; node; node = node.next) {
+                    if (node instanceof XmlText || node instanceof XmlCData) css += node.content;
+                }
+                to.addText(cleanSvgCss(css));
+                return;
+            }
+            for (let node = from.firstChild; node; node = node.next) {
+                if ((node instanceof XmlText || node instanceof XmlCData) && textContext)
+                    to.addText(node.content);
+                else if (
+                    node instanceof XmlElement &&
+                    (node.namespaceUri === SVG_NAMESPACE || !node.namespaceUri) &&
+                    SVG_DRAWING_ELEMENTS.has(node.name)
+                ) {
+                    copy(node, to.addElement(node.name), textContext);
+                }
+            }
+        };
+        copy(source.root, root);
+        return { text: target.toString({ format: false, noDeclaration: true }), foreignXmp };
+    } finally {
+        source.dispose();
+        target.dispose();
+    }
+}
+
 /**
  * Write a derivative's provenance into a WebP or an SVG.
  *
- * The record is {@link deriveRecord} of the master and replaces every managed
- * field the file holds; image data and other bytes are unchanged.
+ * The record is {@link deriveRecord} of the master. WebP output carries its
+ * `VP8X`, `VP8 `, `VP8L`, `ALPH`, `ANIM`, `ANMF` and `ICCP` chunks plus
+ * selected XMP. Other chunks and trailing bytes are discarded; the EXIF flag
+ * is cleared and XMP flag set. ICC bytes, including profile text, are retained.
+ * SVG output keeps allowed drawing elements and presentation attributes,
+ * rendering text, styles, XLink href and XML language, space and base attributes.
+ * Other elements and attributes, non-rendering text, XML comments, CSS comment
+ * contents, processing instructions, titles and descriptions are discarded.
+ * Empty CSS comment separators preserve token boundaries. CSS strings and
+ * drawing values remain. Resource references in href, XML base, animations
+ * and CSS accept fragments, empty references and absolute HTTP(S) URLs; local
+ * paths and embedded data are refused. Internal general entities and default
+ * attributes are expanded; external DTDs, external entities and parameter
+ * entities are refused. `foreignXmp` reports discarded foreign or unreadable
+ * inherited XMP for either format. Master writers preserve eligible foreign XMP.
  *
  * @param {Buffer|Uint8Array|string} input - The derivative file.
  * @param {ProvenanceRecord} master - The master's record.
@@ -1553,20 +1887,47 @@ export function deriveRecord(master, options = {}) {
  *   {@link deriveRecord}.
  * @returns {ReturnType<typeof writeWebpProvenance>|ReturnType<typeof writeSvgProvenance>}
  *   What the format's writer returns.
- * @throws {Error} When the file is a PNG, or the writer refuses it.
+ * @throws {Error} When the file is a PNG, an SVG contains a local or embedded
+ *   resource, external or parameter entities, or the writer otherwise refuses
+ *   the input.
  */
 export function writeDerivativeProvenance(input, master, options = {}) {
     const record = deriveRecord(master, options);
-    const fields = {};
-    for (const field of FIELDS) {
-        fields[field] = field in record ? record[field] : null;
-    }
-    fields.formerNames = record.formerNames ?? null;
+    const original = Buffer.from(input);
     const format = sniffFormat(input);
     if (format === "png") throw new Error("a PNG is a master, never a derivative");
-    return format === "webp" ?
-            writeWebpProvenance(input, fields)
-        :   writeSvgProvenance(input, fields);
+    if (format === "webp") {
+        const { chunks } = readWebpChunks(original);
+        const imageChunks = new Set(["VP8X", "VP8 ", "VP8L", "ALPH", "ANIM", "ANMF", "ICCP"]);
+        const kept = chunks
+            .filter((chunk) => imageChunks.has(chunk.type))
+            .map((chunk) => {
+                const raw = Buffer.from(chunk.raw);
+                if (chunk.type === "VP8X") raw[WEBP_HEADER] &= ~(WEBP_EXIF_FLAG | WEBP_XMP_FLAG);
+                return raw;
+            });
+        const size = Buffer.alloc(4);
+        size.writeUInt32LE(4 + kept.reduce((total, chunk) => total + chunk.length, 0));
+        const clean = Buffer.concat([Buffer.from("RIFF"), size, Buffer.from("WEBP"), ...kept]);
+        const result = writeWebpProvenance(clean, record);
+        const foreign = chunks.some(
+            (chunk) => chunk.type === "XMP " && hasForeignXmp(chunk.data.toString("utf8")),
+        );
+        return {
+            ...result,
+            foreignXmp: foreign ? "discarded" : "none",
+            changed: !result.bytes.equals(original),
+        };
+    }
+    const text = decodeSvg(input);
+    locateSvg(text);
+    const clean = cleanSvgDrawing(text);
+    const result = writeSvgProvenance(clean.text, record);
+    return {
+        ...result,
+        foreignXmp: clean.foreignXmp ? "discarded" : "none",
+        changed: !result.bytes.equals(original),
+    };
 }
 
 /**

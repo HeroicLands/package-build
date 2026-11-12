@@ -28,6 +28,7 @@ import {
     readSvgProvenance,
     readTextChunk,
     readWebpProvenance,
+    readWebpChunks,
     writeDerivativeProvenance,
     writeProvenance,
     writeSvgProvenance,
@@ -972,7 +973,7 @@ describe("foreign XMP retention", () => {
                 XPACKET_END,
         );
         expect(out.foreignXmp).toBe("kept");
-        expect(read.packet).toContain("<photoshop:Credit>A. Artist</photoshop:Credit>");
+        expect(read.packet).toContain("A. Artist</photoshop:Credit>");
         expect(read.packet).toContain('xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"');
         ownFields(read);
         expect(writeProvenance(out.bytes, {}).bytes.equals(out.bytes)).toBe(true);
@@ -1061,11 +1062,72 @@ describe("foreign XMP retention", () => {
         ownFields(unbound.read);
     });
 
-    it("retains nothing foreign in an SVG", () => {
-        const out = writeSvgProvenance(SVG_BODY, SVG_FIELDS);
-        expect(wellFormed(out.text)).toBe(true);
-        expect(out.text.match(/<metadata id="hl-provenance"/g)).toHaveLength(1);
-        expect(out.text).toContain('<metadata id="other"><x/></metadata>');
+    it("retains comments in a master's RDF packet and reports them", async () => {
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="${RDF}"><!-- outer-comment --><rdf:Description xmlns:hl="${HL_NAMESPACE}"><hl:address>${FIELDS.address}<!-- nested-comment --></hl:address><!-- inner-comment --></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        const { out, read } = retain(packet);
+        expect(out.foreignXmp).toBe("kept");
+        expect(read.packet).toContain("<!-- outer-comment -->");
+        expect(read.packet).toContain("<!-- inner-comment -->");
+        expect(read.packet).toContain("<!-- nested-comment -->");
+        expect(writeProvenance(out.bytes, {}).bytes).toEqual(out.bytes);
+        const webp = await sharp(png).withXmp(packet).webp().toBuffer();
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg"><metadata id="hl-provenance">${packet}</metadata></svg>`;
+        for (const result of [writeWebpProvenance(webp, FIELDS), writeSvgProvenance(svg, FIELDS)]) {
+            expect(result.foreignXmp).toBe("kept");
+            const bytes = result.bytes.toString("utf8");
+            for (const comment of ["outer-comment", "inner-comment", "nested-comment"])
+                expect(bytes).toContain(comment);
+        }
+    });
+
+    it("keeps foreign properties sharing a managed description in PNG, WebP and SVG masters", async () => {
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="${RDF}"><rdf:Description rdf:about="" xmlns:hl="${HL_NAMESPACE}" xmlns:photoshop="${PS}" photoshop:Credit="Artist"><hl:address>${FIELDS.address}</hl:address><hl:prompt>old prompt</hl:prompt><photoshop:Instructions>Keep this</photoshop:Instructions><hl:other>Keep extra</hl:other></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        const webp = await sharp(png).withXmp(packet).webp().toBuffer();
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><metadata id="hl-provenance">${packet}</metadata><rect width="8" height="8"/></svg>`;
+        const pngInput = withChunks(png, [makeTextChunk(XMP_KEYWORD, packet).raw]);
+        const cases = [
+            {
+                input: pngInput,
+                write: (b: Buffer | string, fields: object) => writeProvenance(b as Buffer, fields),
+                read: (b: Buffer) => readProvenance(b),
+            },
+            {
+                input: webp,
+                write: (b: Buffer | string, fields: object) =>
+                    writeWebpProvenance(b as Buffer, fields),
+                read: (b: Buffer) => readWebpProvenance(b),
+            },
+            {
+                input: svg,
+                write: (b: Buffer | string, fields: object) => writeSvgProvenance(b, fields),
+                read: (b: Buffer) => readSvgProvenance(b),
+            },
+        ];
+        for (const { input, write, read } of cases) {
+            const out = write(input, { ...FIELDS, prompt: "new prompt" });
+            expect(out.foreignXmp).toBe("kept");
+            const result = read(out.bytes);
+            expect(result.packet).toContain("Keep this");
+            expect(result.packet).toContain("Keep extra");
+            expect(result.packet).toContain('photoshop:Credit="Artist"');
+            expect(result.record.prompt).toBe("new prompt");
+            expect(result.packet).not.toContain("old prompt");
+            expect(write(out.bytes, {}).bytes).toEqual(out.bytes);
+            expect(await sharp(out.bytes).raw().toBuffer()).toEqual(
+                await sharp(Buffer.from(input)).raw().toBuffer(),
+            );
+        }
+        const cleanPng = writeProvenance(png, FIELDS);
+        const cleanWebp = writeWebpProvenance(await sharp(png).webp().toBuffer(), FIELDS);
+        const cleanSvg = writeSvgProvenance(
+            '<svg>\r\n<metadata id="other"><x/></metadata>\r\n</svg>',
+            FIELDS,
+        );
+        expect(writeProvenance(cleanPng.bytes, {}).foreignXmp).toBe("none");
+        expect(writeWebpProvenance(cleanWebp.bytes, {}).foreignXmp).toBe("none");
+        expect(writeSvgProvenance(cleanSvg.bytes, {}).foreignXmp).toBe("none");
+        expect(cleanSvg.text).toContain('<metadata id="other"><x/></metadata>');
+        expect(cleanSvg.text.replaceAll("\r\n", "")).not.toContain("\n");
     });
 });
 
@@ -1263,6 +1325,368 @@ describe("deriveRecord", () => {
         );
         const messages = checkProvenance([m, d, unmarked]).map((f) => f.message);
         expect(messages.some((x) => /masters:/.test(x))).toBe(false);
+    });
+
+    it("removes inherited EXIF and foreign XMP while retaining WebP pixels and color", async () => {
+        const packet =
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:private="urn:private"><private:prompt>private-fixture</private:prompt></rdf:Description></rdf:RDF></x:xmpmeta>';
+        const input = await sharp(png)
+            .withExif({ IFD0: { ImageDescription: "private-fixture" } })
+            .withXmp(packet)
+            .withIccProfile("srgb")
+            .webp()
+            .toBuffer();
+        const before = readWebpChunks(input).chunks;
+        expect(before.map((chunk) => chunk.type)).toEqual(
+            expect.arrayContaining(["EXIF", "XMP ", "ICCP"]),
+        );
+        const output = writeDerivativeProvenance(input, MASTER);
+        const after = readWebpChunks(output.bytes).chunks;
+        expect(after.some((chunk) => chunk.type === "EXIF")).toBe(false);
+        expect(after.find((chunk) => chunk.type === "VP8X")!.data[0] & 0x08).toBe(0);
+        expect(output.bytes.includes(Buffer.from("private-fixture"))).toBe(false);
+        expect(output.foreignXmp).toBe("discarded");
+        const retained = (chunks: typeof before) =>
+            chunks
+                .filter((chunk) => ["VP8 ", "VP8L", "ALPH", "ICCP"].includes(chunk.type))
+                .map((chunk) => chunk.raw);
+        expect(retained(after)).toEqual(retained(before));
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(input).raw().toBuffer(),
+        );
+        expect(readWebpProvenance(output.bytes).record).toEqual(deriveRecord(MASTER));
+        const again = writeDerivativeProvenance(output.bytes, MASTER);
+        expect(again.bytes).toEqual(output.bytes);
+        expect(again.changed).toBe(false);
+        expect(
+            readWebpChunks(writeWebpProvenance(input, MASTER).bytes).chunks.find(
+                (chunk) => chunk.type === "EXIF",
+            )?.raw,
+        ).toEqual(before.find((chunk) => chunk.type === "EXIF")?.raw);
+    });
+
+    it("drops unknown WebP chunks and trailing bytes while retaining alpha and color flags", async () => {
+        const rgba = Buffer.alloc(8 * 8 * 4, 128);
+        const image = await sharp(rgba, { raw: { width: 8, height: 8, channels: 4 } })
+            .withIccProfile("srgb")
+            .webp()
+            .toBuffer();
+        const chunk = Buffer.alloc(8 + 16);
+        chunk.write("JUNK", 0, "ascii");
+        chunk.writeUInt32LE(16, 4);
+        chunk.write("private-unknown", 8, "ascii");
+        const header = Buffer.from(image.subarray(0, 12));
+        header.writeUInt32LE(image.readUInt32LE(4) + chunk.length, 4);
+        const input = Buffer.concat([
+            header,
+            image.subarray(12),
+            chunk,
+            Buffer.from("private-trailing"),
+        ]);
+        const output = writeDerivativeProvenance(input, MASTER);
+        expect(output.bytes.includes(Buffer.from("private-unknown"))).toBe(false);
+        expect(output.bytes.includes(Buffer.from("private-trailing"))).toBe(false);
+        expect(
+            readWebpChunks(output.bytes).chunks.find((entry) => entry.type === "VP8X")!.data[0],
+        ).toBe(0x34);
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(image).raw().toBuffer(),
+        );
+    });
+
+    it("preserves the encoded animation when removing derivative metadata", async () => {
+        const input = await sharp(
+            Buffer.concat([Buffer.alloc(8 * 8 * 3, 9), Buffer.alloc(8 * 8 * 3, 200)]),
+            { raw: { width: 8, height: 16, channels: 3, pageHeight: 8 } },
+        )
+            .withExif({ IFD0: { ImageDescription: "private-fixture" } })
+            .webp({ loop: 0, delay: [100, 100] })
+            .toBuffer();
+        const output = writeDerivativeProvenance(input, MASTER);
+        const frames = (bytes: Buffer) =>
+            readWebpChunks(bytes)
+                .chunks.filter((chunk) => ["ANIM", "ANMF"].includes(chunk.type))
+                .map((chunk) => chunk.raw);
+        expect(frames(input)).toHaveLength(3);
+        expect(frames(output.bytes)).toEqual(frames(input));
+        expect(readWebpChunks(output.bytes).chunks.some((chunk) => chunk.type === "EXIF")).toBe(
+            false,
+        );
+        expect(await sharp(output.bytes, { animated: true }).raw().toBuffer()).toEqual(
+            await sharp(input, { animated: true }).raw().toBuffer(),
+        );
+    });
+
+    it("replaces inherited managed fields with only permitted master fields", async () => {
+        const master = {
+            ...MASTER,
+            primaryNote: "thalorna-note-being-publicnote",
+            prompt: "master-private-prompt",
+            generator: '{"model":"master-private-generator"}',
+        };
+        const inherited = {
+            ...master,
+            name: "inherited-private-name",
+            primaryNote: "thalorna-none-being-inheritedprivate",
+            prompt: "inherited-private-prompt",
+            generator: '{"model":"inherited-private-generator"}',
+        };
+        const webp = await sharp(png).webp().toBuffer();
+        const inputs = [
+            writeWebpProvenance(webp, inherited).bytes,
+            writeSvgProvenance('<svg xmlns="http://www.w3.org/2000/svg"/>', inherited).bytes,
+        ];
+        for (const input of inputs) {
+            for (const notePublic of [false, true]) {
+                const options =
+                    notePublic ? { notePublic, repeat: ["name", "primaryNote"] } : { notePublic };
+                const output = writeDerivativeProvenance(input, master, options).bytes.toString(
+                    "utf8",
+                );
+                for (const value of [
+                    inherited.name,
+                    inherited.primaryNote,
+                    inherited.prompt,
+                    "inherited-private-generator",
+                    master.prompt,
+                    "master-private-generator",
+                ]) {
+                    expect(output).not.toContain(value);
+                }
+                for (const value of [master.name, master.primaryNote]) {
+                    if (notePublic) expect(output).toContain(value);
+                    else expect(output).not.toContain(value);
+                }
+            }
+        }
+    });
+
+    it("reports foreign properties sharing the managed XMP description", async () => {
+        const webp = await sharp(png).webp().toBuffer();
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:hl="https://heroiclands.org/ns/1.0/" xmlns:photoshop="urn:photoshop"><hl:prompt>private</hl:prompt><photoshop:Instructions>foreign-private</photoshop:Instructions></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        const input = await sharp(webp).withXmp(packet).webp().toBuffer();
+        const output = writeDerivativeProvenance(input, MASTER);
+        expect(output.foreignXmp).toBe("discarded");
+        expect(output.bytes.includes(Buffer.from("foreign-private"))).toBe(false);
+    });
+
+    it("refuses embedded image data and local links without exposing the source", () => {
+        const payload = writeProvenance(png, { ...MASTER, prompt: "hidden-image-prompt" }).bytes;
+        expect(payload.includes(Buffer.from("hidden-image-prompt"))).toBe(true);
+        const embedded = `data:image/png;base64,${payload.toString("base64")}`;
+        const sources = [
+            embedded,
+            "file:///Users/private/art.png",
+            "../private/art.png",
+            "/Users/private/art.png",
+        ];
+        for (const source of sources) {
+            for (const attribute of ["href", "xlink:href"]) {
+                const input = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image ${attribute}="${source}"/></svg>`;
+                let error: Error | undefined;
+                try {
+                    writeDerivativeProvenance(input, MASTER);
+                } catch (caught) {
+                    error = caught as Error;
+                }
+                expect(error?.message).toMatch(/SVG.*(resource|reference|image)/i);
+                expect(error?.message).not.toContain("private");
+                expect(error?.message).not.toContain(payload.toString("base64"));
+            }
+        }
+        for (const source of [
+            'url("../private.png")',
+            "url(data:image/png;base64,AAAA)",
+            "u\\72l(file:///private.png)",
+        ]) {
+            const input = `<svg xmlns="http://www.w3.org/2000/svg"><rect style='fill:${source}'/></svg>`;
+            expect(() => writeDerivativeProvenance(input, MASTER)).toThrow(
+                /SVG.*(resource|reference|image)/i,
+            );
+        }
+        for (const css of [
+            '@import "../private.css";',
+            "rect { fill: url(/**/data:image/png;base64,AAAA) }",
+            'rect { fill: u\\72l("file:///private.png") }',
+            "rect { fill: url (../private.png) }",
+        ]) {
+            const input = `<svg xmlns="http://www.w3.org/2000/svg"><style>${css}</style></svg>`;
+            expect(() => writeDerivativeProvenance(input, MASTER)).toThrow(/SVG.*resource/i);
+        }
+        const animated = `<svg xmlns="http://www.w3.org/2000/svg"><image><set attributeName="href" to="file:///private.png"/></image></svg>`;
+        expect(() => writeDerivativeProvenance(animated, MASTER)).toThrow(/SVG.*resource/i);
+        const aliased = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:link="http://www.w3.org/1999/xlink"><image><set attributeName="link:href" to="data:image/png;base64,AAAA"/></image></svg>`;
+        expect(() => writeDerivativeProvenance(aliased, MASTER)).toThrow(/SVG.*resource/i);
+        const animatedCss = `<svg xmlns="http://www.w3.org/2000/svg"><rect><animate attributeName="fill" to="url(file:///private.png)"/></rect></svg>`;
+        expect(() => writeDerivativeProvenance(animatedCss, MASTER)).toThrow(/SVG.*resource/i);
+        const base = `<svg xmlns="http://www.w3.org/2000/svg" xml:base="file:///private/"><use href="#shape"/></svg>`;
+        expect(() => writeDerivativeProvenance(base, MASTER)).toThrow(/SVG.*resource/i);
+        const safe = `<svg xmlns="http://www.w3.org/2000/svg"><defs><rect id="r" width="8" height="8"/></defs><use href="#r"/><image href="https://example.test/a.png"/></svg>`;
+        const output = writeDerivativeProvenance(safe, MASTER).bytes.toString("utf8");
+        expect(output).toContain('href="#r"');
+        expect(output).toContain('href="https://example.test/a.png"');
+    });
+
+    it("drops non-rendering text and CSS comments while retaining drawing text and presentation", async () => {
+        const input = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">private-root<defs><style>/* private-css */ .a { fill: red; content: "/* quoted */"; } </style></defs><g>private-group<rect class="a" width="20" height="20" mask-type="alpha" transform-box="fill-box" style="fill: red; /* private-inline */ stroke: none"/><text y="12">Visible<tspan> text</tspan></text></g></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER).bytes;
+        const text = output.toString("utf8");
+        for (const secret of ["private-root", "private-group", "private-css", "private-inline"])
+            expect(text).not.toContain(secret);
+        expect(text).toContain("/* quoted */");
+        expect(text).toContain("Visible");
+        expect(text).toContain(" text");
+        expect(text).toContain('mask-type="alpha"');
+        expect(text).toContain('transform-box="fill-box"');
+        const safeCss = `<svg xmlns="http://www.w3.org/2000/svg"><style>.a { fill: url(#shape); content: "quote \\\" /* keep */"; }</style><rect class="a"/></svg>`;
+        const cssOutput = writeDerivativeProvenance(safeCss, MASTER).bytes.toString("utf8");
+        expect(cssOutput).toContain("url(#shape)");
+        expect(cssOutput).toContain("/* keep */");
+        const unfinished = `<svg xmlns="http://www.w3.org/2000/svg"><style>.a { fill: red; /* private-tail</style><rect class="a"/></svg>`;
+        expect(writeDerivativeProvenance(unfinished, MASTER).bytes.toString("utf8")).not.toContain(
+            "private-tail",
+        );
+        const unfinishedString = `<svg xmlns="http://www.w3.org/2000/svg"><style>.a { content: "visible-string</style></svg>`;
+        expect(
+            writeDerivativeProvenance(unfinishedString, MASTER).bytes.toString("utf8"),
+        ).toContain("visible-string");
+        expect(await sharp(output).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+    });
+
+    it("redacts comment contents without changing CSS token and selector boundaries", async () => {
+        const { cleanSvgCss } = await import("../engine/svg-derivative-css.mjs");
+        for (const [input, expected] of [
+            ["re/*private*/d", "re/**/d"],
+            ["1/*private*/px", "1/**/px"],
+            ["@/*private*/media", "@/**/media"],
+            ["#/*private*/id", "#/**/id"],
+            [".a/*private*/.b", ".a/**/.b"],
+            [
+                'image-set("#shape" 1x type("image/png"))',
+                'image-set("#shape" 1x type("image/png"))',
+            ],
+            ['image-set(var(--x, "#shape") 1x)', 'image-set(var(--x, "#shape") 1x)'],
+            ["u/*private*/rl(data:image/png;base64,AAAA)", "u/**/rl(data:image/png;base64,AAAA)"],
+        ])
+            expect(cleanSvgCss(input)).toBe(expected);
+        const input = `<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><style>.a/* private selector */.b{fill:red}</style><rect class="a b" width="2" height="2"/></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER).bytes;
+        expect(output.toString("utf8")).not.toContain("private selector");
+        expect(await sharp(output).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+    });
+
+    it("retains text in links inside a text context and drops non-rendering link text", async () => {
+        const input = `<svg xmlns="http://www.w3.org/2000/svg" width="60" height="30"><text x="2" y="20"><a href="#target">A</a></text></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER).bytes;
+        expect(output.toString("utf8")).toContain(">A</a>");
+        expect(await sharp(output).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+        const other = `<svg xmlns="http://www.w3.org/2000/svg"><a href="#target">private-outside</a><text><g><a href="#target">private-invalid</a></g><a href="#target"><tspan>Visible</tspan></a></text></svg>`;
+        const otherOutput = writeDerivativeProvenance(other, MASTER).bytes.toString("utf8");
+        expect(otherOutput).not.toContain("private-outside");
+        expect(otherOutput).not.toContain("private-invalid");
+        expect(otherOutput).toContain(">Visible</tspan>");
+    });
+
+    it("reports discarded foreign SVG XMP, including an unrelated metadata element", () => {
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:p="urn:private"><p:prompt>hidden-foreign</p:prompt></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        const input = `<svg xmlns="http://www.w3.org/2000/svg"><metadata>${packet}</metadata></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER);
+        expect(output.foreignXmp).toBe("discarded");
+        expect(output.bytes.includes(Buffer.from("hidden-foreign"))).toBe(false);
+        expect(writeDerivativeProvenance(output.bytes, MASTER).foreignXmp).toBe("none");
+        const commentsOnly = `<svg xmlns="http://www.w3.org/2000/svg"><metadata><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><!-- private-xmp-comment --></rdf:RDF></x:xmpmeta></metadata></svg>`;
+        const commentsOutput = writeDerivativeProvenance(commentsOnly, MASTER);
+        expect(commentsOutput.foreignXmp).toBe("discarded");
+        expect(commentsOutput.bytes.toString("utf8")).not.toContain("private-xmp-comment");
+    });
+
+    it("removes SVG editor metadata while preserving the rendered drawing", async () => {
+        const input = `<?xml version="1.0"?><?inkscape private-editor?>
+<!-- private-generator -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:i="http://ns.adobe.com/AdobeIllustrator/10.0/" width="8" height="8" sodipodi:docname="private-path">
+<title>private-title</title><desc>private-description</desc><sodipodi:namedview inkscape:label="private-label"/><i:pgf>private-illustrator</i:pgf><!-- private-comment -->
+<defs><rect id="shape" width="8" height="8" fill="red"/></defs><use xlink:href="#shape" inkscape:label="private-layer"/></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER);
+        for (const secret of [
+            "private-editor",
+            "private-generator",
+            "private-path",
+            "private-title",
+            "private-description",
+            "private-label",
+            "private-illustrator",
+            "private-comment",
+            "private-layer",
+            "inkscape",
+            "sodipodi",
+        ]) {
+            expect(output.bytes.includes(Buffer.from(secret))).toBe(false);
+        }
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+    });
+
+    it("expands drawing entities without publishing unused declarations", async () => {
+        const input = `<!DOCTYPE svg [<!ENTITY drawingColor "red"><!ENTITY privateDeclaration "private-unused"><!ATTLIST rect height CDATA "8">]>
+<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" fill="&drawingColor;"/></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER);
+        expect(output.bytes.includes(Buffer.from("private-unused"))).toBe(false);
+        expect(output.bytes.includes(Buffer.from("DOCTYPE"))).toBe(false);
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+    });
+
+    it("accepts internal DTD text and refuses external or parameter entities", () => {
+        const svg = (subset: string) =>
+            `<!DOCTYPE svg [${subset}]><svg xmlns="http://www.w3.org/2000/svg"/>`;
+        expect(() =>
+            writeDerivativeProvenance(
+                svg(
+                    `<!-- SYSTEM PUBLIC %ignored; --> <!ENTITY note "SYSTEM PUBLIC"> <!ENTITY SYSTEM "red">`,
+                ),
+                MASTER,
+            ),
+        ).not.toThrow();
+        for (const subset of [
+            '<!ENTITY external SYSTEM "file:///private">',
+            '<!ENTITY é SYSTEM "file:///private">',
+            "%é;",
+            '<!ENTITY external PUBLIC "identifier" "file:///private">',
+            '<!ENTITY % private "value">',
+            "%private;",
+            '<!ENTITY nested "%private;">',
+        ]) {
+            expect(() => writeDerivativeProvenance(svg(subset), MASTER)).toThrow(
+                /SVG (external|parameter) entit/,
+            );
+        }
+        expect(() =>
+            writeDerivativeProvenance('<!DOCTYPE svg SYSTEM "file:///private"><svg/>', MASTER),
+        ).toThrow(/external DTD/);
+    });
+
+    it("removes nested SVG metadata and foreign XMP while preserving its drawing", async () => {
+        const drawing = '<rect width="8" height="8" fill="red"/>';
+        const input = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:s="http://www.w3.org/2000/svg" xmlns:x="adobe:ns:meta/" width="8" height="8"><metadata><s:metadata>private-fixture</s:metadata></metadata><x:xmpmeta>private-fixture</x:xmpmeta>${drawing}</svg>`;
+        const output = writeDerivativeProvenance(input, MASTER);
+        const text = output.bytes.toString("utf8");
+        expect(text).not.toContain("private-fixture");
+        expect(text).toContain(drawing);
+        expect(readSvgProvenance(output.bytes).record).toEqual(deriveRecord(MASTER));
+        expect(await sharp(output.bytes).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+        const again = writeDerivativeProvenance(output.bytes, MASTER);
+        expect(again.bytes).toEqual(output.bytes);
+        expect(again.changed).toBe(false);
     });
 
     it("writes no private master field into a WebP or an SVG, and leaves pixels alone", async () => {
