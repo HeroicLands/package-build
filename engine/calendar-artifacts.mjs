@@ -15,6 +15,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { assertPrivateArtRoots } from "./art-masters.mjs";
 
 import { calendariaEnvelope, compileCalendars } from "./calendar-notes.mjs";
 import { formatDiagnostic, positionOfFrontmatterPath } from "./diagnostics.mjs";
@@ -88,6 +89,7 @@ export function emitCalendarArtifacts({ config, calendariaVersion, sources } = {
     }
 
     const root = config.rootDir;
+    assertPrivateArtRoots(config.art?.masterRoots ?? [], [path.resolve(root, "build/calendars")]);
     const rawSource = (file) =>
         sources?.get(path.resolve(root, file))?.raw ??
         fs.readFileSync(path.resolve(root, file), "utf8");

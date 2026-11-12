@@ -784,6 +784,7 @@ function siteRootCommand() {
                 base: siteBase(shared),
                 out,
                 search: shared.site.search,
+                masterRoots: shared.art?.masterRoots,
             });
             for (const file of files) {
                 console.log(`✅ Wrote ${path.relative(config.rootDir, file)}.`);

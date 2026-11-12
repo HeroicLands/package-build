@@ -43,6 +43,7 @@ import { GENERATED_DRAWING_DIR } from "./generated-sections.mjs";
 import fs from "fs";
 import path from "path";
 import log from "loglevel";
+import { assertPrivateArtRoots } from "./art-masters.mjs";
 
 import { foreignItemCatalogDirs } from "./foreign-catalog.mjs";
 
@@ -747,6 +748,21 @@ export async function generatePacksJson({
     session,
     reportPreparation = true,
 } = {}) {
+    assertPrivateArtRoots(config.art?.masterRoots ?? [], [
+        ...(!fs.existsSync(config.paths.packJson) ? [config.paths.packJson] : []),
+        ...config.packs
+            .filter(
+                (pack) =>
+                    !pack.prebuilt &&
+                    (!only ||
+                        pack.name === only ||
+                        pack.companions.some((companion) => companion.name === only)),
+            )
+            .flatMap((pack) => [pack.name, ...pack.companions.map((companion) => companion.name)])
+            .map((name) => path.join(config.paths.packJson, name)),
+        stagedDrawingDir(config),
+        path.join(config.rootDir, "build", "map", "foundry"),
+    ]);
     // Before anything is generated: every UUID written below is addressed to
     // the configured `foundryPackage`, so a value that has drifted from the shipped
     // manifest's `id` produces a whole pack of links that resolve nowhere.

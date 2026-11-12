@@ -36,8 +36,13 @@ import { planCdnPublish } from "../engine/cdn-publish.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
 import { noteTree } from "../engine/note-cache.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
+import { emitContentIndex } from "../engine/content-index.mjs";
 import { stagePackageBuildAssets } from "../engine/build-assets.mjs";
 import { resetStage } from "../stage.mjs";
+import { generatePacksJson } from "../engine/generate.mjs";
+import { cleanPacks, compilePacks, unpackPacks } from "../engine/compendiums.mjs";
+import { buildPackageSite } from "../engine/site-render.mjs";
+import { writeSiteRoot } from "../engine/site-root.mjs";
 
 const root = path.resolve("build/art-masters-test");
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -125,6 +130,112 @@ it.each([
     expect(result.status).not.toBe(0);
     expect(result.stderr + result.stdout).toMatch(/overlap/);
     expect(fs.readFileSync(source, "utf8")).toBe("private input");
+});
+
+it("refuses an asset row that reaches a private master through its destination", async () => {
+    const privateRoot = path.join(root, "private");
+    fs.mkdirSync(privateRoot, { recursive: true });
+    const master = path.join(privateRoot, "master.svg");
+    fs.writeFileSync(master, "private input");
+    fs.writeFileSync(path.join(root, "public.txt"), "public replacement");
+    await expect(
+        stagePackageBuildAssets({
+            config: {
+                rootDir: root,
+                assets: [{ from: "public.txt", to: "../../private/master.svg" }],
+                stageDir: "build/stage",
+                baseStyles: false,
+            } as any,
+            packConfig: {
+                rootDir: root,
+                paths: { assets: path.join(root, "assets") },
+                contentPackage: "sample",
+                art: { masterRoots: [privateRoot] },
+            } as any,
+        }),
+    ).rejects.toThrow(/overlap/);
+    expect(fs.readFileSync(master, "utf8")).toBe("private input");
+    expect(fs.existsSync(path.join(root, "build", "stage"))).toBe(false);
+});
+
+it("refuses index output inside private masters before writing", () => {
+    const privateRoot = path.join(root, "private");
+    fs.mkdirSync(privateRoot, { recursive: true });
+    const source = path.join(privateRoot, "master.svg");
+    fs.writeFileSync(source, "private input");
+    expect(() =>
+        emitContentIndex({
+            config: {
+                rootDir: root,
+                contentPackage: "sample",
+                paths: { content: path.join(root, "content"), contentIndex: privateRoot },
+                art: { masterRoots: [privateRoot] },
+            },
+        }),
+    ).toThrow(/overlap/);
+    expect(fs.readFileSync(source, "utf8")).toBe("private input");
+    expect(fs.existsSync(path.join(privateRoot, "sample-metadata.jsonl"))).toBe(false);
+});
+
+it("guards standalone pack and site outputs before touching private masters", async () => {
+    const privateRoot = path.join(root, "private");
+    fs.mkdirSync(privateRoot, { recursive: true });
+    const source = path.join(privateRoot, "master.svg");
+    fs.writeFileSync(source, "private input");
+    const config = {
+        rootDir: root,
+        art: { masterRoots: [privateRoot] },
+        paths: {
+            content: path.join(root, "content"),
+            packJson: root,
+            stage: path.join(root, "stage"),
+            unpack: privateRoot,
+        },
+        packs: [{ name: "private", companions: [] }],
+        packDirectories: ["private"],
+    } as any;
+    await expect(generatePacksJson({ config })).rejects.toThrow(/overlap/);
+    await expect(
+        compilePacks({ config, sourcePacks: ["private"], stageDest: root }),
+    ).rejects.toThrow(/overlap/);
+    await expect(cleanPacks({ config, packDest: privateRoot })).rejects.toThrow(/overlap/);
+    await expect(
+        unpackPacks({ config, packs: [{ name: "private" }] as any, packDest: root }),
+    ).rejects.toThrow(/overlap/);
+    await expect(buildPackageSite({ config, out: privateRoot })).rejects.toThrow(/overlap/);
+    await expect(
+        writeSiteRoot({ pkg: "sample", out: privateRoot, masterRoots: [privateRoot] }),
+    ).rejects.toThrow(/overlap/);
+    expect(fs.readFileSync(source, "utf8")).toBe("private input");
+});
+
+it("refuses a directory destination containing a symlink to private masters", async () => {
+    const privateRoot = path.join(root, "private");
+    const destination = path.join(root, "outside");
+    fs.mkdirSync(privateRoot, { recursive: true });
+    fs.mkdirSync(destination, { recursive: true });
+    fs.mkdirSync(path.join(root, "public"), { recursive: true });
+    const master = path.join(privateRoot, "master.svg");
+    fs.writeFileSync(master, "private input");
+    fs.writeFileSync(path.join(root, "public", "link"), "public replacement");
+    fs.symlinkSync(master, path.join(destination, "link"));
+    await expect(
+        stagePackageBuildAssets({
+            config: {
+                rootDir: root,
+                assets: [{ from: "public", to: "../../outside" }],
+                stageDir: "build/stage",
+                baseStyles: false,
+            } as any,
+            packConfig: {
+                rootDir: root,
+                paths: { assets: path.join(root, "assets") },
+                contentPackage: "sample",
+                art: { masterRoots: [privateRoot] },
+            } as any,
+        }),
+    ).rejects.toThrow(/overlap/);
+    expect(fs.readFileSync(master, "utf8")).toBe("private input");
 });
 
 it("allows removing a stage containing a symlink to private masters", () => {
@@ -402,6 +513,18 @@ if (!indexRecordsFor({config}).some(record => record.address?.canonical?.shortco
         session: first,
     });
     expect(fs.existsSync(path.join(root, "stage", "images", "first.svg"))).toBe(true);
+    fs.writeFileSync(path.join(root, "public.txt"), "public input");
+    await stagePackageBuildAssets({
+        config: {
+            rootDir: root,
+            assets: [{ from: "public.txt", to: "../../outside/public.txt" }],
+            stageDir: "build/stage",
+            baseStyles: false,
+        } as any,
+        packConfig: config,
+        session: first,
+    });
+    expect(fs.readFileSync(path.join(root, "outside", "public.txt"), "utf8")).toBe("public input");
     fs.writeFileSync(file, writeSvgProvenance(svg, { address: "sample-none-image-second" }).bytes);
     expect(() => first.assertUnchanged()).toThrow(/Content sources changed/);
     const second = await createContentSession({ config });

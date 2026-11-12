@@ -2038,6 +2038,12 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
     const tree = path.resolve(contentBase ?? publication?.contentBase ?? resolved.paths.content);
     const dir = outDir ?? resolved.paths.contentIndex;
     const contentPackage = resolved.contentPackage;
+    assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [
+        path.join(dir, metadataFileName(contentPackage)),
+        ...["dictionary", "terms"].map((relation) =>
+            path.join(dir, `${contentPackage}-${relation}.jsonl`),
+        ),
+    ]);
 
     if (!fs.existsSync(tree) && needsContentTree(resolved)) {
         throw new Error(`no content tree at ${tree}`);

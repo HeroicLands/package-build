@@ -50,6 +50,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { assertPrivateArtRoots } from "./art-masters.mjs";
 import * as pagefind from "pagefind";
 
 import { feedPaths, reachablePages } from "./site-reach.mjs";
@@ -301,6 +302,7 @@ export async function indexSite({ site, output, base }) {
  * @param {SiteIndexer} [options.indexer] - What builds it. Default
  *   {@link indexSite}.
  * @param {(message: string) => void} [options.progress] - Build phase summaries.
+ * @param {readonly string[]} [options.masterRoots] - Private master input roots.
  * @returns {Promise<{files: string[], search: {dir: string, pages: number}|null}>}
  *   The files written, and the index — where it is and how many pages it
  *   holds — or `null` when none was built.
@@ -316,10 +318,16 @@ export async function writeSiteRoot({
     search = true,
     indexer = indexSite,
     progress = () => {},
+    masterRoots = [],
 }) {
     const root = path.resolve(out);
     const prefix = base ?? `/${pkg}/`;
     const rendered = path.join(root, ...prefix.split("/").filter(Boolean));
+    assertPrivateArtRoots(masterRoots, [
+        path.join(root, "_headers"),
+        path.join(root, "_redirects"),
+        path.join(rendered, SEARCH_DIR),
+    ]);
     if (!fs.existsSync(path.join(rendered, "index.html"))) {
         throw new Error(
             `${path.join(out, ...prefix.split("/").filter(Boolean))}/ holds no rendered site — ` +

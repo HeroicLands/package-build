@@ -101,6 +101,9 @@ export async function stagePackageBuildAssets({
         path.join(config.rootDir, "build", "art"),
         path.resolve(config.rootDir, config.stageDir),
         ...config.assets.map(({ from }) => path.resolve(config.rootDir, from)),
+        ...config.assets.map(({ to }) =>
+            path.resolve(config.rootDir, path.join(config.stageDir, to)),
+        ),
     ]);
     const findings = [
         ...pictureRootRowFindings(config.assets, {

@@ -55,6 +55,7 @@ import {
 } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { assertPrivateArtRoots } from "../engine/art-masters.mjs";
+import { GENERATED_DRAWING_DIR } from "../engine/generated-sections.mjs";
 import { buildPdf, listBookAssets } from "../engine/pdf-build.mjs";
 import { summaryLines } from "../engine/pdf-coverage.mjs";
 import {
@@ -1566,8 +1567,13 @@ function contentBuildOutputs(config, packaging) {
         config.paths.stage,
         stage,
         path.join(config.rootDir, "build/calendars"),
+        path.join(config.rootDir, "build", "map", "foundry"),
+        path.join(path.dirname(config.paths.stage), "assets", GENERATED_DRAWING_DIR),
     ];
-    assertPrivateArtRoots(config.art?.masterRoots ?? [], outputs);
+    const assetDestinations = packaging.assets.map(({ to }) =>
+        path.resolve(packaging.rootDir, path.join(packaging.stageDir, to)),
+    );
+    assertPrivateArtRoots(config.art?.masterRoots ?? [], [...outputs, ...assetDestinations]);
     const contains = (parent, child) => {
         const relative = path.relative(path.resolve(parent), path.resolve(child));
         return (
@@ -1577,7 +1583,7 @@ function contentBuildOutputs(config, packaging) {
                 !path.isAbsolute(relative))
         );
     };
-    for (const output of [...outputs, ...packaging.assets.map(({ to }) => path.resolve(stage, to))])
+    for (const output of [...outputs, ...assetDestinations])
         for (const root of roots)
             if (contains(root, output) || contains(output, root))
                 throw new Error(
@@ -2376,6 +2382,7 @@ function siteBuildCommand() {
                     base: siteBase(config),
                     out: root,
                     search: config.site.search,
+                    masterRoots: config.art?.masterRoots,
                     progress: (message) => log.info(message),
                 });
                 if (search) {
@@ -3264,6 +3271,8 @@ function packageCommand() {
                 // `unpack` writes the extracted JSON there and `compile` reads
                 // it back. Created here rather than at module scope so that
                 // asking the CLI its version needs no configuration.
+                if (!fs.existsSync(config.paths.unpack))
+                    assertPrivateArtRoots(config.art?.masterRoots ?? [], [config.paths.unpack]);
                 fs.mkdirSync(config.paths.unpack, {
                     recursive: true,
                 });
