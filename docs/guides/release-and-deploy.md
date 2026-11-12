@@ -182,7 +182,9 @@ meet carries one changeset. An internal or documentation-only change carries
 none. The shared repository rules choose the bump: a non-optional user-visible
 change is minor; an optional command, flag, or key is patch. A major bump
 requires the maintainer's direct decision. `package-build changelog check`
-checks the quality of any pending changeset.
+checks the quality of any pending changeset. The build runs the release-specific
+changelog check on pull requests whose head branch is `changeset-release/main`;
+other pull requests and pushes run the pending changeset check.
 
 The repository's primary forge is Gitea, and GitHub is its push mirror. The
 release runs in two halves, one on each:
