@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { decodeNoteAddresses } from "../engine/note-addresses.mjs";
 import { isAddressTuple } from "../engine/address.mjs";
+import { portraitFromData, resolvePortraitItems } from "../engine/portrait-prompt.mjs";
 
 /**
  * Every `data.` field, across every note type, that declares both a `kind`
@@ -49,6 +50,7 @@ const HITS: Record<string, unknown> = {
     "thalorna-note-skill-languagetwo": { type: "skill", subType: "language" },
     "thalorna-note-being-ally": true,
     "thalorna-note-being-porter": { type: "being", subType: "npc" },
+    "thalorna-note-weapongear-sword": { data: { kind: "weapon", name: "sword" } },
     "thalorna-note-place-korrath": { type: "place", borders: [{ to: "vylar", bearing: "S" }] },
     "thalorna-note-place-tolvern": {
         type: "place",
@@ -354,6 +356,12 @@ function decodedNote(type: string, name: string) {
     const fixture = fixtureFor(type, name);
     if (!fixture) throw new Error(`${type}.${name} has no fixture`);
     const fm = decodeNoteAddresses(fixture.fm(), { package: "thalorna", system: "note" });
+    if (type === "being" && name === "portrait.prompt") {
+        fm.data.portraitSettings = { model: "flux-dev", seed: "sample", ageBand: "adult" };
+        fm.data.portrait = {
+            prompt: portraitFromData(fm.data, resolvePortraitItems(fm.data, index)).positive,
+        };
+    }
     return { fm, file: `${type}.md`, raw: "" };
 }
 

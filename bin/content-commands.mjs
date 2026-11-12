@@ -181,10 +181,16 @@ import { reckoningContext } from "../engine/reckoning-markers.mjs";
 import { BEING_LOOK_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { profileFindings } from "../engine/appearance-profile.mjs";
 import { namesFindings } from "../engine/language-names.mjs";
-import { parseAddress, renderAddress } from "../engine/address.mjs";
+import {
+    canonicalKey,
+    ownDocumentSystem,
+    parseAddress,
+    renderAddress,
+} from "../engine/address.mjs";
 import { cultureKey, generateNpc, npcDefaults, npcSpecProblems } from "../engine/npc-generate.mjs";
 import { occupationKey } from "../engine/occupation-choice.mjs";
 import { cultureFieldSource, cultureHierarchyProblems } from "../engine/culture-parents.mjs";
+import { portraitFromData, resolvePortraitItems } from "../engine/portrait-prompt.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -3557,6 +3563,67 @@ function newNpc(config, argv) {
     }
 }
 
+/** Write the prompt channels for a being selected through the content index. */
+function promptNpc(config, address) {
+    const contentBase = config.paths.content;
+    const records = indexRecordsFor({
+        contentBase,
+        config,
+        skipDirectories: config.skipDirectories,
+    });
+    const index = buildLinkIndex(contentBase, {
+        config,
+        records,
+        skipDirectories: config.skipDirectories,
+    });
+    const tuple = parseAddress(address, {
+        package: index.contentPackage,
+        system: "note",
+        type: "being",
+        types: index.types,
+        packages: index.packages,
+        config,
+    });
+    if (tuple.reason || tuple.type !== "being")
+        throw new Error(`npc prompt: ${JSON.stringify(address)} is not a being Address`);
+    const hit =
+        index.addressHit(renderAddress(tuple)) ??
+        index.foreign?.index?.get(
+            canonicalKey(tuple.package, ownDocumentSystem(tuple.type), tuple.type, tuple.shortcode),
+        );
+    if (!hit) throw new Error(`npc prompt: ${JSON.stringify(address)} names no being`);
+    const record = hit.fm ?? hit;
+    if (record.type !== "being")
+        throw new Error(`npc prompt: ${JSON.stringify(address)} is not a being`);
+    let output;
+    try {
+        output = portraitFromData(
+            record.data,
+            resolvePortraitItems(record.data, index, hit.authoredItems),
+            hit.authoredItems ?? record.data?.items,
+        );
+    } catch (error) {
+        const note = { file: hit.file ?? packConfigPath(), raw: hit.raw ?? "" };
+        const keyPath = error?.keyPath ?? ["data", "portraitSettings"];
+        const diagnostic = noteError(
+            note,
+            keyPath,
+            error instanceof Error ? error.message : String(error),
+        );
+        for (
+            let length = keyPath.length - 1;
+            diagnostic.position?.line === undefined && length > 0;
+            length--
+        ) {
+            diagnostic.position = positionOfFrontmatterPath(note.raw, keyPath.slice(0, length), {
+                key: true,
+            });
+        }
+        throw diagnostic;
+    }
+    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+}
+
 /**
  * `package-build npc new` — a complete NPC being note from a spec, its
  * appearance drawn from its culture's profile.
@@ -3565,48 +3632,69 @@ function newNpc(config, argv) {
  */
 function npcCommand() {
     return {
-        command: "npc <action>",
+        command: "npc <action> [address]",
         describe:
-            "Write a new NPC being note from a spec, its culture's appearance profile and " +
-            "its language's name lists and culture items; data.occupationNote selects an " +
-            "occupation template for additional items",
+            "Write an NPC note from a spec, its culture's appearance profile, language name " +
+            "lists and culture items; data.occupationNote selects an occupation template. " +
+            "Build a portrait prompt from a being",
         builder: (yargs) => {
             yargs.positional("action", {
                 describe: "The action to perform.",
                 type: "string",
-                choices: ["new"],
+                choices: ["new", "prompt"],
+            });
+            yargs.positional("address", {
+                describe: "The being Address for the prompt action.",
+                type: "string",
             });
             yargs.option("spec", {
                 describe:
-                    "The spec as a JSON string: frontmatter fields, with `data.culture` and " +
+                    "For npc new: the spec as a JSON string, with `data.culture` and " +
                     "`data.gender` required.",
                 type: "string",
             });
             yargs.option("specfile", {
-                describe: "The spec as a .json, .yaml or .yml file.",
+                describe: "For npc new: the spec as a .json, .yaml or .yml file.",
                 type: "string",
             });
             yargs.option("seed", {
                 describe:
-                    "Text that seeds generation beside the spec, to draw a different person " +
+                    "For npc new: text that seeds generation beside the spec, to draw a different person " +
                     "from the same spec.",
                 type: "string",
             });
             yargs.option("out", {
                 describe:
-                    "Write the note to this new file instead of standard output. An " +
+                    "For npc new: write the note to this new file instead of standard output. An " +
                     "existing file is never overwritten.",
                 type: "string",
             });
             yargs.check((parsed) => {
-                if ((parsed.spec === undefined) === (parsed.specfile === undefined))
+                if (
+                    parsed.action === "new" &&
+                    (parsed.spec === undefined) === (parsed.specfile === undefined)
+                )
                     throw new Error("`npc new` takes exactly one of `--spec` and `--specfile`");
+                if (parsed.action === "new" && parsed.address)
+                    throw new Error("`npc new` takes no Address");
+                if (parsed.action === "prompt" && !parsed.address)
+                    throw new Error("`npc prompt` needs a being Address");
+                if (
+                    parsed.action === "prompt" &&
+                    (parsed.spec !== undefined ||
+                        parsed.specfile !== undefined ||
+                        parsed.seed !== undefined ||
+                        parsed.out !== undefined)
+                )
+                    throw new Error("`npc prompt` uses the being's declared portrait settings");
                 return true;
             });
         },
         handler: async (argv) => {
             try {
-                newNpc(loadPackConfig(), argv);
+                const config = argv[CONTENT_CONFIG] ?? loadPackConfig();
+                if (argv.action === "prompt") promptNpc(config, argv.address);
+                else newNpc(config, argv);
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

@@ -36,6 +36,11 @@ types:
             - appearance.mouth
             - appearance.extra_features
             - portrait.prompt
+            - portrait.negativePrompt
+            - portraitSettings.model
+            - portraitSettings.extras
+            - portraitSettings.seed
+            - portraitSettings.ageBand
         subTypes:
             - npc
             - character

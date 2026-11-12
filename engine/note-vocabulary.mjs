@@ -135,7 +135,7 @@ import {
     requiredHeightGenders,
 } from "./appearance-profile.mjs";
 import { checkExtraFeatures } from "./appearance-features.mjs";
-import { checkPortraitPrompt } from "./portrait-prompt.mjs";
+import { checkPortraitPrompt, checkPortraitSettings } from "./portrait-prompt.mjs";
 import { LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
 import {
     AFFIX_FIELDS,
@@ -1746,7 +1746,10 @@ export const NOTE_VOCABULARY = Object.freeze({
         subTypes: Object.freeze(["npc", "character", "creature"]),
         // Whether an authored `age` disagrees with what `born` and the
         // configured current date compute — see `engine/being-age.mjs`.
-        check: checkBeingAge,
+        check: (note, context) => [
+            ...checkBeingAge(note, context),
+            ...checkPortraitSettings(note, context),
+        ],
         data: Object.freeze([
             TOKEN_ICON,
             TEMPLATE_PRIORITY,
@@ -1907,11 +1910,42 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "portrait.prompt",
                 ...TEXT,
-                check: (note) => checkPortraitPrompt(note),
+                check: (note, context) => checkPortraitPrompt(note, context),
                 describe:
                     "The exact text the being's portrait was generated from, present only once a " +
                     "portrait exists. A note without `portrait` has no portrait yet and is valid. " +
                     "See [a being's portrait](format-details.md#a-beings-portrait).",
+            },
+            {
+                name: "portrait.negativePrompt",
+                ...TEXT,
+                describe:
+                    "The separate negative text used for the portrait, when its model has one.",
+            },
+            {
+                name: "portraitSettings.model",
+                ...TEXT,
+                allowed: ["flux-dev", "flux2-pro", "sdxl"],
+                describe: "The portrait prompt's model style: `flux-dev`, `flux2-pro`, or `sdxl`.",
+            },
+            {
+                name: "portraitSettings.extras",
+                ...TEXT_LIST,
+                describe: "Additional visible prompt details, in order.",
+            },
+            {
+                name: "portraitSettings.seed",
+                ...TEXT,
+                shape: "a nonblank string or finite number",
+                describe:
+                    "The seed for the portrait's age detail, as a nonblank string or finite number.",
+            },
+            {
+                name: "portraitSettings.ageBand",
+                ...TEXT,
+                allowed: ["youth", "adult", "middle", "elder"],
+                describe:
+                    "The subject's age band for the portrait: `youth`, `adult`, `middle`, or `elder`.",
             },
             {
                 name: "appearance.extra_features",

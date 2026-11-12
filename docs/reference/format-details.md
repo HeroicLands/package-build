@@ -4792,6 +4792,11 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `appearance.brow`                  | a word                                         | The brow — see [a being's look](#a-beings-look)                                                                                                       |
 | `appearance.mouth`                 | a word                                         | The mouth — see [a being's look](#a-beings-look)                                                                                                      |
 | `portrait.prompt`                  | `string`                                       | The exact text the portrait was generated from; present only once a portrait exists — see [a being's portrait](#a-beings-portrait)                    |
+| `portrait.negativePrompt`          | `string`                                       | The separate negative text used for the portrait, when its model has one                                                                              |
+| `portraitSettings.model`           | `string`                                       | `flux-dev`, `flux2-pro`, or `sdxl`                                                                                                                    |
+| `portraitSettings.extras`          | `string[]`                                     | Additional visible prompt details, in order                                                                                                           |
+| `portraitSettings.seed`            | `string` or `number`                           | A nonblank string or finite number for the portrait's age detail                                                                                      |
+| `portraitSettings.ageBand`         | `string`                                       | `youth`, `adult`, `middle`, or `elder`                                                                                                                |
 | `appearance.extra_features`        | `string[]`                                     | The visible physical marks no word covers — see [a being's look](#a-beings-look)                                                                      |
 
 Author `data.height` as a string of decimal metres (`1.91m` or `1.91 m`) or
@@ -5103,22 +5108,46 @@ The words, and what each means:
 
 #### A being's portrait
 
-**`data.portrait.prompt` holds the exact text a being's portrait was generated
-from**, so the picture is a record of what the note says. The block exists only
-once a portrait does. A being with no `portrait` block has no portrait yet and
-is valid: nothing is reported for it, and nothing is generated in bulk to fill
-it. The picture's own facts — model, seed, prediction — stay in the image file.
+`data.portraitSettings` declares the inputs to the portrait prompt. `model` is
+`flux-dev`, `flux2-pro`, or `sdxl`; `seed` is a nonblank string or finite number;
+`ageBand` is `youth`, `adult`, `middle`, or `elder`; and `extras` is an optional list of visible
+details. Numeric seeds use the parsed number's string form: `42.0` selects the
+same result as `"42"`, and `1e3` the same result as `"1000"`. A being may state
+these settings without having a portrait.
+
+`data.portrait.prompt` holds the exact positive text for the portrait.
+`data.portrait.negativePrompt` holds a separate negative channel when the model
+uses one. The portrait block exists only when a portrait exists; a
+being without one is valid and produces no portrait finding. A portrait without
+reproducible settings reports that its freshness cannot be checked.
 
 ```yaml
 data:
-  portrait:
-    prompt: >-
-      A weathered woman with braided dark hair, an angular face and a thin
-      mouth, head and shoulders, soft ink wash on a plain ochre background.
+  portraitSettings:
+    model: sdxl
+    seed: "sample"
+    ageBand: adult
+    extras: [stormy shore]
 ```
 
-`package-build lint` reports a `prompt` that is blank, or that is not a string,
-at the value. Any other key under `portrait` is an error at the key.
+The stored channels are checked against the settings, the being's appearance,
+and its resolved items. A differing channel reports a stale portrait. The
+settings describe the prompt; image-generation facts remain in the image file.
+
+`model`, `seed`, and `ageBand` are required when `portraitSettings` is present;
+a missing or invalid value is an error. An excluded style direction in an
+additional detail, an appearance feature or an item is an error at that input,
+even when the note has no portrait. Ink stains and ink containers are valid
+visible details. A portrait block with a missing or blank `prompt` is an error.
+When settings are absent, lint warns that an existing portrait's freshness
+cannot be checked. When the generated positive or negative channel differs,
+lint warns which channel is stale. A missing item model prevents the comparison
+and produces a freshness warning alongside the item finding.
+
+A clear complexion excludes added freckles, blemishes, acne scars, age spots
+and small marks. Age lines, weathering and applicable hair details remain in
+the prompt. The positive channel requires head-and-shoulders or chest-up
+framing.
 
 #### Appearance profiles
 
