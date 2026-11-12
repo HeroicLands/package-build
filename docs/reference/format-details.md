@@ -2740,8 +2740,9 @@ outside the managed record or cannot be interpreted, and `none` otherwise.
 An SVG derivative keeps allowed SVG drawing elements and presentation
 attributes, rendering text, style content, XLink `href`, and XML `lang`,
 `space`, and `base`. It discards other elements and attributes, non-rendering
-text, metadata, titles, descriptions, editor namespaces, XML and CSS comments,
-and processing instructions. CSS strings and drawing values remain part of the
+text, metadata, titles, descriptions, editor namespaces, XML comments, CSS
+comment contents, and processing instructions. Empty CSS comment separators
+preserve token boundaries. CSS strings and drawing values remain part of the
 image. A resource reference in an `href`, XML `base`, animation or CSS must be
 an empty reference, a fragment, or an absolute HTTP or HTTPS URL. Embedded
 `data:` resources and local paths are refused. Internal general entities and

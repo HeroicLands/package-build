@@ -85,7 +85,7 @@ function cssString(text, at) {
     return { end: end < text.length ? end + 1 : end, value };
 }
 
-/** Remove comments outside strings and escaped characters. */
+/** Replace comment contents with empty CSS token separators. */
 function stripCssComments(text) {
     let out = "";
     let at = 0;
@@ -94,24 +94,36 @@ function stripCssComments(text) {
             const quoted = cssString(text, at);
             out += text.slice(at, quoted.end);
             at = quoted.end;
-        } else if (text[at] === "\\") {
-            const escaped = cssEscape(text, at);
-            out += text.slice(at, escaped.end);
-            at = escaped.end;
         } else if (text.startsWith("/*", at)) {
             const end = text.indexOf("*/", at + 2);
-            out += " ";
+            out += "/**/";
             at = end < 0 ? text.length : end + 2;
+        } else if (/[a-z_-]/i.test(text[at]) || text[at] === "\\" || text.codePointAt(at) >= 0x80) {
+            const ident = cssIdentifier(text, at);
+            const begin = at;
+            at = ident.end;
+            if (ident.value.toLowerCase() === "url" && text[at] === "(") {
+                let next = at + 1;
+                while (/\s/.test(text[next] ?? "")) next++;
+                if (text[next] !== '"' && text[next] !== "'") {
+                    at = next;
+                    while (at < text.length && text[at] !== ")") {
+                        at = text[at] === "\\" ? cssEscape(text, at).end : at + 1;
+                    }
+                    if (text[at] === ")") at++;
+                }
+            }
+            out += text.slice(begin, at);
         } else out += text[at++];
     }
     return out;
 }
 
 /**
- * Remove CSS comments and check URL and import references without changing strings.
+ * Redact CSS comment contents and check resource references without changing tokens.
  *
  * @param {string} text - CSS stylesheet, declaration list or presentation value.
- * @returns {string} The CSS without comments.
+ * @returns {string} The CSS with empty comment separators.
  */
 export function cleanSvgCss(text) {
     text = stripCssComments(text);
@@ -120,10 +132,19 @@ export function cleanSvgCss(text) {
     let importPending = false;
     const functions = [];
     while (at < text.length) {
+        if (text.startsWith("/**/", at)) {
+            out += "/**/";
+            at += 4;
+            continue;
+        }
         const c = text[at];
         if (c === '"' || c === "'") {
             const quoted = cssString(text, at);
-            if (importPending || ["image-set", "-webkit-image-set"].includes(functions.at(-1))) {
+            const imageContext = functions.findLastIndex((name) =>
+                ["image", "image-set", "-webkit-image-set"].includes(name),
+            );
+            const typeContext = functions.findLastIndex((name) => name === "type");
+            if (importPending || (imageContext >= 0 && typeContext < imageContext)) {
                 checkSvgResource(quoted.value);
             }
             out += text.slice(at, quoted.end);
@@ -152,7 +173,11 @@ export function cleanSvgCss(text) {
                     const quoted = cssString(text, at);
                     value = quoted.value;
                     at = quoted.end;
-                    while (/\s/.test(text[at] ?? "")) at++;
+                    while (at < text.length) {
+                        if (/\s/.test(text[at])) at++;
+                        else if (text.startsWith("/**/", at)) at += 4;
+                        else break;
+                    }
                 } else {
                     while (at < text.length && text[at] !== ")") {
                         if (text[at] === "\\") {

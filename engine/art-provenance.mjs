@@ -1871,9 +1871,10 @@ function cleanSvgDrawing(text) {
  * is cleared and XMP flag set. ICC bytes, including profile text, are retained.
  * SVG output keeps allowed drawing elements and presentation attributes,
  * rendering text, styles, XLink href and XML language, space and base attributes.
- * Other elements and attributes, non-rendering text, XML and CSS comments,
- * processing instructions, titles and descriptions are discarded. CSS strings
- * and drawing values remain. Resource references in href, XML base, animations
+ * Other elements and attributes, non-rendering text, XML comments, CSS comment
+ * contents, processing instructions, titles and descriptions are discarded.
+ * Empty CSS comment separators preserve token boundaries. CSS strings and
+ * drawing values remain. Resource references in href, XML base, animations
  * and CSS accept fragments, empty references and absolute HTTP(S) URLs; local
  * paths and embedded data are refused. Internal general entities and default
  * attributes are expanded; external DTDs, external entities and parameter

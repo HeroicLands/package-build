@@ -1538,9 +1538,9 @@ describe("deriveRecord", () => {
         expect(text).toContain(" text");
         expect(text).toContain('mask-type="alpha"');
         expect(text).toContain('transform-box="fill-box"');
-        const safeCss = `<svg xmlns="http://www.w3.org/2000/svg"><style>.a { fill: url(/**/#shape); content: "quote \\\" /* keep */"; }</style><rect class="a"/></svg>`;
+        const safeCss = `<svg xmlns="http://www.w3.org/2000/svg"><style>.a { fill: url(#shape); content: "quote \\\" /* keep */"; }</style><rect class="a"/></svg>`;
         const cssOutput = writeDerivativeProvenance(safeCss, MASTER).bytes.toString("utf8");
-        expect(cssOutput).toContain("url( #shape)");
+        expect(cssOutput).toContain("url(#shape)");
         expect(cssOutput).toContain("/* keep */");
         const unfinished = `<svg xmlns="http://www.w3.org/2000/svg"><style>.a { fill: red; /* private-tail</style><rect class="a"/></svg>`;
         expect(writeDerivativeProvenance(unfinished, MASTER).bytes.toString("utf8")).not.toContain(
@@ -1550,6 +1550,30 @@ describe("deriveRecord", () => {
         expect(
             writeDerivativeProvenance(unfinishedString, MASTER).bytes.toString("utf8"),
         ).toContain("visible-string");
+        expect(await sharp(output).raw().toBuffer()).toEqual(
+            await sharp(Buffer.from(input)).raw().toBuffer(),
+        );
+    });
+
+    it("redacts comment contents without changing CSS token and selector boundaries", async () => {
+        const { cleanSvgCss } = await import("../engine/svg-derivative-css.mjs");
+        for (const [input, expected] of [
+            ["re/*private*/d", "re/**/d"],
+            ["1/*private*/px", "1/**/px"],
+            ["@/*private*/media", "@/**/media"],
+            ["#/*private*/id", "#/**/id"],
+            [".a/*private*/.b", ".a/**/.b"],
+            [
+                'image-set("#shape" 1x type("image/png"))',
+                'image-set("#shape" 1x type("image/png"))',
+            ],
+            ['image-set(var(--x, "#shape") 1x)', 'image-set(var(--x, "#shape") 1x)'],
+            ["u/*private*/rl(data:image/png;base64,AAAA)", "u/**/rl(data:image/png;base64,AAAA)"],
+        ])
+            expect(cleanSvgCss(input)).toBe(expected);
+        const input = `<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><style>.a/* private selector */.b{fill:red}</style><rect class="a b" width="2" height="2"/></svg>`;
+        const output = writeDerivativeProvenance(input, MASTER).bytes;
+        expect(output.toString("utf8")).not.toContain("private selector");
         expect(await sharp(output).raw().toBuffer()).toEqual(
             await sharp(Buffer.from(input)).raw().toBuffer(),
         );
