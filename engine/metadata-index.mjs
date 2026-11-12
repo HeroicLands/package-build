@@ -533,8 +533,17 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                             items: record.data?.items,
                         },
                     }
-                : parts.type === "being" && record.data?.items ?
-                    { data: { items: record.data.items } }
+                : parts.type === "being" ?
+                    {
+                        data: {
+                            items: record.data?.items,
+                            appearance: record.data?.appearance,
+                            gender: record.data?.gender,
+                            frame: record.data?.frame,
+                            portraitSettings: record.data?.portraitSettings,
+                            portrait: record.data?.portrait,
+                        },
+                    }
                 :   {}),
                 ...(parts.type === "skill" && record.subType === "language" ?
                     {

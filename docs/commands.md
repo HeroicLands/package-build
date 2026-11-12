@@ -3665,6 +3665,9 @@ package-build npc new (--spec <json> | --specfile <path>) [--seed <text>] [--out
 
 **DESCRIPTION**
 
+The parent form is `package-build npc <action> [address]`: `new` writes a note
+and `prompt` builds portrait channels from a being Address.
+
 Writes one `type: being`, `subType: npc` note: the full `data` block, an
 `# Appearance {#appearance}` section and a `# Dossier {#dossier}` section, with
 no system block. The note goes to standard output, or to a new file with
@@ -3856,3 +3859,73 @@ assets/content/Cultures/Plainfolk.md:6:1: error: demo-note-lore-plainfolk is in 
 [Appearance profiles](reference/format-details.md#appearance-profiles),
 [Name lists](reference/format-details.md#name-lists),
 [A being's look](reference/format-details.md#a-beings-look).
+
+### `package-build npc prompt`
+
+**NAME**
+
+Build a portrait prompt from a being's declared data.
+
+**SYNOPSIS**
+
+```sh
+package-build npc <action> [address]
+package-build npc prompt <address>
+```
+
+The actions are `new` and `prompt`.
+
+**DESCRIPTION**
+
+Build the prompt channels for a being from its indexed appearance, resolved
+items and `data.portraitSettings`. The command reads the content index and
+prints a JSON object with `positive` and, for SDXL, `negative`. It does not
+write the note or generate an image. The same declared inputs produce the same
+text. Clothing and armor are worn; weapons, containers and miscellaneous gear
+are carried. Other item kinds do not enter the prompt.
+
+The settings require a model, seed and age band; `extras` is an optional list
+of visible details. The seed is a nonblank string or finite number. A number
+is converted to text after YAML parses it: `42.0` uses `"42"`, and `1e3` uses
+`"1000"`. The age band is `youth`, `adult`, `middle` or `elder`.
+Authored details use visible words and contain no real-world people, places or
+monuments. A prompt cannot request ink-and-wash styling, outlines, cartoon shading, flat
+color, cel shading or a full-body or full-length pose. Ink stains and ink
+containers are valid visible details. A bald or shaved head omits the
+style's hair-strand wording.
+
+The model styles are:
+
+- `flux-dev`: Realistic painterly portrait, head and shoulders, close framing, the subject looking at the viewer; dramatic atmospheric light, softly blurred environment; natural asymmetric face with visible skin texture and pores; individual strands of hair; no outlines, no flat colour fills, no full-body pose.
+- `flux2-pro`: A realistic oil-painted portrait framed from the chest up, lit with dramatic atmospheric light against a softly blurred setting. The face belongs to an ordinary person: asymmetric, with visible skin texture and small imperfections, neither retouched nor idealised. No ink outlines, cartoon shading or full-length pose.
+- `sdxl` positive: realistic oil painting portrait, head and shoulders, dramatic atmospheric lighting, shallow depth of field, detailed skin texture, natural asymmetrical face, individual hair strands
+- `sdxl` negative: cartoon, comic, ink outlines, flat colors, cel shading, full body, plain background, airbrushed skin, symmetrical face, glamour, model
+
+**OPTIONS**
+
+The `prompt` action has no options; it reads the being's settings.
+
+**EXIT STATUS**
+
+The command exits zero on success and nonzero if the Address, settings or
+indexed items cannot be resolved.
+
+**EXAMPLES**
+
+```sh
+package-build npc prompt being-person
+```
+
+A portrait stores its positive text in `data.portrait.prompt` and its separate
+negative text in `data.portrait.negativePrompt` when present. Lint compares both
+channels against the current declared settings, appearance and items. A
+portrait without settings receives a warning that its freshness cannot be
+checked. A missing or blank stored prompt and incomplete settings are errors.
+An excluded direction is an error at its input even before a portrait exists.
+A stale warning names the differing positive or negative channel. A being
+without a portrait block produces no portrait finding.
+
+**SEE ALSO**
+
+[A being's portrait](reference/format-details.md#a-beings-portrait),
+`package-build lint [root]`.
