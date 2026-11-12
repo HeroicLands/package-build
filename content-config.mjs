@@ -552,6 +552,7 @@ export function publishesContentPages(config) {
  *                                   addresses a file that package ships.
  * @property {string} [type]         `system`, `module`, or `world`.
  * @property {string} [manifest]     Where its manifest is published.
+ * @property {string} [buildManifest]  URL of the mirrored manifest for builds.
  * @property {CompatibilitySpec} [compatibility]  The version range of *that*
  *                                   package this one targets — for a system
  *                                   relationship, `verified` is what
@@ -939,6 +940,7 @@ export const RELATIONSHIP_KEYS = [
     "contentPackage",
     "type",
     "manifest",
+    "buildManifest",
     "compatibility",
     "itemCatalog",
     "contentIndex",
@@ -2681,12 +2683,41 @@ function normalizeRelationships(value) {
                         spec[key] = requireNonEmptyString(rel[key], `${at}.${key}`);
                     }
                 }
+                if (rel.buildManifest !== undefined) {
+                    spec.buildManifest = requireNonEmptyString(
+                        rel.buildManifest,
+                        `${at}.buildManifest`,
+                    );
+                    if (!spec.manifest) fail(`${at}.buildManifest`, "needs a `manifest`");
+                    try {
+                        for (const value of [spec.manifest, spec.buildManifest]) {
+                            const url = new URL(value);
+                            if (
+                                !["https:", "http:"].includes(url.protocol) ||
+                                url.username ||
+                                url.password ||
+                                url.search ||
+                                url.hash ||
+                                !url.pathname.split("/").pop()
+                            )
+                                throw new Error();
+                        }
+                    } catch {
+                        fail(
+                            `${at}.buildManifest`,
+                            "and `manifest` must be HTTP(S) URLs without credentials, query, or fragment",
+                        );
+                    }
+                }
                 const compat = normalizeCompatibility(
                     rel.compatibility,
                     `${at}.compatibility`,
                     false,
                 );
                 if (compat) spec.compatibility = compat;
+                if (spec.buildManifest && !compat?.verified) {
+                    fail(`${at}.buildManifest`, "needs `compatibility.verified`");
+                }
                 // Opt-in: extract this package's Item packs so the actors pass
                 // can resolve embedded items this repository does not hold.
                 // Off by default, because depending on a package is not the

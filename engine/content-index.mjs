@@ -117,7 +117,7 @@ import { asciiName } from "./name-sort.mjs";
 
 export { asciiName };
 import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
-import { requiredModulePackages } from "./item-entries.mjs";
+import { requiredModulePackages, resolveItemDefaults } from "./item-entries.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
@@ -1109,9 +1109,8 @@ export function resolveCultures(
  *   encodings when filling language native-writing defaults.
  * @param {Readonly<Record<string, {tag: string}>>} [options.languages] - The
  *   configured languages, which give each run's `lang=` its tag.
- * @param {(key: string) => ({culture?: unknown}|undefined)} [options.foreignRecord] -
- *   Another package's entry for a canonical address, read for a parent that
- *   package publishes; see {@link resolveCultures}.
+ * @param {(key: string) => (Record<string, any>|undefined)} [options.foreignRecord] -
+ *   Another package's indexed entry for a canonical address, including item defaults.
  * @param {Map<string, {body: string, frontmatter: object|null, raw: string, bodyLine?: number, bodyColumn?: number}>} [options.parsed] -
  *   Filled with each note's source text, body coordinates and frontmatter as
  *   authored, keyed by file, for reuse throughout the command.
@@ -1333,6 +1332,42 @@ export function collectContentIndex(
     // are recorded; the index keeps the citing Addresses and no text.
     phase("index citations");
     attachCitations(records, bodies);
+
+    const itemNotes = new Map(
+        records
+            .filter(
+                (record) =>
+                    isNoteRecord(record) && isAddressSegment(String(record.shortcode ?? "")),
+            )
+            .map((record) => [
+                canonicalKey(contentPackage, NOTE_SYSTEM, record.type, record.shortcode),
+                record,
+            ]),
+    );
+    for (const record of records) {
+        if (!isNoteRecord(record) || !Array.isArray(record.data?.items)) continue;
+        record.authoredItems = record.data.items;
+        record.data = {
+            ...record.data,
+            items: record.data.items.map((entry) => {
+                const key = addressKey(entry?.model);
+                if (!key) return entry;
+                const tuple = entry.model instanceof AddressLink ? entry.model.target : entry.model;
+                const model =
+                    itemNotes.get(key) ??
+                    foreignRecord?.(key) ??
+                    foreignRecord?.(
+                        canonicalKey(
+                            tuple.package,
+                            ownDocumentSystem(tuple.type),
+                            tuple.type,
+                            tuple.shortcode,
+                        ),
+                    );
+                return resolveItemDefaults(entry, model);
+            }),
+        };
+    }
 
     // A run marked with a language alone takes its language's script, which
     // is read once every language note is recorded.

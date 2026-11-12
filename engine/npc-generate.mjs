@@ -46,6 +46,8 @@
  *   `complexion` is a list of the one word drawn. `hair_texture`, `hair_style`,
  *   `facial_hair`, `face_shape`, `nose`, `brow` and `mouth` are drawn the same
  *   way for each the profile states, and omitted for each it does not.
+ * - `items` — independently drawn from culture and occupation item lists;
+ *   omitted when no item is drawn.
  * - `height` — from the profile's range for the gender, in feet and inches.
  * - `weight` — from the height and the frame's body-mass band, in pounds.
  * - `born` — an adult age of {@link ADULT_AGE} years before the configured
@@ -73,6 +75,7 @@ import { computeAge, parseAgeMagnitude } from "./being-age.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { eraYear } from "./calendars.mjs";
 import { parseAddress, renderAddress } from "./address.mjs";
+import { encodeAddresses } from "./address-values.mjs";
 import { isPlainMap } from "./data-keys.mjs";
 import { drawNameParts, nameMisfit } from "./language-names.mjs";
 
@@ -431,6 +434,8 @@ const DATA_ORDER = Object.freeze([
     "templatePriority",
     "archetypes",
     "occupation",
+    "occupationNote",
+    "items",
     "lore",
     "culture",
     "homes",
@@ -495,6 +500,8 @@ function frontmatterYaml(frontmatter) {
  *   about a name that does not fit.
  * @param {string} [context.languageCode] - The language code under which a
  *   generated name's distinct source form is retained.
+ * @param {object[]} [context.cultureItems] - Items from the culture.
+ * @param {object[]} [context.occupationItems] - Items from the occupation.
  * @param {string} [context.seed] - Text joined to the spec's own seed, to draw a
  *   different person from the same spec.
  * @param {unknown} [context.currentDate] - The setting's neutral current date, defaulting to "720.1".
@@ -580,7 +587,48 @@ export function generateNpc(spec, context) {
     }
     if (!given(look.extra_features)) appearance.extra_features = [];
 
+    const items = [];
+    const keyed = new Map();
+    if (!given(data.items)) {
+        for (const [source, entries] of [
+            ["culture", context.cultureItems],
+            ["occupation", context.occupationItems],
+        ]) {
+            const sourceKeys = new Map();
+            for (const [index, entry] of (entries ?? []).entries()) {
+                if (entry.key === undefined) continue;
+                if (sourceKeys.has(entry.key))
+                    throw Object.assign(
+                        new Error(`repeated item key ${JSON.stringify(entry.key)}`),
+                        {
+                            itemConflict: {
+                                key: entry.key,
+                                first: { source, index: sourceKeys.get(entry.key) },
+                                second: { source, index },
+                            },
+                        },
+                    );
+                sourceKeys.set(entry.key, index);
+            }
+            for (const [index, entry] of (entries ?? []).entries()) {
+                const { chance, ...item } = encodeAddresses(entry);
+                if (chance !== undefined && draw(`data.items.${source}.${index}`)() * 100 >= chance)
+                    continue;
+                if (item.key !== undefined && keyed.has(item.key)) {
+                    const previous = keyed.get(item.key);
+                    items[previous.position] = item;
+                    keyed.set(item.key, { source, index, position: previous.position });
+                    continue;
+                }
+                if (item.key !== undefined)
+                    keyed.set(item.key, { source, index, position: items.length });
+                items.push(item);
+            }
+        }
+    }
+
     const generated = {
+        ...(items.length ? { items } : {}),
         templatePriority: null,
         archetypes: ["commoner"],
         occupation: null,

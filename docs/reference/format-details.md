@@ -4751,6 +4751,7 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `templatePriority`                 | `number`                                       | Template priority, _null_ = not a template                                                                                                            |
 | `archetypes`                       | `Archetype[]`                                  | What sort of character this is. **Always an array** — character and npc require at least one; creature may omit it or write `[]`; `null` is an error. |
 | `occupation`                       | `string`                                       | Name of the character's occupation                                                                                                                    |
+| `occupationNote`                   | `Address`                                      | An occupation template, naming a `being` note of `subType: npc`                                                                                       |
 | `items`                            | `Item[]`                                       | The items the being has — see [items in a note](#items-in-a-note)                                                                                     |
 | `items[].key`                      | `string`                                       | The entry's name among the note's items; unique within `data.items`                                                                                   |
 | `items[].model`                    | `Address`                                      | An item note this entry is an instance of, never a game system's                                                                                      |
@@ -5211,6 +5212,8 @@ Each entry is a map of these keys, and none is required except as the table says
 | `system.quantity` | `number`               | How many of the item there are                                                                       |
 | `system.weight`   | `number`               | What the item weighs                                                                                 |
 
+The content index carries resolved entries in `data.items` and preserves the authored entries, with canonical Addresses, separately in its derived `authoredItems` field. NPC generation copies the authored entries, so item models continue to supply unstated fields.
+
 An entry with `model` alone is the normal case: the item note holds the name,
 image and numbers. An entry without `model` defines an item inline, and is part
 of the setting because it is written in a note of the setting.
@@ -5239,6 +5242,9 @@ ability types (`weapongear`, `armorgear`, `containergear`, `miscgear`,
 carry the same keys in `data` as an entry does: `kind` is required, and `name`,
 `img` and `system` (`subType`, `quantity`, `weight`) are optional. The note's
 `sohl` and `hm3` blocks hold each system's own `type` and fields.
+`package-build items coverage --system <id>` lists this package's item notes
+without the selected system's block, grouped and counted by kind. It is an
+on-demand report; the build and lint do not require a block for every system.
 
 **The Address rule decides what `model` may name.** The Address must resolve to
 an item note of this package or of a package this package requires as a module,
@@ -5259,6 +5265,17 @@ the `note` system segment is the only one a `model` accepts.
 `data.items` and once in each system's list, which is how a system entry is tied
 to the entry it adds to.
 
+**A being's entries compile for each supported system.** The model's neutral
+fields supply defaults, the entry overrides them, and the model's system block
+supplies that system's item type and fields. A same-key system entry overrides
+the result. Nested maps merge field by field; lists and scalar values replace
+the corresponding defaults. `kind`, `key` and `chance` stay in the content
+index and do not become Foundry fields. An inline entry compiles when its
+same-key system entry supplies a `type`. An item with no block for a system and
+no same-key entry supplying a type makes no Item for that system. A model's
+system block that exists must state its `type`. System entries without a
+matching neutral entry compile independently.
+
 Findings, each at the key at fault with a message that says how to correct it:
 
 - an entry without `model` that lacks `name` or `kind`;
@@ -5268,6 +5285,10 @@ Findings, each at the key at fault with a message that says how to correct it:
   package that is not required, a type that is not an item type, or no note;
 - a `key` used twice in one list;
 - an item note without `data.kind`;
+- a model's system block without `type`; add the system's item type or remove
+  that block;
+- a model's documentation with no published page; publish a page, or correct
+  the model Address and fetch the updated index;
 - `data.items` on a lore note that is not a culture.
 
 #### Name lists

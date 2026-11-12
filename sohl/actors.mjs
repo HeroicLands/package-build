@@ -65,6 +65,7 @@ import {
 } from "../engine/helpers.mjs";
 import { openingMasteryLevel } from "./skill-base.mjs";
 import { SystemActorCompiler, renderSection } from "../engine/actor-compiler.mjs";
+import { Items } from "./items.mjs";
 import { withDraftNotice } from "../engine/draft-notice.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into. Looked up in the
 // system's declared map, never inferred from the type itself.
@@ -128,6 +129,8 @@ function defaultActorImg(subType) {
  * block. Everything else is {@link module:engine/actor-compiler}'s.
  */
 export class Actors extends SystemActorCompiler {
+    static itemCompiler = Items;
+    static itemDescriptionField = "docHtml";
     /**
      * SoHL's note-type → document-subtype map — the one declaration that says
      * which block this pass reads, which notes it claims, and what each
@@ -155,11 +158,17 @@ export class Actors extends SystemActorCompiler {
      * one per body the being belongs to.
      */
     buildEmbeddedItems(itemsMap, actorId, fm, ctx) {
-        const items = [];
-
         const sohlItems = sohlField(fm, "items", null);
+        const { items, remaining, remainingIndices } = this.buildNeutralItems(
+            itemsMap,
+            actorId,
+            fm,
+            sohlItems,
+            ctx,
+        );
         if (Array.isArray(sohlItems)) {
-            sohlItems.forEach((entry, index) => {
+            remaining.forEach((entry, at) => {
+                const index = remainingIndices[at];
                 if (!entry || typeof entry !== "object") {
                     this.noteError(`${ctx}: sohl.items[${index}] is not an object`);
                     this.errorCount++;

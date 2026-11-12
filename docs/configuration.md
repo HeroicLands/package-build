@@ -1707,6 +1707,7 @@ Each entry, in any of the four lists:
 | `relationships.systems[].contentPackage` | string                          | no       | the id  |
 | `relationships.systems[].type`           | string                          | no       | none    |
 | `relationships.systems[].manifest`       | string                          | no       | none    |
+| `relationships.systems[].buildManifest`  | URL                             | no       | none    |
 | `relationships.systems[].compatibility`  | object, `{minimum?, verified?}` | no       | none    |
 | `relationships.systems[].itemCatalog`    | boolean                         | no       | `false` |
 | `relationships.systems[].contentIndex`   | boolean                         | no       | `true`  |
@@ -1718,7 +1719,7 @@ Each entry, in any of the four lists:
 
 > ``package-build config: `relationships.<kind>[<index>].id` must be a non-empty string.``
 
-> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog, contentIndex).``
+> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, buildManifest, compatibility, itemCatalog, contentIndex).``
 
 `contentPackage` names what the other package's _content_ is called, where
 that differs from its Foundry id. A note addresses a file by the content
@@ -1727,6 +1728,23 @@ package that owns it — `harnensemble/assets/images/map.webp` — and the Found
 Omit it where the two are the same word, which they are for every system:
 
 > ``package-build config: `relationships.<kind>[<index>].contentPackage` must be a non-empty string.``
+
+`buildManifest` names a mirrored copy of the pinned manifest for dependency
+fetches. Set `manifest` to the public install URL and `compatibility.verified`
+to the pinned version. The mirror must contain the unmodified manifest and its
+archive and content index beside it. Their advertised URLs must name files beside
+the public manifest. Both manifest URLs must use HTTP(S), without credentials,
+query strings, fragments, or a trailing slash. The published Foundry relationship retains `manifest`.
+Set `PACKAGE_BUILD_FORGE_TOKEN_FILE` to the path of a private file containing
+one read-only forge token when the mirror requires authentication. The token is
+sent only to configured mirrors and their same-origin redirects. Authenticated
+mirrors require HTTPS; HTTP is allowed for loopback hosts.
+
+> ``package-build config: `relationships.<kind>[<index>].buildManifest` needs a `manifest`.``
+
+> ``package-build config: `relationships.<kind>[<index>].buildManifest` and `manifest` must be HTTP(S) URLs without credentials, query, or fragment.``
+
+> ``package-build config: `relationships.<kind>[<index>].buildManifest` needs `compatibility.verified`.``
 
 `itemCatalog` opts into extracting the named package's Item packs so the
 actors pass can resolve embedded items this repository does not hold — off

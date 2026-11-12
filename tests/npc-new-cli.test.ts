@@ -12,7 +12,7 @@
  * writes passes the package's own lint.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -97,6 +97,13 @@ packs:
             `data:\n  year: { days: 365 }\n---\n\n${PROSE}`,
     );
     culture("Khelathi", "khelathi", "  lang: khelathi\n" + PROFILE);
+    culture(
+        "Equipped",
+        "equipped",
+        "  lang: khelathi\n" +
+            PROFILE +
+            "  items:\n    - {key: bag, name: Bag, kind: container}\n    - {key: lost, name: Hat, kind: clothing, chance: 0}\n",
+    );
     culture("Plainfolk", "plainfolk", "  lang: khelathi\n");
     culture("Wordless", "wordless", PROFILE);
     culture("Unlisted", "unlisted", "  lang: silent\n" + PROFILE);
@@ -135,6 +142,25 @@ packs:
 });
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
+function occupationFixtures() {
+    note(
+        "Jobs/Porter.md",
+        `---\nshortcode: porter\nname: {full: Porter}\ntype: being\nsubType: npc\ndata:\n  items:\n    - {key: bag, name: Bag, kind: container}\n    - {key: rope, name: Rope, kind: miscgear, chance: 100}\n---\n\n${PROSE}`,
+    );
+    note(
+        "Jobs/Conflict.md",
+        `---\nshortcode: conflict\nname: {full: Conflict}\ntype: being\nsubType: npc\ndata:\n  items:\n    - {key: bag, name: Box, kind: container}\n---\n\n${PROSE}`,
+    );
+    note(
+        "Jobs/Character.md",
+        `---\nshortcode: character\nname: {full: Character}\ntype: being\nsubType: character\n---\n\n${PROSE}`,
+    );
+}
+
+afterEach(() =>
+    fs.rmSync(path.join(root, "assets/content/Jobs"), { recursive: true, force: true }),
+);
+
 /** Run the CLI in the fixture tree. */
 function run(...args: string[]) {
     const r = spawnSync(process.execPath, [CLI, ...args], {
@@ -167,6 +193,264 @@ describe("package-build npc new", () => {
                 full: "Lumawesa of the Simi Manik",
                 caseless: ["lumawesa of the simi manik"],
             });
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "draws items from the selected culture in the normal command",
+        () => {
+            const input = { ...SPEC, data: { ...SPEC.data, culture: "equipped" } };
+            const generated = run("npc", "new", "--spec", JSON.stringify(input), "--seed", "one");
+            expect(generated.status).toBe(0);
+            expect(frontmatterOf(generated.stdout).data.items).toEqual([
+                { key: "bag", name: "Bag", kind: "container" },
+            ]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "resolves the explicit occupation template and combines identical items",
+        () => {
+            occupationFixtures();
+            const input = {
+                ...SPEC,
+                data: {
+                    ...SPEC.data,
+                    culture: "equipped",
+                    occupation: "Porter",
+                    occupationNote: "porter",
+                },
+            };
+            const generated = run("npc", "new", "--spec", JSON.stringify(input));
+            expect(generated.status).toBe(0);
+            expect(frontmatterOf(generated.stdout).data).toMatchObject({
+                occupation: "Porter",
+                occupationNote: "porter",
+                items: [
+                    { key: "bag", name: "Bag", kind: "container" },
+                    { key: "rope", name: "Rope", kind: "miscgear" },
+                ],
+            });
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "uses the occupation item and rejects missing or wrong occupation targets",
+        () => {
+            occupationFixtures();
+            const input = {
+                ...SPEC,
+                data: { ...SPEC.data, culture: "equipped", occupationNote: "conflict" },
+            };
+            const conflict = run("npc", "new", "--spec", JSON.stringify(input));
+            expect(conflict.status, conflict.stderr).toBe(0);
+            expect(frontmatterOf(conflict.stdout).data.items).toEqual([
+                { key: "bag", name: "Box", kind: "container" },
+            ]);
+            for (const occupationNote of ["absent", "character", "lore-feast"]) {
+                const result = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({ ...input, data: { ...input.data, occupationNote } }),
+                );
+                expect(result.status).toBe(1);
+                expect(result.stderr).toContain("occupationNote");
+            }
+        },
+        subprocessTimeout(4),
+    );
+
+    it(
+        "locates duplicate keys within either source and names a remedy",
+        () => {
+            culture(
+                "Repeated",
+                "repeated",
+                "  lang: khelathi\n" +
+                    PROFILE +
+                    "  items:\n    - {key: bag, name: Bag, kind: container}\n    - {key: bag, name: Box, kind: container, chance: 0}\n",
+            );
+            const result = run(
+                "npc",
+                "new",
+                "--spec",
+                JSON.stringify({ ...SPEC, data: { ...SPEC.data, culture: "repeated" } }),
+            );
+            expect(result.status).toBe(1);
+            expect(result.stderr).toMatch(/Cultures\/Repeated.md:23:\d+: error:/);
+            expect(result.stderr).toMatch(/bag.*(?:remove|change)/);
+            expect(result.stderr).not.toMatch(/TypeError|undefined/);
+            fs.rmSync(path.join(root, "assets/content/Cultures/Repeated.md"));
+            occupationFixtures();
+            note(
+                "Jobs/Repeated.md",
+                `---\nshortcode: repeatedjob\nname: {full: Repeated}\ntype: being\nsubType: npc\ndata:\n  items:\n    - {key: tool, name: Hammer, kind: miscgear, chance: 0}\n    - {key: tool, name: Saw, kind: miscgear}\n---\n\n${PROSE}`,
+            );
+            const job = run(
+                "npc",
+                "new",
+                "--spec",
+                JSON.stringify({ ...SPEC, data: { ...SPEC.data, occupationNote: "repeatedjob" } }),
+            );
+            expect(job.status).toBe(1);
+            expect(job.stderr).toMatch(/Jobs\/Repeated.md:9:\d+: error:/);
+            expect(job.stderr).toMatch(/tool.*(?:remove|change)/);
+        },
+        subprocessTimeout(2),
+    );
+
+    it(
+        "preserves authored model entries from local and dependency notes",
+        () => {
+            const configFile = path.join(root, "package-build.config.yaml");
+            const originalConfig = fs.readFileSync(configFile, "utf8");
+            const cache = path.join(root, "build/cache/metadata/source@1.0.0");
+            try {
+                note(
+                    "Gear/Tool.md",
+                    `---\nshortcode: tool\nname: {full: Tool}\ntype: miscgear\ndata:\n  kind: miscgear\n  name: Hammer\n  system: {weight: 3}\n---\n\n${PROSE}`,
+                );
+                culture(
+                    "WithTool",
+                    "withtool",
+                    "  lang: khelathi\n" +
+                        PROFILE +
+                        "  items:\n    - {key: first, model: miscgear-tool, system: {quantity: 2}}\n",
+                );
+                note(
+                    "Jobs/Worker.md",
+                    `---\nshortcode: worker\nname: {full: Worker}\ntype: being\nsubType: npc\ndata:\n  items:\n    - {key: second, model: miscgear-tool, name: Mallet}\n---\n\n${PROSE}`,
+                );
+                const result = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({
+                        ...SPEC,
+                        data: { ...SPEC.data, culture: "withtool", occupationNote: "worker" },
+                    }),
+                );
+                expect(result.status, result.stderr).toBe(0);
+                expect(frontmatterOf(result.stdout).data.items).toEqual([
+                    {
+                        key: "first",
+                        model: "demo-note-miscgear-tool",
+                        system: { quantity: 2 },
+                    },
+                    {
+                        key: "second",
+                        model: "demo-note-miscgear-tool",
+                        name: "Mallet",
+                    },
+                ]);
+                fs.mkdirSync(cache, { recursive: true });
+                const resolvedItem = {
+                    model: "source-note-miscgear-tool",
+                    kind: "miscgear",
+                    name: "Hammer",
+                    system: { weight: 3 },
+                };
+                const records = [
+                    {
+                        package: "source",
+                        type: "lore",
+                        subType: "culture",
+                        shortcode: "withtool",
+                        lang: "khelathi",
+                        address: { canonical: "source-note-lore-withtool" },
+                        data: {
+                            ...YAML.parse(PROFILE),
+                            items: [
+                                {
+                                    key: "first",
+                                    ...resolvedItem,
+                                    system: { weight: 3, quantity: 2 },
+                                },
+                            ],
+                        },
+                        authoredItems: [
+                            {
+                                key: "first",
+                                model: {
+                                    address: "source-note-miscgear-tool",
+                                    anchor: null,
+                                    anchorKind: null,
+                                },
+                                system: { quantity: 2 },
+                            },
+                        ],
+                    },
+                    {
+                        package: "source",
+                        type: "being",
+                        subType: "npc",
+                        shortcode: "worker",
+                        address: { canonical: "source-note-being-worker" },
+                        data: { items: [{ key: "second", ...resolvedItem, name: "Mallet" }] },
+                        authoredItems: [
+                            {
+                                key: "second",
+                                model: {
+                                    address: "source-note-miscgear-tool",
+                                    anchor: null,
+                                    anchorKind: null,
+                                },
+                                name: "Mallet",
+                            },
+                        ],
+                    },
+                ];
+                fs.writeFileSync(
+                    path.join(cache, "source-metadata.jsonl"),
+                    records.map((record) => JSON.stringify(record)).join("\n") + "\n",
+                );
+                fs.writeFileSync(path.join(cache, ".complete"), "");
+                fs.writeFileSync(
+                    configFile,
+                    originalConfig +
+                        `\nrelationships:\n  requires:\n    - {id: source, type: module, manifest: 'https://example.invalid/module.json', compatibility: {verified: '1.0.0'}}\n`,
+                );
+                const foreign = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({
+                        ...SPEC,
+                        data: {
+                            ...SPEC.data,
+                            culture: "source-note-lore-withtool",
+                            occupationNote: "source-note-being-worker",
+                        },
+                    }),
+                );
+                expect(foreign.status, foreign.stderr).toBe(0);
+                const localItems = frontmatterOf(result.stdout).data.items.map(
+                    ({ model, ...rest }: any) => rest,
+                );
+                const foreignItems = frontmatterOf(foreign.stdout).data.items.map(
+                    ({ model, ...rest }: any) => rest,
+                );
+                expect(foreignItems).toEqual(localItems);
+            } finally {
+                fs.writeFileSync(configFile, originalConfig);
+                fs.rmSync(cache, { recursive: true, force: true });
+                fs.rmSync(path.join(root, "assets/content/Gear/Tool.md"), { force: true });
+                fs.rmSync(path.join(root, "assets/content/Cultures/WithTool.md"), { force: true });
+            }
+        },
+        subprocessTimeout(2),
+    );
+
+    it(
+        "describes item draws and the occupation link in help",
+        () => {
+            const help = run("npc", "--help");
+            expect(help.stdout).toMatch(/occupationNote/);
+            expect(help.stdout).toMatch(/items/i);
         },
         SUBPROCESS_TEST_TIMEOUT,
     );
@@ -250,7 +534,7 @@ describe("package-build npc new", () => {
                 .filter((line) => line.startsWith("assets/content/Characters/Ahmetega_Zekar.md:"));
             expect(written.split("\n")[30].startsWith(SPEC.name.full)).toBe(true);
             expect(diagnostics).toEqual([]);
-            expect(lint.status).toBe(0);
+            expect(lint.status, lint.stderr + lint.stdout).toBe(0);
             fs.rmSync(out);
         },
         subprocessTimeout(3),

@@ -48,6 +48,7 @@
 import { resolveName } from "../engine/helpers.mjs";
 import { buildFromFields, STRING } from "../engine/field-spec.mjs";
 import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
+import { Hm3Items } from "./items.mjs";
 import { renderSection } from "../engine/anchored-sections.mjs";
 import { withDraftNotice } from "../engine/draft-notice.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
@@ -180,6 +181,8 @@ const EMBEDDED_ITEM_ART = Object.freeze({
  * Everything else is {@link module:engine/actor-compiler}'s.
  */
 export class Hm3Actors extends SystemActorCompiler {
+    static itemCompiler = Hm3Items;
+    static itemDescriptionField = "description";
     /**
      * HM3's note-type → document-subtype map — the one declaration that says
      * which block this pass reads, which notes it claims, and what each
@@ -228,11 +231,18 @@ export class Hm3Actors extends SystemActorCompiler {
      * @returns {object[]} The embedded items.
      */
     buildEmbeddedItems(itemsMap, actorId, fm, ctx) {
-        const items = [];
         const declared = blockField(fm, this.system, "items", null);
+        const { items, remaining, remainingIndices } = this.buildNeutralItems(
+            itemsMap,
+            actorId,
+            fm,
+            declared,
+            ctx,
+        );
         if (!Array.isArray(declared)) return items;
 
-        declared.forEach((entry, index) => {
+        remaining.forEach((entry, at) => {
+            const index = remainingIndices[at];
             if (!entry || typeof entry !== "object") {
                 this.noteError(`${ctx}: ${this.system}.items[${index}] is not an object`);
                 this.errorCount++;

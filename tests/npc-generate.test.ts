@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
+import { parseAddress } from "../engine/address.mjs";
+import { resolveItemDefaults } from "../engine/system-item-entries.mjs";
 import { BEING_LOOK_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { parseBeingHeight, parseBeingWeight } from "../engine/being-measurements.mjs";
 import { FRAME_MASS_INDEX, profileLookKeys } from "../engine/appearance-profile.mjs";
@@ -81,6 +83,184 @@ describe("a generated npc", () => {
         const a = generateNpc(spec("Ahmetega Zekar"), CONTEXT).text;
         const b = generateNpc(spec("Ahmetega Zekar"), CONTEXT).text;
         expect(a).toBe(b);
+    });
+
+    it("draws culture and occupation items independently, without their chances", () => {
+        const context = {
+            ...CONTEXT,
+            cultureItems: [
+                { key: "always", model: "weapon-sword" },
+                {
+                    key: "certain",
+                    name: "Coat",
+                    kind: "clothing",
+                    chance: 100,
+                    system: { weight: 2 },
+                },
+                { key: "never", name: "Hat", kind: "clothing", chance: 0 },
+            ],
+            occupationItems: [{ key: "tool", name: "Hammer", kind: "miscgear", chance: 100 }],
+        };
+        const result = split(generateNpc(spec("Ahmetega Zekar"), context).text).fm.data.items;
+        expect(result).toEqual([
+            { key: "always", model: "weapon-sword" },
+            { key: "certain", name: "Coat", kind: "clothing", system: { weight: 2 } },
+            { key: "tool", name: "Hammer", kind: "miscgear" },
+        ]);
+        expect(split(generateNpc(spec("Ahmetega Zekar"), context).text).fm.data.items).toEqual(
+            result,
+        );
+    });
+
+    it("varies seeded item draws without changing unrelated draws", () => {
+        const items = Array.from({ length: 16 }, (_, i) => ({
+            key: `item${i}`,
+            name: `Item ${i}`,
+            kind: "miscgear",
+            chance: 50,
+        }));
+        const results = Array.from({ length: 8 }, (_, i) => {
+            const base = split(
+                generateNpc(spec("Ahmetega Zekar"), { ...CONTEXT, seed: String(i) }).text,
+            ).fm;
+            const withItems = split(
+                generateNpc(spec("Ahmetega Zekar"), {
+                    ...CONTEXT,
+                    seed: String(i),
+                    cultureItems: items,
+                }).text,
+            ).fm;
+            expect(withItems.data.appearance).toEqual(base.data.appearance);
+            return JSON.stringify(withItems.data.items);
+        });
+        expect(new Set(results).size).toBeGreaterThan(1);
+    });
+
+    it("keeps occupation draws stable when a culture item is added", () => {
+        const occupationItems = Array.from({ length: 16 }, (_, i) => ({
+            key: `job${i}`,
+            name: `Tool ${i}`,
+            kind: "miscgear",
+            chance: 50,
+        }));
+        const drawn = (cultureItems: object[]) =>
+            split(
+                generateNpc(spec("Ahmetega Zekar"), {
+                    ...CONTEXT,
+                    seed: "independent",
+                    cultureItems,
+                    occupationItems,
+                }).text,
+            ).fm.data.items.filter((item: { key: string }) => item.key.startsWith("job"));
+        expect(drawn([])).toEqual(drawn([{ key: "bag", name: "Bag", kind: "container" }]));
+    });
+
+    it("replaces culture entries with drawn occupation entries sharing a key", () => {
+        const cultureItems = [{ key: "shared", name: "Bag", kind: "container", chance: 100 }];
+        const identical = [{ kind: "container", name: "Bag", key: "shared" }];
+        const context = { ...CONTEXT, cultureItems, occupationItems: identical };
+        expect(split(generateNpc(spec("Ahmetega Zekar"), context).text).fm.data.items).toEqual(
+            identical,
+        );
+        expect(() =>
+            generateNpc(spec("Ahmetega Zekar"), {
+                ...CONTEXT,
+                cultureItems: [identical[0], identical[0]],
+            }),
+        ).toThrow(/shared/);
+        expect(cultureItems[0].chance).toBe(100);
+        expect(
+            split(
+                generateNpc(spec("Ahmetega Zekar"), {
+                    ...context,
+                    occupationItems: [{ ...identical[0], name: "Box", chance: 100 }],
+                }).text,
+            ).fm.data.items,
+        ).toEqual([{ ...identical[0], name: "Box" }]);
+        expect(
+            split(
+                generateNpc(spec("Ahmetega Zekar"), {
+                    ...context,
+                    occupationItems: [{ ...identical[0], name: "Box", chance: 0 }],
+                }).text,
+            ).fm.data.items,
+        ).toEqual(identical);
+        expect(
+            split(
+                generateNpc(spec("Ahmetega Zekar", { items: [] }), {
+                    ...context,
+                    occupationItems: [{ ...identical[0], name: "Box" }],
+                }).text,
+            ).fm.data.items,
+        ).toEqual([]);
+    });
+
+    it("rejects a repeated key in either source even when an entry has zero chance", () => {
+        const first = { key: "shared", name: "Bag", kind: "container" };
+        const never = { key: "shared", name: "Box", kind: "container", chance: 0 };
+        for (const source of ["cultureItems", "occupationItems"]) {
+            for (const items of [
+                [first, never],
+                [never, first],
+            ]) {
+                expect(() =>
+                    generateNpc(spec("Ahmetega Zekar"), { ...CONTEXT, [source]: items }),
+                ).toThrow(/shared/);
+            }
+        }
+    });
+
+    it("keeps a generated model reference responsive to later model changes", () => {
+        const result = generateNpc(spec("Ahmetega Zekar"), {
+            ...CONTEXT,
+            cultureItems: [
+                { key: "tool", model: "demo-note-miscgear-tool", system: { quantity: 2 } },
+            ],
+        });
+        const entry = split(result.text).fm.data.items[0];
+        expect(entry).toEqual({
+            key: "tool",
+            model: "demo-note-miscgear-tool",
+            system: { quantity: 2 },
+        });
+        expect(
+            resolveItemDefaults(entry, {
+                data: { kind: "miscgear", name: "Hammer", system: { weight: 3 } },
+            }),
+        ).toMatchObject({ name: "Hammer", system: { quantity: 2, weight: 3 } });
+        expect(
+            resolveItemDefaults(entry, {
+                data: { kind: "miscgear", name: "Mallet", system: { weight: 4 } },
+            }),
+        ).toMatchObject({ name: "Mallet", system: { quantity: 2, weight: 4 } });
+    });
+
+    it("writes indexed model and image Addresses in full", () => {
+        const model = parseAddress("weapon-sword", {
+            package: "setting",
+            system: "note",
+            types: new Set(["weapon", "icon"]),
+            packages: new Set(["setting"]),
+        });
+        const img = parseAddress("icon-sword", {
+            package: "setting",
+            system: "note",
+            types: new Set(["weapon", "icon"]),
+            packages: new Set(["setting"]),
+        });
+        const context = { ...CONTEXT, cultureItems: [{ model, img }] };
+        expect(split(generateNpc(spec("Ahmetega Zekar"), context).text).fm.data.items).toEqual([
+            { model: "setting-note-weapon-sword", img: "setting-note-icon-sword" },
+        ]);
+        expect(context.cultureItems[0].model).toBe(model);
+    });
+
+    it("keeps items explicitly stated in the spec", () => {
+        const items = [{ name: "Bag", kind: "container" }];
+        const context = { ...CONTEXT, cultureItems: [{ name: "Coat", kind: "clothing" }] };
+        expect(
+            split(generateNpc(spec("Ahmetega Zekar", { items }), context).text).fm.data.items,
+        ).toEqual(items);
     });
 
     it("is a different person for a different name", () => {

@@ -77,7 +77,7 @@ const STAMP = ".complete";
  * Every declared relationship that opted into supplying an item catalogue.
  *
  * @param {object} config - The resolved build configuration.
- * @returns {Array<{id: string, manifest: string, kind: string, verified: string|undefined}>}
+ * @returns {Array<{id: string, manifest: string, buildManifest: string|undefined, kind: string, verified: string|undefined}>}
  *   The opted-in relationships, in declaration order.
  */
 export function itemCatalogRelationships(config) {
@@ -88,6 +88,7 @@ export function itemCatalogRelationships(config) {
                 out.push({
                     id: rel.id,
                     manifest: rel.manifest,
+                    buildManifest: rel.buildManifest,
                     kind,
                     verified: rel.compatibility?.verified,
                 });
@@ -233,39 +234,134 @@ function cachedItemPacks(dir) {
 const isComplete = (dir) =>
     fs.existsSync(path.join(dir, STAMP)) && fs.existsSync(path.join(dir, ITEM_PACKS));
 
+/** Read the optional private credential for a configured build mirror. */
+function mirrorToken(rel) {
+    const mirror = rel.buildManifest;
+    if (!mirror || !process.env.PACKAGE_BUILD_FORGE_TOKEN_FILE) return undefined;
+    const url = new URL(mirror);
+    const host = url.hostname;
+    const loopback = host === "localhost" || host === "[::1]" || /^127\.\d+\.\d+\.\d+$/.test(host);
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+        throw new Error(
+            `${rel.id}: PACKAGE_BUILD_FORGE_TOKEN_FILE requires HTTPS for a non-loopback mirror`,
+        );
+    }
+    let value;
+    try {
+        value = fs.readFileSync(process.env.PACKAGE_BUILD_FORGE_TOKEN_FILE, "utf8");
+    } catch {
+        throw new Error(
+            `${rel.id}: the token file named by PACKAGE_BUILD_FORGE_TOKEN_FILE could not be read`,
+        );
+    }
+    const token = value.replace(/\r?\n$/, "");
+    if (!token || /[^\x21-\x7e]/.test(token)) {
+        throw new Error(
+            `${rel.id}: PACKAGE_BUILD_FORGE_TOKEN_FILE must contain one non-empty token`,
+        );
+    }
+    return token;
+}
+
 /**
  * Read a dependency's manifest.
- *
  * @param {string} url - The manifest URL.
+ * @param {string|undefined} token - The mirror credential.
+ * @param {object} rel - The dependency relationship being fetched.
  * @returns {Promise<object>} The parsed manifest.
  */
-async function fetchManifest(url) {
-    const bytes = await fetchBytes(url, `could not read the manifest at ${url}`);
-    return JSON.parse(new TextDecoder().decode(bytes));
+async function fetchManifest(url, token, rel) {
+    const bytes = await fetchBytes(
+        url,
+        `${rel.id}: could not read the manifest at ${url}`,
+        token,
+        !!rel.buildManifest,
+    );
+    let manifest;
+    try {
+        manifest = JSON.parse(new TextDecoder().decode(bytes));
+    } catch (cause) {
+        if (token)
+            throw new Error(`${rel.id}: could not read the manifest at ${url}: invalid JSON`);
+        throw cause;
+    }
+    if (token) {
+        const pending = [manifest];
+        while (pending.length) {
+            const value = pending.pop();
+            if (typeof value === "string" && value.includes(token)) {
+                throw new Error(
+                    `${rel.id}: could not read the manifest at ${url}: credential in response`,
+                );
+            }
+            if (value && typeof value === "object") {
+                for (const [key, entry] of Object.entries(value)) pending.push(key, entry);
+            }
+        }
+    }
+    return manifest;
 }
 
 const DOWNLOAD_ATTEMPTS = 5;
 const DOWNLOAD_DELAY_MS = 1000;
 const DOWNLOAD_JITTER_MS = 250;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
+const MAX_MIRROR_REDIRECTS = 10;
+
+class MirrorRedirectError extends Error {}
 
 /**
  * Read a complete response, retrying transient failures with bounded delays.
- *
  * @param {string} url - The resource URL.
  * @param {string} context - The failure description.
+ * @param {string|undefined} [token] - The mirror credential.
+ * @param {boolean} [mirror] - Whether the resource is served by a build mirror.
  * @returns {Promise<Uint8Array>} The complete response body.
  */
-async function fetchBytes(url, context) {
+async function fetchBytes(url, context, token, mirror = false) {
     for (let attempt = 0; ; attempt++) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
         let response;
         try {
-            response = await fetch(url, { redirect: "follow", signal: controller.signal });
+            let current = url;
+            for (let redirects = 0; ; redirects++) {
+                response = undefined;
+                response = await fetch(
+                    current,
+                    token ?
+                        {
+                            redirect: "manual",
+                            signal: controller.signal,
+                            headers: { Authorization: `token ${token}` },
+                        }
+                    :   { redirect: "follow", signal: controller.signal },
+                );
+                if (!token || ![301, 302, 303, 307, 308].includes(response.status)) break;
+                const location = response.headers.get("location");
+                await response.body?.cancel().catch(() => {});
+                let next;
+                try {
+                    next = location && new URL(location, current);
+                } catch {
+                    next = null;
+                }
+                if (
+                    !next ||
+                    next.origin !== new URL(url).origin ||
+                    next.username ||
+                    next.password ||
+                    redirects >= MAX_MIRROR_REDIRECTS
+                ) {
+                    throw new MirrorRedirectError(`${context}: mirror redirect refused`);
+                }
+                current = next.href;
+            }
             if (response.ok) return new Uint8Array(await response.arrayBuffer());
         } catch (cause) {
+            if (cause instanceof MirrorRedirectError) throw cause;
             if (attempt === DOWNLOAD_ATTEMPTS - 1) {
+                if (token) throw new Error(`${context}: request failed`);
                 const message = cause instanceof Error ? cause.message : String(cause);
                 throw new Error(`${context}: ${message}`, { cause });
             }
@@ -273,16 +369,21 @@ async function fetchBytes(url, context) {
             clearTimeout(timeout);
         }
         if (response && !response.ok) {
-            // Release the response connection before retrying.
             await response.body?.cancel().catch(() => {});
-            const error = new Error(`${context}: HTTP ${response.status} ${response.statusText}`);
+            const error = new Error(
+                `${context}: HTTP ${response.status}${mirror ? "" : ` ${response.statusText}`}` +
+                    (mirror && !token && response.status === 404 ?
+                        "; a private mirror may require PACKAGE_BUILD_FORGE_TOKEN_FILE"
+                    : mirror && [401, 403].includes(response.status) ?
+                        "; set or check PACKAGE_BUILD_FORGE_TOKEN_FILE for this dependency"
+                    :   ""),
+            );
             if (
                 response.status < 500 ||
                 response.status >= 600 ||
                 attempt === DOWNLOAD_ATTEMPTS - 1
-            ) {
+            )
                 throw error;
-            }
         }
         const delay =
             DOWNLOAD_DELAY_MS * 2 ** attempt + Math.floor(Math.random() * DOWNLOAD_JITTER_MS);
@@ -368,10 +469,17 @@ async function extractItemPacks(id, version, manifest, root, dir) {
  *
  * @param {string} url - The archive URL, from the manifest's `download`.
  * @param {string} dest - Where to write the archive's contents.
+ * @param {string|undefined} token - The mirror credential.
+ * @param {object} rel - The dependency relationship being fetched.
  * @returns {Promise<void>}
  */
-async function downloadAndUnzip(url, dest) {
-    const bytes = await fetchBytes(url, `could not download ${url}`);
+async function downloadAndUnzip(url, dest, token, rel) {
+    const bytes = await fetchBytes(
+        url,
+        `${rel.id}: could not download ${url}`,
+        token,
+        !!rel.buildManifest,
+    );
     writeZipEntries(unzipSync(bytes), dest);
 }
 
@@ -407,24 +515,56 @@ export function pinnedManifestUrl(url, verified) {
 }
 
 /**
+ * Resolve a release asset against the declared build mirror.
+ *
+ * @param {string} asset - The asset advertised by the published manifest.
+ * @param {string} manifest - The pinned published manifest URL.
+ * @param {string|undefined} mirror - The pinned build manifest URL.
+ * @returns {string} The URL to fetch.
+ */
+export function mirroredAssetUrl(asset, manifest, mirror) {
+    if (!mirror) return asset;
+    const original = new URL(manifest);
+    const target = new URL(asset);
+    const copy = new URL(mirror);
+    const dir = original.pathname.slice(0, original.pathname.lastIndexOf("/") + 1);
+    const name = target.pathname.slice(dir.length);
+    if (
+        target.origin !== original.origin ||
+        !target.pathname.startsWith(dir) ||
+        !name ||
+        name.includes("/") ||
+        /%|\\/.test(name) ||
+        target.search ||
+        target.hash ||
+        target.username ||
+        target.password
+    ) {
+        throw new Error(`asset ${asset} is not beside its manifest ${manifest}`);
+    }
+    copy.pathname = copy.pathname.slice(0, copy.pathname.lastIndexOf("/") + 1) + name;
+    return copy.href;
+}
+
+/**
  * Resolve a dependency's manifest, pinned to `compatibility.verified`.
  *
- * @param {{id: string, manifest: string, verified?: string}} rel - The
+ * @param {{id: string, manifest: string, buildManifest?: string, verified?: string}} rel - The
  *   declared relationship.
  * @returns {Promise<{manifest: object, version: string}>} The manifest and
  *   its resolved version.
  */
 async function resolveManifest(rel) {
     const { url, pinned } = pinnedManifestUrl(rel.manifest, rel.verified);
-    const manifest = await fetchManifest(url);
+    const manifest = await fetchManifest(rel.buildManifest ?? url, mirrorToken(rel), rel);
     const version = manifest.version;
     if (!version) {
         throw new Error(`${rel.id}: its manifest declares no \`version\``);
     }
-    if (!pinned && rel.verified && version !== rel.verified) {
+    if ((!pinned || rel.buildManifest) && rel.verified && version !== rel.verified) {
         throw new Error(
             `${rel.id}: declares \`compatibility.verified: ${rel.verified}\` but ` +
-                `${url} offers ${version}. Building against a moving target is ` +
+                `${rel.buildManifest ?? url} offers ${version}. Building against a moving target is ` +
                 `not reproducible — update \`verified\`, or point \`manifest\` ` +
                 `at a pinned release.`,
         );
@@ -444,7 +584,7 @@ async function resolveManifest(rel) {
  * Idempotent: a complete cache for the resolved version is left alone.
  *
  * @param {object} config - The resolved build configuration.
- * @param {{id: string, manifest: string}} rel - The declared relationship.
+ * @param {{id: string, manifest: string, buildManifest?: string, verified?: string}} rel - The declared relationship.
  * @returns {Promise<string>} The dependency's cache directory.
  */
 export async function fetchCatalog(config, rel) {
@@ -455,7 +595,13 @@ export async function fetchCatalog(config, rel) {
         return dir;
     }
 
-    const download = manifest.download;
+    const download =
+        manifest.download &&
+        mirroredAssetUrl(
+            manifest.download,
+            pinnedManifestUrl(rel.manifest, rel.verified).url,
+            rel.buildManifest,
+        );
     if (!download) {
         throw new Error(`${rel.id}@${version}: its manifest declares no \`download\``);
     }
@@ -467,7 +613,7 @@ export async function fetchCatalog(config, rel) {
     fs.mkdirSync(raw, { recursive: true });
 
     log.info(`${rel.id}@${version}: downloading ${download}`);
-    await downloadAndUnzip(download, raw);
+    await downloadAndUnzip(download, raw, mirrorToken(rel), rel);
 
     await extractItemPacks(rel.id, version, manifest, raw, dir);
     cacheSchemaArtifact(raw, dir);
@@ -575,10 +721,8 @@ export async function fetchCatalogFromPath(config, rel, source) {
 /**
  * Fetch one dependency's published content index.
  *
- * **The chain is entirely declared.** The relationship names the dependency's
- * manifest, the manifest advertises `flags.metadataUrl`, and that URL is the
- * index — so nothing here holds an address of its own, and a dependency that
- * moves its release assets does not break its consumers.
+ * The relationship names the dependency's manifest, which advertises
+ * `flags.metadataUrl`. A build mirror supplies the same release assets.
  *
  * Pinned by the same rule as the catalogue: `compatibility.verified` is the
  * version this repository was built against, so a floating `releases/latest`
@@ -588,7 +732,7 @@ export async function fetchCatalogFromPath(config, rel, source) {
  * Idempotent: a complete cache for the resolved version is left alone.
  *
  * @param {object} config - The resolved build configuration.
- * @param {{id: string, manifest: string, verified?: string}} rel - The declared
+ * @param {{id: string, manifest: string, buildManifest?: string, verified?: string}} rel - The declared
  *   relationship.
  * @returns {Promise<string>} The cached index file.
  */
@@ -608,22 +752,23 @@ export async function fetchMetadata(config, rel) {
  */
 async function fetchMetadataWithManifest(config, rel) {
     const { url, pinned } = pinnedManifestUrl(rel.manifest, rel.verified);
-    const manifest = await fetchManifest(url);
+    const manifest = await fetchManifest(rel.buildManifest ?? url, mirrorToken(rel), rel);
     const version = manifest.version;
     if (!version) {
         throw new Error(`${rel.id}: its manifest declares no \`version\``);
     }
-    if (!pinned && rel.verified && version !== rel.verified) {
+    if ((!pinned || rel.buildManifest) && rel.verified && version !== rel.verified) {
         throw new Error(
             `${rel.id}: declares \`compatibility.verified: ${rel.verified}\` but ` +
-                `${url} offers ${version}. Building against a moving target is ` +
+                `${rel.buildManifest ?? url} offers ${version}. Building against a moving target is ` +
                 `not reproducible — update \`verified\`, or point \`manifest\` ` +
                 `at a pinned release.`,
         );
     }
 
     const dir = metadataCacheDir(config, rel.id, version);
-    const indexUrl = manifest.flags?.metadataUrl;
+    const advertisedIndex = manifest.flags?.metadataUrl;
+    const indexUrl = advertisedIndex && mirroredAssetUrl(advertisedIndex, url, rel.buildManifest);
     if (!indexUrl) {
         throw new Error(
             `${rel.id}@${version}: its manifest advertises no ` +
@@ -644,15 +789,14 @@ async function fetchMetadataWithManifest(config, rel) {
     fs.mkdirSync(dir, { recursive: true });
 
     log.info(`${rel.id}@${version}: downloading ${indexUrl}`);
-    const res = await fetch(indexUrl, { redirect: "follow" });
-    if (!res.ok) {
-        throw new Error(
-            `${rel.id}@${version}: could not download its content index at ` +
-                `${indexUrl}: HTTP ${res.status} ${res.statusText}`,
-        );
-    }
+    const bytes = await fetchBytes(
+        indexUrl,
+        `${rel.id}@${version}: could not download its content index at ${indexUrl}`,
+        mirrorToken(rel),
+        !!rel.buildManifest,
+    );
     const file = path.join(dir, path.basename(new URL(indexUrl).pathname));
-    fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+    fs.writeFileSync(file, bytes);
     markMetadataComplete(dir);
     return { file, manifest };
 }

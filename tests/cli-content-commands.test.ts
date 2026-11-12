@@ -84,6 +84,10 @@ function run(...args: string[]): string {
 }
 
 describe("a content command reaches the content", () => {
+    it("documents the mirror token file in dependency help", () => {
+        expect(run("deps", "--help")).toContain("PACKAGE_BUILD_FORGE_TOKEN_FILE");
+    });
+
     it(
         "analyzes one note with positioned, optional prose suggestions",
         () => {

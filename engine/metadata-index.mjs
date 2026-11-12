@@ -53,7 +53,7 @@ import { formatDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
 import { metadataFileName, PACKAGEBUILD_PACKAGE } from "./packages.mjs";
 import { packageBuildRecords } from "./packagebuild-index.mjs";
 import { isPackageRecord } from "./index-records.mjs";
-import { systemPackages } from "./item-entries.mjs";
+import { ITEM_NOTE_TYPES, systemPackages } from "./item-entries.mjs";
 
 export { metadataFileName };
 import {
@@ -117,9 +117,10 @@ export const METADATA_RELATIONSHIP_KINDS = Object.freeze(["systems", "requires"]
  * there is no new configuration key to keep in step. Each entry carries the
  * producer's own `manifest` URL, so the fetcher needs no address of its own:
  * it reads that manifest and takes the `flags.metadataUrl` it advertises.
+ * A build mirror can provide those same release assets.
  *
  * @param {object} config - The resolved build configuration.
- * @returns {Array<{id: string, manifest: string, kind: string,
+ * @returns {Array<{id: string, manifest: string, buildManifest: string|undefined, kind: string,
  *   verified: string|undefined}>} The dependencies, in declaration order.
  */
 export function metadataRelationships(config) {
@@ -140,6 +141,7 @@ export function metadataRelationships(config) {
             out.push({
                 id: rel.id,
                 manifest: rel.manifest,
+                buildManifest: rel.buildManifest,
                 kind,
                 verified: rel.compatibility?.verified,
             });
@@ -519,8 +521,20 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // place or affiliation inherits from a parent here without
                 // walking that parent's own chain.
                 culture: record.data?.culture ?? undefined,
-                ...(parts.type === "lore" && record.subType === "culture" ?
-                    { data: { appearanceProfile: record.data?.appearanceProfile } }
+                ...(Array.isArray(record.authoredItems) ?
+                    { authoredItems: record.authoredItems }
+                :   {}),
+                ...(ITEM_NOTE_TYPES.includes(parts.type) ?
+                    { data: record.data, sohl: record.sohl, hm3: record.hm3, itemRecord: record }
+                : parts.type === "lore" && record.subType === "culture" ?
+                    {
+                        data: {
+                            appearanceProfile: record.data?.appearanceProfile,
+                            items: record.data?.items,
+                        },
+                    }
+                : parts.type === "being" && record.data?.items ?
+                    { data: { items: record.data.items } }
                 :   {}),
                 ...(parts.type === "skill" && record.subType === "language" ?
                     {
