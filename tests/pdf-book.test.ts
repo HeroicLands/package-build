@@ -280,7 +280,7 @@ it(
             fs.rmSync(dir, { recursive: true, force: true });
         }
     },
-    SUBPROCESS_TEST_TIMEOUT,
+    subprocessTimeout(4),
 );
 
 it.skipIf(!HAS_TYPST)(
