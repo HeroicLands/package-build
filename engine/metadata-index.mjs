@@ -450,7 +450,10 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 },
             );
             let key = encodeAddresses(record?.address?.canonical);
-            if (!key) continue;
+            if (!key) {
+                if (record.address === null) referenceRecords.push(record);
+                continue;
+            }
             let parts = readCanonicalKey(key);
             if (!parts) continue;
             if (
