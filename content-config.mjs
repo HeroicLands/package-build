@@ -65,6 +65,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
+import { normalizeSettlementPopulation } from "./engine/settlement-population.mjs";
 import { normalizeCurrentDate } from "./engine/current-date.mjs";
 
 // Leaves with no local imports of their own, so naming them here cannot close
@@ -2804,6 +2805,7 @@ function normalizePackageBuild(value) {
     }
     // Read by the asset reference pass as well as by the packaging commands, so
     // a malformed list is refused wherever the configuration loads.
+    normalizeSettlementPopulation(value.settlementPopulation, fail);
     const problem = shippingLicensesProblem(value.shippingLicenses);
     if (problem) fail("packageBuild.shippingLicenses", problem);
     return /** @type {Readonly<PackageBuildSection>} */ (deepFreeze(structuredClone(value)));

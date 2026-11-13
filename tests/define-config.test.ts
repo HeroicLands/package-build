@@ -790,3 +790,22 @@ describe("site.description", () => {
         ).toThrow(/site\.description.*descriptionHtml/);
     });
 });
+
+describe("settlement population configuration", () => {
+    it("validates the reserved policy during content configuration loading", () => {
+        for (const settlementPopulation of [
+            null,
+            { mode: "complete", urbanShare: 0.1 },
+            { urbanShare: 2 },
+            { extra: true },
+        ])
+            expect(() =>
+                defineConfig({ ...minimal(), packageBuild: { settlementPopulation } }),
+            ).toThrow(/settlementPopulation/);
+        const config = defineConfig({
+            ...minimal(),
+            packageBuild: { settlementPopulation: { urbanShare: 0.2 } },
+        });
+        expect(Object.isFrozen(config.packageBuild.settlementPopulation)).toBe(true);
+    });
+});

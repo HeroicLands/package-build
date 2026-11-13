@@ -2299,7 +2299,7 @@ dependencies; exact Item UUID validation remains part of compilation. Reads
 the content tree named by `root`, defaulting to
 `paths.content`; writes nothing.
 
-Lint reports the number of notes with suppressed settlement violations. Each configured
+Lint and publication apply the configured [settlement population policy](configuration.md#settlement-population). Lint reports the number of notes with suppressed settlement violations. Each configured
 settlement exemption that matches no eligible violation is an error. Publication applies
 the selectors without reporting stale entries.
 

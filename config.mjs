@@ -57,6 +57,7 @@
  */
 
 import path from "node:path";
+import { normalizeSettlementPopulation } from "./engine/settlement-population.mjs";
 import { shippingLicensesProblem } from "./engine/asset-types.mjs";
 import { fileURLToPath } from "node:url";
 import { loadPackConfig, locateConfigError, packConfigPath } from "./engine/pack-config.mjs";
@@ -82,6 +83,7 @@ const SECTION_KEYS = [
     "proseLint",
     "proseScore",
     "settlementExemptions",
+    "settlementPopulation",
 ];
 
 /**
@@ -608,6 +610,7 @@ export function normalizeSettlementExemptions(value) {
  * The resolved `packageBuild` section, every optional half filled in.
  *
  * @typedef {object} PackageBuildConfig
+ * @property {{readonly mode: "ceiling"|"complete", readonly urbanShare?: number}} settlementPopulation Settlement population policy.
  * @property {readonly {address?: string, prefix?: string, reason: string}[]} settlementExemptions Settlement-rule exceptions.
  * @property {string} rootDir        The repository root, from package-build.
  * @property {{age: number, threshold: number, minWords: number, rules: string}} proseLint Optional prose lint settings.
@@ -1048,6 +1051,7 @@ export function resolvePackageBuildConfig(shared) {
                     requireNonEmptyString(langInput.references, "packageBuild.lang.references"),
                 ),
         settlementExemptions: normalizeSettlementExemptions(section.settlementExemptions),
+        settlementPopulation: normalizeSettlementPopulation(section.settlementPopulation, fail),
         langRetained: normalizeExceptions(
             langInput.retained,
             "prefix",
