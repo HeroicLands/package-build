@@ -63,8 +63,8 @@ import v8 from "node:v8";
 import { AddressEntries, AddressLink } from "./address-values.mjs";
 import { isAddressTuple, readCanonicalKey, renderAddress } from "./address.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
-import { readArtLock, loadPinnedArt } from "./art-lock.mjs";
-import { collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
+import { readArtLock, loadPinnedArt, privateArtRoots } from "./art-lock.mjs";
+import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
 import { formatDiagnostic } from "./diagnostics.mjs";
 import { walkMarkdownFiles, parseMarkdownFile } from "./helpers.mjs";
 import { cachedMetadataFiles, loadForeignIndexes } from "./metadata-index.mjs";
@@ -944,6 +944,7 @@ function readForeign(config, loadForeign) {
  */
 async function readTree(config, { cache, toolchain, loadForeign, prepareTables }) {
     readArtLock(config);
+    assertPrivateArtRoots(privateArtRoots(config), [config.paths.assets], { role: "input" });
     const { indexRecordsFor } = await import("./content-index.mjs");
     const prepareTreeSqlTables =
         prepareTables ?? (await import("./sql-tables.mjs")).prepareTreeSqlTables;

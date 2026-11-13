@@ -6,6 +6,9 @@ import crypto from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { subprocessTimeout } from "./subprocess-timeout.js";
 import { zipSync } from "fflate";
+import { configFromData } from "../engine/pack-config.mjs";
+import { indexRecordsFor } from "../engine/content-index.mjs";
+import { noteTree } from "../engine/note-cache.mjs";
 import { writeSvgProvenance, writeDerivativeProvenance } from "../engine/art-provenance.mjs";
 import {
     readArtLock,
@@ -143,6 +146,96 @@ describe("pinned artwork", () => {
         await expect(
             fetchPublicArt(f.config, { from: f.from, records: f.records }),
         ).rejects.toThrow(/archive/);
+    });
+    it.each([false, true])(
+        "refuses private source assets through index and note cache (alias: %s)",
+        async (alias) => {
+            const f = fixture();
+            fs.writeFileSync(
+                path.join(f.root, "package.json"),
+                JSON.stringify({ name: "sample", version: "1.0.0" }),
+            );
+            const source = path.join(f.root, "build/.cache/art-sources/pin/repository");
+            fs.mkdirSync(source, { recursive: true });
+            const assets = alias ? path.join(f.root, "alias") : source;
+            if (alias) fs.symlinkSync(source, assets);
+            const config = configFromData(
+                {
+                    contentPackage: "sample",
+                    packageKind: "modules",
+                    stats: { lastModifiedBy: "samplebuilder000" },
+                    compatibility: { minimum: "14", verified: "14" },
+                    packs: [],
+                    art: { masterRoots: [], componentRoots: [] },
+                    paths: { assets: path.relative(f.root, assets) },
+                },
+                path.join(f.root, "package-build.config.yaml"),
+            );
+            for (const pinnedArt of [false, true]) {
+                for (const masterRecords of [undefined, []]) {
+                    expect(() => indexRecordsFor({ config, pinnedArt, masterRecords })).toThrow(
+                        /private master root.*overlaps input/,
+                    );
+                    expect(() =>
+                        indexRecordsFor({ config, assetsBase: assets, pinnedArt, masterRecords }),
+                    ).toThrow(/private master root.*overlaps input/);
+                }
+            }
+            for (const cache of [false, true])
+                await expect(noteTree(config, { cache })).rejects.toThrow(
+                    /private master root.*overlaps input/,
+                );
+        },
+    );
+    it("rejects a footer hidden in the archive comment before allocating its entry", async () => {
+        const f = fixture();
+        const cd = f.zip.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+        const end = f.zip.length - 22;
+        const directory = Buffer.from(f.zip.subarray(cd, end));
+        directory.writeUInt32LE(300 * 1024 * 1024, 24);
+        const footer = Buffer.from(f.zip.subarray(end));
+        footer.writeUInt32LE(f.zip.length, 16);
+        const comment = Buffer.concat([directory, footer, Buffer.from([0])]);
+        f.zip.writeUInt16LE(comment.length, end + 20);
+        const crafted = Buffer.concat([f.zip, comment]);
+        fs.writeFileSync(f.from, crafted);
+        f.lock.rendered.sha256 = hash(crafted);
+        fs.writeFileSync(path.join(f.root, "art.lock"), JSON.stringify(f.lock));
+        const script = `
+            let oversized = false;
+            const Native = globalThis.Uint8Array;
+            globalThis.Uint8Array = class extends Native {
+                constructor(...args) {
+                    if (typeof args[0] === "number" && args[0] > 16 * 1024 * 1024)
+                        { oversized = true; throw new Error("allocation guard"); }
+                    super(...args);
+                }
+            };
+            const { fetchPublicArt } = await import(${JSON.stringify(new URL("../engine/art-lock.mjs", import.meta.url).href)});
+            try {
+                await fetchPublicArt(${JSON.stringify(f.config)}, { from: ${JSON.stringify(f.from)}, records: ${JSON.stringify(f.records)} });
+                process.exit(2);
+            } catch (error) {
+                if (oversized || !error.message.includes("malformed public artwork archive")) process.exit(3);
+            }
+        `;
+        const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+            encoding: "utf8",
+        });
+        expect(result.status, result.stderr).toBe(0);
+    });
+    it("rejects a ZIP64 locator before decompression", async () => {
+        const f = fixture();
+        const end = f.zip.length - 22;
+        const locator = Buffer.alloc(20);
+        locator.writeUInt32LE(0x07064b50);
+        const crafted = Buffer.concat([f.zip.subarray(0, end), locator, f.zip.subarray(end)]);
+        fs.writeFileSync(f.from, crafted);
+        f.lock.rendered.sha256 = hash(crafted);
+        fs.writeFileSync(path.join(f.root, "art.lock"), JSON.stringify(f.lock));
+        await expect(
+            fetchPublicArt(f.config, { from: f.from, records: f.records }),
+        ).rejects.toThrow(/malformed public artwork archive/);
     });
     it("rejects duplicate embedded addresses and private output symlinks", async () => {
         const f = fixture();
