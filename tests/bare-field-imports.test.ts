@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import { execFileSync } from "node:child_process";
 import { expect, it } from "vitest";
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 
 it.each(["culture-choice", "item-entries", "culture-terms", "item-terms"])(
     "imports %s independently without package configuration",
@@ -16,7 +17,7 @@ it.each(["culture-choice", "item-entries", "culture-terms", "item-terms"])(
                     "-e",
                     `await import("@heroiclands/package-build/engine/${name}")`,
                 ],
-                { cwd: process.cwd(), env, stdio: "pipe" },
+                { cwd: process.cwd(), env, stdio: "pipe", timeout: SUBPROCESS_TEST_TIMEOUT },
             ),
         ).not.toThrow();
     },

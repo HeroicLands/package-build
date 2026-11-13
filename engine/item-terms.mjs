@@ -186,7 +186,8 @@ export const ITEM_NOTE_FIELDS = Object.freeze([
 /**
  * The `data.items` field declaration, shared by the types that list items.
  *
- * @type {Readonly<object>}
+ * @param {typeof import("./item-entries.mjs").checkItems} checkItems
+ * @returns {Readonly<{name: string, kind: string, shape: string, entries: typeof ITEM_ENTRY, check: typeof checkItems, describe: string}>} The items field declaration.
  */
 export function itemsField(checkItems) {
     return Object.freeze({

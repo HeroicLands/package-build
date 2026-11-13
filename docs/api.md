@@ -713,8 +713,9 @@ The exact-day conversion functions use the corpus reckoning context. `dateFromCa
 ### `engine.cultureChoice`
 
 `data.culture` names the people a note belongs to, as a lore note with
-`subType: culture`. `CULTURE_FIELD` is its one declaration, spread into the
-`being`, `place`, `affiliation`, `lore` and `doc` vocabularies.
+`subType: culture`. `CULTURE_FIELD` is a frozen declaration created by
+`cultureField` and spread into the `being`, `place`, `affiliation`, `lore` and
+`doc` vocabularies.
 `checkCultureChoice(note, { index })` checks that the Address resolves to a
 culture note. `checkCultureSubType(note, { index })` scopes the field by
 subtype: a `doc` of `subType: settingguide` must state it, any other `doc`
@@ -731,6 +732,18 @@ resolved value: the culture a place or affiliation inherits through
 | `checkCultureChoice`  | `checkCultureChoice(note, options)`    | findings  | validating that a note's culture names a culture note                                       |
 | `checkCultureSubType` | `checkCultureSubType(note, options)`   | findings  | requiring or refusing `data.culture` by the note's subtype                                  |
 | `cultureNamesItself`  | `cultureNamesItself(fm, value, index)` | `boolean` | asking whether a `data.culture` value is the note's own Address, compared in canonical form |
+
+### `engine/culture-terms`
+
+This subpath exports `cultureField(checkCultureChoice)`, which creates a frozen
+`data.culture` field declaration using the supplied check function.
+
+### `engine/item-terms`
+
+This subpath exports the frozen `ITEM_KINDS` and `ITEM_NOTE_TYPES` lists,
+`ITEM_ENTRY` declaration and `ITEM_NOTE_FIELDS` list. The
+`itemsField(checkItems)` factory creates a frozen `data.items` field declaration
+using `ITEM_ENTRY` and the supplied check function.
 
 ### `engine.markdownExpressions`
 

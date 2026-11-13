@@ -16,7 +16,8 @@
  * it. A type gives its own `describe` where the field means something narrower
  * there.
  *
- * @type {Readonly<object>}
+ * @param {typeof import("./culture-choice.mjs").checkCultureChoice} checkCultureChoice
+ * @returns {Readonly<{name: string, shape: string, kind: string, ref: string, accepts: readonly string[], check: typeof checkCultureChoice, describe: string}>} The culture field declaration.
  */
 export function cultureField(checkCultureChoice) {
     return Object.freeze({
