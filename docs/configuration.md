@@ -704,7 +704,7 @@ Overlapping configured entries name both indexes and resolved paths:
 
 A link inside a master root is reported at the link:
 
-> `<file>:1:1: error: symbolic links are not supported inside private master roots`
+> `<file>: error: symbolic links are not supported inside private master roots`
 
 An overlap with an input or output names the role and both paths:
 
