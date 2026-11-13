@@ -43,6 +43,7 @@ describe("composition declaration detection", () => {
     it.each([
         "a centered study",
         "a centered composition study",
+        `<root dc:x="a hl:composition='{}'"/>`,
         "<rdf:Description><dc:description>a centered composition study</dc:description></rdf:Description>",
         '<root note="a composition study"/>',
         "<root><!-- <hl:composition> --></root>",
@@ -55,7 +56,35 @@ describe("composition declaration detection", () => {
         expect(readXmpRecord(packet)).not.toHaveProperty("composition");
     });
 
+    it.each(["a < b composition study", "a < b study"])("accepts less-than prose: %s", (packet) => {
+        expect(readXmpRecord(packet)).toEqual({});
+    });
+
+    it("reads a recipe alongside a prose title", () => {
+        const packet = `<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:hl="https://heroiclands.org/ns/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>a composition study</dc:title><hl:composition>{"layers":[{"address":"sample-none-image-source"}]}</hl:composition></rdf:Description>`;
+        expect(readXmpRecord(packet)).toEqual({
+            title: "a composition study",
+            composition: { layers: [{ address: "sample-none-image-source" }] },
+        });
+    });
+
     it.each([
+        [
+            `<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:hl="https://heroiclands.org/ns/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" dc:x="a"hl:composition='{}'/>`,
+            "composition: malformed XMP",
+        ],
+        [
+            `<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:other="urn:other" xmlns:dc="http://purl.org/dc/elements/1.1/" dc:x="a"other:composition='{}'/>`,
+            "composition: malformed XMP",
+        ],
+    ])("refuses adjacent composition attributes", (packet, message) => {
+        expect(() => readXmpRecord(packet)).toThrow(message);
+    });
+
+    it.each([
+        "< hl:composition>{}</hl:composition>",
+        "< composition>{}</composition>",
+        "<hl:composition",
         "<root><hl:composition>",
         '<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:hl="https://heroiclands.org/ns/1.0/"\n<hl:composition>{"layers":[{"address":"sample-none-image-source"}]}</hl:composition></rdf:Description>',
         '<root hl:composition="{}"',

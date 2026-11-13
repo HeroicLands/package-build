@@ -811,12 +811,12 @@ function readProperty(xml, name) {
     return attribute ? unescapeXml(attribute[1] ?? attribute[2]) : undefined;
 }
 
-/** Read the single JSON composition property from its declared namespace. */
+/** Read a declared composition with strict XML and property validation. */
 function readComposition(packet) {
     const markup =
         /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)|<(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^<>"'])*(?:>|(?=<)|$)/gu;
     const declaration =
-        /^<\s*(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)|\s(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)/u;
+        /^<\s*(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)|^<[^\s<=>/][\s\S]*?[\s"'](?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)/u;
     if (
         ![...packet.matchAll(markup)].some((match) => {
             const tag = match[0];
@@ -877,7 +877,9 @@ function readComposition(packet) {
 }
 
 /**
- * Read the record stored in an XMP packet.
+ * Read the record stored in an XMP packet. Composition parsing imposes XML
+ * validity only when a composition declaration is present, then checks its
+ * namespace, structure, and recipe.
  *
  * @param {string} packet - The XMP text.
  * @returns {ProvenanceRecord} The fields the packet holds; fields it lacks are
