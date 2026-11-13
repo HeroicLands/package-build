@@ -56,7 +56,13 @@ describe("composition declaration detection", () => {
         expect(readXmpRecord(packet)).not.toHaveProperty("composition");
     });
 
-    it.each(["a < b composition study", "a < b study"])("accepts less-than prose: %s", (packet) => {
+    it.each([
+        "a < b composition study",
+        "a < b study",
+        "x <3 composition y",
+        "if a<b then composition c>d",
+        "a <b composition=3",
+    ])("accepts less-than prose: %s", (packet) => {
         expect(readXmpRecord(packet)).toEqual({});
     });
 
@@ -86,6 +92,7 @@ describe("composition declaration detection", () => {
         `< root xmlns:other="urn:other" other:composition="{}"/>`,
         `</root hl:composition="{}">`,
         `< /root other:composition="{}">`,
+        `<root composition="{}"`,
         "< hl:composition>{}</hl:composition>",
         "< composition>{}</composition>",
         "<hl:composition",
@@ -93,10 +100,24 @@ describe("composition declaration detection", () => {
         '<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:hl="https://heroiclands.org/ns/1.0/"\n<hl:composition>{"layers":[{"address":"sample-none-image-source"}]}</hl:composition></rdf:Description>',
         '<root hl:composition="{}"',
         "<root hl:composition/>",
+    ])("refuses malformed declarations: %s", (packet) => {
+        expect(() => readXmpRecord(packet)).toThrow("composition: malformed XMP");
+    });
+
+    it.each([
         '<root xmlns:other="urn:other"><other:composition>{}</other:composition></root>',
         '<root xmlns:other="urn:other" other:composition="{}"/>',
-    ])("refuses malformed declarations: %s", (packet) => {
-        expect(() => readXmpRecord(packet)).toThrow(/composition/);
+        '<é composition="{}"/>',
+        '<〇 composition="{}"/>',
+        '<\u200c composition="{}"/>',
+        '<\u2070 composition="{}"/>',
+        '<\u2c00 composition="{}"/>',
+        '<\u{10000} composition="{}"/>',
+        '<root composition="{}"/>',
+    ])("refuses declarations in the wrong namespace: %s", (packet) => {
+        expect(() => readXmpRecord(packet)).toThrow(
+            "composition: property has the wrong namespace",
+        );
     });
 });
 
