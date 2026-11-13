@@ -35,6 +35,9 @@ import {
     writeWebpProvenance,
 } from "../engine/art-provenance.mjs";
 
+import { buildPrimaryNoteIndex } from "../engine/art-primary-note.mjs";
+import { renderPdfMaster } from "../engine/pdf-images.mjs";
+
 const PROMPT = `A "drake" of the deep, café-lit — naïve & <wild>, 'quoted'\r\nsecond line\ttabbed 日本語 🐉`;
 const GENERATOR = JSON.stringify({
     service: "replicate.com",
@@ -1763,5 +1766,121 @@ describe("deriveRecord", () => {
             ]),
         ).toEqual([]);
         expect(() => writeDerivativeProvenance(png, MASTER)).toThrow(/master/);
+    });
+});
+
+describe("generated derivative authorities", () => {
+    const address = "sample-none-image-subject";
+    const primaryNote = "sample-note-being-subject";
+    const record = { address, creator: "Artist", rights: "Terms", primaryNote };
+    const indexFor = (name = "Current name", tags: string[] = [], note = primaryNote) =>
+        buildPrimaryNoteIndex([
+            {
+                type: "being",
+                address: { canonical: note },
+                name: { full: name },
+                namedImages: [address],
+                tags,
+            },
+        ]);
+    async function pair(format: string, masterFields = {}, publicFields = {}) {
+        const canonical = { ...record, ...masterFields };
+        const master = { file: "master.png", bytes: writeProvenance(png, canonical).bytes };
+        const rendered = { ...canonical, derivedFrom: address, ...publicFields };
+        const bytes =
+            format === "jpeg" ?
+                await renderPdfMaster(
+                    master.bytes,
+                    rendered,
+                    [{ width: 1, height: 1 }],
+                    "screen",
+                    true,
+                )
+            :   writeDerivativeProvenance(
+                    format === "webp" ? await sharp(png).webp().toBuffer() : "<svg/>",
+                    rendered,
+                    {
+                        repeat: ["derivedFrom", "name", "primaryNote"],
+                        notePublic: true,
+                    },
+                ).bytes;
+        return [master, { file: `derived.${format}`, bytes }];
+    }
+    for (const format of ["webp", "svg", "jpeg"]) {
+        it(`${format} validates its parent trace against the master address`, async () => {
+            const entries = await pair(format);
+            expect(checkProvenance(entries)).toEqual([]);
+        });
+        it(`${format} validates indexed names while retaining canonical audit findings`, async () => {
+            for (const name of [undefined, "Old name", "Current name"]) {
+                const entries = await pair(format, { name }, { name: "Current name" });
+                const findings = checkProvenance(entries, { index: indexFor() });
+                expect(findings.filter((f) => f.file.startsWith("derived."))).toEqual([]);
+                expect(findings.filter((f) => f.file === "master.png")).toHaveLength(
+                    name === "Old name" ? 1 : 0,
+                );
+            }
+        });
+        it(`${format} validates independently optional indexed note fields`, async () => {
+            for (const fields of [
+                { name: "Current name", primaryNote: undefined },
+                { primaryNote, name: undefined },
+            ]) {
+                const entries = await pair(format, { name: "Old name" }, fields);
+                expect(
+                    checkProvenance(entries, { index: indexFor() }).filter((f) =>
+                        f.file.startsWith("derived."),
+                    ),
+                ).toEqual([]);
+            }
+        });
+        it(`${format} requires an index for a generated note override`, async () => {
+            const entries = await pair(format, { name: "Old name" }, { name: "Current name" });
+            expect(
+                checkProvenance(entries)
+                    .filter((f) => f.file.startsWith("derived."))
+                    .map((f) => f.message),
+            ).toContainEqual(expect.stringMatching(/hl:name.*index/));
+        });
+        it(`${format} refuses private, missing and differing indexed note values`, async () => {
+            const entries = await pair(format, { name: "Current name" });
+            for (const index of [
+                indexFor("Current name", ["gm"]),
+                buildPrimaryNoteIndex([]),
+                indexFor("Other name"),
+                indexFor(""),
+            ]) {
+                expect(
+                    checkProvenance(entries, { index }).filter((f) => f.file.startsWith("derived."))
+                        .length,
+                ).toBeGreaterThan(0);
+            }
+        });
+        it(`${format} accepts an indexed primary-note override and refuses an unrelated note`, async () => {
+            const other = "sample-note-being-other";
+            const entries = await pair(
+                format,
+                { name: "Old name" },
+                { primaryNote: other, name: "Current name" },
+            );
+            expect(
+                checkProvenance(entries, { index: indexFor("Current name", [], other) }).filter(
+                    (f) => f.file.startsWith("derived."),
+                ),
+            ).toEqual([]);
+            expect(
+                checkProvenance(entries, { index: indexFor() }).filter((f) =>
+                    f.file.startsWith("derived."),
+                ).length,
+            ).toBeGreaterThan(0);
+        });
+    }
+    it.each(["webp", "svg"])("refuses a %s parent trace pointing elsewhere", async (format) => {
+        const entries = await pair(format, {}, { derivedFrom: "sample-none-image-other" });
+        expect(
+            checkProvenance(entries)
+                .filter((f) => f.file.startsWith("derived."))
+                .map((f) => f.message),
+        ).toContainEqual(expect.stringMatching(/derivedFrom.*master address/));
     });
 });

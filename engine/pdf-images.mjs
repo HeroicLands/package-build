@@ -14,6 +14,58 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { deriveRecord, provenancePacket } from "./art-provenance-core.mjs";
+import { writeDerivativeProvenance } from "./art-provenance.mjs";
+import { assertPrivateArtRoots } from "./art-masters.mjs";
+import { artRendererIdentity, cachedArtRender } from "./art-render-cache.mjs";
+
+/** The resolution and compression of each book edition. */
+export const PDF_EDITIONS = Object.freeze({
+    screen: Object.freeze({ dpi: 150, quality: 76 }),
+    print: Object.freeze({ dpi: 300, quality: 82 }),
+});
+
+/** Select the public metadata for a book image. */
+function pdfMasterRecord(master, notePublic) {
+    const repeat = ["derivedFrom", "license", ...(notePublic ? ["name", "primaryNote"] : [])];
+    return deriveRecord({ ...master, derivedFrom: master.address }, { repeat, notePublic });
+}
+
+/**
+ * Render a master as a JPEG for its largest book placement.
+ * @param {Buffer|Uint8Array} bytes Master PNG or SVG bytes.
+ * @param {import("./art-provenance-core.mjs").ProvenanceRecord} master Master provenance.
+ * @param {Array<{width: number, height: number}>} uses Placements in inches.
+ * @param {"screen"|"print"} edition Edition profile.
+ * @param {boolean} notePublic Whether the indexed primary note is public.
+ * @returns {Promise<Buffer>} JPEG with selected public provenance.
+ */
+export async function renderPdfMaster(bytes, master, uses, edition, notePublic) {
+    const profile = PDF_EDITIONS[edition];
+    if (!profile) throw new Error(`unknown PDF edition ${edition}`);
+    const raster = Buffer.from(bytes)
+        .subarray(0, 8)
+        .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    const input = raster ? bytes : writeDerivativeProvenance(bytes, master).bytes;
+    const metadata = await sharp(input).metadata();
+    if (!metadata.width || !metadata.height) throw new Error("master has no image dimensions");
+    const ratio = metadata.width / metadata.height;
+    const width = Math.max(
+        1,
+        Math.round(
+            Math.max(...uses.map(({ width, height }) => Math.min(width, height * ratio))) *
+                profile.dpi,
+        ),
+    );
+    const record = pdfMasterRecord(master, notePublic);
+    return sharp(input, raster ? {} : { density: Math.max(1, (72 * width) / metadata.width) })
+        .resize({ width, withoutEnlargement: raster })
+        .flatten({ background: "#ffffff" })
+        .toColourspace("srgb")
+        .jpeg({ quality: profile.quality })
+        .withXmp(provenancePacket(record))
+        .toBuffer();
+}
 
 /** Print geometry in inches; Typst's default column gutter is 4% of the text width. */
 export const PDF_PAGE = Object.freeze({
@@ -110,11 +162,51 @@ export function bookImageWidthIn({ type, role, width } = {}) {
  * @param {Map<string, {from: string, to: string, relative: string, file: string,
  *   uses: Array<{width: number, height: number}>}>} candidates
  * @param {string} outDir - PDF staging directory.
+ * @param {"screen"|"print"} edition - Image profile.
+ * @param {string} cacheDir - Absolute disposable build cache directory.
  * @returns {Promise<object[]>} Image reports with the authored file location.
  */
-export async function resamplePdfImages(candidates, outDir) {
+export async function resamplePdfImages(candidates, outDir, edition, cacheDir) {
+    const profile = PDF_EDITIONS[edition];
+    if (!profile) throw new Error(`unknown PDF edition ${edition}`);
+    if (typeof cacheDir !== "string" || !path.isAbsolute(cacheDir))
+        throw new Error("an absolute cache directory is required");
     const reports = [];
+    assertPrivateArtRoots(
+        [...candidates.values()]
+            .filter((candidate) => candidate.master)
+            .map((candidate) => candidate.master.file),
+        [outDir, cacheDir],
+    );
     for (const candidate of candidates.values()) {
+        if (candidate.master) {
+            const source = await fs.readFile(candidate.master.file);
+            const output = await cachedArtRender(
+                source,
+                {
+                    renderer: artRendererIdentity(import.meta.url),
+                    codec: sharp.versions,
+                    format: "jpeg",
+                    profile: PDF_EDITIONS[edition],
+                    edition,
+                    uses: candidate.uses,
+                    metadata: pdfMasterRecord(candidate.master.record, candidate.master.notePublic),
+                },
+                cacheDir,
+                () =>
+                    renderPdfMaster(
+                        source,
+                        candidate.master.record,
+                        candidate.uses,
+                        edition,
+                        candidate.master.notePublic,
+                    ),
+            );
+            const destination = path.join(outDir, candidate.to);
+            await fs.mkdir(path.dirname(destination), { recursive: true });
+            await fs.writeFile(destination, output);
+            continue;
+        }
         const extension = path.extname(candidate.to).toLowerCase();
         if (![".jpg", ".jpeg", ".png", ".webp", ".avif"].includes(extension)) continue;
         const relative = candidate.relative.replaceAll(path.sep, "/");
@@ -126,14 +218,14 @@ export async function resamplePdfImages(candidates, outDir) {
         const target = Math.round(
             Math.max(
                 ...candidate.uses.map(({ width, height }) => Math.min(width, height * ratio)),
-            ) * PDF_PAGE.dpi,
+            ) * profile.dpi,
         );
         if (metadata.width <= target) continue;
         let pipeline = sharp(original).resize({ width: target, withoutEnlargement: true });
         if (extension === ".jpg" || extension === ".jpeg")
-            pipeline = pipeline.jpeg({ quality: PDF_PAGE.quality });
-        if (extension === ".webp") pipeline = pipeline.webp({ quality: PDF_PAGE.quality });
-        if (extension === ".avif") pipeline = pipeline.avif({ quality: PDF_PAGE.quality });
+            pipeline = pipeline.jpeg({ quality: profile.quality });
+        if (extension === ".webp") pipeline = pipeline.webp({ quality: profile.quality });
+        if (extension === ".avif") pipeline = pipeline.avif({ quality: profile.quality });
         if (extension === ".png") pipeline = pipeline.png();
         const output = await pipeline.toBuffer();
         await fs.writeFile(destination, output);

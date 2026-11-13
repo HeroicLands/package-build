@@ -460,16 +460,17 @@ function avifDimensions(bytes) {
  *
  * @param {string} absPath - The file's absolute path.
  * @param {string} ext - Its extension, lowercase and dot-led.
+ * @param {Buffer} [source] - Already captured file bytes.
  * @returns {{width: number, height: number}|undefined} The declared size, or
  *   `undefined` when the format carries none, or the header cannot be read.
  */
-export function imageDimensions(absPath, ext) {
+export function imageDimensions(absPath, ext, source) {
     if (ext === ".svg") return undefined;
     const reader = IMAGE_DIMENSION_READERS[ext];
     if (!reader) return undefined;
     let bytes;
     try {
-        bytes = fs.readFileSync(absPath);
+        bytes = source ?? fs.readFileSync(absPath);
     } catch {
         return undefined;
     }

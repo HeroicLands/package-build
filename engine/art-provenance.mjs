@@ -12,7 +12,7 @@
  */
 
 /**
- * Provenance embedded in a PNG, WebP or SVG image.
+ * Provenance embedded in PNG, WebP, JPEG and SVG images.
  *
  * A master carries its image or icon Address, the primary note it shows, a
  * display name, the prompt that produced it, how it was generated, and the
@@ -57,8 +57,8 @@
  *
  * ## Masters and derivatives
  *
- * A master is a PNG or an SVG; a derivative, rendered from it, is a WebP or an
- * SVG. They are the same image and carry the same `hl:address`; every address
+ * A master is a PNG or an SVG; a derivative, rendered from it, is a WebP,
+ * SVG or JPEG. They are the same image and carry the same `hl:address`; every address
  * names exactly one master and any number of derivatives (the same master in
  * several sizes or formats). `hl:derived` (record field `derived`) with the
  * value `true` marks a derivative; a master does not carry it. A rewrite keeps
@@ -69,8 +69,10 @@
  * found by address: {@link findMaster} resolves the master among a set of files
  * and {@link effectiveRecord} returns a file's properties, the master's record
  * for a derivative with the values the derivative repeats applying. A derivative
- * may repeat a subset of the master's properties. Each repeated value must equal
- * the master's, and a property the master does not carry may not be stated.
+ * may repeat a subset of the master's properties. Repeated values equal the
+ * master's, except that `derivedFrom` names the master Address and indexed
+ * public-note fields may supply the current name and primary note. Overrides
+ * require the primary-note index; master metadata is audited separately.
  *
  * {@link deriveRecord} turns a master's record into a derivative's: the
  * address, `hl:derived`, `dc:rights` and the creator (`dc:creator`, the
@@ -147,16 +149,17 @@
  * {@link checkProvenance} reports, as `file:line:column: severity: message`, a
  * file with no address, an address that is not a complete Address, an
  * address with two masters, a derivative whose address has no master in the set,
- * a derivative that repeats a property with a value different from its
- * master's or states one its master does not carry, a WebP without
+ * a derivative with an incorrect parent trace or unauthorized note fields,
+ * another repeated property that differs from or is absent on its master, a WebP without
  * `hl:derived`, a PNG with it, an `hl:derived` whose value is not `true`, a `dc:identifier` that differs from
  * `hl:address`, a `hl:primarynote` that is malformed or that names no note in
  * the index, a `hl:name` that differs from the named note's `name.full`, a
  * `hl:primarynote` that differs from the being or affiliation the image
  * resolves to, and metadata lost or disagreeing
  * between the XMP packet and the text chunks. The format is chosen by sniffing
- * the content: a PNG signature selects PNG, a RIFF `WEBP` container selects
- * WebP, anything else is read as SVG.
+ * the content: raster signatures select PNG, WebP or JPEG; anything else is
+ * read as SVG. A JPEG must carry its master Address in `hl:derivedFrom` and
+ * only the approved public fields, with no foreign metadata.
  *
  * @module engine/art-provenance
  */
@@ -197,6 +200,7 @@ export {
     writeSvgProvenance,
     readWebpChunks,
     readWebpProvenance,
+    readJpegProvenance,
     writeWebpProvenance,
     findMaster,
     effectiveRecord,
@@ -443,6 +447,7 @@ export function writeDerivativeProvenance(input, master, options = {}) {
     const original = Buffer.from(input);
     const format = sniffFormat(input);
     if (format === "png") throw new Error("a PNG is a master, never a derivative");
+    if (format === "jpeg") throw new Error("JPEG derivatives are rendered from a master");
     if (format === "webp") {
         const { chunks } = readWebpChunks(original);
         const imageChunks = new Set(["VP8X", "VP8 ", "VP8L", "ALPH", "ANIM", "ANMF", "ICCP"]);
