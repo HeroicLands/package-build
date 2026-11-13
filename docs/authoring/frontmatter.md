@@ -156,3 +156,7 @@ A settlement with a positive population requires a government that resolves to a
 ## Publication and summaries
 
 A note infobox draws from shared `data`. A being profile shows its top-level `subType` as `Type: Character`, `Type: NPC`, or `Type: Creature`. A system infobox draws from the system's fields, and a mapped system with no document says “Not available.” The same authored body appears in Foundry, on the website, and in the book; the book places boxes after the authored body, Foundry appends one page per box, and the website places boxes in its responsive side rail. [Infobox details](../reference/format-details.md#the-infobox) describe field order and empty values.
+
+Settlement-table exceptions are declared by address with a reason in the
+[package configuration](../configuration.md#settlement-exemptions). The same
+mechanism records a territorial-sum owner exception for a polity.

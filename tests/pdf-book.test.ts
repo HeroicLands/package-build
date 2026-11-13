@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { compileTestsEnabled } from "./helpers/compile-tests.js";
+
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -16,8 +18,8 @@ import { writeProvenance, readJpegProvenance } from "../engine/art-provenance.mj
 const typstIn = (inches: number) => `${Math.round(inches * 1000) / 1000}in`;
 const ROOT = path.resolve(__dirname, "..");
 
-/** Whether a Typst compiler is reachable, which the PDF-level cases need. */
-const HAS_TYPST = spawnSync("typst", ["--version"], { encoding: "utf8" }).status === 0;
+/** Whether compiler-dependent cases are enabled and Typst is available. */
+const HAS_TYPST = compileTestsEnabled();
 
 let root = "";
 

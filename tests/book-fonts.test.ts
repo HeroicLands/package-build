@@ -16,6 +16,7 @@
  * two builds side by side.
  */
 
+import { compileTestsEnabled } from "./helpers/compile-tests.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -30,8 +31,8 @@ import { renderBook } from "../engine/pdf-render.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
 
-/** Whether a Typst compiler is reachable, which the resolution cases need. */
-const HAS_TYPST = spawnSync("typst", ["--version"], { encoding: "utf8" }).status === 0;
+/** Whether compiler-dependent cases are enabled and Typst is available. */
+const HAS_TYPST = compileTestsEnabled();
 
 /** A one-entry plan, enough to make the renderer emit a whole document. */
 const PLAN = {

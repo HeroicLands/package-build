@@ -53,6 +53,7 @@
  */
 
 import { isAddressTuple } from "./address.mjs";
+import { settlementExemptionTracker } from "./settlement-tables.mjs";
 import { listed, nearest } from "./near-miss.mjs";
 import { checkDataKeys } from "./data-keys.mjs";
 import { FALLBACK_LANGUAGE, normalizeName } from "./name-forms.mjs";
@@ -369,6 +370,7 @@ function dataBlock(fm) {
  * @param {object} opts
  * @param {string} opts.type - The note's type, for the message.
  * @param {readonly object[]} opts.fields - The type's `data:` declaration.
+ * @param {object} [opts.settlementExemptions] - Tracker for eligible settlement findings.
  * @param {object} [opts.addressContext] - Builder package and Address type vocabulary.
  * @param {readonly string[]} [opts.packs] - The pack names this package
  *   declares, against which a `keys: "pack"` map's keys are checked. Absent,
@@ -1168,6 +1170,7 @@ function checkEmbeddedShortcodes(note, blockName) {
  *   for the same reason `schemas` is — a build derives them from its
  *   configuration through {@link systemBlocksFor}, and this module states no
  *   system name of its own. See {@link DEFAULT_SYSTEM_BLOCKS} for the fallback.
+ * @param {object} [opts.settlementExemptions] - Tracker for eligible settlement findings.
  * @param {object} [opts.addressContext] - Builder package and Address type vocabulary.
  * @param {Iterable<string>} [opts.languages] - The language codes the
  *   configuration's `languages:` declares. A `name` key that is one of them, or
@@ -1190,6 +1193,7 @@ export function lintNote(
         addressContext,
         languages,
         systems = DEFAULT_SYSTEM_BLOCKS,
+        settlementExemptions,
     },
 ) {
     const findings = [];
@@ -1584,7 +1588,7 @@ export function lintNote(
         }
         // A check the type declares of the whole note, with the same index.
         if (typeof entry.check === "function")
-            findings.push(...entry.check(note, { index, currentDate }));
+            findings.push(...entry.check(note, { index, currentDate, settlementExemptions }));
     }
 
     const fields = authoredFields(schema);
@@ -1771,14 +1775,27 @@ export function lintNote(
  *   {@link lintNote}.
  * @param {(type: string) => {document: string|null, art: readonly string[]}|null} [opts.emittedArt]
  *   What art a type reaches its document through; see {@link lintNote}.
- * @returns {{findings: object[], notes: number}} The findings, and how many
- *   notes were inspected.
+ * @param {readonly {address?: string, prefix?: string, reason: string}[]} [opts.settlementExemptions] Reasoned local selectors.
+ * @param {string} [opts.configFile] Configuration path for stale selector findings.
+ * @returns {{findings: object[], notes: number, settlementExemptNotes: number}} Findings and note counts.
  */
 export function lintFrontmatter(
     index,
-    { schemas, vocabulary, packs, emittedArt, references = true, systems, currentDate, languages },
+    {
+        schemas,
+        vocabulary,
+        packs,
+        emittedArt,
+        references = true,
+        systems,
+        currentDate,
+        languages,
+        settlementExemptions = [],
+        configFile = "package-build.config.yaml",
+    },
 ) {
     const findings = [];
+    const tracker = settlementExemptionTracker(settlementExemptions, index.contentPackage);
     const notes = [...index.notes].sort((a, b) =>
         a.file < b.file ? -1
         : a.file > b.file ? 1
@@ -1790,6 +1807,7 @@ export function lintFrontmatter(
                 schemas,
                 vocabulary,
                 currentDate,
+                settlementExemptions: tracker,
                 packs,
                 emittedArt,
                 languages,
@@ -1803,5 +1821,6 @@ export function lintFrontmatter(
             }),
         );
     }
-    return { findings, notes: notes.length };
+    findings.push(...tracker.stale(configFile));
+    return { findings, notes: notes.length, settlementExemptNotes: tracker.count };
 }

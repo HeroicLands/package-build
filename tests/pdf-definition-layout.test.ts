@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { compileTestsEnabled } from "./helpers/compile-tests.js";
+
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -9,7 +11,7 @@ import { markdownToTypst, renderBook } from "../engine/pdf-render.mjs";
 import { typstArgs } from "../engine/pdf-build.mjs";
 import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 
-const HAS_TYPST = spawnSync("typst", ["--version"], { encoding: "utf8" }).status === 0;
+const HAS_TYPST = compileTestsEnabled();
 const HAS_POPPLER = spawnSync("pdftotext", ["-v"], { encoding: "utf8" }).status === 0;
 
 const complex = [

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { compileTestsEnabled } from "./helpers/compile-tests.js";
+
 /**
  * A reference to a note another book prints names that book and the page the
  * note's entry starts on, read from a two-pass build.
@@ -33,7 +35,7 @@ import { linkToTypst } from "../engine/infobox-render.mjs";
 import { labelFor } from "../engine/pdf-render.mjs";
 
 const ok = (cmd: string, args: string[]) => spawnSync(cmd, args, { encoding: "utf8" }).status === 0;
-const HAS_TYPST = ok("typst", ["--version"]);
+const HAS_TYPST = compileTestsEnabled();
 const HAS_POPPLER = ok("pdftotext", ["-v"]) && ok("pdfinfo", ["-v"]);
 
 const rec = (slug: string, type = "weapongear") => ({
@@ -250,7 +252,7 @@ describe("the printed form", () => {
     });
 });
 
-describe.skipIf(!HAS_TYPST)("evaluating a book's pages", () => {
+describe("evaluating a book's pages", () => {
     it("builds the measuring command from the compile's own flags", () => {
         const args = evalArgs("/x/book.typ", ["--ignore-system-fonts", "--font-path", "/f"]);
         expect(args.slice(0, 5)).toEqual([
@@ -262,7 +264,7 @@ describe.skipIf(!HAS_TYPST)("evaluating a book's pages", () => {
         ]);
     });
 
-    it("reports a book Typst cannot lay out", () => {
+    it.skipIf(!HAS_TYPST)("reports a book Typst cannot lay out", () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-pages-bad-"));
         const typ = path.join(dir, "bad.typ");
         fs.writeFileSync(typ, "#let = broken");
@@ -273,7 +275,7 @@ describe.skipIf(!HAS_TYPST)("evaluating a book's pages", () => {
     });
 });
 
-describe.skipIf(!HAS_TYPST || !HAS_POPPLER)("a package of three books", () => {
+describe("a package of three books", () => {
     const dirs: string[] = [];
     const savedEpoch = process.env.SOURCE_DATE_EPOCH;
     const savedConfig = process.env.PACKAGE_BUILD_CONFIG;
@@ -405,22 +407,6 @@ describe.skipIf(!HAS_TYPST || !HAS_POPPLER)("a package of three books", () => {
     let table: Record<string, { book: string; page: number }>;
     let reads = 0;
 
-    beforeAll(async () => {
-        process.env.SOURCE_DATE_EPOCH = "1700000000";
-        const counted = (typ: string, fonts: string[], bin: string) => {
-            reads += 1;
-            return readEntryPages(typ, fonts, bin);
-        };
-        run = make(THREE);
-        result = await buildPdf({ config: run.config, readPages: counted });
-        second = make(THREE);
-        secondResult = await buildPdf({ config: second.config });
-        pages = Object.fromEntries(
-            ["a", "b", "c"].map((id) => [id, pagesOf(path.join(run.out, `sohl-${id}.pdf`))]),
-        );
-        table = JSON.parse(fs.readFileSync(path.join(run.out, "pages.json"), "utf8"));
-    }, 120000);
-
     afterAll(() => {
         for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
         if (savedEpoch === undefined) delete process.env.SOURCE_DATE_EPOCH;
@@ -429,139 +415,165 @@ describe.skipIf(!HAS_TYPST || !HAS_POPPLER)("a package of three books", () => {
         else process.env.PACKAGE_BUILD_CONFIG = savedConfig;
     });
 
-    it("builds every book without findings", () => {
-        expect(result.findings).toEqual([]);
-        expect(result.books.map((b: any) => b.pdf && path.basename(b.pdf))).toEqual([
-            "sohl-a.pdf",
-            "sohl-b.pdf",
-            "sohl-c.pdf",
-        ]);
-    });
-
-    it("measures each book twice when references cross books", () => {
-        expect(reads).toBe(6);
-    });
-
-    it("writes pages.json with a home book and a page for every printed note, sorted", () => {
-        expect(Object.keys(table)).toEqual([
-            "sohl-sohl-armorgear-aegis",
-            "sohl-sohl-weapongear-axe",
-            "sohl-sohl-weapongear-dagger",
-            "sohl-sohl-weapongear-sword",
-        ]);
-        expect(table["sohl-sohl-weapongear-dagger"].book).toBe("a");
-        expect(table["sohl-sohl-armorgear-aegis"].book).toBe("b");
-        expect(table["sohl-sohl-weapongear-axe"].book).toBe("c");
-    });
-
-    it("records the page each entry starts on, as the compiled books place it", () => {
-        const homes = { a: ["dagger", "sword"], b: ["aegis"], c: ["axe"] } as Record<
-            string,
-            string[]
-        >;
-        for (const [book, names] of Object.entries(homes)) {
-            const pdf = path.join(run.out, `sohl-${book}.pdf`);
-            for (const name of names) {
-                const type = name === "aegis" ? "armorgear" : "weapongear";
-                const recorded = table[`sohl-sohl-${type}-${name}`].page;
-                expect(recorded).toBe(startOf(pages[book], `MARK-${name.toUpperCase()}`));
-                expect(recorded).toBe(destination(pdf, `${type}-${name}`));
-            }
-        }
-    });
-
-    it("prints the home book's page in each direction", () => {
-        expect(printed(pages.a, "the aegis", "B")).toBe(table["sohl-sohl-armorgear-aegis"].page);
-        expect(printed(pages.b, "the sword", "A")).toBe(table["sohl-sohl-weapongear-sword"].page);
-        expect(printed(pages.c, "the aegis", "B")).toBe(table["sohl-sohl-armorgear-aegis"].page);
-    });
-
-    it("names the home book's page for a note another book reprints", () => {
-        const home = table["sohl-sohl-weapongear-dagger"].page;
-        const reprinted = startOf(pages.b, "MARK-DAGGER");
-        expect(printed(pages.c, "the dagger", "A")).toBe(home);
-        // The reprint sits on another page, so naming it would be wrong.
-        expect(reprinted).not.toBe(home);
-        expect(pages.c.join(" ")).not.toMatch(/the dagger \(Book B/);
-    });
-
-    it("keeps an internal destination inside one book and a web address for a note in no book", () => {
-        const a = fs.readFileSync(path.join(run.out, "sohl-a.typ"), "utf8");
-        const b = fs.readFileSync(path.join(run.out, "sohl-b.typ"), "utf8");
-        expect(a).toContain("#link(<weapongear-sword>)[the sword]");
-        expect(pages.a.join(" ")).not.toMatch(/the sword \(Book/);
-        // Book b reprints the dagger, whose body links to the sword in book a.
-        expect(b).toContain("the sword (#emph[Book A], p.~");
-        for (const typ of [a, b]) {
-            expect(typ).toContain(
-                '#link("https://www.heroiclands.org/sohl/armorgear-cap/")[a cap]',
-            );
-        }
-        expect(pages.a.join(" ")).not.toMatch(/a cap \(/);
-    });
-
-    it("produces identical tables, sources and books when built twice from clean", () => {
-        expect(secondResult.findings).toEqual([]);
-        const hash = (dir: string, name: string) =>
-            crypto
-                .createHash("sha256")
-                .update(fs.readFileSync(path.join(dir, "build", "dist", name)))
-                .digest("hex");
-        for (const name of [
-            "pages.json",
-            "sohl-a.typ",
-            "sohl-b.typ",
-            "sohl-c.typ",
-            "sohl-a.pdf",
-            "sohl-b.pdf",
-            "sohl-c.pdf",
-        ]) {
-            expect(hash(second.dir, name), name).toBe(hash(run.dir, name));
-        }
-    });
-
-    it("runs one pass for one book, with nothing to name and no second layout", async () => {
-        const one = make([gear("a", ["dagger", "sword", "aegis", "axe"])]);
-        let count = 0;
-        const out = await buildPdf({
-            config: one.config,
-            readPages: (typ: string, fonts: string[], bin: string) => {
-                count += 1;
+    describe.skipIf(!HAS_TYPST || !HAS_POPPLER)("compiled books", () => {
+        beforeAll(async () => {
+            process.env.SOURCE_DATE_EPOCH = "1700000000";
+            const counted = (typ: string, fonts: string[], bin: string) => {
+                reads += 1;
                 return readEntryPages(typ, fonts, bin);
-            },
-        });
-        expect(out.findings).toEqual([]);
-        expect(count).toBe(1);
-        expect(fs.readFileSync(path.join(one.out, "sohl-a.typ"), "utf8")).not.toContain(
-            "#emph[Book",
-        );
-        expect(
-            Object.keys(JSON.parse(fs.readFileSync(path.join(one.out, "pages.json"), "utf8"))),
-        ).toHaveLength(4);
-    });
+            };
+            run = make(THREE);
+            result = await buildPdf({ config: run.config, readPages: counted });
+            second = make(THREE);
+            secondResult = await buildPdf({ config: second.config });
+            pages = Object.fromEntries(
+                ["a", "b", "c"].map((id) => [id, pagesOf(path.join(run.out, `sohl-${id}.pdf`))]),
+            );
+            table = JSON.parse(fs.readFileSync(path.join(run.out, "pages.json"), "utf8"));
+        }, 120000);
 
-    it("builds a third time and reports what still differs when pages keep moving", async () => {
-        const drifting = make(THREE);
-        let count = 0;
-        const out = await buildPdf({
-            config: drifting.config,
-            readPages: (typ: string, fonts: string[], bin: string) => {
-                const round = Math.floor(count / 3);
-                count += 1;
-                const read = readEntryPages(typ, fonts, bin);
-                return {
-                    ...read,
-                    pages: new Map([...read.pages].map(([label, page]) => [label, page + round])),
-                };
-            },
+        it("builds every book without findings", () => {
+            expect(result.findings).toEqual([]);
+            expect(result.books.map((b: any) => b.pdf && path.basename(b.pdf))).toEqual([
+                "sohl-a.pdf",
+                "sohl-b.pdf",
+                "sohl-c.pdf",
+            ]);
         });
-        expect(count).toBe(9);
-        const moved = out.findings.filter((f: any) => f.severity === "warning");
-        expect(moved).toHaveLength(4);
-        expect(moved[0].file).toMatch(/\.md$/);
-        expect(moved[0].message).toMatch(
-            /starts on page \d+ of `Book [A-C]`, but the references to it in other books print page \d+/,
-        );
+
+        it("measures each book twice when references cross books", () => {
+            expect(reads).toBe(6);
+        });
+
+        it("writes pages.json with a home book and a page for every printed note, sorted", () => {
+            expect(Object.keys(table)).toEqual([
+                "sohl-sohl-armorgear-aegis",
+                "sohl-sohl-weapongear-axe",
+                "sohl-sohl-weapongear-dagger",
+                "sohl-sohl-weapongear-sword",
+            ]);
+            expect(table["sohl-sohl-weapongear-dagger"].book).toBe("a");
+            expect(table["sohl-sohl-armorgear-aegis"].book).toBe("b");
+            expect(table["sohl-sohl-weapongear-axe"].book).toBe("c");
+        });
+
+        it("records the page each entry starts on, as the compiled books place it", () => {
+            const homes = { a: ["dagger", "sword"], b: ["aegis"], c: ["axe"] } as Record<
+                string,
+                string[]
+            >;
+            for (const [book, names] of Object.entries(homes)) {
+                const pdf = path.join(run.out, `sohl-${book}.pdf`);
+                for (const name of names) {
+                    const type = name === "aegis" ? "armorgear" : "weapongear";
+                    const recorded = table[`sohl-sohl-${type}-${name}`].page;
+                    expect(recorded).toBe(startOf(pages[book], `MARK-${name.toUpperCase()}`));
+                    expect(recorded).toBe(destination(pdf, `${type}-${name}`));
+                }
+            }
+        });
+
+        it("prints the home book's page in each direction", () => {
+            expect(printed(pages.a, "the aegis", "B")).toBe(
+                table["sohl-sohl-armorgear-aegis"].page,
+            );
+            expect(printed(pages.b, "the sword", "A")).toBe(
+                table["sohl-sohl-weapongear-sword"].page,
+            );
+            expect(printed(pages.c, "the aegis", "B")).toBe(
+                table["sohl-sohl-armorgear-aegis"].page,
+            );
+        });
+
+        it("names the home book's page for a note another book reprints", () => {
+            const home = table["sohl-sohl-weapongear-dagger"].page;
+            const reprinted = startOf(pages.b, "MARK-DAGGER");
+            expect(printed(pages.c, "the dagger", "A")).toBe(home);
+            // The reprint sits on another page, so naming it would be wrong.
+            expect(reprinted).not.toBe(home);
+            expect(pages.c.join(" ")).not.toMatch(/the dagger \(Book B/);
+        });
+
+        it("keeps an internal destination inside one book and a web address for a note in no book", () => {
+            const a = fs.readFileSync(path.join(run.out, "sohl-a.typ"), "utf8");
+            const b = fs.readFileSync(path.join(run.out, "sohl-b.typ"), "utf8");
+            expect(a).toContain("#link(<weapongear-sword>)[the sword]");
+            expect(pages.a.join(" ")).not.toMatch(/the sword \(Book/);
+            // Book b reprints the dagger, whose body links to the sword in book a.
+            expect(b).toContain("the sword (#emph[Book A], p.~");
+            for (const typ of [a, b]) {
+                expect(typ).toContain(
+                    '#link("https://www.heroiclands.org/sohl/armorgear-cap/")[a cap]',
+                );
+            }
+            expect(pages.a.join(" ")).not.toMatch(/a cap \(/);
+        });
+
+        it("produces identical tables, sources and books when built twice from clean", () => {
+            expect(secondResult.findings).toEqual([]);
+            const hash = (dir: string, name: string) =>
+                crypto
+                    .createHash("sha256")
+                    .update(fs.readFileSync(path.join(dir, "build", "dist", name)))
+                    .digest("hex");
+            for (const name of [
+                "pages.json",
+                "sohl-a.typ",
+                "sohl-b.typ",
+                "sohl-c.typ",
+                "sohl-a.pdf",
+                "sohl-b.pdf",
+                "sohl-c.pdf",
+            ]) {
+                expect(hash(second.dir, name), name).toBe(hash(run.dir, name));
+            }
+        });
+
+        it("runs one pass for one book, with nothing to name and no second layout", async () => {
+            const one = make([gear("a", ["dagger", "sword", "aegis", "axe"])]);
+            let count = 0;
+            const out = await buildPdf({
+                config: one.config,
+                readPages: (typ: string, fonts: string[], bin: string) => {
+                    count += 1;
+                    return readEntryPages(typ, fonts, bin);
+                },
+            });
+            expect(out.findings).toEqual([]);
+            expect(count).toBe(1);
+            expect(fs.readFileSync(path.join(one.out, "sohl-a.typ"), "utf8")).not.toContain(
+                "#emph[Book",
+            );
+            expect(
+                Object.keys(JSON.parse(fs.readFileSync(path.join(one.out, "pages.json"), "utf8"))),
+            ).toHaveLength(4);
+        });
+
+        it("builds a third time and reports what still differs when pages keep moving", async () => {
+            const drifting = make(THREE);
+            let count = 0;
+            const out = await buildPdf({
+                config: drifting.config,
+                readPages: (typ: string, fonts: string[], bin: string) => {
+                    const round = Math.floor(count / 3);
+                    count += 1;
+                    const read = readEntryPages(typ, fonts, bin);
+                    return {
+                        ...read,
+                        pages: new Map(
+                            [...read.pages].map(([label, page]) => [label, page + round]),
+                        ),
+                    };
+                },
+            });
+            expect(count).toBe(9);
+            const moved = out.findings.filter((f: any) => f.severity === "warning");
+            expect(moved).toHaveLength(4);
+            expect(moved[0].file).toMatch(/\.md$/);
+            expect(moved[0].message).toMatch(
+                /starts on page \d+ of `Book [A-C]`, but the references to it in other books print page \d+/,
+            );
+        });
     });
 
     it("leaves a source that prints `?` and no table when Typst is not run", async () => {

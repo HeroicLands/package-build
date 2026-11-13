@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { compileTestsEnabled } from "./helpers/compile-tests.js";
+
 /**
  * Each book's index lists the notes whose home book it is, with that book's
  * pages. A reprint is indexed in its home book alone, the pages agree with the
@@ -18,7 +20,7 @@ import { buildPdf } from "../engine/pdf-build.mjs";
 import { indexChapter, indexPreamble, indexTerms } from "../engine/pdf-index.mjs";
 
 const ok = (cmd: string, args: string[]) => spawnSync(cmd, args, { encoding: "utf8" }).status === 0;
-const HAS_TYPST = ok("typst", ["--version"]);
+const HAS_TYPST = compileTestsEnabled();
 const HAS_POPPLER = ok("pdftotext", ["-v"]) && ok("pdfinfo", ["-v"]);
 
 const entry = (slug: string, name: string) => ({

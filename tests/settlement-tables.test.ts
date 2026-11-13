@@ -11,6 +11,7 @@ import { buildLinkIndex } from "../engine/content-links.mjs";
 import {
     checkSettlementTables,
     settlementMarkdown,
+    settlementExemptionTracker,
     SETTLEMENT_ROW_FIELDS,
 } from "../engine/settlement-tables.mjs";
 import { indexRecordsFor, serializeContentIndex } from "../engine/content-index.mjs";
@@ -22,6 +23,7 @@ import { createRenderer } from "../engine/content-render.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
+import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { derivedSections } from "../engine/derived-sections.mjs";
 
@@ -199,7 +201,7 @@ describe("polity settlement guards", () => {
         expect(
             findings.some((finding) =>
                 finding.message.includes(
-                    "list the settlements or record an owner exception for that polity",
+                    "list the settlements or declare a reasoned packageBuild.settlementExemptions entry for that polity",
                 ),
             ),
         ).toBe(true);
@@ -263,7 +265,7 @@ describe("polity settlement guards", () => {
                 expect(
                     f.findings.some((x) =>
                         x.message.includes(
-                            "list the settlements or record an owner exception for that polity",
+                            "list the settlements or declare a reasoned packageBuild.settlementExemptions entry for that polity",
                         ),
                     ),
                 ).toBe(true),
@@ -679,4 +681,250 @@ describe("settlement graph reuse", () => {
         }
         expect(filters).toBe(1);
     });
+});
+
+describe("settlement exemptions", () => {
+    it("counts affected notes once and credits overlapping entries", () =>
+        checked(
+            (notes) => {
+                delete notes[3].data.notes;
+            },
+            ({ index }) => {
+                const report = lintFrontmatter(index, {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                    settlementExemptions: [
+                        { address: "place-capital", reason: "Tables pending" },
+                        { prefix: "place-cap", reason: "Tables pending" },
+                        { address: "place-town", reason: "Tables pending" },
+                    ],
+                    configFile: "package-build.config.yaml",
+                });
+                expect(report.settlementExemptNotes).toBe(1);
+                expect(
+                    report.findings.filter((f: any) => f.message.includes("settlement exemption")),
+                ).toHaveLength(1);
+                expect(
+                    report.findings.some((f: any) => f.message.includes("notes is nonempty")),
+                ).toBe(false);
+            },
+        ));
+});
+
+describe("exempt settlement publication", () => {
+    it("keeps non-settlement findings and applies the exception to publication", () =>
+        checked(
+            (notes) => {
+                delete notes[3].data.notes;
+                notes[3].data.unrecognized = "bad";
+            },
+            ({ index, root, records }) => {
+                const exemption = [{ address: "place-capital", reason: "Tables pending" }];
+                const result = lintFrontmatter(index, {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                    settlementExemptions: exemption,
+                });
+                expect(result.settlementExemptNotes).toBe(1);
+                expect(
+                    result.findings.some(
+                        (f: any) =>
+                            f.file.endsWith("capital.md") && f.message.includes("unrecognized"),
+                    ),
+                ).toBe(true);
+                const localRecords = records();
+                expect(() =>
+                    derivedSections(localRecords, {
+                        fileOf: (r: any) => path.join(root, `${r.shortcode}.md`),
+                        config: { packageBuild: { settlementExemptions: exemption } },
+                    }),
+                ).not.toThrow();
+            },
+        ));
+    it("rejects a stale selector and preserves other notes' settlement findings", () =>
+        checked(
+            (notes) => {
+                delete notes[3].data.notes;
+                delete notes[4].data.notes;
+            },
+            ({ index }) => {
+                const result = lintFrontmatter(index, {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                    settlementExemptions: [
+                        { address: "place-capital", reason: "pending" },
+                        { prefix: "place-unknown", reason: "pending" },
+                    ],
+                });
+                expect(result.settlementExemptNotes).toBe(1);
+                expect(
+                    result.findings.some(
+                        (f: any) =>
+                            f.file.endsWith("town.md") && f.message.includes("settlement field"),
+                    ),
+                ).toBe(true);
+                expect(
+                    result.findings.some((f: any) =>
+                        f.message.includes("matches no settlement violation"),
+                    ),
+                ).toBe(true);
+            },
+        ));
+});
+
+describe("settlement exemption scope", () => {
+    it("matches hyphenated shortcodes by typed, full and prefix selectors", () => {
+        const note = { fm: { type: "place", shortcode: "north-harbor" } };
+        for (const entry of [
+            { address: "place-north-harbor", reason: "pending" },
+            { address: "thalorna-note-place-north-harbor", reason: "pending" },
+            { prefix: "place-north-", reason: "pending" },
+        ]) {
+            const tracker = settlementExemptionTracker([entry], "thalorna");
+            expect(tracker.filter(note, [{ settlementExemptible: true }])).toEqual([]);
+            expect(tracker.count).toBe(1);
+            expect(tracker.stale("config.yaml")).toEqual([]);
+        }
+    });
+    it("retains precision and government findings without crediting a selector", () =>
+        checked(
+            (notes) => {
+                notes[3].data.population = 123;
+                notes[3].data.government = "affiliation-missing";
+            },
+            ({ index }) => {
+                const result = lintFrontmatter(index, {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                    settlementExemptions: [{ address: "place-capital", reason: "pending" }],
+                    configFile: "config.yaml",
+                });
+                expect(result.settlementExemptNotes).toBe(0);
+                expect(
+                    result.findings.some((f: any) => f.message.startsWith("people figure")),
+                ).toBe(true);
+                expect(
+                    result.findings.some((f: any) =>
+                        f.message.startsWith("unresolved settlement reference"),
+                    ),
+                ).toBe(true);
+                expect(
+                    result.findings.some(
+                        (f: any) =>
+                            f.message.includes("matches no settlement violation") &&
+                            f.line === 1 &&
+                            f.column === 1,
+                    ),
+                ).toBe(true);
+            },
+        ));
+
+    it("preserves polity superior findings alongside eligible findings", () =>
+        checked(
+            (notes) => {
+                notes[2].data.parents = ["affiliation-crown", "affiliation-crown"];
+                delete notes[2].data.territorial_population;
+            },
+            ({ index }) => {
+                const result = lintFrontmatter(index, {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                    settlementExemptions: [{ address: "affiliation-council", reason: "pending" }],
+                });
+                expect(result.settlementExemptNotes).toBe(1);
+                expect(
+                    result.findings.some((f: any) => f.message.startsWith("polity superior")),
+                ).toBe(true);
+                expect(
+                    result.findings.some((f: any) =>
+                        f.message.includes("requires a territorial population"),
+                    ),
+                ).toBe(false);
+            },
+        ));
+    it("does not exempt publication for a nonmatching selector", () =>
+        checked(
+            (notes) => {
+                delete notes[3].data.notes;
+            },
+            ({ root, records }) => {
+                expect(() =>
+                    derivedSections(records(), {
+                        fileOf: (r: any) => path.join(root, `${r.shortcode}.md`),
+                        config: {
+                            packageBuild: {
+                                settlementExemptions: [
+                                    { prefix: "place-other", reason: "pending" },
+                                ],
+                            },
+                        },
+                    }),
+                ).toThrow();
+            },
+        ));
+});
+
+describe("settlement exemptions on actual violations", () => {
+    it.each([
+        [
+            "settlement field",
+            (n: any[]) => {
+                delete n[3].data.notes;
+            },
+        ],
+        [
+            "settlement field",
+            (n: any[]) => {
+                n[3].data.type = "wrong";
+                n[3].data.market = "wrong";
+            },
+        ],
+    ])("suppresses %s while retaining its corpus", (code, change) =>
+        checked(change, ({ index }) => {
+            const note = index.notes.find((n: any) => n.fm.shortcode === "capital");
+            expect(
+                checkSettlementTables(note, { index }).some((f: any) => f.message.startsWith(code)),
+            ).toBe(true);
+            const result = lintFrontmatter(index, {
+                schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                vocabulary: NOTE_VOCABULARY,
+                settlementExemptions: [{ prefix: "place-cap", reason: "pending" }],
+            });
+            expect(result.settlementExemptNotes).toBe(1);
+            expect(
+                result.findings.some(
+                    (f: any) => f.file.endsWith("capital.md") && f.message.startsWith(code),
+                ),
+            ).toBe(false);
+        }),
+    );
+    it("supports a territorial-sum owner exception", () =>
+        checked(
+            (notes) => {
+                notes[1].data.territorial_population = 2000;
+            },
+            ({ index }) => {
+                const note = index.notes.find((n: any) => n.fm.shortcode === "crown");
+                expect(
+                    checkSettlementTables(note, { index }).some((f: any) =>
+                        f.message.startsWith("territorial population"),
+                    ),
+                ).toBe(true);
+                const result = lintFrontmatter(index, {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                    settlementExemptions: [
+                        { address: "affiliation-crown", reason: "Dispersed population" },
+                    ],
+                });
+                expect(result.settlementExemptNotes).toBe(1);
+                expect(
+                    result.findings.some(
+                        (f: any) =>
+                            f.file.endsWith("crown.md") &&
+                            f.message.startsWith("territorial population"),
+                    ),
+                ).toBe(false);
+            },
+        ));
 });

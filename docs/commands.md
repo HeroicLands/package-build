@@ -2299,6 +2299,10 @@ dependencies; exact Item UUID validation remains part of compilation. Reads
 the content tree named by `root`, defaulting to
 `paths.content`; writes nothing.
 
+Lint reports the number of notes with suppressed settlement violations. Each configured
+settlement exemption that matches no eligible violation is an error. Publication applies
+the selectors without reporting stale entries.
+
 Every configured language note declares `data.roman`, the NFC Roman characters
 the language adds to the shared standard: letters in accepted cases, accents,
 catch signs and digits. Lint checks language-tagged text before mapping, using the

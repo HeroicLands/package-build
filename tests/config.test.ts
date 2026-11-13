@@ -541,3 +541,45 @@ describe("checkHomepage — package.json's homepage, against contentPackage", ()
         expect(() => checkHomepage("harnensemble/", "harnensemble")).toThrow(/absolute URL/);
     });
 });
+
+describe("settlement exemptions", () => {
+    it("accepts hyphenated selectors and rejects duplicate selectors", () => {
+        for (const entry of [
+            { address: "place-north-har", reason: "pending" },
+            { prefix: "place-north-", reason: "pending" },
+            { address: "thalorna-note-place-north-harbor", reason: "pending" },
+        ])
+            expect(
+                resolvePackageBuildConfig(shared({ settlementExemptions: [entry] }))
+                    .settlementExemptions,
+            ).toEqual([entry]);
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({
+                    settlementExemptions: [
+                        { prefix: "place-north-", reason: "one" },
+                        { prefix: "place-north-", reason: "two" },
+                    ],
+                }),
+            ),
+        ).toThrow(/settlementExemptions/);
+    });
+    it("requires one typed selector and a reason", () => {
+        const entry = { address: "place-town", reason: "Tables pending" };
+        expect(
+            resolvePackageBuildConfig(shared({ settlementExemptions: [entry] }))
+                .settlementExemptions,
+        ).toEqual([entry]);
+        for (const bad of [
+            {},
+            { address: "place-town" },
+            { prefix: "place-", reason: " " },
+            { address: "place-town", prefix: "place-", reason: "pending" },
+            { address: "path/to/file", reason: "pending" },
+            { prefix: "place-", reason: "pending", other: true },
+        ])
+            expect(() =>
+                resolvePackageBuildConfig(shared({ settlementExemptions: [bad] })),
+            ).toThrow(/packageBuild\.settlementExemptions/);
+    });
+});

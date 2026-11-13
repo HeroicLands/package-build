@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { compileTestsEnabled } from "./helpers/compile-tests.js";
+
 import { beforeAll, describe, it, expect } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -11,7 +13,7 @@ import { compileTypst } from "../engine/pdf-build.mjs";
 import { indexPreamble, indexTerms } from "../engine/pdf-index.mjs";
 import { markGenerated, splitGenerated } from "../engine/generated-sections.mjs";
 
-const HAS_TYPST = spawnSync("typst", ["--version"], { encoding: "utf8" }).status === 0;
+const HAS_TYPST = compileTestsEnabled();
 const HAS_PDFTOTEXT = spawnSync("pdftotext", ["-v"], { encoding: "utf8" }).status === 0;
 
 /** A note entry as the plan carries it. */
