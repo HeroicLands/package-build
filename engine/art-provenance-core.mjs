@@ -888,7 +888,9 @@ function readComposition(packet) {
 /**
  * Read the record stored in an XMP packet. Composition parsing imposes XML
  * validity only when a composition declaration is present, then checks its
- * namespace, structure, and recipe.
+ * namespace, structure, and recipe. Unframed prose such as `a <b composition c`
+ * does not declare the property; `a <b composition>` is a framed attribute
+ * attempt and selects composition validation.
  *
  * @param {string} packet - The XMP text.
  * @returns {ProvenanceRecord} The fields the packet holds; fields it lacks are

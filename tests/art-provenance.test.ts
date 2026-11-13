@@ -62,8 +62,22 @@ describe("composition declaration detection", () => {
         "x <3 composition y",
         "if a<b then composition c>d",
         "a <b composition=3",
+        "I <3 composition",
+        "a<b composition",
+        "1<2 composition>1",
+        "a <b composition c",
     ])("accepts less-than prose: %s", (packet) => {
         expect(readXmpRecord(packet)).toEqual({});
+    });
+
+    it("extracts recognized fields across the non-XML packet boundary", () => {
+        expect(readXmpRecord("<dc:title>a <b composition</dc:title>")).toEqual({
+            title: "a <b composition",
+        });
+    });
+
+    it("refuses a framed composition attribute attempt in prose", () => {
+        expect(() => readXmpRecord("a <b composition>")).toThrow("composition: malformed XMP");
     });
 
     it("reads a recipe alongside a prose title", () => {
