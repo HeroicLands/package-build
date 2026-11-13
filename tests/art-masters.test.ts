@@ -24,12 +24,14 @@ import {
 } from "../engine/art-masters.mjs";
 import { renderArtMasters } from "../engine/art-master-render.mjs";
 import {
+    checkProvenance,
     readProvenance,
     readSvgProvenance,
     readWebpProvenance,
     writeProvenance,
     writeSvgProvenance,
 } from "../engine/art-provenance.mjs";
+import { buildPrimaryNoteIndex } from "../engine/art-primary-note.mjs";
 import { collectAssetRecords } from "../engine/asset-index.mjs";
 import { stagePackageAssets } from "../engine/asset-shipping.mjs";
 import { planCdnPublish } from "../engine/cdn-publish.mjs";
@@ -732,6 +734,18 @@ it.each([
         });
         expect(record.primaryNote).toBe(publicNote ? fields.primaryNote : undefined);
         expect(record.name).toBe(publicNote ? "Public name" : undefined);
+        expect(fs.readFileSync(path.join(privateRoot, `master.${format}`))).toEqual(bytes);
+        const findings = checkProvenance(
+            [
+                { file: "master", bytes },
+                { file: "derived", bytes: output },
+            ],
+            { index: buildPrimaryNoteIndex(notes) },
+        );
+        expect(findings.filter((finding) => finding.file === "derived")).toEqual([]);
+        expect(findings.filter((finding) => finding.file === "master")).toHaveLength(
+            publicNote ? 1 : 0,
+        );
     },
 );
 

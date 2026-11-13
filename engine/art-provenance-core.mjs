@@ -69,8 +69,10 @@
  * found by address: {@link findMaster} resolves the master among a set of files
  * and {@link effectiveRecord} returns a file's properties, the master's record
  * for a derivative with the values the derivative repeats applying. A derivative
- * may repeat a subset of the master's properties. Each repeated value must equal
- * the master's, and a property the master does not carry may not be stated.
+ * may repeat a subset of the master's properties. Repeated values equal the
+ * master's, except that `derivedFrom` names the master Address and indexed
+ * public-note fields may supply the current name and primary note. Overrides
+ * require the primary-note index; master metadata is audited separately.
  *
  * {@link deriveRecord} turns a master's record into a derivative's: the
  * address, `hl:derived`, `dc:rights` and the creator (`dc:creator`, the
@@ -147,8 +149,8 @@
  * {@link checkProvenance} reports, as `file:line:column: severity: message`, a
  * file with no address, an address that is not a complete Address, an
  * address with two masters, a derivative whose address has no master in the set,
- * a derivative that repeats a property with a value different from its
- * master's or states one its master does not carry, a WebP without
+ * a derivative with an incorrect parent trace or unauthorized note fields,
+ * another repeated property that differs from or is absent on its master, a WebP without
  * `hl:derived`, a PNG with it, an `hl:derived` whose value is not `true`, a `dc:identifier` that differs from
  * `hl:address`, a `hl:primarynote` that is malformed or that names no note in
  * the index, a `hl:name` that differs from the named note's `name.full`, a
@@ -1766,8 +1768,8 @@ export function formatFinding(finding) {
  *
  * The format of each file is sniffed from its content. A file is refused for a
  * missing address, an address that is not a complete Address, an
- * (address, role) pair another file in the set carries (an absent role is the
- * empty role), an XMP packet or managed SVG element that is missing, and, for a
+ * master address another master carries, an XMP packet or managed SVG element
+ * that is missing, and, for a
  * PNG, a field the XMP packet and the text chunks both hold with different
  * values.
  *
@@ -1778,8 +1780,12 @@ export function formatFinding(finding) {
  * from the named note's `name.full` is refused, and so is a `hl:primarynote`
  * that differs from the being or affiliation note the image resolves to.
  *
+ * Derivative parent traces name the canonical master Address. With `index`,
+ * derivative note fields must match a public indexed note; without it, they
+ * must repeat the master's values. Master note metadata is audited separately.
+ *
  * @param {{file: string, bytes: Buffer|string}[]} entries - The files to check.
- * @param {{index?: object}} [options] - The primary-note index to check against.
+ * @param {{index?: ReturnType<import("./art-primary-note.mjs").buildPrimaryNoteIndex>}} [options] - The primary-note index to check against.
  * @returns {ProvenanceFinding[]} The findings, in file order; empty when the set
  *   is sound.
  */
@@ -1884,7 +1890,7 @@ export function checkProvenance(entries, options = {}) {
                     file,
                     `malformed hl:primarynote ${JSON.stringify(xmp.primaryNote)}: expected <package>-<system>-<type>-<shortcode>`,
                 );
-            } else if (options.index) {
+            } else if (options.index && xmp.derived === undefined) {
                 const named = options.index.notes.get(xmp.primaryNote);
                 const derived =
                     address && COMPLETE_ADDRESS.test(address) ?
@@ -1942,20 +1948,56 @@ export function checkProvenance(entries, options = {}) {
         }
         if (masters.length > 1) continue;
         const master = masters[0];
+        if (xmp.derivedFrom !== undefined && xmp.derivedFrom !== address && format !== "jpeg") {
+            add(file, "hl:derivedFrom must name its master address");
+        }
+        const indexedNoteFields =
+            options.index && NOTE_FIELDS.some((field) => xmp[field] !== undefined);
+        if (indexedNoteFields) {
+            const resolved = resolvePrimaryNote(options.index, address).note;
+            const noteAddress = xmp.primaryNote ?? master.record.primaryNote ?? resolved?.address;
+            const named = options.index.notes.get(noteAddress);
+            if (!named) {
+                add(
+                    file,
+                    `derivative note fields name no note in the index: ${noteAddress ?? "no primary note"}`,
+                );
+            } else if (!options.index.publicNotes?.has(noteAddress)) {
+                add(file, `derivative note fields require a public indexed note: ${noteAddress}`);
+            } else {
+                if (xmp.name !== undefined && xmp.name !== named.name) {
+                    add(
+                        file,
+                        `hl:name ${JSON.stringify(xmp.name)} differs from the indexed name ${JSON.stringify(named.name)} of ${noteAddress}`,
+                    );
+                }
+                if (resolved && resolved.address !== noteAddress) {
+                    add(
+                        file,
+                        `hl:primarynote ${noteAddress} differs from ${resolved.address}, the ${resolved.type} that names the image`,
+                    );
+                }
+            }
+        }
         for (const field of REPEATABLE) {
-            if (format === "jpeg" && field === "derivedFrom") continue;
+            if (field === "derivedFrom" || (indexedNoteFields && NOTE_FIELDS.includes(field)))
+                continue;
             if (xmp[field] === undefined) continue;
             const name = XMP_PROPERTIES.find(([f]) => f === field)[1];
             const mine = master.record[field];
+            const authority =
+                NOTE_FIELDS.includes(field) ?
+                    "; supply a public note index to validate an override"
+                :   "";
             if (mine === undefined) {
                 add(
                     file,
-                    `${name} ${brief(xmp[field])} is not carried by its master ${master.file}`,
+                    `${name} ${brief(xmp[field])} is not carried by its master ${master.file}${authority}`,
                 );
             } else if (JSON.stringify(mine) !== JSON.stringify(xmp[field])) {
                 add(
                     file,
-                    `${name} ${brief(xmp[field])} is stale: its master ${master.file} has ${brief(mine)}`,
+                    `${name} ${brief(xmp[field])} is stale: its master ${master.file} has ${brief(mine)}${authority}`,
                 );
             }
         }

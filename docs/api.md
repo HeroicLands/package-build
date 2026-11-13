@@ -1346,9 +1346,15 @@ the merged values alone and are returned as `primary`.
 `deriveRecord` starts with `address`, `identifier`, `derived: "true"`, and any
 master `creator` and `rights`. `repeat` selects additional master fields;
 `prompt` and `generator` are always refused, and `name` or `primaryNote` requires
-`notePublic: true`. A derivative may repeat only values its master carries,
-unchanged. `effectiveRecord` applies repeats; use `checkProvenance` to validate
-their agreement.
+`notePublic: true`. Other repeated properties must match the master.
+`derivedFrom` names the canonical master Address for WebP, SVG and JPEG.
+With `{index}`, `checkProvenance` validates derivative `name` and `primaryNote`
+against a public indexed note, including a current name absent from or different
+from the master. Without that index, note fields must equal the master's values.
+The index comes from `buildPrimaryNoteIndex(records)` and retains public-note
+visibility. Canonical-master checks still report stale source names at the master;
+an accepted derivative does not rewrite or excuse that source metadata.
+`effectiveRecord` applies repeated fields; `checkProvenance` validates their authority.
 
 The public build renderer uses the narrower allowlist: asset identity, creator,
 rights and parent-image trace (`derivedFrom` set to the asset Address), with
@@ -1492,22 +1498,23 @@ console.log(readWebpProvenance(publicImage.bytes).record.address);
 
 Import from `@heroiclands/package-build/engine/art-primary-note`. Resolution
 uses standard content-index records: each note's `type`, `name.full`,
-`address.canonical` and `namedImages`. It reads no source note, prose or path.
+`address.canonical` and `namedImages`; indexed tags supply public visibility.
+It reads no source note, prose or path.
 Asset, package and generated-document records are excluded.
 
-| Export                  | Signature                                                   | Returns / use                                                                                                                                                     |
-| ----------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PRIMARY_NOTE_TYPES`    | Frozen `readonly string[]`                                  | `being` and `affiliation`                                                                                                                                         |
-| `buildPrimaryNoteIndex` | `buildPrimaryNoteIndex(records = [])`                       | `{notes: Map<string, {address, type, name}>, naming: Map<string, Set<string>>}` keyed by canonical Address; the naming sets contain note Addresses for each image |
-| `resolvePrimaryNote`    | `resolvePrimaryNote(index, imageAddress: string \| object)` | `{note: {address, type, name}}` for the single being or affiliation naming the image, or a reason result                                                          |
+| Export                  | Signature                                                   | Returns / use                                                                                                                                                                               |
+| ----------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PRIMARY_NOTE_TYPES`    | Frozen `readonly string[]`                                  | `being` and `affiliation`                                                                                                                                                                   |
+| `buildPrimaryNoteIndex` | `buildPrimaryNoteIndex(records = [])`                       | `{notes: Map<string, {address, type, name}>, naming: Map<string, Set<string>>, publicNotes: Set<string>}` keyed by canonical Address; the naming sets contain note Addresses for each image |
+| `resolvePrimaryNote`    | `resolvePrimaryNote(index, imageAddress: string \| object)` | `{note: {address, type, name}}` for the single being or affiliation naming the image, or a reason result                                                                                    |
 
 Other note types do not compete with a being or affiliation. The reason results
 are `{reason: "no-note"}` when no note names the image,
 `{reason: "not-being-or-affiliation"}` when only other types name it, and
 `{reason: "several-notes", notes: string[]}` when several eligible notes name it;
 `notes` is sorted by Address. A resolved note without `name.full` has `name: ""`.
-This index determines the subject; public visibility must be checked separately
-before selecting derivative note fields.
+`publicNotes` contains the Addresses without a GM-only tag. It supplies the
+visibility authority when checking derivative note fields.
 
 ### Internal art modules
 
