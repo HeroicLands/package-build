@@ -43,14 +43,10 @@ function pdfMasterRecord(master, notePublic) {
 export async function renderPdfMaster(bytes, master, uses, edition, notePublic) {
     const profile = PDF_EDITIONS[edition];
     if (!profile) throw new Error(`unknown PDF edition ${edition}`);
-    const input =
-        (
-            Buffer.from(bytes)
-                .subarray(0, 8)
-                .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-        ) ?
-            bytes
-        :   writeDerivativeProvenance(bytes, master).bytes;
+    const raster = Buffer.from(bytes)
+        .subarray(0, 8)
+        .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    const input = raster ? bytes : writeDerivativeProvenance(bytes, master).bytes;
     const metadata = await sharp(input).metadata();
     if (!metadata.width || !metadata.height) throw new Error("master has no image dimensions");
     const ratio = metadata.width / metadata.height;
@@ -62,8 +58,8 @@ export async function renderPdfMaster(bytes, master, uses, edition, notePublic) 
         ),
     );
     const record = pdfMasterRecord(master, notePublic);
-    return sharp(input)
-        .resize({ width, withoutEnlargement: true })
+    return sharp(input, raster ? {} : { density: Math.max(1, (72 * width) / metadata.width) })
+        .resize({ width, withoutEnlargement: raster })
         .flatten({ background: "#ffffff" })
         .toColourspace("srgb")
         .jpeg({ quality: profile.quality })
@@ -166,16 +162,15 @@ export function bookImageWidthIn({ type, role, width } = {}) {
  * @param {Map<string, {from: string, to: string, relative: string, file: string,
  *   uses: Array<{width: number, height: number}>}>} candidates
  * @param {string} outDir - PDF staging directory.
- * @param {"screen"|"print"} [edition] - Master image profile.
- * @param {string} [cacheDir] - Disposable build cache directory.
+ * @param {"screen"|"print"} edition - Image profile.
+ * @param {string} cacheDir - Absolute disposable build cache directory.
  * @returns {Promise<object[]>} Image reports with the authored file location.
  */
-export async function resamplePdfImages(
-    candidates,
-    outDir,
-    edition = "screen",
-    cacheDir = path.resolve("build/.cache/art"),
-) {
+export async function resamplePdfImages(candidates, outDir, edition, cacheDir) {
+    const profile = PDF_EDITIONS[edition];
+    if (!profile) throw new Error(`unknown PDF edition ${edition}`);
+    if (typeof cacheDir !== "string" || !path.isAbsolute(cacheDir))
+        throw new Error("an absolute cache directory is required");
     const reports = [];
     assertPrivateArtRoots(
         [...candidates.values()]
@@ -223,14 +218,14 @@ export async function resamplePdfImages(
         const target = Math.round(
             Math.max(
                 ...candidate.uses.map(({ width, height }) => Math.min(width, height * ratio)),
-            ) * PDF_PAGE.dpi,
+            ) * profile.dpi,
         );
         if (metadata.width <= target) continue;
         let pipeline = sharp(original).resize({ width: target, withoutEnlargement: true });
         if (extension === ".jpg" || extension === ".jpeg")
-            pipeline = pipeline.jpeg({ quality: PDF_PAGE.quality });
-        if (extension === ".webp") pipeline = pipeline.webp({ quality: PDF_PAGE.quality });
-        if (extension === ".avif") pipeline = pipeline.avif({ quality: PDF_PAGE.quality });
+            pipeline = pipeline.jpeg({ quality: profile.quality });
+        if (extension === ".webp") pipeline = pipeline.webp({ quality: profile.quality });
+        if (extension === ".avif") pipeline = pipeline.avif({ quality: profile.quality });
         if (extension === ".png") pipeline = pipeline.png();
         const output = await pipeline.toBuffer();
         await fs.writeFile(destination, output);

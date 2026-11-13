@@ -28,6 +28,17 @@ afterEach(() => {
     for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
+it("requires an explicit absolute cache directory", async () => {
+    for (const cache of [undefined, "", "relative/cache"]) {
+        await expect(renderArtMasters(new Map(), [], directory(), cache as string)).rejects.toThrow(
+            "absolute cache directory",
+        );
+        await expect(
+            resamplePdfImages(new Map(), directory(), "screen", cache as string),
+        ).rejects.toThrow("absolute cache directory");
+    }
+});
+
 it("changes renderer identity when the SVG sanitizer changes", async () => {
     fs.mkdirSync("build", { recursive: true });
     const root = fs.mkdtempSync(path.resolve("build/cache-identity-"));

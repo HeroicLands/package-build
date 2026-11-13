@@ -28,15 +28,12 @@ import { artRendererIdentity, cachedArtRender } from "./art-render-cache.mjs";
  * @param {ReturnType<import("./art-masters.mjs").collectArtMasters>["masters"]} masters Parsed masters.
  * @param {readonly Record<string, any>[]} records Indexed records.
  * @param {string} outDir Build output directory.
- * @param {string} [cacheDir] Disposable build cache directory.
+ * @param {string} cacheDir Absolute disposable build cache directory.
  * @returns {Promise<Map<string, string>>} Rendered paths by Address.
  */
-export async function renderArtMasters(
-    masters,
-    records,
-    outDir,
-    cacheDir = path.resolve("build/.cache/art"),
-) {
+export async function renderArtMasters(masters, records, outDir, cacheDir) {
+    if (typeof cacheDir !== "string" || !path.isAbsolute(cacheDir))
+        throw new Error("an absolute cache directory is required");
     assertPrivateArtRoots(
         [...masters.values()].map((master) => master.file),
         [outDir, cacheDir],
