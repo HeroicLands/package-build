@@ -883,9 +883,13 @@ function hasGenerationDeclaration(packet, includeSource = false) {
                 continue;
             }
             const attribute = /^\s+([^\s=/>]+)/u.exec(text.slice(at));
-            if (attribute && property.test(attribute[1])) {
+            if (attribute) {
                 const after = text.slice(at + attribute[0].length);
-                if (attribute[1].includes(":") || /^\s*(?:=|["']|\/?\s*>|$)/u.test(after))
+                if (property.test(match[1]) && /^\s*=/u.test(after)) return true;
+                if (
+                    property.test(attribute[1]) &&
+                    (attribute[1].includes(":") || /^\s*(?:=|["']|\/?\s*>|$)/u.test(after))
+                )
                     return true;
             }
             at++;

@@ -1967,6 +1967,39 @@ describe("generation declaration selection", () => {
         );
         expect(() => readSvgProvenance(duplicate)).not.toThrow();
     });
+    it.each([`<ai xmlns="${HL_NAMESPACE}"/>`, `<ai xmlns="${HL_NAMESPACE}" rdf:resource="True"/>`])(
+        "refuses self-closing managed AI declarations: %s",
+        (element) => {
+            const base = writeSvgProvenance("<svg/>", {
+                ...FIELDS,
+                digitalSourceType: "digitalCreation",
+            }).text;
+            const malformed = base.replace("</rdf:Description>", `${element}</rdf:Description>`);
+            expect(() => readSvgProvenance(malformed)).toThrow(/ai/);
+            expect(() => writeSvgProvenance(malformed, { rights: "Revised" })).toThrow(/ai/);
+            expect(checkProvenance([{ file: "master.svg", bytes: malformed }])[0]).toMatchObject({
+                file: "master.svg",
+                severity: "error",
+            });
+        },
+    );
+    it("handles inherited default AI namespaces and unrelated elements", () => {
+        const base = writeSvgProvenance("<svg/>", { ...FIELDS, digitalSourceType: "none" }).text;
+        const inherited = base
+            .replace("<rdf:Description ", `<rdf:Description xmlns="${HL_NAMESPACE}" `)
+            .replace("</rdf:Description>", '<ai rdf:resource="True"/></rdf:Description>');
+        expect(() => readSvgProvenance(inherited)).toThrow(/ai/);
+        const paired = base.replace(
+            "</rdf:Description>",
+            `<ai xmlns="${HL_NAMESPACE}">True</ai></rdf:Description>`,
+        );
+        expect(readSvgProvenance(paired).record.ai).toBe(true);
+        const other = base.replace(
+            "</rdf:Description>",
+            `<ai xmlns="urn:other"/></rdf:Description>`,
+        );
+        expect(readSvgProvenance(other).record.ai).toBeUndefined();
+    });
     it("reads a valid declaration", () => {
         const svg = writeSvgProvenance("<svg/>", { ...FIELDS, ai: false });
         expect(readSvgProvenance(svg.text).record.ai).toBe(false);
