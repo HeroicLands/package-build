@@ -66,7 +66,7 @@ import { formatUnaddressableFinding, unaddressableForeignPackages } from "./meta
 import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 // The corpus, from the one pass that derives it.
-import { indexRecordsFor } from "./content-index.mjs";
+import { indexRecordsFor, publicationIndexRecordsFor } from "./content-index.mjs";
 import { normalizeCurrentDate } from "./current-date.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
@@ -776,7 +776,7 @@ export function buildSite({ config, sqlTables, progress = () => {} } = {}) {
         // The corpus, derived once for this build and handed to both
         // collectors — the homepage pass and the content pass read one answer
         // about which files the content is, rather than walking twice.
-        records: indexRecordsFor({
+        records: publicationIndexRecordsFor({
             contentBase: resolved.paths.content,
             config: resolved,
             skipDirectories: resolved.skipDirectories,

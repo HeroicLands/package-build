@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { pathToFileURL } from "node:url";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import YAML from "yaml";
@@ -14,13 +15,14 @@ import {
     prepareContentIndex,
     emitContentIndex,
 } from "../engine/content-index.mjs";
-import { loadPinnedArt, fetchPublicArt, reproducePinnedArt } from "../engine/art-lock.mjs";
+import { loadPinnedArt, fetchPublicArt } from "../engine/art-lock.mjs";
 import { writeDerivativeProvenance } from "../engine/art-provenance.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { renderAddress } from "../engine/address.mjs";
 import { noteTree } from "../engine/note-cache.mjs";
 import { stagePackageBuildAssets } from "../engine/build-assets.mjs";
 import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
+import { navigationCacheDir } from "../engine/site-config.mjs";
 import { buildSite } from "../engine/site-build.mjs";
 import { buildPackageSite } from "../engine/site-render.mjs";
 import { buildPdf } from "../engine/pdf-build.mjs";
@@ -56,12 +58,18 @@ async function fixture() {
         stats: { lastModifiedBy: "samplebuilder000" },
         packs: [],
         pdf: { books: [{ id: "core", title: "Sample", document: "book.yaml" }] },
-        site: { assets: "https://assets.example.invalid" },
+        site: {
+            title: "Sample",
+            description: "A sample package.",
+            assets: "https://assets.example.invalid",
+        },
         packageBuild: { assets: [] },
     };
     const configFile = path.join(root, "package-build.config.yaml");
     write(configFile, YAML.stringify(data));
     const config = configFromData(data, configFile);
+    write(path.join(navigationCacheDir(config), "nav.json"), "[]");
+    write(path.join(navigationCacheDir(config), ".complete"), "complete");
     const subject = path.join(config.paths.content, "Subject.md");
     const fm = {
         type: "being",
@@ -153,12 +161,65 @@ function diagnostics(findings: any[]) {
     return text;
 }
 function cli(f: Awaited<ReturnType<typeof fixture>>, args: string[]) {
-    return spawnSync(process.execPath, [path.resolve("bin/package-build.mjs"), ...args], {
+    const command = path.resolve("bin/package-build.mjs");
+    const archive = path.join(
+        fs.realpathSync(f.root),
+        path.relative(f.root, f.cache),
+        "archive.zip",
+    );
+    const script = `
+        import fs from 'node:fs';
+        let reads = 0;
+        const read = fs.readFileSync;
+        fs.readFileSync = function(file, ...args) {
+            if (String(file) === ${JSON.stringify(archive)}) reads++;
+            return read.call(this, file, ...args);
+        };
+        globalThis.fetch = () => { throw new Error('network forbidden'); };
+        process.on('exit', () => console.log('ARCHIVE_READS=' + reads));
+        process.argv = [process.execPath, ${JSON.stringify(command)}, ...${JSON.stringify(args)}];
+        await import(${JSON.stringify(pathToFileURL(command).href)});
+    `;
+    return spawnSync(process.execPath, ["--input-type=module", "-e", script], {
         cwd: f.root,
         encoding: "utf8",
         env: { ...process.env, PACKAGE_BUILD_CONFIG: f.configFile },
     });
 }
+
+function cdn(f: Awaited<ReturnType<typeof fixture>>) {
+    const command = path.resolve("bin/package-build.mjs");
+    const module = pathToFileURL(path.resolve("engine/cdn-publish.mjs")).href;
+    const script = `
+        import { registerHooks } from 'node:module';
+        globalThis.boundaryCalls = [];
+        globalThis.fetch = () => { boundaryCalls.push('fetch'); throw new Error('network forbidden'); };
+        registerHooks({ load(url, context, next) {
+            const loaded = next(url, context);
+            if (url !== ${JSON.stringify(module)}) return loaded;
+            let source = String(loaded.source)
+                .replace('export function planCdnPublish(', 'function observedPlanCdnPublish(')
+                .replace('export async function publishToCdn(', 'async function observedPublishToCdn(');
+            source += \`\nexport function planCdnPublish(...args) {
+                boundaryCalls.push('plan'); return observedPlanCdnPublish(...args);
+            }
+            export function publishToCdn(...args) {
+                boundaryCalls.push('upload'); return observedPublishToCdn(...args);
+            }\`;
+            return {...loaded, source};
+        }});
+        process.on('exit', () => console.log('PUBLICATION_CALLS=' + JSON.stringify(boundaryCalls)));
+        process.argv = [process.execPath, ${JSON.stringify(command)}, 'cdn', 'publish',
+            '--dest', 'cloudflare', '--dry-run', '--set', 'art.json', '--name', 'Art'];
+        await import(${JSON.stringify(pathToFileURL(command).href)});
+    `;
+    return spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+        cwd: f.root,
+        encoding: "utf8",
+        env: { ...process.env, PACKAGE_BUILD_CONFIG: f.configFile },
+    });
+}
+
 it.each<Change>(["rename", "gm", "attribution", "removal", "readdress"])(
     "ordinary readers retain current records and lint continues after %s",
     async (kind) => {
@@ -182,11 +243,14 @@ it.each<Change>(["rename", "gm", "attribution", "removal", "readdress"])(
         expect(indexRecordsFor({ config: f.config })).toEqual(records);
         expect((await noteTree(f.config, { cache: false })).records).toEqual(records);
         expect((await noteTree(f.config)).cache.tree).toBe("miss");
-        expect((await noteTree(f.config)).cache.tree).toBe("hit");
+        const warm = await noteTree(f.config);
+        expect(warm.cache.tree).toBe("hit");
+        expect(warm.records).toEqual(records);
         const lint = cli(f, ["lint"]);
         expect(lint.status, lint.stderr + lint.stdout).toBe(1);
         expect(lint.stderr).toMatch(remedy);
-        expect(lint.stderr + lint.stdout).toContain("lore-missing");
+        expect(lint.stderr).toContain("carries no `draft` tag");
+        expect(lint.stdout).toContain("Stage timings:");
         expect(lint.stderr).not.toContain("Original subject");
         expect(lint.stderr).not.toContain(primary);
     },
@@ -219,9 +283,6 @@ it.each<Change>(["rename", "gm", "attribution", "removal", "readdress"])(
         await expect(
             stagePackageBuildAssets({ config: buildConfig, packConfig: f.config }),
         ).rejects.toThrow(remedy);
-        await expect(
-            reproducePinnedArt(f.config, { records: indexRecordsFor({ config: f.config }) }),
-        ).rejects.toThrow(remedy);
         const pdf = await buildPdf({ config: f.config, compile: false, out });
         expect(pdf.built).toBe(false);
         diagnostics(pdf.findings);
@@ -245,10 +306,10 @@ it.each<Change>(["rename", "gm", "attribution", "removal", "readdress"])(
         }
         expect(outputBytes(out)).toEqual(before);
         expect(outputBytes(stageDir)).toEqual(staged);
-        const cdn = cli(f, ["cdn", "publish", "--dry-run"]);
-        expect(cdn.status, cdn.stderr + cdn.stdout).toBe(1);
-        expect(cdn.stderr).toMatch(remedy);
-        expect(cdn.stdout).not.toMatch(/would upload|uploading/i);
+        const published = cdn(f);
+        expect(published.status, published.stderr + published.stdout).toBe(1);
+        expect(published.stderr).toMatch(remedy);
+        expect(published.stdout).toContain("PUBLICATION_CALLS=[]");
     },
     subprocessTimeout(30),
 );
@@ -280,15 +341,124 @@ it("fetch refuses stale publication metadata without replacing verified cache", 
     expect(outputBytes(f.cache)).toEqual(before);
 });
 
-it(
-    "missing cache stops real package build orchestration with the fetch remedy",
-    async () => {
+it.each(["missing", "rename", "gm", "attribution", "removal", "readdress"] as const)(
+    "content build preserves published outputs for %s pinned art",
+    async (kind) => {
         const f = await fixture();
-        fs.rmSync(f.cache, { recursive: true });
+        if (kind === "missing") fs.rmSync(f.cache, { recursive: true });
+        else change(f, kind);
+        const paths = [
+            f.config.paths.contentIndex,
+            f.config.paths.packJson,
+            path.join(f.root, "build/calendars"),
+        ];
+        for (const folder of paths) write(path.join(folder, "sentinel"), "published bytes");
+        write(path.join(f.config.paths.contentIndex, ".publication-ready"), "sample");
+        const before = paths.map(outputBytes);
         const result = cli(f, ["content", "build", "--calendaria-version", "1.4.2"]);
         expect(result.status, result.stderr + result.stdout).toBe(1);
-        expect(result.stderr).toMatch(/run package-build art fetch/);
-        expect(fs.existsSync(f.config.paths.contentIndex)).toBe(false);
+        expect(result.stderr).toMatch(kind === "missing" ? /run package-build art fetch/ : remedy);
+        expect(paths.map(outputBytes)).toEqual(before);
+        expect(result.stdout).toContain(`ARCHIVE_READS=${kind === "missing" ? 0 : 1}`);
     },
     subprocessTimeout(30),
+);
+
+it("preserves current shipping fields without comparing license identifiers to free-text rights", async () => {
+    const f = await fixture();
+    const records = indexRecordsFor({ config: f.config, pinnedArt: false });
+    const asset = records.find((r: any) => r.asset) as any;
+    asset.asset = {
+        ...asset.asset,
+        ai: true,
+        license: "CC0-1.0",
+        source: "https://example.invalid/current",
+    };
+    const loaded = loadPinnedArt(f.config, records);
+    expect(loaded.findings).toEqual([]);
+    expect(loaded.records.find((r: any) => r.asset)?.asset).toEqual(asset.asset);
+});
+
+it("keeps unrelated compile problems nonfatal for direct and session preparation", async () => {
+    const f = await fixture();
+    const problem = { file: "note.md", severity: "error", message: "Unrelated corpus finding" };
+    const direct = await buildCompileCorpus({
+        config: f.config,
+        contentBase: f.config.paths.content,
+        problems: [problem],
+    });
+    expect(direct.problems).toContain(problem);
+    const session = await createContentSession({ config: f.config });
+    try {
+        session.problems.push(problem);
+        expect((await buildCompileCorpus({ config: f.config, session })).problems).toContain(
+            problem,
+        );
+    } finally {
+        session.dispose();
+    }
+});
+
+it("requires the checked preparation object before emitting prepared records", async () => {
+    const f = await fixture();
+    const publication = await prepareContentIndex({ config: f.config });
+    const out = path.join(f.root, "unprepared");
+    expect(() =>
+        emitContentIndex({ config: f.config, publication: { ...publication }, outDir: out }),
+    ).toThrow(/prepareContentIndex/);
+    expect(fs.existsSync(out)).toBe(false);
+    expect(() => emitContentIndex({ config: f.config, publication, outDir: out })).not.toThrow();
+});
+
+it("refuses valid public pins as PDF master inputs without compiling or writing", async () => {
+    const f = await fixture();
+    const write = vi.spyOn(fs, "writeFileSync");
+    await expect(buildPdf({ config: f.config, compile: false })).rejects.toThrow(
+        /require private master inputs/,
+    );
+    expect(write).not.toHaveBeenCalled();
+});
+
+it.each(["archive", "image", "missing", "unsafe"])(
+    "keeps the fetch remedy for %s cache integrity failures after a live edit",
+    async (kind) => {
+        const f = await fixture();
+        change(f, "gm");
+        const file = path.join(f.cache, "files/public/image.svg");
+        if (kind === "archive") fs.writeFileSync(path.join(f.cache, "archive.zip"), "corrupt");
+        if (kind === "image") fs.writeFileSync(file, "corrupt");
+        if (kind === "missing") fs.unlinkSync(file);
+        if (kind === "unsafe") {
+            fs.unlinkSync(file);
+            fs.symlinkSync(f.asset, file);
+        }
+        expect(() => indexRecordsFor({ config: f.config })).toThrow(
+            /missing or invalid; run package-build art fetch/,
+        );
+    },
+);
+
+it("reuses a valid pin capture through content-build validation", async () => {
+    const f = await fixture();
+    const result = cli(f, ["content", "build", "--calendaria-version", "1.4.2"]);
+    expect(result.stdout).toContain("ARCHIVE_READS=1");
+    expect(result.stderr).not.toMatch(/new archive|run package-build art fetch/);
+    expect(fs.existsSync(path.join(f.cache, "archive.zip"))).toBe(true);
+});
+
+it.each([false, true])(
+    "content build protects pinned bytes from overlapping output cleanup (alias: %s)",
+    async (alias) => {
+        const f = await fixture();
+        const data = YAML.parse(fs.readFileSync(f.configFile, "utf8"));
+        if (alias)
+            fs.symlinkSync(path.join(f.cache, "files"), path.join(f.root, "build/published"));
+        data.paths = { contentIndex: alias ? "build/published/public" : "build/.cache/pinned-art" };
+        write(f.configFile, YAML.stringify(data));
+        const before = outputBytes(f.cache);
+        const result = cli(f, ["content", "build", "--calendaria-version", "1.4.2"]);
+        expect(result.status, result.stderr + result.stdout).toBe(1);
+        expect(result.stderr).toMatch(/overlaps captured input/);
+        expect(outputBytes(f.cache)).toEqual(before);
+    },
 );

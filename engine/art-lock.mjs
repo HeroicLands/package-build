@@ -31,7 +31,7 @@ import { buildPrimaryNoteIndex, resolvePrimaryNote } from "./art-primary-note.mj
 import { assertPrivateArtRoots, collectArtMasters } from "./art-masters.mjs";
 import { renderArtMasters } from "./art-master-render.mjs";
 import { setArtSource } from "./art-source.mjs";
-import { formatLocator } from "./diagnostics.mjs";
+import { formatLocator, formatDiagnostic } from "./diagnostics.mjs";
 
 /** @typedef {{version: 1, package: string, source: {repository: string, revision: string}, rendered: {url: string, sha256: string}}} ArtLock */
 const digest = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
@@ -310,13 +310,7 @@ function archiveFiles(config, lock, bytes) {
         throw failure(config, "unsafe, duplicate or malformed public artwork archive");
     }
 }
-function inspectPublic(config, lock, files, records) {
-    const indexed = new Map(
-        records
-            .filter((r) => r.asset)
-            .map((r) => [renderAddress(readCanonicalKey(r.address.canonical)), r]),
-    );
-    const noteIndex = buildPrimaryNoteIndex(records);
+function inspectPublic(config, lock, files) {
     const byAddress = new Map();
     for (const [name, value] of Object.entries(files)) {
         if (name.endsWith("/")) {
@@ -348,32 +342,12 @@ function inspectPublic(config, lock, files, records) {
             throw failure(config, "invalid embedded public image identity or parent trace");
         if (byAddress.has(r.address))
             throw failure(config, "duplicate embedded image address in public archive");
-        const standard = indexed.get(r.address);
-        if (!standard)
-            throw failure(config, "public archive address is absent from the standard index");
         if (
             Object.keys(r).some((key) => !PUBLIC_FIELDS.has(key)) ||
             !read.packet ||
             hasForeignXmp(read.packet, PUBLIC_PROPERTIES)
         )
             throw failure(config, "public image metadata exceeds the publication allowlist");
-        if (r.creator !== (standard.asset.attribution || undefined))
-            throw failure(config, "public image attribution differs from the standard index");
-        if (r.name !== undefined || r.primaryNote !== undefined) {
-            const resolved = resolvePrimaryNote(noteIndex, r.address).note;
-            const primary = r.primaryNote ?? resolved?.address;
-            const named = noteIndex.notes.get(primary);
-            if (
-                !named ||
-                !noteIndex.publicNotes.has(primary) ||
-                (resolved && resolved.address !== primary) ||
-                (r.name !== undefined && r.name !== named.name)
-            )
-                throw failure(
-                    config,
-                    "public note metadata requires its matching public standard-index note",
-                );
-        }
         let sanitized;
         try {
             sanitized = writeDerivativeProvenance(bytes, r, {
@@ -389,10 +363,55 @@ function inspectPublic(config, lock, files, records) {
         }
         if (!sanitized.equals(bytes))
             throw failure(config, "public archive contains unsanitized image metadata or markup");
-        byAddress.set(r.address, { name, bytes, format, record: standard });
+        byAddress.set(r.address, { name, bytes, format, metadata: r });
     }
     if (!byAddress.size) throw failure(config, "public artwork archive contains no images");
     return byAddress;
+}
+/** Compare verified bytes with current publication authority without exposing note identities. */
+function publicFindings(addressed, records, folder) {
+    const indexed = new Map(
+        records
+            .filter((r) => r.asset)
+            .map((r) => [renderAddress(readCanonicalKey(r.address.canonical)), r]),
+    );
+    const noteIndex = buildPrimaryNoteIndex(records);
+    const findings = [];
+    for (const [address, row] of addressed) {
+        const r = row.metadata;
+        const standard = indexed.get(address);
+        const reasons = [];
+        if (!standard) reasons.push("public archive address is absent from the standard index");
+        else if (r.creator !== (standard.asset.attribution || undefined))
+            reasons.push("public image attribution differs from the standard index");
+        if (r.name !== undefined || r.primaryNote !== undefined) {
+            const resolved = resolvePrimaryNote(noteIndex, address).note;
+            const primary = r.primaryNote ?? resolved?.address;
+            const named = noteIndex.notes.get(primary);
+            if (
+                !named ||
+                !noteIndex.publicNotes.has(primary) ||
+                (resolved && resolved.address !== primary) ||
+                (r.name !== undefined && r.name !== named.name)
+            )
+                reasons.push(
+                    "public note metadata requires its matching public standard-index note",
+                );
+        }
+        if (reasons.length)
+            findings.push({
+                file: path.join(folder, "files", row.name),
+                severity: "error",
+                message: `${reasons.join("; ")}; publish a new archive against the current index, update art.lock with its URL and SHA-256, then run package-build art fetch`,
+            });
+    }
+    return findings;
+}
+function requirePublication(findings) {
+    if (findings.length)
+        throw Object.assign(new Error(findings.map(formatDiagnostic).join("\n")), {
+            located: true,
+        });
 }
 function requireLock(config) {
     const lock = readArtLock(config);
@@ -462,7 +481,7 @@ export async function fetchPublicArt(config, { records, from }) {
         bytes = Buffer.concat(chunks);
     }
     const files = archiveFiles(config, lock, bytes);
-    inspectPublic(config, lock, files, records);
+    requirePublication(publicFindings(inspectPublic(config, lock, files), records, folder));
     fs.mkdirSync(path.dirname(folder), { recursive: true });
     const staging = fs.mkdtempSync(path.join(path.dirname(folder), ".fetch-"));
     try {
@@ -475,9 +494,9 @@ export async function fetchPublicArt(config, { records, from }) {
         }
         fs.writeFileSync(path.join(staging, "archive.zip"), bytes, { flag: "wx" });
         if (fs.existsSync(folder)) {
+            let cached;
             try {
-                loadPinnedArt(config, records);
-                return folder;
+                cached = loadPinnedArt(config, records);
             } catch {
                 const displaced = fs.mkdtempSync(path.join(path.dirname(folder), ".replace-"));
                 try {
@@ -493,6 +512,8 @@ export async function fetchPublicArt(config, { records, from }) {
                 }
                 return folder;
             }
+            requirePublication(cached.findings);
+            return folder;
         }
         fs.renameSync(staging, folder);
         return folder;
@@ -505,20 +526,21 @@ export async function fetchPublicArt(config, { records, from }) {
  * Read a complete verified public cache offline and bind it to standard records.
  * @param {object} config Resolved package configuration.
  * @param {readonly Record<string, any>[]} records Existing standard content index.
- * @returns {{records: Record<string,any>[], files: Map<string,string>, paths:string[]}} Public inputs; never canonical masters.
+ * @returns {{records: Record<string,any>[], files: Map<string,string>, paths:string[], findings: object[]}} Integrity-verified inputs; publication requires empty findings. Never canonical masters.
  */
 export function loadPinnedArt(config, records) {
     const lock = readArtLock(config);
-    if (!lock) return { records: [...records], files: new Map(), paths: [] };
+    if (!lock) return { records: [...records], files: new Map(), paths: [], findings: [] };
     const folder = cacheDirectory(config, lock);
-    safeOutput(config, folder);
+    let addressed;
+    const paths = [path.join(config.rootDir, "art.lock"), path.join(folder, "archive.zip")];
+    const actual = new Map();
     try {
+        safeOutput(config, folder);
         const archive = path.join(folder, "archive.zip");
         if (fs.lstatSync(archive).isSymbolicLink()) throw new Error("linked archive");
         const files = archiveFiles(config, lock, fs.readFileSync(archive));
-        const addressed = inspectPublic(config, lock, files, records);
-        const paths = [path.join(config.rootDir, "art.lock"), archive],
-            actual = new Map();
+        addressed = inspectPublic(config, lock, files);
         const visit = (dir) => {
             for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
                 const file = path.join(dir, entry.name);
@@ -543,36 +565,35 @@ export function loadPinnedArt(config, records) {
                 throw new Error("changed cache entry");
             paths.push(file);
         }
-        const mapped = new Map(
-            [...addressed].map(([address, row]) => [address, actual.get(row.name)]),
-        );
-        return {
-            files: mapped,
-            paths,
-            records: records.map((record) => {
-                if (!record.asset) return record;
-                const address = renderAddress(readCanonicalKey(record.address.canonical)),
-                    row = addressed.get(address);
-                if (!row) return record;
-                const tuple = readCanonicalKey(address);
-                return setArtSource(
-                    {
-                        ...record,
-                        asset: {
-                            ...record.asset,
-                            path: `${tuple.type === "icon" ? "icons" : "images"}/${tuple.shortcode}.${row.format}`,
-                        },
-                    },
-                    mapped.get(address),
-                );
-            }),
-        };
     } catch (error) {
         throw failure(
             config,
             `pinned public artwork is missing or invalid; run package-build art fetch (${error.located ? error.message.split("error: ").at(-1) : "cache integrity check failed"})`,
         );
     }
+    const mapped = new Map([...addressed].map(([address, row]) => [address, actual.get(row.name)]));
+    return {
+        files: mapped,
+        paths,
+        findings: publicFindings(addressed, records, folder),
+        records: records.map((record) => {
+            if (!record.asset) return record;
+            const address = renderAddress(readCanonicalKey(record.address.canonical)),
+                row = addressed.get(address);
+            if (!row) return record;
+            const tuple = readCanonicalKey(address);
+            return setArtSource(
+                {
+                    ...record,
+                    asset: {
+                        ...record.asset,
+                        path: `${tuple.type === "icon" ? "icons" : "images"}/${tuple.shortcode}.${row.format}`,
+                    },
+                },
+                mapped.get(address),
+            );
+        }),
+    };
 }
 
 /** Git selectors belong to the operation, never to the invoking repository. */
@@ -907,8 +928,9 @@ export async function reproducePinnedArt(config, { records }) {
             digest(JSON.stringify(lock.source)),
         );
     const { masters } = cachedArtSource(config, lock, folder);
-    const pinned = loadPinnedArt(config, records),
-        selected = new Map();
+    const pinned = loadPinnedArt(config, records);
+    requirePublication(pinned.findings);
+    const selected = new Map();
     for (const address of pinned.files.keys()) {
         const master = masters.get(address);
         if (!master) throw failure(config, "pinned public artwork has no matching private master");

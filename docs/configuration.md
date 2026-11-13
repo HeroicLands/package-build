@@ -626,8 +626,11 @@ Use either `art.lock` or nonempty `art.masterRoots`/`art.componentRoots` for ord
 explicit `art source fetch` and `art reproduce` actions restore and check private
 sources using the same lock, without configuring private roots. The standard
 content index still supplies publication and shipping authority; only indexed
-Addresses are accepted from the public ZIP. See [`package-build art`](commands.md#package-build-art)
-for archive rules, source verification and the standard-index supply contract.
+Addresses are accepted for publication from the public ZIP. A valid cache that
+disagrees with the current index remains readable and produces publication
+findings. Resolve them with a new archive and lock pin. See
+[`package-build art`](commands.md#package-build-art) for archive rules, source
+verification and the standard-index supply contract.
 
 ### `art.componentRoots`
 

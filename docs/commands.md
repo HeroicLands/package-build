@@ -1650,8 +1650,13 @@ Public and complete SQL preparations remain separate and each is reused by
 operations needing that audience. No resolved index or source cache survives
 into another invocation. Standalone commands and `content run` remain available.
 
+For `art.lock` builds, the command verifies pinned artwork and its agreement with
+the current index before clearing output. A missing, damaged or stale pin leaves
+the published output intact and fails the command. The same verified capture
+serves the build; no second archive verification is needed.
+
 The command clears its index directory, generated calendar directory, pack JSON
-and configured compiled pack directories before preparing the new build. Other
+and configured compiled pack directories before preparing publication. Other
 stage files, including a manifest written by a parallel packaging task, remain.
 Use `package-build stage reset` before starting the complete packaging workflow
 when the entire stage must start empty. Build output paths must be outside the
@@ -1661,11 +1666,14 @@ source generation belongs before this command.
 
 After all three index files are published successfully, the command writes
 `<paths.contentIndex>/.publication-ready` (normally
-`build/content-index/.publication-ready`). It removes that marker at startup.
-The marker means this invocation published a complete fresh index, even when
-calendar emission, asset staging, lint, link checks or compilation later fails.
+`build/content-index/.publication-ready`). It removes that marker during output
+cleanup, after any pinned-art preflight succeeds. The marker records a complete
+published index, even when calendar emission, asset staging, lint, link checks or
+compilation later fails.
 A subsequent index consumer can check it to report independent findings after a
-build failure. Clear the marker before a surrounding workflow starts as well,
+build failure. It does not replace checking the build's exit status; a pin
+preflight failure retains the prior publication and its marker. Clear the marker
+before a surrounding workflow starts as well,
 so failures before the command starts cannot expose an earlier run's index.
 Never restore the marker or resolved indexes from a cache.
 
@@ -1870,6 +1878,14 @@ The root [`art.lock`](configuration.md#artlock) pins the package, private Git
 revision and public ZIP digest. Ordinary builds only read its complete local
 cache. They never fetch artwork or read the private checkout. Missing or changed
 public cache files fail with an instruction to run `package-build art fetch`.
+
+Valid cached bytes can disagree with the current index's attribution, asset
+Address or included public note metadata. Ordinary readers return the current
+records, and lint reports the disagreement at the image alongside other checks.
+Publishing, explicit fetch and reproduction refuse the disagreement: publish a
+new archive against the current index, update its URL and SHA-256 in `art.lock`,
+then fetch it. Fetching the same pin cannot repair this finding. The diagnostic
+does not repeat stale names or private primary-note identities.
 
 `art fetch` reads the current standard content index, downloads the pinned public
 ZIP, verifies its SHA-256, then validates every entry before exposing the cache

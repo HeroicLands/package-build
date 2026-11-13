@@ -80,6 +80,7 @@ describe("pinned artwork", () => {
                 source: { ...f.lock.source, repository: "https://user:secret@host/art.git" },
             },
             { ...f.lock, rendered: { ...f.lock.rendered, sha256: "bad" } },
+            { ...f.lock, rendered: { ...f.lock.rendered, url: "http://host/art.zip" } },
             { ...f.lock, rendered: { ...f.lock.rendered, url: "https://host/a.zip?token=secret" } },
         ]) {
             fs.writeFileSync(path.join(f.root, "art.lock"), JSON.stringify(lock));
@@ -781,4 +782,56 @@ it.each(["masterRoots", "componentRoots"])(
         }
     },
     subprocessTimeout(10),
+);
+
+it.skipIf(spawnSync("git", ["lfs", "version"]).status !== 0)(
+    "reproduction refuses each live publication mismatch before changing rendered output",
+    async () => {
+        const f = sourceFixture();
+        const primary = "sample-note-being-subject";
+        const note = {
+            type: "being",
+            address: { canonical: primary },
+            name: { full: "Subject" },
+            namedImages: [f.address],
+            tags: [] as string[],
+        };
+        const rendered = writeDerivativeProvenance(
+            f.rendered,
+            {
+                address: f.address,
+                creator: "Artist",
+                rights: "Terms",
+                derivedFrom: f.address,
+                primaryNote: primary,
+                name: "Subject",
+            },
+            { repeat: ["derivedFrom", "primaryNote", "name"], notePublic: true },
+        ).bytes;
+        const zip = zipSync({ "image.svg": rendered });
+        fs.writeFileSync(f.from, zip);
+        f.lock.rendered.sha256 = hash(zip);
+        fs.writeFileSync(path.join(f.root, "art.lock"), JSON.stringify(f.lock));
+        await fetchPublicArt(f.config, { from: f.from, records: [...f.records, note] });
+        await fetchArtSource(f.config, { from: f.repository });
+        const out = path.join(f.root, "build/art-reproduced");
+        fs.mkdirSync(out);
+        fs.writeFileSync(path.join(out, "sentinel"), "rendered bytes");
+        const file = loadPinnedArt(f.config, [...f.records, note]).files.get(f.address)!;
+        for (const records of [
+            [...f.records, { ...note, name: { full: "Current" } }],
+            [...f.records, { ...note, tags: ["gm"] }],
+            [{ ...f.records[0], asset: { ...f.records[0].asset, attribution: "Current" } }, note],
+            [note],
+            [{ ...f.records[0], address: { canonical: "sample-none-image-other" } }, note],
+        ]) {
+            await expect(reproducePinnedArt(f.config, { records })).rejects.toThrow(
+                /new archive.*art\.lock/,
+            );
+            expect(fs.readdirSync(out)).toEqual(["sentinel"]);
+            expect(fs.readFileSync(path.join(out, "sentinel"), "utf8")).toBe("rendered bytes");
+            expect(fs.readFileSync(file)).toEqual(rendered);
+        }
+    },
+    subprocessTimeout(40),
 );

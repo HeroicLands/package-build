@@ -59,6 +59,7 @@ import {
     fetchArtSource,
     reproducePinnedArt,
     privateArtRoots,
+    readArtLock,
 } from "../engine/art-lock.mjs";
 import { assertPrivateArtRoots } from "../engine/art-masters.mjs";
 import { artSource } from "../engine/art-source.mjs";
@@ -1587,6 +1588,7 @@ function contentBuildOutputs(config, packaging) {
         config.paths.content,
         ...DEPLOYED_ASSET_TYPES.map((entry) => path.resolve(config.paths.assets, entry.root)),
         ...(config.art?.masterRoots ?? []),
+        ...(readArtLock(config) ? [path.join(config.rootDir, "build/.cache/pinned-art")] : []),
     ];
     const stage = path.resolve(packaging.rootDir, packaging.stageDir);
     const outputs = [
@@ -1602,8 +1604,23 @@ function contentBuildOutputs(config, packaging) {
         path.resolve(packaging.rootDir, path.join(packaging.stageDir, to)),
     );
     assertPrivateArtRoots(privateArtRoots(config), [...outputs, ...assetDestinations]);
+    const physicalPaths = new Map();
+    const physical = (value) => {
+        if (physicalPaths.has(value)) return physicalPaths.get(value);
+        let ancestor = path.resolve(value);
+        const suffix = [];
+        while (!fs.existsSync(ancestor)) {
+            const parent = path.dirname(ancestor);
+            if (parent === ancestor) return path.resolve(value);
+            suffix.unshift(path.basename(ancestor));
+            ancestor = parent;
+        }
+        const resolved = path.resolve(fs.realpathSync(ancestor), ...suffix);
+        physicalPaths.set(value, resolved);
+        return resolved;
+    };
     const contains = (parent, child) => {
-        const relative = path.relative(path.resolve(parent), path.resolve(child));
+        const relative = path.relative(physical(parent), physical(child));
         return (
             relative === "" ||
             (!relative.startsWith(`..${path.sep}`) &&
@@ -1663,10 +1680,18 @@ function contentBuildCommand() {
                 const marker = path.join(config.paths.contentIndex, ".publication-ready");
                 const packaging = loadPackageBuildConfig();
                 const outputs = contentBuildOutputs(config, packaging);
+                if (readArtLock(config)) {
+                    session = await createContentSession({ config, timings, trackChanges: true });
+                    if (session.pinnedArtFindings.length)
+                        throw Object.assign(
+                            new Error(session.pinnedArtFindings.map(formatDiagnostic).join("\n")),
+                            { located: true },
+                        );
+                }
                 fs.rmSync(marker, { force: true });
                 for (const output of outputs) fs.rmSync(output, { recursive: true, force: true });
                 cachedMetadataIndexes(config);
-                session = await createContentSession({ config, timings, trackChanges: true });
+                session ??= await createContentSession({ config, timings, trackChanges: true });
                 shared[CONTENT_SESSION] = session;
                 for (const warning of session.warnings) emitDiagnostic(warning);
                 let prepared = false;

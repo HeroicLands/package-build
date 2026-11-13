@@ -106,6 +106,13 @@ then build offline from `build/.cache/pinned-art/`. A missing or modified cache
 fails with the fetch command to run. Builds never fetch or read private sources
 implicitly, and public derivatives are not inputs for lossy image rendering.
 
+A current note name, public/GM status, attribution or asset Address can disagree
+with valid cached bytes. Ordinary readers remain available, and content lint
+reports the disagreement at the cached image alongside its other checks.
+Publishing and reproduction refuse it. Publish a new archive against the current
+index, update its URL and SHA-256 in `art.lock`, then fetch it. Fetching the same
+pin does not repair a disagreement with the index.
+
 Embedded Addresses establish image identity. The existing standard content index
 supplies attribution, license, generated-image classification and public note
 names; archive filenames and the lock supply none of them. Package shipping and

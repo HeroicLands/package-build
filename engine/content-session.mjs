@@ -30,6 +30,7 @@ import { loadForeignIndexes } from "./metadata-index.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { loadPinnedArt, readArtLock, privateArtRoots } from "./art-lock.mjs";
 import { routerFor } from "./pack-router.mjs";
+import { formatDiagnostic } from "./diagnostics.mjs";
 import { lintNoteStates } from "./stub-lint.mjs";
 
 /**
@@ -50,7 +51,8 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {object[]} warnings
  * @property {object[]} problems
  * @property {ReturnType<import("./art-masters.mjs").collectArtMasters>["masters"]} masters
- * @property {Map<string,string>} pinnedArt Verified public derivative paths.
+ * @property {Map<string,string>} pinnedArt Integrity-verified derivatives; publication requires no pinnedArtFindings.
+ * @property {object[]} pinnedArtFindings Live publication disagreements for verified pinned artwork.
  * @property {ReturnType<typeof loadForeignIndexes>} foreign
  * @property {ContentSyntax} syntax
  * @property {(options?: ContentSessionContext) => void} assertContext
@@ -158,7 +160,7 @@ export async function createContentSession({
             });
         return syntaxCache.get(text);
     };
-    const records = timings.sync("index derivation", () =>
+    const baseRecords = timings.sync("index derivation", () =>
         contentIndex.indexRecordsFor({
             config,
             contentBase: tree,
@@ -171,10 +173,13 @@ export async function createContentSession({
             foreignIndex: foreign.index,
             syntax,
             timings,
+            pinnedArt: false,
             masterRecords: artModule ? artModule.masterAssetRecords(art.masters) : [],
         }),
     );
-    const pinned = loadPinnedArt(config, records);
+    const pinned = loadPinnedArt(config, baseRecords);
+    const records = pinned.records;
+    problems.push(...pinned.findings);
     for (const file of pinned.paths) fingerprints?.set(file, fingerprint(file));
     const memo = (key, make) => {
         active();
@@ -201,6 +206,7 @@ export async function createContentSession({
         warnings,
         masters: art.masters,
         pinnedArt: pinned.files,
+        pinnedArtFindings: pinned.findings,
         foreign,
         syntax,
         /** Refuse a stale capture after any build phase changes an input. */
@@ -297,6 +303,11 @@ export async function createContentSession({
             );
         },
         async compileCorpus() {
+            active();
+            if (pinned.findings.length)
+                throw Object.assign(new Error(pinned.findings.map(formatDiagnostic).join("\n")), {
+                    located: true,
+                });
             return memo("compile", async () => {
                 const sqlTables = await session.sqlTables("all");
                 const linkIndex = buildContentLinkIndex(tree, router, {
