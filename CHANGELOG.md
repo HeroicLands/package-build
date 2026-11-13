@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 25.8.3
+
+**Content and notes**
+
+- References to stubs in declared dependencies retain their note identity.
+
 ## 25.8.2
 
 **Content and notes**
