@@ -2701,7 +2701,8 @@ The provenance check reads `hl:primarynote` as an Address and reports one that
 is not well formed or that names no note in the index. When it names a note,
 it reports an `hl:name` that differs from that note's `name.full`, and a
 `hl:primarynote` that differs from the being or affiliation the image
-resolves to. Each finding is `file:line:column: error: message` at the file.
+resolves to. Each finding is `file: error: message` when only the file is
+known; a known line and column appear after the file.
 
 ##### Masters and derivatives
 

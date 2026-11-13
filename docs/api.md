@@ -1322,14 +1322,15 @@ and the standard UTF-8 text chunks listed by `STANDARD_KEYWORDS`; SVG uses
 | `effectiveRecord`           | `effectiveRecord(entry, entries)`                                                                      | A master's record or a derivative's master record with repeated fields applied, without `derived`; throws when a derivative has no unique master      |
 | `sniffFormat`               | `sniffFormat(input: Buffer \| Uint8Array \| string)`                                                   | `"png"`, `"webp"`, `"jpeg"` or `"svg"`; raster signatures are recognized, everything else is treated as SVG                                           |
 | `checkProvenance`           | `checkProvenance(entries, {index}?)`                                                                   | `ProvenanceFinding[]`; an empty array means no findings                                                                                               |
-| `formatFinding`             | `formatFinding(finding: ProvenanceFinding)`                                                            | `file:line:column: severity: message`                                                                                                                 |
+| `formatFinding`             | `formatFinding(finding: ProvenanceFinding)`                                                            | `file[:line[:column]]: severity: message`, omitting unknown positions                                                                                 |
 | `masterFileName`            | `masterFileName(address: string, width: number, height: number)`                                       | `<shortcode>-creature.png` for 1152×896 or `<shortcode>-portrait.png` for 896×1152; throws for an invalid Address or other size                       |
 | `planRenames`               | `planRenames(masters: {path, address, width, height}[])`                                               | `{renames: {path, to, name}[], refused: {path, reason}[]}`; plans names within each input folder and refuses colliding targets without changing files |
 
 `entry` is `{file: string, bytes: Buffer | string}`; `entries` is an array of
 those objects. `file` identifies findings and lookup results. Rename-planning
 `path` values are `/`-separated paths relative to a masters directory.
-A `ProvenanceFinding` is `{file, line: 1, column: 1, severity: "error", message}`.
+A `ProvenanceFinding` is `{file, line?, column?, severity: "error", message}`;
+line and column are 1-based and omitted when unknown.
 The checker reports unreadable files, missing XMP, missing or malformed Addresses,
 disagreeing identifiers, multiple masters, missing derivative masters, invalid
 `derived` values, marked PNGs, unmarked WebPs, repeated fields absent from or
