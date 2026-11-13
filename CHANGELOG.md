@@ -1,5 +1,37 @@
 # @heroiclands/package-build
 
+## 25.8.0
+
+**Languages and scripts**
+
+- Language notes select guide sounds and written shapes with located findings; encodings preserve stress, tone and boundaries, logographic signs can return every reading, and `y` counts as a consonant.
+
+**Verse**
+
+- Verse metre follows Pronouncing Thalorna for syllables, stress, tone and compound boundaries, with spelling findings on the verse line.
+
+**Content and notes**
+
+- Beings and cultures list named or modeled `data.items`; item notes require a `kind`, models come from their package or required modules rather than systems, and duplicate keys are findings.
+- Item kinds include `elixir`, `potion` and `simples`; being items compile into supported game systems with same-key overrides, and `package-build items coverage` reports missing system blocks.
+- Polities list settlements in `data.settlements`, with recursive tables, territorial population and single-superior checks, typed addresses and completeness exceptions; regions cannot list settlements.
+- Settlements require short `data.notes`; populated settlements also need a type, polity government and named `data.market`, while populations use at most two significant digits.
+- A being's appearance accepts new hair and face words, culture profiles can weight them, and gray appearance labels use American spelling.
+- Private `art.masterRoots` supply images by identity, with licensing, subject provenance and public derivative checks; master writes preserve other tools' properties, and generated images remain available through CDN plans.
+
+**Rendering and sites**
+
+- Screen `guide.pdf` and print `guide-print.pdf` render artwork from masters at 150 DPI and JPEG quality 76 or 300 DPI and quality 82, respectively.
+- Related pages omit secret links, the site header shows the dragon mark, infobox punctuation stays intact, and nested definition-list names render.
+
+**Builds and commands**
+
+- Builds reuse unchanged note and image rendering, keep public image metadata current, and warn when a private master replaces a public asset at the same address.
+- Dependency fetching follows required modules transitively, supports configured mirrors, and retries transient manifest, archive and content-index download failures.
+- `package-build npc new` draws culture and occupation items by seed and chance, prefers occupation entries for matching keys, and picks up model changes without overwriting per-entry choices.
+- `package-build npc prompt` uses appearance, items and `data.portraitSettings`; `data.portrait.prompt` records the text, stored channels are checked for staleness, and excluded illustration and full-body directions are refused.
+- TypeScript accepts documented `stats` configuration without derived fields, and public SVG derivatives refuse resource URLs containing usernames or passwords.
+
 ## 25.7.1
 
 **Languages and scripts**
