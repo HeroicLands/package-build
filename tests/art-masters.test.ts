@@ -24,12 +24,14 @@ import {
 } from "../engine/art-masters.mjs";
 import { renderArtMasters } from "../engine/art-master-render.mjs";
 import {
+    checkProvenance,
     readProvenance,
     readSvgProvenance,
     readWebpProvenance,
     writeProvenance,
     writeSvgProvenance,
 } from "../engine/art-provenance.mjs";
+import { buildPrimaryNoteIndex } from "../engine/art-primary-note.mjs";
 import { collectAssetRecords } from "../engine/asset-index.mjs";
 import { stagePackageAssets } from "../engine/asset-shipping.mjs";
 import { planCdnPublish } from "../engine/cdn-publish.mjs";
@@ -324,6 +326,32 @@ it("round-trips the exact license ID in PNG and SVG master provenance", async ()
     ).toBe(fields.license);
 });
 
+it("reports each public asset superseded by a master", () => {
+    const assets = path.join(root, "assets");
+    const publicFile = path.join(assets, "images", "example.svg");
+    fs.mkdirSync(path.dirname(publicFile), { recursive: true });
+    fs.writeFileSync(publicFile, "<svg/>");
+    const warnings: any[] = [];
+    const masterRecords = [{ address: { canonical: "sample-none-image-example" }, asset: {} }];
+    const records = collectAssetRecords(assets, {
+        contentPackage: "sample",
+        masterRecords,
+        warnings,
+    });
+    expect(records).toEqual(masterRecords);
+    expect(warnings).toEqual([
+        {
+            file: publicFile,
+            severity: "warning",
+            message: "public asset sample-none-image-example is superseded by a private master",
+        },
+    ]);
+    warnings.length = 0;
+    fs.unlinkSync(publicFile);
+    collectAssetRecords(assets, { contentPackage: "sample", masterRecords, warnings });
+    expect(warnings).toEqual([]);
+});
+
 it("locates diagnostics at the master without publishing the source path", async () => {
     const privateRoot = path.join(root, "private");
     fs.mkdirSync(privateRoot, { recursive: true });
@@ -333,11 +361,14 @@ it("locates diagnostics at the master without publishing the source path", async
         .toBuffer();
     fs.writeFileSync(source, writeProvenance(png, { address: "sample-none-image-example" }).bytes);
     const assets = path.join(root, "assets");
+    const reads = vi.spyOn(fs, "readFileSync");
     const master = collectArtMasters([privateRoot], "sample");
     const records = collectAssetRecords(assets, {
         contentPackage: "sample",
         masterRecords: masterAssetRecords(master.masters),
     });
+    expect(reads.mock.calls.filter(([name]) => name === source)).toHaveLength(1);
+    reads.mockRestore();
     const findings = checkArtSlotSizes(
         [{ type: "place", data: { banner: "image-example" } }, ...records],
         { config: { contentPackage: "sample" }, assetsBase: assets },
@@ -492,7 +523,12 @@ it("renders stable derivatives and preserves targets across a private master mov
         },
     ];
     const out = path.join(root, "render");
-    const prepared = await renderArtMasters(master.masters, notes, out);
+    const prepared = await renderArtMasters(
+        master.masters,
+        notes,
+        out,
+        path.join(root, "build/.cache/art"),
+    );
     const first = fs.readFileSync(prepared.get(address)!);
     for (const secret of ["sample-note-being-hidden", "Private name", "private text"]) {
         expect(original.includes(Buffer.from(secret))).toBe(true);
@@ -545,7 +581,12 @@ it("renders stable derivatives and preserves targets across a private master mov
         masterRecords: masterAssetRecords(moved.masters),
     });
     expect(movedRecords).toEqual(records);
-    const repeated = await renderArtMasters(moved.masters, notes, out);
+    const repeated = await renderArtMasters(
+        moved.masters,
+        notes,
+        out,
+        path.join(root, "build/.cache/art"),
+    );
     expect(fs.readFileSync(repeated.get(address)!).equals(first)).toBe(true);
     const movedStage = stagePackageAssets({
         assetsBase: assets,
@@ -604,7 +645,12 @@ it("withholds private note names and safely excludes unknown classification", as
             tags: ["gm"],
         },
     ];
-    const prepared = await renderArtMasters(master.masters, notes, path.join(root, "render"));
+    const prepared = await renderArtMasters(
+        master.masters,
+        notes,
+        path.join(root, "render"),
+        path.join(root, "build/.cache/art"),
+    );
     const outputBytes = fs.readFileSync(prepared.get(address)!);
     for (const secret of ["sample-note-being-person", "Private name", "private text"])
         expect(outputBytes.includes(Buffer.from(secret))).toBe(false);
@@ -668,7 +714,12 @@ it.each([
                 tags: publicNote ? [] : ["gm"],
             },
         ];
-        const rendered = await renderArtMasters(master.masters, notes, path.join(root, "render"));
+        const rendered = await renderArtMasters(
+            master.masters,
+            notes,
+            path.join(root, "render"),
+            path.join(root, "build/.cache/art"),
+        );
         const output = fs.readFileSync(rendered.get(fields.address)!);
         for (const value of ["sample-note-being-hidden", "Private name", "private text"]) {
             expect(bytes.includes(Buffer.from(value))).toBe(true);
@@ -683,6 +734,18 @@ it.each([
         });
         expect(record.primaryNote).toBe(publicNote ? fields.primaryNote : undefined);
         expect(record.name).toBe(publicNote ? "Public name" : undefined);
+        expect(fs.readFileSync(path.join(privateRoot, `master.${format}`))).toEqual(bytes);
+        const findings = checkProvenance(
+            [
+                { file: "master", bytes },
+                { file: "derived", bytes: output },
+            ],
+            { index: buildPrimaryNoteIndex(notes) },
+        );
+        expect(findings.filter((finding) => finding.file === "derived")).toEqual([]);
+        expect(findings.filter((finding) => finding.file === "master")).toHaveLength(
+            publicNote ? 1 : 0,
+        );
     },
 );
 
@@ -714,7 +777,18 @@ it("captures masters once per session and observes changed inputs in a fresh ses
             digitalSourceType: "digitalCreation",
         }).bytes,
     );
+    const publicFile = path.join(config.paths.assets, "images", "first.svg");
+    fs.mkdirSync(path.dirname(publicFile), { recursive: true });
+    fs.writeFileSync(publicFile, "<svg/>");
     const first = await createContentSession({ config, trackChanges: true });
+    expect(first.warnings).toEqual([
+        {
+            file: publicFile,
+            severity: "warning",
+            message: "public asset sample-none-image-first is superseded by a private master",
+        },
+    ]);
+    expect(first.problems).toEqual([]);
     expect(first.records.some((record) => record.address?.canonical?.shortcode === "first")).toBe(
         true,
     );
@@ -729,11 +803,14 @@ it("captures masters once per session and observes changed inputs in a fresh ses
         "sample-none-image-first",
     );
     const parse = vi.spyOn(provenanceCore, "readSvgProvenance");
+    const reads = vi.spyOn(fs, "readFileSync");
     const firstTree = await noteTree(config, { toolchain: "test" });
     expect(parse).toHaveBeenCalledTimes(1);
     expect(firstTree.cache.tree).toBe("miss");
     expect((await noteTree(config, { toolchain: "test" })).cache.tree).toBe("hit");
     expect(parse).toHaveBeenCalledTimes(2);
+    expect(reads.mock.calls.filter(([name]) => name === file)).toHaveLength(2);
+    reads.mockRestore();
     parse.mockRestore();
     const code = `require('./sohl/item-builders.mjs');
 const { indexRecordsFor } = await import('./engine/content-index.mjs');
@@ -778,6 +855,7 @@ if (!indexRecordsFor({config}).some(record => record.address?.canonical?.shortco
     expect(fs.readFileSync(path.join(root, "outside", "public.txt"), "utf8")).toBe("public input");
     fs.writeFileSync(file, writeSvgProvenance(svg, { address: "sample-none-image-second" }).bytes);
     expect(() => first.assertUnchanged()).toThrow(/Content sources changed/);
+    fs.unlinkSync(publicFile);
     const second = await createContentSession({ config });
     expect(second.records.some((record) => record.address?.canonical?.shortcode === "second")).toBe(
         true,
@@ -796,6 +874,11 @@ if (!indexRecordsFor({config}).some(record => record.address?.canonical?.shortco
     expect(
         thirdTree.records.some((record) => record.address?.canonical?.shortcode === "third"),
     ).toBe(true);
+    fs.mkdirSync(path.join(privateRoot, "nested"));
+    fs.renameSync(file, path.join(privateRoot, "nested", "moved.svg"));
+    expect((await noteTree(config, { toolchain: "test" })).cache.tree).toBe("miss");
+    fs.unlinkSync(path.join(privateRoot, "two.svg"));
+    expect((await noteTree(config, { toolchain: "test" })).cache.tree).toBe("miss");
     first.dispose();
     second.dispose();
 });

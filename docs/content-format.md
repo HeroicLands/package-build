@@ -268,7 +268,8 @@ typically carry, in `data.items`. An entry is `{key?, model?, name?, img?, kind?
 chance?, system?: {subType?, quantity?, weight?}}`; with `model` alone, an item
 note supplies the rest, and without `model` the entry states `name` and `kind`
 and defines the item inline. `kind` is one of `weapon`, `armor`, `clothing`,
-`container`, `miscgear`, `projectile`, `concoction`, `disease`, `poisontoxin`,
+`container`, `miscgear`, `projectile`, `concoction`, `elixir`, `potion`, `simples`,
+`disease`, `poisontoxin`,
 `maladiction`, `physcond`, `quirk`, `disorder`, `privation`, `fear`, `language`,
 `script`, `arcaneability`, `spell`, `psychicgift`, `incantation` or
 `divination`. A `model` must resolve to an item note of the note's own package or

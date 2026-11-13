@@ -332,7 +332,7 @@ function filesUnder(dir, keep) {
         .sort();
 }
 
-/** Fingerprint master bytes and directory entries without retaining file data. */
+/** Fingerprint master identity, metadata and directory entries. */
 function masterFingerprintParts(root) {
     const parts = [];
     const walk = (dir) => {
@@ -344,8 +344,10 @@ function masterFingerprintParts(root) {
             const file = path.join(dir, entry.name);
             if (entry.isSymbolicLink()) parts.push(file, fs.readlinkSync(file));
             else if (entry.isDirectory()) walk(file);
-            else if (entry.isFile() && /\.(?:png|svg)$/i.test(entry.name))
-                parts.push(file, digest(fs.readFileSync(file)));
+            else if (entry.isFile() && /\.(?:png|svg)$/i.test(entry.name)) {
+                const stat = fs.statSync(file);
+                parts.push(file, `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`);
+            }
         }
     };
     walk(root);

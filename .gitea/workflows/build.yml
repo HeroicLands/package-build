@@ -118,9 +118,14 @@ jobs:
             # well when it does.
             - name: Changeset quality
               run: node bin/package-build.mjs changelog check
-            - name: Check WIP workflow gating
+            - name: Release changelog quality
+              env:
+                  RELEASE_EVENT: ${{ github.event_name }}
+                  RELEASE_HEAD: ${{ github.event.pull_request.head.ref }}
+              run: node ci/release-changelog-guard.mjs
+            - name: Check workflow gating
               if: ${{ !cancelled() }}
-              run: node --test ci/wip-workflows.test.mjs
+              run: node --test ci/wip-workflows.test.mjs ci/release-changelog-guard.test.mjs
     test-build:
         name: Build & Test
         needs: light

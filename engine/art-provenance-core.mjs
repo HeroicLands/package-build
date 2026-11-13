@@ -12,7 +12,7 @@
  */
 
 /**
- * Provenance embedded in a PNG, WebP or SVG image.
+ * Provenance embedded in PNG, WebP, JPEG and SVG images.
  *
  * A master carries its image or icon Address, the primary note it shows, a
  * display name, the prompt that produced it, how it was generated, and the
@@ -57,8 +57,8 @@
  *
  * ## Masters and derivatives
  *
- * A master is a PNG or an SVG; a derivative, rendered from it, is a WebP or an
- * SVG. They are the same image and carry the same `hl:address`; every address
+ * A master is a PNG or an SVG; a derivative, rendered from it, is a WebP,
+ * SVG or JPEG. They are the same image and carry the same `hl:address`; every address
  * names exactly one master and any number of derivatives (the same master in
  * several sizes or formats). `hl:derived` (record field `derived`) with the
  * value `true` marks a derivative; a master does not carry it. A rewrite keeps
@@ -69,8 +69,10 @@
  * found by address: {@link findMaster} resolves the master among a set of files
  * and {@link effectiveRecord} returns a file's properties, the master's record
  * for a derivative with the values the derivative repeats applying. A derivative
- * may repeat a subset of the master's properties. Each repeated value must equal
- * the master's, and a property the master does not carry may not be stated.
+ * may repeat a subset of the master's properties. Repeated values equal the
+ * master's, except that `derivedFrom` names the master Address and indexed
+ * public-note fields may supply the current name and primary note. Overrides
+ * require the primary-note index; master metadata is audited separately.
  *
  * {@link deriveRecord} turns a master's record into a derivative's: the
  * address, `hl:derived`, `dc:rights` and the creator (`dc:creator`, the
@@ -147,16 +149,17 @@
  * {@link checkProvenance} reports, as `file:line:column: severity: message`, a
  * file with no address, an address that is not a complete Address, an
  * address with two masters, a derivative whose address has no master in the set,
- * a derivative that repeats a property with a value different from its
- * master's or states one its master does not carry, a WebP without
+ * a derivative with an incorrect parent trace or unauthorized note fields,
+ * another repeated property that differs from or is absent on its master, a WebP without
  * `hl:derived`, a PNG with it, an `hl:derived` whose value is not `true`, a `dc:identifier` that differs from
  * `hl:address`, a `hl:primarynote` that is malformed or that names no note in
  * the index, a `hl:name` that differs from the named note's `name.full`, a
  * `hl:primarynote` that differs from the being or affiliation the image
  * resolves to, and metadata lost or disagreeing
  * between the XMP packet and the text chunks. The format is chosen by sniffing
- * the content: a PNG signature selects PNG, a RIFF `WEBP` container selects
- * WebP, anything else is read as SVG.
+ * the content: raster signatures select PNG, WebP or JPEG; anything else is
+ * read as SVG. A JPEG must carry its master Address in `hl:derivedFrom` and
+ * only the approved public fields, with no foreign metadata.
  *
  * @module engine/art-provenance
  */
@@ -742,7 +745,7 @@ function retainForeign(packet) {
 }
 
 /** Whether an inherited packet has properties outside the managed record. */
-function hasForeignXmp(packet) {
+function hasForeignXmp(packet, properties = MANAGED_PROPERTIES) {
     let invalid = false;
     let document;
     try {
@@ -756,7 +759,7 @@ function hasForeignXmp(packet) {
     }
     if (invalid || !document.documentElement) return true;
     const managed = new Set(
-        MANAGED_PROPERTIES.map((name) => {
+        properties.map((name) => {
             const [prefix, local] = name.split(":");
             return `${OWN_BINDINGS[prefix]}|${local}`;
         }),
@@ -1000,6 +1003,57 @@ function buildPacket(existing, record) {
         foreignXmp,
         ...(foreignReason === undefined ? {} : { foreignXmpReason: foreignReason }),
     };
+}
+
+/** Serialize a fresh managed XMP packet. */
+export function provenancePacket(record) {
+    validateRecord(record);
+    return buildPacket(null, record).text;
+}
+
+/** Read the standard XMP APP1 segment of a JPEG. */
+export function readJpegProvenance(input) {
+    const bytes = Buffer.from(input);
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) throw new Error("not a JPEG");
+    const prefix = Buffer.from("http://ns.adobe.com/xap/1.0/\0", "ascii");
+    let packet = null;
+    let foreignMetadata = false;
+    let at = 2;
+    while (at < bytes.length) {
+        if (bytes[at++] !== 0xff) throw new Error("invalid JPEG marker");
+        while (bytes[at] === 0xff) at++;
+        const marker = bytes[at++];
+        if (marker === 0xd9) break;
+        if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+        if (at + 2 > bytes.length) throw new Error("truncated JPEG segment");
+        const length = bytes.readUInt16BE(at);
+        if (length < 2 || at + length > bytes.length)
+            throw new Error("invalid JPEG segment length");
+        const data = bytes.subarray(at + 2, at + length);
+        if (marker === 0xe1 && data.subarray(0, prefix.length).equals(prefix)) {
+            if (packet !== null) throw new Error("multiple JPEG XMP packets");
+            packet = data.subarray(prefix.length).toString("utf8");
+        } else if (marker === 0xe1 || marker === 0xed || marker === 0xfe) foreignMetadata = true;
+        at += length;
+        if (marker === 0xda) {
+            // Entropy data escapes FF as FF00; restart markers remain inside the scan.
+            while (at < bytes.length) {
+                if (bytes[at] !== 0xff) {
+                    at++;
+                    continue;
+                }
+                let next = at + 1;
+                while (bytes[next] === 0xff) next++;
+                if (bytes[next] === 0x00 || (bytes[next] >= 0xd0 && bytes[next] <= 0xd7)) {
+                    at = next + 1;
+                    continue;
+                }
+                break;
+            }
+        }
+    }
+    const xmp = packet === null ? {} : readXmpRecord(packet);
+    return { xmp, standard: {}, packet, record: withIdentifier(xmp), foreignMetadata };
 }
 
 /**
@@ -1535,6 +1589,7 @@ function readAny(bytes) {
     return (
         format === "png" ? readProvenance(bytes)
         : format === "webp" ? readWebpProvenance(bytes)
+        : format === "jpeg" ? readJpegProvenance(bytes)
         : readSvgProvenance(bytes)
     );
 }
@@ -1560,7 +1615,7 @@ export function findMaster(entries, address) {
     for (const { file, bytes } of entries) {
         let read;
         try {
-            if (sniffFormat(bytes) === "webp") continue;
+            if (["webp", "jpeg"].includes(sniffFormat(bytes))) continue;
             read = readAny(bytes);
         } catch {
             continue;
@@ -1672,11 +1727,12 @@ export function deriveRecord(master, options = {}) {
  * The format of a file, by signature rather than by file name.
  *
  * @param {Buffer|Uint8Array|string} input - The file.
- * @returns {"png"|"webp"|"svg"} `png` for a PNG signature, `webp` for a RIFF
- *   container holding `WEBP`; anything else is treated as SVG.
+ * @returns {"png"|"webp"|"jpeg"|"svg"} The image format by signature; anything
+ *   without a recognized raster signature is treated as SVG.
  */
 export function sniffFormat(input) {
     if (isWebp(input)) return "webp";
+    if (typeof input !== "string" && input[0] === 0xff && input[1] === 0xd8) return "jpeg";
     return (
             typeof input !== "string" &&
                 input.length >= 8 &&
@@ -1708,12 +1764,12 @@ export function formatFinding(finding) {
 }
 
 /**
- * Check PNG and SVG masters and their WebP and SVG derivatives.
+ * Check PNG and SVG masters and their WebP, SVG and JPEG derivatives.
  *
  * The format of each file is sniffed from its content. A file is refused for a
  * missing address, an address that is not a complete Address, an
- * (address, role) pair another file in the set carries (an absent role is the
- * empty role), an XMP packet or managed SVG element that is missing, and, for a
+ * master address another master carries, an XMP packet or managed SVG element
+ * that is missing, and, for a
  * PNG, a field the XMP packet and the text chunks both hold with different
  * values.
  *
@@ -1724,8 +1780,12 @@ export function formatFinding(finding) {
  * from the named note's `name.full` is refused, and so is a `hl:primarynote`
  * that differs from the being or affiliation note the image resolves to.
  *
+ * Derivative parent traces name the canonical master Address. With `index`,
+ * derivative note fields must match a public indexed note; without it, they
+ * must repeat the master's values. Master note metadata is audited separately.
+ *
  * @param {{file: string, bytes: Buffer|string}[]} entries - The files to check.
- * @param {{index?: object}} [options] - The primary-note index to check against.
+ * @param {{index?: ReturnType<import("./art-primary-note.mjs").buildPrimaryNoteIndex>}} [options] - The primary-note index to check against.
  * @returns {ProvenanceFinding[]} The findings, in file order; empty when the set
  *   is sound.
  */
@@ -1743,6 +1803,7 @@ export function checkProvenance(entries, options = {}) {
             read =
                 isPng ? readProvenance(bytes)
                 : format === "webp" ? readWebpProvenance(bytes)
+                : format === "jpeg" ? readJpegProvenance(bytes)
                 : readSvgProvenance(bytes);
         } catch (error) {
             add(file, error.message);
@@ -1761,8 +1822,36 @@ export function checkProvenance(entries, options = {}) {
         if (xmp.derived !== undefined && xmp.derived !== "true") {
             add(file, `hl:derived ${JSON.stringify(xmp.derived)} must be "true"`);
         }
-        if (format === "webp" && xmp.derived === undefined) {
-            add(file, "a WebP is a derivative and must carry hl:derived");
+        if ((format === "webp" || format === "jpeg") && xmp.derived === undefined) {
+            add(
+                file,
+                `a ${format === "jpeg" ? "JPEG" : "WebP"} is a derivative and must carry hl:derived`,
+            );
+        }
+        if (format === "jpeg") {
+            const allowed = new Set([
+                "address",
+                "identifier",
+                "derived",
+                "derivedFrom",
+                "creator",
+                "rights",
+                "license",
+                "name",
+                "primaryNote",
+            ]);
+            for (const field of Object.keys(xmp))
+                if (!allowed.has(field)) add(file, `JPEG metadata must not carry ${field}`);
+            if (!address || xmp.derivedFrom !== address)
+                add(file, "JPEG hl:derivedfrom must name its master address");
+            const publicProperties = XMP_PROPERTIES.filter(([field]) => allowed.has(field)).map(
+                ([, property]) => property,
+            );
+            if (
+                read.foreignMetadata ||
+                (packet !== null && hasForeignXmp(packet, publicProperties))
+            )
+                add(file, "JPEG carries foreign metadata");
         }
         if (isPng && xmp.derived !== undefined) {
             add(file, "a PNG is a master and must not carry hl:derived");
@@ -1786,13 +1875,13 @@ export function checkProvenance(entries, options = {}) {
             );
         } else {
             if (xmp.derived === undefined) {
-                if (format !== "webp") {
+                if (format !== "webp" && format !== "jpeg") {
                     const list = masterFiles.get(address) ?? [];
                     list.push({ file, record: read.record });
                     masterFiles.set(address, list);
                 }
             } else {
-                derivatives.push({ file, address, xmp });
+                derivatives.push({ file, address, xmp, format });
             }
         }
         if (xmp.primaryNote !== undefined) {
@@ -1801,7 +1890,7 @@ export function checkProvenance(entries, options = {}) {
                     file,
                     `malformed hl:primarynote ${JSON.stringify(xmp.primaryNote)}: expected <package>-<system>-<type>-<shortcode>`,
                 );
-            } else if (options.index) {
+            } else if (options.index && xmp.derived === undefined) {
                 const named = options.index.notes.get(xmp.primaryNote);
                 const derived =
                     address && COMPLETE_ADDRESS.test(address) ?
@@ -1851,7 +1940,7 @@ export function checkProvenance(entries, options = {}) {
             add(file, `address ${address} has ${masters.length} masters: ${names.join(", ")}`);
         }
     }
-    for (const { file, address, xmp } of derivatives) {
+    for (const { file, address, xmp, format } of derivatives) {
         const masters = masterFiles.get(address);
         if (!masters) {
             add(file, `a derivative of address ${address} has no master among the checked files`);
@@ -1859,19 +1948,56 @@ export function checkProvenance(entries, options = {}) {
         }
         if (masters.length > 1) continue;
         const master = masters[0];
+        if (xmp.derivedFrom !== undefined && xmp.derivedFrom !== address && format !== "jpeg") {
+            add(file, "hl:derivedFrom must name its master address");
+        }
+        const indexedNoteFields =
+            options.index && NOTE_FIELDS.some((field) => xmp[field] !== undefined);
+        if (indexedNoteFields) {
+            const resolved = resolvePrimaryNote(options.index, address).note;
+            const noteAddress = xmp.primaryNote ?? master.record.primaryNote ?? resolved?.address;
+            const named = options.index.notes.get(noteAddress);
+            if (!named) {
+                add(
+                    file,
+                    `derivative note fields name no note in the index: ${noteAddress ?? "no primary note"}`,
+                );
+            } else if (!options.index.publicNotes?.has(noteAddress)) {
+                add(file, `derivative note fields require a public indexed note: ${noteAddress}`);
+            } else {
+                if (xmp.name !== undefined && xmp.name !== named.name) {
+                    add(
+                        file,
+                        `hl:name ${JSON.stringify(xmp.name)} differs from the indexed name ${JSON.stringify(named.name)} of ${noteAddress}`,
+                    );
+                }
+                if (resolved && resolved.address !== noteAddress) {
+                    add(
+                        file,
+                        `hl:primarynote ${noteAddress} differs from ${resolved.address}, the ${resolved.type} that names the image`,
+                    );
+                }
+            }
+        }
         for (const field of REPEATABLE) {
+            if (field === "derivedFrom" || (indexedNoteFields && NOTE_FIELDS.includes(field)))
+                continue;
             if (xmp[field] === undefined) continue;
             const name = XMP_PROPERTIES.find(([f]) => f === field)[1];
             const mine = master.record[field];
+            const authority =
+                NOTE_FIELDS.includes(field) ?
+                    "; supply a public note index to validate an override"
+                :   "";
             if (mine === undefined) {
                 add(
                     file,
-                    `${name} ${brief(xmp[field])} is not carried by its master ${master.file}`,
+                    `${name} ${brief(xmp[field])} is not carried by its master ${master.file}${authority}`,
                 );
             } else if (JSON.stringify(mine) !== JSON.stringify(xmp[field])) {
                 add(
                     file,
-                    `${name} ${brief(xmp[field])} is stale: its master ${master.file} has ${brief(mine)}`,
+                    `${name} ${brief(xmp[field])} is stale: its master ${master.file} has ${brief(mine)}${authority}`,
                 );
             }
         }

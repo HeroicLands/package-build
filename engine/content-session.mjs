@@ -46,6 +46,7 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {Map<string, {raw: string}>} sources
  * @property {object[]} records
  * @property {Map<string, ContentNoteSource>} parsed
+ * @property {object[]} warnings
  * @property {object[]} problems
  * @property {ReturnType<import("./art-masters.mjs").collectArtMasters>["masters"]} masters
  * @property {ReturnType<typeof loadForeignIndexes>} foreign
@@ -123,6 +124,7 @@ export async function createContentSession({
         :   undefined;
     const parsed = new Map();
     const problems = [];
+    const warnings = [];
     problems.push(...art.findings);
     const foreign = timings.sync("dependency indexes", () =>
         loadForeignIndexes(config, [config.contentPackage]),
@@ -159,6 +161,7 @@ export async function createContentSession({
             sources: inventory.indexSources,
             parsed,
             problems,
+            warnings,
             foreignIndex: foreign.index,
             syntax,
             timings,
@@ -187,6 +190,7 @@ export async function createContentSession({
         records,
         parsed,
         problems,
+        warnings,
         masters: art.masters,
         foreign,
         syntax,

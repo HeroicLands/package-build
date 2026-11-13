@@ -2736,9 +2736,11 @@ It is written in the XMP packet of all three formats, and a rewrite keeps it.
 with the same `hl:address` and no `hl:derived`. The derivative's own packet
 holds `hl:address`, `hl:derived` and, by default, the rights fields
 (`dc:rights`, the copyright and license statement, and `dc:creator`, the
-attribution). It may repeat any further property of the master, such as
-`hl:name`, as a subset of the master's; a repeated value must equal the
-master's, and a derivative never states a property its master lacks.
+attribution). Repeated properties must equal the master's values, with two
+additional authorities: `hl:derivedFrom` names the canonical master Address,
+and `hl:name` and `hl:primarynote` may take their values from a supplied public
+note index. A note-field override requires that index. Canonical-master audits
+still report source metadata that differs from the index at the master file.
 
 The **effective record** of a file is its own record for a master, and for a
 derivative the master's record with the derivative's repeated values applied.
@@ -2780,9 +2782,10 @@ A prompt and generation details (`hl:prompt`, `hl:generator`) are never
 repeated: asking for them is an error.
 `hl:name` and `hl:primarynote` are repeated only when the caller passes
 `notePublic: true`, which is the visibility the content index records for the
-image's primary note; asking for them otherwise is an error. The check does not
-know a note's visibility, so a derivative that states them for a GM-only note
-is not found by it, and the writer is what keeps them out.
+image's primary note; asking for them otherwise is an error. With the supplied
+primary-note index, the check verifies both visibility and values, refusing
+fields from a GM-only note. Without an index, note fields must equal the master's
+values; the caller remains responsible for the writer's visibility assertion.
 
 The provenance check reports, at the file:
 
@@ -2791,9 +2794,10 @@ The provenance check reports, at the file:
 - a WebP without `hl:derived`: a WebP is never a master;
 - a PNG with `hl:derived`: a PNG is never a derivative;
 - an `hl:derived` whose value is not `true`;
-- a property a derivative repeats with a value different from its master's, with
-  the property and both values;
-- a property a derivative states that its master does not carry.
+- a parent trace that differs from the master Address;
+- derivative note fields that differ from the supplied public index, or override
+  the master's values without an index;
+- any other repeated property that differs from or is absent on the master.
 
 Several derivatives may share an address. An SVG passes as either.
 
@@ -5279,7 +5283,8 @@ data:
 ```
 
 **The item kinds** are `weapon`, `armor`, `clothing`, `container`, `miscgear`,
-`projectile`, `concoction`, `disease`, `poisontoxin`, `maladiction`, `physcond`,
+`projectile`, `concoction`, `elixir`, `potion`, `simples`, `disease`, `poisontoxin`,
+`maladiction`, `physcond`,
 `quirk`, `disorder`, `privation`, `fear`, `language`, `script`, `arcaneability`,
 `spell`, `psychicgift`, `incantation` and `divination`. A kind sorts an item for
 the setting. It is not a Foundry field, has no mapping to a system's item types,
