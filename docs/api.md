@@ -1271,7 +1271,8 @@ and any number of derivatives; neither a filename nor a sidecar supplies identit
 `ProvenanceRecord` has optional string fields `address`, `identifier`, `kind`,
 `name`, `primaryNote`, `role`, `derived`, `derivedFrom`, `prompt`, `generator`,
 `title`, `creator`, `rights`, `license`, `digitalSourceType`, `created`, `software`,
-`description`, `source` and `processing`, plus `formerNames: string[]`.
+`description`, `source` and `processing`, plus `formerNames: string[]` and
+`composition: ArtComposition`.
 Writers require a complete `<package>-<system>-<type>-<shortcode>` Address.
 They set both `hl:address` and `dc:identifier` from `address`. Readers fill in
 either missing value from the other, retaining disagreements for the checker.
@@ -1516,6 +1517,74 @@ are `{reason: "no-note"}` when no note names the image,
 `publicNotes` contains the Addresses without a GM-only tag. It supplies the
 visibility authority when checking derivative note fields.
 
+### Image composition
+
+`composition` is a private object embedded as JSON in `hl:composition`. Writers
+replace this object as a whole, preserve it when omitted and remove it for
+`null`. PNG and SVG retain the same ordered values. Derivatives never carry it,
+even when `repeat` names it. These declarations identify source relationships;
+a recipe does not certify pixel equality with an existing master. Public builds
+render the retained master, without replacing it from its recipe.
+
+```javascript
+const composition = {
+  recipe: "over-v1",
+  width: 512,
+  height: 512,
+  layers: [
+    {
+      address: "sample-none-image-background",
+      width: 512,
+      height: 512,
+      left: 0,
+      top: 0,
+      kernel: "cubic",
+    },
+    {
+      address: "sample-none-icon-foreground",
+      width: 512,
+      height: 512,
+      left: 0,
+      top: 0,
+      kernel: "lanczos3",
+    },
+  ],
+};
+```
+
+With `recipe`, every displayed key is required and no other key is accepted.
+Without `recipe`, only `{layers: [{address: "sample-none-icon-foreground"}]}` is
+accepted: ordered confirmed source references, with no canvas or layer settings.
+Use this shape when the production recipe is unknown. A rendering call requires
+the complete recipe shape; it never guesses settings for bare relationships.
+`over-v1` draws
+layers in array order, bottom first, using source-over blending onto a transparent
+sRGB RGBA canvas. Each input is converted to sRGB and stretched to its declared
+size with the named Sharp kernel: `nearest`, `cubic`, `mitchell`, `lanczos2` or
+`lanczos3`. SVGs use Sharp's default rasterization density before resizing. All
+sizes are positive safe integers; offsets are nonnegative safe integers. Each
+layer fits wholly inside the canvas. Canvas and source decoding are bounded to
+16,777,216 pixels, with one to 32 layers. Attach recipe settings to a master only after exact reconstruction is verified;
+keep candidate settings and differences in the comparison receipt.
+Sources must be canonical PNG or SVG
+images whose embedded identity matches the complete Address. References are
+unique and cannot name the composite itself or a source with another recipe.
+Missing and duplicate sources produce located findings. The recipe accepts no
+filesystem path, executable code or command.
+
+The `@heroiclands/package-build/engine/art-composition` entry exports:
+
+| Export                    | Signature                                                       | Result                                                                  |
+| ------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `validateComposition`     | `validateComposition(value)`                                    | Validated copy with stable property order; throws for malformed recipes |
+| `checkCompositionSources` | `checkCompositionSources(Map<Address, {file, record}[]>)`       | Located relationship findings, including duplicate sources              |
+| `renderComposition`       | `await renderComposition(recipe, Map<Address, {file, record}>)` | PNG bytes for comparison; reads canonical source files and writes none  |
+
+Retain originals and compare dimensions and decoded RGBA pixels before accepting
+a reconstruction. Record the toolchain and codec versions with the comparison
+receipt. Nonzero differences leave the composite in place; recipe metadata is
+not evidence that an approximation is an exact reproduction.
+
 ### Internal art modules
 
 The wildcard export makes `@heroiclands/package-build/engine/art-masters`,
@@ -1536,6 +1605,10 @@ privacy writer, `readJpegProvenance`, and `deriveRecord` and owns the supported 
 `art-masters` exports `assertPrivateArtRoots`, `collectArtMasters`,
 `masterAssetRecords` and `shippingAssetRecords` for private-root validation,
 master collection, asset-record projection and shipping-record adaptation.
+`collectArtMasters(masterRoots, contentPackage, {componentRoots}?)` returns
+separate `masters` and `components` maps, `findings` and input `paths`. Collection
+marks component entries with `publication: "component"`; asset indexing and
+master rendering exclude those entries even when maps are combined.
 `art-master-render` exports `renderArtMasters` for public rendering under the
 build directory. `art-source` exports `setArtSource`, `copyArtSource` and
 `artSource` for diagnostic locations held only in memory. These functions serve

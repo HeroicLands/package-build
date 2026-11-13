@@ -421,7 +421,9 @@ function packageFingerprint(config) {
             fs.readFileSync(path.join(fonts.root, "fonts.json"))
         :   "",
         ...cachedMetadataFiles(config).flatMap((file) => [file, fs.readFileSync(file)]),
-        ...(config.art?.masterRoots ?? []).flatMap(masterFingerprintParts),
+        ...[...(config.art?.masterRoots ?? []), ...(config.art?.componentRoots ?? [])].flatMap(
+            masterFingerprintParts,
+        ),
     );
 }
 
@@ -946,7 +948,9 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
     const skipDirectories = config.skipDirectories;
     if (cache && configMovedOn(config)) throw inputsChanged(config);
     const before = cache ? packageFingerprint(config) : "";
-    const art = collectArtMasters(config.art?.masterRoots ?? [], config.contentPackage);
+    const art = collectArtMasters(config.art?.masterRoots ?? [], config.contentPackage, {
+        componentRoots: config.art?.componentRoots,
+    });
     if (art.findings.length) throw new Error(art.findings.map(formatDiagnostic).join("\n"));
     const masterRecords = masterAssetRecords(art.masters);
     const prepare = (records, parsed, files) =>
