@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 25.8.1
+
+**Content and notes**
+
+- Settlement tables can be adopted in stages using reasoned exceptions for individual notes or address prefixes.
+
 ## 25.8.0
 
 **Languages and scripts**
