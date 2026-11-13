@@ -82,6 +82,10 @@ describe("composition declaration detection", () => {
     });
 
     it.each([
+        `< root xmlns:hl="https://heroiclands.org/ns/1.0/" hl:composition="{}"/>`,
+        `< root xmlns:other="urn:other" other:composition="{}"/>`,
+        `</root hl:composition="{}">`,
+        `< /root other:composition="{}">`,
         "< hl:composition>{}</hl:composition>",
         "< composition>{}</composition>",
         "<hl:composition",

@@ -816,7 +816,7 @@ function readComposition(packet) {
     const markup =
         /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)|<(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^<>"'])*(?:>|(?=<)|$)/gu;
     const declaration =
-        /^<\s*(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)|^<[^\s<=>/][\s\S]*?[\s"'](?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)/u;
+        /^<\s*(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)|^<[^\s<=>/][\s\S]*?[\s"'](?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)|^<\s*\/?\s*[^\s<=>/]+[\s\S]*?[\s"'](?:[^\s<=>/]+:composition(?=[\s=/>]|$)|composition(?=\s*=|\/?>))/u;
     if (
         ![...packet.matchAll(markup)].some((match) => {
             const tag = match[0];
