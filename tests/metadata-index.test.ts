@@ -25,6 +25,8 @@ import {
     newestVersionDir,
     noContentIndexPackages,
 } from "../engine/metadata-index.mjs";
+import { collectContentIndex, serializeContentIndex } from "../engine/content-index.mjs";
+import { buildLinkIndex } from "../engine/content-links.mjs";
 import { settlementMarkdown } from "../engine/settlement-tables.mjs";
 import { PACKAGEBUILD_PACKAGE } from "../engine/packages.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
@@ -507,7 +509,57 @@ describe("resolving foreign addresses from cached indexes", () => {
         );
     });
 
-    it("skips a record with no address at all", () => {
+    it("retains a dependency stub as a typed reference without a destination", () => {
+        const tree = path.join(root, "remote-tree");
+        const local = path.join(root, "local-tree");
+        fs.mkdirSync(tree);
+        fs.mkdirSync(local);
+        const note = (code: string, body: string) =>
+            `---\ntype: being\nsubType: creature\nshortcode: ${code}\nname:\n  full: ${code}\ndata: {}\n---\n${body}`;
+        fs.writeFileSync(path.join(tree, "stub.md"), note("stub", ""));
+        fs.writeFileSync(path.join(tree, "full.md"), note("full", "\nA creature.\n"));
+        fs.writeFileSync(path.join(local, "stub.md"), note("stub", ""));
+        const serialized = serializeContentIndex(
+            collectContentIndex(tree, { contentPackage: "remote", skipDirectories: [] }),
+        );
+        const records = serialized
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(records.find((record) => record.shortcode === "stub")).toMatchObject({
+            package: "remote",
+            type: "being",
+            subType: "creature",
+            address: null,
+        });
+        const dir = path.join(root, "remote@1.0.0");
+        fs.mkdirSync(dir);
+        fs.writeFileSync(path.join(dir, metadataFileName("remote")), serialized);
+        fs.writeFileSync(path.join(dir, ".complete"), "");
+        const resolved = {
+            ...loadPackConfig(),
+            contentPackage: "local",
+            paths: { metadataCache: root },
+            relationships: { requires: [{ id: "remote", manifest: LATEST }] },
+        } as never;
+        const foreign = loadForeignIndexes(resolved, ["local"], {});
+        const index = buildLinkIndex(local, { config: resolved, skipDirectories: [], foreign });
+        expect(index.addressHit("local-note-being-stub")).toBeDefined();
+        expect(foreign.references.get("remote-note-being-stub")).toMatchObject({
+            subType: "creature",
+        });
+        expect(foreign.references.get("remote-note-being-full")).toMatchObject({
+            subType: "creature",
+        });
+        expect(foreign.references.has("remote-note-being-missing")).toBe(false);
+        expect(foreign.references.has("remote-note-lore-stub")).toBe(false);
+        expect(foreign.index.has("remote-note-being-stub")).toBe(false);
+        expect(foreign.index.get("remote-note-being-full")?.url).toBeUndefined();
+        expect(foreign.references.get("remote-note-being-stub")).not.toHaveProperty("uuid");
+        expect(foreign.references.get("remote-note-being-stub")).not.toHaveProperty("url");
+    });
+
+    it("excludes a record with no address from destinations", () => {
         cacheIndex("thalorna", "0.1.0", [record({ address: null })]);
         expect(fetched(loadForeignIndexes(config(), ["sohl"]).index)).toEqual([]);
     });
