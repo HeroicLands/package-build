@@ -122,6 +122,7 @@ name:
     full: Ford
 data:
     notes: A town at the crossing.
+    population: null
     parents: [place-vale]
     government: affiliation-crown
     borders:
@@ -143,6 +144,7 @@ name:
     full: Mere
 data:
     notes: A town by the water.
+    population: null
     parents: [place-vale]
     government: affiliation-crown
     borders:
