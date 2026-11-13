@@ -47,7 +47,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { CONFIG_BASENAME, findConfigFile } from "../engine/pack-config.mjs";
 
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.dirname(HERE);
 
@@ -90,6 +90,7 @@ const MODULES = ["engine", "sohl", "hm3"]
 function run(
     args: string[],
     input?: string,
+    timeout = SUBPROCESS_TEST_TIMEOUT,
 ): {
     status: number;
     stdout: string;
@@ -102,12 +103,46 @@ function run(
         encoding: "utf8",
         env,
         input,
+        timeout,
     });
     return {
         status: result.status ?? 1,
         stdout: result.stdout ?? "",
-        stderr: result.stderr ?? "",
+        stderr: result.error?.message ?? result.stderr ?? "",
     };
+}
+
+function importProbe(baseUrl: string, modules: string[]): string {
+    return `
+        import { spawn } from "node:child_process";
+        const modules = ${JSON.stringify(modules)};
+        const failures = Array(modules.length).fill(null);
+        let next = 0;
+        async function probe() {
+            while (next < modules.length) {
+                const index = next++;
+                const rel = modules[index];
+                const url = new URL(rel, ${JSON.stringify(baseUrl)}).href;
+                const failure = await new Promise((resolve) => {
+                    const child = spawn(process.execPath, [
+                        "--input-type=module", "-e", "await import(process.argv[1])", url,
+                    ], { timeout: 15000, killSignal: "SIGKILL", stdio: ["ignore", "ignore", "pipe"] });
+                    let stderr = "";
+                    let error;
+                    child.stderr.setEncoding("utf8");
+                    child.stderr.on("data", (chunk) => { stderr += chunk; });
+                    child.on("error", (err) => { error = err.message; });
+                    child.on("close", (code, signal) => {
+                        resolve(error ?? (signal ? "process terminated by " + signal :
+                            code === 0 ? null : stderr || "process exited " + code));
+                    });
+                });
+                if (failure) failures[index] = rel + ": " + failure;
+            }
+        }
+        await Promise.all(Array.from({ length: Math.min(4, modules.length) }, probe));
+        console.log(JSON.stringify(failures.filter(Boolean)));
+    `;
 }
 
 /** The path to something inside the copied package, as a `file:` URL. */
@@ -159,26 +194,55 @@ describe("the shipped package needs no configuration to be imported", () => {
     it(
         "imports every shipped module on its own",
         () => {
-            // One process, importing each module in isolation with a fresh
-            // registry, so a module that only works because another was loaded
-            // first is caught too.
-            const probe = `
-            const modules = ${JSON.stringify(MODULES)};
-            const failures = [];
-            for (const rel of modules) {
-                const url = new URL(rel, ${JSON.stringify(installedUrl("/"))});
-                // A distinct query per module defeats the module cache, so
-                // each import evaluates the file again from scratch.
-                try { await import(url.href + "?probe=" + encodeURIComponent(rel)); }
-                catch (err) { failures.push(rel + ": " + err.message); }
-            }
-            console.log(JSON.stringify(failures));
-        `;
-            const { status, stdout, stderr } = run(["--input-type=module", "-e", probe]);
+            const probe = importProbe(installedUrl("/"), MODULES);
+            const budget = subprocessTimeout(Math.ceil(MODULES.length / 4) + 1);
+            const { status, stdout, stderr } = run(
+                ["--input-type=module", "-e", probe],
+                undefined,
+                budget,
+            );
             expect(status, stderr).toBe(0);
             expect(JSON.parse(stdout.trim())).toEqual([]);
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(Math.ceil(MODULES.length / 4) + 1),
+    );
+
+    it(
+        "detects a cycle masked by an earlier namespace import",
+        () => {
+            const fixture = path.join(sandbox, "cycle");
+            fs.mkdirSync(fixture);
+            fs.writeFileSync(
+                path.join(fixture, "namespace.mjs"),
+                'export * from "./dependency.mjs";\n',
+            );
+            fs.writeFileSync(
+                path.join(fixture, "dependency.mjs"),
+                'import { value } from "./root.mjs"; export const seen = value;\n',
+            );
+            fs.writeFileSync(
+                path.join(fixture, "root.mjs"),
+                'import "./dependency.mjs"; export const value = 1;\n',
+            );
+            fs.writeFileSync(path.join(fixture, "ordinary.mjs"), "export const value = 1;\n");
+            const base = pathToFileURL(fixture + path.sep).href;
+            const shared = `
+            await import(new URL("namespace.mjs?probe=namespace", ${JSON.stringify(base)}));
+            await import(new URL("root.mjs?probe=root", ${JSON.stringify(base)}));
+        `;
+            const masked = run(["--input-type=module", "-e", shared]);
+            expect(masked.status, masked.stderr).toBe(0);
+            const { status, stdout, stderr } = run([
+                "--input-type=module",
+                "-e",
+                importProbe(base, ["namespace.mjs", "root.mjs", "ordinary.mjs"]),
+            ]);
+            expect(status, stderr).toBe(0);
+            const failures = JSON.parse(stdout.trim()) as string[];
+            expect(failures).toHaveLength(1);
+            expect(failures[0]).toMatch(/root\.mjs:[\s\S]*before initialization/);
+        },
+        subprocessTimeout(2),
     );
 
     it(
