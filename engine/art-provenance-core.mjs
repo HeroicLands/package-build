@@ -813,7 +813,18 @@ function readProperty(xml, name) {
 
 /** Read the single JSON composition property from its declared namespace. */
 function readComposition(packet) {
-    if (!/(?:<|\s)(?:[^\s<=>/]+:)?composition(?:\s|[=/>])/u.test(packet)) return undefined;
+    const markup =
+        /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)|<(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^>"'])*(?:>|$)/gu;
+    const declaration =
+        /^<\s*(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)|\s(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)/u;
+    if (
+        ![...packet.matchAll(markup)].some((match) => {
+            const tag = match[0];
+            if (tag.startsWith("<!") || tag.startsWith("<?")) return false;
+            return declaration.test(tag.replace(/"[^"]*(?:"|$)|'[^']*(?:'|$)/gu, '""'));
+        })
+    )
+        return undefined;
     let invalid = false;
     let document;
     try {
@@ -829,7 +840,19 @@ function readComposition(packet) {
     const nodes = document.getElementsByTagNameNS(HL_NAMESPACE, "composition");
     const elements = document.getElementsByTagName("*");
     for (let index = 0; index < elements.length; index++) {
-        if (elements.item(index).hasAttributeNS(HL_NAMESPACE, "composition"))
+        const element = elements.item(index);
+        if (element.localName === "composition" && element.namespaceURI !== HL_NAMESPACE)
+            throw new Error("composition: property has the wrong namespace");
+        for (let attribute = 0; attribute < element.attributes.length; attribute++) {
+            const item = element.attributes.item(attribute);
+            if (
+                item.localName === "composition" &&
+                item.namespaceURI !== HL_NAMESPACE &&
+                item.namespaceURI !== "http://www.w3.org/2000/xmlns/"
+            )
+                throw new Error("composition: property has the wrong namespace");
+        }
+        if (element.hasAttributeNS(HL_NAMESPACE, "composition"))
             throw new Error("composition: use one JSON text element, not an attribute");
     }
     if (nodes.length === 0) return undefined;

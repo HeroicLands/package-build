@@ -25,6 +25,7 @@ import {
     planRenames,
     readChunks,
     readProvenance,
+    readXmpRecord,
     readSvgProvenance,
     readTextChunk,
     readWebpProvenance,
@@ -37,6 +38,33 @@ import {
 
 import { buildPrimaryNoteIndex } from "../engine/art-primary-note.mjs";
 import { renderPdfMaster } from "../engine/pdf-images.mjs";
+
+describe("composition declaration detection", () => {
+    it.each([
+        "a centered study",
+        "a centered composition study",
+        "<rdf:Description><dc:description>a centered composition study</dc:description></rdf:Description>",
+        '<root note="a composition study"/>',
+        "<root><!-- <hl:composition> --></root>",
+        "<root><![CDATA[<hl:composition>]]></root>",
+        '<root note="a > <hl:composition>"',
+        "<root><!-- <hl:composition> -->",
+        "<root><![CDATA[<hl:composition>]]>",
+    ])("accepts text without a composition declaration: %s", (packet) => {
+        expect(() => readXmpRecord(packet)).not.toThrow();
+        expect(readXmpRecord(packet)).not.toHaveProperty("composition");
+    });
+
+    it.each([
+        "<root><hl:composition>",
+        '<root hl:composition="{}"',
+        "<root hl:composition/>",
+        '<root xmlns:other="urn:other"><other:composition>{}</other:composition></root>',
+        '<root xmlns:other="urn:other" other:composition="{}"/>',
+    ])("refuses malformed declarations: %s", (packet) => {
+        expect(() => readXmpRecord(packet)).toThrow(/composition/);
+    });
+});
 
 const PROMPT = `A "drake" of the deep, café-lit — naïve & <wild>, 'quoted'\r\nsecond line\ttabbed 日本語 🐉`;
 const GENERATOR = JSON.stringify({
