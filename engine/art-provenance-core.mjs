@@ -168,6 +168,7 @@ import zlib from "node:zlib";
 import { validateComposition, checkCompositionSources } from "./art-composition.mjs";
 
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
+import { __DOMHandler as XmpDomHandler } from "@xmldom/xmldom/lib/dom-parser.js";
 
 import { readCanonicalKey } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
@@ -287,7 +288,7 @@ const COMPLETE_ADDRESS = {
  *   key of {@link DIGITAL_SOURCE_TOKENS} or a full URI; read back as the URI.
  *   Written as `Iptc4xmpExt:DigitalSourceType`. On write, `none` or `null`
  *   removes it, and a PNG with no record yet that is written without the field
- *   receives {@link DIGITAL_SOURCE_TRAINED_ALGORITHMIC}.
+ *   receives {@link DIGITAL_SOURCE_TRAINED_ALGORITHMIC} unless `ai` is supplied.
  * @property {string[]} [formerNames] - Paths the file held under earlier names,
  *   oldest first, relative to the masters directory. Written as an `rdf:Bag`
  *   in the XMP packet only. A write appends the names it is given that the
@@ -860,58 +861,108 @@ function readComposition(packet) {
     }
 }
 
-/** Read one explicit boolean in the Heroic Lands namespace. */
-function readAi(packet) {
-    if (!/(?:<|\s)(?:[^\s<=>/]+:)?ai(?:\s|[=/>])/u.test(packet)) return undefined;
+/** Read generation facts by expanded XMP property name. */
+function readGeneration(packet) {
+    if (!/(?:<|\s)(?:[^\s<=>/]+:)?(?:ai|DigitalSourceType)(?:\s|[=/>])/u.test(packet))
+        return undefined;
     let invalid = false;
     let document;
+    let aiCount = 0;
+    let sourceCount = 0;
+    class GenerationHandler extends XmpDomHandler {
+        startElement(namespaceURI, localName, qName, attrs) {
+            if (namespaceURI === HL_NAMESPACE && localName === "ai") aiCount++;
+            if (namespaceURI === IPTC_NAMESPACE && localName === "DigitalSourceType") sourceCount++;
+            for (let i = 0; i < attrs.length; i++) {
+                if (attrs.getURI(i) === HL_NAMESPACE && attrs.getLocalName(i) === "ai") aiCount++;
+                if (
+                    attrs.getURI(i) === IPTC_NAMESPACE &&
+                    attrs.getLocalName(i) === "DigitalSourceType"
+                )
+                    sourceCount++;
+            }
+            super.startElement(namespaceURI, localName, qName, attrs);
+        }
+    }
     try {
         document = new DOMParser({
+            domHandler: GenerationHandler,
             onError: () => {
                 invalid = true;
             },
         }).parseFromString(packet, "application/xml");
     } catch {
-        throw new Error("ai: malformed XMP");
+        throw new Error("generation metadata: malformed XMP");
     }
-    if (invalid) throw new Error("ai: malformed XMP");
+    if (invalid) throw new Error("generation metadata: malformed XMP");
+    if (aiCount > 1) throw new Error("ai: duplicate XMP properties");
+    if (sourceCount > 1) throw new Error("digitalSourceType: duplicate XMP properties");
     const values = [];
     const sources = [];
     const elements = document.getElementsByTagName("*");
+    const description = (node) =>
+        node?.namespaceURI === RDF_NAMESPACE && node.localName === "Description";
+    const textOnly = (node) =>
+        Array.from({ length: node.childNodes.length }, (_, i) => node.childNodes.item(i)).every(
+            (child) => child.nodeType === 3 || child.nodeType === 4,
+        );
     for (let i = 0; i < elements.length; i++) {
         const node = elements.item(i);
-        if (node.hasAttributeNS(HL_NAMESPACE, "ai")) {
-            if (node.namespaceURI !== RDF_NAMESPACE || node.localName !== "Description")
-                throw new Error("ai: property must belong to an RDF Description");
-            values.push(node.getAttributeNS(HL_NAMESPACE, "ai"));
+        for (let j = 0; j < node.attributes.length; j++) {
+            const attr = node.attributes.item(j);
+            const ai = attr.namespaceURI === HL_NAMESPACE && attr.localName === "ai";
+            const source =
+                attr.namespaceURI === IPTC_NAMESPACE && attr.localName === "DigitalSourceType";
+            if (ai || source) {
+                if (!description(node))
+                    throw new Error(
+                        "generation metadata: property must belong to an RDF Description",
+                    );
+                (ai ? values : sources).push(attr.value);
+            }
         }
-        if (node.hasAttributeNS(IPTC_NAMESPACE, "DigitalSourceType"))
-            sources.push(node.getAttributeNS(IPTC_NAMESPACE, "DigitalSourceType"));
-        if (node.namespaceURI === IPTC_NAMESPACE && node.localName === "DigitalSourceType")
-            sources.push(node.textContent);
         if (node.namespaceURI === HL_NAMESPACE && node.localName === "ai") {
             if (
-                node.parentNode.namespaceURI !== RDF_NAMESPACE ||
-                node.parentNode.localName !== "Description" ||
-                Array.from({ length: node.childNodes.length }, (_, j) =>
-                    node.childNodes.item(j),
-                ).some((child) => child.nodeType !== 3 && child.nodeType !== 4)
+                !description(node.parentNode) ||
+                !textOnly(node) ||
+                Array.from({ length: node.attributes.length }, (_, j) =>
+                    node.attributes.item(j),
+                ).some((attr) => attr.namespaceURI !== "http://www.w3.org/2000/xmlns/")
             )
                 throw new Error("ai: expected a boolean XMP property");
             values.push(node.textContent);
         }
+        if (node.namespaceURI === IPTC_NAMESPACE && node.localName === "DigitalSourceType") {
+            if (!description(node.parentNode) || !textOnly(node))
+                throw new Error("digitalSourceType: invalid XMP property");
+            let resource;
+            for (let j = 0; j < node.attributes.length; j++) {
+                const attr = node.attributes.item(j);
+                if (attr.namespaceURI === "http://www.w3.org/2000/xmlns/") continue;
+                if (
+                    attr.namespaceURI === RDF_NAMESPACE &&
+                    attr.localName === "resource" &&
+                    resource === undefined
+                )
+                    resource = attr.value;
+                else throw new Error("digitalSourceType: invalid XMP property");
+            }
+            if (resource !== undefined && node.textContent.trim() !== "")
+                throw new Error("digitalSourceType: conflicting XMP values");
+            sources.push(resource ?? node.textContent);
+        }
     }
     if (values.length > 1) throw new Error("ai: duplicate XMP properties");
-    if (!values.length) return undefined;
     if (sources.length > 1) throw new Error("digitalSourceType: duplicate XMP properties");
-    if (
-        values[0] !== "True" &&
-        values[0] !== "False" &&
-        values[0] !== "true" &&
-        values[0] !== "false"
-    )
+    if (values.length && !["True", "False", "true", "false"].includes(values[0]))
         throw new Error("ai: expected a boolean XMP value");
-    return { ai: values[0].toLowerCase() === "true", source: sources[0] };
+    if (sources.length && !/^[A-Za-z][A-Za-z0-9+.-]*:\S+$/.test(sources[0]))
+        throw new Error("digitalSourceType: expected a URI");
+    if (!values.length && !sources.length) return undefined;
+    return {
+        ai: values.length ? values[0].toLowerCase() === "true" : undefined,
+        source: sources[0],
+    };
 }
 
 /** Refuse explicit status that conflicts with a recognized source type. */
@@ -942,6 +993,7 @@ export function readXmpRecord(packet) {
         if (
             field === "composition" ||
             field === "ai" ||
+            field === "digitalSourceType" ||
             (field === "prompt" && name === "dc:description")
         )
             continue;
@@ -957,9 +1009,9 @@ export function readXmpRecord(packet) {
         const value = readProperty(xml, name);
         if (value !== undefined) record[field] = value;
     }
-    const ai = readAi(packet);
+    const ai = readGeneration(packet);
     if (ai !== undefined) {
-        record.ai = ai.ai;
+        if (ai.ai !== undefined) record.ai = ai.ai;
         if (ai.source !== undefined) record.digitalSourceType = ai.source;
     }
     validateAiClassification(record);
@@ -1007,7 +1059,7 @@ export function readProvenance(bytes) {
     const xmpChunks = chunks.filter(isXmpChunk);
     if (
         xmpChunks.length > 1 &&
-        xmpChunks.some((chunk) => readAi(readTextChunk(chunk).text) !== undefined)
+        xmpChunks.some((chunk) => readGeneration(readTextChunk(chunk).text)?.ai !== undefined)
     )
         throw new Error("ai: multiple XMP packets cannot carry an unambiguous declaration");
     const xmpChunk = xmpChunks[0];
@@ -1625,8 +1677,14 @@ function makeWebpChunk(type, data) {
 
 /** The XMP packet in a WebP's chunks, or `null`. */
 function webpPacket(chunks) {
-    const chunk = chunks.find((entry) => entry.type === "XMP ");
-    return chunk ? chunk.data.toString("utf8") : null;
+    const packets = chunks
+        .filter((entry) => entry.type === "XMP ")
+        .map((entry) => entry.data.toString("utf8"));
+    for (const packet of packets.slice(1)) {
+        if (readGeneration(packet) !== undefined)
+            throw new Error("generation metadata: ambiguous WebP XMP packets");
+    }
+    return packets[0] ?? null;
 }
 
 /**

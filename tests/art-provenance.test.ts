@@ -1939,6 +1939,112 @@ describe("independent AI status", () => {
         expect(() => readSvgProvenance(alias)).toThrow(/conflicts/);
     });
 
+    it("refuses namespace-equivalent duplicates and invalid boolean attributes", () => {
+        const svg = writeSvgProvenance("<svg/>", { ...FIELDS, ai: false }).text;
+        const iptc = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/";
+        const generated = DIGITAL_SOURCE_TRAINED_ALGORITHMIC;
+        for (const attrs of [
+            `xmlns:p="${HL_NAMESPACE}" p:ai="True" hl:ai="False"`,
+            `xmlns:p="${HL_NAMESPACE}" hl:ai="False" p:ai="True"`,
+            `xmlns:p="${iptc}" xmlns:q="${iptc}" p:DigitalSourceType="${generated}" q:DigitalSourceType="http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation"`,
+            `xmlns:p="${iptc}" xmlns:q="${iptc}" q:DigitalSourceType="http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation" p:DigitalSourceType="${generated}"`,
+        ]) {
+            const noElement =
+                attrs.includes("p:ai") ? svg.replace("<hl:ai>False</hl:ai>", "") : svg;
+            expect(() =>
+                readSvgProvenance(
+                    noElement.replace("<rdf:Description ", `<rdf:Description ${attrs} `),
+                ),
+            ).toThrow(/duplicate/);
+        }
+        expect(() =>
+            readSvgProvenance(svg.replace("<rdf:Description ", '<rdf:Description hl:ai="True" ')),
+        ).toThrow(/duplicate/);
+        expect(() =>
+            readSvgProvenance(
+                svg.replace("<hl:ai>False</hl:ai>", '<hl:ai rdf:resource="True">False</hl:ai>'),
+            ),
+        ).toThrow(/boolean/);
+        const source = `<p:DigitalSourceType xmlns:p="${iptc}">${generated}</p:DigitalSourceType>`;
+        expect(() =>
+            readSvgProvenance(
+                svg
+                    .replace(
+                        "<rdf:Description ",
+                        `<rdf:Description Iptc4xmpExt:DigitalSourceType="${generated}" `,
+                    )
+                    .replace("</rdf:Description>", `${source}</rdf:Description>`),
+            ),
+        ).toThrow(/duplicate/);
+    });
+
+    it("reads genuine resource-valued source types and ignores shadowed namespaces", () => {
+        const svg = writeSvgProvenance("<svg/>", { ...FIELDS, ai: false }).text;
+        const generated = DIGITAL_SOURCE_TRAINED_ALGORITHMIC;
+        const resource = `<Iptc4xmpExt:DigitalSourceType rdf:resource="${generated}"/>`;
+        expect(() =>
+            readSvgProvenance(svg.replace("</rdf:Description>", `${resource}</rdf:Description>`)),
+        ).toThrow(/conflicts/);
+        const duplicateSourceOnly = svg
+            .replace("<hl:ai>False</hl:ai>", "")
+            .replace(
+                "<rdf:Description ",
+                `<rdf:Description xmlns:p="http://iptc.org/std/Iptc4xmpExt/2008-02-29/" p:DigitalSourceType="${generated}" Iptc4xmpExt:DigitalSourceType="${generated}" `,
+            );
+        expect(() => readSvgProvenance(duplicateSourceOnly)).toThrow(/duplicate/);
+        const badResource = svg.replace(
+            "</rdf:Description>",
+            `<Iptc4xmpExt:DigitalSourceType rdf:resource="${generated}">http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation</Iptc4xmpExt:DigitalSourceType></rdf:Description>`,
+        );
+        expect(() => readSvgProvenance(badResource)).toThrow(/conflicting/);
+        const valid = svg
+            .replace("<hl:ai>False</hl:ai>", "<hl:ai>True</hl:ai>")
+            .replace("</rdf:Description>", `${resource}</rdf:Description>`);
+        expect(readSvgProvenance(valid).record.digitalSourceType).toBe(generated);
+        const shadow = `<Iptc4xmpExt:DigitalSourceType xmlns:Iptc4xmpExt="urn:unrelated">http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation</Iptc4xmpExt:DigitalSourceType>`;
+        expect(
+            readSvgProvenance(
+                svg
+                    .replace("<hl:ai>False</hl:ai>", "<hl:ai>True</hl:ai>")
+                    .replace("</rdf:Description>", `${shadow}</rdf:Description>`),
+            ).record.digitalSourceType,
+        ).toBeUndefined();
+    });
+
+    it("refuses generation facts in later WebP packets on read, audit and rewrite", async () => {
+        const webp = await sharp(png).webp().toBuffer();
+        const first = writeWebpProvenance(webp, { ...FIELDS, ai: false, derived: true });
+        const packet = readWebpProvenance(first.bytes).packet!;
+        const append = (text: string) => {
+            const data = Buffer.from(text);
+            const header = Buffer.alloc(8);
+            header.write("XMP ");
+            header.writeUInt32LE(data.length, 4);
+            const out = Buffer.concat([first.bytes, header, data, Buffer.alloc(data.length % 2)]);
+            out.writeUInt32LE(out.length - 8, 4);
+            return out;
+        };
+        for (const extra of [
+            packet.replace("<hl:ai>False</hl:ai>", "<hl:ai>True</hl:ai>"),
+            packet.replace(
+                "<hl:ai>False</hl:ai>",
+                `<Iptc4xmpExt:DigitalSourceType rdf:resource="${DIGITAL_SOURCE_TRAINED_ALGORITHMIC}"/>`,
+            ),
+        ]) {
+            const bad = append(extra);
+            expect(() => readWebpProvenance(bad)).toThrow();
+            expect(() => writeWebpProvenance(bad, { rights: "Revised" })).toThrow();
+            expect(() => writeDerivativeProvenance(bad, { ...FIELDS, ai: false })).toThrow();
+            expect(checkProvenance([{ file: "derived.webp", bytes: bad }])[0]).toMatchObject({
+                file: "derived.webp",
+                severity: "error",
+            });
+        }
+        const unrelated = append(packet.replace("<hl:ai>False</hl:ai>", ""));
+        expect(readWebpProvenance(unrelated).record.ai).toBe(false);
+        expect(writeWebpProvenance(unrelated, { rights: "Revised" }).record.ai).toBe(false);
+    });
+
     it("refuses AI declarations across multiple PNG packets", () => {
         const out = writeProvenance(png, { ...FIELDS, ai: false, digitalSourceType: "none" });
         const packet = readProvenance(out.bytes).packet!;
