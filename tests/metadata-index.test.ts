@@ -412,6 +412,20 @@ describe("resolving foreign addresses from cached indexes", () => {
         expect(index.get("thalorna-note-affiliation-unfigured")?.population).toBeUndefined();
     });
 
+    it("preserves an explicitly unknown settlement population", () => {
+        cacheIndex("thalorna", "0.1.0", [
+            record({
+                type: "place",
+                subType: "settlement",
+                address: { slug: "place-aerarimmpr", canonical: "thalorna-note-place-aerarimmpr" },
+                data: { population: null },
+            }),
+        ]);
+        const { index } = loadForeignIndexes(config(), ["sohl"]);
+        const entry = [...index.values()].find((item: any) => item.type === "place");
+        expect(entry?.population).toBeNull();
+    });
+
     // A note compiling into two systems' documents holds a block per system,
     // and the key's own system segment says which one this address names.
     it("resolves an existing foreign page's none-system identity without a Foundry journal", () => {

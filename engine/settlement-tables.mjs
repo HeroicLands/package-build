@@ -255,7 +255,11 @@ function rowsOf(corpus, owner, recursive) {
     for (const node of owners)
         for (const row of Array.isArray(node.fm.data?.settlements) ? node.fm.data.settlements : [])
             if (map(row))
-                add(`name:${text(row.settlement).toLowerCase()}`, { ...row, source: node });
+                add(`name:${text(row.settlement).toLowerCase()}`, {
+                    ...row,
+                    population: row.population ?? null,
+                    source: node,
+                });
     const noted = new Map();
     for (const node of owners)
         for (const place of corpus.notedByOwner.get(node.key) ?? []) noted.set(place.key, place);
@@ -265,6 +269,7 @@ function rowsOf(corpus, owner, recursive) {
         const government = corpus.resolve(node.fm.data?.government, "affiliation", node.fm.package);
         add(node.key, {
             ...node.fm.data,
+            population: node.fm.data?.population ?? null,
             settlement: node.key,
             polity: government?.key,
             location: node.fm.data?.parents?.[0],
@@ -370,7 +375,7 @@ export function checkSettlementTables(
     if (!index) return [];
     const fm = fmOf(note);
     const findings = [];
-    const report = (rule, path, message, settlementExemptible = false) => {
+    const report = (rule, path, message, settlementExemptible = false, severity = "error") => {
         let at = Array.isArray(path) ? {} : path;
         if (Array.isArray(path))
             for (let length = path.length; length; length--) {
@@ -382,7 +387,7 @@ export function checkSettlementTables(
         findings.push({
             file: note.file,
             ...at,
-            severity: "error",
+            severity,
             ...(settlementExemptible ? { settlementExemptible: true } : {}),
             message: `${rule}: ${message}`,
         });
@@ -418,10 +423,23 @@ export function checkSettlementTables(
                 listed ?
                     field.required
                 :   key === "notes" || (row.population > 0 && ["type", "market"].includes(key));
+            if (key === "population") {
+                if (value === undefined) {
+                    report(
+                        "people figure",
+                        [...at, key],
+                        "population must be provided; use null when unknown",
+                        false,
+                        "warning",
+                    );
+                    continue;
+                }
+                if (value === null || value === 0) continue;
+            }
             if (value == null && field.nullable) continue;
             if (value === undefined && !required) continue;
             if (key === "population") {
-                if (!(value === 0 && !listed) && !population(value))
+                if (!population(value))
                     report(
                         "people figure",
                         [...at, key],
@@ -547,7 +565,10 @@ export function checkSettlementTables(
             const format = (n) => n.toLocaleString("en-US");
             const name = typeof fm.name === "string" ? fm.name : (fm.name?.full ?? fm.shortcode);
             if (settlementPopulation.mode === "complete") {
-                if (Math.abs(sum - total) > total * 0.05)
+                if (
+                    rows.every((row) => Number.isFinite(row.population)) &&
+                    Math.abs(sum - total) > total * 0.05
+                )
                     report(
                         "territorial population",
                         ["data", "territorial_population"],
@@ -609,8 +630,9 @@ export function assertSettlementRecords(
     const findings = notes.flatMap((note) =>
         checkSettlementTables(note, { index, settlementExemptions: tracker, settlementPopulation }),
     );
-    if (findings.length)
-        throw Object.assign(new Error(findings.map(formatDiagnostic).join("\n")), {
+    const errors = findings.filter((finding) => finding.severity === "error");
+    if (errors.length)
+        throw Object.assign(new Error(errors.map(formatDiagnostic).join("\n")), {
             located: true,
             findings,
         });

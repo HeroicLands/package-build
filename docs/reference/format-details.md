@@ -6037,7 +6037,7 @@ rank names the standing, and the standing says.
 | `settlements[].fortification`                   | fortification or null                                                     | The settlement's defenses.                                                                                                  |
 | `settlements[].stronghold`                      | stronghold or null                                                        | The settlement's stronghold.                                                                                                |
 | `settlements[].holder`                          | affiliation or being Address, or name                                     | Who holds the land.                                                                                                         |
-| `settlements[].population`                      | positive integer                                                          | Residents, to at most two significant digits.                                                                               |
+| `settlements[].population`                      | nonnegative integer or null                                               | Residents, to at most two significant digits; null means unknown and zero means abandoned.                                  |
 | `settlements[].market`                          | market class                                                              | The market's reach.                                                                                                         |
 | `settlements[].notes`                           | nonempty short text                                                       | What distinguishes the settlement.                                                                                          |
 | `economy`                                       | `Address[]`                                                               | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default                                      |
@@ -8714,7 +8714,7 @@ throughout its subordinate chain must not exceed that total. Towns, cities, and 
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
-settlement sum. Populations use at most two significant digits. Each settlement
+settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals are checked when every settlement population is known. Each settlement
 has short `data.notes`; a populated settlement note also requires `data.type`,
 a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](../configuration.md#settlement-exemptions).

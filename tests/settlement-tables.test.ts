@@ -130,6 +130,70 @@ function checked(
         f.dispose();
     }
 }
+describe("settlement population declarations", () => {
+    it.each([null, 0])("accepts %s in notes and listed rows", (value) =>
+        checked(
+            (n) => {
+                n[3].data.population = value;
+                n[1].data.settlements[0].population = value;
+            },
+            (f) =>
+                expect(
+                    f.findings.filter((x: any) => x.message.startsWith("people figure:")),
+                ).toEqual([]),
+        ),
+    );
+    it("warns for omitted population in notes and listed rows", () =>
+        checked(
+            (n) => {
+                delete n[3].data.population;
+                delete n[1].data.settlements[0].population;
+            },
+            (f) =>
+                expect(
+                    f.findings.filter(
+                        (x: any) => x.severity === "warning" && x.message.includes("population"),
+                    ),
+                ).toHaveLength(2),
+        ));
+    it("leaves unknown figures blank in publication and skips complete totals", () =>
+        checked(
+            (n) => {
+                delete n[1].data.settlements[0].population;
+                n[3].data.population = null;
+            },
+            (f) => {
+                expect(
+                    f.findings.some((x: any) => x.message.startsWith("territorial population:")),
+                ).toBe(false);
+                const records = f.records();
+                expect(() =>
+                    assertSettlementRecords(records, {
+                        fileOf: (fm: any) => path.join(f.root, `${fm.shortcode}.md`),
+                        config: { packageBuild: { settlementPopulation: { mode: "complete" } } },
+                    }),
+                ).not.toThrow();
+                const authored = f.index.notes.map((note: any) => note.fm);
+                const markdown = settlementMarkdown(
+                    authored.find((r: any) => r.shortcode === "crown"),
+                    authored,
+                );
+                expect(markdown).toMatch(/East Farm[^\n]*\|\s*\|/);
+            },
+        ));
+    it.each([-1, 1.5, 101, "100"])("rejects invalid population %s", (value) =>
+        checked(
+            (n) => {
+                n[3].data.population = value;
+                n[1].data.settlements[0].population = value;
+            },
+            (f) =>
+                expect(
+                    f.findings.filter((x: any) => x.message.startsWith("people figure:")).length,
+                ).toBe(2),
+        ),
+    );
+});
 describe("polity settlement guards", () => {
     it("counts mixed rows and notes once, including seats, without membership or subordinate totals", () =>
         checked(

@@ -2749,7 +2749,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "population",
                 ...NUM,
                 check: checkPopulation,
-                describe: "Approximate population, to two significant digits.",
+                describe:
+                    "Approximate population, to two significant digits. Settlements state null when unknown and zero when abandoned.",
             },
             {
                 name: "government",
