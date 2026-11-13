@@ -69,8 +69,10 @@
  * found by address: {@link findMaster} resolves the master among a set of files
  * and {@link effectiveRecord} returns a file's properties, the master's record
  * for a derivative with the values the derivative repeats applying. A derivative
- * may repeat a subset of the master's properties. Each repeated value must equal
- * the master's, and a property the master does not carry may not be stated.
+ * may repeat a subset of the master's properties. Repeated values equal the
+ * master's, except that `derivedFrom` names the master Address and indexed
+ * public-note fields may supply the current name and primary note. Overrides
+ * require the primary-note index; master metadata is audited separately.
  *
  * {@link deriveRecord} turns a master's record into a derivative's: the
  * address, `hl:derived`, `dc:rights` and the creator (`dc:creator`, the
@@ -147,8 +149,8 @@
  * {@link checkProvenance} reports, as `file:line:column: severity: message`, a
  * file with no address, an address that is not a complete Address, an
  * address with two masters, a derivative whose address has no master in the set,
- * a derivative that repeats a property with a value different from its
- * master's or states one its master does not carry, a WebP without
+ * a derivative with an incorrect parent trace or unauthorized note fields,
+ * another repeated property that differs from or is absent on its master, a WebP without
  * `hl:derived`, a PNG with it, an `hl:derived` whose value is not `true`, a `dc:identifier` that differs from
  * `hl:address`, a `hl:primarynote` that is malformed or that names no note in
  * the index, a `hl:name` that differs from the named note's `name.full`, a
