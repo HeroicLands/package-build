@@ -430,7 +430,8 @@ function cleanCommand() {
             }),
         handler: handler((args) => {
             const config = loadPackageBuildConfig();
-            const roots = privateArtRoots(loadPackConfig());
+            const art = loadPackConfig().art;
+            const roots = [...(art?.masterRoots ?? []), ...(art?.componentRoots ?? [])];
             assertPrivateArtRoots(
                 roots,
                 [

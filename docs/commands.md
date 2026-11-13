@@ -1893,13 +1893,21 @@ format or a requirement of this API. A complete source cutover requires the
 master-derived standard index to be supplied through the package's normal index
 pipeline. The ZIP and lock do not distribute or authenticate that separate index.
 
-`art source fetch` uses Git's credential configuration and Git LFS to restore the
-exact pinned commit under `build/.cache/art-sources/`. It verifies Git objects,
-LFS pointers and objects, and every embedded master identity and checksum. Every
-master must be tracked in LFS. A repository `.lfsconfig` is refused: LFS uses the
-Git remote's endpoint. The command does not print remote credentials and does
-not run repository hooks. A populated source destination is retained; use an
-empty build workspace for another restore.
+`art source fetch` uses Git's credential configuration only for explicit acquisition
+of the exact pinned commit under `build/.cache/art-sources/`. A valid existing
+checkout is verified and reused without cloning, fetching or reading credentials.
+Verification checks all pinned Git and LFS objects, every tracked file's
+bytes, and every embedded master identity. Every master must be tracked in LFS.
+Extra files, missing files, modified bytes, symbolic links, Git object alternates
+and a root `.lfsconfig` are refused. LFS uses the Git remote's endpoint.
+
+Offline verification uses fresh Git control metadata and ignores cached config,
+refs, index flags, hooks and filters. The command does not print remote credentials
+or execute source-controlled hooks and filters. An invalid existing source cache
+is retained and fails with a remedy: run `package-build clean`, then
+`package-build art source fetch`. Cleaning removes the regenerable fetched cache
+along with other build artifacts. Configured `art.masterRoots` and
+`art.componentRoots` remain protected, including roots beneath a clean target.
 
 `art reproduce` checks that fetched source revision and its master bytes, renders
 only the Addresses present in the public archive to `build/art-reproduced/`, and

@@ -3695,9 +3695,18 @@ the complete lock, including package, source revision and public ZIP digest.
 | `readArtLock`        | `readArtLock(config)`                      | `ArtLock` or `null`           | Validate the closed root JSON lock and input mode.                                                              |
 | `fetchPublicArt`     | `fetchPublicArt(config, {records, from?})` | `Promise<string>`             | Explicitly verify and atomically expose a public cache; `from` is a local ZIP path.                             |
 | `loadPinnedArt`      | `loadPinnedArt(config, records)`           | `{records, files, paths}`     | Read and revalidate the offline cache; return indexed record copies, Address-to-file map and fingerprint paths. |
-| `fetchArtSource`     | `fetchArtSource(config, {from?})`          | `Promise<string>`             | Restore and verify the exact private Git/LFS revision; `from` is a local repository path.                       |
+| `fetchArtSource`     | `fetchArtSource(config, {from?})`          | `Promise<string>`             | Restore or reuse the verified private Git/LFS revision; `from` is a local acquisition path.                     |
 | `reproducePinnedArt` | `reproducePinnedArt(config, {records})`    | `Promise<Map<string,string>>` | Render only pinned public Addresses from verified private masters and require byte equality.                    |
 | `privateArtRoots`    | `privateArtRoots(config)`                  | `string[]`                    | Return configured private roots and the existing fetched-source cache for output guards.                        |
+
+`fetchArtSource` verifies an existing checkout offline without cloning or fetching.
+It and `reproducePinnedArt` use fresh Git control metadata to verify the pinned
+file set, Git objects, LFS pointers and materialized bytes. Cached configuration,
+hooks, refs and index flags are not authorities. The integrity receipt adds a
+checksum check; it cannot override the pinned objects. An invalid existing source
+cache is retained and requires `package-build clean` followed by
+`package-build art source fetch`. Cleaning protects configured master and
+component roots while removing the regenerable fetched cache.
 
 `files` in `loadPinnedArt` is a `Map<string,string>` keyed by canonical Address.
 These files are verified public derivatives and must be passed directly to

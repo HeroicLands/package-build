@@ -118,9 +118,15 @@ standard index is outside the artwork ZIP contract.
 
 For private reproduction, keep the lock unchanged and run
 `package-build art source fetch`, then `package-build art reproduce`. Git uses its
-configured credentials; complete Git LFS objects and exact revision verification
-are required. The fetched checkout stays under `build/.cache/art-sources/` and is
-protected from build outputs. Only pinned public Addresses are rendered, and the
+configured credentials only for acquisition; complete Git LFS objects and exact
+revision verification are required. A repeat source fetch verifies and reuses the
+existing checkout offline, including every tracked file and the absence of extra
+files. Cached Git configuration, hooks and index flags are not trusted. If the
+source cache is invalid, run `package-build clean` followed by
+`package-build art source fetch`. Cleaning removes fetched sources and other build
+artifacts while protecting configured master and component roots. The fetched
+checkout stays under `build/.cache/art-sources/` and is protected from build
+outputs. Only pinned public Addresses are rendered, and the
 command requires exact byte equality with the verified public cache. Source
 components absent from the public archive remain unpublished. See the
 [command manual](../commands.md#package-build-art) for offline local inputs and

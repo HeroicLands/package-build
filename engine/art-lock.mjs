@@ -575,100 +575,317 @@ export function loadPinnedArt(config, records) {
     }
 }
 
+/** Git selectors belong to the operation, never to the invoking repository. */
+function sourceEnvironment(offline = false) {
+    const env = Object.fromEntries(
+        Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")),
+    );
+    if (!offline)
+        for (const key of ["GIT_ASKPASS", "GIT_SSH", "GIT_SSH_COMMAND", "GIT_SSH_VARIANT"])
+            if (process.env[key] !== undefined) env[key] = process.env[key];
+    Object.assign(env, { GIT_TERMINAL_PROMPT: "0", GIT_LFS_SKIP_SMUDGE: "1" });
+    if (offline)
+        Object.assign(env, {
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_CONFIG_SYSTEM: os.devNull,
+            GIT_CONFIG_GLOBAL: os.devNull,
+            GIT_NO_REPLACE_OBJECTS: "1",
+            GIT_NO_LAZY_FETCH: "1",
+            GIT_ATTR_NOSYSTEM: "1",
+        });
+    return env;
+}
+function sourceGit(args, cwd, env) {
+    return execFileSync("git", ["-c", `core.hooksPath=${os.devNull}`, ...args], {
+        cwd,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 64 * 1024 * 1024,
+    });
+}
+/** Fixed control paths and policy keep offline commands away from cached configuration. */
+function offlineSourceGit(control, checkout) {
+    const gitDir = path.join(control, ".git");
+    const env = {
+        ...sourceEnvironment(true),
+        GIT_DIR: gitDir,
+        GIT_WORK_TREE: checkout,
+        GIT_OBJECT_DIRECTORY: path.join(checkout, ".git", "objects"),
+        GIT_INDEX_FILE: path.join(gitDir, "index"),
+    };
+    return (args) =>
+        sourceGit(
+            [
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                `core.attributesFile=${os.devNull}`,
+                "-c",
+                `lfs.storage=${path.join(checkout, ".git", "lfs")}`,
+                "-c",
+                "lfs.fetchinclude=",
+                "-c",
+                "lfs.fetchexclude=",
+                "-c",
+                "protocol.allow=never",
+                ...args,
+            ],
+            control,
+            env,
+        );
+}
+function sourceDirectory(folder) {
+    if (!fs.lstatSync(folder).isDirectory()) throw new Error("source directory required");
+}
+function sourceFile(file) {
+    if (!fs.lstatSync(file).isFile()) throw new Error("regular source file required");
+    return fs.readFileSync(file);
+}
+/** Walk without following links, including ignored files and empty directories. */
+function sourceFiles(folder, skipGit = false, prefix = "", files = new Set()) {
+    sourceDirectory(folder);
+    for (const name of fs.readdirSync(folder)) {
+        if (skipGit && !prefix && name === ".git") continue;
+        const file = path.join(folder, name),
+            relative = prefix + name;
+        const stat = fs.lstatSync(file);
+        if (stat.isDirectory()) sourceFiles(file, false, relative + "/", files);
+        else if (stat.isFile()) files.add(relative);
+        else throw new Error("source links and special files are forbidden");
+    }
+    return files;
+}
+/** NUL framing and blob IDs keep tracked paths out of revision expressions. */
+function sourceTree(git, revision) {
+    if (
+        git(["rev-parse", "--verify", `${revision}^{commit}`])
+            .toString("utf8")
+            .trim() !== revision
+    )
+        throw new Error("source revision differs from the pin");
+    const bytes = git(["ls-tree", "-r", "-z", "--full-tree", revision]);
+    const text = bytes.toString("utf8");
+    if (!Buffer.from(text).equals(bytes) || (text && !text.endsWith("\0")))
+        throw new Error("unrepresentable source tree");
+    const entries = new Map(),
+        folded = new Set();
+    for (const row of text.split("\0").filter(Boolean)) {
+        const match = /^(100644|100755) blob ([a-f0-9]{40}|[a-f0-9]{64})\t(.+)$/u.exec(row);
+        if (!match) throw new Error("source tree requires regular files");
+        const [, , oid, file] = match;
+        if (
+            file.split("/")[0].toLowerCase() === ".lfsconfig" ||
+            file.startsWith("/") ||
+            /[\\:<>"|?*\x00-\x1f\x7f]/u.test(file) ||
+            file
+                .split("/")
+                .some(
+                    (part) =>
+                        !part ||
+                        part === "." ||
+                        part === ".." ||
+                        part.toLowerCase() === ".git" ||
+                        /[. ]$/u.test(part) ||
+                        /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(part),
+                )
+        )
+            throw new Error("unsafe source tree path");
+        const key = file.normalize("NFC").toLowerCase();
+        if (folded.has(key)) throw new Error("colliding source tree paths");
+        folded.add(key);
+        entries.set(file, oid);
+    }
+    return entries;
+}
+/** A canonical LFS pointer declares the exact materialized bytes. */
+function sourcePointer(bytes) {
+    const text = bytes.toString("utf8");
+    if (!text.startsWith("version https://git-lfs.github.com/spec/v1")) return null;
+    const match =
+        /^version https:\/\/git-lfs.github.com\/spec\/v1\noid sha256:([a-f0-9]{64})\nsize (0|[1-9][0-9]*)\n$/u.exec(
+            text,
+        );
+    if (!match || !Number.isSafeInteger(Number(match[2]))) throw new Error("invalid LFS pointer");
+    return { sha256: match[1], size: Number(match[2]) };
+}
+/** Verify bytes through fresh Git control metadata; receipts are an additional check. */
+function verifyArtSource(config, lock, folder, requireReceipt = true) {
+    safeOutput(config, folder);
+    const checkout = path.join(folder, "repository"),
+        gitDir = path.join(checkout, ".git");
+    sourceDirectory(folder);
+    sourceDirectory(checkout);
+    sourceDirectory(gitDir);
+    const files = sourceFiles(checkout, true);
+    sourceFiles(path.join(gitDir, "objects"));
+    sourceFiles(path.join(gitDir, "lfs"));
+    for (const file of ["alternates", "http-alternates"])
+        if (fs.lstatSync(path.join(gitDir, "objects", "info", file), { throwIfNoEntry: false }))
+            throw new Error("alternative source objects are forbidden");
+    if (fs.lstatSync(path.join(checkout, ".lfsconfig"), { throwIfNoEntry: false }))
+        throw new Error("source LFS configuration is forbidden");
+    if (sourceFile(path.join(gitDir, "HEAD")).toString("utf8") !== lock.source.revision + "\n")
+        throw new Error("source HEAD must be detached at the pin");
+    const temporary = fs.mkdtempSync(path.join(path.dirname(folder), ".verify-"));
+    try {
+        sourceGit(
+            [
+                "init",
+                "--quiet",
+                "--template=",
+                `--object-format=${lock.source.revision.length === 40 ? "sha1" : "sha256"}`,
+                temporary,
+            ],
+            temporary,
+            sourceEnvironment(true),
+        );
+        const git = offlineSourceGit(temporary, checkout),
+            entries = sourceTree(git, lock.source.revision);
+        git(["fsck", "--full", lock.source.revision]);
+        git(["read-tree", lock.source.revision]);
+        fs.writeFileSync(path.join(temporary, ".git", "HEAD"), lock.source.revision + "\n");
+        git(["lfs", "fsck", "--dry-run", "--objects", "--pointers", lock.source.revision]);
+        if (files.size !== entries.size || [...files].some((file) => !entries.has(file)))
+            throw new Error("source file set differs from the pin");
+        const pointers = new Set();
+        for (const [file, oid] of entries) {
+            const blob = git(["cat-file", "blob", oid]),
+                pointer = sourcePointer(blob);
+            const actual = sourceFile(path.join(checkout, file));
+            if (pointer) {
+                const object = sourceFile(
+                    path.join(
+                        gitDir,
+                        "lfs",
+                        "objects",
+                        pointer.sha256.slice(0, 2),
+                        pointer.sha256.slice(2, 4),
+                        pointer.sha256,
+                    ),
+                );
+                if (
+                    actual.length !== pointer.size ||
+                    digest(actual) !== pointer.sha256 ||
+                    object.length !== pointer.size ||
+                    digest(object) !== pointer.sha256
+                )
+                    throw new Error("source LFS bytes differ from the pin");
+                pointers.add(file);
+            } else if (!actual.equals(blob))
+                throw new Error("source file bytes differ from the pin");
+        }
+        const { masters, findings } = collectArtMasters([checkout], lock.package);
+        if (findings.length || !masters.size) throw new Error("invalid source master identities");
+        const hashes = [];
+        for (const master of masters.values()) {
+            if (!pointers.has(path.relative(checkout, master.file).split(path.sep).join("/")))
+                throw new Error("every private master must be stored in Git LFS");
+            hashes.push(digest(sourceFile(master.file)));
+        }
+        const receipt = { revision: lock.source.revision, masterSha256: hashes.sort() };
+        if (requireReceipt) {
+            const saved = JSON.parse(
+                sourceFile(path.join(folder, "integrity.json")).toString("utf8"),
+            );
+            if (
+                !closed(saved, ["revision", "masterSha256"]) ||
+                saved.revision !== receipt.revision ||
+                JSON.stringify(saved.masterSha256) !== JSON.stringify(receipt.masterSha256)
+            )
+                throw new Error("source integrity receipt differs from verified bytes");
+        }
+        return { checkout, masters, receipt };
+    } finally {
+        fs.rmSync(temporary, { recursive: true, force: true });
+    }
+}
+function cachedArtSource(config, lock, folder) {
+    try {
+        return verifyArtSource(config, lock, folder);
+    } catch {
+        throw failure(
+            config,
+            "private source cache is invalid; verification requires package-build clean followed by package-build art source fetch",
+        );
+    }
+}
+
 /**
- * Restore an exact private Git/LFS revision without altering authored roots.
+ * Restore or reuse a verified private Git/LFS revision without changing the lock.
  * @param {object} config Resolved package configuration.
- * @param {{from?:string}} [options] Optional local Git repository for offline verification.
+ * @param {{from?:string}} [options] Optional local Git repository for explicit acquisition.
  * @returns {Promise<string>} Verified private source checkout beneath build/.
  */
 export async function fetchArtSource(config, { from } = {}) {
     const lock = requireLock(config),
-        parent = path.join(config.rootDir, "build", ".cache", "art-sources");
-    safeOutput(config, parent);
-    const env = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_LFS_SKIP_SMUDGE: "1" };
-    const git = (args, cwd) => {
-        try {
-            return execFileSync("git", ["-c", `core.hooksPath=${os.devNull}`, ...args], {
-                cwd,
-                env,
-                encoding: "utf8",
-                stdio: ["ignore", "pipe", "pipe"],
-                maxBuffer: 64 * 1024 * 1024,
-            });
-        } catch {
-            throw failure(
-                config,
-                "private source Git/LFS verification failed; check Git credentials, git-lfs and the pinned revision",
-            );
-        }
-    };
-    git(["lfs", "version"], config.rootDir);
-    fs.mkdirSync(parent, { recursive: true });
-    const staging = fs.mkdtempSync(path.join(parent, ".fetch-"));
-    const checkout = path.join(staging, "repository"),
+        parent = path.resolve(config.rootDir, "build", ".cache", "art-sources"),
         folder = path.join(parent, digest(JSON.stringify(lock.source)));
+    safeOutput(config, parent);
+    if (fs.lstatSync(folder, { throwIfNoEntry: false }))
+        return cachedArtSource(config, lock, folder).checkout;
+    fs.mkdirSync(parent, { recursive: true });
+    const staging = fs.mkdtempSync(path.join(parent, ".fetch-")),
+        checkout = path.join(staging, "repository");
     try {
-        git(
+        const acquire = (args, cwd) => sourceGit(args, cwd, sourceEnvironment());
+        acquire(
             [
                 "clone",
                 "--no-checkout",
                 "--no-local",
+                "--template=",
                 "--",
                 from ? path.resolve(from) : lock.source.repository,
                 checkout,
             ],
-            config.rootDir,
+            staging,
         );
-        git(["lfs", "install", "--local", "--skip-repo", "--skip-smudge"], checkout);
-        git(["fetch", "--no-tags", "origin", lock.source.revision], checkout);
-        const revision = git(
-            ["rev-parse", "--verify", `${lock.source.revision}^{commit}`],
-            checkout,
-        ).trim();
-        if (revision !== lock.source.revision)
-            throw failure(config, "private source revision differs from the pin");
-        if (git(["ls-tree", "--name-only", revision, ".lfsconfig"], checkout).trim())
-            throw failure(
-                config,
-                "private art repositories must use their Git remote's LFS endpoint",
-            );
-        git(
+        acquire(["fetch", "--no-tags", "origin", lock.source.revision], checkout);
+        const git = offlineSourceGit(checkout, checkout);
+        sourceTree(git, lock.source.revision);
+        git([
+            "-c",
+            "filter.lfs.smudge=",
+            "-c",
+            "filter.lfs.process=",
+            "-c",
+            "filter.lfs.required=false",
+            "checkout",
+            "--detach",
+            lock.source.revision,
+        ]);
+        // A local setting keeps file-transport peers from inheriting our object destination.
+        git(["config", "--local", "lfs.storage", path.join(checkout, ".git", "lfs")]);
+        acquire(
             [
                 "-c",
-                "filter.lfs.smudge=",
+                "core.fsmonitor=false",
                 "-c",
-                "filter.lfs.process=",
+                `core.attributesFile=${os.devNull}`,
                 "-c",
-                "filter.lfs.required=false",
-                "checkout",
-                "--detach",
-                revision,
+                "lfs.fetchinclude=",
+                "-c",
+                "lfs.fetchexclude=",
+                "lfs",
+                "fetch",
+                "origin",
+                lock.source.revision,
             ],
             checkout,
         );
-        git(["lfs", "fetch", "origin", revision], checkout);
-        git(["lfs", "checkout"], checkout);
-        git(["fsck", "--full"], checkout);
-        git(["lfs", "fsck", "--objects", "--pointers", revision], checkout);
-        const lfs = new Set(git(["lfs", "ls-files", "--name-only"], checkout).trim().split("\n"));
-        const { masters, findings } = collectArtMasters([checkout], lock.package);
-        if (findings.length || !masters.size)
-            throw failure(config, "private source masters fail embedded identity validation");
-        const hashes = [];
-        for (const master of masters.values()) {
-            if (!lfs.has(path.relative(checkout, master.file).split(path.sep).join("/")))
-                throw failure(config, "every private master must be stored in Git LFS");
-            hashes.push(digest(fs.readFileSync(master.file)));
-        }
-        const receipt = { revision, masterSha256: hashes.sort() };
+        // LFS checkout requires its trusted clean filter to be declared as installed.
+        git(["-c", "filter.lfs.clean=git-lfs clean -- %f", "lfs", "checkout"]);
+        const { receipt } = verifyArtSource(config, lock, staging, false);
         fs.writeFileSync(path.join(staging, "integrity.json"), JSON.stringify(receipt) + "\n");
-        if (fs.existsSync(folder))
-            throw failure(
-                config,
-                "verified source destination exists; retain it and choose an empty build workspace for another restore",
-            );
+        if (fs.lstatSync(folder, { throwIfNoEntry: false }))
+            throw new Error("source destination exists");
         fs.renameSync(staging, folder);
         return path.join(folder, "repository");
+    } catch {
+        throw failure(
+            config,
+            "private source Git/LFS verification failed; check Git credentials, git-lfs and the pinned revision",
+        );
     } finally {
         fs.rmSync(staging, { recursive: true, force: true });
     }
@@ -682,54 +899,14 @@ export async function fetchArtSource(config, { from } = {}) {
  */
 export async function reproducePinnedArt(config, { records }) {
     const lock = requireLock(config),
-        folder = path.join(
+        folder = path.resolve(
             config.rootDir,
             "build",
             ".cache",
             "art-sources",
             digest(JSON.stringify(lock.source)),
         );
-    safeOutput(config, folder);
-    const checkout = path.join(folder, "repository");
-    const git = (args) => {
-        try {
-            return execFileSync("git", ["-c", `core.hooksPath=${os.devNull}`, ...args], {
-                cwd: checkout,
-                encoding: "utf8",
-                stdio: ["ignore", "pipe", "pipe"],
-                env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_LFS_SKIP_SMUDGE: "1" },
-            }).trim();
-        } catch {
-            throw failure(
-                config,
-                "private source verification failed; run package-build art source fetch in an empty build workspace",
-            );
-        }
-    };
-    if (
-        git(["rev-parse", "HEAD"]) !== lock.source.revision ||
-        git(["status", "--porcelain", "--untracked-files=all"])
-    )
-        throw failure(config, "private source checkout differs from its pinned revision");
-    git(["fsck", "--full"]);
-    git(["lfs", "fsck", "--objects", "--pointers", lock.source.revision]);
-    const { masters, findings } = collectArtMasters([checkout], lock.package);
-    if (findings.length)
-        throw failure(config, "private source master identity verification failed");
-    let receipt;
-    try {
-        receipt = JSON.parse(fs.readFileSync(path.join(folder, "integrity.json"), "utf8"));
-    } catch {
-        throw failure(config, "private source integrity receipt is missing");
-    }
-    if (
-        receipt.revision !== lock.source.revision ||
-        JSON.stringify(receipt.masterSha256) !==
-            JSON.stringify(
-                [...masters.values()].map((master) => digest(fs.readFileSync(master.file))).sort(),
-            )
-    )
-        throw failure(config, "private source master checksums differ from the verified restore");
+    const { masters } = cachedArtSource(config, lock, folder);
     const pinned = loadPinnedArt(config, records),
         selected = new Map();
     for (const address of pinned.files.keys()) {
