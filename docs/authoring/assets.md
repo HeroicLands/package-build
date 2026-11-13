@@ -45,9 +45,11 @@ ai: false
 role: portrait
 ```
 
-## Which note an image shows
+## Master generation status
 
-A master may declare AI generation with the optional boolean `hl:ai`. An absent value leaves the status unknown unless its recognized IPTC source type states it. An explicit declaration must agree with a recognized source type. The build admits only non-AI assets with an allowed license.
+A master may declare AI generation with the optional boolean `hl:ai`. An absent value leaves the status unknown unless its recognized IPTC source type states it. `trainedAlgorithmicMedia` and `compositeWithTrainedAlgorithmicMedia` conflict with `ai: false`; `digitalCreation` conflicts with `ai: true`. Other source types do not settle AI status. Derivatives repeat `hl:ai` only when the master explicitly declares it. The build admits only non-AI assets with an allowed license.
+
+## Which note an image shows
 
 A master's embedded provenance may carry `hl:name` and `hl:primarynote`: a name for the image's subject and the Address of its note. Both are optional and independent. When a being or an affiliation is the only such note naming a picture, through an art slot, an embed or a body image, the build fills both from that note (the content index records which notes name which pictures), using its `name.full` and its Address, so a portrait found on its own traces back to its character. A note with no `name.full` supplies only the Address. A picture named by several beings or affiliations, or by none, gets nothing filled in. On any other picture the fields are written as given and survive a rewrite. See [the note an embedded image shows](../reference/format-details.md#the-note-an-embedded-image-shows).
 

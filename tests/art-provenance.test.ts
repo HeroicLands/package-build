@@ -1901,18 +1901,72 @@ describe("generation declaration selection", () => {
         "an ai study",
         "a DigitalSourceType study",
         "a < b and an ai study",
+        "a < ai study",
+        "a < DigitalSourceType study",
         `<x value="hl:ai=\"False\" and DigitalSourceType"/>`,
         `<x value='hl:ai="False"'/>`,
         `<!-- <hl:ai>False</hl:ai> -->`,
     ])("ignores prose and quoted non-properties: %s", (text) => {
         expect(readXmpRecord(text)).toEqual({});
     });
-    it.each(["<hl:ai>False", "<rdf:Description hl:ai=", "<Iptc4xmpExt:DigitalSourceType"])(
+    it.each(["<hl:ai>False", "<rdf:Description hl:ai=", "<hl:ai Iptc4xmpExt:DigitalSourceType"])(
         "refuses malformed property attempts: %s",
         (text) => {
             expect(() => readXmpRecord(text)).toThrow();
         },
     );
+    it.each([
+        `< rdf:Description xmlns:hl="${HL_NAMESPACE}" hl:ai="False"/>`,
+        `</rdf:Description xmlns:hl="${HL_NAMESPACE}" hl:ai="False">`,
+        `< rdf:Description xmlns:hl="${HL_NAMESPACE}" hl:ai="False" xmlns:i="http://iptc.org/std/Iptc4xmpExt/2008-02-29/" i:DigitalSourceType="http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"/>`,
+        `< hl:ai xmlns:hl="${HL_NAMESPACE}">False</hl:ai>`,
+        "< ai>",
+        `</ DigitalSourceType xmlns:hl="${HL_NAMESPACE}" hl:ai="False">`,
+        `< / ñ:ai xmlns:ñ="${HL_NAMESPACE}">`,
+        `<rdf:Description hl:ai>`,
+        `<rdf:Description hl:ai "False">`,
+    ])("refuses malformed opening or closing declarations: %s", (text) => {
+        expect(() => readXmpRecord(text)).toThrow();
+    });
+    it.each(["trainedAlgorithmicMedia", "not a URI", "urn:example:source"])(
+        "retains source-only read behavior for %s",
+        (value) => {
+            const base = writeSvgProvenance("<svg/>", {
+                ...FIELDS,
+                digitalSourceType: "none",
+            }).text;
+            const source = `<Iptc4xmpExt:DigitalSourceType>${value}</Iptc4xmpExt:DigitalSourceType>`;
+            const single = base.replace("</rdf:Description>", `${source}</rdf:Description>`);
+            expect(readSvgProvenance(single).record.digitalSourceType).toBe(value);
+            const duplicate = base.replace(
+                "</rdf:Description>",
+                `${source}${source}</rdf:Description>`,
+            );
+            expect(readSvgProvenance(duplicate).record.digitalSourceType).toBe(value);
+            const withAi = single.replace(
+                "</rdf:Description>",
+                "<hl:ai>False</hl:ai></rdf:Description>",
+            );
+            if (!value.startsWith("urn:"))
+                expect(() => readSvgProvenance(withAi)).toThrow(/digitalSourceType/);
+        },
+    );
+    it("keeps unrelated namespace ai out of managed classification", () => {
+        const base = writeSvgProvenance("<svg/>", { ...FIELDS, digitalSourceType: "none" }).text;
+        const data = `<foreign:ai xmlns:foreign="urn:other">False</foreign:ai><Iptc4xmpExt:DigitalSourceType>not a URI</Iptc4xmpExt:DigitalSourceType>`;
+        const record = readSvgProvenance(
+            base.replace("</rdf:Description>", `${data}</rdf:Description>`),
+        ).record;
+        expect(record.ai).toBeUndefined();
+        expect(record.digitalSourceType).toBe("not a URI");
+        const rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+        const source = `<Iptc4xmpExt:DigitalSourceType xmlns:r="${rdf}" r:resource="urn:first" rdf:resource="urn:second"/>`;
+        const duplicate = base.replace(
+            "</rdf:Description>",
+            `<foreign:ai xmlns:foreign="urn:other">False</foreign:ai>${source}</rdf:Description>`,
+        );
+        expect(() => readSvgProvenance(duplicate)).not.toThrow();
+    });
     it("reads a valid declaration", () => {
         const svg = writeSvgProvenance("<svg/>", { ...FIELDS, ai: false });
         expect(readSvgProvenance(svg.text).record.ai).toBe(false);
@@ -2043,7 +2097,12 @@ describe("independent AI status", () => {
                 "<rdf:Description ",
                 `<rdf:Description xmlns:p="http://iptc.org/std/Iptc4xmpExt/2008-02-29/" p:DigitalSourceType="${generated}" Iptc4xmpExt:DigitalSourceType="${generated}" `,
             );
-        expect(() => readSvgProvenance(duplicateSourceOnly)).toThrow(/duplicate/);
+        expect(() => readSvgProvenance(duplicateSourceOnly)).not.toThrow();
+        const duplicateWithAi = duplicateSourceOnly.replace(
+            "</rdf:Description>",
+            "<hl:ai>False</hl:ai></rdf:Description>",
+        );
+        expect(() => readSvgProvenance(duplicateWithAi)).toThrow(/duplicate/);
         const badResource = svg.replace(
             "</rdf:Description>",
             `<Iptc4xmpExt:DigitalSourceType rdf:resource="${generated}">http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation</Iptc4xmpExt:DigitalSourceType></rdf:Description>`,
@@ -2103,6 +2162,20 @@ describe("independent AI status", () => {
         const duplicate = withChunks(out.bytes, [makeTextChunk(XMP_KEYWORD, packet).raw]);
         expect(() => readProvenance(duplicate)).toThrow(/multiple XMP packets/);
     });
+
+    it.each(["algorithmicMedia", "http://cv.iptc.org/newscodes/digitalsourcetype/syntheticMedia"])(
+        "does not infer AI from %s",
+        (digitalSourceType) => {
+            const result = writeSvgProvenance("<svg/>", {
+                ...FIELDS,
+                ai: false,
+                digitalSourceType,
+            });
+            expect(readSvgProvenance(result.text).record.ai).toBe(false);
+            const withoutAi = writeSvgProvenance("<svg/>", { ...FIELDS, digitalSourceType });
+            expect(deriveRecord(withoutAi.record).ai).toBeUndefined();
+        },
+    );
 
     it("preserves and clears the value through WebP", async () => {
         const webp = await sharp(png).webp().toBuffer();

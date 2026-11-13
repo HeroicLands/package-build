@@ -862,16 +862,19 @@ function readComposition(packet) {
 }
 
 /** Whether markup attempts to declare a generation property. */
-function hasGenerationDeclaration(packet) {
+function hasGenerationDeclaration(packet, includeSource = false) {
     const text = packet.replace(
         /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)/g,
         "",
     );
-    const start = /<([^\s<>/!?="']+)(?=[\s/>]|$)/g;
-    const property = /^(?:[^:]+:)?(?:ai|DigitalSourceType)$/u;
+    const start = /<\s*\/?\s*([^\s<>/!?="']+)(?=[\s/>]|$)/g;
+    const property = includeSource ? /^(?:[^:]+:)?(?:ai|DigitalSourceType)$/u : /^(?:[^:]+:)?ai$/u;
     let match;
     while ((match = start.exec(text))) {
-        if (property.test(match[1])) return true;
+        if (property.test(match[1])) {
+            const after = text.slice(start.lastIndex);
+            if (match[1].includes(":") || /^\s*(?:=|\/?\s*>|$)/u.test(after)) return true;
+        }
         let at = start.lastIndex;
         while (at < text.length && text[at] !== ">" && text[at] !== "<") {
             if (text[at] === '"' || text[at] === "'") {
@@ -879,8 +882,12 @@ function hasGenerationDeclaration(packet) {
                 at = end < 0 ? text.length : end + 1;
                 continue;
             }
-            const attribute = /^\s+([^\s=/>]+)\s*(?==|["']|\/?\s*>|$)/u.exec(text.slice(at));
-            if (attribute && property.test(attribute[1])) return true;
+            const attribute = /^\s+([^\s=/>]+)/u.exec(text.slice(at));
+            if (attribute && property.test(attribute[1])) {
+                const after = text.slice(at + attribute[0].length);
+                if (attribute[1].includes(":") || /^\s*(?:=|["']|\/?\s*>|$)/u.test(after))
+                    return true;
+            }
             at++;
         }
         start.lastIndex = at;
@@ -889,9 +896,10 @@ function hasGenerationDeclaration(packet) {
 }
 
 /** Read generation facts by expanded XMP property name. */
-function readGeneration(packet) {
-    if (!hasGenerationDeclaration(packet)) return undefined;
+function readGeneration(packet, includeSource = false) {
+    if (!hasGenerationDeclaration(packet, includeSource)) return undefined;
     let invalid = false;
+    let duplicateAttribute = false;
     let document;
     let aiCount = 0;
     let sourceCount = 0;
@@ -906,7 +914,7 @@ function readGeneration(packet) {
             for (let i = 0; i < attrs.length; i++) {
                 if (managedElement && attrs.getURI(i) !== "http://www.w3.org/2000/xmlns/") {
                     const key = `${attrs.getURI(i) ?? ""}|${attrs.getLocalName(i)}`;
-                    if (elementAttributes.has(key)) invalid = true;
+                    if (elementAttributes.has(key)) duplicateAttribute = true;
                     elementAttributes.add(key);
                 }
                 if (attrs.getURI(i) === HL_NAMESPACE && attrs.getLocalName(i) === "ai") aiCount++;
@@ -929,7 +937,9 @@ function readGeneration(packet) {
     } catch {
         throw new Error("generation metadata: malformed XMP");
     }
-    if (invalid) throw new Error("generation metadata: malformed or duplicate XMP attributes");
+    if (invalid) throw new Error("generation metadata: malformed XMP");
+    if (!includeSource && aiCount === 0) return undefined;
+    if (duplicateAttribute) throw new Error("generation metadata: duplicate XMP attributes");
     if (aiCount > 1) throw new Error("ai: duplicate XMP properties");
     if (sourceCount > 1) throw new Error("digitalSourceType: duplicate XMP properties");
     const values = [];
@@ -1028,7 +1038,6 @@ export function readXmpRecord(packet) {
         if (
             field === "composition" ||
             field === "ai" ||
-            field === "digitalSourceType" ||
             (field === "prompt" && name === "dc:description")
         )
             continue;
@@ -1046,8 +1055,11 @@ export function readXmpRecord(packet) {
     }
     const ai = readGeneration(packet);
     if (ai !== undefined) {
-        if (ai.ai !== undefined) record.ai = ai.ai;
-        if (ai.source !== undefined) record.digitalSourceType = ai.source;
+        if (ai.ai !== undefined) {
+            record.ai = ai.ai;
+            if (ai.source === undefined) delete record.digitalSourceType;
+            else record.digitalSourceType = ai.source;
+        }
     }
     validateAiClassification(record);
     const composition = readComposition(packet);
@@ -1715,8 +1727,9 @@ function webpPacket(chunks) {
     const packets = chunks
         .filter((entry) => entry.type === "XMP ")
         .map((entry) => entry.data.toString("utf8"));
+    const firstAi = packets.length > 0 && readGeneration(packets[0])?.ai !== undefined;
     for (const packet of packets.slice(1)) {
-        if (readGeneration(packet) !== undefined)
+        if (readGeneration(packet, firstAi) !== undefined)
             throw new Error("generation metadata: ambiguous WebP XMP packets");
     }
     return packets[0] ?? null;
@@ -1928,9 +1941,9 @@ const DERIVATIVE_FIELDS = Object.freeze(["address", "creator", "rights", "ai"]);
  * The record of a derivative made from a master.
  *
  * The record holds `address` (unchanged), `derived` set to `true`, `rights`
- * (`dc:rights`), `creator` (`dc:creator`, the attribution), and `ai` when declared, and the master's
- * value of each property named in `repeat`. Every other field of the master is
- * left out.
+ * (`dc:rights`) and `creator` (`dc:creator`, the attribution). It repeats `ai`
+ * when explicitly declared and each property named in `repeat`. Other master
+ * fields are left out.
  *
  * `prompt` and `generator` (generation details) are never repeated, and `name`
  * and `primaryNote` are repeated only when `notePublic` is `true`.
