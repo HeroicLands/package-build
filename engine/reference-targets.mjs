@@ -39,7 +39,7 @@ export function buildReferenceTargets(records, published = new Map(), config) {
         const standings = standingsDigest(record);
         const value = {
             name: record.name?.full ?? record.name,
-            subType: record.subType,
+            ...(record.subType !== undefined ? { subType: record.subType } : {}),
             ...(standings ? { standings } : {}),
         };
         const systems = new Set([ownDocumentSystem(record.type)]);

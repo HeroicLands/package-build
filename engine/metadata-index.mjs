@@ -389,11 +389,13 @@ function publishedEvents(record) {
  * @param {object} config - The resolved build configuration.
  * @param {Iterable<string>} localPackages - Packages this build publishes.
  * @param {Record<string, string>} [bases] - Where each package is served.
- * @returns {{index: Map<string, object>, packages: Set<string>,
+ * @returns {{index: Map<string, object>, references: Map<string, object>,
+ *   stubs: Map<string, object>, packages: Set<string>,
  *   requires: Map<string, string[]>,
  *   stale: Array<{package: string, reason: string}>}} The resolved addresses,
  *   which packages contributed, the modules each publishes as required, and
- *   what could not be read.
+ *   what could not be read. References retain identities; stubs hold only
+ *   address-less identities for address checks.
  */
 export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) {
     const local = new Set(localPackages);
@@ -401,6 +403,7 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
     const packages = new Set();
     const stale = [];
     const referenceRecords = [];
+    const stubRecords = [];
     const requires = new Map();
 
     /**
@@ -451,7 +454,11 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
             );
             let key = encodeAddresses(record?.address?.canonical);
             if (!key) {
-                if (record.address === null) referenceRecords.push(record);
+                // A null address retains identity without creating a destination.
+                if (record.address === null) {
+                    referenceRecords.push(record);
+                    stubRecords.push(record);
+                }
                 continue;
             }
             let parts = readCanonicalKey(key);
@@ -672,6 +679,7 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
     return {
         index,
         references: buildReferenceTargets(referenceRecords, index, config),
+        stubs: buildReferenceTargets(stubRecords, new Map(), config),
         packages,
         requires,
         stale,

@@ -27,6 +27,8 @@ import {
 } from "../engine/metadata-index.mjs";
 import { collectContentIndex, serializeContentIndex } from "../engine/content-index.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
+import { lintNote } from "../engine/frontmatter-lint.mjs";
+import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { settlementMarkdown } from "../engine/settlement-tables.mjs";
 import { PACKAGEBUILD_PACKAGE } from "../engine/packages.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
@@ -518,7 +520,7 @@ describe("resolving foreign addresses from cached indexes", () => {
             `---\ntype: being\nsubType: creature\nshortcode: ${code}\nname:\n  full: ${code}\ndata: {}\n---\n${body}`;
         fs.writeFileSync(path.join(tree, "stub.md"), note("stub", ""));
         fs.writeFileSync(path.join(tree, "full.md"), note("full", "\nA creature.\n"));
-        fs.writeFileSync(path.join(local, "stub.md"), note("stub", ""));
+        fs.writeFileSync(path.join(local, "stub.md"), note("localstub", ""));
         const serialized = serializeContentIndex(
             collectContentIndex(tree, { contentPackage: "remote", skipDirectories: [] }),
         );
@@ -544,7 +546,38 @@ describe("resolving foreign addresses from cached indexes", () => {
         } as never;
         const foreign = loadForeignIndexes(resolved, ["local"], {});
         const index = buildLinkIndex(local, { config: resolved, skipDirectories: [], foreign });
-        expect(index.addressHit("local-note-being-stub")).toBeDefined();
+        expect(index.addressHit("local-note-being-localstub")).toBeDefined();
+        expect(index.addressHit("remote-sohl-being-full")).toBeDefined();
+        expect(index.addressHit("remote-note-being-stub")).toBeDefined();
+        expect(index.addressHit("remote-note-lore-stub")).toBeUndefined();
+        expect(index.addressHit("remote-note-being-missing")).toBeUndefined();
+        expect(index.addressHit("undeclared-note-being-stub")).toBeUndefined();
+        expect(index.shortcodeHit("being", "stub")).toBeNull();
+        expect(index.resolveAddress("remote-note-being-stub")).toBeUndefined();
+        const cast = [
+            "local-note-being-localstub",
+            "remote-sohl-being-full",
+            "remote-note-being-stub",
+            "remote-note-lore-stub",
+            "remote-note-being-missing",
+            "undeclared-note-being-stub",
+            "remote-note-being-stub#section",
+        ];
+        const findings = lintNote(
+            { file: "scenario.md", raw: "", fm: { type: "scenario", data: { cast } } },
+            {
+                schemas: { scenario: [] },
+                vocabulary: NOTE_VOCABULARY,
+                index,
+            },
+        ).filter((finding) => finding.message.includes("data.cast"));
+        expect(findings).toHaveLength(4);
+        expect(findings.map((finding) => finding.message).join("\n")).toContain(
+            "remote-note-being-missing",
+        );
+        expect(findings.map((finding) => finding.message).join("\n")).toContain(
+            "remote-note-lore-stub",
+        );
         expect(foreign.references.get("remote-note-being-stub")).toMatchObject({
             subType: "creature",
         });
@@ -554,7 +587,8 @@ describe("resolving foreign addresses from cached indexes", () => {
         expect(foreign.references.has("remote-note-being-missing")).toBe(false);
         expect(foreign.references.has("remote-note-lore-stub")).toBe(false);
         expect(foreign.index.has("remote-note-being-stub")).toBe(false);
-        expect(foreign.index.get("remote-note-being-full")?.url).toBeUndefined();
+        expect(foreign.index.has("remote-sohl-being-full")).toBe(true);
+        expect(foreign.index.get("remote-sohl-being-full")?.url).toBeUndefined();
         expect(foreign.references.get("remote-note-being-stub")).not.toHaveProperty("uuid");
         expect(foreign.references.get("remote-note-being-stub")).not.toHaveProperty("url");
     });
