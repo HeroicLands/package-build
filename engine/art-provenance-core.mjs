@@ -165,6 +165,7 @@
  */
 
 import zlib from "node:zlib";
+import { validateComposition, checkCompositionSources } from "./art-composition.mjs";
 
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 
@@ -235,6 +236,7 @@ const FIELDS = Object.freeze([
     "description",
     "source",
     "processing",
+    "composition",
 ]);
 
 /** The complete Address shape: `<package>-<system>-<type>-<shortcode>`. */
@@ -296,6 +298,7 @@ const COMPLETE_ADDRESS = {
  *   `Comment` text chunk.
  * @property {string} [source] - Where the image was obtained, normally a URL.
  *   Written as `dc:source` and the `Source` text chunk.
+ * @property {import("./art-composition.mjs").ArtComposition} [composition] - Ordered private source recipe, stored as JSON in `hl:composition`; never published on a derivative.
  * @property {string} [processing] - How the file was made from its source, in
  *   free text. Written as `hl:processing` in the XMP packet only.
  */
@@ -469,6 +472,7 @@ const XMP_PROPERTIES = Object.freeze([
     ["description", "hl:description", "plain"],
     ["source", "dc:source", "plain"],
     ["processing", "hl:processing", "plain"],
+    ["composition", "hl:composition", "json"],
     ["digitalSourceType", "Iptc4xmpExt:DigitalSourceType", "plain"],
 ]);
 
@@ -492,7 +496,9 @@ function descriptionBlock(record, eol = "\n") {
             lines.push(`   <${name}><rdf:Bag>${items}</rdf:Bag></${name}>`);
             continue;
         }
-        const text = escapeXml(value);
+        const text = escapeXml(
+            shape === "json" ? JSON.stringify(validateComposition(value)) : value,
+        );
         if (shape === "alt") {
             lines.push(
                 `   <${name}><rdf:Alt><rdf:li xml:lang="x-default">${text}</rdf:li></rdf:Alt></${name}>`,
@@ -805,6 +811,48 @@ function readProperty(xml, name) {
     return attribute ? unescapeXml(attribute[1] ?? attribute[2]) : undefined;
 }
 
+/** Read the single JSON composition property from its declared namespace. */
+function readComposition(packet) {
+    if (!packet.includes("composition")) return undefined;
+    let invalid = false;
+    let document;
+    try {
+        document = new DOMParser({
+            onError: () => {
+                invalid = true;
+            },
+        }).parseFromString(packet, "application/xml");
+    } catch {
+        throw new Error("composition: malformed XMP");
+    }
+    if (invalid) throw new Error("composition: malformed XMP");
+    const nodes = document.getElementsByTagNameNS(HL_NAMESPACE, "composition");
+    const elements = document.getElementsByTagName("*");
+    for (let index = 0; index < elements.length; index++) {
+        if (elements.item(index).hasAttributeNS(HL_NAMESPACE, "composition"))
+            throw new Error("composition: use one JSON text element, not an attribute");
+    }
+    if (nodes.length === 0) return undefined;
+    if (nodes.length !== 1) throw new Error("composition: duplicate XMP properties");
+    const node = nodes.item(0);
+    if (
+        node.parentNode.namespaceURI !== RDF_NAMESPACE ||
+        node.parentNode.localName !== "Description"
+    )
+        throw new Error("composition: property must belong to an RDF Description");
+    for (let index = 0; index < node.attributes.length; index++)
+        if (node.attributes.item(index).namespaceURI !== "http://www.w3.org/2000/xmlns/")
+            throw new Error("composition: property accepts JSON text only");
+    for (let child = node.firstChild; child; child = child.nextSibling)
+        if (child.nodeType !== 3 && child.nodeType !== 4)
+            throw new Error("composition: property accepts JSON text only");
+    try {
+        return validateComposition(JSON.parse(node.textContent));
+    } catch (error) {
+        throw new Error(`composition: invalid embedded recipe: ${error.message}`);
+    }
+}
+
 /**
  * Read the record stored in an XMP packet.
  *
@@ -817,7 +865,7 @@ export function readXmpRecord(packet) {
     const xml = own ? own[0] : packet;
     const record = {};
     for (const [field, name] of XMP_PROPERTIES) {
-        if (field === "prompt" && name === "dc:description") continue;
+        if (field === "composition" || (field === "prompt" && name === "dc:description")) continue;
         if (field === "formerNames") {
             const bag = new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)</${name}>`).exec(xml);
             if (bag) {
@@ -830,6 +878,8 @@ export function readXmpRecord(packet) {
         const value = readProperty(xml, name);
         if (value !== undefined) record[field] = value;
     }
+    const composition = readComposition(packet);
+    if (composition !== undefined) record.composition = composition;
     return record;
 }
 
@@ -927,7 +977,13 @@ function validateRecord(record) {
             throw new Error("formerNames must be a non-empty list of distinct non-empty strings");
         }
     }
+    if (record.composition !== undefined) {
+        validateComposition(record.composition);
+        if (record.derived !== undefined)
+            throw new Error("composition is private and never repeated on a derivative");
+    }
     for (const field of FIELDS) {
+        if (field === "composition") continue;
         const value = record[field];
         if (value !== undefined && (typeof value !== "string" || value === "")) {
             throw new Error(`${field} must be a non-empty string`);
@@ -1671,7 +1727,7 @@ const REPEATABLE = Object.freeze([
 ]);
 
 /** Generation details, which no derivative carries. */
-const NEVER_REPEATED = Object.freeze(["prompt", "generator"]);
+const NEVER_REPEATED = Object.freeze(["prompt", "generator", "composition"]);
 
 /** The note fields, repeated only for a public primary note. */
 const NOTE_FIELDS = Object.freeze(["name", "primaryNote"]);
@@ -1810,6 +1866,8 @@ export function checkProvenance(entries, options = {}) {
             continue;
         }
         const { xmp, standard, packet } = read;
+        if (xmp.derived !== undefined && xmp.composition !== undefined)
+            add(file, "composition is private and never repeated on a derivative");
         if (packet === null) {
             add(
                 file,
@@ -1933,6 +1991,7 @@ export function checkProvenance(entries, options = {}) {
             }
         }
     }
+    findings.push(...checkCompositionSources(masterFiles));
     for (const [address, masters] of masterFiles) {
         if (masters.length < 2) continue;
         const names = masters.map((m) => m.file);

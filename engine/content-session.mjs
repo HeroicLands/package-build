@@ -102,12 +102,14 @@ export async function createContentSession({
     );
     readArtLock(config);
     const roots = config.art?.masterRoots ?? [];
-    const artModule = roots.length ? await import("./art-masters.mjs") : undefined;
+    const componentRoots = config.art?.componentRoots ?? [];
+    const artModule =
+        roots.length || componentRoots.length ? await import("./art-masters.mjs") : undefined;
     const { assertPrivateArtRoots } = await import("./art-masters.mjs");
     assertPrivateArtRoots(privateArtRoots(config), [assets], { role: "input" });
     const art =
         artModule ?
-            artModule.collectArtMasters(roots, config.contentPackage)
+            artModule.collectArtMasters(roots, config.contentPackage, { componentRoots })
         :   { masters: new Map(), findings: [], paths: [] };
     const fingerprint = (file) => {
         const stat = fs.statSync(file, { throwIfNoEntry: false });

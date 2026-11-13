@@ -1664,11 +1664,18 @@ export function indexRecordsFor({
 } = {}) {
     const resolved = config ?? loadPackConfig();
     readArtLock(resolved);
-    if (!masterRecords && resolved.art?.masterRoots?.length) {
-        assertPrivateArtRoots(resolved.art.masterRoots, [assetsBase ?? resolved.paths.assets], {
+    if (
+        !masterRecords &&
+        (resolved.art?.masterRoots?.length || resolved.art?.componentRoots?.length)
+    ) {
+        assertPrivateArtRoots(privateArtRoots(resolved), [assetsBase ?? resolved.paths.assets], {
             role: "input",
         });
-        const collected = collectArtMasters(resolved.art.masterRoots, resolved.contentPackage);
+        const collected = collectArtMasters(
+            resolved.art.masterRoots ?? [],
+            resolved.contentPackage,
+            { componentRoots: resolved.art.componentRoots },
+        );
         if (problems) problems.push(...collected.findings);
         else if (collected.findings.length) {
             const error = new Error(collected.findings.map(formatDiagnostic).join("\n"));

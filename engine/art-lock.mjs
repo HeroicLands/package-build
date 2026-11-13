@@ -91,7 +91,7 @@ function safeUrl(value) {
 }
 /**
  * Read the root art.lock, or return null when the package has no pin.
- * @param {{rootDir:string, contentPackage:string, art?:{masterRoots?:readonly string[]}}} config Package configuration.
+ * @param {{rootDir:string, contentPackage:string, art?:{masterRoots?:readonly string[],componentRoots?:readonly string[]}}} config Package configuration.
  * @returns {ArtLock|null} Validated lock.
  */
 export function readArtLock(config) {
@@ -134,8 +134,11 @@ export function readArtLock(config) {
             config,
             "rendered requires a public HTTPS URL without credentials and a SHA-256 digest",
         );
-    if (config.art?.masterRoots?.length)
-        throw failure(config, "art.lock and art.masterRoots are separate input modes; select one");
+    if (config.art?.masterRoots?.length || config.art?.componentRoots?.length)
+        throw failure(
+            config,
+            "art.lock and private art roots are separate input modes; select one",
+        );
     return lock;
 }
 /** Private fetched sources are protected even when no master roots are configured. */
@@ -163,7 +166,10 @@ function safeOutput(config, folder) {
         if (stat && !stat.isDirectory())
             throw failure(config, "artwork output path is not a directory");
     }
-    assertPrivateArtRoots(config.art?.masterRoots ?? [], [folder]);
+    assertPrivateArtRoots(
+        [...(config.art?.masterRoots ?? []), ...(config.art?.componentRoots ?? [])],
+        [folder],
+    );
 }
 function cacheDirectory(config, lock) {
     return path.join(config.rootDir, "build", ".cache", "pinned-art", digest(JSON.stringify(lock)));

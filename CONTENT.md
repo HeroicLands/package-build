@@ -12,7 +12,10 @@ Private PNG and SVG art masters can be declared in `art.masterRoots`. Each
 master carries its image Address and can state creator, rights, an exact
 `hl:license` ID and IPTC digital source type. Public derivatives use the Address for their target;
 see [masters and derivatives](docs/reference/format-details.md#masters-and-derivatives).
-The note-rendering cache includes master fingerprints in its input key and
+Unpublished source components belong in separate `art.componentRoots`. Their
+embedded Addresses can appear in a master’s private ordered composition recipe;
+components never enter public asset records or renders.
+The note-rendering cache includes master and component fingerprints in its input key and
 reuses the index only while those inputs remain unchanged.
 
 A single note renders as the body of its site page with
