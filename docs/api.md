@@ -1513,7 +1513,9 @@ before selecting derivative note fields.
 
 The wildcard export makes `@heroiclands/package-build/engine/art-masters`,
 `@heroiclands/package-build/engine/art-master-render`,
-`@heroiclands/package-build/engine/art-source` and
+`@heroiclands/package-build/engine/art-source`,
+`@heroiclands/package-build/engine/art-render-cache`,
+`@heroiclands/package-build/engine/pdf-images` and
 `@heroiclands/package-build/engine/art-provenance-core` reachable. They are
 internal implementation modules, outside the supported API contract; use the
 provenance and primary-note entries documented above for consumer integrations.
@@ -1522,7 +1524,7 @@ provenance and primary-note entries documented above for consumer integrations.
 It also exposes internal XML and container helpers: `RDF_NAMESPACE`,
 `X_NAMESPACE`, `WEBP_HEADER`, `WEBP_EXIF_FLAG`, `WEBP_XMP_FLAG`, `decodeSvg`,
 `hasForeignXmp` and `locateSvg`. The public provenance entry adds the derivative
-privacy writer and owns the supported import surface.
+privacy writer, `readJpegProvenance`, and `deriveRecord` and owns the supported import surface. `provenancePacket` is available from `art-provenance-core`.
 
 `art-masters` exports `assertPrivateArtRoots`, `collectArtMasters`,
 `masterAssetRecords` and `shippingAssetRecords` for private-root validation,
@@ -1531,6 +1533,8 @@ master collection, asset-record projection and shipping-record adaptation.
 build directory. `art-source` exports `setArtSource`, `copyArtSource` and
 `artSource` for diagnostic locations held only in memory. These functions serve
 the build pipeline and do not declare consumer namespaces in the engine barrel.
+
+`art-render-cache` exports `artRendererIdentity` and `cachedArtRender` for content-addressed derivative caching. `pdf-images` exports `PDF_EDITIONS`, `PDF_PAGE`, `PDF_IMAGE_INCHES`, `BOOK_ROLE_SLOTS`, `BOOK_ICON_WIDTH_IN`, `pdfTextWidth`, `pdfTextHeight`, `pdfColumnWidth`, `bookImageWidthIn`, `renderPdfMaster`, and `resamplePdfImages` for book image geometry and rendering. `renderArtMasters` and `resamplePdfImages` require an absolute cache directory; pass the package root’s `build/.cache/art` path.
 
 ### `engine.assetShipping`
 

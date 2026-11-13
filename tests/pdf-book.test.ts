@@ -324,7 +324,7 @@ it.skipIf(!HAS_TYPST)(
             expect(
                 (await sharp(path.join(dist, "sohl-core/assets/images/portrait.webp")).metadata())
                     .width,
-            ).toBe(Math.round((3.2 / 2.54) * 300));
+            ).toBe(Math.round((3.2 / 2.54) * 150));
             expect(fs.readFileSync(image).equals(source)).toBe(true);
             expect(built.out).toContain("book image assets/images/portrait.webp");
         } finally {
@@ -860,7 +860,7 @@ describe("place maps and map notes", () => {
 // out, the next thing to measure is whether a *third* subprocess has entered
 // the call graph, not whether the number is big enough.
 it(
-    "prints a Scene background on a landscape page at its print resolution",
+    "renders a Scene background on a landscape page at its screen resolution",
     async () => {
         const dir = makeRepo("content");
         try {
@@ -906,7 +906,7 @@ it(
             const dist = path.join(dir, "build", "dist");
             const staged = path.join(dist, "sohl-core/assets/images/battle.webp");
             expect((await sharp(staged).metadata()).width).toBe(
-                Math.round((11 - (2 * 1.9) / 2.54) * 300),
+                Math.round((11 - (2 * 1.9) / 2.54) * 150),
             );
             expect(fs.readFileSync(image).equals(original)).toBe(true);
             const typ = fs.readFileSync(

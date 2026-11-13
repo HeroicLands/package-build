@@ -77,11 +77,13 @@ it("renders an SVG master and keeps public note identity only when authorized", 
         prompt: "private",
     };
     const svg = writeSvgProvenance(
-        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="red"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="red"/></svg>',
         record,
     ).bytes;
-    const jpeg = await renderPdfMaster(svg, record, [{ width: 3, height: 3 }], "screen", true);
-    expect((await sharp(jpeg).metadata()).width).toBe(100);
+    const jpeg = await renderPdfMaster(svg, record, [{ width: 6, height: 6 }], "screen", true);
+    const print = await renderPdfMaster(svg, record, [{ width: 6, height: 6 }], "print", true);
+    expect((await sharp(jpeg).metadata()).width).toBe(900);
+    expect((await sharp(print).metadata()).width).toBe(1800);
     expect(readJpegProvenance(jpeg).record).toMatchObject({
         name: "Subject",
         primaryNote: record.primaryNote,
