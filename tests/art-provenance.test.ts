@@ -108,6 +108,11 @@ describe("composition declaration detection", () => {
         '<root xmlns:other="urn:other"><other:composition>{}</other:composition></root>',
         '<root xmlns:other="urn:other" other:composition="{}"/>',
         '<é composition="{}"/>',
+        '<〇 composition="{}"/>',
+        '<\u200c composition="{}"/>',
+        '<\u2070 composition="{}"/>',
+        '<\u2c00 composition="{}"/>',
+        '<\u{10000} composition="{}"/>',
         '<root composition="{}"/>',
     ])("refuses declarations in the wrong namespace: %s", (packet) => {
         expect(() => readXmpRecord(packet)).toThrow(

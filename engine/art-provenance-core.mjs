@@ -818,7 +818,8 @@ function readComposition(packet) {
     const element = /^<\s*(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)/u;
     const qualifiedAttribute =
         /^<\s*\/?\s*[^\s<=>/]+[\s\S]*?[\s"'](?:[^\s<=>/]+:)composition(?=[\s=/>]|$)/u;
-    const attribute = /^<\s*\/?\s*[\p{L}_:][^\s<=>/]*[\s\S]*?[\s"']composition(?=\s*=|\/?>)/u;
+    const attribute =
+        /^<\s*\/?\s*[:_a-zA-Z\xC0-\xD6\xD8-\xF6\xF8-\u02FF\u0370-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u{10000}-\u{10FFFF}][^\s<=>/]*[\s\S]*?[\s"']composition(?=\s*=|\/?>)/u;
     if (
         ![...packet.matchAll(markup)].some((match) => {
             const tag = match[0];
