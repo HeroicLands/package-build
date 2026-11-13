@@ -861,6 +861,28 @@ function readComposition(packet) {
     }
 }
 
+/** Resolve the default namespace at a malformed tag attempt. */
+function generationDefaultNamespace(text, offset) {
+    let name = "generationNamespaceProbe";
+    while (text.includes(name)) name += "x";
+    let namespace;
+    class NamespaceHandler extends XmpDomHandler {
+        startElement(uri, localName, qName, attrs) {
+            if (qName === name) namespace = uri;
+            super.startElement(uri, localName, qName, attrs);
+        }
+    }
+    try {
+        new DOMParser({ domHandler: NamespaceHandler, onError: () => {} }).parseFromString(
+            `${text.slice(0, offset)}<${name}/>${text.slice(offset)}`,
+            "application/xml",
+        );
+    } catch {
+        // The probe can precede malformed markup that the parser refuses.
+    }
+    return namespace;
+}
+
 /** Whether markup attempts to declare a generation property. */
 function hasGenerationDeclaration(packet, includeSource = false) {
     const text = packet.replace(
@@ -875,7 +897,10 @@ function hasGenerationDeclaration(packet, includeSource = false) {
             const after = text.slice(start.lastIndex);
             if (
                 match[1].includes(":") ||
-                (!/^<\s+/u.test(match[0]) && /^\s*(?:=|\/?\s*>|$)/u.test(after))
+                ((!/^<\s+/u.test(match[0]) ||
+                    generationDefaultNamespace(text, match.index) ===
+                        (match[1] === "ai" ? HL_NAMESPACE : IPTC_NAMESPACE)) &&
+                    /^\s*(?:=|\/?\s*>|$)/u.test(after))
             )
                 return true;
         }

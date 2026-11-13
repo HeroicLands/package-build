@@ -1969,6 +1969,18 @@ describe("generation declaration selection", () => {
         );
         expect(() => readSvgProvenance(duplicate)).not.toThrow();
     });
+    it("refuses malformed unprefixed AI attempts in an inherited managed namespace", () => {
+        const prefix = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="${HL_NAMESPACE}"><rdf:Description>`;
+        const suffix = "</rdf:Description></rdf:RDF>";
+        for (const attempt of ["< ai/>", "< ai >False< /ai>"])
+            expect(() => readXmpRecord(prefix + attempt + suffix)).toThrow(/malformed XMP/);
+        expect(readXmpRecord(`<root xmlns="${HL_NAMESPACE}"></root> a < ai > study`)).toEqual({});
+        expect(
+            readXmpRecord(
+                `<root xmlns="${HL_NAMESPACE}"><child xmlns="urn:other">< ai /></child></root>`,
+            ),
+        ).toEqual({});
+    });
     it.each([`<ai xmlns="${HL_NAMESPACE}"/>`, `<ai xmlns="${HL_NAMESPACE}" rdf:resource="True"/>`])(
         "refuses self-closing managed AI declarations: %s",
         (element) => {
