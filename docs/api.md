@@ -1264,7 +1264,7 @@ The asset record: one line of the content index per addressable file. The record
 The supported provenance entry is
 `@heroiclands/package-build/engine/art-provenance`. These functions
 read and return image bytes; they do not open or write files. A master is a PNG
-or SVG without `derived`. A WebP or SVG derivative carries `derived: "true"`
+or SVG without `derived`. A WebP, SVG or JPEG derivative carries `derived: "true"`
 and the same embedded Address as its master. One Address identifies one master
 and any number of derivatives; neither a filename nor a sidecar supplies identity.
 
@@ -1290,25 +1290,26 @@ SVG and WebP writers supply no default. Private-master asset indexing classifies
 unknown. Existing shipping rules exclude generated and unknown classifications
 from packaged assets and require an allowed exact license ID.
 
-All three readers return `{xmp, standard, packet, record}`: the XMP fields,
+All four readers return `{xmp, standard, packet, record}`: the XMP fields,
 standard text fields, packet text or `null`, and their combined record with XMP
-winning. SVG and WebP have an empty `standard`. PNG uses an XMP `iTXt` chunk
+winning. SVG, WebP and JPEG have an empty `standard`. PNG uses an XMP `iTXt` chunk
 and the standard UTF-8 text chunks listed by `STANDARD_KEYWORDS`; SVG uses
-`<metadata id="hl-provenance">`; WebP uses one `XMP ` chunk.
+`<metadata id="hl-provenance">`; WebP uses one `XMP ` chunk and JPEG uses an XMP APP1 segment.
 
 | Export                      | Signature                                                                                              | Returns / use                                                                                                                                         |
 | --------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `readProvenance`            | `readProvenance(bytes: Buffer)`                                                                        | PNG read result; throws for unreadable PNGs                                                                                                           |
 | `readSvgProvenance`         | `readSvgProvenance(input: Buffer \| Uint8Array \| string)`                                             | SVG read result; refuses invalid UTF-8, missing or prefixed SVG roots and duplicate managed elements                                                  |
 | `readWebpProvenance`        | `readWebpProvenance(bytes: Buffer \| Uint8Array)`                                                      | WebP read result; throws for unreadable containers                                                                                                    |
+| `readJpegProvenance`        | `readJpegProvenance(bytes: Buffer \| Uint8Array)`                                                      | JPEG read result and `foreignMetadata` flag; throws for unreadable segments                                                                           |
 | `writeProvenance`           | `writeProvenance(bytes: Buffer, fields, {index}?)`                                                     | PNG write result                                                                                                                                      |
 | `writeSvgProvenance`        | `writeSvgProvenance(input: Buffer \| Uint8Array \| string, fields, {index}?)`                          | SVG write result, also containing `text: string`                                                                                                      |
 | `writeWebpProvenance`       | `writeWebpProvenance(input: Buffer \| Uint8Array, fields, {index}?)`                                   | WebP write result                                                                                                                                     |
 | `deriveRecord`              | `deriveRecord(master: ProvenanceRecord, {repeat?: string[], notePublic?: boolean}?)`                   | Selected derivative record; does not render or write an image                                                                                         |
 | `writeDerivativeProvenance` | `writeDerivativeProvenance(input: Buffer \| Uint8Array \| string, master: ProvenanceRecord, options?)` | WebP or SVG write result with inherited metadata discarded; `options` is as for `deriveRecord`; refuses PNG                                           |
-| `findMaster`                | `findMaster(entries, address: string)`                                                                 | `{file, record}` or `{reason: "no-master"}` or `{reason: "several-masters", files: string[]}`; skips unreadable files and WebPs                       |
+| `findMaster`                | `findMaster(entries, address: string)`                                                                 | `{file, record}` or `{reason: "no-master"}` or `{reason: "several-masters", files: string[]}`; skips unreadable files, WebPs and JPEGs                |
 | `effectiveRecord`           | `effectiveRecord(entry, entries)`                                                                      | A master's record or a derivative's master record with repeated fields applied, without `derived`; throws when a derivative has no unique master      |
-| `sniffFormat`               | `sniffFormat(input: Buffer \| Uint8Array \| string)`                                                   | `"png"`, `"webp"` or `"svg"`; PNG and WebP signatures are recognized, everything else is treated as SVG                                               |
+| `sniffFormat`               | `sniffFormat(input: Buffer \| Uint8Array \| string)`                                                   | `"png"`, `"webp"`, `"jpeg"` or `"svg"`; raster signatures are recognized, everything else is treated as SVG                                           |
 | `checkProvenance`           | `checkProvenance(entries, {index}?)`                                                                   | `ProvenanceFinding[]`; an empty array means no findings                                                                                               |
 | `formatFinding`             | `formatFinding(finding: ProvenanceFinding)`                                                            | `file:line:column: severity: message`                                                                                                                 |
 | `masterFileName`            | `masterFileName(address: string, width: number, height: number)`                                       | `<shortcode>-creature.png` for 1152×896 or `<shortcode>-portrait.png` for 896×1152; throws for an invalid Address or other size                       |
@@ -1345,9 +1346,15 @@ the merged values alone and are returned as `primary`.
 `deriveRecord` starts with `address`, `identifier`, `derived: "true"`, and any
 master `creator` and `rights`. `repeat` selects additional master fields;
 `prompt` and `generator` are always refused, and `name` or `primaryNote` requires
-`notePublic: true`. A derivative may repeat only values its master carries,
-unchanged. `effectiveRecord` applies repeats; use `checkProvenance` to validate
-their agreement.
+`notePublic: true`. Other repeated properties must match the master.
+`derivedFrom` names the canonical master Address for WebP, SVG and JPEG.
+With `{index}`, `checkProvenance` validates derivative `name` and `primaryNote`
+against a public indexed note, including a current name absent from or different
+from the master. Without that index, note fields must equal the master's values.
+The index comes from `buildPrimaryNoteIndex(records)` and retains public-note
+visibility. Canonical-master checks still report stale source names at the master;
+an accepted derivative does not rewrite or excuse that source metadata.
+`effectiveRecord` applies repeated fields; `checkProvenance` validates their authority.
 
 The public build renderer uses the narrower allowlist: asset identity, creator,
 rights and parent-image trace (`derivedFrom` set to the asset Address), with
@@ -1491,28 +1498,31 @@ console.log(readWebpProvenance(publicImage.bytes).record.address);
 
 Import from `@heroiclands/package-build/engine/art-primary-note`. Resolution
 uses standard content-index records: each note's `type`, `name.full`,
-`address.canonical` and `namedImages`. It reads no source note, prose or path.
+`address.canonical` and `namedImages`; indexed tags supply public visibility.
+It reads no source note, prose or path.
 Asset, package and generated-document records are excluded.
 
-| Export                  | Signature                                                   | Returns / use                                                                                                                                                     |
-| ----------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PRIMARY_NOTE_TYPES`    | Frozen `readonly string[]`                                  | `being` and `affiliation`                                                                                                                                         |
-| `buildPrimaryNoteIndex` | `buildPrimaryNoteIndex(records = [])`                       | `{notes: Map<string, {address, type, name}>, naming: Map<string, Set<string>>}` keyed by canonical Address; the naming sets contain note Addresses for each image |
-| `resolvePrimaryNote`    | `resolvePrimaryNote(index, imageAddress: string \| object)` | `{note: {address, type, name}}` for the single being or affiliation naming the image, or a reason result                                                          |
+| Export                  | Signature                                                   | Returns / use                                                                                                                                                                               |
+| ----------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PRIMARY_NOTE_TYPES`    | Frozen `readonly string[]`                                  | `being` and `affiliation`                                                                                                                                                                   |
+| `buildPrimaryNoteIndex` | `buildPrimaryNoteIndex(records = [])`                       | `{notes: Map<string, {address, type, name}>, naming: Map<string, Set<string>>, publicNotes: Set<string>}` keyed by canonical Address; the naming sets contain note Addresses for each image |
+| `resolvePrimaryNote`    | `resolvePrimaryNote(index, imageAddress: string \| object)` | `{note: {address, type, name}}` for the single being or affiliation naming the image, or a reason result                                                                                    |
 
 Other note types do not compete with a being or affiliation. The reason results
 are `{reason: "no-note"}` when no note names the image,
 `{reason: "not-being-or-affiliation"}` when only other types name it, and
 `{reason: "several-notes", notes: string[]}` when several eligible notes name it;
 `notes` is sorted by Address. A resolved note without `name.full` has `name: ""`.
-This index determines the subject; public visibility must be checked separately
-before selecting derivative note fields.
+`publicNotes` contains the Addresses without a GM-only tag. It supplies the
+visibility authority when checking derivative note fields.
 
 ### Internal art modules
 
 The wildcard export makes `@heroiclands/package-build/engine/art-masters`,
 `@heroiclands/package-build/engine/art-master-render`,
-`@heroiclands/package-build/engine/art-source` and
+`@heroiclands/package-build/engine/art-source`,
+`@heroiclands/package-build/engine/art-render-cache`,
+`@heroiclands/package-build/engine/pdf-images` and
 `@heroiclands/package-build/engine/art-provenance-core` reachable. They are
 internal implementation modules, outside the supported API contract; use the
 provenance and primary-note entries documented above for consumer integrations.
@@ -1521,7 +1531,7 @@ provenance and primary-note entries documented above for consumer integrations.
 It also exposes internal XML and container helpers: `RDF_NAMESPACE`,
 `X_NAMESPACE`, `WEBP_HEADER`, `WEBP_EXIF_FLAG`, `WEBP_XMP_FLAG`, `decodeSvg`,
 `hasForeignXmp` and `locateSvg`. The public provenance entry adds the derivative
-privacy writer and owns the supported import surface.
+privacy writer, `readJpegProvenance`, and `deriveRecord` and owns the supported import surface. `provenancePacket` is available from `art-provenance-core`.
 
 `art-masters` exports `assertPrivateArtRoots`, `collectArtMasters`,
 `masterAssetRecords` and `shippingAssetRecords` for private-root validation,
@@ -1530,6 +1540,8 @@ master collection, asset-record projection and shipping-record adaptation.
 build directory. `art-source` exports `setArtSource`, `copyArtSource` and
 `artSource` for diagnostic locations held only in memory. These functions serve
 the build pipeline and do not declare consumer namespaces in the engine barrel.
+
+`art-render-cache` exports `artRendererIdentity` and `cachedArtRender` for content-addressed derivative caching. `pdf-images` exports `PDF_EDITIONS`, `PDF_PAGE`, `PDF_IMAGE_INCHES`, `BOOK_ROLE_SLOTS`, `BOOK_ICON_WIDTH_IN`, `pdfTextWidth`, `pdfTextHeight`, `pdfColumnWidth`, `bookImageWidthIn`, `renderPdfMaster`, and `resamplePdfImages` for book image geometry and rendering. `renderArtMasters` and `resamplePdfImages` require an absolute cache directory; pass the package root’s `build/.cache/art` path.
 
 ### `engine.assetShipping`
 
@@ -2217,18 +2229,18 @@ Which glyph an icon name resolves to, read from the font that carries it. {@link
 
 The content tree, built into a book. The I/O half of the PDF surface: it reads the configuration, the document tree and the notes, drives the passes the site build already owns, hands the result to {@link module:engine/pdf-render} and runs Typst over what comes back. Everything about _what the book says_ is decided in the pure half; this module is where the filesystem and the compiler live.
 
-| Export            | Signature                                                                        | Returns                                                                                                                  | Use it when                                                                                      |
-| ----------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| `pdfFileName`     | `function pdfFileName(stem, version)`                                            | {string} `<stem>-<version>.pdf`, or `<stem>.pdf` unversioned.                                                            | The file name a downloaded book identifies itself by.                                            |
-| `buildPdf`        | `async buildPdf({ config, configPath, book, out, version, compile, readPages })` | {Promise<object>} `{ built, reason, findings, imageReports, books }`, each book `{ id, title, built, typ, pdf, stats }`. | Build every declared book, or the one `book` names.                                              |
-| `listBookAssets`  | `function listBookAssets({ config, version, out })`                              | {Array<{id: string, title: string, file: string}>} One entry per book.                                                   | The path each declared book is written to, without building.                                     |
-| `stagedImagePath` | `function stagedImagePath(src, config)`                                          | {{from: string, to: string}\|null} The file, and where under the output directory it is staged.                          | The file on disk an authored image address names, or `null`.                                     |
-| `stageBanners`    | `function stageBanners(entries, config, outDir, findings, treeFile)`             | {Map<string, string>} Declared path → the staged file's path, relative to the `.typ`.                                    | Copy every banner the document tree names into the output directory.                             |
-| `compileTypst`    | `function compileTypst(typPath, pdfPath, pdf`                                    | `{{ok: boolean, message: string, findings: object[]}}` What happened.                                                    | Run Typst over the emitted source.                                                               |
-| `typstArgs`       | `function typstArgs(typPath, pdfPath, pdf)`                                      | {string[]} The arguments, in order.                                                                                      | The command line the compile runs, as data.                                                      |
-| `typstFontArgs`   | `function typstFontArgs(pdf)`                                                    | {string[]} The arguments, in order.                                                                                      | The flags that decide which faces a layout uses, shared by the compile and the page measurement. |
-| `typstWarnings`   | `function typstWarnings(output)`                                                 | {object[]} One finding per warning the compiler wrote.                                                                   | The compiler's own warnings, as findings.                                                        |
-| `BOOK_FONTS_PATH` | `const BOOK_FONTS_PATH`                                                          | {string} The directory holding them.                                                                                     | The faces the book is set in, shipped with this package.                                         |
+| Export            | Signature                                                                                 | Returns                                                                                                                  | Use it when                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `pdfFileName`     | `function pdfFileName(stem, version, edition)`                                            | {string} The file name for the selected edition.                                                                         | The file name a downloaded book identifies itself by.                                            |
+| `buildPdf`        | `async buildPdf({ config, configPath, book, out, version, edition, compile, readPages })` | {Promise<object>} `{ built, reason, findings, imageReports, books }`, each book `{ id, title, built, typ, pdf, stats }`. | Build every declared book, or the one `book` names.                                              |
+| `listBookAssets`  | `function listBookAssets({ config, version, out, edition })`                              | {Array<{id: string, title: string, file: string}>} One entry per book.                                                   | The path each declared book is written to, without building.                                     |
+| `stagedImagePath` | `function stagedImagePath(src, config)`                                                   | {{from: string, to: string}\|null} The file, and where under the output directory it is staged.                          | The file on disk an authored image address names, or `null`.                                     |
+| `stageBanners`    | `function stageBanners(entries, config, outDir, findings, treeFile)`                      | {Map<string, string>} Declared path → the staged file's path, relative to the `.typ`.                                    | Copy every banner the document tree names into the output directory.                             |
+| `compileTypst`    | `function compileTypst(typPath, pdfPath, pdf`                                             | `{{ok: boolean, message: string, findings: object[]}}` What happened.                                                    | Run Typst over the emitted source.                                                               |
+| `typstArgs`       | `function typstArgs(typPath, pdfPath, pdf)`                                               | {string[]} The arguments, in order.                                                                                      | The command line the compile runs, as data.                                                      |
+| `typstFontArgs`   | `function typstFontArgs(pdf)`                                                             | {string[]} The arguments, in order.                                                                                      | The flags that decide which faces a layout uses, shared by the compile and the page measurement. |
+| `typstWarnings`   | `function typstWarnings(output)`                                                          | {object[]} One finding per warning the compiler wrote.                                                                   | The compiler's own warnings, as findings.                                                        |
+| `BOOK_FONTS_PATH` | `const BOOK_FONTS_PATH`                                                                   | {string} The directory holding them.                                                                                     | The faces the book is set in, shipped with this package.                                         |
 
 ### `engine.baseCompiler`
 

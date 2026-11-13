@@ -29,6 +29,7 @@
 
 import { renderAddress, readCanonicalKey } from "./address.mjs";
 import { isNoteRecord } from "./index-records.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 
 /** The note types whose images carry a primary note. */
 export const PRIMARY_NOTE_TYPES = Object.freeze(["being", "affiliation"]);
@@ -78,16 +79,19 @@ function addressText(value) {
  * @param {readonly Record<string, any>[]} records - The content index records,
  *   from {@link module:engine/content-index.indexRecordsFor}.
  * @returns {{notes: Map<string, {address: string, type: string, name: string}>,
- *   naming: Map<string, Set<string>>}} The note records by Address, and for each
- *   image Address the Addresses of the notes naming it.
+ *   naming: Map<string, Set<string>>, publicNotes: Set<string>}} The note records
+ *   by Address, the notes naming each image, and the public note Addresses.
  */
 export function buildPrimaryNoteIndex(records = []) {
     const notes = new Map();
     const naming = new Map();
+    const publicNotes = new Set();
     for (const record of records) {
         if (!isNoteRecord(record) || !record.address) continue;
         const address = addressText(record.address.canonical);
         if (!address) continue;
+        if (isGmNote(record)) publicNotes.delete(address);
+        else publicNotes.add(address);
         notes.set(address, {
             address,
             type: String(record.type ?? ""),
@@ -100,7 +104,7 @@ export function buildPrimaryNoteIndex(records = []) {
             naming.get(image).add(address);
         }
     }
-    return { notes, naming };
+    return { notes, naming, publicNotes };
 }
 
 /**

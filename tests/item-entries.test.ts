@@ -218,12 +218,25 @@ describe("the entry shape", () => {
     });
 
     it("accepts every kind in the closed list", () => {
-        expect(ITEM_KINDS).toHaveLength(22);
+        expect(ITEM_KINDS).toHaveLength(25);
         const lines = lint({
             "subject.md": being(ITEM_KINDS.map((kind) => ({ name: kind, kind }))),
         });
         expect(itemFindings(lines)).toEqual([]);
     });
+
+    it.each(["elixir", "potion", "simples"])(
+        "accepts %s on an item and a neutral entry",
+        (kind) => {
+            const lines = lint({
+                "item.md": item("concoctiongear", "itemone", { kind }),
+                "subject.md": being([{ name: "Item", kind }]),
+            });
+            expect(lines.filter((line) => /(?:data\.kind|items\[0\]\.kind)/.test(line))).toEqual(
+                [],
+            );
+        },
+    );
 
     it("refuses a `chance` outside 0 to 100", () => {
         const lines = lint({

@@ -35,7 +35,7 @@ describe("PDF raster staging", () => {
         expect(preamble).toContain(`#let book-page-height = ${PDF_PAGE.height}in`);
     });
 
-    it("uses the printed width at 300 dpi, preserving authored art", async () => {
+    it("uses the screen width at 150 dpi, preserving authored art", async () => {
         const root = await fs.mkdtemp(path.join(os.tmpdir(), "pdf-images-"));
         try {
             const authored = path.join(root, "source.webp");
@@ -59,11 +59,42 @@ describe("PDF raster staging", () => {
                 file: "assets/content/person.md",
                 uses: [{ width: PDF_IMAGE_INCHES.medium, height: 8 }],
             };
-            const reports = await resamplePdfImages(new Map([["image", candidate]]), root);
+            const reports = await resamplePdfImages(
+                new Map([["image", candidate]]),
+                root,
+                "screen",
+                path.join(root, "build/.cache/art"),
+            );
             const output = await fs.readFile(staged);
             expect(output.length).toBeLessThan(source.length);
             expect((await sharp(output).metadata()).width).toBe(
-                Math.round(PDF_IMAGE_INCHES.medium * PDF_PAGE.dpi),
+                Math.round(PDF_IMAGE_INCHES.medium * 150),
+            );
+            expect(output).toEqual(
+                await sharp(source)
+                    .resize({
+                        width: Math.round(PDF_IMAGE_INCHES.medium * 150),
+                        withoutEnlargement: true,
+                    })
+                    .webp({ quality: 76 })
+                    .toBuffer(),
+            );
+            await fs.writeFile(staged, source);
+            await resamplePdfImages(
+                new Map([["image", candidate]]),
+                root,
+                "print",
+                path.join(root, "build/.cache/art"),
+            );
+            const printed = await fs.readFile(staged);
+            expect(printed).toEqual(
+                await sharp(source)
+                    .resize({
+                        width: Math.round(PDF_IMAGE_INCHES.medium * 300),
+                        withoutEnlargement: true,
+                    })
+                    .webp({ quality: 82 })
+                    .toBuffer(),
             );
             expect(await fs.readFile(authored)).toEqual(source);
             expect(reports).toHaveLength(1);
@@ -98,7 +129,14 @@ describe("PDF raster staging", () => {
                     { width: pdfColumnWidth(2), height: 8 },
                 ],
             };
-            expect(await resamplePdfImages(new Map([["image", candidate]]), root)).toHaveLength(0);
+            expect(
+                await resamplePdfImages(
+                    new Map([["image", candidate]]),
+                    root,
+                    "print",
+                    path.join(root, "build/.cache/art"),
+                ),
+            ).toHaveLength(0);
             expect(await fs.readFile(file)).toEqual(source);
         } finally {
             await fs.rm(root, { recursive: true, force: true });
