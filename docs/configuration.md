@@ -2558,8 +2558,9 @@ packageBuild:
 ```
 
 A package that lists a complete inventory selects `mode: complete`. Its listed
-total must be within five percent of the territorial population. `urbanShare`
-is not accepted in complete mode.
+known total must not exceed the territorial population by more than five percent.
+The lower allowance applies when every settlement population is known; unknown
+populations are skipped. `urbanShare` is not accepted in complete mode.
 
 For example, a configuration whose `packageBuild` section begins at line 10
 rejects a fraction above 1:

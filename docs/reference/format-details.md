@@ -8670,16 +8670,16 @@ is a claim about people and `| [[place-rgn\|X]] | 3 |` is not.
 widest at the bottom of a decade, so a place whose figure falls up to five per
 cent below what it contains is not a finding.
 
-**An unstated figure is silent.** A place or affiliation with no `population`
-contributes nothing to a sum and is never the subject of a finding, so a
-half-written region is quiet rather than noisy. A fetched index carries
+**An unstated figure contributes nothing to a sum.** An omitted settlement
+population warns and is treated as unknown. Other places and affiliations with
+no `population` contribute nothing and produce no population finding. A fetched index carries
 `population` alongside `parents` and `government` when its author stated a
 figure. An older fetched index with no figure remains silent.
 
 **Urban share is a configured limit.** Towns, cities, and metropolises must not exceed ten
 percent of the territorial population by default. A package can configure a
-different limit or select complete mode, which requires the listed total to be
-within five percent of the territorial population.
+different limit or select complete mode. Complete mode enforces the upper
+allowance and enforces the lower allowance when all settlement populations are known.
 
 **A place declares what is true of its ground.** It names its governing affiliation
 in `data.government`; maps name the place they depict through `data.place`.
@@ -8710,13 +8710,13 @@ use the same generated tables.
 
 `data.population` on an affiliation counts its members. A polity's separate
 `data.territorial_population` counts inhabitants: listed and noted settlements
-throughout its subordinate chain must not exceed that total. Towns, cities, and metropolises must not exceed the configured urban share, ten percent by default. Complete-table mode instead requires the listed total to be within five percent of the territorial total.
+throughout its subordinate chain must not exceed that total. Towns, cities, and metropolises must not exceed the configured urban share, ten percent by default.
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. Each settlement
 has short `data.notes`; a populated settlement note also requires `data.type`,
-a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity. A settlement note with a null or omitted population does not require those three fields.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](../configuration.md#settlement-exemptions).
 
 ```yaml
@@ -8763,18 +8763,18 @@ the content index supply the facts. An authored `# Settlements {#settlements}`
 heading holds the generated table alongside its prose.
 
 The urban-share limit defaults to ten percent and can be configured per package.
-Complete mode checks the listed total within five percent instead. Regional
-prose does not change either rule.
+Complete mode checks the upper allowance and checks the lower allowance when
+every settlement population is known. Regional prose does not change either rule.
 
-Every semantic finding is a located error:
+Semantic findings are located errors except where a warning is stated:
 
 - **`body settlements table`** — Settlement tables are generated from frontmatter and the index.
 - **`settlements shape`** — Only a polity declares a list of settlement rows with the declared fields.
 - **`settlement field`** — Required facts and enumerated values follow the settlement vocabulary.
 - **`unresolved settlement reference`** — A reference does not resolve to its required note type.
-- **`people figure`** — A population is not a positive whole number with at most two significant digits.
+- **`people figure`** — A population is neither null nor a nonnegative whole number with at most two significant digits. An omitted settlement population warns and is treated as unknown.
 - **`duplicate settlement`** — A settlement has more than one listed or noted source.
-- **`territorial population`** — A required territorial total is missing or settlement populations exceed the configured limits.
+- **`territorial population`** — A required territorial total is missing or known settlement populations exceed the configured limits. In complete mode, the lower bound applies only when every settlement population is known.
 - **`polity superior`** — A polity declares more than one superior.
 - **`polity cycle`** — The subordinate chain returns to its starting polity.
 

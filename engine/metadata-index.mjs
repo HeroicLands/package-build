@@ -681,10 +681,17 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
         queue.push(...(requires.get(id) ?? []));
     }
 
+    const stubs = new Map();
+    for (const record of stubRecords) {
+        for (const [key, value] of buildReferenceTargets([record], new Map(), config)) {
+            stubs.set(key, { ...stubs.get(key), ...value, type: record.type });
+        }
+    }
+
     return {
         index,
         references: buildReferenceTargets(referenceRecords, index, config),
-        stubs: buildReferenceTargets(stubRecords, new Map(), config),
+        stubs,
         packages,
         requires,
         stale,

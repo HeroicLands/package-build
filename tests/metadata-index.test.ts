@@ -562,7 +562,14 @@ describe("resolving foreign addresses from cached indexes", () => {
         const index = buildLinkIndex(local, { config: resolved, skipDirectories: [], foreign });
         expect(index.addressHit("local-note-being-localstub")).toBeDefined();
         expect(index.addressHit("remote-sohl-being-full")).toBeDefined();
-        expect(index.addressHit("remote-note-being-stub")).toBeDefined();
+        expect(index.addressHit("remote-note-being-stub")).toMatchObject({
+            type: "being",
+            subType: "creature",
+        });
+        foreign.stubs.set("remote-sohl-being-full", { type: "being", name: "Stub" });
+        expect(index.addressHit("remote-sohl-being-full")).toBe(
+            foreign.index.get("remote-sohl-being-full"),
+        );
         expect(index.addressHit("remote-note-lore-stub")).toBeUndefined();
         expect(index.addressHit("remote-note-being-missing")).toBeUndefined();
         expect(index.addressHit("undeclared-note-being-stub")).toBeUndefined();

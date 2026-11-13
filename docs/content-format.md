@@ -228,13 +228,13 @@ use the same generated tables.
 
 `data.population` on an affiliation counts its members. A polity's separate
 `data.territorial_population` counts inhabitants: listed and noted settlements
-throughout its subordinate chain must not exceed that total. Towns, cities, and metropolises must not exceed the configured urban share, ten percent by default. Complete-table mode instead requires the listed total to be within five percent of the territorial total.
+throughout its subordinate chain must not exceed that total. Towns, cities, and metropolises must not exceed the configured urban share, ten percent by default.
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. Each settlement
 has short `data.notes`; a populated settlement note also requires `data.type`,
-a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity. A settlement note with a null or omitted population does not require those three fields.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](configuration.md#settlement-exemptions).
 
 ```yaml
