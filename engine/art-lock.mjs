@@ -189,6 +189,14 @@ function checkZip(bytes) {
     }
     if (end < 0 || bytes.length > 2 ** 31)
         throw new Error("malformed or oversized artwork archive");
+    // The decompressor scans backward for a footer and also recognizes ZIP64
+    // locators. Require it to select the directory checked here.
+    for (let at = bytes.length - 22; at > end; at--) {
+        if (bytes.readUInt32LE(at) === 0x06054b50)
+            throw new Error("ambiguous artwork archive footer");
+    }
+    if (end >= 20 && bytes.readUInt32LE(end - 20) === 0x07064b50)
+        throw new Error("unsupported artwork archive ZIP64 locator");
     const count = bytes.readUInt16LE(end + 10),
         size = bytes.readUInt32LE(end + 12),
         start = bytes.readUInt32LE(end + 16);

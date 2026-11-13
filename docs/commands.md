@@ -1924,7 +1924,7 @@ standard index, archive, cache, Git/LFS source or reproduced bytes fail validati
 
 ```sh
 package-build art fetch --from build/downloads/art.zip
-package-build content build
+package-build content build --calendaria-version 1.4.2
 package-build art source fetch
 package-build art reproduce
 ```

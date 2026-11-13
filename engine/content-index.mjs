@@ -1664,13 +1664,13 @@ export function indexRecordsFor({
 } = {}) {
     const resolved = config ?? loadPackConfig();
     readArtLock(resolved);
+    assertPrivateArtRoots(privateArtRoots(resolved), [assetsBase ?? resolved.paths.assets], {
+        role: "input",
+    });
     if (
         !masterRecords &&
         (resolved.art?.masterRoots?.length || resolved.art?.componentRoots?.length)
     ) {
-        assertPrivateArtRoots(privateArtRoots(resolved), [assetsBase ?? resolved.paths.assets], {
-            role: "input",
-        });
         const collected = collectArtMasters(
             resolved.art.masterRoots ?? [],
             resolved.contentPackage,
