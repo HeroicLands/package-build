@@ -1144,7 +1144,8 @@ derived data, and is not an authored frontmatter key.
 `nameTypes` iterable, also accepted by `collectContentIndex` and
 `indexRecordsFor`, supplies additional bare kinds from configured type
 declarations. `indexRecordsFor` defaults that iterable to the resolved
-configuration's `itemTypes`.
+configuration's `itemTypes`. A supplied configuration also governs document
+addresses in indexed notes independently of ambient configuration discovery.
 
 | Export                       | Signature                                                                                                                                                   | Returns                                                                                                                                                                                                                  | Use it when                                                                                                                                                                                                                                                                         |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
