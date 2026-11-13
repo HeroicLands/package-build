@@ -861,10 +861,36 @@ function readComposition(packet) {
     }
 }
 
+/** Whether markup attempts to declare a generation property. */
+function hasGenerationDeclaration(packet) {
+    const text = packet.replace(
+        /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)/g,
+        "",
+    );
+    const start = /<([^\s<>/!?="']+)(?=[\s/>]|$)/g;
+    const property = /^(?:[^:]+:)?(?:ai|DigitalSourceType)$/u;
+    let match;
+    while ((match = start.exec(text))) {
+        if (property.test(match[1])) return true;
+        let at = start.lastIndex;
+        while (at < text.length && text[at] !== ">" && text[at] !== "<") {
+            if (text[at] === '"' || text[at] === "'") {
+                const end = text.indexOf(text[at], at + 1);
+                at = end < 0 ? text.length : end + 1;
+                continue;
+            }
+            const attribute = /^\s+([^\s=/>]+)\s*(?==|["']|\/?\s*>|$)/u.exec(text.slice(at));
+            if (attribute && property.test(attribute[1])) return true;
+            at++;
+        }
+        start.lastIndex = at;
+    }
+    return false;
+}
+
 /** Read generation facts by expanded XMP property name. */
 function readGeneration(packet) {
-    if (!/(?:<|\s)(?:[^\s<=>/]+:)?(?:ai|DigitalSourceType)(?:\s|[=/>])/u.test(packet))
-        return undefined;
+    if (!hasGenerationDeclaration(packet)) return undefined;
     let invalid = false;
     let document;
     let aiCount = 0;

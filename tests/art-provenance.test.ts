@@ -24,6 +24,7 @@ import {
     masterFileName,
     planRenames,
     readChunks,
+    readXmpRecord,
     readJpegProvenance,
     readProvenance,
     readSvgProvenance,
@@ -1892,6 +1893,40 @@ describe("generated derivative authorities", () => {
                 .filter((f) => f.file.startsWith("derived."))
                 .map((f) => f.message),
         ).toContainEqual(expect.stringMatching(/derivedFrom.*master address/));
+    });
+});
+
+describe("generation declaration selection", () => {
+    it.each([
+        "an ai study",
+        "a DigitalSourceType study",
+        "a < b and an ai study",
+        `<x value="hl:ai=\"False\" and DigitalSourceType"/>`,
+        `<x value='hl:ai="False"'/>`,
+        `<!-- <hl:ai>False</hl:ai> -->`,
+    ])("ignores prose and quoted non-properties: %s", (text) => {
+        expect(readXmpRecord(text)).toEqual({});
+    });
+    it.each(["<hl:ai>False", "<rdf:Description hl:ai=", "<Iptc4xmpExt:DigitalSourceType"])(
+        "refuses malformed property attempts: %s",
+        (text) => {
+            expect(() => readXmpRecord(text)).toThrow();
+        },
+    );
+    it("reads a valid declaration", () => {
+        const svg = writeSvgProvenance("<svg/>", { ...FIELDS, ai: false });
+        expect(readSvgProvenance(svg.text).record.ai).toBe(false);
+        const packet = readSvgProvenance(svg.text).packet!;
+        const alias = packet.replace(
+            "<hl:ai>False</hl:ai>",
+            `<ñ:ai xmlns:ñ="${HL_NAMESPACE}">False</ñ:ai>`,
+        );
+        expect(readXmpRecord(alias).ai).toBe(false);
+        const duplicate = packet.replace(
+            "<rdf:Description ",
+            `<rdf:Description xmlns:ñ="${HL_NAMESPACE}" ñ:ai="True" `,
+        );
+        expect(() => readXmpRecord(duplicate)).toThrow(/duplicate/);
     });
 });
 
