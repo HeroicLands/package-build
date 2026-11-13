@@ -583,3 +583,35 @@ describe("settlement exemptions", () => {
             ).toThrow(/packageBuild\.settlementExemptions/);
     });
 });
+
+describe("settlement population policy", () => {
+    it("normalizes defaults and explicit modes", () => {
+        expect(resolvePackageBuildConfig(shared({})).settlementPopulation).toEqual({
+            mode: "ceiling",
+            urbanShare: 0.1,
+        });
+        expect(
+            resolvePackageBuildConfig(shared({ settlementPopulation: { urbanShare: 0.2 } }))
+                .settlementPopulation,
+        ).toEqual({ mode: "ceiling", urbanShare: 0.2 });
+        expect(
+            resolvePackageBuildConfig(shared({ settlementPopulation: { mode: "complete" } }))
+                .settlementPopulation,
+        ).toEqual({ mode: "complete" });
+    });
+    it.each([
+        null,
+        [],
+        "ceiling",
+        { mode: "other" },
+        { urbanShare: -0.1 },
+        { urbanShare: 1.1 },
+        { urbanShare: "0.1" },
+        { other: true },
+        { mode: "complete", urbanShare: 0.1 },
+    ])("rejects invalid policy %j", (policy) => {
+        expect(() => resolvePackageBuildConfig(shared({ settlementPopulation: policy }))).toThrow(
+            /settlementPopulation/,
+        );
+    });
+});

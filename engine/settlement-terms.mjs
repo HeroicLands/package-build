@@ -137,7 +137,7 @@ export const SETTLEMENT_TABLE_RULES = Object.freeze(
         ["duplicate settlement", "Each settlement is listed or noted exactly once."],
         [
             "territorial population",
-            "A polity with settlements, a seat, or subordinate polities states a territorial total; settlements account for it within five percent.",
+            "A polity with settlements, a seat, or subordinate polities states a territorial total; settlement populations obey the configured population policy.",
         ],
         ["polity superior", "A polity declares at most one superior polity."],
         ["polity cycle", "The subordinate polity chain has no cycles."],

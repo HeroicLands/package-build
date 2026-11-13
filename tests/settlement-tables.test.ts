@@ -10,6 +10,7 @@ import YAML from "yaml";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import {
     checkSettlementTables,
+    assertSettlementRecords,
     settlementMarkdown,
     settlementExemptionTracker,
     SETTLEMENT_ROW_FIELDS,
@@ -21,7 +22,7 @@ import { prepareTreeSqlTables, openNotesDatabase, runSqlQuery } from "../engine/
 import { expandContentTables } from "../engine/content-tables.mjs";
 import { createRenderer } from "../engine/content-render.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
-import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
+import { lintFrontmatter, lintNote } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
@@ -106,7 +107,9 @@ function fixture(change: (notes: any[]) => void = () => {}, body = "") {
             `---\n${YAML.stringify(fm)}---\n${fm.shortcode === "crown" ? body || "A described polity." : "A described subject."}\n`,
         );
     const index = buildLinkIndex(root, { skipDirectories: [] });
-    const findings = index.notes.flatMap((note) => checkSettlementTables(note, { index }));
+    const findings = index.notes.flatMap((note) =>
+        checkSettlementTables(note, { index, settlementPopulation: { mode: "complete" } }),
+    );
     return {
         root,
         index,
@@ -197,6 +200,7 @@ describe("polity settlement guards", () => {
         };
         const findings = checkSettlementTables(note, {
             index: { notes: [note], contentPackage: "sohl" },
+            settlementPopulation: { mode: "complete" },
         });
         expect(
             findings.some((finding) =>
@@ -597,11 +601,16 @@ describe("indexed settlement output", () => {
             const records = f.records();
             const sections = derivedSections(records, {
                 fileOf: (r) => path.join(f.root, `${r.shortcode}.md`),
+                config: { packageBuild: { settlementPopulation: { mode: "complete" } } },
             });
             expect(sections.get(path.join(f.root, "crown.md"))?.get("settlementindex")).toContain(
                 "West Farm",
             );
-            const prepared = await prepareTreeSqlTables(f.root, { records, skipDirectories: [] });
+            const prepared = await prepareTreeSqlTables(f.root, {
+                records,
+                skipDirectories: [],
+                config: { packageBuild: { settlementPopulation: { mode: "complete" } } },
+            });
             const expanded = expandContentTables(
                 "# Settlements {#settlements}\n\nHeld lands.\n\n# Settlement index {#settlementindex}\n\nAll subjects.",
                 {
@@ -684,6 +693,69 @@ describe("settlement graph reuse", () => {
 });
 
 describe("settlement exemptions", () => {
+    it("locates each unused selector in its authored YAML and falls back for unavailable sources", () =>
+        checked(
+            (notes) => {
+                delete notes[3].data.notes;
+            },
+            ({ index, root }) => {
+                const configFile = path.join(root, "package-build.config.yaml");
+                fs.writeFileSync(
+                    configFile,
+                    `packageBuild:
+  settlementExemptions:
+    - address: place-capital
+      reason: pending
+    - address: place-town
+      reason: pending
+    - prefix: place-other
+      reason: pending
+`,
+                );
+                const entries = [
+                    { address: "place-capital", reason: "pending" },
+                    { address: "place-town", reason: "pending" },
+                    { prefix: "place-other", reason: "pending" },
+                ];
+                const lint = (file: string) =>
+                    lintFrontmatter(index, {
+                        schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                        vocabulary: NOTE_VOCABULARY,
+                        settlementExemptions: entries,
+                        configFile: file,
+                    }).findings.filter((f: any) =>
+                        f.message.includes("matches no settlement violation"),
+                    );
+                expect(lint(configFile).map((f: any) => [f.file, f.line, f.column])).toEqual([
+                    [configFile, 5, 7],
+                    [configFile, 7, 7],
+                ]);
+                expect(
+                    lint(path.join(root, "missing.yaml")).map((f: any) => [f.line, f.column]),
+                ).toEqual([
+                    [undefined, undefined],
+                    [undefined, undefined],
+                ]);
+                fs.writeFileSync(
+                    configFile,
+                    `packageBuild:
+  settlementExemptions:
+    - address: place-capital
+    - address: place-different
+    - prefix: place-other
+`,
+                );
+                expect(lint(configFile).map((f: any) => [f.line, f.column])).toEqual([
+                    [undefined, undefined],
+                    [5, 7],
+                ]);
+                fs.writeFileSync(configFile, "packageBuild: {}\n");
+                expect(lint(configFile).map((f: any) => [f.line, f.column])).toEqual([
+                    [undefined, undefined],
+                    [undefined, undefined],
+                ]);
+            },
+        ));
     it("counts affected notes once and credits overlapping entries", () =>
         checked(
             (notes) => {
@@ -736,7 +808,12 @@ describe("exempt settlement publication", () => {
                 expect(() =>
                     derivedSections(localRecords, {
                         fileOf: (r: any) => path.join(root, `${r.shortcode}.md`),
-                        config: { packageBuild: { settlementExemptions: exemption } },
+                        config: {
+                            packageBuild: {
+                                settlementExemptions: exemption,
+                                settlementPopulation: { mode: "complete" },
+                            },
+                        },
                     }),
                 ).not.toThrow();
             },
@@ -812,8 +889,8 @@ describe("settlement exemption scope", () => {
                     result.findings.some(
                         (f: any) =>
                             f.message.includes("matches no settlement violation") &&
-                            f.line === 1 &&
-                            f.column === 1,
+                            f.line === undefined &&
+                            f.column === undefined,
                     ),
                 ).toBe(true);
             },
@@ -923,6 +1000,282 @@ describe("settlement exemptions on actual violations", () => {
                         (f: any) =>
                             f.file.endsWith("crown.md") &&
                             f.message.startsWith("territorial population"),
+                    ),
+                ).toBe(false);
+            },
+        ));
+});
+
+describe("settlement population policy", () => {
+    it("uses the listed ceiling and urban share by default, including subordinate settlements", () => {
+        checked(
+            () => {},
+            (f) => {
+                const crown = f.index.notes.find((n: any) => n.fm.shortcode === "crown");
+                const findings = checkSettlementTables(crown, { index: f.index });
+                expect(findings.some((x: any) => x.message.includes("urban"))).toBe(true);
+                expect(
+                    checkSettlementTables(crown, {
+                        index: f.index,
+                        settlementPopulation: { mode: "ceiling", urbanShare: 0.4 },
+                    }).filter((x: any) => x.message.startsWith("territorial population:")),
+                ).toHaveLength(0);
+                expect(
+                    checkSettlementTables(crown, {
+                        index: f.index,
+                        settlementPopulation: { mode: "complete" },
+                    }).filter((x: any) => x.message.startsWith("territorial population:")),
+                ).toHaveLength(0);
+            },
+        );
+    });
+});
+
+describe("settlement population boundaries", () => {
+    it.each([
+        [1000, 0.4, 0],
+        [1000, 0.399, 1],
+        [990, 1, 1],
+        [1100, 1, 0],
+    ])("checks territorial total %s and urban fraction %s", (total, urbanShare, expected) => {
+        checked(
+            (n) => {
+                n[1].data.territorial_population = total;
+            },
+            (f) => {
+                const crown = f.index.notes.find((n: any) => n.fm.shortcode === "crown");
+                const findings = checkSettlementTables(crown, {
+                    index: f.index,
+                    settlementPopulation: { mode: "ceiling", urbanShare },
+                });
+                expect(
+                    findings.filter((x: any) => x.message.startsWith("territorial population:")),
+                ).toHaveLength(expected);
+            },
+        );
+    });
+    it("exempts aggregate findings without suppressing precision findings", () => {
+        checked(
+            (n) => {
+                n[1].data.territorial_population = 900;
+                n[1].data.settlements[0].population = 101;
+            },
+            (f) => {
+                const crown = f.index.notes.find((n: any) => n.fm.shortcode === "crown");
+                const tracker = settlementExemptionTracker(
+                    [{ address: "affiliation-crown", reason: "Pending" }],
+                    f.index.contentPackage,
+                );
+                const findings = checkSettlementTables(crown, {
+                    index: f.index,
+                    settlementExemptions: tracker,
+                });
+                expect(
+                    findings.some((x: any) => x.message.startsWith("territorial population:")),
+                ).toBe(false);
+                expect(findings.some((x: any) => x.message.startsWith("people figure:"))).toBe(
+                    true,
+                );
+            },
+        );
+    });
+});
+
+describe("settlement policy entry points", () => {
+    it("uses the configured policy in lint and publication", () => {
+        checked(
+            () => {},
+            ({ index, root, records }) => {
+                const policy = { mode: "ceiling" as const, urbanShare: 0.5 };
+                const lint = lintFrontmatter(index, {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                    settlementPopulation: policy,
+                });
+                expect(
+                    lint.findings.filter((f: any) =>
+                        f.message.startsWith("territorial population:"),
+                    ),
+                ).toHaveLength(1);
+                const complete = lintFrontmatter(index, {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                    settlementPopulation: { mode: "complete" },
+                });
+                expect(
+                    complete.findings.filter((f: any) =>
+                        f.message.startsWith("territorial population:"),
+                    ),
+                ).toHaveLength(0);
+                expect(() =>
+                    derivedSections(records(), {
+                        fileOf: (r: any) => path.join(root, `${r.shortcode}.md`),
+                        config: { packageBuild: { settlementPopulation: policy } },
+                    }),
+                ).toThrow(/urban settlements/);
+                expect(() =>
+                    derivedSections(records(), {
+                        fileOf: (r: any) => path.join(root, `${r.shortcode}.md`),
+                        config: { packageBuild: { settlementPopulation: { mode: "complete" } } },
+                    }),
+                ).not.toThrow();
+            },
+        );
+    });
+});
+
+describe("public settlement policy validation", () => {
+    const invalid = [
+        { urbanShare: NaN },
+        { urbanShare: Infinity },
+        { urbanShare: 2 },
+        { extra: true },
+        { mode: "other" },
+        { mode: "complete", urbanShare: 0.1 },
+    ];
+    it.each(invalid)("rejects invalid policy %s before shortcuts", (policy) => {
+        const settlementPopulation = policy as any;
+        expect(() => checkSettlementTables({ fm: {} }, { settlementPopulation })).toThrow(
+            /packageBuild.settlementPopulation/,
+        );
+        expect(() => lintNote({ fm: {} }, { settlementPopulation })).toThrow(
+            /packageBuild.settlementPopulation/,
+        );
+        expect(() => lintFrontmatter({ notes: [] }, { settlementPopulation })).toThrow(
+            /packageBuild.settlementPopulation/,
+        );
+        expect(() =>
+            assertSettlementRecords([], { config: { packageBuild: { settlementPopulation } } }),
+        ).toThrow(/packageBuild.settlementPopulation/);
+    });
+    it.each([29, 57, 58])(
+        "accepts an exact %s percent urban limit and rejects the next percent",
+        (percent) => {
+            const polity = {
+                type: "affiliation",
+                subType: "polity",
+                shortcode: "territory",
+                name: "Territory",
+                package: "local",
+                data: { territorial_population: 100 },
+            };
+            const town = {
+                type: "place",
+                subType: "settlement",
+                shortcode: "town",
+                name: "Town",
+                package: "local",
+                data: {
+                    population: percent,
+                    type: "town",
+                    market: "local",
+                    notes: "Market town.",
+                    government: "affiliation-territory",
+                },
+            };
+            const records = [polity, town];
+            const notes = records.map((fm) => ({ fm, file: fm.shortcode + ".md", raw: "" }));
+            const index = { contentPackage: "local", notes };
+            const settlementPopulation = { mode: "ceiling" as const, urbanShare: percent / 100 };
+            const check = () =>
+                checkSettlementTables(notes[0], { index, settlementPopulation }).filter((f) =>
+                    f.message.startsWith("territorial population:"),
+                );
+            const publish = () =>
+                assertSettlementRecords(records, {
+                    fileOf: (r: any) => r.shortcode + ".md",
+                    rawOf: () => "",
+                    config: { packageBuild: { settlementPopulation } },
+                });
+            expect(check()).toHaveLength(0);
+            expect(publish).not.toThrow();
+            town.data.population++;
+            expect(check()).toHaveLength(1);
+            expect(check()[0].message).toContain(`allowed share of ${percent} percent`);
+            expect(publish).toThrow(/exceed the allowed share/);
+        },
+    );
+});
+
+describe("metropolis population policy", () => {
+    it("counts a metropolis in direct checks, lint and publication", () => {
+        const polity = {
+            type: "affiliation",
+            subType: "polity",
+            shortcode: "territory",
+            name: "Territory",
+            package: "local",
+            data: { territorial_population: 100 },
+        };
+        const city = {
+            type: "place",
+            subType: "settlement",
+            shortcode: "metro",
+            name: "Metro",
+            package: "local",
+            data: {
+                population: 100,
+                type: "metropolis",
+                market: "local",
+                notes: "Market center.",
+                government: "affiliation-territory",
+            },
+        };
+        const records = [polity, city];
+        const notes = records.map((fm) => ({ fm, file: fm.shortcode + ".md", raw: "" }));
+        const index = { contentPackage: "local", notes };
+        const check = (settlementPopulation?: any) =>
+            checkSettlementTables(notes[0], { index, settlementPopulation }).filter((f) =>
+                f.message.startsWith("territorial population:"),
+            );
+        const publish = (settlementPopulation?: any) =>
+            assertSettlementRecords(records, {
+                fileOf: (r: any) => r.shortcode + ".md",
+                rawOf: () => "",
+                config: { packageBuild: { settlementPopulation } },
+            });
+        expect(check()).toHaveLength(1);
+        expect(
+            lintFrontmatter(index, {
+                schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                vocabulary: NOTE_VOCABULARY,
+            }).findings.some((f: any) => f.message.includes("exceed the allowed share")),
+        ).toBe(true);
+        expect(() => publish()).toThrow(/exceed the allowed share/);
+        for (const policy of [{ urbanShare: 1 }, { mode: "complete" }]) {
+            expect(check(policy)).toHaveLength(0);
+            expect(() => publish(policy)).not.toThrow();
+        }
+    });
+    it("credits ceiling exemptions and identifies unused selectors", () =>
+        checked(
+            (notes) => {
+                notes[1].data.territorial_population = 900;
+            },
+            ({ index }) => {
+                const note = index.notes.find((n: any) => n.fm.shortcode === "crown");
+                expect(
+                    checkSettlementTables(note, { index }).some((f: any) =>
+                        f.message.includes("exceed the territorial ceiling"),
+                    ),
+                ).toBe(true);
+                const result = lintFrontmatter(index, {
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    vocabulary: NOTE_VOCABULARY,
+                    settlementExemptions: [
+                        { address: "affiliation-crown", reason: "pending" },
+                        { prefix: "affiliation-unknown", reason: "pending" },
+                    ],
+                });
+                expect(result.settlementExemptNotes).toBe(1);
+                expect(
+                    result.findings.filter((f: any) =>
+                        f.message.includes("matches no settlement violation"),
+                    ),
+                ).toHaveLength(1);
+                expect(
+                    result.findings.some((f: any) =>
+                        f.message.includes("exceed the territorial ceiling"),
                     ),
                 ).toBe(false);
             },

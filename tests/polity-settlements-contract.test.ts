@@ -105,9 +105,12 @@ describe("settlement population and hierarchy", () => {
         expect(finding).toBeDefined();
         expect(finding).toMatchObject({ line: 4, column: 7 });
     });
-    it("rejects an invalid market and a territorial total outside tolerance", () => {
+    it("rejects an invalid market and a complete-table total outside tolerance", () => {
         const { polity, index } = corpus([{ ...row, market: "weekly" }], 200);
-        const findings = checkSettlementTables(polity, { index });
+        const findings = checkSettlementTables(polity, {
+            index,
+            settlementPopulation: { mode: "complete" },
+        });
         expect(findings.some((finding) => finding.message.includes("market"))).toBe(true);
         expect(findings.some((finding) => finding.message.includes("territorial population"))).toBe(
             true,

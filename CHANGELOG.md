@@ -1,5 +1,21 @@
 # @heroiclands/package-build
 
+## 25.8.2
+
+**Content and notes**
+
+- Keep addressed image layers private while recording their composition inside the finished image.
+- Settlement population checks now default to territorial and urban ceilings, allowing unlisted villages.
+- Complete inventories retain the five percent tolerance by selecting `mode: complete`.
+- Stale settlement exemptions point to their selectors in YAML configuration.
+
+**Builds and commands**
+
+- Pin and explicitly fetch verified public artwork for offline builds, with a clear fetch instruction when its cache is missing or damaged.
+- Restore a pinned private Git LFS revision, reuse verified sources offline, and check that public images reproduce exactly without changing the lock or authored inputs.
+- Clear a damaged fetched source cache with the clean command while protecting configured master and component roots.
+- Keep content editing available when pinned artwork disagrees with current notes, and preserve published output until matching artwork is ready.
+
 ## 25.8.1
 
 **Content and notes**

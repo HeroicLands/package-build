@@ -8676,8 +8676,10 @@ half-written region is quiet rather than noisy. A fetched index carries
 `population` alongside `parents` and `government` when its author stated a
 figure. An older fetched index with no figure remains silent.
 
-**Urban share is authoring guidance.** Regional prose describes its urban
-character; the settlement guard checks territorial completeness.
+**Urban share is a configured limit.** Towns, cities, and metropolises must not exceed ten
+percent of the territorial population by default. A package can configure a
+different limit or select complete mode, which requires the listed total to be
+within five percent of the territorial population.
 
 **A place declares what is true of its ground.** It names its governing affiliation
 in `data.government`; maps name the place they depict through `data.place`.
@@ -8708,15 +8710,14 @@ use the same generated tables.
 
 `data.population` on an affiliation counts its members. A polity's separate
 `data.territorial_population` counts inhabitants: listed and noted settlements
-throughout its subordinate chain must account for that total within five percent.
+throughout its subordinate chain must not exceed that total. Towns, cities, and metropolises must not exceed the configured urban share, ten percent by default. Complete-table mode instead requires the listed total to be within five percent of the territorial total.
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Populations use at most two significant digits. Each settlement
 has short `data.notes`; a populated settlement note also requires `data.type`,
 a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
-If the settlement sum falls outside the tolerance, list the settlements or
-declare a reasoned settlement exemption for that polity in the [configuration](../configuration.md#settlement-exemptions).
+For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](../configuration.md#settlement-exemptions).
 
 ```yaml
 type: affiliation
@@ -8751,7 +8752,8 @@ column uses the settlement's first enclosing place.
 - `stronghold`: `fort`, `castle`, `keep`, `fortified manor`, `tower`, or null.
 - `market`: `international`, `regional`, `local`, `subsistence`.
 
-Every settlement is a row or a note. There is no unnamed remainder. A row
+A listed settlement is a row or a note. The territorial population may include
+unlisted rural settlements in ceiling mode. A row
 becomes a note by moving its facts into the note and removing the row.
 Duplicate rows and listed names matching a noted settlement are errors.
 Polity ancestry has no cycles, and a polity declares at most one superior.
@@ -8760,9 +8762,9 @@ not an Address. A body table under Settlements is refused: frontmatter and
 the content index supply the facts. An authored `# Settlements {#settlements}`
 heading holds the generated table alongside its prose.
 
-Urban share is authoring guidance: about ten percent by default, with higher
-shares described in regional notes where appropriate. It introduces no extra
-frontmatter field or validation rule.
+The urban-share limit defaults to ten percent and can be configured per package.
+Complete mode checks the listed total within five percent instead. Regional
+prose does not change either rule.
 
 Every semantic finding is a located error:
 
@@ -8772,7 +8774,7 @@ Every semantic finding is a located error:
 - **`unresolved settlement reference`** — A reference does not resolve to its required note type.
 - **`people figure`** — A population is not a positive whole number with at most two significant digits.
 - **`duplicate settlement`** — A settlement has more than one listed or noted source.
-- **`territorial population`** — A required territorial total is missing or settlements differ from it by more than five percent.
+- **`territorial population`** — A required territorial total is missing or settlement populations exceed the configured limits.
 - **`polity superior`** — A polity declares more than one superior.
 - **`polity cycle`** — The subordinate chain returns to its starting polity.
 

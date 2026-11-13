@@ -13,9 +13,10 @@
 
 /** Indexed polity settlement facts, validation and shared table markup. @module */
 import fs from "node:fs";
-import { normalizeSettlementExemptions } from "../config.mjs";
+import { normalizeSettlementPopulation } from "./settlement-population.mjs";
+import { fail, normalizeSettlementExemptions } from "../config.mjs";
 import { declaredHeadings } from "./declared-sections.mjs";
-import { positionOfFrontmatterPath, formatDiagnostic } from "./diagnostics.mjs";
+import { positionOfFrontmatterPath, positionOfYamlPath, formatDiagnostic } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
 import {
@@ -319,14 +320,28 @@ export function settlementExemptionTracker(entries = [], contentPackage = "local
             return count;
         },
         stale(file) {
+            let text = "";
+            try {
+                if (/\.ya?ml$/i.test(file)) text = fs.readFileSync(file, "utf8");
+            } catch {
+                // A missing configuration has no authored position.
+            }
             return entries.flatMap((entry, i) =>
                 used.has(i) ?
                     []
                 :   [
                         {
                             file,
-                            line: 1,
-                            column: 1,
+                            ...positionOfYamlPath(
+                                text,
+                                [
+                                    "packageBuild",
+                                    "settlementExemptions",
+                                    i,
+                                    entry.address ? "address" : "prefix",
+                                ],
+                                { key: true, expectedValue: entry.address ?? entry.prefix },
+                            ),
                             severity: "error",
                             message: `settlement exemption ${JSON.stringify(entry.address ?? entry.prefix)} matches no settlement violation`,
                         },
@@ -339,12 +354,19 @@ export function settlementExemptionTracker(entries = [], contentPackage = "local
 /**
  * Check settlement facts and political hierarchy at their authored positions.
  * @param {object} note - The indexed note and its source.
- * @param {{index?: any, settlementExemptions?: any}} [options] - The address index and optional exemption tracker.
+ * @param {{index?: any, settlementExemptions?: any, settlementPopulation?: {mode?: "ceiling"|"complete", urbanShare?: number}}} [options] - The address index and optional exemption tracker.
  * @returns {object[]} Findings at known positions.
  */
-export function checkSettlementTables(note, { index, settlementExemptions } = {}) {
+export function checkSettlementTables(
+    note,
+    { index, settlementExemptions, settlementPopulation: authoredPopulation } = {},
+) {
+    const settlementPopulation = normalizeSettlementPopulation(authoredPopulation, fail);
     if (settlementExemptions)
-        return settlementExemptions.filter(note, checkSettlementTables(note, { index }));
+        return settlementExemptions.filter(
+            note,
+            checkSettlementTables(note, { index, settlementPopulation }),
+        );
     if (!index) return [];
     const fm = fmOf(note);
     const findings = [];
@@ -506,17 +528,49 @@ export function checkSettlementTables(note, { index, settlementExemptions } = {}
                 "territorial population is a positive whole number with at most two significant digits",
             );
         else {
-            const sum = rowsOf(corpus, self, true).reduce(
+            const rows = rowsOf(corpus, self, true);
+            const sum = rows.reduce(
                 (sum, row) => sum + (Number.isFinite(row.population) ? row.population : 0),
                 0,
             );
-            if (Math.abs(sum - total) > total * 0.05)
-                report(
-                    "territorial population",
-                    ["data", "territorial_population"],
-                    `settlements account for ${sum.toLocaleString("en-US")} people against territorial population ${total.toLocaleString("en-US")}; the allowed difference is five percent; list the settlements or declare a reasoned packageBuild.settlementExemptions entry for that polity.`,
-                    true,
-                );
+            const urban = rows.reduce(
+                (sum, row) =>
+                    sum +
+                    ((
+                        ["town", "city", "metropolis"].includes(row.type) &&
+                        Number.isFinite(row.population)
+                    ) ?
+                        row.population
+                    :   0),
+                0,
+            );
+            const format = (n) => n.toLocaleString("en-US");
+            const name = typeof fm.name === "string" ? fm.name : (fm.name?.full ?? fm.shortcode);
+            if (settlementPopulation.mode === "complete") {
+                if (Math.abs(sum - total) > total * 0.05)
+                    report(
+                        "territorial population",
+                        ["data", "territorial_population"],
+                        `${name}: settlements account for ${format(sum)} people against territorial population ${format(total)}; the allowed difference is five percent; list the settlements or declare a reasoned packageBuild.settlementExemptions entry for that polity.`,
+                        true,
+                    );
+            } else {
+                const share = settlementPopulation.urbanShare ?? 0.1;
+                if (sum > total)
+                    report(
+                        "territorial population",
+                        ["data", "territorial_population"],
+                        `${name}: listed settlements total ${format(sum)} people and exceed the territorial ceiling of ${format(total)}; urban settlements total ${format(urban)} (${format((urban / total) * 100)} percent) with an allowed share of ${format(share * 100)} percent.`,
+                        true,
+                    );
+                if (urban / total > share)
+                    report(
+                        "territorial population",
+                        ["data", "territorial_population"],
+                        `${name}: listed settlements total ${format(sum)} people against territorial population ${format(total)}; urban settlements total ${format(urban)} (${format((urban / total) * 100)} percent) and exceed the allowed share of ${format(share * 100)} percent.`,
+                        true,
+                    );
+            }
         }
     }
     return findings;
@@ -548,8 +602,12 @@ export function assertSettlementRecords(
         normalizeSettlementExemptions(config?.packageBuild?.settlementExemptions),
         index.contentPackage,
     );
+    const settlementPopulation = normalizeSettlementPopulation(
+        config?.packageBuild?.settlementPopulation,
+        fail,
+    );
     const findings = notes.flatMap((note) =>
-        checkSettlementTables(note, { index, settlementExemptions: tracker }),
+        checkSettlementTables(note, { index, settlementExemptions: tracker, settlementPopulation }),
     );
     if (findings.length)
         throw Object.assign(new Error(findings.map(formatDiagnostic).join("\n")), {

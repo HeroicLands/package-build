@@ -314,3 +314,14 @@ describe("what cannot be located", () => {
         expect(again.message).toBe(err.message);
     });
 });
+
+describe("settlement population locator", () => {
+    it("locates an invalid urban share at its authored key", () => {
+        const source = `${MINIMAL}\npackageBuild:\n    settlementPopulation:\n        urbanShare: 1.2\n`;
+        const { err, file } = failureFor(source);
+        const at = locatorOf(err.message);
+        expect(textAt(source, at.line, at.column)).toMatch(/^urbanShare:/);
+        expect(err.message).toContain(`${file}:${at.line}:${at.column}: error:`);
+        expect(err.message).toContain("must be a finite fraction from 0 to 1");
+    });
+});

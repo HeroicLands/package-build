@@ -1121,6 +1121,7 @@ function lintCommand() {
                 }
                 const frontmatter = lintFrontmatter(index, {
                     settlementExemptions,
+                    settlementPopulation: config.packageBuild?.settlementPopulation,
                     configFile: packConfigPath(),
                     currentDate: config.currentDate,
                     // The codes a note's `name` lists its forms under.

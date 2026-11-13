@@ -2069,10 +2069,11 @@ packageBuild:
 | [`packageBuild.container`](#packagebuildcontainer)                                         | object                                      | no       | see below                                                  |
 | [`packageBuild.e2e`](#packagebuilde2e)                                                     | object                                      | no       | see below                                                  |
 | [`packageBuild.proseLint`](#packagebuildproselint)                                         | object                                      | no       | `{age: 21, threshold: 5, minWords: 8, rules: readability}` |
+| [`packageBuild.settlementPopulation`](#settlement-population)                              | mapping                                     | no       | ceiling mode, urban share 0.1                              |
 | [`packageBuild.settlementExemptions`](#settlement-exemptions)                              | array                                       | no       | `[]`                                                       |
 | [`packageBuild.proseScore`](#packagebuildprosescore)                                       | object                                      | no       | `{minWords: 80, bands: {}}`                                |
 
-> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, shippingLicenses, baseStyles, manifest, manifestFlags, converterData, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore, settlementExemptions).``
+> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, shippingLicenses, baseStyles, manifest, manifestFlags, converterData, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore, settlementExemptions, settlementPopulation).``
 
 ### `packageBuild.proseLint`
 
@@ -2533,9 +2534,42 @@ packageBuild:
 ```
 
 An entry suppresses settlement notes, type, market, territorial population requirement,
-and territorial sum findings for matching notes in this package. Other checks still run, and settlement facts remain available to other
+and aggregate territorial population findings for matching notes in this package. Other checks still run, and settlement facts remain available to other
 notes' checks. Lint reports the number of affected notes and reports an entry
 that matches no settlement violation as an error. An identical written `address` selector or identical `prefix` selector is rejected.
 Distinct overlapping selectors each receive credit for matching eligible findings;
 a note is counted once. Use an exact polity address
-for an owner exception to the territorial-sum rule.
+for an owner exception to the aggregate population rules.
+
+### Settlement population
+
+Omitting `packageBuild.settlementPopulation` selects `mode: ceiling` with an
+`urbanShare` of 0.1. This aggregate population policy requires listed and noted
+settlements throughout the subordinate chain to fit within the territorial
+population. Towns, cities, and metropolises must also fit within `urbanShare`,
+a fraction from 0 to 1. For example, a territory of 10,000 permits up to 1,000
+people in listed towns, cities, and metropolises.
+
+```yaml
+packageBuild:
+  settlementPopulation:
+    mode: ceiling
+    urbanShare: 0.2
+```
+
+A package that lists a complete inventory selects `mode: complete`. Its listed
+total must be within five percent of the territorial population. `urbanShare`
+is not accepted in complete mode.
+
+For example, a configuration whose `packageBuild` section begins at line 10
+rejects a fraction above 1:
+
+```yaml
+packageBuild:
+  settlementPopulation:
+    urbanShare: 1.2
+```
+
+```text
+package-build.config.yaml:12:5: error: package-build config: `packageBuild.settlementPopulation.urbanShare` must be a finite fraction from 0 to 1.
+```

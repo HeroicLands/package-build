@@ -360,9 +360,10 @@ let locatedYaml;
  * @param {boolean} [opts.key=false] - Report where the last segment is
  *   *declared* rather than where its value sits. Ignored for a sequence entry,
  *   which has no key.
+ * @param {string} [opts.expectedValue] - Locate only a scalar with this value.
  * @returns {{line?: number, column?: number}} Spreadable position fields.
  */
-export function positionOfYamlPath(text, keyPath, { key = false } = {}) {
+export function positionOfYamlPath(text, keyPath, { key = false, expectedValue } = {}) {
     if (typeof text !== "string" || !text) return {};
     if (!Array.isArray(keyPath) || keyPath.length === 0) return {};
 
@@ -379,6 +380,7 @@ export function positionOfYamlPath(text, keyPath, { key = false } = {}) {
         // `keepScalar` returns the Scalar node rather than its value, which is
         // the only form carrying a range.
         node = doc.getIn(keyPath, true);
+        if (expectedValue !== undefined && node?.value !== expectedValue) return {};
         if (key && node !== undefined) {
             const last = keyPath[keyPath.length - 1];
             const parent =

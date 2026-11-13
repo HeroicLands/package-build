@@ -2085,7 +2085,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "territorial_population",
                 ...NUM,
                 describe:
-                    "A polity's territorial population, separate from its membership; required with settlements, a seat, or subordinate polities, and accounted for within five percent.",
+                    "A polity's territorial population, separate from its membership; required with settlements, a seat, or subordinate polities. Listed settlements must not exceed it, and towns, cities, and metropolises must meet the configured urban-share limit. Complete mode instead requires the listed total within five percent.",
             },
             SETTLEMENTS_FIELD,
             {

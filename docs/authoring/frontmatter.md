@@ -159,4 +159,4 @@ A note infobox draws from shared `data`. A being profile shows its top-level `su
 
 Settlement-table exceptions are declared by address with a reason in the
 [package configuration](../configuration.md#settlement-exemptions). The same
-mechanism records a territorial-sum owner exception for a polity.
+mechanism records an aggregate population exception for a polity.
