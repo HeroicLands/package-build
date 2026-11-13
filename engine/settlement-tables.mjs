@@ -16,7 +16,12 @@ import fs from "node:fs";
 import { normalizeSettlementPopulation } from "./settlement-population.mjs";
 import { fail, normalizeSettlementExemptions } from "../config.mjs";
 import { declaredHeadings } from "./declared-sections.mjs";
-import { positionOfFrontmatterPath, positionOfYamlPath, formatDiagnostic } from "./diagnostics.mjs";
+import {
+    positionOfFrontmatterPath,
+    positionOfYamlPath,
+    formatDiagnostic,
+    emitDiagnostic,
+} from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
 import {
@@ -566,8 +571,9 @@ export function checkSettlementTables(
             const name = typeof fm.name === "string" ? fm.name : (fm.name?.full ?? fm.shortcode);
             if (settlementPopulation.mode === "complete") {
                 if (
-                    rows.every((row) => Number.isFinite(row.population)) &&
-                    Math.abs(sum - total) > total * 0.05
+                    sum - total > total * 0.05 ||
+                    (rows.every((row) => Number.isFinite(row.population)) &&
+                        total - sum > total * 0.05)
                 )
                     report(
                         "territorial population",
@@ -630,6 +636,7 @@ export function assertSettlementRecords(
     const findings = notes.flatMap((note) =>
         checkSettlementTables(note, { index, settlementExemptions: tracker, settlementPopulation }),
     );
+    for (const finding of findings) if (finding.severity === "warning") emitDiagnostic(finding);
     const errors = findings.filter((finding) => finding.severity === "error");
     if (errors.length)
         throw Object.assign(new Error(errors.map(formatDiagnostic).join("\n")), {

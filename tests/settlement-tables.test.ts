@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -179,6 +179,49 @@ describe("settlement population declarations", () => {
                     authored,
                 );
                 expect(markdown).toMatch(/East Farm[^\n]*\|\s*\|/);
+            },
+        ));
+    it.each([null, undefined])("checks a known complete-mode overflow with unknown %s", (value) =>
+        checked(
+            (n) => {
+                n[1].data.territorial_population = 1000;
+                n[3].data.population = 2000;
+                n[1].data.settlements[0].population = value;
+            },
+            (f) =>
+                expect(
+                    f.findings.some(
+                        (x: any) =>
+                            x.message.startsWith("territorial population:") &&
+                            x.file.endsWith("crown.md"),
+                    ),
+                ).toBe(true),
+        ),
+    );
+    it("reports omission during derived publication", () =>
+        checked(
+            (n) => {
+                delete n[3].data.population;
+            },
+            ({ root, records }) => {
+                const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+                try {
+                    expect(() =>
+                        derivedSections(records(), {
+                            fileOf: (r: any) => path.join(root, `${r.shortcode}.md`),
+                            config: {
+                                packageBuild: { settlementPopulation: { mode: "complete" } },
+                            },
+                        }),
+                    ).not.toThrow();
+                    expect(warn).toHaveBeenCalledWith(
+                        expect.stringContaining(
+                            "warning: people figure: population must be provided",
+                        ),
+                    );
+                } finally {
+                    warn.mockRestore();
+                }
             },
         ));
     it.each([-1, 1.5, 101, "100"])("rejects invalid population %s", (value) =>

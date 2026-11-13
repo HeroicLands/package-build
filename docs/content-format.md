@@ -232,7 +232,7 @@ throughout its subordinate chain must not exceed that total. Towns, cities, and 
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
-settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals are checked when every settlement population is known. Each settlement
+settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. Each settlement
 has short `data.notes`; a populated settlement note also requires `data.type`,
 a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](configuration.md#settlement-exemptions).
