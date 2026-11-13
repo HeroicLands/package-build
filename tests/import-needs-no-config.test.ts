@@ -125,16 +125,21 @@ function importProbe(baseUrl: string, modules: string[]): string {
                 const url = new URL(rel, ${JSON.stringify(baseUrl)}).href;
                 const failure = await new Promise((resolve) => {
                     const child = spawn(process.execPath, [
-                        "--input-type=module", "-e", "await import(process.argv[1])", url,
-                    ], { timeout: 15000, killSignal: "SIGKILL", stdio: ["ignore", "ignore", "pipe"] });
+                        "--input-type=module", "-e",
+                        "await import(process.argv[1]); (await import('node:fs')).writeSync(3, 'complete')", url,
+                    ], { timeout: ${SUBPROCESS_TEST_TIMEOUT}, killSignal: "SIGKILL", stdio: ["ignore", "ignore", "pipe", "pipe"] });
                     let stderr = "";
+                    let completion = "";
+                    child.stdio[3].setEncoding("utf8");
+                    child.stdio[3].on("data", (chunk) => { completion = (completion + chunk).slice(0, 9); });
                     let error;
                     child.stderr.setEncoding("utf8");
-                    child.stderr.on("data", (chunk) => { stderr += chunk; });
+                    child.stderr.on("data", (chunk) => { stderr = (stderr + chunk).slice(0, 65536); });
                     child.on("error", (err) => { error = err.message; });
                     child.on("close", (code, signal) => {
                         resolve(error ?? (signal ? "process terminated by " + signal :
-                            code === 0 ? null : stderr || "process exited " + code));
+                            code === 0 ? (completion === "complete" ? null : "import did not complete") :
+                            stderr || "process exited " + code));
                     });
                 });
                 if (failure) failures[index] = rel + ": " + failure;
@@ -243,6 +248,26 @@ describe("the shipped package needs no configuration to be imported", () => {
             expect(failures[0]).toMatch(/root\.mjs:[\s\S]*before initialization/);
         },
         subprocessTimeout(2),
+    );
+
+    it(
+        "rejects an import that exits before completing",
+        () => {
+            const fixture = path.join(sandbox, "exit");
+            fs.mkdirSync(fixture);
+            fs.writeFileSync(path.join(fixture, "exit.mjs"), "process.exit(0);\n");
+            fs.writeFileSync(path.join(fixture, "ordinary.mjs"), "export const value = 1;\n");
+            const base = pathToFileURL(fixture + path.sep).href;
+            const { status, stdout, stderr } = run([
+                "--input-type=module",
+                "-e",
+                importProbe(base, ["exit.mjs", "ordinary.mjs"]),
+            ]);
+            expect(status, stderr).toBe(0);
+            const failures = JSON.parse(stdout.trim()) as string[];
+            expect(failures).toEqual(["exit.mjs: import did not complete"]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
     );
 
     it(
