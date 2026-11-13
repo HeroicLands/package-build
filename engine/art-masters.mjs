@@ -211,9 +211,10 @@ export function masterAssetRecords(masters) {
                         attribution: master.record.creator ?? "",
                         source: "",
                         ai:
-                            GENERATED_SOURCE_TYPES.has(master.record.digitalSourceType) ? true
+                            master.record.ai ??
+                            (GENERATED_SOURCE_TYPES.has(master.record.digitalSourceType) ? true
                             : master.record.digitalSourceType === HUMAN_SOURCE_TYPE ? false
-                            : null,
+                            : null),
                         license: master.record.license ?? "",
                         notes: "",
                         role: "",

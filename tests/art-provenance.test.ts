@@ -24,6 +24,7 @@ import {
     masterFileName,
     planRenames,
     readChunks,
+    readJpegProvenance,
     readProvenance,
     readSvgProvenance,
     readTextChunk,
@@ -1807,6 +1808,15 @@ describe("generated derivative authorities", () => {
         return [master, { file: `derived.${format}`, bytes }];
     }
     for (const format of ["webp", "svg", "jpeg"]) {
+        it.each([true, false])(`${format} retains AI status %s`, async (ai) => {
+            const [master, derivative] = await pair(format, { ai, digitalSourceType: "none" });
+            const read =
+                format === "jpeg" ? readJpegProvenance(derivative.bytes)
+                : format === "webp" ? readWebpProvenance(derivative.bytes)
+                : readSvgProvenance(derivative.bytes);
+            expect(read.record.ai).toBe(ai);
+            expect(checkProvenance([master, derivative])).toEqual([]);
+        });
         it(`${format} validates its parent trace against the master address`, async () => {
             const entries = await pair(format);
             expect(checkProvenance(entries)).toEqual([]);
@@ -1882,5 +1892,66 @@ describe("generated derivative authorities", () => {
                 .filter((f) => f.file.startsWith("derived."))
                 .map((f) => f.message),
         ).toContainEqual(expect.stringMatching(/derivedFrom.*master address/));
+    });
+});
+
+describe("independent AI status", () => {
+    it.each([true, false])("round-trips %s without inventing a source type", (ai) => {
+        const result = writeProvenance(png, { ...FIELDS, ai, digitalSourceType: "none" });
+        expect(readProvenance(result.bytes).record.ai).toBe(ai);
+        const svg = writeSvgProvenance("<svg/>", { ...FIELDS, ai });
+        expect(readSvgProvenance(svg.text).record.ai).toBe(ai);
+        expect(deriveRecord(result.record).ai).toBe(ai);
+        expect(readProvenance(result.bytes).record.digitalSourceType).toBeUndefined();
+    });
+
+    it("refuses malformed or contradictory declarations", () => {
+        expect(() =>
+            writeProvenance(png, { ...FIELDS, ai: "false", digitalSourceType: "none" }),
+        ).toThrow(/ai/);
+        expect(() =>
+            writeProvenance(png, {
+                ...FIELDS,
+                ai: false,
+                digitalSourceType: "trainedAlgorithmicMedia",
+            }),
+        ).toThrow(/conflicts/);
+        expect(() =>
+            writeSvgProvenance("<svg/>", {
+                ...FIELDS,
+                ai: true,
+                digitalSourceType: "digitalCreation",
+            }),
+        ).toThrow(/conflicts/);
+        const svg = writeSvgProvenance("<svg/>", { ...FIELDS, ai: false }).text;
+        expect(() =>
+            readSvgProvenance(svg.replace("<hl:ai>False</hl:ai>", "<hl:ai>no</hl:ai>")),
+        ).toThrow(/boolean/);
+        expect(() =>
+            readSvgProvenance(
+                svg.replace("<hl:ai>False</hl:ai>", "<hl:ai>False</hl:ai><hl:ai>True</hl:ai>"),
+            ),
+        ).toThrow(/duplicate/);
+        const alias = svg.replace(
+            "</rdf:Description>",
+            `<p:DigitalSourceType xmlns:p="http://iptc.org/std/Iptc4xmpExt/2008-02-29/">http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia</p:DigitalSourceType></rdf:Description>`,
+        );
+        expect(() => readSvgProvenance(alias)).toThrow(/conflicts/);
+    });
+
+    it("refuses AI declarations across multiple PNG packets", () => {
+        const out = writeProvenance(png, { ...FIELDS, ai: false, digitalSourceType: "none" });
+        const packet = readProvenance(out.bytes).packet!;
+        const duplicate = withChunks(out.bytes, [makeTextChunk(XMP_KEYWORD, packet).raw]);
+        expect(() => readProvenance(duplicate)).toThrow(/multiple XMP packets/);
+    });
+
+    it("preserves and clears the value through WebP", async () => {
+        const webp = await sharp(png).webp().toBuffer();
+        const written = writeWebpProvenance(webp, { ...FIELDS, ai: false });
+        expect(readWebpProvenance(written.bytes).record.ai).toBe(false);
+        expect(
+            readWebpProvenance(writeWebpProvenance(written.bytes, { ai: null }).bytes).record.ai,
+        ).toBeUndefined();
     });
 });

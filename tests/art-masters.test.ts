@@ -925,3 +925,43 @@ it("refuses a private root inside a build output before clearing it", () => {
     expect(result.stderr + result.stdout).toMatch(/overlap/);
     expect(fs.readFileSync(source, "utf8")).toBe("private input");
 });
+
+it.each([
+    { ai: false, license: "CC-BY-SA-4.0", staged: true },
+    { ai: true, license: "CC-BY-SA-4.0", staged: false },
+    { ai: undefined, license: "CC-BY-SA-4.0", staged: false },
+    { ai: false, license: "unlisted", staged: false },
+])(
+    "applies shipping rules to independent AI status $ai and license $license",
+    async ({ ai, license, staged }) => {
+        const privateRoot = path.join(root, "private");
+        fs.mkdirSync(privateRoot, { recursive: true });
+        const address = "sample-none-image-example";
+        const svg =
+            '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1"/></svg>';
+        fs.writeFileSync(
+            path.join(privateRoot, "source.svg"),
+            writeSvgProvenance(svg, { address, ai, license, creator: "Author", rights: "Terms" })
+                .bytes,
+        );
+        const masters = collectArtMasters([privateRoot], "sample");
+        expect(masters.findings).toEqual([]);
+        const records = masterAssetRecords(masters.masters);
+        expect(records[0].asset.ai).toBe(ai ?? null);
+        const prepared = await renderArtMasters(
+            masters.masters,
+            [],
+            path.join(root, "render"),
+            path.join(root, "cache"),
+        );
+        const result = stagePackageAssets({
+            assetsBase: path.join(root, "assets"),
+            contentPackage: "sample",
+            stageDir: path.join(root, "stage"),
+            title: "Sample",
+            records,
+            preparedMasters: prepared,
+        });
+        expect(result.staged).toHaveLength(staged ? 1 : 0);
+    },
+);

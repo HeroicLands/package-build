@@ -231,6 +231,7 @@ const FIELDS = Object.freeze([
     "rights",
     "license",
     "digitalSourceType",
+    "ai",
     "created",
     "software",
     "description",
@@ -281,6 +282,7 @@ const COMPLETE_ADDRESS = {
  *   only. A write accepts `true` or the string `true`, and `null` removes it.
  * @property {string} [derivedFrom] - A former path or address of the image this
  *   one was made from. Written as `hl:derivedFrom` in the XMP packet only.
+ * @property {boolean} [ai] - Whether the image is AI-generated, stored as `hl:ai`.
  * @property {string} [digitalSourceType] - The IPTC digital source type, as a
  *   key of {@link DIGITAL_SOURCE_TOKENS} or a full URI; read back as the URI.
  *   Written as `Iptc4xmpExt:DigitalSourceType`. On write, `none` or `null`
@@ -457,6 +459,7 @@ const XMP_PROPERTIES = Object.freeze([
     ["creator", "dc:creator", "seq"],
     ["rights", "dc:rights", "alt"],
     ["license", "hl:license", "plain"],
+    ["ai", "hl:ai", "boolean"],
     ["prompt", "dc:description", "alt"],
     ["address", "hl:address", "plain"],
     ["identifier", "dc:identifier", "plain"],
@@ -497,7 +500,11 @@ function descriptionBlock(record, eol = "\n") {
             continue;
         }
         const text = escapeXml(
-            shape === "json" ? JSON.stringify(validateComposition(value)) : value,
+            shape === "json" ? JSON.stringify(validateComposition(value))
+            : shape === "boolean" ?
+                value ? "True"
+                :   "False"
+            :   value,
         );
         if (shape === "alt") {
             lines.push(
@@ -853,6 +860,73 @@ function readComposition(packet) {
     }
 }
 
+/** Read one explicit boolean in the Heroic Lands namespace. */
+function readAi(packet) {
+    if (!/(?:<|\s)(?:[^\s<=>/]+:)?ai(?:\s|[=/>])/u.test(packet)) return undefined;
+    let invalid = false;
+    let document;
+    try {
+        document = new DOMParser({
+            onError: () => {
+                invalid = true;
+            },
+        }).parseFromString(packet, "application/xml");
+    } catch {
+        throw new Error("ai: malformed XMP");
+    }
+    if (invalid) throw new Error("ai: malformed XMP");
+    const values = [];
+    const sources = [];
+    const elements = document.getElementsByTagName("*");
+    for (let i = 0; i < elements.length; i++) {
+        const node = elements.item(i);
+        if (node.hasAttributeNS(HL_NAMESPACE, "ai")) {
+            if (node.namespaceURI !== RDF_NAMESPACE || node.localName !== "Description")
+                throw new Error("ai: property must belong to an RDF Description");
+            values.push(node.getAttributeNS(HL_NAMESPACE, "ai"));
+        }
+        if (node.hasAttributeNS(IPTC_NAMESPACE, "DigitalSourceType"))
+            sources.push(node.getAttributeNS(IPTC_NAMESPACE, "DigitalSourceType"));
+        if (node.namespaceURI === IPTC_NAMESPACE && node.localName === "DigitalSourceType")
+            sources.push(node.textContent);
+        if (node.namespaceURI === HL_NAMESPACE && node.localName === "ai") {
+            if (
+                node.parentNode.namespaceURI !== RDF_NAMESPACE ||
+                node.parentNode.localName !== "Description" ||
+                Array.from({ length: node.childNodes.length }, (_, j) =>
+                    node.childNodes.item(j),
+                ).some((child) => child.nodeType !== 3 && child.nodeType !== 4)
+            )
+                throw new Error("ai: expected a boolean XMP property");
+            values.push(node.textContent);
+        }
+    }
+    if (values.length > 1) throw new Error("ai: duplicate XMP properties");
+    if (!values.length) return undefined;
+    if (sources.length > 1) throw new Error("digitalSourceType: duplicate XMP properties");
+    if (
+        values[0] !== "True" &&
+        values[0] !== "False" &&
+        values[0] !== "true" &&
+        values[0] !== "false"
+    )
+        throw new Error("ai: expected a boolean XMP value");
+    return { ai: values[0].toLowerCase() === "true", source: sources[0] };
+}
+
+/** Refuse explicit status that conflicts with a recognized source type. */
+function validateAiClassification(record) {
+    if (record.ai !== undefined && typeof record.ai !== "boolean")
+        throw new Error("ai must be a boolean");
+    const source = record.digitalSourceType;
+    const generated =
+        source === DIGITAL_SOURCE_TOKENS.trainedAlgorithmicMedia ||
+        source === DIGITAL_SOURCE_TOKENS.compositeWithTrainedAlgorithmicMedia;
+    const human = source === DIGITAL_SOURCE_TOKENS.digitalCreation;
+    if (record.ai !== undefined && ((generated && !record.ai) || (human && record.ai)))
+        throw new Error("ai conflicts with digitalSourceType");
+}
+
 /**
  * Read the record stored in an XMP packet.
  *
@@ -865,7 +939,12 @@ export function readXmpRecord(packet) {
     const xml = own ? own[0] : packet;
     const record = {};
     for (const [field, name] of XMP_PROPERTIES) {
-        if (field === "composition" || (field === "prompt" && name === "dc:description")) continue;
+        if (
+            field === "composition" ||
+            field === "ai" ||
+            (field === "prompt" && name === "dc:description")
+        )
+            continue;
         if (field === "formerNames") {
             const bag = new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)</${name}>`).exec(xml);
             if (bag) {
@@ -878,6 +957,12 @@ export function readXmpRecord(packet) {
         const value = readProperty(xml, name);
         if (value !== undefined) record[field] = value;
     }
+    const ai = readAi(packet);
+    if (ai !== undefined) {
+        record.ai = ai.ai;
+        if (ai.source !== undefined) record.digitalSourceType = ai.source;
+    }
+    validateAiClassification(record);
     const composition = readComposition(packet);
     if (composition !== undefined) record.composition = composition;
     return record;
@@ -919,7 +1004,13 @@ function isXmpChunk(chunk) {
  */
 export function readProvenance(bytes) {
     const chunks = readChunks(bytes);
-    const xmpChunk = chunks.find(isXmpChunk);
+    const xmpChunks = chunks.filter(isXmpChunk);
+    if (
+        xmpChunks.length > 1 &&
+        xmpChunks.some((chunk) => readAi(readTextChunk(chunk).text) !== undefined)
+    )
+        throw new Error("ai: multiple XMP packets cannot carry an unambiguous declaration");
+    const xmpChunk = xmpChunks[0];
     const packet = xmpChunk ? readTextChunk(xmpChunk).text : null;
     const xmp = packet === null ? {} : readXmpRecord(packet);
     const standard = readStandardRecord(chunks);
@@ -982,8 +1073,9 @@ function validateRecord(record) {
         if (record.derived !== undefined)
             throw new Error("composition is private and never repeated on a derivative");
     }
+    validateAiClassification(record);
     for (const field of FIELDS) {
-        if (field === "composition") continue;
+        if (field === "composition" || field === "ai") continue;
         const value = record[field];
         if (value !== undefined && (typeof value !== "string" || value === "")) {
             throw new Error(`${field} must be a non-empty string`);
@@ -1165,7 +1257,11 @@ export function writeProvenance(bytes, fields, options = {}) {
     const existing = readProvenance(bytes).record;
     const record = mergeRecord(existing, fields);
     const primary = options.index ? applyPrimaryNote(record, options.index) : undefined;
-    if (fields.digitalSourceType === undefined && existing.address === undefined) {
+    if (
+        fields.digitalSourceType === undefined &&
+        fields.ai === undefined &&
+        existing.address === undefined
+    ) {
         record.digitalSourceType ??= DIGITAL_SOURCE_TRAINED_ALGORITHMIC;
     }
     validateRecord(record);
@@ -1733,13 +1829,13 @@ const NEVER_REPEATED = Object.freeze(["prompt", "generator", "composition"]);
 const NOTE_FIELDS = Object.freeze(["name", "primaryNote"]);
 
 /** The record fields a derivative carries unless told otherwise. */
-const DERIVATIVE_FIELDS = Object.freeze(["address", "creator", "rights"]);
+const DERIVATIVE_FIELDS = Object.freeze(["address", "creator", "rights", "ai"]);
 
 /**
  * The record of a derivative made from a master.
  *
  * The record holds `address` (unchanged), `derived` set to `true`, `rights`
- * (`dc:rights`) and `creator` (`dc:creator`, the attribution), and the master's
+ * (`dc:rights`), `creator` (`dc:creator`, the attribution), and `ai` when declared, and the master's
  * value of each property named in `repeat`. Every other field of the master is
  * left out.
  *
@@ -1895,6 +1991,7 @@ export function checkProvenance(entries, options = {}) {
                 "creator",
                 "rights",
                 "license",
+                "ai",
                 "name",
                 "primaryNote",
             ]);

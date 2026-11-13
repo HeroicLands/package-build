@@ -1282,7 +1282,7 @@ and any number of derivatives; neither a filename nor a sidecar supplies identit
 `name`, `primaryNote`, `role`, `derived`, `derivedFrom`, `prompt`, `generator`,
 `title`, `creator`, `rights`, `license`, `digitalSourceType`, `created`, `software`,
 `description`, `source` and `processing`, plus `formerNames: string[]` and
-`composition: ArtComposition`.
+`composition: ArtComposition`, and `ai: boolean`.
 Writers require a complete `<package>-<system>-<type>-<shortcode>` Address.
 They set both `hl:address` and `dc:identifier` from `address`. Readers fill in
 either missing value from the other, retaining disagreements for the checker.
@@ -1294,8 +1294,8 @@ how it was made. `description` is separate from the prompt.
 stored as `hl:license`; the build does not extract a license from `rights` prose.
 `digitalSourceType` accepts a key of `DIGITAL_SOURCE_TOKENS` or a full URI and
 reads back as a URI. `none` or `null` removes it. A PNG with no addressed record
-receives `trainedAlgorithmicMedia` on write unless the caller supplies the field;
-SVG and WebP writers supply no default. Private-master asset indexing classifies
+receives `trainedAlgorithmicMedia` on write unless the caller supplies that field or `ai`;
+SVG and WebP writers supply no default. `ai` is an optional explicit boolean stored as `hl:ai`; `null` removes it and absence means unknown. An explicit value takes precedence over source type, and a contradiction with a recognized source type is an error. Without `ai`, private-master asset indexing classifies
 `trainedAlgorithmicMedia` and `compositeWithTrainedAlgorithmicMedia` as generated,
 `digitalCreation` as human-created, and every other or absent classification as
 unknown. Existing shipping rules exclude generated and unknown classifications
