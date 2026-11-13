@@ -16,7 +16,7 @@ import fs from "node:fs";
 import { normalizeSettlementPopulation } from "./settlement-population.mjs";
 import { fail, normalizeSettlementExemptions } from "../config.mjs";
 import { declaredHeadings } from "./declared-sections.mjs";
-import { positionOfFrontmatterPath, formatDiagnostic } from "./diagnostics.mjs";
+import { positionOfFrontmatterPath, positionOfYamlPath, formatDiagnostic } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
 import {
@@ -320,14 +320,28 @@ export function settlementExemptionTracker(entries = [], contentPackage = "local
             return count;
         },
         stale(file) {
+            let text = "";
+            try {
+                if (/\.ya?ml$/i.test(file)) text = fs.readFileSync(file, "utf8");
+            } catch {
+                // A missing configuration has no authored position.
+            }
             return entries.flatMap((entry, i) =>
                 used.has(i) ?
                     []
                 :   [
                         {
                             file,
-                            line: 1,
-                            column: 1,
+                            ...positionOfYamlPath(
+                                text,
+                                [
+                                    "packageBuild",
+                                    "settlementExemptions",
+                                    i,
+                                    entry.address ? "address" : "prefix",
+                                ],
+                                { key: true, expectedValue: entry.address ?? entry.prefix },
+                            ),
                             severity: "error",
                             message: `settlement exemption ${JSON.stringify(entry.address ?? entry.prefix)} matches no settlement violation`,
                         },

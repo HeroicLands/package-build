@@ -693,6 +693,69 @@ describe("settlement graph reuse", () => {
 });
 
 describe("settlement exemptions", () => {
+    it("locates each unused selector in its authored YAML and falls back for unavailable sources", () =>
+        checked(
+            (notes) => {
+                delete notes[3].data.notes;
+            },
+            ({ index, root }) => {
+                const configFile = path.join(root, "package-build.config.yaml");
+                fs.writeFileSync(
+                    configFile,
+                    `packageBuild:
+  settlementExemptions:
+    - address: place-capital
+      reason: pending
+    - address: place-town
+      reason: pending
+    - prefix: place-other
+      reason: pending
+`,
+                );
+                const entries = [
+                    { address: "place-capital", reason: "pending" },
+                    { address: "place-town", reason: "pending" },
+                    { prefix: "place-other", reason: "pending" },
+                ];
+                const lint = (file: string) =>
+                    lintFrontmatter(index, {
+                        schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                        vocabulary: NOTE_VOCABULARY,
+                        settlementExemptions: entries,
+                        configFile: file,
+                    }).findings.filter((f: any) =>
+                        f.message.includes("matches no settlement violation"),
+                    );
+                expect(lint(configFile).map((f: any) => [f.file, f.line, f.column])).toEqual([
+                    [configFile, 5, 7],
+                    [configFile, 7, 7],
+                ]);
+                expect(
+                    lint(path.join(root, "missing.yaml")).map((f: any) => [f.line, f.column]),
+                ).toEqual([
+                    [undefined, undefined],
+                    [undefined, undefined],
+                ]);
+                fs.writeFileSync(
+                    configFile,
+                    `packageBuild:
+  settlementExemptions:
+    - address: place-capital
+    - address: place-different
+    - prefix: place-other
+`,
+                );
+                expect(lint(configFile).map((f: any) => [f.line, f.column])).toEqual([
+                    [undefined, undefined],
+                    [5, 7],
+                ]);
+                fs.writeFileSync(configFile, "packageBuild: {}\n");
+                expect(lint(configFile).map((f: any) => [f.line, f.column])).toEqual([
+                    [undefined, undefined],
+                    [undefined, undefined],
+                ]);
+            },
+        ));
     it("counts affected notes once and credits overlapping entries", () =>
         checked(
             (notes) => {
@@ -826,8 +889,8 @@ describe("settlement exemption scope", () => {
                     result.findings.some(
                         (f: any) =>
                             f.message.includes("matches no settlement violation") &&
-                            f.line === 1 &&
-                            f.column === 1,
+                            f.line === undefined &&
+                            f.column === undefined,
                     ),
                 ).toBe(true);
             },

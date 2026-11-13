@@ -137,7 +137,8 @@ segment is **declared** instead, for a finding that names the field itself
 (`site.sections.x is not a recognized option`) — in a flow mapping like
 `{ title: X, banner: Y }` the key and the value are different columns on the
 same line, and a field-naming finding should send the reader to the field,
-not to whatever happens to be written there.
+not to whatever happens to be written there. `opts.expectedValue` requires the
+node to hold that scalar value; a mismatch has no position.
 
 ## A configuration error is located the same way
 
