@@ -35,6 +35,7 @@ import {
 import { cultureField } from "./culture-terms.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 
+/** The shared culture field with its Address validation. */
 export const CULTURE_FIELD = cultureField(checkCultureChoice);
 
 /** The `lore` subType a culture names, and the one whose culture is itself. */
