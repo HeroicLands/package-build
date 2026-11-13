@@ -45,6 +45,7 @@ import { isPlainMap } from "./data-keys.mjs";
 import { SHIPPED_SYSTEMS } from "./subtype-registry.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { ITEM_KINDS, ITEM_NOTE_TYPES, itemsField } from "./item-terms.mjs";
+/** The shared item-list field with its entry validation. */
 export const ITEMS_FIELD = itemsField(checkItems);
 export { ITEM_KINDS, ITEM_NOTE_TYPES, ITEM_ENTRY, ITEM_NOTE_FIELDS } from "./item-terms.mjs";
 export { resolveItemDefaults } from "./system-item-entries.mjs";
