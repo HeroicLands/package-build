@@ -131,7 +131,11 @@ import {
 } from "../engine/encoding-lexicon.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import { lintProse, scoreProseTree } from "../engine/readability-lint.mjs";
-import { checkHomepage, loadPackageBuildConfig } from "../config.mjs";
+import {
+    checkHomepage,
+    loadPackageBuildConfig,
+    normalizeSettlementExemptions,
+} from "../config.mjs";
 import {
     emitContentIndex,
     prepareContentIndex,
@@ -999,7 +1003,8 @@ function contentFormatFieldsCommand() {
 function lintCommand() {
     return {
         command: "lint [root]",
-        describe: "Check a content tree's addresses and frontmatter",
+        describe:
+            "Check a content tree's addresses and frontmatter, including reasoned settlement exemptions",
         builder: (yargs) => {
             yargs.positional("root", {
                 describe: "Content tree to lint. Defaults to the configured contentBase.",
@@ -1018,6 +1023,9 @@ function lintCommand() {
                 const config =
                     argv[CONTENT_SESSION]?.config ?? argv[CONTENT_CONFIG] ?? loadPackConfig();
                 const root = argv.root ?? config.paths.content;
+                const settlementExemptions = normalizeSettlementExemptions(
+                    config.packageBuild?.settlementExemptions,
+                );
 
                 // The corpus, enumerated once for this command and handed to
                 // every pass below, rather than derived again by each.
@@ -1111,6 +1119,8 @@ function lintCommand() {
                     );
                 }
                 const frontmatter = lintFrontmatter(index, {
+                    settlementExemptions,
+                    configFile: packConfigPath(),
                     currentDate: config.currentDate,
                     // The codes a note's `name` lists its forms under.
                     languages: Object.keys(config.languages ?? {}),
@@ -1369,6 +1379,10 @@ function lintCommand() {
                 // line, so the rule is the shared one rather than a second
                 // copy here. Each finding names its own file.
                 const validationMs = performance.now() - validationStarted;
+                if (settlementExemptions.length)
+                    log.info(
+                        `Settlement exemptions cover ${frontmatter.settlementExemptNotes} note(s).`,
+                    );
                 const errors = reportFindings(findings, {});
                 if (errors) {
                     log.error(`${findings.length} finding(s) across ${addresses.notes} note(s).`);

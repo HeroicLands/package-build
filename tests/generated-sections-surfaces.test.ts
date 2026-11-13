@@ -21,6 +21,7 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { compileTestsEnabled } from "./helpers/compile-tests.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -38,7 +39,7 @@ import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 import { dictionaryEntryAnchor } from "../engine/dictionary-rows.mjs";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const HAS_TYPST = spawnSync("typst", ["--version"], { encoding: "utf8" }).status === 0;
+const HAS_TYPST = compileTestsEnabled();
 const HAS_PDFTOTEXT = spawnSync("pdftotext", ["-v"], { encoding: "utf8" }).status === 0;
 
 const NOTES: Record<string, string> = {

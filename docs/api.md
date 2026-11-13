@@ -538,16 +538,21 @@ What trade a settlement supports (`data.market`): the four market words, stated 
 
 A polity lists settlements without notes in indexed `data.settlements`. The build combines them with noted settlements by government and walks subordinate polities for the recursive index. The guard checks territorial completeness, references, fields, duplicate settlements and political hierarchy. Every publishing surface uses the same generated table, retaining the canonical `#settlements` heading or filling the author's existing section.
 
-| Export                    | Signature                                                           | Returns             | Use it when                                                                                   |
-| ------------------------- | ------------------------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
-| `SETTLEMENT_COLUMNS`      | `const SETTLEMENT_COLUMNS`                                          | `readonly object[]` | the table's columns in header order, each with its `name` and required flag                   |
-| `SETTLEMENTS_HEADING`     | `const SETTLEMENTS_HEADING`                                         | `string`            | the generated settlements heading                                                             |
-| `SETTLEMENT_TABLE_RULES`  | `const SETTLEMENT_TABLE_RULES`                                      | `readonly object[]` | the rules in order, each its `name` — the prefix its findings carry — and what it `describe`s |
-| `settlementMarkdown`      | `settlementMarkdown(record, records, { recursive })`                | `string`            | rendering indexed rows as the shared table                                                    |
-| `assertSettlementRecords` | `assertSettlementRecords(records, { fileOf, rawOf, foreignIndex })` | `void`              | refusing invalid indexed rows before publication                                              |
-| `SETTLEMENTS_FIELD`       | `const SETTLEMENTS_FIELD`                                           | `object`            | the vocabulary declaration for the polity settlement list                                     |
-| `SETTLEMENT_ROW_FIELDS`   | `const SETTLEMENT_ROW_FIELDS`                                       | `readonly object[]` | the closed row declaration                                                                    |
-| `checkSettlementTables`   | `checkSettlementTables(note, { index })`                            | `object[]`          | linting polity and settlement facts against the indexed corpus                                |
+| Export                       | Signature                                                                   | Returns             | Use it when                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| `SETTLEMENT_COLUMNS`         | `const SETTLEMENT_COLUMNS`                                                  | `readonly object[]` | the table's columns in header order, each with its `name` and required flag                   |
+| `SETTLEMENTS_HEADING`        | `const SETTLEMENTS_HEADING`                                                 | `string`            | the generated settlements heading                                                             |
+| `SETTLEMENT_TABLE_RULES`     | `const SETTLEMENT_TABLE_RULES`                                              | `readonly object[]` | the rules in order, each its `name` — the prefix its findings carry — and what it `describe`s |
+| `settlementMarkdown`         | `settlementMarkdown(record, records, { recursive })`                        | `string`            | rendering indexed rows as the shared table                                                    |
+| `assertSettlementRecords`    | `assertSettlementRecords(records, { fileOf, rawOf, foreignIndex, config })` | `void`              | refusing invalid indexed rows before publication                                              |
+| `SETTLEMENTS_FIELD`          | `const SETTLEMENTS_FIELD`                                                   | `object`            | the vocabulary declaration for the polity settlement list                                     |
+| `SETTLEMENT_ROW_FIELDS`      | `const SETTLEMENT_ROW_FIELDS`                                               | `readonly object[]` | the closed row declaration                                                                    |
+| `checkSettlementTables`      | `checkSettlementTables(note, { index, settlementExemptions })`              | `object[]`          | linting polity and settlement facts against the indexed corpus                                |
+| `settlementExemptionTracker` | `settlementExemptionTracker(entries, contentPackage)`                       | `object`            | tracking settlement findings covered by reasoned local selectors                              |
+
+`settlementExemptionTracker` returns a tracker whose `filter(note, findings)` returns findings with eligible settlement violations removed when a selector matches. Each call that suppresses findings increments `count` and marks every matching selector as used. `stale(file)` returns error findings for selectors that have not matched a violation, using `file` as their location. `checkSettlementTables` accepts the tracker as `settlementExemptions`. `assertSettlementRecords` accepts the shared configuration as `config` and reads its `packageBuild.settlementExemptions` list.
+
+`lintFrontmatter` accepts `settlementExemptions` and `configFile`; its result includes `settlementExemptNotes`, the number of local notes with suppressed settlement findings.
 
 ### `engine.mapPlaces`
 
@@ -2812,13 +2817,14 @@ const config = loadPackageBuildConfig();
 console.log(config.stageDir);
 ```
 
-| Export                      | Signature                                 | Returns                        | Use it when                                                                                                                                                                       |
-| --------------------------- | ----------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DERIVED_MANIFEST_KEYS`     | `const DERIVED_MANIFEST_KEYS`             | —                              | reading which manifest keys a repository may not declare because the build derives them (declaring one is an error naming the key)                                                |
-| `resolvePackageBuildConfig` | `resolvePackageBuildConfig(shared)`       | `Readonly<PackageBuildConfig>` | validating the `packageBuild:` section from an already-loaded shared configuration — the pure half, usable without touching disk                                                  |
-| `loadPackageBuildConfig`    | `loadPackageBuildConfig()`                | `Readonly<PackageBuildConfig>` | reading and validating the repository's resolved package-build configuration from disk, read fresh on each call rather than cached at import                                      |
-| `checkHomepage`             | `checkHomepage(homepage, contentPackage)` | `void`                         | validating a resolved `homepage` against `contentPackage` — called by `package-build site build` before the site settings are composed, not by `resolvePackageBuildConfig` itself |
-| `fail`                      | `fail(where, problem)`                    | `never`                        | rejecting a configured value from a sibling module, naming the dotted key path it was written under, so the loader can resolve it to a line and column                            |
+| Export                          | Signature                                 | Returns                        | Use it when                                                                                                                                                                       |
+| ------------------------------- | ----------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DERIVED_MANIFEST_KEYS`         | `const DERIVED_MANIFEST_KEYS`             | —                              | reading which manifest keys a repository may not declare because the build derives them (declaring one is an error naming the key)                                                |
+| `normalizeSettlementExemptions` | `normalizeSettlementExemptions(value)`    | `readonly object[]`            | validating reasoned settlement selectors and returning frozen entries in a frozen list                                                                                            |
+| `resolvePackageBuildConfig`     | `resolvePackageBuildConfig(shared)`       | `Readonly<PackageBuildConfig>` | validating the `packageBuild:` section from an already-loaded shared configuration — the pure half, usable without touching disk                                                  |
+| `loadPackageBuildConfig`        | `loadPackageBuildConfig()`                | `Readonly<PackageBuildConfig>` | reading and validating the repository's resolved package-build configuration from disk, read fresh on each call rather than cached at import                                      |
+| `checkHomepage`                 | `checkHomepage(homepage, contentPackage)` | `void`                         | validating a resolved `homepage` against `contentPackage` — called by `package-build site build` before the site settings are composed, not by `resolvePackageBuildConfig` itself |
+| `fail`                          | `fail(where, problem)`                    | `never`                        | rejecting a configured value from a sibling module, naming the dotted key path it was written under, so the loader can resolve it to a line and column                            |
 
 ## `./prettier`
 

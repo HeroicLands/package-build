@@ -151,7 +151,7 @@ settlement sum. Populations use at most two significant digits. Each settlement
 has short `data.notes`; a populated settlement note also requires `data.type`,
 a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
 If the settlement sum falls outside the tolerance, list the settlements or
-record an owner exception for that polity.
+declare a reasoned settlement exemption for that polity in the [configuration](docs/configuration.md#settlement-exemptions).
 
 ```yaml
 type: affiliation

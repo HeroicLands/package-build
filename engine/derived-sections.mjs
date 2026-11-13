@@ -292,7 +292,7 @@ export function derivedSections(
     records,
     { fileOf, foreignIndex = new Map(), config, only, rawOf, all = records },
 ) {
-    assertSettlementRecords(all, { fileOf, foreignIndex, rawOf });
+    assertSettlementRecords(all, { fileOf, foreignIndex, rawOf, config });
     const notes = records.filter((record) => isNoteRecord(record) && record.shortcode);
     const pages = notes.filter((record) => record.address);
     const nodeOf = (record) => ({

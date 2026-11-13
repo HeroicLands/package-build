@@ -13,6 +13,7 @@
 
 /** Indexed polity settlement facts, validation and shared table markup. @module */
 import fs from "node:fs";
+import { normalizeSettlementExemptions } from "../config.mjs";
 import { declaredHeadings } from "./declared-sections.mjs";
 import { positionOfFrontmatterPath, formatDiagnostic } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
@@ -24,6 +25,7 @@ import {
     readQualifier,
     splitAnchor,
 } from "./address.mjs";
+import { addressSuffixes } from "./address-render.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { isGmNote, NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 import { SETTLEMENT_COLUMNS, SETTLEMENT_ROW_FIELDS } from "./settlement-terms.mjs";
@@ -273,16 +275,80 @@ function rowsOf(corpus, owner, recursive) {
 }
 
 /**
+ * Track settlement exceptions against actual findings in local notes.
+ * @param {readonly {address?: string, prefix?: string, reason: string}[]} entries - Reasoned selectors.
+ * @param {string} contentPackage - The local package.
+ * @returns {object} Finding filter, count and stale-entry reporter.
+ */
+export function settlementExemptionTracker(entries = [], contentPackage = "local") {
+    const used = new Set();
+    let count = 0;
+    return {
+        filter(note, findings) {
+            if (!findings.some((finding) => finding.settlementExemptible)) return findings;
+            const fm = fmOf(note);
+            if (!fm.type || !fm.shortcode || (fm.package && fm.package !== contentPackage))
+                return findings;
+            const typed = addressSuffixes({
+                package: contentPackage,
+                system: "note",
+                type: fm.type,
+                shortcode: fm.shortcode,
+            })[1];
+            const matched = [];
+            for (const [i, entry] of entries.entries()) {
+                let matches = false;
+                if (entry.prefix) matches = typed.startsWith(entry.prefix);
+                else
+                    matches = addressSuffixes({
+                        package: contentPackage,
+                        system: "note",
+                        type: fm.type,
+                        shortcode: fm.shortcode,
+                    })
+                        .slice(1)
+                        .includes(entry.address);
+                if (matches) matched.push(i);
+            }
+            if (!matched.length) return findings;
+            for (const i of matched) used.add(i);
+            count++;
+            return findings.filter((finding) => !finding.settlementExemptible);
+        },
+        get count() {
+            return count;
+        },
+        stale(file) {
+            return entries.flatMap((entry, i) =>
+                used.has(i) ?
+                    []
+                :   [
+                        {
+                            file,
+                            line: 1,
+                            column: 1,
+                            severity: "error",
+                            message: `settlement exemption ${JSON.stringify(entry.address ?? entry.prefix)} matches no settlement violation`,
+                        },
+                    ],
+            );
+        },
+    };
+}
+
+/**
  * Check settlement facts and political hierarchy at their authored positions.
  * @param {object} note - The indexed note and its source.
- * @param {{index?: any}} [options] - The address index.
+ * @param {{index?: any, settlementExemptions?: any}} [options] - The address index and optional exemption tracker.
  * @returns {object[]} Findings at known positions.
  */
-export function checkSettlementTables(note, { index } = {}) {
+export function checkSettlementTables(note, { index, settlementExemptions } = {}) {
+    if (settlementExemptions)
+        return settlementExemptions.filter(note, checkSettlementTables(note, { index }));
     if (!index) return [];
     const fm = fmOf(note);
     const findings = [];
-    const report = (rule, path, message) => {
+    const report = (rule, path, message, settlementExemptible = false) => {
         let at = Array.isArray(path) ? {} : path;
         if (Array.isArray(path))
             for (let length = path.length; length; length--) {
@@ -295,6 +361,7 @@ export function checkSettlementTables(note, { index } = {}) {
             file: note.file,
             ...at,
             severity: "error",
+            ...(settlementExemptible ? { settlementExemptible: true } : {}),
             message: `${rule}: ${message}`,
         });
     };
@@ -344,13 +411,19 @@ export function checkSettlementTables(note, { index } = {}) {
                         "settlement field",
                         [...at, key],
                         `${key} must be ${field.allowed.join(", ")}${field.nullable ? ", or null" : ""}`,
+                        key === "type" || key === "market",
                     );
             } else if (key === "location") checkRef(value, ["place"], [...at, key]);
             else if (key === "polity") checkRef(value, ["affiliation"], [...at, key], true, true);
             else if (key === "holder")
                 checkRef(value, ["affiliation", "being"], [...at, key], false, true);
             else if (!text(value))
-                report("settlement field", [...at, key], `${key} is nonempty short text`);
+                report(
+                    "settlement field",
+                    [...at, key],
+                    `${key} is nonempty short text`,
+                    key === "notes",
+                );
         }
     };
     if (declaration !== undefined) {
@@ -423,6 +496,7 @@ export function checkSettlementTables(note, { index } = {}) {
             "territorial population",
             ["data", "territorial_population"],
             "a polity with settlements, a seat, or subordinate polities requires a territorial population",
+            true,
         );
     if (total !== undefined) {
         if (!population(total))
@@ -440,7 +514,8 @@ export function checkSettlementTables(note, { index } = {}) {
                 report(
                     "territorial population",
                     ["data", "territorial_population"],
-                    `settlements account for ${sum.toLocaleString("en-US")} people against territorial population ${total.toLocaleString("en-US")}; the allowed difference is five percent; list the settlements or record an owner exception for that polity.`,
+                    `settlements account for ${sum.toLocaleString("en-US")} people against territorial population ${total.toLocaleString("en-US")}; the allowed difference is five percent; list the settlements or declare a reasoned packageBuild.settlementExemptions entry for that polity.`,
+                    true,
                 );
         }
     }
@@ -450,10 +525,13 @@ export function checkSettlementTables(note, { index } = {}) {
 /**
  * Fail publishing before invalid settlement facts become output.
  * @param {object[]} records - Indexed notes.
- * @param {{fileOf?: Function, foreignIndex?: Map<string, object>, rawOf?: Function}} [options] - Source and dependency access.
+ * @param {{fileOf?: Function, foreignIndex?: Map<string, object>, rawOf?: Function, config?: object}} [options] - Source, configuration and dependency access.
  * @returns {void}
  */
-export function assertSettlementRecords(records, { fileOf, foreignIndex = new Map(), rawOf } = {}) {
+export function assertSettlementRecords(
+    records,
+    { fileOf, foreignIndex = new Map(), rawOf, config } = {},
+) {
     const notes = records.filter(isNoteRecord).map((fm) => {
         const file = fileOf(fm);
         return {
@@ -466,7 +544,13 @@ export function assertSettlementRecords(records, { fileOf, foreignIndex = new Ma
         notes: [...notes, ...new Set([...foreignIndex.values()].map((record) => fmOf(record)))],
         contentPackage: records.find((r) => r.package)?.package,
     };
-    const findings = notes.flatMap((note) => checkSettlementTables(note, { index }));
+    const tracker = settlementExemptionTracker(
+        normalizeSettlementExemptions(config?.packageBuild?.settlementExemptions),
+        index.contentPackage,
+    );
+    const findings = notes.flatMap((note) =>
+        checkSettlementTables(note, { index, settlementExemptions: tracker }),
+    );
     if (findings.length)
         throw Object.assign(new Error(findings.map(formatDiagnostic).join("\n")), {
             located: true,

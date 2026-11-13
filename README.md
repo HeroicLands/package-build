@@ -67,6 +67,10 @@ including files that start CLI subprocesses, load SQL databases, or emit
 TypeScript declarations. Keep this bound when reproducing CI failures locally;
 a percentage of the host's CPUs does not reserve resources for other jobs.
 
+Real Typst and PDF fixture compilation requires owner permission and an available
+Typst installation. Once authorized, run `PACKAGE_BUILD_COMPILE_TESTS=1 npm test`
+to include those fixtures. The default test command leaves them disabled.
+
 ## Documentation
 
 The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md). This toolchain does not build its own site or book.

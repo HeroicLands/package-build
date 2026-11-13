@@ -2066,9 +2066,10 @@ packageBuild:
 | [`packageBuild.container`](#packagebuildcontainer)                                         | object                                      | no       | see below                                                  |
 | [`packageBuild.e2e`](#packagebuilde2e)                                                     | object                                      | no       | see below                                                  |
 | [`packageBuild.proseLint`](#packagebuildproselint)                                         | object                                      | no       | `{age: 21, threshold: 5, minWords: 8, rules: readability}` |
+| [`packageBuild.settlementExemptions`](#settlement-exemptions)                              | array                                       | no       | `[]`                                                       |
 | [`packageBuild.proseScore`](#packagebuildprosescore)                                       | object                                      | no       | `{minWords: 80, bands: {}}`                                |
 
-> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, shippingLicenses, baseStyles, manifest, manifestFlags, converterData, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore).``
+> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, shippingLicenses, baseStyles, manifest, manifestFlags, converterData, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore, settlementExemptions).``
 
 ### `packageBuild.proseLint`
 
@@ -2510,3 +2511,28 @@ The result is `build/stage/data/converter.json` with the default stage. It
 ships with that stage in the release archive. See the
 [data format](reference/format-details.md#converter-data-format) and
 [browser API](api.md#browser-conversion).
+
+### Settlement exemptions
+
+`packageBuild.settlementExemptions` is a list of mappings with a nonempty
+`reason` and exactly one selector: `address` for a typed note address, or
+`prefix` for the start of a local `type-shortcode` address. Prefixes may end
+at the hyphen, such as `place-`. Exact addresses may include the package and
+`note` system. Selectors use lowercase letters and digits, never paths.
+
+```yaml
+packageBuild:
+  settlementExemptions:
+    - address: affiliation-council
+      reason: The territorial total includes dispersed households.
+    - prefix: place-north
+      reason: The northern settlement tables are being completed.
+```
+
+An entry suppresses settlement notes, type, market, territorial population requirement,
+and territorial sum findings for matching notes in this package. Other checks still run, and settlement facts remain available to other
+notes' checks. Lint reports the number of affected notes and reports an entry
+that matches no settlement violation as an error. An identical written `address` selector or identical `prefix` selector is rejected.
+Distinct overlapping selectors each receive credit for matching eligible findings;
+a note is counted once. Use an exact polity address
+for an owner exception to the territorial-sum rule.
