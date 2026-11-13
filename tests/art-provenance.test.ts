@@ -1985,6 +1985,23 @@ describe("independent AI status", () => {
         expect(() =>
             readSvgProvenance(svg.replace("</rdf:Description>", `${resource}</rdf:Description>`)),
         ).toThrow(/conflicts/);
+        const human = "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation";
+        const rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+        for (const attributes of [
+            `r:resource="${generated}" rdf:resource="${human}"`,
+            `rdf:resource="${human}" r:resource="${generated}"`,
+        ]) {
+            const ambiguous = svg.replace(
+                "</rdf:Description>",
+                `<Iptc4xmpExt:DigitalSourceType xmlns:r="${rdf}" ${attributes}/></rdf:Description>`,
+            );
+            expect(() => readSvgProvenance(ambiguous)).toThrow(/duplicate/);
+            expect(() => writeSvgProvenance(ambiguous, { rights: "Revised" })).toThrow(/duplicate/);
+            expect(checkProvenance([{ file: "master.svg", bytes: ambiguous }])[0]).toMatchObject({
+                file: "master.svg",
+                severity: "error",
+            });
+        }
         const duplicateSourceOnly = svg
             .replace("<hl:ai>False</hl:ai>", "")
             .replace(

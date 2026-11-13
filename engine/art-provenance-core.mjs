@@ -871,9 +871,18 @@ function readGeneration(packet) {
     let sourceCount = 0;
     class GenerationHandler extends XmpDomHandler {
         startElement(namespaceURI, localName, qName, attrs) {
+            const managedElement =
+                (namespaceURI === HL_NAMESPACE && localName === "ai") ||
+                (namespaceURI === IPTC_NAMESPACE && localName === "DigitalSourceType");
             if (namespaceURI === HL_NAMESPACE && localName === "ai") aiCount++;
             if (namespaceURI === IPTC_NAMESPACE && localName === "DigitalSourceType") sourceCount++;
+            const elementAttributes = new Set();
             for (let i = 0; i < attrs.length; i++) {
+                if (managedElement && attrs.getURI(i) !== "http://www.w3.org/2000/xmlns/") {
+                    const key = `${attrs.getURI(i) ?? ""}|${attrs.getLocalName(i)}`;
+                    if (elementAttributes.has(key)) invalid = true;
+                    elementAttributes.add(key);
+                }
                 if (attrs.getURI(i) === HL_NAMESPACE && attrs.getLocalName(i) === "ai") aiCount++;
                 if (
                     attrs.getURI(i) === IPTC_NAMESPACE &&
@@ -894,7 +903,7 @@ function readGeneration(packet) {
     } catch {
         throw new Error("generation metadata: malformed XMP");
     }
-    if (invalid) throw new Error("generation metadata: malformed XMP");
+    if (invalid) throw new Error("generation metadata: malformed or duplicate XMP attributes");
     if (aiCount > 1) throw new Error("ai: duplicate XMP properties");
     if (sourceCount > 1) throw new Error("digitalSourceType: duplicate XMP properties");
     const values = [];
