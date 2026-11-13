@@ -1296,7 +1296,12 @@ stored as `hl:license`; the build does not extract a license from `rights` prose
 reads back as a URI. `none` or `null` removes it. A PNG with no addressed record
 receives `trainedAlgorithmicMedia` on write unless the caller supplies that field or `ai`;
 SVG and WebP writers supply no default. `ai` is an optional boolean stored as
-`hl:ai`; `null` removes it. An explicit value takes precedence over source type.
+`hl:ai`; `null` removes it. Writers use `True` or `False`; readers also accept
+`true` and `false`. An explicit value takes precedence over source type.
+Malformed or duplicate `hl:ai` declarations and self-closing `hl:ai` properties
+are refused. When `hl:ai` is present, malformed or duplicate source type
+declarations are also refused. A WebP is also refused when a later XMP packet declares `hl:ai`, or when
+the first packet declares `hl:ai` and a later packet declares a source type.
 `trainedAlgorithmicMedia` and `compositeWithTrainedAlgorithmicMedia` conflict
 with `ai: false`; `digitalCreation` conflicts with `ai: true`. Other source types
 do not establish AI status. Without `ai`, those two generated types and

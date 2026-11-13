@@ -873,7 +873,11 @@ function hasGenerationDeclaration(packet, includeSource = false) {
     while ((match = start.exec(text))) {
         if (property.test(match[1])) {
             const after = text.slice(start.lastIndex);
-            if (match[1].includes(":") || /^\s*(?:=|\/?\s*>|$)/u.test(after)) return true;
+            if (
+                match[1].includes(":") ||
+                (!/^<\s+/u.test(match[0]) && /^\s*(?:=|\/?\s*>|$)/u.test(after))
+            )
+                return true;
         }
         let at = start.lastIndex;
         while (at < text.length && text[at] !== ">" && text[at] !== "<") {

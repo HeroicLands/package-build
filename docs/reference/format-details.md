@@ -2719,7 +2719,12 @@ Address when a public asset also carries that Address.
 
 The index uses the embedded creator, license, optional boolean `hl:ai` and IPTC
 digital source type. Explicit `hl:ai` states whether the image is generated and
-takes precedence over source type. A contradiction with a recognized source type
+takes precedence over source type. Writers use `True` or `False`; readers also
+accept `true` and `false`. Malformed or duplicate `hl:ai` declarations and
+self-closing `hl:ai` properties are refused. When `hl:ai` is present, malformed
+or duplicate source type declarations are also refused. A WebP is also refused when a later XMP packet declares `hl:ai`, or when
+the first packet declares `hl:ai` and a later packet declares a source type.
+A contradiction with a recognized source type
 is an error. Without `hl:ai`, trained-model generation and generative augmentation
 are classified as machine-generated; human digital creation is classified as
 non-generated. Other and absent source types leave the status unknown, recorded

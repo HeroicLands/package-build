@@ -47,7 +47,13 @@ role: portrait
 
 ## Master generation status
 
-A master may declare AI generation with the optional boolean `hl:ai`. An absent value leaves the status unknown unless its recognized IPTC source type states it. `trainedAlgorithmicMedia` and `compositeWithTrainedAlgorithmicMedia` conflict with `ai: false`; `digitalCreation` conflicts with `ai: true`. Other source types do not settle AI status. Derivatives repeat `hl:ai` only when the master explicitly declares it. The build admits only non-AI assets with an allowed license.
+A master may declare AI generation with the optional boolean `hl:ai`. An absent
+value leaves the status unknown unless its recognized IPTC source type states it.
+`trainedAlgorithmicMedia` and `compositeWithTrainedAlgorithmicMedia` conflict
+with `ai: false`; `digitalCreation` conflicts with `ai: true`. Other source types
+do not settle AI status. Derivatives repeat `hl:ai` only when the master
+explicitly declares it. The build admits only non-AI assets with an allowed
+license.
 
 ## Which note an image shows
 
