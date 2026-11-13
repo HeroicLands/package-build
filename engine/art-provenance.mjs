@@ -146,7 +146,7 @@
  *
  * ## Checking
  *
- * {@link checkProvenance} reports, as `file:line:column: severity: message`, a
+ * {@link checkProvenance} reports, with its known location and severity, a
  * file with no address, an address that is not a complete Address, an
  * address with two masters, a derivative whose address has no master in the set,
  * a derivative with an incorrect parent trace or unauthorized note fields,
