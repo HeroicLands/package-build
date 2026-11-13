@@ -87,6 +87,7 @@ import { routerFor } from "./pack-router.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 import { createContentSession } from "./content-session.mjs";
+import { privateArtRoots, readArtLock } from "./art-lock.mjs";
 import { assertPrivateArtRoots } from "./art-masters.mjs";
 import { readCanonicalKey, renderAddress } from "./address.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
@@ -519,7 +520,11 @@ export async function buildPdf({
         out || resolved.pdf.out || path.join("build", "dist"),
     );
 
-    assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [
+    if (readArtLock(resolved))
+        throw new Error(
+            "art.lock: error: PDF editions require private master inputs; public pinned artwork is not a master",
+        );
+    assertPrivateArtRoots(privateArtRoots(resolved), [
         outDir,
         path.resolve(resolved.rootDir, "build", ".cache", "art"),
     ]);

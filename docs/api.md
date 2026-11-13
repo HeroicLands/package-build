@@ -3680,3 +3680,29 @@ including its lexical native overrides and decoding recovery. Short document
 references resolve in `data.contentPackage`; foreign encodings require their
 full canonical Address. Use the pure engine's `encodeText` and `decodeText`
 when conversion must ignore vocabulary, as the CLI commands do.
+
+### `./engine/art-lock`
+
+Pinned artwork uses existing standard content-index records. Supply records from
+`indexRecordsFor({config, pinnedArt: false})` or the equivalent generated index;
+no authored provenance sidecar or separate image manifest is required by these
+functions. The records remain the publication and shipping authority. A verified
+public archive cannot introduce an Address absent from them. Its cache key binds
+the complete lock, including package, source revision and public ZIP digest.
+
+| Export               | Signature                                  | Result                        | Behavior                                                                                                        |
+| -------------------- | ------------------------------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `readArtLock`        | `readArtLock(config)`                      | `ArtLock` or `null`           | Validate the closed root JSON lock and input mode.                                                              |
+| `fetchPublicArt`     | `fetchPublicArt(config, {records, from?})` | `Promise<string>`             | Explicitly verify and atomically expose a public cache; `from` is a local ZIP path.                             |
+| `loadPinnedArt`      | `loadPinnedArt(config, records)`           | `{records, files, paths}`     | Read and revalidate the offline cache; return indexed record copies, Address-to-file map and fingerprint paths. |
+| `fetchArtSource`     | `fetchArtSource(config, {from?})`          | `Promise<string>`             | Restore and verify the exact private Git/LFS revision; `from` is a local repository path.                       |
+| `reproducePinnedArt` | `reproducePinnedArt(config, {records})`    | `Promise<Map<string,string>>` | Render only pinned public Addresses from verified private masters and require byte equality.                    |
+| `privateArtRoots`    | `privateArtRoots(config)`                  | `string[]`                    | Return configured private roots and the existing fetched-source cache for output guards.                        |
+
+`files` in `loadPinnedArt` is a `Map<string,string>` keyed by canonical Address.
+These files are verified public derivatives and must be passed directly to
+staging or CDN planning, never inserted into a canonical-master map or decoded
+for lossy re-rendering. Private restoration and reproduction use the same lock
+as offline public builds. All outputs remain under `build/`. The separate
+standard-index supply and integrity contract is described in the
+[command manual](commands.md#package-build-art).

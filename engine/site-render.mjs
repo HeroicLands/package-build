@@ -65,6 +65,7 @@
  * @module
  */
 
+import { privateArtRoots } from "./art-lock.mjs";
 import { phoneticAssetEntries } from "./phonetic-fonts.mjs";
 import fs from "node:fs";
 import path from "node:path";
@@ -812,7 +813,7 @@ function siteInputFiles(files, { out, site, pages }) {
  *   or a provider artifact is unsafe or collides with builder-owned output.
  */
 export async function buildPackageSite({ config, out, year, progress = () => {} }) {
-    assertPrivateArtRoots(config.art?.masterRoots ?? [], [out]);
+    assertPrivateArtRoots(privateArtRoots(config), [out]);
     const settings = siteSettings({ config });
     const { navigation, files } = await readSiteInputs(config);
     progress("indexing content");

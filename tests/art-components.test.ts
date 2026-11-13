@@ -384,3 +384,88 @@ it.each(["empty", "duplicate", "nested", "attribute"])(
         );
     },
 );
+it("refuses private component roots in pinned offline mode", async () => {
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(
+        path.join(root, "art.lock"),
+        JSON.stringify({
+            version: 1,
+            package: "sample",
+            source: { repository: "https://example.test/art.git", revision: "a".repeat(40) },
+            rendered: { url: "https://example.test/art.zip", sha256: "b".repeat(64) },
+        }),
+    );
+    const { readArtLock } = await import("../engine/art-lock.mjs");
+    expect(() =>
+        readArtLock({
+            rootDir: root,
+            contentPackage: "sample",
+            art: { componentRoots: [path.join(root, "private")] },
+        }),
+    ).toThrow(/separate input modes/);
+});
+it("rejects private source addresses and composition metadata from pinned public ZIPs", async () => {
+    await fixture();
+    const { createHash } = await import("node:crypto");
+    const { zipSync } = await import("fflate");
+    const { fetchPublicArt } = await import("../engine/art-lock.mjs");
+    const { writeDerivativeProvenance } = await import("../engine/art-provenance.mjs");
+    const config = {
+        rootDir: root,
+        contentPackage: "sample",
+        paths: { assets: path.join(root, "assets") },
+    };
+    const records = [
+        {
+            type: "icon",
+            address: { canonical: address },
+            asset: {
+                path: "icons/composite.svg",
+                attribution: "Example Artist",
+                license: "CC-BY-SA-4.0",
+                ai: false,
+            },
+        },
+    ];
+    const clean = writeDerivativeProvenance(
+        svg,
+        { ...fields(address), derivedFrom: address },
+        { repeat: ["derivedFrom"] },
+    ).text;
+    const source = writeDerivativeProvenance(
+        svg,
+        { ...fields(red), derivedFrom: red },
+        { repeat: ["derivedFrom"] },
+    ).bytes;
+    const metadata = writeSvgProvenance(svg, {
+        ...fields(address),
+        composition: { layers: [{ address: red }] },
+    } as any).text.match(/<hl:composition>[\s\S]*?<\/hl:composition>/)![0];
+    for (const entries of [
+        { "composite.svg": Buffer.from(clean), "private.svg": source },
+        {
+            "composite.svg": Buffer.from(
+                clean.replace("</rdf:Description>", metadata + "</rdf:Description>"),
+            ),
+        },
+    ]) {
+        const zip = Buffer.from(zipSync(entries));
+        fs.writeFileSync(
+            path.join(root, "art.lock"),
+            JSON.stringify({
+                version: 1,
+                package: "sample",
+                source: { repository: "https://example.test/art.git", revision: "a".repeat(40) },
+                rendered: {
+                    url: "https://example.test/art.zip",
+                    sha256: createHash("sha256").update(zip).digest("hex"),
+                },
+            }),
+        );
+        const from = path.join(root, "candidate.zip");
+        fs.writeFileSync(from, zip);
+        await expect(fetchPublicArt(config, { from, records })).rejects.toThrow(
+            /standard index|private|metadata/,
+        );
+    }
+});

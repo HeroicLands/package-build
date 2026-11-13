@@ -28,6 +28,7 @@ import { runContext } from "./content-scripts.mjs";
 import { resolveReference } from "./wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { loadPinnedArt, readArtLock, privateArtRoots } from "./art-lock.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { lintNoteStates } from "./stub-lint.mjs";
 
@@ -49,6 +50,7 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {object[]} warnings
  * @property {object[]} problems
  * @property {ReturnType<import("./art-masters.mjs").collectArtMasters>["masters"]} masters
+ * @property {Map<string,string>} pinnedArt Verified public derivative paths.
  * @property {ReturnType<typeof loadForeignIndexes>} foreign
  * @property {ContentSyntax} syntax
  * @property {(options?: ContentSessionContext) => void} assertContext
@@ -98,11 +100,13 @@ export async function createContentSession({
     const inventory = timings.sync("source capture", () =>
         captureContentSources(tree, assets, scope),
     );
+    readArtLock(config);
     const roots = config.art?.masterRoots ?? [];
     const componentRoots = config.art?.componentRoots ?? [];
     const artModule =
         roots.length || componentRoots.length ? await import("./art-masters.mjs") : undefined;
-    artModule?.assertPrivateArtRoots([...roots, ...componentRoots], [assets], { role: "input" });
+    const { assertPrivateArtRoots } = await import("./art-masters.mjs");
+    assertPrivateArtRoots(privateArtRoots(config), [assets], { role: "input" });
     const art =
         artModule ?
             artModule.collectArtMasters(roots, config.contentPackage, { componentRoots })
@@ -170,6 +174,8 @@ export async function createContentSession({
             masterRecords: artModule ? artModule.masterAssetRecords(art.masters) : [],
         }),
     );
+    const pinned = loadPinnedArt(config, records);
+    for (const file of pinned.paths) fingerprints?.set(file, fingerprint(file));
     const memo = (key, make) => {
         active();
         if (!prepared.has(key))
@@ -194,6 +200,7 @@ export async function createContentSession({
         problems,
         warnings,
         masters: art.masters,
+        pinnedArt: pinned.files,
         foreign,
         syntax,
         /** Refuse a stale capture after any build phase changes an input. */
