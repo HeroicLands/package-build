@@ -104,8 +104,7 @@ export function validateComposition(value) {
  */
 export function checkCompositionSources(sources) {
     const findings = [];
-    const add = (file, message) =>
-        findings.push({ file, line: 1, column: 1, severity: "error", message });
+    const add = (file, message) => findings.push({ file, severity: "error", message });
     for (const [address, entries] of sources)
         for (const { file, record } of entries) {
             if (record.composition === undefined) continue;

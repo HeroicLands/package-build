@@ -31,6 +31,7 @@ import { buildPrimaryNoteIndex, resolvePrimaryNote } from "./art-primary-note.mj
 import { assertPrivateArtRoots, collectArtMasters } from "./art-masters.mjs";
 import { renderArtMasters } from "./art-master-render.mjs";
 import { setArtSource } from "./art-source.mjs";
+import { formatLocator } from "./diagnostics.mjs";
 
 /** @typedef {{version: 1, package: string, source: {repository: string, revision: string}, rendered: {url: string, sha256: string}}} ArtLock */
 const digest = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
@@ -57,9 +58,14 @@ const PUBLIC_PROPERTIES = [
 
 /** Located failure without including authored credential values. */
 function failure(config, message) {
-    return Object.assign(new Error(`${path.join(config.rootDir, "art.lock")}: error: ${message}`), {
-        located: true,
-    });
+    return Object.assign(
+        new Error(
+            `${formatLocator({ file: path.join(config.rootDir, "art.lock") })}: error: ${message}`,
+        ),
+        {
+            located: true,
+        },
+    );
 }
 function closed(value, keys) {
     return (

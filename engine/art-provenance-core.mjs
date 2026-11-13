@@ -813,7 +813,7 @@ function readProperty(xml, name) {
 
 /** Read the single JSON composition property from its declared namespace. */
 function readComposition(packet) {
-    if (!packet.includes("composition")) return undefined;
+    if (!/(?:<|\s)(?:[^\s<=>/]+:)?composition(?:\s|[=/>])/u.test(packet)) return undefined;
     let invalid = false;
     let document;
     try {
