@@ -114,13 +114,10 @@ import { checkNoteEvents } from "./note-events.mjs";
 // list the compiled Item is held to, so the lint and the compile cannot differ.
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 import { EVENT_ENTRY } from "./note-event-terms.mjs";
-import {
-    ITEMS_FIELD,
-    ITEM_NOTE_FIELDS,
-    checkCultureItems,
-    checkItemNote,
-} from "./item-entries.mjs";
-import { CULTURE_FIELD, checkCultureSubType } from "./culture-choice.mjs";
+import { itemsField, ITEM_NOTE_FIELDS } from "./item-terms.mjs";
+import { checkItems, checkCultureItems, checkItemNote } from "./item-entries.mjs";
+import { cultureField } from "./culture-terms.mjs";
+import { checkCultureChoice, checkCultureSubType } from "./culture-choice.mjs";
 import {
     POST_AUTHOR_FIELD,
     POST_DATE_FIELD,
@@ -1725,6 +1722,9 @@ export const BEING_ARCHETYPES = Object.freeze({
     entertainer: "Performs for an audience through acting, music, comedy, or similar arts.",
     guildsperson: "Has professional training, standing, or connections that open doors.",
 });
+
+const CULTURE_FIELD = cultureField(checkCultureChoice);
+const ITEMS_FIELD = itemsField(checkItems);
 
 /**
  * Every note type this toolchain compiles, and the closed vocabulary it

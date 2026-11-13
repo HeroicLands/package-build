@@ -32,7 +32,10 @@ import {
     parseAddress,
     renderAddress,
 } from "./address.mjs";
+import { cultureField } from "./culture-terms.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
+
+export const CULTURE_FIELD = cultureField(checkCultureChoice);
 
 /** The `lore` subType a culture names, and the one whose culture is itself. */
 const CULTURE_SUBTYPE = "culture";
@@ -130,23 +133,6 @@ export function checkCultureChoice(note, { index } = {}) {
         },
     ];
 }
-
-/**
- * The `data.culture` field, declared once and spread into each type that takes
- * it. A type gives its own `describe` where the field means something narrower
- * there.
- *
- * @type {Readonly<object>}
- */
-export const CULTURE_FIELD = Object.freeze({
-    name: "culture",
-    shape: "an Address",
-    kind: "address",
-    ref: "lore",
-    accepts: Object.freeze(["lore"]),
-    check: checkCultureChoice,
-    describe: "The people this note belongs to, as a culture lore note.",
-});
 
 /**
  * Scope `data.culture` to the subtypes that take it.
