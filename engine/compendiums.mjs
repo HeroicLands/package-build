@@ -42,6 +42,7 @@ import fs from "fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import log from "loglevel";
 import path from "path";
+import { privateArtRoots } from "./art-lock.mjs";
 import { assertPrivateArtRoots } from "./art-masters.mjs";
 import { compilePack, extractPack } from "@foundryvtt/foundryvtt-cli";
 import { generatePacksJson, packJsonDir } from "./generate.mjs";
@@ -100,7 +101,7 @@ export async function compilePacks({
     const measured = (name, work) => (session ? session.timings.measure(name, work) : work());
     const packNames = sourcePacks.filter((name) => !packName || name === packName);
     assertPrivateArtRoots(
-        config.art?.masterRoots ?? [],
+        privateArtRoots(config),
         packNames.map((name) => path.join(stageDest, name)),
     );
 
@@ -264,7 +265,7 @@ export async function cleanPacks({
     packName,
     entryName,
 } = {}) {
-    assertPrivateArtRoots(config.art?.masterRoots ?? [], [
+    assertPrivateArtRoots(privateArtRoots(config), [
         packName ? path.join(packDest, packName) : packDest,
     ]);
     entryName = entryName?.toLowerCase();
@@ -337,7 +338,7 @@ export async function unpackPacks({
     // Determine which source packs to process.
     const selected = packs.filter((p) => !packName || p.name === packName);
     assertPrivateArtRoots(
-        config.art?.masterRoots ?? [],
+        privateArtRoots(config),
         selected.map((pack) => path.join(packDest, pack.name)),
     );
 

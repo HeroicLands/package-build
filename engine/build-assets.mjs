@@ -24,6 +24,7 @@ import { baseStyleStageEntry } from "./base-styles.mjs";
 import { phoneticAssetEntries } from "./phonetic-fonts.mjs";
 import { checkScriptFonts, copyScriptFonts, STAGED_FONTS_DIR } from "./script-font-delivery.mjs";
 import { createContentSession } from "./content-session.mjs";
+import { readArtLock, privateArtRoots } from "./art-lock.mjs";
 import { assertPrivateArtRoots, shippingAssetRecords } from "./art-masters.mjs";
 import { renderArtMasters } from "./art-master-render.mjs";
 
@@ -95,7 +96,7 @@ export async function stagePackageBuildAssets({
     session,
 } = {}) {
     const assetsBase = packConfig.paths.assets;
-    const roots = packConfig.art?.masterRoots ?? [];
+    const roots = privateArtRoots(packConfig);
     assertPrivateArtRoots(
         roots,
         [assetsBase, ...config.assets.map(({ from }) => path.resolve(config.rootDir, from))],
@@ -125,7 +126,7 @@ export async function stagePackageBuildAssets({
     const transform = await loadAssetTransform(config);
     let artSession = session;
     let preparedMasters;
-    if (roots.length) {
+    if (packConfig.art?.masterRoots?.length || readArtLock(packConfig)) {
         artSession ??= await createContentSession({ config: packConfig });
         try {
             artSession.assertContext({ config: packConfig });
@@ -134,12 +135,15 @@ export async function stagePackageBuildAssets({
                 error.located = true;
                 throw error;
             }
-            preparedMasters = await renderArtMasters(
-                artSession.masters,
-                artSession.records,
-                path.join(config.rootDir, "build", "art"),
-                path.join(config.rootDir, "build", ".cache", "art"),
-            );
+            preparedMasters =
+                readArtLock(packConfig) ?
+                    artSession.pinnedArt
+                :   await renderArtMasters(
+                        artSession.masters,
+                        artSession.records,
+                        path.join(config.rootDir, "build", "art"),
+                        path.join(config.rootDir, "build", ".cache", "art"),
+                    );
         } finally {
             if (!session) artSession.dispose();
         }

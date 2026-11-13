@@ -1850,6 +1850,90 @@ Wrote welcome.json
 `package-build site build`, `package-build pdf`, `package-build addresses diff`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
+### `package-build art`
+
+**NAME**
+
+`package-build art` — verify pinned public images and restore private sources.
+
+**SYNOPSIS**
+
+```sh
+package-build art fetch [--from <zip>]
+package-build art source fetch [--from <repository>]
+package-build art reproduce
+```
+
+**DESCRIPTION**
+
+The root [`art.lock`](configuration.md#artlock) pins the package, private Git
+revision and public ZIP digest. Ordinary builds only read its complete local
+cache. They never fetch artwork or read the private checkout. Missing or changed
+public cache files fail with an instruction to run `package-build art fetch`.
+
+`art fetch` reads the current standard content index, downloads the pinned public
+ZIP, verifies its SHA-256, then validates every entry before exposing the cache
+under `build/.cache/pinned-art/`. The cache key includes the complete lock, so the
+public artifact is bound to its package and source revision. HTTPS URLs carry no credentials or fragments. Public downloads follow at most
+five HTTPS redirects without forwarding authentication; signed object-storage
+redirect URLs are used only for that request and are not written into the lock. Local
+`--from` archives pass the same verification. Unsafe paths, duplicate paths or
+embedded Addresses, symlinks, unsupported entries and invalid metadata fail the
+fetch. ZIP64, encrypted entries and compression methods other than stored or
+deflated are refused. Each entry is at most 256 MiB; the archive and total
+uncompressed entries are at most 2 GiB. Each WebP or SVG must carry its public
+derivative identity and match an existing indexed asset. Archive filenames do not establish identity.
+
+The standard content index supplies the existing shipping and publication facts,
+including attribution, license and generated-image classification. Public note
+names require matching public indexed notes. The command obtains these records
+through `indexRecordsFor({config, pinnedArt: false})`; API callers may supply the
+same generated records directly. An authored `provenance.yaml` is not an archive
+format or a requirement of this API. A complete source cutover requires the
+master-derived standard index to be supplied through the package's normal index
+pipeline. The ZIP and lock do not distribute or authenticate that separate index.
+
+`art source fetch` uses Git's credential configuration and Git LFS to restore the
+exact pinned commit under `build/.cache/art-sources/`. It verifies Git objects,
+LFS pointers and objects, and every embedded master identity and checksum. Every
+master must be tracked in LFS. A repository `.lfsconfig` is refused: LFS uses the
+Git remote's endpoint. The command does not print remote credentials and does
+not run repository hooks. A populated source destination is retained; use an
+empty build workspace for another restore.
+
+`art reproduce` checks that fetched source revision and its master bytes, renders
+only the Addresses present in the public archive to `build/art-reproduced/`, and
+compares every output byte with the pinned public image. Extra private images
+remain unpublished. Public fetch, private restore and reproduction use the same
+unchanged lock, with no `art.masterRoots` configuration or authored-file rename.
+Public WebP and SVG inputs are derivatives, never canonical masters or sources
+for lossy re-rendering. PDF editions require a private-master configuration.
+
+**OPTIONS**
+
+`--from <zip>` supplies a local public archive to `art fetch`. `--from <repository>`
+supplies a local Git repository to `art source fetch`; the revision and integrity
+checks still apply. `art reproduce` has no options. Every action supports `--help`.
+
+**EXIT STATUS**
+
+0 means the requested fetch or byte comparison succeeds. 1 means the lock,
+standard index, archive, cache, Git/LFS source or reproduced bytes fail validation.
+
+**EXAMPLES**
+
+```sh
+package-build art fetch --from build/downloads/art.zip
+package-build content build
+package-build art source fetch
+package-build art reproduce
+```
+
+**SEE ALSO**
+
+[Asset authoring](authoring/assets.md#pinned-public-artwork),
+[Configuration](configuration.md#artlock), [API](api.md#engineart-lock).
+
 ### `package-build deps fetch`
 
 **NAME**

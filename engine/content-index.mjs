@@ -119,6 +119,7 @@ export { asciiName };
 import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
 import { requiredModulePackages, resolveItemDefaults } from "./item-entries.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
+import { readArtLock, loadPinnedArt, privateArtRoots } from "./art-lock.mjs";
 import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
 import { copyArtSource } from "./art-source.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
@@ -1641,6 +1642,7 @@ function dependencyAddresses(config) {
  * @param {object[]} [opts.warnings] - Receives nonfatal asset findings.
  * @param {NoteDerivationCache} [opts.cache] - Earlier parses and per-note
  *   records to answer from; see {@link collectContentIndex}.
+ * @param {boolean} [opts.pinnedArt=true] Read verified local public artwork; explicit fetch supplies false.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
 export function indexRecordsFor({
@@ -1658,8 +1660,10 @@ export function indexRecordsFor({
     cache,
     masterRecords,
     warnings,
+    pinnedArt = true,
 } = {}) {
     const resolved = config ?? loadPackConfig();
+    readArtLock(resolved);
     if (!masterRecords && resolved.art?.masterRoots?.length) {
         assertPrivateArtRoots(resolved.art.masterRoots, [assetsBase ?? resolved.paths.assets], {
             role: "input",
@@ -1684,7 +1688,7 @@ export function indexRecordsFor({
         foreign ??= foreignIndex ?? loadForeignIndexes(resolved, [resolved.contentPackage]).index;
         return foreign.get(key);
     };
-    return collectContentIndex(tree, {
+    const records = collectContentIndex(tree, {
         rootDir: resolved.rootDir,
         contentPackage: resolved.contentPackage,
         currentDate: resolved.currentDate,
@@ -1711,6 +1715,7 @@ export function indexRecordsFor({
         masterRecords,
         warnings,
     });
+    return pinnedArt ? loadPinnedArt(resolved, records).records : records;
 }
 
 /** Active body directives whose output cannot be inferred synchronously. */
@@ -2051,7 +2056,7 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
     const tree = path.resolve(contentBase ?? publication?.contentBase ?? resolved.paths.content);
     const dir = outDir ?? resolved.paths.contentIndex;
     const contentPackage = resolved.contentPackage;
-    assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [
+    assertPrivateArtRoots(privateArtRoots(resolved), [
         path.join(dir, metadataFileName(contentPackage)),
         ...["dictionary", "terms"].map((relation) =>
             path.join(dir, `${contentPackage}-${relation}.jsonl`),

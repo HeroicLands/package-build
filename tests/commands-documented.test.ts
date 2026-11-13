@@ -42,7 +42,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { CONTAINER_ACTIONS } from "../container.mjs";
 import { E2E_MODES } from "../e2e.mjs";
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const DOC_PATH = path.join(ROOT, "docs", "commands.md");
@@ -231,9 +231,9 @@ const nodes = allNodes();
 const doc = fs.readFileSync(DOC_PATH, "utf8");
 
 describe("the command's real surface, extracted from source", () => {
-    it("has 44 top-level commands", () => {
+    it("has 45 top-level commands", () => {
         const topLevel = nodes.filter((n) => n.path.length === 1);
-        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(44);
+        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(45);
     });
 
     it("includes `package-build site-root`", () => {
@@ -283,6 +283,27 @@ describe("the command's real surface, extracted from source", () => {
             expect(help).toContain("unpack");
         },
         SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "shows explicit artwork operations in command help",
+        () => {
+            expect(commandHelp("art")).toContain("reproduce");
+            for (const action of [
+                ["art", "fetch"],
+                ["art", "source", "fetch"],
+                ["art", "reproduce"],
+            ]) {
+                const help = execFileSync(
+                    process.execPath,
+                    [path.join(ROOT, "bin/package-build.mjs"), ...action, "--help"],
+                    { encoding: "utf8" },
+                );
+                expect(help).toContain("--help");
+                if (action.at(-1) === "fetch") expect(help).toContain("--from");
+            }
+        },
+        subprocessTimeout(4),
     );
 
     it(

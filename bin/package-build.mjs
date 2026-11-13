@@ -89,6 +89,7 @@ import { hideBin } from "yargs/helpers";
 import { loadPackageBuildConfig } from "../config.mjs";
 import { loadAssetTransform, stagePackageBuildAssets } from "../engine/build-assets.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
+import { readArtLock, privateArtRoots } from "../engine/art-lock.mjs";
 import { assertPrivateArtRoots, shippingAssetRecords } from "../engine/art-masters.mjs";
 import { artSource } from "../engine/art-source.mjs";
 import { renderArtMasters } from "../engine/art-master-render.mjs";
@@ -429,7 +430,7 @@ function cleanCommand() {
             }),
         handler: handler((args) => {
             const config = loadPackageBuildConfig();
-            const roots = loadPackConfig().art?.masterRoots ?? [];
+            const roots = privateArtRoots(loadPackConfig());
             assertPrivateArtRoots(
                 roots,
                 [
@@ -472,7 +473,7 @@ function stageCommand() {
         handler: handler(() => {
             const config = loadPackageBuildConfig();
             assertPrivateArtRoots(
-                loadPackConfig().art?.masterRoots ?? [],
+                privateArtRoots(loadPackConfig()),
                 [path.resolve(config.rootDir, config.stageDir)],
                 { inspectChildren: false },
             );
@@ -495,7 +496,7 @@ function calendarsCommand() {
             }),
         handler: handler((args) => {
             const config = loadPackConfig();
-            assertPrivateArtRoots(config.art?.masterRoots ?? [], [
+            assertPrivateArtRoots(privateArtRoots(config), [
                 path.join(config.rootDir, "build", "calendars"),
             ]);
             const result = emitCalendarArtifacts({
@@ -660,7 +661,7 @@ function schemaCommand() {
             });
 
             const out = path.join(config.rootDir, "build", SCHEMA_ARTIFACT_FILE);
-            assertPrivateArtRoots(loadPackConfig().art?.masterRoots ?? [], [out]);
+            assertPrivateArtRoots(privateArtRoots(loadPackConfig()), [out]);
             const text = await formatGenerated(JSON.stringify(artifact), out);
             const counts = Object.entries(artifact.documents)
                 .map(([kind, subtypes]) => `${Object.keys(subtypes).length} ${kind}`)
@@ -696,7 +697,7 @@ function manifestCommand() {
         handler: handler(async () => {
             const config = loadPackageBuildConfig();
             const shared = loadPackConfig();
-            assertPrivateArtRoots(shared.art?.masterRoots ?? [], [
+            assertPrivateArtRoots(privateArtRoots(shared), [
                 path.resolve(config.rootDir, config.stageDir),
             ]);
             // Refused rather than written: a manifest is the file Foundry reads
@@ -785,7 +786,7 @@ function siteRootCommand() {
                 base: siteBase(shared),
                 out,
                 search: shared.site.search,
-                masterRoots: shared.art?.masterRoots,
+                masterRoots: privateArtRoots(shared),
             });
             for (const file of files) {
                 console.log(`✅ Wrote ${path.relative(config.rootDir, file)}.`);
@@ -1506,7 +1507,7 @@ function cdnPublishCommand() {
                 );
             }
 
-            const roots = packConfig.art?.masterRoots ?? [];
+            const roots = privateArtRoots(packConfig);
             assertPrivateArtRoots(roots, [packConfig.paths.assets], { role: "input" });
             assertPrivateArtRoots(roots, [
                 path.join(config.rootDir, "build", "art"),
@@ -1514,7 +1515,7 @@ function cdnPublishCommand() {
             ]);
             let artRecords;
             let preparedMasters;
-            if (roots.length) {
+            if (packConfig.art?.masterRoots?.length || readArtLock(packConfig)) {
                 const session = await createContentSession({ config: packConfig });
                 try {
                     if (session.problems.length) {
@@ -1522,12 +1523,15 @@ function cdnPublishCommand() {
                         process.exitCode = 1;
                         return;
                     }
-                    preparedMasters = await renderArtMasters(
-                        session.masters,
-                        session.records,
-                        path.join(config.rootDir, "build", "art"),
-                        path.join(config.rootDir, "build", ".cache", "art"),
-                    );
+                    preparedMasters =
+                        readArtLock(packConfig) ?
+                            session.pinnedArt
+                        :   await renderArtMasters(
+                                session.masters,
+                                session.records,
+                                path.join(config.rootDir, "build", "art"),
+                                path.join(config.rootDir, "build", ".cache", "art"),
+                            );
                     artRecords = shippingAssetRecords(session.records);
                 } finally {
                     session.dispose();

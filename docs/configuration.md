@@ -593,6 +593,42 @@ Any other key on one list entry is refused:
 See [`itemBuilders`](#itembuilders) under Derived values for how the YAML
 name form resolves before reaching here.
 
+### `art.lock`
+
+A package may put a JSON `art.lock` beside its package configuration to consume
+verified public derivatives offline. This file accepts exactly these fields:
+
+```json
+{
+  "version": 1,
+  "package": "sample",
+  "source": {
+    "repository": "https://forge.example/art.git",
+    "revision": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "rendered": {
+    "url": "https://public.example/art.zip",
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }
+}
+```
+
+`package` equals `contentPackage`. `revision` is the complete lowercase hexadecimal
+Git commit (40 or 64 characters); `sha256` is the lowercase 64-character archive
+digest. Both URLs use HTTPS without credentials or fragments; authored token, API-key,
+authorization, password and secret query parameters are refused. Public fetch
+allows at most five HTTPS redirects, including temporary object-storage URLs,
+without forwarding authentication. Unknown fields and malformed pins are errors.
+The lock contains no image identities or credentials. Its cache lives beneath
+`build/`; ordinary builds never use the network to fill it.
+
+Use either `art.lock` or nonempty `art.masterRoots` for ordinary builds. The
+explicit `art source fetch` and `art reproduce` actions restore and check private
+sources using the same lock, without configuring private roots. The standard
+content index still supplies publication and shipping authority; only indexed
+Addresses are accepted from the public ZIP. See [`package-build art`](commands.md#package-build-art)
+for archive rules, source verification and the standard-index supply contract.
+
 ### `art.masterRoots`
 
 **Type:** array of paths · **Optional** · default `[]`.
