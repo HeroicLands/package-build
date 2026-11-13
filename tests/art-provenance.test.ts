@@ -57,6 +57,7 @@ describe("composition declaration detection", () => {
 
     it.each([
         "<root><hl:composition>",
+        '<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:hl="https://heroiclands.org/ns/1.0/"\n<hl:composition>{"layers":[{"address":"sample-none-image-source"}]}</hl:composition></rdf:Description>',
         '<root hl:composition="{}"',
         "<root hl:composition/>",
         '<root xmlns:other="urn:other"><other:composition>{}</other:composition></root>',

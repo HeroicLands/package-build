@@ -814,7 +814,7 @@ function readProperty(xml, name) {
 /** Read the single JSON composition property from its declared namespace. */
 function readComposition(packet) {
     const markup =
-        /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)|<(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^>"'])*(?:>|$)/gu;
+        /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)|<(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^<>"'])*(?:>|(?=<)|$)/gu;
     const declaration =
         /^<\s*(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)|\s(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)/u;
     if (
