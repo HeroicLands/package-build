@@ -46,6 +46,7 @@ export async function renderArtMasters(masters, records, outDir, cacheDir) {
     }
     const files = new Map();
     for (const [address, master] of masters) {
+        if (master.publication === "component") continue;
         const bytes = fs.readFileSync(master.file);
         const note = notes.get(master.record.primaryNote);
         const publicMaster = { ...master.record, derivedFrom: address };

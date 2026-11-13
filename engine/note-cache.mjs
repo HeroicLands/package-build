@@ -63,7 +63,8 @@ import v8 from "node:v8";
 import { AddressEntries, AddressLink } from "./address-values.mjs";
 import { isAddressTuple, readCanonicalKey, renderAddress } from "./address.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
-import { collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
+import { readArtLock, loadPinnedArt, privateArtRoots } from "./art-lock.mjs";
+import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
 import { formatDiagnostic } from "./diagnostics.mjs";
 import { walkMarkdownFiles, parseMarkdownFile } from "./helpers.mjs";
 import { cachedMetadataFiles, loadForeignIndexes } from "./metadata-index.mjs";
@@ -416,12 +417,15 @@ function packageFingerprint(config) {
     return digest(
         configFile ? fs.readFileSync(configFile) : "",
         resolved,
+        JSON.stringify(readArtLock(config)),
         JSON.stringify(fonts ? { root: fonts.root, version: fonts.version } : null),
         fonts?.root && fs.existsSync(path.join(fonts.root, "fonts.json")) ?
             fs.readFileSync(path.join(fonts.root, "fonts.json"))
         :   "",
         ...cachedMetadataFiles(config).flatMap((file) => [file, fs.readFileSync(file)]),
-        ...(config.art?.masterRoots ?? []).flatMap(masterFingerprintParts),
+        ...[...(config.art?.masterRoots ?? []), ...(config.art?.componentRoots ?? [])].flatMap(
+            masterFingerprintParts,
+        ),
     );
 }
 
@@ -939,6 +943,8 @@ function readForeign(config, loadForeign) {
  * @returns {Promise<NoteTree|undefined>} The reading.
  */
 async function readTree(config, { cache, toolchain, loadForeign, prepareTables }) {
+    readArtLock(config);
+    assertPrivateArtRoots(privateArtRoots(config), [config.paths.assets], { role: "input" });
     const { indexRecordsFor } = await import("./content-index.mjs");
     const prepareTreeSqlTables =
         prepareTables ?? (await import("./sql-tables.mjs")).prepareTreeSqlTables;
@@ -946,7 +952,9 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
     const skipDirectories = config.skipDirectories;
     if (cache && configMovedOn(config)) throw inputsChanged(config);
     const before = cache ? packageFingerprint(config) : "";
-    const art = collectArtMasters(config.art?.masterRoots ?? [], config.contentPackage);
+    const art = collectArtMasters(config.art?.masterRoots ?? [], config.contentPackage, {
+        componentRoots: config.art?.componentRoots,
+    });
     if (art.findings.length) throw new Error(art.findings.map(formatDiagnostic).join("\n"));
     const masterRecords = masterAssetRecords(art.masters);
     const prepare = (records, parsed, files) =>
@@ -1080,7 +1088,7 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
         const store = { ...tree, writable: true };
         let parsed;
         return {
-            records: /** @type {object[]} */ (records),
+            records: loadPinnedArt(config, /** @type {object[]} */ (records)).records,
             foreign,
             answers: (files, own) =>
                 answersFor(

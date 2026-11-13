@@ -2707,7 +2707,11 @@ resolves to. Each finding is `file:line:column: error: message` at the file.
 
 `hl:license` is an optional exact machine-readable license identifier on a
 master, such as `CC-BY-SA-4.0`. It is distinct from the free-text `dc:rights`
-statement. Private master roots are configured with `art.masterRoots`; each
+statement. Private component roots use `art.componentRoots` and never produce
+public records or renders. A master can carry the closed ordered `composition`
+object described in the [composition API](../api.md#image-composition); it stays
+private and addresses its source images without paths or prose parsing.
+Private master roots are configured with `art.masterRoots`; each
 PNG or SVG master carries its image or icon Address. Missing, malformed and
 duplicate identities are errors at the source files. A master marked as a
 derivative is refused. A master supplies the record and public output for its

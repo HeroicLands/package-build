@@ -38,6 +38,7 @@
  * @module
  */
 
+import { formatDiagnostic } from "./diagnostics.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 import { buildContentLinkIndex } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -88,6 +89,7 @@ export async function buildCompileCorpus({
         return session.compileCorpus();
     }
     const collected = problems ?? [];
+    const pinnedArtFindings = [];
     const parsed = new Map();
     const records = indexRecordsFor({
         contentBase,
@@ -95,8 +97,13 @@ export async function buildCompileCorpus({
         config: resolved,
         skipDirectories,
         problems: collected,
+        pinnedArtFindings,
         parsed,
     });
+    if (pinnedArtFindings.length)
+        throw Object.assign(new Error(pinnedArtFindings.map(formatDiagnostic).join("\n")), {
+            located: true,
+        });
     const corpusOptions = { config: resolved, records };
     const sqlOptions = { ...corpusOptions, skipDirectories, parsed };
     const sqlTables = await prepareTreeSqlTables(contentBase, sqlOptions);

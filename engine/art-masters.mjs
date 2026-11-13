@@ -13,6 +13,7 @@
 
 /** Private image inputs keyed by their embedded address. */
 import fs from "node:fs";
+import { checkCompositionSources } from "./art-composition.mjs";
 import path from "node:path";
 import { readCanonicalKey } from "./address.mjs";
 import { renderAddress } from "./address.mjs";
@@ -88,16 +89,20 @@ export function assertPrivateArtRoots(
  * Read each PNG and SVG in the configured roots once.
  * @param {readonly string[]} roots Private input directories.
  * @param {string} contentPackage The package owning the inputs.
- * @returns {{masters: Map<string, {file: string, record: import('./art-provenance-core.mjs').ProvenanceRecord, dimensions?: {width: number, height: number}}>, findings: object[], paths: string[]}} Parsed masters, input paths and located findings.
+ * @param {{componentRoots?: readonly string[]}} [options] Unpublished component input roots.
+ * @returns {{masters: Map<string, {file: string, publication?: "master"|"component", record: import('./art-provenance-core.mjs').ProvenanceRecord, dimensions?: {width: number, height: number}}>, components: Map<string, {file: string, publication?: "master"|"component", record: import("./art-provenance-core.mjs").ProvenanceRecord, dimensions?: {width: number, height: number}}>, findings: object[], paths: string[]}} Parsed masters, input paths and located findings.
  */
-export function collectArtMasters(roots, contentPackage) {
+export function collectArtMasters(roots, contentPackage, { componentRoots = [] } = {}) {
+    assertPrivateArtRoots(roots, componentRoots, { inspectChildren: false, role: "input" });
     const masters = new Map();
+    const components = new Map();
+    const all = new Map();
     const findings = [];
     const paths = [];
     const reported = new Set();
     const add = (file, message) =>
         findings.push({ file, line: 1, column: 1, severity: "error", message });
-    const visit = (dir) => {
+    const visit = (dir, publication) => {
         paths.push(dir);
         let entries;
         try {
@@ -115,7 +120,7 @@ export function collectArtMasters(roots, contentPackage) {
                 continue;
             }
             if (entry.isDirectory()) {
-                visit(file);
+                visit(file, publication);
                 continue;
             }
             if (
@@ -147,26 +152,39 @@ export function collectArtMasters(roots, contentPackage) {
                     !["image", "icon"].includes(tuple.type)
                 )
                     throw new Error("master address must name an image or icon in this package");
-                const previous = masters.get(address);
+                if (publication === "component") {
+                    for (const field of ["creator", "rights"])
+                        if (typeof record[field] !== "string" || !record[field].trim())
+                            throw new Error(`private component ${field} is missing`);
+                    if (record.composition !== undefined)
+                        throw new Error(
+                            "private component must be a source image without a recipe",
+                        );
+                }
+                const master = {
+                    file,
+                    record,
+                    publication,
+                    dimensions: imageDimensions(file, path.extname(file).toLowerCase(), bytes),
+                };
+                const previous = all.get(address)?.[0];
+                all.set(address, [...(all.get(address) ?? []), master]);
                 if (previous) {
                     if (!reported.has(address)) {
                         add(previous.file, "duplicate master address");
                         reported.add(address);
                     }
                     add(file, "duplicate master address");
-                } else
-                    masters.set(address, {
-                        file,
-                        record,
-                        dimensions: imageDimensions(file, path.extname(file).toLowerCase(), bytes),
-                    });
+                } else (publication === "component" ? components : masters).set(address, master);
             } catch (error) {
                 add(file, error.message);
             }
         }
     };
-    for (const root of roots) visit(root);
-    return { masters, findings, paths };
+    for (const root of roots) visit(root, "master");
+    for (const root of componentRoots) visit(root, "component");
+    findings.push(...checkCompositionSources(all));
+    return { masters, components, findings, paths };
 }
 
 /**
@@ -175,35 +193,37 @@ export function collectArtMasters(roots, contentPackage) {
  * @returns {Record<string, any>[]} Asset records.
  */
 export function masterAssetRecords(masters) {
-    return [...masters].map(([address, master]) => {
-        const tuple = readCanonicalKey(address);
-        const extension = path.extname(master.file).toLowerCase();
-        const dimensions = master.dimensions;
-        const root = tuple.type === "icon" ? "icons" : "images";
-        return setArtSource(
-            {
-                package: tuple.package,
-                type: tuple.type,
-                shortcode: tuple.shortcode,
-                address: { canonical: address },
-                asset: {
-                    path: `${root}/${tuple.shortcode}${extension === ".svg" ? ".svg" : ".webp"}`,
-                    attribution: master.record.creator ?? "",
-                    source: "",
-                    ai:
-                        GENERATED_SOURCE_TYPES.has(master.record.digitalSourceType) ? true
-                        : master.record.digitalSourceType === HUMAN_SOURCE_TYPE ? false
-                        : null,
-                    license: master.record.license ?? "",
-                    notes: "",
-                    role: "",
-                    width: dimensions?.width ?? "",
-                    height: dimensions?.height ?? "",
+    return [...masters]
+        .filter(([, master]) => master.publication !== "component")
+        .map(([address, master]) => {
+            const tuple = readCanonicalKey(address);
+            const extension = path.extname(master.file).toLowerCase();
+            const dimensions = master.dimensions;
+            const root = tuple.type === "icon" ? "icons" : "images";
+            return setArtSource(
+                {
+                    package: tuple.package,
+                    type: tuple.type,
+                    shortcode: tuple.shortcode,
+                    address: { canonical: address },
+                    asset: {
+                        path: `${root}/${tuple.shortcode}${extension === ".svg" ? ".svg" : ".webp"}`,
+                        attribution: master.record.creator ?? "",
+                        source: "",
+                        ai:
+                            GENERATED_SOURCE_TYPES.has(master.record.digitalSourceType) ? true
+                            : master.record.digitalSourceType === HUMAN_SOURCE_TYPE ? false
+                            : null,
+                        license: master.record.license ?? "",
+                        notes: "",
+                        role: "",
+                        width: dimensions?.width ?? "",
+                        height: dimensions?.height ?? "",
+                    },
                 },
-            },
-            master.file,
-        );
-    });
+                master.file,
+            );
+        });
 }
 
 /**

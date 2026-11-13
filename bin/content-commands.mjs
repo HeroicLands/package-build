@@ -54,6 +54,13 @@ import {
     siteBuildConfig,
 } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
+import {
+    fetchPublicArt,
+    fetchArtSource,
+    reproducePinnedArt,
+    privateArtRoots,
+    readArtLock,
+} from "../engine/art-lock.mjs";
 import { assertPrivateArtRoots } from "../engine/art-masters.mjs";
 import { artSource } from "../engine/art-source.mjs";
 import { GENERATED_DRAWING_DIR } from "../engine/generated-sections.mjs";
@@ -323,6 +330,7 @@ export function registerContentCommands(cli) {
         )
         .command(itemsCommand())
         .command(depsCommand())
+        .command(artCommand())
         .command(docsCommand())
         .command(withIndexPreflight(lintCommand()))
         .command(proseCommand())
@@ -1581,6 +1589,7 @@ function contentBuildOutputs(config, packaging) {
         config.paths.content,
         ...DEPLOYED_ASSET_TYPES.map((entry) => path.resolve(config.paths.assets, entry.root)),
         ...(config.art?.masterRoots ?? []),
+        ...(readArtLock(config) ? [path.join(config.rootDir, "build/.cache/pinned-art")] : []),
     ];
     const stage = path.resolve(packaging.rootDir, packaging.stageDir);
     const outputs = [
@@ -1595,9 +1604,24 @@ function contentBuildOutputs(config, packaging) {
     const assetDestinations = packaging.assets.map(({ to }) =>
         path.resolve(packaging.rootDir, path.join(packaging.stageDir, to)),
     );
-    assertPrivateArtRoots(config.art?.masterRoots ?? [], [...outputs, ...assetDestinations]);
+    assertPrivateArtRoots(privateArtRoots(config), [...outputs, ...assetDestinations]);
+    const physicalPaths = new Map();
+    const physical = (value) => {
+        if (physicalPaths.has(value)) return physicalPaths.get(value);
+        let ancestor = path.resolve(value);
+        const suffix = [];
+        while (!fs.existsSync(ancestor)) {
+            const parent = path.dirname(ancestor);
+            if (parent === ancestor) return path.resolve(value);
+            suffix.unshift(path.basename(ancestor));
+            ancestor = parent;
+        }
+        const resolved = path.resolve(fs.realpathSync(ancestor), ...suffix);
+        physicalPaths.set(value, resolved);
+        return resolved;
+    };
     const contains = (parent, child) => {
-        const relative = path.relative(path.resolve(parent), path.resolve(child));
+        const relative = path.relative(physical(parent), physical(child));
         return (
             relative === "" ||
             (!relative.startsWith(`..${path.sep}`) &&
@@ -1657,10 +1681,18 @@ function contentBuildCommand() {
                 const marker = path.join(config.paths.contentIndex, ".publication-ready");
                 const packaging = loadPackageBuildConfig();
                 const outputs = contentBuildOutputs(config, packaging);
+                if (readArtLock(config)) {
+                    session = await createContentSession({ config, timings, trackChanges: true });
+                    if (session.pinnedArtFindings.length)
+                        throw Object.assign(
+                            new Error(session.pinnedArtFindings.map(formatDiagnostic).join("\n")),
+                            { located: true },
+                        );
+                }
                 fs.rmSync(marker, { force: true });
                 for (const output of outputs) fs.rmSync(output, { recursive: true, force: true });
                 cachedMetadataIndexes(config);
-                session = await createContentSession({ config, timings, trackChanges: true });
+                session ??= await createContentSession({ config, timings, trackChanges: true });
                 shared[CONTENT_SESSION] = session;
                 for (const warning of session.warnings) emitDiagnostic(warning);
                 let prepared = false;
@@ -2412,7 +2444,7 @@ function siteBuildCommand() {
                     base: siteBase(config),
                     out: root,
                     search: config.site.search,
-                    masterRoots: config.art?.masterRoots,
+                    masterRoots: privateArtRoots(config),
                     progress: (message) => log.info(message),
                 });
                 if (search) {
@@ -3302,7 +3334,7 @@ function packageCommand() {
                 // it back. Created here rather than at module scope so that
                 // asking the CLI its version needs no configuration.
                 if (!fs.existsSync(config.paths.unpack))
-                    assertPrivateArtRoots(config.art?.masterRoots ?? [], [config.paths.unpack]);
+                    assertPrivateArtRoots(privateArtRoots(config), [config.paths.unpack]);
                 fs.mkdirSync(config.paths.unpack, {
                     recursive: true,
                 });
@@ -3819,5 +3851,86 @@ function itemsCommand() {
                 process.exitCode = 1;
             }
         },
+    };
+}
+
+/** Explicit pinned artwork fetching; ordinary builds use only verified local inputs. */
+function artCommand() {
+    return {
+        command: "art <action>",
+        describe: "Fetch pinned artwork for offline builds",
+        builder: (yargs) =>
+            yargs
+                .command({
+                    command: "fetch",
+                    describe: "Fetch and verify public derivatives from art.lock",
+                    builder: (y) =>
+                        y.option("from", {
+                            type: "string",
+                            describe: "Read the pinned ZIP from a local file",
+                        }),
+                    handler: async (argv) => {
+                        try {
+                            const config = loadPackConfig();
+                            const records = indexRecordsFor({ config, pinnedArt: false });
+                            await fetchPublicArt(config, { records, from: argv.from });
+                            log.info("Pinned public artwork is verified for offline builds.");
+                        } catch (error) {
+                            reportFailure(error);
+                            process.exitCode = 1;
+                        }
+                    },
+                })
+                .command({
+                    command: "reproduce",
+                    describe: "Verify private regeneration against the pinned public artwork",
+                    handler: async () => {
+                        try {
+                            const config = loadPackConfig();
+                            const records = indexRecordsFor({ config });
+                            await reproducePinnedArt(config, { records });
+                            log.info("Private regeneration matches the pinned public artwork.");
+                        } catch (error) {
+                            reportFailure(error);
+                            process.exitCode = 1;
+                        }
+                    },
+                })
+                .command({
+                    command: "source <action>",
+                    describe: "Restore private pinned Git/LFS sources",
+                    builder: (y) =>
+                        y
+                            .command({
+                                command: "fetch",
+                                describe: "Fetch and verify the exact private revision in art.lock",
+                                builder: (z) =>
+                                    z.option("from", {
+                                        type: "string",
+                                        describe:
+                                            "Use a local Git repository at the same pinned revision",
+                                    }),
+                                handler: async (argv) => {
+                                    try {
+                                        const config = loadPackConfig();
+                                        const destination = await fetchArtSource(config, {
+                                            from: argv.from,
+                                        });
+                                        log.info(
+                                            `Verified private artwork at ${path.relative(config.rootDir, destination)}.`,
+                                        );
+                                    } catch (error) {
+                                        reportFailure(error);
+                                        process.exitCode = 1;
+                                    }
+                                },
+                            })
+                            .demandCommand(1)
+                            .strict(),
+                    handler: () => {},
+                })
+                .demandCommand(1)
+                .strict(),
+        handler: () => {},
     };
 }

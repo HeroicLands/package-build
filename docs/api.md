@@ -946,7 +946,9 @@ is persisted or shared across sessions.
 The session exposes `config`, `contentBase`, `assetsBase`, `skipDirectories`,
 `router`, physical `inventory`, raw `sources`, derived `records`, authored
 `parsed` notes, preparation `problems` and captured dependency `foreign`
-views. Treat these inputs as read-only. Parsed notes retain exact `raw`
+views. Pinned artwork supplies integrity-verified `pinnedArt` paths and a separate
+`pinnedArtFindings` array for live publication disagreements; those findings also
+appear in `problems`. Treat these inputs as read-only. Parsed notes retain exact `raw`
 strings, trimmed `body`, authored `frontmatter` and file coordinates; malformed
 or untyped physical files remain available to raw checks. Derivation and
 publication use their own record projections, including per-system clones.
@@ -1144,23 +1146,26 @@ derived data, and is not an authored frontmatter key.
 declarations. `indexRecordsFor` defaults that iterable to the resolved
 configuration's `itemTypes`.
 
-| Export                  | Signature                                                                                                                                                   | Returns                                                                                                                                                                                                                  | Use it when                                                                                                                                                                                                                                                                         |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `noteAddress`           | `function noteAddress(frontmatter, contentPackage)`                                                                                                         | {{slug: string, canonical: string}\|null} `slug` is what goes inside `[[…]]` within this package; `canonical` is the fully qualified key the manifest files the note under, carrying the package and the system as well. | The address a wikilink writes to reach a note, or `null` when it has none.                                                                                                                                                                                                          |
-| `sortKeysDeep`          | `function sortKeysDeep(value)`                                                                                                                              | {unknown} The value with every plain object's keys in sorted order.                                                                                                                                                      | Recursively sort an object's keys, so serialization is order-independent.                                                                                                                                                                                                           |
-| `asciiName`             | `function asciiName(name)`                                                                                                                                  | {string\|null} The ASCII form, or `null` when there is no name, or nothing printable survives.                                                                                                                           | A note's display name reduced to printable 7-bit ASCII.                                                                                                                                                                                                                             |
-| `asciiForms`            | `function asciiForms(name)`                                                                                                                                 | {Record<string, string[]>} Possibly empty, never null: a note listing no form has an empty map, which a consumer iterating it need not check first.                                                                      | A note's listed name forms reduced to printable 7-bit ASCII, by language.                                                                                                                                                                                                           |
-| `serializeContentIndex` | `function serializeContentIndex(records)`                                                                                                                   | {string} One compact JSON object per line, newline-terminated.                                                                                                                                                           | Serialize records as JSON Lines.                                                                                                                                                                                                                                                    |
-| `indexRecordsFor`       | `indexRecordsFor({ contentBase, config, skipDirectories, problems, parsed, sources, syntax, foreignIndex, nameTypes? })`                                    | {object[]} One record per note, plus one per documentation entry.                                                                                                                                                        | The index records for a content tree, without writing anything.                                                                                                                                                                                                                     |
-| `indexRecordsForNote`   | `indexRecordsForNote({ frontmatter, body, bodyLine, bodyColumn?, nameTypes?, relPath, absPath, raw, contentPackage, manifest, addressContext })`            | `object[]`                                                                                                                                                                                                               | Derive the note's own record and its documentation record from parsed text.                                                                                                                                                                                                         |
-| `prepareContentIndex`   | `async prepareContentIndex({ contentBase, config, session } = {})`                                                                                          | `Promise<PreparedContentIndex>` — the captured source context and complete expanded bodies, described below                                                                                                              | Prepare dynamic publication without writing files.                                                                                                                                                                                                                                  |
-| `emitContentIndex`      | `emitContentIndex({ contentBase, outDir, config, publication } = {})`                                                                                       | `{{file: string, notes: number, assets: number, records: number, bytes: number, full: number, draft: number, stub: number, dictionary: {file: string, rows: number}, terms: {file: string, rows: number}}}`              | Synchronously publish metadata and the dictionary and terms datafiles; dynamic content requires a complete `publication`.                                                                                                                                                           |
-| `buildIndexRecord`      | `buildIndexRecord({ frontmatter, relPath, absPath, raw, contentPackage, body, bodyLine, bodyColumn?, nameTypes?, manifest })`                               | `Record<string, any>` — the record, with derived fields sorted deep                                                                                                                                                      | building one note's content-index record; refuses a note that authors a key the index derives itself (`package` among them) before building anything                                                                                                                                |
-| `collectContentIndex`   | `collectContentIndex(contentBase, { contentPackage, skipDirectories, assetsBase, manifest, problems, foreignRecord, parsed, sources, syntax, nameTypes? })` | `Array<Record<string, any>>`                                                                                                                                                                                             | reading a whole content tree into index records, in a total order independent of directory-read order; an item note yields two records (its own and its documentation journal's), and each asset root yields one per file; each note carries its resolved culture as `data.culture` |
-| `resolveCultures`       | `resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems })`                                                                        | `Array<Record<string, any>>` — the same records                                                                                                                                                                          | writing each note's resolved culture into its record as `data.culture`: its own value, else its parents', else for a polity its seat's and governed places', pooled; parents that disagree give a finding into `problems`, or one thrown Error listing every conflict               |
+| Export                       | Signature                                                                                                                                                   | Returns                                                                                                                                                                                                                  | Use it when                                                                                                                                                                                                                                                                         |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `noteAddress`                | `function noteAddress(frontmatter, contentPackage)`                                                                                                         | {{slug: string, canonical: string}\|null} `slug` is what goes inside `[[…]]` within this package; `canonical` is the fully qualified key the manifest files the note under, carrying the package and the system as well. | The address a wikilink writes to reach a note, or `null` when it has none.                                                                                                                                                                                                          |
+| `sortKeysDeep`               | `function sortKeysDeep(value)`                                                                                                                              | {unknown} The value with every plain object's keys in sorted order.                                                                                                                                                      | Recursively sort an object's keys, so serialization is order-independent.                                                                                                                                                                                                           |
+| `asciiName`                  | `function asciiName(name)`                                                                                                                                  | {string\|null} The ASCII form, or `null` when there is no name, or nothing printable survives.                                                                                                                           | A note's display name reduced to printable 7-bit ASCII.                                                                                                                                                                                                                             |
+| `asciiForms`                 | `function asciiForms(name)`                                                                                                                                 | {Record<string, string[]>} Possibly empty, never null: a note listing no form has an empty map, which a consumer iterating it need not check first.                                                                      | A note's listed name forms reduced to printable 7-bit ASCII, by language.                                                                                                                                                                                                           |
+| `serializeContentIndex`      | `function serializeContentIndex(records)`                                                                                                                   | {string} One compact JSON object per line, newline-terminated.                                                                                                                                                           | Serialize records as JSON Lines.                                                                                                                                                                                                                                                    |
+| `indexRecordsFor`            | `indexRecordsFor({ contentBase, config, skipDirectories, problems, parsed, sources, syntax, foreignIndex, nameTypes? })`                                    | {object[]} One record per note, plus one per documentation entry.                                                                                                                                                        | The index records for a content tree, without writing anything.                                                                                                                                                                                                                     |
+| `publicationIndexRecordsFor` | `publicationIndexRecordsFor(options)`                                                                                                                       | `object[]`                                                                                                                                                                                                               | Internal publishing adapter for `indexRecordsFor` options; collect and refuse findings before returning records.                                                                                                                                                                    |
+| `indexRecordsForNote`        | `indexRecordsForNote({ frontmatter, body, bodyLine, bodyColumn?, nameTypes?, relPath, absPath, raw, contentPackage, manifest, addressContext })`            | `object[]`                                                                                                                                                                                                               | Derive the note's own record and its documentation record from parsed text.                                                                                                                                                                                                         |
+| `prepareContentIndex`        | `async prepareContentIndex({ contentBase, config, session } = {})`                                                                                          | `Promise<PreparedContentIndex>` — the captured source context and complete expanded bodies, described below                                                                                                              | Prepare dynamic publication without writing files.                                                                                                                                                                                                                                  |
+| `emitContentIndex`           | `emitContentIndex({ contentBase, outDir, config, publication } = {})`                                                                                       | `{{file: string, notes: number, assets: number, records: number, bytes: number, full: number, draft: number, stub: number, dictionary: {file: string, rows: number}, terms: {file: string, rows: number}}}`              | Synchronously publish metadata and the dictionary and terms datafiles; dynamic content requires a complete `publication`.                                                                                                                                                           |
+| `buildIndexRecord`           | `buildIndexRecord({ frontmatter, relPath, absPath, raw, contentPackage, body, bodyLine, bodyColumn?, nameTypes?, manifest })`                               | `Record<string, any>` — the record, with derived fields sorted deep                                                                                                                                                      | building one note's content-index record; refuses a note that authors a key the index derives itself (`package` among them) before building anything                                                                                                                                |
+| `collectContentIndex`        | `collectContentIndex(contentBase, { contentPackage, skipDirectories, assetsBase, manifest, problems, foreignRecord, parsed, sources, syntax, nameTypes? })` | `Array<Record<string, any>>`                                                                                                                                                                                             | reading a whole content tree into index records, in a total order independent of directory-read order; an item note yields two records (its own and its documentation journal's), and each asset root yields one per file; each note carries its resolved culture as `data.culture` |
+| `resolveCultures`            | `resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems })`                                                                        | `Array<Record<string, any>>` — the same records                                                                                                                                                                          | writing each note's resolved culture into its record as `data.culture`: its own value, else its parents', else for a polity its seat's and governed places', pooled; parents that disagree give a finding into `problems`, or one thrown Error listing every conflict               |
 
 `prepareContentIndex` resolves `contentBase` from the configured `paths.content`
-when omitted. Its `PreparedContentIndex` contains:
+when omitted. Pass its returned object directly to `emitContentIndex`; a copy or
+reconstructed object does not carry the checked preparation. Its
+`PreparedContentIndex` contains:
 
 | Field            | Value                                                                                                                                              |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1276,7 +1281,8 @@ and any number of derivatives; neither a filename nor a sidecar supplies identit
 `ProvenanceRecord` has optional string fields `address`, `identifier`, `kind`,
 `name`, `primaryNote`, `role`, `derived`, `derivedFrom`, `prompt`, `generator`,
 `title`, `creator`, `rights`, `license`, `digitalSourceType`, `created`, `software`,
-`description`, `source` and `processing`, plus `formerNames: string[]`.
+`description`, `source` and `processing`, plus `formerNames: string[]` and
+`composition: ArtComposition`.
 Writers require a complete `<package>-<system>-<type>-<shortcode>` Address.
 They set both `hl:address` and `dc:identifier` from `address`. Readers fill in
 either missing value from the other, retaining disagreements for the checker.
@@ -1521,6 +1527,74 @@ are `{reason: "no-note"}` when no note names the image,
 `publicNotes` contains the Addresses without a GM-only tag. It supplies the
 visibility authority when checking derivative note fields.
 
+### Image composition
+
+`composition` is a private object embedded as JSON in `hl:composition`. Writers
+replace this object as a whole, preserve it when omitted and remove it for
+`null`. PNG and SVG retain the same ordered values. Derivatives never carry it,
+even when `repeat` names it. These declarations identify source relationships;
+a recipe does not certify pixel equality with an existing master. Public builds
+render the retained master, without replacing it from its recipe.
+
+```javascript
+const composition = {
+  recipe: "over-v1",
+  width: 512,
+  height: 512,
+  layers: [
+    {
+      address: "sample-none-image-background",
+      width: 512,
+      height: 512,
+      left: 0,
+      top: 0,
+      kernel: "cubic",
+    },
+    {
+      address: "sample-none-icon-foreground",
+      width: 512,
+      height: 512,
+      left: 0,
+      top: 0,
+      kernel: "lanczos3",
+    },
+  ],
+};
+```
+
+With `recipe`, every displayed key is required and no other key is accepted.
+Without `recipe`, only `{layers: [{address: "sample-none-icon-foreground"}]}` is
+accepted: ordered confirmed source references, with no canvas or layer settings.
+Use this shape when the production recipe is unknown. A rendering call requires
+the complete recipe shape; it never guesses settings for bare relationships.
+`over-v1` draws
+layers in array order, bottom first, using source-over blending onto a transparent
+sRGB RGBA canvas. Each input is converted to sRGB and stretched to its declared
+size with the named Sharp kernel: `nearest`, `cubic`, `mitchell`, `lanczos2` or
+`lanczos3`. SVGs use Sharp's default rasterization density before resizing. All
+sizes are positive safe integers; offsets are nonnegative safe integers. Each
+layer fits wholly inside the canvas. Canvas and source decoding are bounded to
+16,777,216 pixels, with one to 32 layers. Attach recipe settings to a master only after exact reconstruction is verified;
+keep candidate settings and differences in the comparison receipt.
+Sources must be canonical PNG or SVG
+images whose embedded identity matches the complete Address. References are
+unique and cannot name the composite itself or a source with another recipe.
+Missing and duplicate sources produce located findings. The recipe accepts no
+filesystem path, executable code or command.
+
+The `@heroiclands/package-build/engine/art-composition` entry exports:
+
+| Export                    | Signature                                                       | Result                                                                  |
+| ------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `validateComposition`     | `validateComposition(value)`                                    | Validated copy with stable property order; throws for malformed recipes |
+| `checkCompositionSources` | `checkCompositionSources(Map<Address, {file, record}[]>)`       | Located relationship findings, including duplicate sources              |
+| `renderComposition`       | `await renderComposition(recipe, Map<Address, {file, record}>)` | PNG bytes for comparison; reads canonical source files and writes none  |
+
+Retain originals and compare dimensions and decoded RGBA pixels before accepting
+a reconstruction. Record the toolchain and codec versions with the comparison
+receipt. Nonzero differences leave the composite in place; recipe metadata is
+not evidence that an approximation is an exact reproduction.
+
 ### Internal art modules
 
 The wildcard export makes `@heroiclands/package-build/engine/art-masters`,
@@ -1541,6 +1615,10 @@ privacy writer, `readJpegProvenance`, and `deriveRecord` and owns the supported 
 `art-masters` exports `assertPrivateArtRoots`, `collectArtMasters`,
 `masterAssetRecords` and `shippingAssetRecords` for private-root validation,
 master collection, asset-record projection and shipping-record adaptation.
+`collectArtMasters(masterRoots, contentPackage, {componentRoots}?)` returns
+separate `masters` and `components` maps, `findings` and input `paths`. Collection
+marks component entries with `publication: "component"`; asset indexing and
+master rendering exclude those entries even when maps are combined.
 `art-master-render` exports `renderArtMasters` for public rendering under the
 build directory. `art-source` exports `setArtSource`, `copyArtSource` and
 `artSource` for diagnostic locations held only in memory. These functions serve
@@ -3613,3 +3691,56 @@ including its lexical native overrides and decoding recovery. Short document
 references resolve in `data.contentPackage`; foreign encodings require their
 full canonical Address. Use the pure engine's `encodeText` and `decodeText`
 when conversion must ignore vocabulary, as the CLI commands do.
+
+### `./engine/art-lock`
+
+Pinned artwork uses existing standard content-index records. Supply records from
+`indexRecordsFor({config, pinnedArt: false})` or the equivalent generated index;
+no authored provenance sidecar or separate image manifest is required by these
+functions. The records remain the publication and shipping authority. A verified
+public archive cannot introduce an Address absent from them. Its cache key binds
+the complete lock, including package, source revision and public ZIP digest.
+
+| Export               | Signature                                  | Result                              | Behavior                                                                                                       |
+| -------------------- | ------------------------------------------ | ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `readArtLock`        | `readArtLock(config)`                      | `ArtLock` or `null`                 | Validate the closed root JSON lock and input mode.                                                             |
+| `fetchPublicArt`     | `fetchPublicArt(config, {records, from?})` | `Promise<string>`                   | Explicitly verify and atomically expose a public cache; `from` is a local ZIP path.                            |
+| `loadPinnedArt`      | `loadPinnedArt(config, records)`           | `{records, files, paths, findings}` | Verify offline bytes and return current records, derivative paths, fingerprints and live publication findings. |
+| `fetchArtSource`     | `fetchArtSource(config, {from?})`          | `Promise<string>`                   | Restore or reuse the verified private Git/LFS revision; `from` is a local acquisition path.                    |
+| `reproducePinnedArt` | `reproducePinnedArt(config, {records})`    | `Promise<Map<string,string>>`       | Render only pinned public Addresses from verified private masters and require byte equality.                   |
+| `privateArtRoots`    | `privateArtRoots(config)`                  | `string[]`                          | Return configured private roots and the existing fetched-source cache for output guards.                       |
+
+`fetchArtSource` verifies an existing checkout offline without cloning or fetching.
+It and `reproducePinnedArt` use fresh Git control metadata to verify the pinned
+file set, Git objects, LFS pointers and materialized bytes. Cached configuration,
+hooks, refs and index flags are not authorities. The integrity receipt adds a
+checksum check; it cannot override the pinned objects. An invalid existing source
+cache is retained and requires `package-build clean` followed by
+`package-build art source fetch`. Cleaning protects configured master and
+component roots while removing the regenerable fetched cache.
+
+`files` in `loadPinnedArt` is a `Map<string,string>` keyed by canonical Address.
+These are integrity-verified derivative bytes. Publication requires an empty
+`findings` array before passing them to staging, CDN planning or another output.
+A valid pinned archive can disagree with the current index; its files alone do
+not authorize publication. Never insert them into a canonical-master map or
+decode them for lossy re-rendering.
+
+`loadPinnedArt` throws for a missing, unsafe, partial or corrupt cache, with the
+`art fetch` remedy. A live attribution, asset Address or public note metadata
+mismatch returns a finding at the cached image without echoing a stale name or
+private note identity. Publish a new archive against the current index, update
+its URL and digest in `art.lock`, then fetch it. Fetching the same pin cannot
+repair that mismatch. Returned records retain the current index's shipping
+fields; the archive cannot supply a missing record or restore archived names.
+`indexRecordsFor` appends these findings to an optional `problems` array and
+returns records even without that sink. Content lint reports them alongside
+other checks. Publication preparation refuses them before producing output.
+`createContentSession` verifies the archive once, binds its records, retains its
+files and fingerprints, and exposes `session.pinnedArtFindings` while appending
+those findings to `session.problems`. Its
+compile preparation refuses pinned-art findings while preserving the ordinary
+handling of unrelated corpus problems. Private restoration and reproduction use the same lock
+as offline public builds. All outputs remain under `build/`. The separate
+standard-index supply and integrity contract is described in the
+[command manual](commands.md#package-build-art).

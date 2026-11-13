@@ -119,6 +119,7 @@ export { asciiName };
 import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
 import { requiredModulePackages, resolveItemDefaults } from "./item-entries.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
+import { readArtLock, loadPinnedArt, privateArtRoots } from "./art-lock.mjs";
 import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
 import { copyArtSource } from "./art-source.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
@@ -1627,7 +1628,8 @@ function dependencyAddresses(config) {
  *   cannot be recorded is pushed here as a diagnostic and skipped, instead of
  *   aborting the derivation. Omitted, the note throws — which is the contract
  *   the emitter needs, since an index missing a note asserts that it does not
- *   exist.
+ *   exist. Live pinned-art mismatches are appended when supplied and never
+ *   throw from this ordinary reader; missing or corrupt cache bytes still throw.
  * @param {Map<string, {body: string, frontmatter: object|null, raw: string, bodyLine?: number, bodyColumn?: number}>} [opts.parsed] -
  *   Filled with each note's body and authored frontmatter, keyed by the note's
  *   file. Handed to {@link module:engine/sql-tables.prepareTreeSqlTables}, it
@@ -1641,6 +1643,8 @@ function dependencyAddresses(config) {
  * @param {object[]} [opts.warnings] - Receives nonfatal asset findings.
  * @param {NoteDerivationCache} [opts.cache] - Earlier parses and per-note
  *   records to answer from; see {@link collectContentIndex}.
+ * @param {object[]} [opts.pinnedArtFindings] - Receives only live pinned-art publication findings.
+ * @param {boolean} [opts.pinnedArt=true] Read verified local public artwork; explicit fetch supplies false.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
 export function indexRecordsFor({
@@ -1658,13 +1662,23 @@ export function indexRecordsFor({
     cache,
     masterRecords,
     warnings,
+    pinnedArt = true,
+    pinnedArtFindings,
 } = {}) {
     const resolved = config ?? loadPackConfig();
-    if (!masterRecords && resolved.art?.masterRoots?.length) {
-        assertPrivateArtRoots(resolved.art.masterRoots, [assetsBase ?? resolved.paths.assets], {
-            role: "input",
-        });
-        const collected = collectArtMasters(resolved.art.masterRoots, resolved.contentPackage);
+    readArtLock(resolved);
+    assertPrivateArtRoots(privateArtRoots(resolved), [assetsBase ?? resolved.paths.assets], {
+        role: "input",
+    });
+    if (
+        !masterRecords &&
+        (resolved.art?.masterRoots?.length || resolved.art?.componentRoots?.length)
+    ) {
+        const collected = collectArtMasters(
+            resolved.art.masterRoots ?? [],
+            resolved.contentPackage,
+            { componentRoots: resolved.art.componentRoots },
+        );
         if (problems) problems.push(...collected.findings);
         else if (collected.findings.length) {
             const error = new Error(collected.findings.map(formatDiagnostic).join("\n"));
@@ -1684,7 +1698,7 @@ export function indexRecordsFor({
         foreign ??= foreignIndex ?? loadForeignIndexes(resolved, [resolved.contentPackage]).index;
         return foreign.get(key);
     };
-    return collectContentIndex(tree, {
+    const records = collectContentIndex(tree, {
         rootDir: resolved.rootDir,
         contentPackage: resolved.contentPackage,
         currentDate: resolved.currentDate,
@@ -1711,7 +1725,27 @@ export function indexRecordsFor({
         masterRecords,
         warnings,
     });
+    if (!pinnedArt) return records;
+    const pinned = loadPinnedArt(resolved, records);
+    problems?.push(...pinned.findings);
+    if (pinnedArtFindings !== problems) pinnedArtFindings?.push(...pinned.findings);
+    return pinned.records;
 }
+
+/**
+ * Derive publication records and refuse findings before any output preparation.
+ * @internal
+ * @param {Parameters<typeof indexRecordsFor>[0]} options Index derivation context.
+ * @returns {object[]} Publication-checked records.
+ */
+export function publicationIndexRecordsFor(options) {
+    const problems = [];
+    const records = indexRecordsFor({ ...options, problems });
+    publicationProblems(problems);
+    return records;
+}
+
+const preparedPublications = new WeakSet();
 
 /** Active body directives whose output cannot be inferred synchronously. */
 function dynamicPublicationBody(body) {
@@ -1785,7 +1819,8 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
     session?.assertContext({ config: resolved, contentBase: tree });
     const parsed = session?.parsed ?? new Map();
     const records =
-        session?.records ?? indexRecordsFor({ contentBase: tree, config: resolved, parsed });
+        session?.records ??
+        publicationIndexRecordsFor({ contentBase: tree, config: resolved, parsed });
     if (session?.problems.length) publicationProblems(session.problems);
     const expandedBodies = new Map();
     const foundryBodies = new Map();
@@ -1921,7 +1956,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
                 expandedBodies.set(file, expanded);
         }
     }
-    return {
+    const publication = {
         config: resolved,
         contentBase: tree,
         records,
@@ -1930,6 +1965,8 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
         foundryBodies,
         syntax: session?.syntax,
     };
+    preparedPublications.add(publication);
+    return publication;
 }
 
 /**
@@ -2051,7 +2088,7 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
     const tree = path.resolve(contentBase ?? publication?.contentBase ?? resolved.paths.content);
     const dir = outDir ?? resolved.paths.contentIndex;
     const contentPackage = resolved.contentPackage;
-    assertPrivateArtRoots(resolved.art?.masterRoots ?? [], [
+    assertPrivateArtRoots(privateArtRoots(resolved), [
         path.join(dir, metadataFileName(contentPackage)),
         ...["dictionary", "terms"].map((relation) =>
             path.join(dir, `${contentPackage}-${relation}.jsonl`),
@@ -2074,7 +2111,8 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
     const parsed = publication?.parsed ?? new Map();
     if (
         publication &&
-        (publication.config !== resolved ||
+        (!preparedPublications.has(publication) ||
+            publication.config !== resolved ||
             publication.contentBase !== tree ||
             !Array.isArray(publication.records) ||
             !(publication.parsed instanceof Map) ||
@@ -2085,7 +2123,8 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
             "Use await prepareContentIndex({ config, contentBase }) for this publication's source tree and configuration",
         );
     const records = cloneAddressState(
-        publication?.records ?? indexRecordsFor({ contentBase: tree, config: resolved, parsed }),
+        publication?.records ??
+            publicationIndexRecordsFor({ contentBase: tree, config: resolved, parsed }),
     );
     const notes = records.filter(isNoteRecord);
     const needsPreparation =

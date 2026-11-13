@@ -717,7 +717,7 @@ export function publishesContentPages(config) {
  * @property {Record<string, any> & {inputs?: string}} [site] Site settings;
  *                                          inputs names the optional local input provider.
  * @property {PathsInput} [paths]           Layout overrides. See {@link DEFAULT_PATHS}.
- * @property {{masterRoots?: string[]}} [art] Private input directories for image masters.
+ * @property {{masterRoots?: string[], componentRoots?: string[]}} [art] Private input directories for image masters.
  * @property {string[]} [skipDirectories]   Directory names the content walk ignores
  *                                          wherever they appear (e.g. Obsidian's
  *                                          `Templates`). Default `[]`.
@@ -775,7 +775,7 @@ export function publishesContentPages(config) {
  * @property {Readonly<Record<string, any> & {inputs: string}>} site Frozen site settings;
  *                                     inputs is the local provider path or an empty string.
  * @property {Readonly<ResolvedPaths>} paths
- * @property {Readonly<{masterRoots: readonly string[]}>} art Private master input roots.
+ * @property {Readonly<{masterRoots: readonly string[], componentRoots: readonly string[]}>} art Private master input roots.
  * @property {Readonly<StatsSpec>|null} stats  `null` for a `documentation`
  *                                     package, which stamps no `_stats`.
  * @property {Readonly<Record<string, Function>>} itemBuilders  Derived: the
@@ -1608,12 +1608,19 @@ function normalizePaths(value, rootDir) {
 function normalizeArt(value, rootDir) {
     if (value !== undefined && !isPlainObject(value)) fail("art", "must be an object");
     const input = /** @type {Record<string, unknown>} */ (value ?? {});
-    rejectUnknownKeys(input, ["masterRoots"], "art.");
-    const roots = input.masterRoots === undefined ? [] : input.masterRoots;
-    if (!Array.isArray(roots)) fail("art.masterRoots", "must be an array of directories");
-    const resolved = roots.map((root, index) =>
-        path.resolve(rootDir, requireNonEmptyString(root, `art.masterRoots[${index}]`)),
-    );
+    rejectUnknownKeys(input, ["masterRoots", "componentRoots"], "art.");
+    const entries = [];
+    const groups = {};
+    for (const key of ["masterRoots", "componentRoots"]) {
+        const roots = input[key] === undefined ? [] : input[key];
+        if (!Array.isArray(roots)) fail(`art.${key}`, "must be an array of directories");
+        groups[key] = roots.map((root, index) => {
+            const label = `art.${key}[${index}]`;
+            const resolved = path.resolve(rootDir, requireNonEmptyString(root, label));
+            entries.push({ label, resolved });
+            return resolved;
+        });
+    }
     const physical = (value) => {
         let current = value;
         const suffix = [];
@@ -1634,19 +1641,17 @@ function normalizeArt(value, rootDir) {
                 !path.isAbsolute(relative))
         );
     };
-    for (let i = 0; i < resolved.length; i++) {
+    for (let i = 0; i < entries.length; i++) {
         for (let j = 0; j < i; j++) {
-            const left = physical(resolved[i]);
-            const right = physical(resolved[j]);
+            const left = physical(entries[i].resolved);
+            const right = physical(entries[j].resolved);
             if (contains(left, right) || contains(right, left))
-                fail(
-                    `art.masterRoots[${i}]`,
-                    `overlaps \`art.masterRoots[${j}]\` (${resolved[i]} and ${resolved[j]})`,
-                );
+                fail(entries[i].label, `overlaps \`${entries[j].label}\` (${left} and ${right})`);
         }
     }
     return Object.freeze({
-        masterRoots: Object.freeze(resolved),
+        masterRoots: Object.freeze(groups.masterRoots),
+        componentRoots: Object.freeze(groups.componentRoots),
     });
 }
 
