@@ -55,6 +55,18 @@ import * as provenanceCore from "../engine/art-provenance-core.mjs";
 const root = path.resolve("build/art-masters-test");
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
+it("reports an unreadable master directory without a text position", () => {
+    const missing = path.join(root, "missing");
+    const result = collectArtMasters([missing], "sample");
+    expect(result.findings).toEqual([
+        {
+            file: missing,
+            severity: "error",
+            message: expect.stringContaining("cannot read master directory:"),
+        },
+    ]);
+});
+
 it("refuses a staging source containing a link into private masters", () => {
     const privateRoot = path.join(root, "private");
     const publicRoot = path.join(root, "public");

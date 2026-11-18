@@ -64,6 +64,8 @@ and nothing more:
   there is no line to pair it with, since a column alone locates nothing.
 - `file: …` when nothing beyond the file itself could be established.
 
+A finding about an entire image or directory uses the file-only form.
+
 Nothing ever defaults to `1:1`. A missing position that silently became `1:1`
 would send a reader to the top of the file — usually the frontmatter — for
 every diagnostic that could not otherwise be placed, and it would look

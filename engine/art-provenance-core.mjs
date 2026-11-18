@@ -146,7 +146,7 @@
  *
  * ## Checking
  *
- * {@link checkProvenance} reports, as `file:line:column: severity: message`, a
+ * {@link checkProvenance} reports, with its known location and severity, a
  * file with no address, an address that is not a complete Address, an
  * address with two masters, a derivative whose address has no master in the set,
  * a derivative with an incorrect parent trace or unauthorized note fields,
@@ -165,6 +165,7 @@
  */
 
 import zlib from "node:zlib";
+import { formatDiagnostic } from "./diagnostics.mjs";
 import { validateComposition, checkCompositionSources } from "./art-composition.mjs";
 
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
@@ -1803,20 +1804,20 @@ export function sniffFormat(input) {
  *
  * @typedef {object} ProvenanceFinding
  * @property {string} file - The file the finding is about.
- * @property {number} line - Always 1; the finding is about the file as a whole.
- * @property {number} column - Always 1.
+ * @property {number} [line] - The 1-based line, when known.
+ * @property {number} [column] - The 1-based column, when known.
  * @property {"error"} severity - The severity.
  * @property {string} message - What is wrong.
  */
 
 /**
- * Format a finding as `file:line:column: severity: message`.
+ * Format a finding with its known location and severity.
  *
  * @param {ProvenanceFinding} finding - The finding.
  * @returns {string} The line.
  */
 export function formatFinding(finding) {
-    return `${finding.file}:${finding.line}:${finding.column}: ${finding.severity}: ${finding.message}`;
+    return formatDiagnostic(finding);
 }
 
 /**
@@ -1847,8 +1848,7 @@ export function formatFinding(finding) {
  */
 export function checkProvenance(entries, options = {}) {
     const findings = [];
-    const add = (file, message) =>
-        findings.push({ file, line: 1, column: 1, severity: "error", message });
+    const add = (file, message) => findings.push({ file, severity: "error", message });
     const masterFiles = new Map();
     const derivatives = [];
     for (const { file, bytes } of entries) {

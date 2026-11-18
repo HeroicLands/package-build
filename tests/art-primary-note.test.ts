@@ -243,7 +243,9 @@ describe.each(FORMATS)("$label provenance", ({ label, input, write, read }) => {
         });
         const findings = check(out.bytes);
         expect(findings.map((f) => f.message).join("\n")).toContain("differs from");
-        expect(findings[0]).toMatchObject({ file: "a", line: 1, column: 1 });
+        expect(findings[0]).toMatchObject({ file: "a", severity: "error" });
+        expect(findings[0]).not.toHaveProperty("line");
+        expect(findings[0]).not.toHaveProperty("column");
     });
     it("writes the same bytes when rewritten with the same record", () => {
         const first = WITH(IMG("portrait"));

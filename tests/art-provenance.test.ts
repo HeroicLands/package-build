@@ -358,6 +358,25 @@ describe("master names", () => {
 describe("checkProvenance", () => {
     const written = (address: string) => writeProvenance(png, { ...FIELDS, address }).bytes;
 
+    it("omits unknown positions and retains authored positions in formatted findings", () => {
+        const finding = { file: "art.png", severity: "error" as const, message: "problem" };
+        expect(formatFinding(finding)).toBe("art.png: error: problem");
+        expect(formatFinding({ ...finding, line: 4 })).toBe("art.png:4: error: problem");
+        expect(formatFinding({ ...finding, line: 4, column: 7 })).toBe(
+            "art.png:4:7: error: problem",
+        );
+    });
+
+    it("reports a PNG missing IEND without a text position", () => {
+        const findings = checkProvenance([
+            { file: "broken.png", bytes: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]) },
+        ]);
+        expect(findings).toEqual([
+            { file: "broken.png", severity: "error", message: "PNG has no IEND chunk" },
+        ]);
+        expect(formatFinding(findings[0])).toBe("broken.png: error: PNG has no IEND chunk");
+    });
+
     it("accepts a sound set", () => {
         expect(
             checkProvenance([
@@ -370,7 +389,7 @@ describe("checkProvenance", () => {
     it("refuses a file with no address", () => {
         const findings = checkProvenance([{ file: "bare.png", bytes: png }]);
         expect(findings.map((f) => f.message).join("\n")).toMatch(/no address/);
-        expect(formatFinding(findings[0])).toMatch(/^bare\.png:1:1: error: /);
+        expect(formatFinding(findings[0])).toMatch(/^bare\.png: error: /);
     });
 
     it("refuses a malformed address", () => {
@@ -891,7 +910,7 @@ describe("checkProvenance by master and derivative", () => {
         expect(bare.map((f) => f.message).join("\n")).toMatch(/element is missing/);
         expect(bare.map((f) => f.message).join("\n")).toMatch(/no address/);
         const bad = checkProvenance([{ file: "bad.svg", bytes: Buffer.from([0xff, 0xfe]) }]);
-        expect(formatFinding(bad[0])).toMatch(/^bad\.svg:1:1: error: .*UTF-8/);
+        expect(formatFinding(bad[0])).toMatch(/^bad\.svg: error: .*UTF-8/);
         const malformed = writeSvgProvenance("<svg/>", {
             ...FIELDS,
             address: "thalorna-note-being-aaa",
@@ -1189,7 +1208,7 @@ describe("dc:identifier", () => {
         const findings = checkProvenance([{ file: "a.png", bytes: differing }]);
         expect(findings).toHaveLength(1);
         expect(formatFinding(findings[0])).toMatch(
-            /^a\.png:1:1: error: dc:identifier .* differs from hl:address/,
+            /^a\.png: error: dc:identifier .* differs from hl:address/,
         );
         const svg = writeSvgProvenance(SVG_BODY, SVG_FIELDS).text.replace(
             `<dc:identifier>${FIELDS.address}</dc:identifier>`,

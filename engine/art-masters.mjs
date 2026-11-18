@@ -90,7 +90,7 @@ export function assertPrivateArtRoots(
  * @param {readonly string[]} roots Private input directories.
  * @param {string} contentPackage The package owning the inputs.
  * @param {{componentRoots?: readonly string[]}} [options] Unpublished component input roots.
- * @returns {{masters: Map<string, {file: string, publication?: "master"|"component", record: import('./art-provenance-core.mjs').ProvenanceRecord, dimensions?: {width: number, height: number}}>, components: Map<string, {file: string, publication?: "master"|"component", record: import("./art-provenance-core.mjs").ProvenanceRecord, dimensions?: {width: number, height: number}}>, findings: object[], paths: string[]}} Parsed masters, input paths and located findings.
+ * @returns {{masters: Map<string, {file: string, publication?: "master"|"component", record: import('./art-provenance-core.mjs').ProvenanceRecord, dimensions?: {width: number, height: number}}>, components: Map<string, {file: string, publication?: "master"|"component", record: import("./art-provenance-core.mjs").ProvenanceRecord, dimensions?: {width: number, height: number}}>, findings: object[], paths: string[]}} Parsed masters, input paths and findings.
  */
 export function collectArtMasters(roots, contentPackage, { componentRoots = [] } = {}) {
     assertPrivateArtRoots(roots, componentRoots, { inspectChildren: false, role: "input" });
@@ -100,8 +100,7 @@ export function collectArtMasters(roots, contentPackage, { componentRoots = [] }
     const findings = [];
     const paths = [];
     const reported = new Set();
-    const add = (file, message) =>
-        findings.push({ file, line: 1, column: 1, severity: "error", message });
+    const add = (file, message) => findings.push({ file, severity: "error", message });
     const visit = (dir, publication) => {
         paths.push(dir);
         let entries;
