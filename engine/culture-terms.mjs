@@ -1,0 +1,32 @@
+/*
+ * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
+ * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
+ *
+ * This work is licensed under the GNU General Public License v3.0 (GPLv3).
+ * You may copy, modify, and distribute it under the terms of that license.
+ *
+ * For full terms, see the LICENSE.md file in the project root or visit:
+ * https://www.gnu.org/licenses/gpl-3.0.html
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+/** Culture field declaration. @module */
+/**
+ * The `data.culture` field, declared once and spread into each type that takes
+ * it. A type gives its own `describe` where the field means something narrower
+ * there.
+ *
+ * @param {typeof import("./culture-choice.mjs").checkCultureChoice} checkCultureChoice
+ * @returns {Readonly<{name: string, shape: string, kind: string, ref: string, accepts: readonly string[], check: typeof checkCultureChoice, describe: string}>} The culture field declaration.
+ */
+export function cultureField(checkCultureChoice) {
+    return Object.freeze({
+        name: "culture",
+        shape: "an Address",
+        kind: "address",
+        ref: "lore",
+        accepts: Object.freeze(["lore"]),
+        check: checkCultureChoice,
+        describe: "The people this note belongs to, as a culture lore note.",
+    });
+}
