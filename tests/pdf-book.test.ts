@@ -179,7 +179,12 @@ it(
                 await sharp({ create: { width: 10, height: 10, channels: 3, background: "white" } })
                     .png()
                     .toBuffer(),
-                { address: "sohl-none-image-picture", creator: "Artist", rights: "Rights" },
+                {
+                    address: "sohl-none-image-picture",
+                    creator: "Artist",
+                    rights: "Rights",
+                    digitalSourceType: "digitalCreation",
+                },
             ).bytes;
             const master = path.join(privateRoot, "picture.png");
             fs.writeFileSync(master, original);
@@ -229,8 +234,19 @@ it(
                 address: "sohl-none-image-portrait",
                 creator: "Artist",
                 rights: "Rights",
+                nonAiAlternative: "sohl-none-image-drawing",
             }).bytes;
             fs.writeFileSync(path.join(masters, "unrelated.png"), source);
+            fs.writeFileSync(
+                path.join(masters, "drawing.png"),
+                writeProvenance(png, {
+                    address: "sohl-none-image-drawing",
+                    creator: "Artist",
+                    rights: "Rights",
+                    license: "CC0-1.0",
+                    digitalSourceType: "digitalCreation",
+                }).bytes,
+            );
             fs.appendFileSync(
                 path.join(dir, "package-build.config.yaml"),
                 "art:\n    masterRoots: [private-masters]\n",

@@ -82,6 +82,14 @@
  * writes it over whatever a WebP or SVG file holds, so a private master field
  * reaches a derivative only when it is asked for.
  *
+ * ## Non-AI alternatives
+ *
+ * A known-AI master carries `nonAiAlternative` as `hl:nonAiAlternative`: a complete
+ * canonical image or icon Address with system `none`. Raw reads and edits allow
+ * the field to be absent; the provenance check reports its absence on an AI
+ * master. The public asset index carries the Address, while derivative metadata
+ * omits it. This field records the declared target without resolving eligibility.
+ *
  * ## The note an image shows
  *
  * `hl:name` (record field `name`) and `hl:primarynote` (`primaryNote`) say which
@@ -123,7 +131,9 @@
  * `rdf:Description` blocks stay, `dc:title`,
  * `dc:creator`, `dc:rights`, `dc:description` and the managed `hl:` and
  * `Iptc4xmpExt:DigitalSourceType` properties are removed from them, and one
- * `rdf:Description` block of this module's own is written. A packet that
+ * `rdf:Description` block of this module's own is written. Unchanged multi-entry
+ * creator and rights lists retain their complete XML in that block; explicit
+ * field edits replace them. A packet that
  * cannot be retained safely (it is not RDF, is not well-formed, uses an
  * unbound prefix, or binds a prefix this module uses to a different namespace)
  * is replaced whole, and the result says so in `foreignXmp` and gives the reason
@@ -132,6 +142,7 @@
  * `dc`, `hl` and `Iptc4xmpExt` when bound to this module's namespaces), so
  * every retained property keeps its prefix bound. The SVG writer applies the
  * same rule to its managed metadata element; other elements remain unchanged.
+ * A write refuses an unchanged credit list that cannot be retained safely.
  * Only one XMP chunk survives: the first is rewritten and any
  * further ones are removed. An XMP packet stored in a `tEXt` or compressed
  * `iTXt` chunk is read the same way and rewritten as the one uncompressed
@@ -224,6 +235,7 @@ const FIELDS = Object.freeze([
     "kind",
     "name",
     "primaryNote",
+    "nonAiAlternative",
     "role",
     "derived",
     "derivedFrom",
@@ -270,6 +282,10 @@ const COMPLETE_ADDRESS = {
  * @property {string} [primaryNote] - The complete Address of that being or
  *   affiliation note. Written as `hl:primarynote` in the XMP packet only, and
  *   independent of `name`.
+ * @property {string} [nonAiAlternative] - The complete canonical Address of a non-AI
+ *   image or icon, with system `none`. Stored as `hl:nonAiAlternative` on the
+ *   master and projected into the public asset index. The provenance check
+ *   requires it for known-AI masters; raw reads and writes allow it to be absent.
  * @property {string} [prompt] - The generating prompt, verbatim.
  * @property {string} [generator] - A JSON object, as a string, describing the
  *   service and model.
@@ -469,6 +485,7 @@ const XMP_PROPERTIES = Object.freeze([
     ["kind", "hl:kind", "plain"],
     ["name", "hl:name", "plain"],
     ["primaryNote", "hl:primarynote", "plain"],
+    ["nonAiAlternative", "hl:nonAiAlternative", "plain"],
     ["role", "hl:role", "plain"],
     ["derived", "hl:derived", "plain"],
     ["derivedFrom", "hl:derivedFrom", "plain"],
@@ -490,13 +507,18 @@ const MANAGED_PROPERTIES = Object.freeze(XMP_PROPERTIES.map(([, name]) => name))
  *
  * @param {ProvenanceRecord} record - The record.
  * @param {string} [eol] - The line ending between structural lines.
+ * @param {Map<string, string[]>} [creditLists] - Complete unchanged credit properties.
  * @returns {string} The XML.
  */
-function descriptionBlock(record, eol = "\n") {
+function descriptionBlock(record, eol = "\n", creditLists = new Map()) {
     const lines = [];
     for (const [field, name, shape] of XMP_PROPERTIES) {
         const value = record[field];
         if (value === undefined) continue;
+        if (creditLists.has(field)) {
+            lines.push(...creditLists.get(field).map((markup) => `   ${markup}`));
+            continue;
+        }
         if (shape === "bag") {
             const items = value.map((item) => `<rdf:li>${escapeXml(item)}</rdf:li>`).join("");
             lines.push(`   <${name}><rdf:Bag>${items}</rdf:Bag></${name}>`);
@@ -625,48 +647,104 @@ function checkMarkup(xml, bindings) {
     return stack.length ? `unclosed element <${stack.at(-1)}>` : null;
 }
 
+/** Isolate the RDF container and the namespace bindings in scope at its opening. */
+function rdfScope(packet) {
+    const namespaces = new Map();
+    const frames = [];
+    const heads = new Map();
+    let root;
+    const names = new RegExp(QName.source, "uy");
+    const markup =
+        /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)|<(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^<>"'])*(?:>|(?=<)|$)/gu;
+    const pop = () => {
+        const frame = frames.pop();
+        if (frame.previous === undefined) heads.delete(frame.name);
+        else heads.set(frame.name, frame.previous);
+        for (const [prefix, before] of frame.bindings.reverse()) {
+            if (before === undefined) namespaces.delete(prefix);
+            else namespaces.set(prefix, before);
+        }
+        return frame;
+    };
+    for (const match of packet.matchAll(markup)) {
+        const tag = match[0];
+        if (tag.startsWith("<!") || tag.startsWith("<?") || !tag.endsWith(">")) continue;
+        const closing = tag[1] === "/";
+        names.lastIndex = closing ? 2 : 1;
+        const named = names.exec(tag);
+        if (!named || !/[\s/>]/u.test(tag[names.lastIndex] ?? "")) continue;
+        const name = named[0];
+        if (closing) {
+            if (!/^\s*>$/.test(tag.slice(names.lastIndex))) continue;
+            const head = heads.get(name);
+            if (head === undefined) continue;
+            while (frames.length - 1 > head) if (pop() === root) return null;
+            const frame = pop();
+            if (frame.rdf)
+                return { inner: packet.slice(frame.start, match.index), declared: frame.rdf };
+            continue;
+        }
+        const attributes = parseAttributes(tag.slice(names.lastIndex));
+        if (attributes === null) return null;
+        const bindings = [];
+        for (const [attribute, raw] of attributes) {
+            if (attribute !== "xmlns" && !attribute.startsWith("xmlns:")) continue;
+            const prefix = attribute === "xmlns" ? "" : attribute.slice(6);
+            let value;
+            try {
+                value = unescapeXml(raw);
+            } catch {
+                return null;
+            }
+            bindings.push([prefix, namespaces.get(prefix)]);
+            namespaces.set(prefix, value);
+        }
+        const colon = name.indexOf(":");
+        const prefix = colon < 0 ? "" : name.slice(0, colon);
+        const rdf = name.slice(colon + 1) === "RDF" && namespaces.get(prefix) === RDF_NAMESPACE;
+        const frame = {
+            name,
+            bindings,
+            previous: heads.get(name),
+            start: match.index + tag.length,
+            rdf: rdf && root === undefined ? new Map(namespaces) : undefined,
+        };
+        if (frame.rdf) root = frame;
+        frames.push(frame);
+        heads.set(name, frames.length - 1);
+        if (/\/\s*>$/.test(tag)) pop();
+    }
+    return null;
+}
+
 /**
  * Decide what survives of a foreign XMP packet.
  *
- * Namespace declarations on the foreign `x:xmpmeta` and `rdf:RDF` elements move
- * onto this module's `rdf:RDF`, so retained properties keep the prefixes they
+ * The RDF container is identified by namespace URI and local name. Namespace
+ * bindings inherited from its enclosing elements move onto this module's
+ * `rdf:RDF`, so retained properties keep the prefixes they
  * were written with. A packet is dropped when it is not RDF, is not
  * well-formed, uses an unbound prefix, or binds a prefix this module uses to a
  * different namespace.
  *
  * @param {string} packet - The XMP text.
+ * @param {Set<string>} [unchangedCredits] - Credit fields whose full lists must survive.
+ * @param {Map<string, string[]>} [creditLists] - Receives complete credit-property markup.
  * @returns {{kept: true, markup: string, declarations: string}|
  *   {kept: false, reason?: string, empty?: true}} The retained markup and the
  *   declarations it needs, or why nothing is retained (`empty` when the packet
  *   holds nothing but this module's own block).
  */
-function retainForeign(packet) {
-    const rest = packet;
-    const start = rest.indexOf("<rdf:RDF");
-    const open = start < 0 ? -1 : rest.indexOf(">", start);
-    const close = rest.lastIndexOf("</rdf:RDF>");
-    const rdfTag = open < 0 ? "" : rest.slice(start, open + 1);
-    if (open < 0 || close <= open || /\/>$/.test(rdfTag)) {
-        return { kept: false, reason: "the packet is not RDF" };
-    }
-    const declared = {};
-    const metaStart = rest.indexOf("<x:xmpmeta");
-    if (metaStart >= 0 && metaStart < start) {
-        const metaEnd = rest.indexOf(">", metaStart);
-        const meta = parseAttributes(rest.slice(metaStart + "<x:xmpmeta".length, metaEnd));
-        if (meta === null || metaEnd < 0 || metaEnd > start) {
-            return { kept: false, reason: "the x:xmpmeta element is malformed" };
-        }
-        for (const [name, value] of meta) if (name.startsWith("xmlns")) declared[name] = value;
-    }
-    const rdf = parseAttributes(rdfTag.slice("<rdf:RDF".length, -1));
-    if (rdf === null) return { kept: false, reason: "the rdf:RDF element is malformed" };
-    for (const [name, value] of rdf) if (name.startsWith("xmlns")) declared[name] = value;
+function retainForeign(packet, unchangedCredits = new Set(), creditLists = new Map()) {
+    const scope = rdfScope(packet);
+    if (scope === null) return { kept: false, reason: "the packet is not RDF" };
+    const { inner, declared } = scope;
 
     const bindings = { x: X_NAMESPACE, rdf: RDF_NAMESPACE };
     let declarations = "";
-    for (const [name, value] of Object.entries(declared)) {
-        const prefix = name === "xmlns" ? null : name.slice(6);
+    for (const [boundPrefix, value] of declared) {
+        const prefix = boundPrefix === "" ? null : boundPrefix;
+        const name = prefix === null ? "xmlns" : `xmlns:${prefix}`;
         if (prefix !== null && prefix in OWN_BINDINGS) {
             if (OWN_BINDINGS[prefix] !== value) {
                 return {
@@ -677,9 +755,8 @@ function retainForeign(packet) {
             if (prefix === "x" || prefix === "rdf") continue;
         }
         if (prefix !== null) bindings[prefix] = value;
-        declarations += ` ${name}="${value}"`;
+        declarations += ` ${name}="${escapeXml(value)}"`;
     }
-    const inner = rest.slice(open + 1, close);
     const problem = checkMarkup(inner, bindings);
     if (problem) return { kept: false, reason: `the packet cannot be retained: ${problem}` };
     let invalid = false;
@@ -690,7 +767,7 @@ function retainForeign(packet) {
                 invalid = true;
             },
         }).parseFromString(
-            `<rdf:RDF xmlns:rdf="${RDF_NAMESPACE}"${declarations}>${inner}</rdf:RDF>`,
+            `<rdf:RDF xmlns:rdf="${RDF_NAMESPACE}" xmlns:x="${X_NAMESPACE}"${declarations}>${inner}</rdf:RDF>`,
             "application/xml",
         );
     } catch {
@@ -705,6 +782,11 @@ function retainForeign(packet) {
     );
     const serializer = new XMLSerializer();
     const retained = [];
+    const creditCounts = new Map();
+    const countCredit = (node) => {
+        if (node.namespaceURI !== DC_NAMESPACE || !unchangedCredits.has(node.localName)) return;
+        creditCounts.set(node.localName, (creditCounts.get(node.localName) ?? 0) + 1);
+    };
     for (
         let description = document.documentElement.firstChild;
         description;
@@ -720,12 +802,42 @@ function retainForeign(packet) {
         }
         for (let i = description.attributes.length - 1; i >= 0; i--) {
             const attribute = description.attributes.item(i);
+            countCredit(attribute);
             if (managed.has(`${attribute.namespaceURI}|${attribute.localName}`))
                 description.removeAttributeNode(attribute);
         }
         for (let child = description.firstChild; child;) {
             const next = child.nextSibling;
             if (child.nodeType === 1 && managed.has(`${child.namespaceURI}|${child.localName}`)) {
+                countCredit(child);
+                const preserve =
+                    child.namespaceURI === DC_NAMESPACE && unchangedCredits.has(child.localName);
+                if (preserve) {
+                    const entries = creditLists.get(child.localName) ?? [];
+                    const copy = child.cloneNode(true);
+                    if (!copy.prefix)
+                        copy.setAttributeNS(
+                            "http://www.w3.org/2000/xmlns/",
+                            "xmlns",
+                            copy.namespaceURI,
+                        );
+                    // Credits inherit these bindings in the destination description.
+                    const context = document.createElement("credit-context");
+                    for (const [prefix, uri] of Object.entries(OWN_BINDINGS))
+                        context.setAttributeNS(
+                            "http://www.w3.org/2000/xmlns/",
+                            `xmlns:${prefix}`,
+                            uri,
+                        );
+                    context.appendChild(copy);
+                    const markup = serializer.serializeToString(context, {
+                        nodeFilter: (node) => (node.nodeType === 3 ? escapeXml(node.data) : node),
+                    });
+                    entries.push(
+                        markup.slice(markup.indexOf(">") + 1, -"</credit-context>".length),
+                    );
+                    creditLists.set(child.localName, entries);
+                }
                 const retainComments = (node) => {
                     for (let nested = node.firstChild; nested; nested = nested.nextSibling) {
                         if (nested.nodeType === 8)
@@ -733,7 +845,7 @@ function retainForeign(packet) {
                         else retainComments(nested);
                     }
                 };
-                retainComments(child);
+                if (!preserve) retainComments(child);
                 description.removeChild(child);
             }
             child = next;
@@ -756,8 +868,18 @@ function retainForeign(packet) {
         if (foreignAttributes || foreignChildren)
             retained.push(serializer.serializeToString(description));
     }
+    assertUnambiguousCredits(creditCounts, unchangedCredits);
     if (!retained.length) return { kept: false, empty: true };
     return { kept: true, markup: `  ${retained.join("\n  ")}\n`, declarations };
+}
+
+/** Refuse unchanged credit properties whose distinct subjects cannot be collapsed. */
+function assertUnambiguousCredits(counts, unchangedCredits) {
+    for (const field of unchangedCredits)
+        if ((counts.get(field) ?? 0) > 1)
+            throw new Error(
+                `${field}: duplicate XMP properties; explicitly replace or remove ${field} to edit this packet`,
+            );
 }
 
 /** Whether an inherited packet has properties outside the managed record. */
@@ -809,16 +931,232 @@ function hasForeignXmp(packet, properties = MANAGED_PROPERTIES) {
     return false;
 }
 
-/** Read a plain, alt or seq property out of XMP markup. */
-function readProperty(xml, name) {
-    const q = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const element = new RegExp(`<${q}\\b[^>]*>([\\s\\S]*?)</${q}>`).exec(xml);
-    if (element) {
-        const li = /<rdf:li\b[^>]*>([\s\S]*?)<\/rdf:li>/.exec(element[1]);
-        return unescapeXml(li ? li[1] : element[1]);
+/** The ordinary managed fields; structured generation facts have dedicated readers. */
+const READ_PROPERTIES = new Map(
+    XMP_PROPERTIES.filter(
+        ([field, name]) =>
+            !["composition", "ai", "nonAiAlternative"].includes(field) && name !== "dc:description",
+    ).map(([field, name, shape]) => {
+        const [prefix, local] = name.split(":");
+        return [`${OWN_BINDINGS[prefix]}|${local}`, { field, shape }];
+    }),
+);
+
+/** Whether a credit property carries only the one value its scalar writer emits. */
+function losslessCreditProperty(markup, bindings, field, value) {
+    let invalid = false;
+    let document;
+    try {
+        const declarations = [...bindings]
+            .map(([prefix, uri]) => ` xmlns${prefix ? `:${prefix}` : ""}="${escapeXml(uri)}"`)
+            .join("");
+        document = new DOMParser({
+            onError: () => {
+                invalid = true;
+            },
+        }).parseFromString(
+            `<credit-context${declarations}>${markup}</credit-context>`,
+            "application/xml",
+        );
+    } catch {
+        return false;
     }
-    const attribute = new RegExp(`\\s${q}=(?:"([^"]*)"|'([^']*)')`).exec(xml);
-    return attribute ? unescapeXml(attribute[1] ?? attribute[2]) : undefined;
+    if (invalid) return false;
+    const attributesOnly = (node, defaultLanguage = false) =>
+        Array.from(node.attributes).every(
+            (attribute) =>
+                attribute.namespaceURI === "http://www.w3.org/2000/xmlns/" ||
+                (defaultLanguage &&
+                    attribute.namespaceURI === "http://www.w3.org/XML/1998/namespace" &&
+                    attribute.localName === "lang" &&
+                    attribute.value === "x-default"),
+        );
+    const onlyElement = (parent, namespace, name) => {
+        const children = Array.from(parent.childNodes).filter(
+            (node) => !(node.nodeType === 3 && node.data.trim() === ""),
+        );
+        if (children.length !== 1) return null;
+        const child = children[0];
+        return (
+                child.nodeType === 1 && child.namespaceURI === namespace && child.localName === name
+            ) ?
+                child
+            :   null;
+    };
+    const property = onlyElement(document.documentElement, DC_NAMESPACE, field);
+    if (!property || !attributesOnly(property)) return false;
+    const container = onlyElement(property, RDF_NAMESPACE, field === "creator" ? "Seq" : "Alt");
+    if (!container || !attributesOnly(container)) return false;
+    const item = onlyElement(container, RDF_NAMESPACE, "li");
+    if (!item || !attributesOnly(item, field === "rights")) return false;
+    if (
+        field === "rights" &&
+        item.getAttributeNS("http://www.w3.org/XML/1998/namespace", "lang") !== "x-default"
+    )
+        return false;
+    return (
+        Array.from(item.childNodes).every((node) => node.nodeType === 3) &&
+        item.textContent === value
+    );
+}
+
+/**
+ * Read ordinary properties in one pass without imposing XML validity on raw text.
+ * @param {string} packet - The source XMP.
+ * @param {Set<string>} [unsafeCredits] - Receives credit fields that need their original XML.
+ * @param {Map<string, number>} [creditCounts] - Receives all credit-property occurrence counts.
+ * @returns {object} Scalar properties and the former-name list.
+ */
+function readManagedProperties(packet, unsafeCredits, creditCounts) {
+    const own = OWN_DESCRIPTION.exec(packet);
+    const inOwn = (at) => own !== null && at >= own.index && at < own.index + own[0].length;
+    const countCredit = (field) => {
+        if (creditCounts && ["creator", "rights"].includes(field))
+            creditCounts.set(field, (creditCounts.get(field) ?? 0) + 1);
+    };
+    // Standalone fragments use canonical prefix bindings; declarations override them.
+    const namespaces = new Map(Object.entries(OWN_BINDINGS));
+    const expanded = (name, attribute = false) => {
+        const colon = name.indexOf(":");
+        const prefix = colon < 0 ? "" : name.slice(0, colon);
+        const namespace = attribute && colon < 0 ? "" : (namespaces.get(prefix) ?? "");
+        return `${namespace}|${name.slice(colon + 1)}`;
+    };
+    const elements = new Map();
+    const attributes = new Map();
+    const frames = [];
+    const heads = new Map();
+    let active;
+    const pop = () => {
+        const frame = frames.pop();
+        active = frame.before;
+        if (frame.previous === undefined) heads.delete(frame.name);
+        else heads.set(frame.name, frame.previous);
+        for (const [prefix, before] of frame.bindings.reverse()) {
+            if (before === undefined) namespaces.delete(prefix);
+            else namespaces.set(prefix, before);
+        }
+        return frame;
+    };
+    const names = new RegExp(QName.source, "uy");
+    const markup =
+        /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)|<(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^<>"'])*(?:>|(?=<)|$)/gu;
+    for (const match of packet.matchAll(markup)) {
+        const tag = match[0];
+        if (tag.startsWith("<!") || tag.startsWith("<?") || !tag.endsWith(">")) continue;
+        const closing = tag[1] === "/";
+        names.lastIndex = closing ? 2 : 1;
+        const named = names.exec(tag);
+        if (!named || !/[\s/>]/u.test(tag[names.lastIndex] ?? "")) continue;
+        const name = named[0];
+        if (closing) {
+            if (!/^\s*>$/.test(tag.slice(names.lastIndex))) continue;
+            const head = heads.get(name);
+            if (head === undefined) continue;
+            while (frames.length - 1 > head) pop();
+            const frame = pop();
+            if (frame.capture) {
+                frame.capture.end = match.index;
+                frame.capture.markupEnd = match.index + tag.length;
+            }
+            if (frame.item) frame.item.items.push([frame.start, match.index]);
+            continue;
+        }
+        const attrs = [...tag.slice(names.lastIndex).matchAll(ATTRIBUTE)];
+        const bindings = [];
+        for (const attr of attrs) {
+            if (attr[1] !== "xmlns" && !attr[1].startsWith("xmlns:")) continue;
+            const prefix = attr[1] === "xmlns" ? "" : attr[1].slice(6);
+            const raw = attr[2] ?? attr[3];
+            let value = raw;
+            try {
+                value = unescapeXml(raw);
+            } catch {
+                /* Invalid namespace text names no managed property. */
+            }
+            bindings.push([prefix, namespaces.get(prefix)]);
+            namespaces.set(prefix, value);
+        }
+        const before = active;
+        const isOwn = inOwn(match.index);
+        for (const attr of attrs) {
+            if (attr[1] === "xmlns" || attr[1].startsWith("xmlns:")) continue;
+            const property = READ_PROPERTIES.get(expanded(attr[1], true));
+            if (!property || property.shape === "bag") continue;
+            countCredit(property.field);
+            const previous = attributes.get(property.field);
+            if (!previous || (isOwn && !previous.own))
+                attributes.set(property.field, { own: isOwn, value: attr[2] ?? attr[3] });
+        }
+        const key = expanded(name);
+        const property = READ_PROPERTIES.get(key);
+        if (property) countCredit(property.field);
+        const credit = unsafeCredits && ["creator", "rights"].includes(property?.field);
+        if (credit) unsafeCredits.add(property.field);
+        const selfClosing = /\/\s*>$/.test(tag);
+        let capture;
+        if (property && !selfClosing) {
+            const previous = elements.get(property.field);
+            if (!previous || (isOwn && !previous.own)) {
+                capture = {
+                    own: isOwn,
+                    start: match.index + tag.length,
+                    items: [],
+                    shape: property.shape,
+                    ...(credit ?
+                        {
+                            markupStart: match.index,
+                            namespaces: new Map(namespaces),
+                            inheritedContext: frames.some((frame) => frame.xmlContext),
+                        }
+                    :   {}),
+                };
+                elements.set(property.field, capture);
+                active = capture;
+            }
+        }
+        frames.push({
+            name,
+            bindings,
+            before,
+            previous: heads.get(name),
+            capture,
+            item: key === `${RDF_NAMESPACE}|li` ? active : undefined,
+            start: match.index + tag.length,
+            xmlContext:
+                unsafeCredits &&
+                attrs.some((attr) => ["xml:lang", "xml:base", "xml:space"].includes(attr[1])),
+        });
+        heads.set(name, frames.length - 1);
+        if (selfClosing) pop();
+    }
+    const record = {};
+    for (const { field } of READ_PROPERTIES.values()) {
+        const element = elements.get(field);
+        const attribute = attributes.get(field);
+        if (element?.end !== undefined && !(attribute?.own && !element.own)) {
+            if (element.shape === "bag")
+                record[field] = element.items.map(([start, end]) =>
+                    unescapeXml(packet.slice(start, end)),
+                );
+            else {
+                const [start, end] = element.items[0] ?? [element.start, element.end];
+                record[field] = unescapeXml(packet.slice(start, end));
+            }
+            if (
+                element.namespaces &&
+                !element.inheritedContext &&
+                losslessCreditProperty(
+                    packet.slice(element.markupStart, element.markupEnd),
+                    element.namespaces,
+                    field,
+                    record[field],
+                )
+            )
+                unsafeCredits.delete(field);
+        } else if (attribute) record[field] = unescapeXml(attribute.value);
+    }
+    return record;
 }
 
 /** Read a declared composition with strict XML and property validation. */
@@ -1070,108 +1408,142 @@ function hasGenerationDeclaration(packet, includeSource = false) {
     return false;
 }
 
-/** Read generation facts by expanded XMP property name. */
-function readGeneration(packet, includeSource = false) {
-    if (!hasGenerationDeclaration(packet, includeSource)) return undefined;
+/**
+ * Parse managed scalar properties and count declarations before DOM normalization.
+ * @param {string} packet - The original XMP packet.
+ * @param {{namespace: string, local: string, key: string}[]} properties - Expanded names to count.
+ * @returns {{document: object, invalid: boolean, duplicateAttribute: boolean, counts: Map<string, number>}}
+ */
+function managedPropertyDocument(packet, properties) {
+    const keys = new Map(
+        properties.map(({ namespace, local, key }) => [`${namespace}|${local}`, key]),
+    );
+    const counts = new Map(properties.map(({ key }) => [key, 0]));
     let invalid = false;
     let duplicateAttribute = false;
     let document;
-    let aiCount = 0;
-    let sourceCount = 0;
-    class GenerationHandler extends XmpDomHandler {
+    const count = (namespace, local) => {
+        const key = keys.get(`${namespace}|${local}`);
+        if (key !== undefined) counts.set(key, counts.get(key) + 1);
+        return key !== undefined;
+    };
+    class ManagedPropertyHandler extends XmpDomHandler {
         startElement(namespaceURI, localName, qName, attrs) {
-            const managedElement =
-                (namespaceURI === HL_NAMESPACE && localName === "ai") ||
-                (namespaceURI === IPTC_NAMESPACE && localName === "DigitalSourceType");
-            if (namespaceURI === HL_NAMESPACE && localName === "ai") aiCount++;
-            if (namespaceURI === IPTC_NAMESPACE && localName === "DigitalSourceType") sourceCount++;
+            const managed = count(namespaceURI, localName);
             const elementAttributes = new Set();
             for (let i = 0; i < attrs.length; i++) {
-                if (managedElement && attrs.getURI(i) !== "http://www.w3.org/2000/xmlns/") {
+                if (managed && attrs.getURI(i) !== "http://www.w3.org/2000/xmlns/") {
                     const key = `${attrs.getURI(i) ?? ""}|${attrs.getLocalName(i)}`;
                     if (elementAttributes.has(key)) duplicateAttribute = true;
                     elementAttributes.add(key);
                 }
-                if (attrs.getURI(i) === HL_NAMESPACE && attrs.getLocalName(i) === "ai") aiCount++;
-                if (
-                    attrs.getURI(i) === IPTC_NAMESPACE &&
-                    attrs.getLocalName(i) === "DigitalSourceType"
-                )
-                    sourceCount++;
+                count(attrs.getURI(i), attrs.getLocalName(i));
             }
             super.startElement(namespaceURI, localName, qName, attrs);
         }
     }
     try {
         document = new DOMParser({
-            domHandler: GenerationHandler,
+            domHandler: ManagedPropertyHandler,
             onError: () => {
                 invalid = true;
             },
         }).parseFromString(packet, "application/xml");
     } catch {
-        throw new Error("generation metadata: malformed XMP");
+        invalid = true;
     }
-    if (invalid) throw new Error("generation metadata: malformed XMP");
-    if (!includeSource && aiCount === 0) return undefined;
-    if (duplicateAttribute) throw new Error("generation metadata: duplicate XMP attributes");
-    if (aiCount > 1) throw new Error("ai: duplicate XMP properties");
-    if (sourceCount > 1) throw new Error("digitalSourceType: duplicate XMP properties");
+    return { document, invalid, duplicateAttribute, counts };
+}
+
+/**
+ * Read text properties from RDF Description elements or their attributes.
+ * @param {object} document - The validated XML document.
+ * @param {object} options - Property identity and diagnostic messages.
+ * @param {string} options.namespace - The property's namespace URI.
+ * @param {string} options.local - The property's local name.
+ * @param {string} options.parentMessage - Invalid attribute-owner diagnostic.
+ * @param {string} options.shapeMessage - Invalid element-value diagnostic.
+ * @param {string} [options.elementParentMessage] - Invalid element-parent diagnostic.
+ * @param {boolean} [options.resource] - Whether an RDF resource attribute supplies the value.
+ * @param {string} [options.conflictMessage] - Conflicting resource and text diagnostic.
+ * @returns {string[]} Values in document order.
+ */
+function managedPropertyValues(
+    document,
+    {
+        namespace,
+        local,
+        parentMessage,
+        shapeMessage,
+        elementParentMessage = shapeMessage,
+        resource = false,
+        conflictMessage,
+    },
+) {
     const values = [];
-    const sources = [];
-    const elements = document.getElementsByTagName("*");
     const description = (node) =>
         node?.namespaceURI === RDF_NAMESPACE && node.localName === "Description";
-    const textOnly = (node) =>
-        Array.from({ length: node.childNodes.length }, (_, i) => node.childNodes.item(i)).every(
-            (child) => child.nodeType === 3 || child.nodeType === 4,
-        );
+    const matches = (node) => node.namespaceURI === namespace && node.localName === local;
+    const elements = document.getElementsByTagName("*");
     for (let i = 0; i < elements.length; i++) {
         const node = elements.item(i);
         for (let j = 0; j < node.attributes.length; j++) {
             const attr = node.attributes.item(j);
-            const ai = attr.namespaceURI === HL_NAMESPACE && attr.localName === "ai";
-            const source =
-                attr.namespaceURI === IPTC_NAMESPACE && attr.localName === "DigitalSourceType";
-            if (ai || source) {
-                if (!description(node))
-                    throw new Error(
-                        "generation metadata: property must belong to an RDF Description",
-                    );
-                (ai ? values : sources).push(attr.value);
-            }
+            if (!matches(attr)) continue;
+            if (!description(node)) throw new Error(parentMessage);
+            values.push(attr.value);
         }
-        if (node.namespaceURI === HL_NAMESPACE && node.localName === "ai") {
+        if (!matches(node)) continue;
+        if (!description(node.parentNode)) throw new Error(elementParentMessage);
+        for (let child = node.firstChild; child; child = child.nextSibling)
+            if (child.nodeType !== 3 && child.nodeType !== 4) throw new Error(shapeMessage);
+        let reference;
+        for (let j = 0; j < node.attributes.length; j++) {
+            const attr = node.attributes.item(j);
+            if (attr.namespaceURI === "http://www.w3.org/2000/xmlns/") continue;
             if (
-                !description(node.parentNode) ||
-                !textOnly(node) ||
-                Array.from({ length: node.attributes.length }, (_, j) =>
-                    node.attributes.item(j),
-                ).some((attr) => attr.namespaceURI !== "http://www.w3.org/2000/xmlns/")
+                resource &&
+                attr.namespaceURI === RDF_NAMESPACE &&
+                attr.localName === "resource" &&
+                reference === undefined
             )
-                throw new Error("ai: expected a boolean XMP property");
-            values.push(node.textContent);
+                reference = attr.value;
+            else throw new Error(shapeMessage);
         }
-        if (node.namespaceURI === IPTC_NAMESPACE && node.localName === "DigitalSourceType") {
-            if (!description(node.parentNode) || !textOnly(node))
-                throw new Error("digitalSourceType: invalid XMP property");
-            let resource;
-            for (let j = 0; j < node.attributes.length; j++) {
-                const attr = node.attributes.item(j);
-                if (attr.namespaceURI === "http://www.w3.org/2000/xmlns/") continue;
-                if (
-                    attr.namespaceURI === RDF_NAMESPACE &&
-                    attr.localName === "resource" &&
-                    resource === undefined
-                )
-                    resource = attr.value;
-                else throw new Error("digitalSourceType: invalid XMP property");
-            }
-            if (resource !== undefined && node.textContent.trim() !== "")
-                throw new Error("digitalSourceType: conflicting XMP values");
-            sources.push(resource ?? node.textContent);
-        }
+        if (reference !== undefined && node.textContent.trim() !== "")
+            throw new Error(conflictMessage);
+        values.push(reference ?? node.textContent);
     }
+    return values;
+}
+
+/** Read generation facts by expanded XMP property name. */
+function readGeneration(packet, includeSource = false) {
+    if (!hasGenerationDeclaration(packet, includeSource)) return undefined;
+    const { document, invalid, duplicateAttribute, counts } = managedPropertyDocument(packet, [
+        { namespace: HL_NAMESPACE, local: "ai", key: "ai" },
+        { namespace: IPTC_NAMESPACE, local: "DigitalSourceType", key: "digitalSourceType" },
+    ]);
+    if (invalid) throw new Error("generation metadata: malformed XMP");
+    if (!includeSource && counts.get("ai") === 0) return undefined;
+    if (duplicateAttribute) throw new Error("generation metadata: duplicate XMP attributes");
+    for (const [key, count] of counts)
+        if (count > 1) throw new Error(`${key}: duplicate XMP properties`);
+    const parentMessage = "generation metadata: property must belong to an RDF Description";
+    const values = managedPropertyValues(document, {
+        namespace: HL_NAMESPACE,
+        local: "ai",
+        parentMessage,
+        shapeMessage: "ai: expected a boolean XMP property",
+    });
+    const sources = managedPropertyValues(document, {
+        namespace: IPTC_NAMESPACE,
+        local: "DigitalSourceType",
+        parentMessage,
+        shapeMessage: "digitalSourceType: invalid XMP property",
+        resource: true,
+        conflictMessage: "digitalSourceType: conflicting XMP values",
+    });
     if (values.length > 1) throw new Error("ai: duplicate XMP properties");
     if (sources.length > 1) throw new Error("digitalSourceType: duplicate XMP properties");
     if (values.length && !["True", "False", "true", "false"].includes(values[0]))
@@ -1185,22 +1557,80 @@ function readGeneration(packet, includeSource = false) {
     };
 }
 
+/** Read the alternative by expanded name, retaining inherited namespace bindings. */
+function readNonAiAlternative(packet) {
+    if (!packet.includes("nonAiAlternative")) return undefined;
+    const { document, invalid, counts } = managedPropertyDocument(packet, [
+        { namespace: HL_NAMESPACE, local: "nonAiAlternative", key: "nonAiAlternative" },
+    ]);
+    const count = counts.get("nonAiAlternative");
+    // Prose, comments and foreign properties do not declare this field.
+    if (count === 0) return undefined;
+    if (invalid) throw new Error("nonAiAlternative: malformed XMP");
+    if (count !== 1) throw new Error("nonAiAlternative: duplicate XMP properties");
+    const parentMessage = "nonAiAlternative: property must belong to an RDF Description";
+    return managedPropertyValues(document, {
+        namespace: HL_NAMESPACE,
+        local: "nonAiAlternative",
+        parentMessage,
+        elementParentMessage: parentMessage,
+        shapeMessage: "nonAiAlternative: expected an Address text property",
+    })[0];
+}
+
+/** Validate a declared alternative without resolving its target. */
+function validateNonAiAlternative(record) {
+    const value = record.nonAiAlternative;
+    if (value === undefined) return;
+    const tuple = readCanonicalKey(value);
+    if (
+        typeof value !== "string" ||
+        !COMPLETE_ADDRESS.test(value) ||
+        tuple.system !== "none" ||
+        !["image", "icon"].includes(tuple.type)
+    )
+        throw new Error(
+            `nonAiAlternative ${JSON.stringify(value)} must be a complete ` +
+                "<package>-none-image-<shortcode> or <package>-none-icon-<shortcode> Address",
+        );
+}
+
+/**
+ * The AI classification supported by explicit metadata or a recognized source type.
+ * @param {ProvenanceRecord} record Embedded provenance.
+ * @returns {boolean|null} Unknown status remains null.
+ */
+export function provenanceAi(record) {
+    return record.ai ?? sourceAi(record.digitalSourceType);
+}
+
+/** Classify only source types whose meaning states AI status. */
+function sourceAi(source) {
+    if (
+        source === DIGITAL_SOURCE_TOKENS.trainedAlgorithmicMedia ||
+        source === DIGITAL_SOURCE_TOKENS.compositeWithTrainedAlgorithmicMedia
+    )
+        return true;
+    return source === DIGITAL_SOURCE_TOKENS.digitalCreation ? false : null;
+}
+
+/** The author remedy shared by collection and provenance auditing. */
+export const MISSING_ALTERNATIVE =
+    "hl:nonAiAlternative is missing on an AI master; declare hl:nonAiAlternative with the Address of a non-AI image or icon licensed to ship in Foundry";
+
 /** Refuse explicit status that conflicts with a recognized source type. */
 function validateAiClassification(record) {
     if (record.ai !== undefined && typeof record.ai !== "boolean")
         throw new Error("ai must be a boolean");
-    const source = record.digitalSourceType;
-    const generated =
-        source === DIGITAL_SOURCE_TOKENS.trainedAlgorithmicMedia ||
-        source === DIGITAL_SOURCE_TOKENS.compositeWithTrainedAlgorithmicMedia;
-    const human = source === DIGITAL_SOURCE_TOKENS.digitalCreation;
-    if (record.ai !== undefined && ((generated && !record.ai) || (human && record.ai)))
+    const classified = sourceAi(record.digitalSourceType);
+    if (record.ai !== undefined && classified !== null && record.ai !== classified)
         throw new Error("ai conflicts with digitalSourceType");
 }
 
 /**
- * Read the record stored in an XMP packet. Composition parsing imposes XML
- * validity only when a composition declaration is present, then checks its
+ * Read the record stored in an XMP packet. Ordinary properties use namespace
+ * bindings while retaining raw text and RDF list values. Composition parsing
+ * imposes XML validity only when a composition declaration is present, then checks its
  * namespace, structure, and recipe. Unframed prose such as `a <b composition c`
  * does not declare the property; `a <b composition>` is a framed attribute
  * attempt and selects composition validation.
@@ -1210,28 +1640,7 @@ function validateAiClassification(record) {
  *   absent.
  */
 export function readXmpRecord(packet) {
-    const own = OWN_DESCRIPTION.exec(packet);
-    const xml = own ? own[0] : packet;
-    const record = {};
-    for (const [field, name] of XMP_PROPERTIES) {
-        if (
-            field === "composition" ||
-            field === "ai" ||
-            (field === "prompt" && name === "dc:description")
-        )
-            continue;
-        if (field === "formerNames") {
-            const bag = new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)</${name}>`).exec(xml);
-            if (bag) {
-                record.formerNames = [
-                    ...bag[1].matchAll(/<rdf:li\b[^>]*>([\s\S]*?)<\/rdf:li>/g),
-                ].map((item) => unescapeXml(item[1]));
-            }
-            continue;
-        }
-        const value = readProperty(xml, name);
-        if (value !== undefined) record[field] = value;
-    }
+    const record = readManagedProperties(packet);
     const ai = readGeneration(packet);
     if (ai !== undefined) {
         if (ai.ai !== undefined) {
@@ -1240,7 +1649,10 @@ export function readXmpRecord(packet) {
             else record.digitalSourceType = ai.source;
         }
     }
+    const alternative = readNonAiAlternative(packet);
+    if (alternative !== undefined) record.nonAiAlternative = alternative;
     validateAiClassification(record);
+    validateNonAiAlternative(record);
     const composition = readComposition(packet);
     if (composition !== undefined) record.composition = composition;
     return record;
@@ -1352,6 +1764,7 @@ function validateRecord(record) {
             throw new Error("composition is private and never repeated on a derivative");
     }
     validateAiClassification(record);
+    validateNonAiAlternative(record);
     for (const field of FIELDS) {
         if (field === "composition" || field === "ai") continue;
         const value = record[field];
@@ -1406,26 +1819,45 @@ function mergeRecord(existing, fields) {
  *
  * @param {string|null} existing - The packet already in the file, or `null`.
  * @param {ProvenanceRecord} record - The record to write.
+ * @param {object} [fields] - Explicit field edits; undefined preserves complete credit lists.
  * @returns {{text: string, foreignXmp: "none"|"kept"|"discarded", foreignXmpReason?: string}}
  */
-function buildPacket(existing, record) {
+function buildPacket(existing, record, fields = {}) {
     let foreign = "";
     let foreignXmp = "none";
     let foreignReason;
     let declarations = "";
+    const creditLists = new Map();
     if (existing !== null) {
-        const kept = retainForeign(existing);
+        const unchangedCredits = new Set(
+            ["creator", "rights"].filter((field) => fields[field] === undefined),
+        );
+        const kept = retainForeign(existing, unchangedCredits, creditLists);
         if (kept.kept) {
             foreign = kept.markup;
             declarations = kept.declarations;
             foreignXmp = "kept";
         } else if (!kept.empty) {
+            const unsafeCredits = new Set();
+            const counts = new Map();
+            readManagedProperties(existing, unsafeCredits, counts);
+            assertUnambiguousCredits(counts, unchangedCredits);
+            for (const field of unsafeCredits)
+                if (unchangedCredits.has(field))
+                    throw new Error(
+                        `${field}: cannot preserve the complete credit property: ${kept.reason}`,
+                    );
+            creditLists.clear();
             foreignXmp = "discarded";
             foreignReason = kept.reason;
         }
     }
     return {
-        text: packetHead(declarations) + descriptionBlock(record) + foreign + PACKET_TAIL,
+        text:
+            packetHead(declarations) +
+            descriptionBlock(record, "\n", creditLists) +
+            foreign +
+            PACKET_TAIL,
         foreignXmp,
         ...(foreignReason === undefined ? {} : { foreignXmpReason: foreignReason }),
     };
@@ -1545,7 +1977,11 @@ export function writeProvenance(bytes, fields, options = {}) {
     validateRecord(record);
 
     const xmpChunks = chunks.filter(isXmpChunk);
-    const built = buildPacket(xmpChunks.length ? readTextChunk(xmpChunks[0]).text : null, record);
+    const built = buildPacket(
+        xmpChunks.length ? readTextChunk(xmpChunks[0]).text : null,
+        record,
+        fields,
+    );
     const { foreignXmp, foreignXmpReason: foreignReason } = built;
     const packetText = built.text;
     const xmpOut = makeTextChunk(XMP_KEYWORD, packetText);
@@ -1764,8 +2200,8 @@ export function readSvgProvenance(input) {
 }
 
 /** The managed `<metadata>` element holding a record. */
-function svgMetadataElement(record, eol, existing) {
-    const built = buildPacket(existing, record);
+function svgMetadataElement(record, eol, existing, fields) {
+    const built = buildPacket(existing, record, fields);
     const packet = built.text.slice(built.text.indexOf("\n") + 1, built.text.lastIndexOf("\n"));
     return {
         ...built,
@@ -1810,6 +2246,7 @@ export function writeSvgProvenance(input, fields, options = {}) {
         record,
         lineEnding(text),
         packet,
+        fields,
     );
 
     let out;
@@ -1983,7 +2420,7 @@ export function writeWebpProvenance(input, fields, options = {}) {
     const record = mergeRecord(existing, fields);
     const primary = options.index ? applyPrimaryNote(record, options.index) : undefined;
     validateRecord(record);
-    const built = buildPacket(existingPacket, record);
+    const built = buildPacket(existingPacket, record, fields);
     const xmpOut = makeWebpChunk("XMP ", Buffer.from(built.text, "utf8"));
 
     const body = [];
@@ -2103,7 +2540,7 @@ function brief(value) {
 
 /** The record properties a derivative may repeat from its master. */
 const REPEATABLE = Object.freeze([
-    ...FIELDS.filter((field) => field !== "address" && field !== "derived"),
+    ...FIELDS.filter((field) => !["address", "derived", "nonAiAlternative"].includes(field)),
     "formerNames",
 ]);
 
@@ -2126,6 +2563,8 @@ const DERIVATIVE_FIELDS = Object.freeze(["address", "creator", "rights", "ai"]);
  *
  * `prompt` and `generator` (generation details) are never repeated, and `name`
  * and `primaryNote` are repeated only when `notePublic` is `true`.
+ * `nonAiAlternative` belongs to the master and public asset index and cannot
+ * be named in `repeat`.
  *
  * @param {ProvenanceRecord} master - The master's record.
  * @param {{repeat?: string[], notePublic?: boolean}} [options] - `repeat` names
@@ -2217,6 +2656,9 @@ export function formatFinding(finding) {
  * from the named note's `name.full` is refused, and so is a `hl:primarynote`
  * that differs from the being or affiliation note the image resolves to.
  *
+ * Known-AI masters must declare a complete `nonAiAlternative` asset Address.
+ * Targets among the checked masters must be distinct and explicitly non-AI.
+ * Index publication checks dependency resolution and Foundry eligibility.
  * Derivative parent traces name the canonical master Address. With `index`,
  * derivative note fields must match a public indexed note; without it, they
  * must repeat the master's values. Master note metadata is audited separately.
@@ -2256,6 +2698,18 @@ export function checkProvenance(entries, options = {}) {
                 :   `the <metadata id="${SVG_METADATA_ID}"> element is missing`,
             );
         }
+        if (xmp.derived !== undefined && xmp.nonAiAlternative !== undefined)
+            add(
+                file,
+                "hl:nonAiAlternative belongs only to the master; remove it from the derivative",
+            );
+        if (
+            (isPng || format === "svg") &&
+            xmp.derived === undefined &&
+            provenanceAi(xmp) === true &&
+            xmp.nonAiAlternative === undefined
+        )
+            add(file, MISSING_ALTERNATIVE);
         const address = xmp.address ?? xmp.identifier ?? standard.address;
         if (xmp.derived !== undefined && xmp.derived !== "true") {
             add(file, `hl:derived ${JSON.stringify(xmp.derived)} must be "true"`);
@@ -2373,6 +2827,24 @@ export function checkProvenance(entries, options = {}) {
         }
     }
     findings.push(...checkCompositionSources(masterFiles));
+    for (const [address, masters] of masterFiles) {
+        for (const { file, record } of masters) {
+            if (!record.nonAiAlternative) continue;
+            if (record.nonAiAlternative === address)
+                add(
+                    file,
+                    "hl:nonAiAlternative names the master itself; declare a different non-AI image or icon",
+                );
+            else {
+                const targets = masterFiles.get(record.nonAiAlternative);
+                if (targets?.some((target) => provenanceAi(target.record) !== false))
+                    add(
+                        file,
+                        `hl:nonAiAlternative ${record.nonAiAlternative} must name an explicitly non-AI master; choose a human-made image or icon`,
+                    );
+            }
+        }
+    }
     for (const [address, masters] of masterFiles) {
         if (masters.length < 2) continue;
         const names = masters.map((m) => m.file);

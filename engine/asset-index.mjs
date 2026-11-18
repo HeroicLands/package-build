@@ -113,16 +113,17 @@ export const PROVENANCE_SIDECAR_SUFFIX = ".yaml";
  *
  * @typedef {object} AssetRecordField
  * @property {string} name - The key inside `asset`.
- * @property {"walk"|"provenance"} from - Where the value comes from: the walk
- *   itself, or the provenance record resolved for the address.
+ * @property {"walk"|"provenance"|"master"} from - Where the value comes from: the walk
+ *   itself, the provenance sidecar resolved for the address, or embedded master metadata.
  * @property {boolean} [required] - Whether a provenance record that exists must
  *   state this key. Omitting one is a finding rather than a blank, because a
  *   record resolves wholesale: the nearest one is the whole answer, so a key it
  *   leaves out is not inherited from above but simply absent.
- * @property {"boolean"|"integer"} [type] - The value's own type, for a field
+ * @property {"boolean"|"integer"|"address"} [type] - The value's own type, for a field
  *   whose answer is not a string. Omitted for every string field; `ai` carries
  *   the YAML boolean itself rather than a stringified copy, and `width` and
- *   `height` carry the pixel count the walk measured. Each is refused rather
+ *   `height` carry the pixel count the walk measured. A master Address is null
+ *   when absent. Each is refused rather
  *   than coerced when the value does not match.
  * @property {readonly string[]} [values] - The closed set a provenance
  *   declaration must choose one of; a value outside it is a finding and the
@@ -143,8 +144,9 @@ export const PROVENANCE_SIDECAR_SUFFIX = ".yaml";
  * completeness guard derives what it checks from the same declaration instead of
  * hand-copying it.
  *
- * Every field is always present, blank where nothing states it. A fixed record
- * shape is what lets a consumer read `asset.license` without branching on
+ * Every field is present: master-only Addresses are null when absent; other
+ * fields are blank where nothing states them.
+ * A fixed record shape is what lets a consumer read `asset.license` without branching on
  * whether the package happened to record one, and blank is the honest answer to
  * "what does this package say about where this file came from" when it says
  * nothing.
@@ -179,6 +181,13 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
             "Whether the file is machine-generated — the YAML boolean `true` " +
             "or `false`, never a string. Required: a record that does not say " +
             "is a finding, never read as `false`.",
+    }),
+    Object.freeze({
+        name: "nonAiAlternative",
+        from: "master",
+        type: "address",
+        describe:
+            "The canonical Address of the master's non-AI image or icon alternative, or null. Master-only; provenance sidecars cannot declare it.",
     }),
     Object.freeze({
         name: "license",
@@ -446,13 +455,17 @@ function inheritedProvenance(dir, root, cache, findings) {
  * @param {Record<string, string|boolean>|null} provenance - The resolved record.
  * @param {string} type - The asset type this file was walked as, so a field
  *   declaring `onlyType` can be dropped for every other type.
- * @returns {Record<string, string|boolean|number>} The block, every field
+ * @returns {Record<string, string|boolean|number|null>} The block, every field
  *   present — blank (`""`) for a string or integer field nothing states,
  *   `false` for `ai`.
  */
 function assetBlock(walkValues, provenance, type) {
     const block = {};
     for (const field of ASSET_RECORD_FIELDS) {
+        if (field.from === "master") {
+            block[field.name] = null;
+            continue;
+        }
         if (field.onlyType && field.onlyType !== type) {
             block[field.name] = field.type === "boolean" ? false : "";
             continue;

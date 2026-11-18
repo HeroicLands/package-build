@@ -2533,21 +2533,23 @@ carries no frontmatter, no anchors and no `foundry` block: a file declares
 nothing about itself, compiles into no document, and publishes no page, so the
 `address` holds the canonical key and no page slug.
 
-| `asset` field | Source     | What it says                                                                                                                                                                                                                         |
-| ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `path`        | the walk   | Where the file sits inside the emitting package's asset directory.                                                                                                                                                                   |
-| `attribution` | provenance | The person holding the rights, to whom attribution is legally due.                                                                                                                                                                   |
-| `source`      | provenance | Where it came from — a URL, or a sentence.                                                                                                                                                                                           |
-| `ai`          | provenance | Whether the file is machine-generated — strictly the YAML boolean `true` or `false`; any other value is a finding, never a stringified record. Required: a record that leaves it out is a finding, never read as `false`.            |
-| `license`     | provenance | The licence it is used under — an SPDX identifier, or terms.                                                                                                                                                                         |
-| `notes`       | provenance | Anything else a person reading the attribution needs.                                                                                                                                                                                |
-| `role`        | provenance | What the picture is for — `portrait`, `emblem`, `banner`, `plate` or `map`. Absent for an ordinary picture; a value outside that set is a finding. The `image` type only — a value on an `icon` address is a finding and is dropped. |
-| `width`       | the walk   | The file's pixel width, read from its own header. Blank for an SVG, which has no pixel dimensions.                                                                                                                                   |
-| `height`      | the walk   | The file's pixel height, read from its own header. Blank for an SVG, which has no pixel dimensions.                                                                                                                                  |
+| `asset` field      | Source      | What it says                                                                                                                                                                                                                         |
+| ------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `path`             | the walk    | Where the file sits inside the emitting package's asset directory.                                                                                                                                                                   |
+| `attribution`      | provenance  | The person holding the rights, to whom attribution is legally due.                                                                                                                                                                   |
+| `source`           | provenance  | Where it came from — a URL, or a sentence.                                                                                                                                                                                           |
+| `ai`               | provenance  | Whether the file is machine-generated — strictly the YAML boolean `true` or `false`; any other value is a finding, never a stringified record. Required: a record that leaves it out is a finding, never read as `false`.            |
+| `nonAiAlternative` | master only | The canonical Address of a non-AI image or icon alternative, or `null` when absent. Provenance sidecars cannot declare it.                                                                                                           |
+| `license`          | provenance  | The licence it is used under — an SPDX identifier, or terms.                                                                                                                                                                         |
+| `notes`            | provenance  | Anything else a person reading the attribution needs.                                                                                                                                                                                |
+| `role`             | provenance  | What the picture is for — `portrait`, `emblem`, `banner`, `plate` or `map`. Absent for an ordinary picture; a value outside that set is a finding. The `image` type only — a value on an `icon` address is a finding and is dropped. |
+| `width`            | the walk    | The file's pixel width, read from its own header. Blank for an SVG, which has no pixel dimensions.                                                                                                                                   |
+| `height`           | the walk    | The file's pixel height, read from its own header. Blank for an SVG, which has no pixel dimensions.                                                                                                                                  |
 
-Every field is present on every record, blank where nothing states one. A fixed
-shape is what lets a consumer read `asset.license` without first asking whether
-the package happened to record one.
+Every field is present on every record. `nonAiAlternative` is `null` when absent;
+other fields are blank where nothing states one. A fixed shape lets consumers
+read the declared fields directly. The alternative comes only from embedded
+master provenance; see [masters and derivatives](#masters-and-derivatives).
 
 **`path` is the source path.** The record is emitted by the package holding
 the bytes, so the path is where the file sits in that package's repository. The
@@ -2731,6 +2733,45 @@ WebP have no default. Derivatives repeat identity, creator, rights, declared
 `hl:ai` and parent trace; an indexed public primary note also supplies its name
 and Address. Prompts, generation details, private paths and the master license
 field are not embedded in public derivatives.
+
+A known-AI master requires `hl:nonAiAlternative`, containing a complete
+`<package>-none-image-<shortcode>` or `<package>-none-icon-<shortcode>` Address.
+This includes AI status established by the recognized source type alone.
+Unknown status is not classified as AI. Several masters may share an alternative,
+and the address may name another package. The managed `nonAiAlternative` field
+is preserved when omitted from an edit, replaced by a supplied string, and
+removed by `null`. Reads and edits allow its absence; the provenance check
+reports the missing value on an AI master and rejects malformed present values.
+
+The generated public asset row always carries `asset.nonAiAlternative`: a
+canonical string in JSONL, decoded to an Address by the standard index reader,
+or `null` when absent. It comes only from embedded master provenance, not from a
+provenance sidecar. Derivatives omit the property from their own metadata; the
+provenance audit refuses it there. Prompts, generator history, composition recipes
+and private paths remain outside the public row.
+
+Master collection reports missing alternatives. Index publication and content
+sessions resolve every declared alternative against local assets and
+required dependency indexes (`relationships.systems` and `relationships.requires`);
+optional `recommends` packages cannot supply an alternative. Every operation
+that builds the content index validates: `package-build content-index`, `package-build content build`, `package-build site build`,
+`package-build pdf`, `package-build lint`, `package-build links`, and
+`package-build addresses diff`, as well as SQL-table preparation. `package-build manifest`
+also validates when `packageBuild.converterData` is set. Website and PDF
+builds therefore refuse missing or invalid alternatives despite using the original
+illustrations in their output. The target must be a different, explicitly non-AI
+image or icon accepted by the existing Foundry shipping license policy. Missing,
+undeclared, AI, unknown-status and ineligible targets are errors; AI cycles fail
+the non-AI requirement. Dependency targets must also resolve to an installed
+Foundry package path. Fix the master's Address, supply the declared target and
+its documented classification, or choose another eligible image or icon.
+
+Foundry follows the declared Address when excluding known-AI artwork and keeps
+the original Address in the reference flag. Website and PDF references retain
+the original illustration. An alternative on a non-AI or unknown-status master
+is validated and preserved but does not select its picture. Existing artwork must have its
+approved alternatives assigned and embedded before publication; unrelated
+human-made pictures do not satisfy that requirement.
 
 A **master** is a PNG or an SVG. A **derivative** is a WebP or an SVG rendered
 from a master, possibly at another size. A master and its derivatives are one
@@ -2951,8 +2992,11 @@ Embedded documents — an actor's items and effects, a journal's pages, an
 Adventure's contents — each carry their own. A path or an `<img>` naming no
 asset is left as it is.
 
-**A picture the package does not ship draws a stand-in.** A reference to an
-excluded picture compiles to its package's own stand-in,
+**A known-AI master uses its declared non-AI alternative.** The reference keeps
+the original asset Address and uses the target's installed Foundry path.
+
+**Other excluded pictures draw a stand-in.** A reference to a human-made picture
+excluded by its license, or an ordinary sidecar asset, uses its package's stand-in,
 `<package>-none-icon-missing` or `<package>-none-image-missing` — a picture
 under `icons/` or `images/` named `missing`, human-made and licensed to ship —
 and keeps the excluded picture's address in its flag or `data-asset`. A

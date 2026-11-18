@@ -139,7 +139,10 @@ describe("resolvePrimaryNote", () => {
 
 describe.each(FORMATS)("$label provenance", ({ label, input, write, read }) => {
     // A WebP is always a derivative.
-    const MARK = label.startsWith("WebP") ? { derived: true } : {};
+    const MARK = {
+        nonAiAlternative: "sample-none-icon-placeholder",
+        ...(label.startsWith("WebP") ? { derived: true } : {}),
+    };
     const WITH = (address: string, i = index) => write(input(), { address, ...MARK }, { index: i });
     // A WebP is a derivative and carries no note fields of its own, so the
     // check runs on a PNG master holding the record the WebP was written with.
@@ -332,7 +335,11 @@ describe("WebP container", () => {
     it("is sniffed by its signature, whatever the file is called", () => {
         expect(sniffFormat(lossy)).toBe("webp");
         const out = writeDerivativeProvenance(lossy, { address: IMG("portrait") });
-        const master = writeProvenance(png, { address: IMG("portrait") }, { index });
+        const master = writeProvenance(
+            png,
+            { address: IMG("portrait"), nonAiAlternative: "sample-none-icon-placeholder" },
+            { index },
+        );
         expect(
             checkProvenance(
                 [
@@ -480,7 +487,11 @@ describe("from an indexed tree", () => {
         ] as const) {
             const out = (write as any)(
                 bytes,
-                { address, ...(write === writeWebpProvenance ? { derived: true } : {}) },
+                {
+                    address,
+                    nonAiAlternative: "sample-none-icon-placeholder",
+                    ...(write === writeWebpProvenance ? { derived: true } : {}),
+                },
                 { index: idx },
             );
             expect(read(out.bytes)).toMatchObject({
@@ -499,7 +510,11 @@ describe("from an indexed tree", () => {
         ] as const) {
             const out = (write as any)(
                 bytes,
-                { address, ...(write === writeWebpProvenance ? { derived: true } : {}) },
+                {
+                    address,
+                    nonAiAlternative: "sample-none-icon-placeholder",
+                    ...(write === writeWebpProvenance ? { derived: true } : {}),
+                },
                 { index: idx },
             );
             expect(read(out.bytes)).toMatchObject({

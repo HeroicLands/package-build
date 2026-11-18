@@ -146,6 +146,7 @@ const GENERATOR = JSON.stringify({
 const FIELDS = {
     address: "thalorna-note-being-abyssdrk",
     kind: "creature-landscape",
+    nonAiAlternative: "sample-none-icon-placeholder",
     prompt: PROMPT,
     generator: GENERATOR,
     title: "Abyssdrake",
@@ -213,6 +214,7 @@ describe("writeProvenance", () => {
             address: FIELDS.address,
             identifier: FIELDS.address,
             kind: FIELDS.kind,
+            nonAiAlternative: FIELDS.nonAiAlternative,
             prompt: PROMPT,
             generator: GENERATOR,
             title: FIELDS.title,
@@ -581,6 +583,7 @@ describe("SVG provenance", () => {
             address: FIELDS.address,
             identifier: FIELDS.address,
             kind: FIELDS.kind,
+            nonAiAlternative: FIELDS.nonAiAlternative,
             prompt: PROMPT,
             generator: GENERATOR,
             title: FIELDS.title,
@@ -997,6 +1000,45 @@ describe("checkProvenance by master and derivative", () => {
         const once = png2(A);
         expect(writeProvenance(once, {}).changed).toBe(false);
         expect(readProvenance(once).packet).not.toContain("hl:derived");
+    });
+
+    it("keeps generated credit XML stable in PNG, WebP and SVG masters", async () => {
+        const fields = {
+            ...FIELDS,
+            creator: `Artist's "name" & <credit>\rnext line`,
+            rights: `Artist's "terms" & <rights>\rnext line`,
+        };
+        const cases = [
+            {
+                input: png,
+                write: (bytes: Buffer, edits: object) => writeProvenance(bytes, edits),
+                read: readProvenance,
+            },
+            {
+                input: await sharp(png).webp().toBuffer(),
+                write: (bytes: Buffer, edits: object) => writeWebpProvenance(bytes, edits),
+                read: readWebpProvenance,
+            },
+            {
+                input: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+                write: (bytes: Buffer, edits: object) => writeSvgProvenance(bytes, edits),
+                read: readSvgProvenance,
+            },
+        ];
+        for (const { input, write, read } of cases) {
+            const first = write(input, fields);
+            for (const edits of [{}, { rights: fields.rights }]) {
+                const unchanged = write(first.bytes, edits);
+                expect(unchanged.changed).toBe(false);
+                expect(unchanged.bytes).toEqual(first.bytes);
+            }
+            const edited = write(first.bytes, { title: "Other title" });
+            expect(read(edited.bytes).record).toMatchObject({
+                creator: fields.creator,
+                rights: fields.rights,
+            });
+            expect(write(edited.bytes, { title: "Other title" }).bytes).toEqual(edited.bytes);
+        }
     });
 
     it("sniffs content, not the extension, and reports SVG faults", () => {
@@ -1890,7 +1932,13 @@ describe("deriveRecord", () => {
 describe("generated derivative authorities", () => {
     const address = "sample-none-image-subject";
     const primaryNote = "sample-note-being-subject";
-    const record = { address, creator: "Artist", rights: "Terms", primaryNote };
+    const record = {
+        address,
+        creator: "Artist",
+        rights: "Terms",
+        primaryNote,
+        nonAiAlternative: "sample-none-icon-placeholder",
+    };
     const indexFor = (name = "Current name", tags: string[] = [], note = primaryNote) =>
         buildPrimaryNoteIndex([
             {
@@ -2397,5 +2445,674 @@ describe("independent AI status", () => {
         expect(
             readWebpProvenance(writeWebpProvenance(written.bytes, { ai: null }).bytes).record.ai,
         ).toBeUndefined();
+    });
+});
+
+describe("non-AI alternatives", () => {
+    const alternative = "library-none-icon-placeholder";
+    const fields = { address: "sample-none-image-example", ai: true };
+    const formats = [
+        { name: "PNG", input: () => png, write: writeProvenance, read: readProvenance },
+        { name: "SVG", input: () => "<svg/>", write: writeSvgProvenance, read: readSvgProvenance },
+    ];
+
+    it.each(formats)(
+        "merges and removes the managed $name field without changing image data",
+        ({ input, write, read }) => {
+            const bare = write(input(), fields);
+            expect(read(bare.bytes).record).not.toHaveProperty("nonAiAlternative");
+            expect(checkProvenance([{ file: "master", bytes: bare.bytes }])).toEqual([
+                {
+                    file: "master",
+                    severity: "error",
+                    message: expect.stringMatching(/nonAiAlternative.*missing/),
+                },
+            ]);
+            const first = write(bare.bytes, { nonAiAlternative: alternative });
+            expect(read(first.bytes).record.nonAiAlternative).toBe(alternative);
+            expect(read(first.bytes).packet).toContain(
+                `<hl:nonAiAlternative>${alternative}</hl:nonAiAlternative>`,
+            );
+            expect(write(first.bytes, { nonAiAlternative: alternative }).changed).toBe(false);
+            const kept = write(first.bytes, { title: "Example", nonAiAlternative: undefined });
+            expect(read(kept.bytes).record.nonAiAlternative).toBe(alternative);
+            const replaced = write(kept.bytes, { nonAiAlternative: "sample-none-image-drawing" });
+            expect(read(replaced.bytes).record.nonAiAlternative).toBe("sample-none-image-drawing");
+            const removed = write(replaced.bytes, { nonAiAlternative: null });
+            expect(read(removed.bytes).record).not.toHaveProperty("nonAiAlternative");
+            expect(read(removed.bytes).packet).not.toContain("nonAiAlternative");
+            expect(write(removed.bytes, { title: "Edited" }).record.ai).toBe(true);
+            if (typeof input() !== "string")
+                expect(nonText(first.bytes)).toEqual(nonText(bare.bytes));
+        },
+    );
+
+    it("reads an XMP attribute and replaces only managed properties on rewrite", () => {
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:hl="${HL_NAMESPACE}" xmlns:editor="urn:editor" hl:nonAiAlternative="${alternative}"><editor:label>Retained</editor:label></rdf:Description></rdf:RDF></x:xmpmeta>`;
+        expect(readXmpRecord(packet).nonAiAlternative).toBe(alternative);
+        const input = withChunks(png, [makeTextChunk(XMP_KEYWORD, packet).raw]);
+        const out = writeProvenance(input, {
+            ...fields,
+            nonAiAlternative: "sample-none-image-drawing",
+        });
+        const read = readProvenance(out.bytes);
+        expect(out.foreignXmp).toBe("kept");
+        expect(read.packet).toContain("<editor:label>Retained</editor:label>");
+        expect(read.packet).not.toContain(alternative);
+        expect(read.record.nonAiAlternative).toBe("sample-none-image-drawing");
+    });
+
+    it.each([
+        ["explicit", { ai: true }],
+        ["generated source", { digitalSourceType: "trainedAlgorithmicMedia" }],
+        ["composite source", { digitalSourceType: "compositeWithTrainedAlgorithmicMedia" }],
+    ])("requires an alternative for a master with %s AI status", (_label, status) => {
+        const bare = writeSvgProvenance("<svg/>", { address: fields.address, ...status }).bytes;
+        expect(checkProvenance([{ file: "master.svg", bytes: bare }])).toEqual([
+            {
+                file: "master.svg",
+                severity: "error",
+                message: expect.stringMatching(/nonAiAlternative.*missing/),
+            },
+        ]);
+        const complete = writeSvgProvenance(bare, { nonAiAlternative: alternative }).bytes;
+        expect(checkProvenance([{ file: "master.svg", bytes: complete }])).toEqual([]);
+    });
+
+    it.each([
+        {},
+        { digitalSourceType: "algorithmicMedia" },
+        { ai: false },
+        { digitalSourceType: "digitalCreation" },
+    ])("keeps unknown or non-AI classification without requiring an alternative: %j", (status) => {
+        const out = writeSvgProvenance("<svg/>", { address: fields.address, ...status });
+        expect(checkProvenance([{ file: "master.svg", bytes: out.bytes }])).toEqual([]);
+        expect(readSvgProvenance(out.bytes).record.ai).toBe((status as { ai?: boolean }).ai);
+    });
+
+    it.each([
+        "",
+        "icon-placeholder",
+        "sample-note-image-placeholder",
+        "sample-none-audio-placeholder",
+        "Sample-none-icon-placeholder",
+        "sample-none-icon-placeholder#detail",
+        "sample-none-icon-place-holder",
+    ])("refuses a malformed or non-asset alternative: %s", (nonAiAlternative) => {
+        for (const { input, write } of formats)
+            expect(() => write(input(), { ...fields, nonAiAlternative })).toThrow(
+                /nonAiAlternative/,
+            );
+        const valid = writeSvgProvenance("<svg/>", { ...fields, nonAiAlternative: alternative });
+        const damaged = valid.text.replace(alternative, nonAiAlternative);
+        expect(() => readSvgProvenance(damaged)).toThrow(/nonAiAlternative/);
+        expect(checkProvenance([{ file: "master.svg", bytes: damaged }])).toEqual([
+            {
+                file: "master.svg",
+                severity: "error",
+                message: expect.stringContaining("nonAiAlternative"),
+            },
+        ]);
+    });
+
+    it("keeps the alternative in the master and index contract without expanding derivative metadata", async () => {
+        const record = {
+            ...fields,
+            nonAiAlternative: alternative,
+            prompt: "private",
+            generator: "{}",
+        };
+        const master = { file: "master.png", bytes: writeProvenance(png, record).bytes };
+        for (const input of ["<svg/>", await sharp(png).webp().toBuffer()]) {
+            const out = writeDerivativeProvenance(input, record);
+            const read =
+                typeof input === "string" ?
+                    readSvgProvenance(out.bytes)
+                :   readWebpProvenance(out.bytes);
+            expect(read.record).not.toHaveProperty("nonAiAlternative");
+            expect(read.record).not.toHaveProperty("prompt");
+            expect(read.record).not.toHaveProperty("generator");
+            expect(checkProvenance([master, { file: "derivative", bytes: out.bytes }])).toEqual([]);
+        }
+        expect(() => deriveRecord(record, { repeat: ["nonAiAlternative"] })).toThrow(
+            /cannot be repeated/,
+        );
+    });
+});
+
+describe("non-AI alternative XMP namespaces", () => {
+    const alternative = "sample-none-icon-placeholder";
+    const bare = () =>
+        writeSvgProvenance("<svg/>", { address: "sample-none-image-example", ai: true });
+    const declarations = [
+        {
+            name: "aliased element",
+            add: (packet: string) =>
+                packet.replace(
+                    "</rdf:Description>",
+                    `<other:nonAiAlternative xmlns:other="${HL_NAMESPACE}">${alternative}</other:nonAiAlternative></rdf:Description>`,
+                ),
+        },
+        {
+            name: "inherited aliased element",
+            add: (packet: string) =>
+                packet
+                    .replace("<rdf:RDF ", `<rdf:RDF xmlns:other="${HL_NAMESPACE}" `)
+                    .replace(
+                        "</rdf:Description>",
+                        `<other:nonAiAlternative>${alternative}</other:nonAiAlternative></rdf:Description>`,
+                    ),
+        },
+        {
+            name: "inherited aliased attribute",
+            add: (packet: string) =>
+                packet
+                    .replace("<rdf:RDF ", `<rdf:RDF xmlns:other="${HL_NAMESPACE}" `)
+                    .replace(
+                        "<rdf:Description ",
+                        `<rdf:Description other:nonAiAlternative = '${alternative}' `,
+                    ),
+        },
+        {
+            name: "inherited default element namespace",
+            add: (packet: string) =>
+                packet
+                    .replace("<rdf:Description ", `<rdf:Description xmlns="${HL_NAMESPACE}" `)
+                    .replace(
+                        "</rdf:Description>",
+                        `<nonAiAlternative>${alternative}</nonAiAlternative></rdf:Description>`,
+                    ),
+        },
+    ];
+    it.each(declarations)("preserves and removes an $name in PNG and SVG", ({ add }) => {
+        const svg = add(bare().text);
+        const packet = readSvgProvenance(svg).packet!;
+        for (const format of ["png", "svg"]) {
+            const write = format === "png" ? writeProvenance : writeSvgProvenance;
+            const read = format === "png" ? readProvenance : readSvgProvenance;
+            const input =
+                format === "png" ? withChunks(png, [makeTextChunk(XMP_KEYWORD, packet).raw]) : svg;
+            expect(read(input).record.nonAiAlternative).toBe(alternative);
+            expect(checkProvenance([{ file: `master.${format}`, bytes: input }])).toEqual([]);
+            const changed = write(input, { title: "Edited title" });
+            expect(read(changed.bytes).record.nonAiAlternative).toBe(alternative);
+            const removed = write(input, { nonAiAlternative: null });
+            expect(read(removed.bytes).record).not.toHaveProperty("nonAiAlternative");
+            expect(read(removed.bytes).packet).not.toContain(alternative);
+        }
+    });
+
+    it.each([
+        `<hl:nonAiAlternative xmlns:hl="urn:foreign">${alternative}</hl:nonAiAlternative>`,
+        `<other:nonAiAlternative xmlns:other="urn:foreign">${alternative}</other:nonAiAlternative>`,
+        `<nonAiAlternative xmlns="urn:foreign">${alternative}</nonAiAlternative>`,
+    ])("does not accept a foreign element as a managed alternative: %s", (element) => {
+        const svg = bare().text.replace("</rdf:Description>", `${element}</rdf:Description>`);
+        expect(readSvgProvenance(svg).record).not.toHaveProperty("nonAiAlternative");
+        expect(checkProvenance([{ file: "master.svg", bytes: svg }])).toEqual([
+            {
+                file: "master.svg",
+                severity: "error",
+                message: expect.stringMatching(/nonAiAlternative.*missing/),
+            },
+        ]);
+        expect(writeSvgProvenance(svg, { title: "Edited title" }).record).not.toHaveProperty(
+            "nonAiAlternative",
+        );
+    });
+
+    it("does not accept a rebound hl attribute from a foreign description", () => {
+        const svg = bare().text.replace(
+            "</rdf:RDF>",
+            `<rdf:Description xmlns:hl="urn:foreign" hl:nonAiAlternative="${alternative}"/></rdf:RDF>`,
+        );
+        expect(readSvgProvenance(svg).record).not.toHaveProperty("nonAiAlternative");
+        expect(writeSvgProvenance(svg, { title: "Edited title" }).record).not.toHaveProperty(
+            "nonAiAlternative",
+        );
+    });
+
+    it.each([
+        "a <b nonAiAlternative comparison",
+        '<root note="an other:nonAiAlternative reference"/>',
+        `<root><!-- <hl:nonAiAlternative xmlns:hl="${HL_NAMESPACE}">${alternative}</hl:nonAiAlternative> --></root>`,
+        `<root><![CDATA[<hl:nonAiAlternative xmlns:hl="${HL_NAMESPACE}">${alternative}</hl:nonAiAlternative>]]></root>`,
+    ])("leaves harmless mentions outside strict alternative parsing: %s", (packet) => {
+        expect(() => readXmpRecord(packet)).not.toThrow();
+        expect(readXmpRecord(packet)).not.toHaveProperty("nonAiAlternative");
+    });
+
+    it("refuses duplicate and empty managed properties", () => {
+        const svg = declarations[0].add(declarations[2].add(bare().text));
+        expect(() => readSvgProvenance(svg)).toThrow(/nonAiAlternative.*duplicate/);
+        expect(() =>
+            readSvgProvenance(
+                bare().text.replace(
+                    "</rdf:Description>",
+                    "<hl:nonAiAlternative/></rdf:Description>",
+                ),
+            ),
+        ).toThrow(/nonAiAlternative/);
+    });
+});
+
+describe("managed provenance namespace bindings", () => {
+    const dc = "http://purl.org/dc/elements/1.1/";
+    const rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+    const iptc = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/";
+    const fields = {
+        address: "sample-none-image-example",
+        identifier: "sample-none-image-example",
+        kind: "portrait",
+        name: "Subject",
+        primaryNote: "sample-note-being-subject",
+        role: "portrait",
+        derivedFrom: "sample-none-image-source",
+        prompt: PROMPT,
+        generator: GENERATOR,
+        title: "A title & another",
+        creator: "First & second",
+        rights: "Rights & terms",
+        license: "CC-BY-SA-4.0",
+        digitalSourceType: "digitalCreation",
+        formerNames: ["first & second.png", "third.png"],
+        description: "A description",
+        source: "https://example.org/source?a=1&b=2",
+        processing: "Trimmed & resized",
+    };
+    const alias = (packet: string) =>
+        packet
+            .replace(/\bhl:/g, "other:")
+            .replace(/xmlns:hl=/g, "xmlns:other=")
+            .replace(/\bdc:/g, "credit:")
+            .replace(/xmlns:dc=/g, "xmlns:credit=")
+            .replace(/\brdf:/g, "data:")
+            .replace(/xmlns:rdf=/g, "xmlns:data=")
+            .replace(/\bIptc4xmpExt:/g, "source:")
+            .replace(/xmlns:Iptc4xmpExt=/g, "xmlns:source=");
+
+    it.each(["png", "svg"])("preserves complete credit lists on unrelated %s edits", (format) => {
+        const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:dc="${dc}" xmlns:hl="${HL_NAMESPACE}"><rdf:Description hl:address="sample-none-image-example"><dc:creator><rdf:Seq><rdf:li>First &amp; artist</rdf:li><rdf:li>Second artist</rdf:li></rdf:Seq></dc:creator><dc:rights><rdf:Alt><rdf:li xml:lang="x-default">Default rights</rdf:li><rdf:li xml:lang="de">Weitere Rechte</rdf:li></rdf:Alt></dc:rights></rdf:Description></rdf:RDF>`;
+        const write = format === "png" ? writeProvenance : writeSvgProvenance;
+        const read = format === "png" ? readProvenance : readSvgProvenance;
+        const values = (bytes: Buffer, field: string) => {
+            const doc = new DOMParser().parseFromString(read(bytes).packet!, "application/xml");
+            const properties = doc.getElementsByTagNameNS(dc, field);
+            expect(properties.length).toBe(1);
+            return Array.from(properties.item(0)!.getElementsByTagNameNS(rdf, "li"), (node) => [
+                node.textContent,
+                node.getAttributeNS("http://www.w3.org/XML/1998/namespace", "lang"),
+            ]);
+        };
+        for (const raw of [
+            packet,
+            alias(packet),
+            packet.replace(/xmlns:dc=/g, "xmlns=").replace(/dc:/g, ""),
+        ]) {
+            const input =
+                format === "png" ?
+                    withChunks(png, [makeTextChunk(XMP_KEYWORD, raw).raw])
+                :   `<svg><metadata id="hl-provenance">${raw}</metadata></svg>`;
+            const edited = write(input, { title: "New title" });
+            expect(values(edited.bytes, "creator").map(([text]) => text)).toEqual([
+                "First & artist",
+                "Second artist",
+            ]);
+            expect(values(edited.bytes, "rights")).toEqual([
+                ["Default rights", "x-default"],
+                ["Weitere Rechte", "de"],
+            ]);
+            expect(read(edited.bytes).record).toMatchObject({
+                creator: "First & artist",
+                rights: "Default rights",
+            });
+            expect(write(edited.bytes, { title: "New title" }).bytes).toEqual(edited.bytes);
+            const replaced = write(edited.bytes, { creator: "Replacement", rights: "New terms" });
+            expect(values(replaced.bytes, "creator").map(([text]) => text)).toEqual([
+                "Replacement",
+            ]);
+            expect(values(replaced.bytes, "rights")).toEqual([["New terms", "x-default"]]);
+            const removed = write(edited.bytes, { creator: null, rights: null });
+            expect(read(removed.bytes).record).not.toHaveProperty("creator");
+            expect(read(removed.bytes).record).not.toHaveProperty("rights");
+            expect(read(removed.bytes).packet).not.toContain("Second artist");
+            expect(read(removed.bytes).packet).not.toContain("Weitere Rechte");
+        }
+    });
+
+    it.each(["png", "svg"])(
+        "preserves a single non-default rights language on unrelated %s edits",
+        (format) => {
+            const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:dc="${dc}" xmlns:hl="${HL_NAMESPACE}"><rdf:Description hl:address="sample-none-image-example"><dc:rights><rdf:Alt><rdf:li xml:lang="de">Weitere Rechte</rdf:li></rdf:Alt></dc:rights></rdf:Description></rdf:RDF>`;
+            const write = format === "png" ? writeProvenance : writeSvgProvenance;
+            const read = format === "png" ? readProvenance : readSvgProvenance;
+            const input =
+                format === "png" ?
+                    withChunks(png, [makeTextChunk(XMP_KEYWORD, packet).raw])
+                :   `<svg><metadata id="hl-provenance">${packet}</metadata></svg>`;
+            const edited = write(input, { title: "New title" });
+            const doc = new DOMParser().parseFromString(
+                read(edited.bytes).packet!,
+                "application/xml",
+            );
+            const rights = doc.getElementsByTagNameNS(dc, "rights");
+            expect(rights.length).toBe(1);
+            const entries = rights.item(0)!.getElementsByTagNameNS(rdf, "li");
+            expect(entries.length).toBe(1);
+            expect(entries.item(0)!.textContent).toBe("Weitere Rechte");
+            expect(
+                entries.item(0)!.getAttributeNS("http://www.w3.org/XML/1998/namespace", "lang"),
+            ).toBe("de");
+            expect(write(edited.bytes, { title: "New title" }).bytes).toEqual(edited.bytes);
+        },
+    );
+
+    it.each(["png", "svg", "webp"])(
+        "rewrites plain credits losslessly when foreign XMP cannot be retained in %s",
+        async (format) => {
+            const webp = format === "webp" ? await sharp(png).webp().toBuffer() : undefined;
+            const write =
+                format === "png" ? writeProvenance
+                : format === "webp" ? writeWebpProvenance
+                : writeSvgProvenance;
+            const read =
+                format === "png" ? readProvenance
+                : format === "webp" ? readWebpProvenance
+                : readSvgProvenance;
+            for (const field of ["creator", "rights"]) {
+                const credit =
+                    field === "creator" ?
+                        "<dc:creator><rdf:Seq><rdf:li>Artist &amp; colleague</rdf:li></rdf:Seq></dc:creator>"
+                    :   '<dc:rights><rdf:Alt><rdf:li xml:lang="x-default">Artist &amp; colleague</rdf:li></rdf:Alt></dc:rights>';
+                const foreignMarkup =
+                    format === "webp" ?
+                        [""]
+                    :   ["", "<other:broken>&unknown;</other:broken>", "<unbound:property/>"];
+                for (const foreign of foreignMarkup) {
+                    const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:dc="${dc}" xmlns:hl="urn:foreign" xmlns:p="${HL_NAMESPACE}" xmlns:other="urn:editor"><rdf:Description p:address="sample-none-image-example">${credit}${foreign}</rdf:Description></rdf:RDF>`;
+                    const aliased = packet
+                        .replace(/\bdc:/g, "credit:")
+                        .replace(/xmlns:dc=/g, "xmlns:credit=")
+                        .replace(/\brdf:/g, "data:")
+                        .replace(/xmlns:rdf=/g, "xmlns:data=");
+                    for (const raw of [packet, aliased]) {
+                        const input =
+                            format === "png" ?
+                                withChunks(png, [makeTextChunk(XMP_KEYWORD, raw).raw])
+                            : format === "webp" ? await sharp(webp!).withXmp(raw).webp().toBuffer()
+                            : Buffer.from(
+                                    `<svg><metadata id="hl-provenance">${raw}</metadata></svg>`,
+                                );
+                        const edited = write(input, { title: "New title" });
+                        expect(edited.foreignXmp).toBe("discarded");
+                        expect(edited.foreignXmpReason).toBeTruthy();
+                        expect(read(edited.bytes).record).toMatchObject({
+                            address: "sample-none-image-example",
+                            title: "New title",
+                            [field]: "Artist & colleague",
+                        });
+                        expect(write(edited.bytes, { title: "New title" }).bytes).toEqual(
+                            edited.bytes,
+                        );
+                    }
+                }
+            }
+        },
+    );
+
+    it.each(["creator", "rights"])("refuses fallback that would lose extra %s details", (field) => {
+        const shape = field === "creator" ? "Seq" : "Alt";
+        const lang = field === "rights" ? ' xml:lang="x-default"' : "";
+        const plain = `<rdf:li${lang}>Credit</rdf:li>`;
+        const properties = [
+            `<dc:${field}><rdf:${shape}>${plain}${plain}</rdf:${shape}></dc:${field}>`,
+            `<dc:${field} other:role="owner"><rdf:${shape}>${plain}</rdf:${shape}></dc:${field}>`,
+            `<dc:${field}><rdf:${shape} other:role="owner">${plain}</rdf:${shape}></dc:${field}>`,
+            `<dc:${field}><rdf:${shape}><rdf:li${lang} other:role="owner">Credit</rdf:li></rdf:${shape}></dc:${field}>`,
+            `<dc:${field}><rdf:${shape}><rdf:li xml:lang="de">Credit</rdf:li></rdf:${shape}></dc:${field}>`,
+            `<dc:${field}><rdf:${shape}><rdf:li${lang}>Credit<other:detail>Owner</other:detail></rdf:li></rdf:${shape}></dc:${field}>`,
+            `<dc:${field}><rdf:${shape}>${plain}<!-- Credit detail --></rdf:${shape}></dc:${field}>`,
+            `<dc:${field} rdf:resource="urn:credit:owner"/>`,
+        ];
+        for (const property of properties) {
+            const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:dc="${dc}" xmlns:hl="urn:foreign" xmlns:p="${HL_NAMESPACE}" xmlns:other="urn:editor"><rdf:Description p:address="sample-none-image-example">${property}</rdf:Description></rdf:RDF>`;
+            for (const format of ["png", "svg"]) {
+                const input =
+                    format === "png" ?
+                        withChunks(png, [makeTextChunk(XMP_KEYWORD, packet).raw])
+                    :   Buffer.from(`<svg><metadata id="hl-provenance">${packet}</metadata></svg>`);
+                const write = format === "png" ? writeProvenance : writeSvgProvenance;
+                const read = format === "png" ? readProvenance : readSvgProvenance;
+                expect(() => write(input, { title: "New title" })).toThrow(
+                    `${field}: cannot preserve`,
+                );
+                expect(read(write(input, { [field]: "Replacement" }).bytes).record[field]).toBe(
+                    "Replacement",
+                );
+                expect(read(write(input, { [field]: null }).bytes).record).not.toHaveProperty(
+                    field,
+                );
+            }
+        }
+    });
+
+    it("refuses an unrelated edit when a single rights language cannot be retained", () => {
+        const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:dc="${dc}" xmlns:hl="urn:foreign" xmlns:p="${HL_NAMESPACE}"><rdf:Description p:address="sample-none-image-example"><dc:rights><rdf:Alt><rdf:li xml:lang="de">Weitere Rechte</rdf:li></rdf:Alt></dc:rights></rdf:Description></rdf:RDF>`;
+        const input = `<svg><metadata id="hl-provenance">${packet}</metadata></svg>`;
+        expect(() => writeSvgProvenance(input, { title: "New title" })).toThrow(
+            /rights.*cannot preserve/,
+        );
+    });
+
+    it("refuses an unrelated edit when complete credits cannot be retained safely", () => {
+        const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:dc="${dc}" xmlns:hl="urn:foreign" xmlns:p="${HL_NAMESPACE}"><rdf:Description p:address="sample-none-image-example"><dc:creator><rdf:Seq><rdf:li>First</rdf:li><rdf:li>Second</rdf:li></rdf:Seq></dc:creator></rdf:Description></rdf:RDF>`;
+        const input = `<svg><metadata id="hl-provenance">${packet}</metadata></svg>`;
+        expect(() => writeSvgProvenance(input, { title: "New title" })).toThrow(
+            /creator.*cannot preserve/,
+        );
+    });
+
+    it.each(["creator", "rights"])(
+        "refuses unchanged duplicate %s properties before writing",
+        (field) => {
+            const shape = field === "creator" ? "Seq" : "Alt";
+            const element = (values: string[]) =>
+                `<credit:${field}><data:${shape}>${values.map((value) => `<data:li>${value}</data:li>`).join("")}</data:${shape}></credit:${field}>`;
+            const single = `<data:Description>${element(["First credit"])}</data:Description>`;
+            const multiple = `<data:Description>${element(["Second credit", "Third credit"])}</data:Description>`;
+            const attribute = `<data:Description credit:${field}="First credit"/>`;
+            const otherAttribute = `<data:Description other:${field}="Second credit"/>`;
+            for (const declarations of [
+                single + multiple,
+                multiple + single,
+                attribute + multiple,
+                attribute + otherAttribute,
+            ]) {
+                const packet = `<data:RDF xmlns:data="${rdf}" xmlns:credit="${dc}" xmlns:other="${dc}" xmlns:hl="${HL_NAMESPACE}"><data:Description hl:address="sample-none-image-example"/>${declarations}</data:RDF>`;
+                for (const format of ["png", "svg"]) {
+                    const input =
+                        format === "png" ?
+                            withChunks(png, [makeTextChunk(XMP_KEYWORD, packet).raw])
+                        :   `<svg><metadata id="hl-provenance">${packet}</metadata></svg>`;
+                    const write = format === "png" ? writeProvenance : writeSvgProvenance;
+                    const read = format === "png" ? readProvenance : readSvgProvenance;
+                    expect(() => write(input, { title: "New title" })).toThrow(
+                        `${field}: duplicate XMP properties`,
+                    );
+                    const replaced = write(input, { [field]: "Replacement credit" });
+                    expect(read(replaced.bytes).record[field]).toBe("Replacement credit");
+                    const removed = write(input, { [field]: null });
+                    expect(read(removed.bytes).record).not.toHaveProperty(field);
+                    for (const output of [replaced, removed]) {
+                        expect(read(output.bytes).packet).not.toContain("First credit");
+                        expect(read(output.bytes).packet).not.toContain("Second credit");
+                        expect(read(output.bytes).packet).not.toContain("Third credit");
+                    }
+                }
+            }
+        },
+    );
+
+    it("reads aliased properties and structured RDF values without losing text", () => {
+        const packet = readSvgProvenance(writeSvgProvenance("<svg/>", fields).bytes).packet!;
+        const expected = readXmpRecord(packet);
+        expect(readXmpRecord(alias(packet))).toEqual(expected);
+        expect(expected.prompt).toBe(PROMPT);
+        expect(expected.formerNames).toEqual(fields.formerNames);
+    });
+
+    it.each(["png", "svg"])(
+        "keeps aliased credits and licenses on an unrelated %s edit",
+        (format) => {
+            const base = readSvgProvenance(writeSvgProvenance("<svg/>", fields).bytes).packet!;
+            const packet = alias(base);
+            const input =
+                format === "png" ?
+                    withChunks(png, [makeTextChunk(XMP_KEYWORD, packet).raw])
+                :   `<svg><metadata id="hl-provenance">${packet}</metadata></svg>`;
+            const write = format === "png" ? writeProvenance : writeSvgProvenance;
+            const read = format === "png" ? readProvenance : readSvgProvenance;
+            const before = read(input).record;
+            const edited = write(input, { title: "New title" });
+            expect(read(edited.bytes).record).toEqual({ ...before, title: "New title" });
+            expect(read(edited.bytes).record.license).toBe(fields.license);
+            expect(read(edited.bytes).record.creator).toBe(fields.creator);
+            expect(write(edited.bytes, { title: "New title" }).changed).toBe(false);
+        },
+    );
+
+    it("reads inherited aliases, default element namespaces and spaced attributes", () => {
+        const packet = `<x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:p="${HL_NAMESPACE}" xmlns:c="${dc}" xmlns:r="${rdf}"><r:RDF><r:Description p:address = 'sample-none-image-example' p:license = 'CC-BY-SA-4.0' c:creator = 'An artist &amp; another'><title xmlns="${dc}"><r:Alt><r:li xml:lang="x-default">First &amp; only</r:li><r:li>Second</r:li></r:Alt></title><name xmlns="${HL_NAMESPACE}">Subject</name></r:Description></r:RDF></x:xmpmeta>`;
+        expect(readXmpRecord(packet)).toEqual({
+            address: fields.address,
+            license: fields.license,
+            creator: "An artist & another",
+            title: "First & only",
+            name: "Subject",
+        });
+    });
+
+    it("uses namespace bindings for RDF list entries and preserves attribute text", () => {
+        const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:credit="${dc}"><rdf:Description credit:creator="A&#13;\nB &amp; C"><credit:title><Alt xmlns="${rdf}"><rdf:li xmlns:rdf="urn:foreign">Wrong</rdf:li><li>First</li><li>Second</li></Alt></credit:title></rdf:Description></rdf:RDF>`;
+        expect(readXmpRecord(packet)).toEqual({ creator: "A\r\nB & C", title: "First" });
+    });
+
+    it("does not let rebound prefixes supply managed elements or attributes", () => {
+        const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:hl="${HL_NAMESPACE}" xmlns:dc="${dc}"><rdf:Description hl:address="${fields.address}"><hl:license xmlns:hl="urn:foreign">Wrong terms</hl:license><dc:creator xmlns:dc="urn:foreign">Wrong credit</dc:creator></rdf:Description><rdf:Description xmlns:hl="urn:foreign" xmlns:dc="urn:foreign" hl:license="Also wrong" dc:title="Wrong title"/></rdf:RDF>`;
+        expect(readXmpRecord(packet)).toEqual({ address: fields.address });
+        const input = `<svg><metadata id="hl-provenance">${packet}</metadata></svg>`;
+        const edited = writeSvgProvenance(input, { title: "New title" });
+        expect(edited.record).not.toHaveProperty("license");
+        expect(edited.record).not.toHaveProperty("creator");
+        expect(edited.text).toContain("Wrong terms");
+        expect(edited.text).toContain("Wrong credit");
+    });
+
+    it("keeps a declared value outside the canonical description during edits", () => {
+        const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:p="${HL_NAMESPACE}"><rdf:Description p:license="CC-BY-SA-4.0"/><rdf:Description xmlns:hl="${HL_NAMESPACE}"><hl:address>${fields.address}</hl:address></rdf:Description></rdf:RDF>`;
+        expect(readXmpRecord(packet).license).toBe(fields.license);
+        const edited = writeSvgProvenance(
+            `<svg><metadata id="hl-provenance">${packet}</metadata></svg>`,
+            { title: "New title" },
+        );
+        expect(edited.record.license).toBe(fields.license);
+    });
+
+    it.each(["trainedAlgorithmicMedia", "not a URI", "urn:example:source"])(
+        "keeps aliased source-only reads lenient for %s",
+        (value) => {
+            const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:s="${iptc}"><rdf:Description><s:DigitalSourceType>${value}</s:DigitalSourceType><s:DigitalSourceType>second</s:DigitalSourceType></rdf:Description></rdf:RDF>`;
+            expect(readXmpRecord(packet)).toEqual({ digitalSourceType: value });
+        },
+    );
+
+    it("ignores managed-looking text in comments, CDATA and attribute values", () => {
+        const packet = `<root note='hl:license="Wrong"'><!-- <hl:license>Wrong</hl:license> --><![CDATA[<dc:creator>Wrong</dc:creator>]]></root>`;
+        expect(readXmpRecord(packet)).toEqual({});
+    });
+});
+
+describe("foreign metadata under namespace-equivalent RDF roots", () => {
+    const rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+    const editor = "urn:editor";
+    const address = "sample-none-image-example";
+    const packet = (prefix: string, inherited: boolean) => {
+        const name = prefix ? `${prefix}:` : "";
+        const declaration = prefix ? `xmlns:${prefix}="${rdf}"` : `xmlns="${rdf}"`;
+        return `<meta:xmpmeta xmlns:meta="adobe:ns:meta/" xmlns:editor="${editor}" ${inherited ? declaration : ""}><!-- outside-rdf --><editor:private>outside-value</editor:private><${name}RDF ${inherited ? "" : declaration}><!-- inside-rdf --><${name}Description xmlns:hl="${HL_NAMESPACE}" editor:label="retained-label"><hl:address>${address}</hl:address><editor:credit>Retained credit</editor:credit></${name}Description></${name}RDF></meta:xmpmeta>`;
+    };
+    it.each([
+        ["rdf", false],
+        ["data", false],
+        ["data", true],
+        ["", true],
+    ])(
+        "retains eligible properties under prefix %s with inherited binding %s",
+        (prefix, inherited) => {
+            const xmp = packet(prefix, inherited);
+            const inputs = [
+                {
+                    input: withChunks(png, [makeTextChunk(XMP_KEYWORD, xmp).raw]),
+                    write: writeProvenance,
+                    read: readProvenance,
+                },
+                {
+                    input: `<svg><metadata id="hl-provenance">${xmp}</metadata></svg>`,
+                    write: writeSvgProvenance,
+                    read: readSvgProvenance,
+                },
+            ];
+            for (const { input, write, read } of inputs) {
+                const result = write(input, { title: "Updated title" });
+                expect(result.foreignXmp).toBe("kept");
+                const output = read(result.bytes).packet!;
+                expect(output).toContain("inside-rdf");
+                expect(output).toContain("Retained credit");
+                expect(output).not.toContain("outside-rdf");
+                expect(output).not.toContain("outside-value");
+                const document = new DOMParser({
+                    onError: () => {
+                        throw new Error("Invalid output XMP");
+                    },
+                }).parseFromString(output, "application/xml");
+                expect(document.getElementsByTagNameNS(editor, "credit").item(0)!.textContent).toBe(
+                    "Retained credit",
+                );
+                expect(
+                    Array.from(document.getElementsByTagNameNS(rdf, "Description")).some(
+                        (node) => node.getAttributeNS(editor, "label") === "retained-label",
+                    ),
+                ).toBe(true);
+                expect(write(result.bytes, { title: "Updated title" }).bytes).toEqual(result.bytes);
+            }
+        },
+    );
+
+    it("does not treat a rebound rdf prefix as an RDF root", () => {
+        const xmp = packet("rdf", false).replace(`xmlns:rdf="${rdf}"`, 'xmlns:rdf="urn:foreign"');
+        const result = writeSvgProvenance(
+            `<svg><metadata id="hl-provenance">${xmp}</metadata></svg>`,
+            { title: "Updated title" },
+        );
+        expect(result.foreignXmp).toBe("discarded");
+        expect(result.foreignXmpReason).toMatch(/not RDF/);
+        expect(readSvgProvenance(result.bytes).packet).not.toContain("Retained credit");
+    });
+
+    it("does not retain outside-only comments or publish editor metadata on derivatives", () => {
+        const xmp = packet("data", true);
+        const input = `<svg xmlns="http://www.w3.org/2000/svg"><metadata id="hl-provenance">${xmp}</metadata><rect width="1" height="1"/></svg>`;
+        const result = writeDerivativeProvenance(input, { address });
+        expect(result.foreignXmp).toBe("discarded");
+        expect(result.bytes.toString("utf8")).not.toContain("Retained credit");
+        expect(result.bytes.toString("utf8")).not.toContain("inside-rdf");
+        expect(result.bytes.toString("utf8")).not.toContain("outside-rdf");
+        const onlyOutside = `<meta:xmpmeta xmlns:meta="adobe:ns:meta/" xmlns:data="${rdf}"><!-- outside-rdf --><data:RDF><data:Description xmlns:hl="${HL_NAMESPACE}"><hl:address>${address}</hl:address></data:Description></data:RDF></meta:xmpmeta>`;
+        const clean = writeSvgProvenance(
+            `<svg><metadata id="hl-provenance">${onlyOutside}</metadata></svg>`,
+            { title: "Updated title" },
+        );
+        expect(clean.foreignXmp).toBe("none");
+        expect(clean.text).not.toContain("outside-rdf");
     });
 });

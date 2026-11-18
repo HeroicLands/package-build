@@ -1645,6 +1645,20 @@ The complete content build runs these existing operations in order:
    pictures, base styles and fonts.
 4. Run content lint, link checks and pack compilation with the same live session.
 
+Known-AI artwork masters must declare a non-AI alternative. Before publication,
+the captured index resolves each target in this package or its required content
+dependencies (`relationships.systems` or `relationships.requires`) and checks
+its explicit non-AI status, picture type and Foundry shipping license. Optional
+`recommends` packages cannot supply an alternative. Missing or invalid targets are errors at the master file.
+The same validation applies whenever an operation builds the content index:
+`package-build content-index`, `package-build content build`, `package-build site build`,
+`package-build pdf`, `package-build lint`, `package-build links`, and
+`package-build addresses diff`, as well as SQL-table preparation. `package-build manifest`
+also validates when `packageBuild.converterData` is set. Website and PDF builds refuse invalid alternatives while
+retaining original illustrations in successful output.
+Assign and embed eligible alternatives before building existing artwork. See
+[artwork alternatives](authoring/assets.md#non-ai-alternatives).
+
 Finish dependency fetching and source generation before invoking the command.
 Public and complete SQL preparations remain separate and each is reused by
 operations needing that audience. No resolved index or source cache survives

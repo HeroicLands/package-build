@@ -1297,7 +1297,7 @@ and the same embedded Address as its master. One Address identifies one master
 and any number of derivatives; neither a filename nor a sidecar supplies identity.
 
 `ProvenanceRecord` has optional string fields `address`, `identifier`, `kind`,
-`name`, `primaryNote`, `role`, `derived`, `derivedFrom`, `prompt`, `generator`,
+`name`, `primaryNote`, `nonAiAlternative`, `role`, `derived`, `derivedFrom`, `prompt`, `generator`,
 `title`, `creator`, `rights`, `license`, `digitalSourceType`, `created`, `software`,
 `description`, `source` and `processing`. It also has optional `formerNames: string[]`,
 `composition: ArtComposition` and `ai: boolean`.
@@ -1307,6 +1307,62 @@ either missing value from the other, retaining disagreements for the checker.
 `generator` is a JSON object serialized as a string; `prompt` is verbatim
 input, `source` states where the image was obtained, and `processing` describes
 how it was made. `description` is separate from the prompt.
+
+Managed XMP fields are identified by namespace URI and property name. Aliased
+prefixes and inherited or default element namespaces retain the same values on
+an edit; a prefix rebound to a foreign namespace cannot supply a managed value.
+The RDF container also uses namespace identity; inherited bindings preserve
+eligible editor properties and comments inside it. Content outside RDF is omitted.
+Structured titles and credits expose their first RDF list value in the scalar
+record; former names expose their RDF list order. Unrelated edits preserve every
+entry and language tag in `dc:creator` and `dc:rights` lists. An
+explicit creator or rights value replaces that whole field; `null` removes it.
+When foreign XMP cannot be retained, one plain creator entry or one plain
+`x-default` rights entry can be rewritten from its exact scalar value. Extra
+entries, attributes, language tags or structure require the original credit XML;
+if that XML cannot be retained safely, the write fails before producing output.
+Multiple creator or rights properties are ambiguous, including
+attribute and element forms across separate RDF descriptions. An unrelated edit
+refuses them; explicitly replace or remove the affected field to edit that packet.
+Ordinary property reads preserve raw text
+without imposing the stricter AI, composition or alternative rules.
+
+`nonAiAlternative` is stored as `hl:nonAiAlternative` and must be a complete
+`<package>-none-image-<shortcode>` or `<package>-none-icon-<shortcode>` Address.
+The reader identifies the property by namespace URI and local name, including
+aliased attributes and elements with inherited or default namespaces. Foreign
+namespace properties do not supply the field. Duplicate properties and values
+other than one Address text element or RDF Description attribute are refused.
+Reads and writes accept its absence; `checkProvenance` reports it missing on a
+known-AI master, including one classified through its source type alone. An
+unknown AI status remains unknown. `undefined` preserves the field, a string
+replaces it, and `null` removes it. Several masters may declare the same target,
+including a target in a required content dependency under `relationships.systems`
+or `relationships.requires`; optional `recommends` packages cannot supply it. `checkProvenance` refuses self
+references and targets among its checked masters whose status is not explicitly
+non-AI. Collection reports missing alternatives. The content index and session
+resolve every declared target after collecting own records and loading dependency indexes;
+they require an explicitly non-AI image or icon eligible for Foundry shipping.
+This validation applies to every operation building the index: `package-build content-index`,
+`package-build content build`, `package-build site build`, `package-build pdf`,
+`package-build lint`, `package-build links`, and `package-build addresses diff`, as well
+as SQL-table preparation. `package-build manifest` also validates when
+`packageBuild.converterData` is set.
+Website and PDF builds refuse missing or invalid alternatives even though their
+output retains the original illustration.
+The Foundry reference pass uses the declared target's installed path. Website
+and PDF paths retain the source illustration. Non-AI and unknown-status masters
+may carry the field and its target must pass the same checks, but it selects a
+replacement only for known-AI sources.
+`deriveRecord` and public derivative writers omit the field and refuse it in
+`repeat`. Derivatives are checked against their master without requiring this
+property in their own metadata; carrying it on a derivative is an error.
+
+`masterAssetRecords` projects it as `asset.nonAiAlternative`, with `null` when absent.
+The standard index decoder restores an Address value, and
+`serializeContentIndex` publishes the canonical string. The public row includes
+no prompt, generator, composition recipe or private source path. A provenance
+sidecar cannot supply this master field.
 
 `license` is an explicit machine-readable identifier such as `CC-BY-SA-4.0`,
 stored as `hl:license`; the build does not extract a license from `rights`
@@ -1638,6 +1694,7 @@ not evidence that an approximation is an exact reproduction.
 The wildcard export makes `@heroiclands/package-build/engine/art-masters`,
 `@heroiclands/package-build/engine/art-master-render`,
 `@heroiclands/package-build/engine/art-source`,
+`@heroiclands/package-build/engine/art-alternatives`,
 `@heroiclands/package-build/engine/art-render-cache`,
 `@heroiclands/package-build/engine/pdf-images` and
 `@heroiclands/package-build/engine/art-provenance-core` reachable. They are
@@ -1649,6 +1706,9 @@ It also exposes internal XML and container helpers: `RDF_NAMESPACE`,
 `X_NAMESPACE`, `WEBP_HEADER`, `WEBP_EXIF_FLAG`, `WEBP_XMP_FLAG`, `decodeSvg`,
 `hasForeignXmp` and `locateSvg`. The public provenance entry adds the derivative
 privacy writer, `readJpegProvenance`, and `deriveRecord` and owns the supported import surface. `provenancePacket` is available from `art-provenance-core`.
+`provenanceAi(record)` returns explicit or source-type-derived AI classification
+as `true`, `false` or `null` for unknown. `MISSING_ALTERNATIVE` is the shared
+missing-alternative diagnostic and remedy. Both are exported by `art-provenance-core`.
 
 `art-masters` exports `assertPrivateArtRoots`, `collectArtMasters`,
 `masterAssetRecords` and `shippingAssetRecords` for private-root validation,
@@ -1658,9 +1718,24 @@ separate `masters` and `components` maps, `findings` and input `paths`. Collecti
 marks component entries with `publication: "component"`; asset indexing and
 master rendering exclude those entries even when maps are combined.
 `art-master-render` exports `renderArtMasters` for public rendering under the
-build directory. `art-source` exports `setArtSource`, `copyArtSource` and
-`artSource` for diagnostic locations held only in memory. These functions serve
+build directory. `art-source` exports `setArtSource(record, file, {master}?)`,
+`copyArtSource(from, to)`, `artSource(record, assetsBase)` and
+`hasMasterSource(record)` for diagnostic locations held only in memory. The
+`master` option defaults to `false`; `true` identifies a canonical master, and
+`copyArtSource` preserves that marker. `hasMasterSource` returns whether the
+record has that marker. No private path or marker is serialized. These functions serve
 the build pipeline and do not declare consumer namespaces in the engine barrel.
+
+`art-alternatives` exports `alternativePackages(config)`, the set of the local
+package and required content dependencies; `alternativeProblem(record, index,
+config)`, an empty string for an eligible declaration or an author remedy; and
+`checkArtAlternatives(records, {config, foreignIndex, assetsBase})`, located error
+findings without record mutation. `index` maps canonical Addresses to asset
+records. `foreignIndex` is a lazy function returning the standard dependency
+index; `assetsBase` supplies a diagnostic fallback for records without a private
+source association. Every present declaration is checked; missing declarations
+are errors only on known-AI canonical masters. Dependency-index validation does
+not inspect the dependency's image bytes.
 
 `art-render-cache` exports `artRendererIdentity` and `cachedArtRender` for content-addressed derivative caching. `pdf-images` exports `PDF_EDITIONS`, `PDF_PAGE`, `PDF_IMAGE_INCHES`, `BOOK_ROLE_SLOTS`, `BOOK_ICON_WIDTH_IN`, `pdfTextWidth`, `pdfTextHeight`, `pdfColumnWidth`, `bookImageWidthIn`, `renderPdfMaster`, and `resamplePdfImages` for book image geometry and rendering. `renderArtMasters` and `resamplePdfImages` require an absolute cache directory; pass the package root’s `build/.cache/art` path.
 
@@ -1678,7 +1753,7 @@ The deployed layout of a package's pictures, and which of them ship. A Foundry p
 | `deployedAssetPath`       | `deployedAssetPath(record)`                                                                        | `string \| undefined` — `<icons\|images>/<basename>`                            | reading the deployed path of one asset record; `undefined` for audio                                                            |
 | `exclusionReason`         | `exclusionReason(record, additions?)`                                                              | `string` — a clause, or `""`                                                    | saying why a picture does not ship                                                                                              |
 | `shipsAsset`              | `shipsAsset(record, additions?)`                                                                   | `boolean`                                                                       | asking whether one picture ships                                                                                                |
-| `standInAddress`          | `standInAddress(pkg, type)`                                                                        | `string` — `<package>-none-<type>-missing`                                      | naming the stand-in an excluded picture compiles to                                                                             |
+| `standInAddress`          | `standInAddress(pkg, type)`                                                                        | `string` — `<package>-none-<type>-missing`                                      | naming the stand-in for exclusions that do not require a declared alternative                                                   |
 | `selectStagedAssets`      | `selectStagedAssets(records, additions?)`                                                          | `{staged, excluded}` — both in address order, each excluded one with its reason | splitting a package's pictures into what ships and what does not                                                                |
 | `shippedSetName`          | `shippedSetName(title)`                                                                            | `string` — `<title> — shipped art`                                              | naming the staged package's own asset set                                                                                       |
 | `assetsManifest`          | `assetsManifest(staged, stageDir)`                                                                 | `{address, source, target, size}[]`                                             | listing staged files as the shipped set does, each `source` relative to `asset-sets/`, sizes measured in the stage              |
@@ -1717,14 +1792,14 @@ The CLI owns environment loading and
 
 ### `engine.assetReferences`
 
-Every asset reference in a compiled document states the asset's address: an `<img>` carries `data-asset`, and a path field's address sits in `flags.<system>.assets` on the document holding it, nested to mirror the field's path. A reference to a picture its package does not ship compiles to that package's stand-in and keeps the excluded address.
+Every asset reference in a compiled document states the asset's address: an `<img>` carries `data-asset`, and a path field's address sits in `flags.<system>.assets` on the document holding it, nested to mirror the field's path. An excluded known-AI master uses its declared eligible non-AI alternative; an invalid declaration is a finding. Other exclusions use the package's stand-in. Both keep the original asset address.
 
 | Export                    | Signature                                                                | Returns                                   | Use it when                                                                                            |
 | ------------------------- | ------------------------------------------------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `ASSET_PATH_FIELDS`       | `const ASSET_PATH_FIELDS`                                                | `Record<string, AssetPathField[]>`        | reading which fields of which document types name a picture, and where each records its address        |
 | `assetReferenceLookup`    | `assetReferenceLookup(linkIndex, config)`                                | `{byPath, byAddress}`                     | indexing every picture a compiled document can name, local and fetched, by Foundry path and by address |
 | `annotateHtml`            | `annotateHtml(html, lookup, report)`                                     | `string`                                  | marking each `<img>` in one HTML string with its address                                               |
-| `annotateAssetReferences` | `annotateAssetReferences(doc, documentType, { lookup, system, report })` | `object` — the document, changed in place | stating every reference's address on a finished document and drawing stand-ins                         |
+| `annotateAssetReferences` | `annotateAssetReferences(doc, documentType, { lookup, system, report })` | `object` — the document, changed in place | stating original addresses and selecting declared alternatives or eligible stand-ins                   |
 
 ### `engine.packages`
 

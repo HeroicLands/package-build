@@ -643,6 +643,18 @@ function decodeIndexRecord(record, context) {
     }
     if (record.address?.canonical != null)
         record.address.canonical = canonical(record.address.canonical, ["address", "canonical"]);
+    if (record.asset?.nonAiAlternative != null) {
+        const keyPath = ["asset", "nonAiAlternative"];
+        const target = canonical(record.asset.nonAiAlternative, keyPath);
+        if (target.system !== "none" || !["image", "icon"].includes(target.type)) {
+            const error = new Error(
+                "Index asset.nonAiAlternative must name a none-system image or icon Address",
+            );
+            error.keyPath = keyPath;
+            throw error;
+        }
+        record.asset.nonAiAlternative = target;
+    }
     for (const anchor of record.anchors ?? []) {
         if (anchor.link != null && !(anchor.link instanceof AddressLink)) {
             const error = new Error(

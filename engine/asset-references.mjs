@@ -35,11 +35,11 @@
  * `<system>` is the system the document is compiled for — its
  * `_stats.systemId`.
  *
- * **A stand-in replaces an asset the package does not ship.** A reference to
- * an excluded picture compiles to its package's own
- * `<package>-none-<icon|image>-missing` and keeps the excluded asset's address,
- * which is how a world finds the real file once it holds it. An excluded
- * picture with no shipped stand-in is a finding against the note.
+ * **Known-AI masters use their declared alternative.** The installed path
+ * belongs to the non-AI target, while the reference retains the original
+ * asset's address for a world that supplies the original picture. Other
+ * excluded assets use their package's shipped `missing` picture. Missing or
+ * ineligible replacements are findings against the note.
  *
  * The pass runs over the finished document, so it answers the same way
  * whichever compiler built it and whether the path came from an art address,
@@ -48,6 +48,9 @@
  * @module
  */
 
+import { readCanonicalKey, renderAddress } from "./address.mjs";
+import { hasMasterSource } from "./art-source.mjs";
+import { alternativeProblem } from "./art-alternatives.mjs";
 import { isAssetRecord } from "./index-records.mjs";
 import { ASSETS_SEGMENT, resolvePathname } from "./pathnames.mjs";
 import { deployedAssetPath, exclusionReason, standInAddress } from "./asset-shipping.mjs";
@@ -112,6 +115,9 @@ export const ASSET_PATH_FIELDS = Object.freeze({
  * @property {string} type - `icon` or `image`.
  * @property {string} foundry - Its path in a Foundry install.
  * @property {boolean} shipped - Whether its package ships it.
+ * @property {string|null} alternative - Declared replacement for a known-AI asset.
+ * @property {string} alternativeProblem - Why the declared replacement cannot be used.
+ * @property {boolean} requiresAlternative - Whether this excluded master must name its replacement.
  */
 
 /**
@@ -135,6 +141,7 @@ export function assetReferenceLookup(linkIndex, config) {
         ...(linkIndex?.foreign?.entries() ?? []),
         ...(linkIndex?.assets?.entries() ?? []),
     ];
+    const records = new Map(entries);
     for (const [key, record] of entries) {
         if (!isAssetRecord(record) || !record.package) continue;
         if (deployedAssetPath(record) === undefined) continue;
@@ -153,6 +160,20 @@ export function assetReferenceLookup(linkIndex, config) {
             package: record.package,
             type: record.type,
             foundry: forms.foundry,
+            requiresAlternative:
+                record.asset.ai === true &&
+                (hasMasterSource(record) || record.asset.nonAiAlternative != null),
+            alternative:
+                record.asset.ai === true && record.asset.nonAiAlternative != null ?
+                    renderAddress(readCanonicalKey(record.asset.nonAiAlternative))
+                :   null,
+            alternativeProblem:
+                (
+                    record.asset.ai === true &&
+                    (hasMasterSource(record) || record.asset.nonAiAlternative != null)
+                ) ?
+                    alternativeProblem({ ...record, address: { canonical: key } }, records, config)
+                :   "",
             // Additions are this package's own: a dependency's list is its own.
             shipped:
                 exclusionReason(
@@ -182,6 +203,16 @@ function resolveReference(value, lookup, report) {
     const entry = lookup.byPath.get(value);
     if (!entry) return null;
     if (entry.shipped) return { src: value, address: entry.address };
+    if (entry.requiresAlternative) {
+        const replacement = lookup.byAddress.get(entry.alternative);
+        if (!entry.alternativeProblem && replacement?.shipped)
+            return { src: replacement.foundry, address: entry.address };
+        report(
+            entry.alternativeProblem ||
+                `nonAiAlternative ${entry.alternative} has no shipped Foundry path; supply its declared package and indexed image or icon`,
+        );
+        return { src: value, address: entry.address };
+    }
     const standIn = lookup.byAddress.get(standInAddress(entry.package, entry.type));
     if (standIn?.shipped) return { src: standIn.foundry, address: entry.address };
     report(

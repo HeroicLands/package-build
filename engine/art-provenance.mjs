@@ -82,6 +82,14 @@
  * writes it over whatever a WebP or SVG file holds, so a private master field
  * reaches a derivative only when it is asked for.
  *
+ * ## Non-AI alternatives
+ *
+ * A known-AI master carries `nonAiAlternative` as `hl:nonAiAlternative`: a complete
+ * canonical image or icon Address with system `none`. Raw reads and edits allow
+ * the field to be absent; the provenance check reports its absence on an AI
+ * master. The public asset index carries the Address, while derivative metadata
+ * omits it. This field records the declared target without resolving eligibility.
+ *
  * ## The note an image shows
  *
  * `hl:name` (record field `name`) and `hl:primarynote` (`primaryNote`) say which

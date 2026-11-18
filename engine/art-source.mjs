@@ -19,10 +19,11 @@ const sources = new WeakMap();
  * Associate a record with its private input without serializing the path.
  * @param {object} record Asset record.
  * @param {string} file Private input.
+ * @param {{master?: boolean}} [options] Whether the input is a canonical master.
  * @returns {object} The record.
  */
-export function setArtSource(record, file) {
-    sources.set(record, file);
+export function setArtSource(record, file, { master = false } = {}) {
+    sources.set(record, { file, master });
     return record;
 }
 
@@ -33,8 +34,8 @@ export function setArtSource(record, file) {
  * @returns {object} The copy.
  */
 export function copyArtSource(from, to) {
-    const file = sources.get(from);
-    return file ? setArtSource(to, file) : to;
+    const source = sources.get(from);
+    return source ? setArtSource(to, source.file, { master: source.master }) : to;
 }
 
 /**
@@ -44,5 +45,14 @@ export function copyArtSource(from, to) {
  * @returns {string} Diagnostic source path.
  */
 export function artSource(record, assetsBase) {
-    return sources.get(record) ?? path.join(assetsBase, record.asset.path);
+    return sources.get(record)?.file ?? path.join(assetsBase, record.asset.path);
+}
+
+/**
+ * Whether a record comes from a canonical master in this build.
+ * @param {object} record Asset record.
+ * @returns {boolean} Whether the source is a canonical master.
+ */
+export function hasMasterSource(record) {
+    return sources.get(record)?.master === true;
 }

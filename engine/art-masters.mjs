@@ -19,19 +19,14 @@ import { readCanonicalKey } from "./address.mjs";
 import { renderAddress } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 import {
-    DIGITAL_SOURCE_TOKENS,
+    provenanceAi,
+    MISSING_ALTERNATIVE,
     readProvenance,
     readSvgProvenance,
     sniffFormat,
 } from "./art-provenance-core.mjs";
 import { imageDimensions } from "./asset-types.mjs";
 import { copyArtSource, setArtSource } from "./art-source.mjs";
-
-const GENERATED_SOURCE_TYPES = new Set([
-    DIGITAL_SOURCE_TOKENS.trainedAlgorithmicMedia,
-    DIGITAL_SOURCE_TOKENS.compositeWithTrainedAlgorithmicMedia,
-]);
-const HUMAN_SOURCE_TYPE = DIGITAL_SOURCE_TOKENS.digitalCreation;
 
 /**
  * Refuse an ordinary asset source that reaches a private master root.
@@ -160,6 +155,12 @@ export function collectArtMasters(roots, contentPackage, { componentRoots = [] }
                             "private component must be a source image without a recipe",
                         );
                 }
+                if (
+                    publication === "master" &&
+                    provenanceAi(record) === true &&
+                    record.nonAiAlternative === undefined
+                )
+                    add(file, MISSING_ALTERNATIVE);
                 const master = {
                     file,
                     record,
@@ -188,6 +189,8 @@ export function collectArtMasters(roots, contentPackage, { componentRoots = [] }
 
 /**
  * Make public asset records without private source paths or provenance.
+ * A declared `nonAiAlternative` is carried as a complete canonical asset Address
+ * string, or null when absent; standard index decoding restores its Address value.
  * @param {ReturnType<typeof collectArtMasters>["masters"]} masters Parsed masters.
  * @returns {Record<string, any>[]} Asset records.
  */
@@ -209,11 +212,8 @@ export function masterAssetRecords(masters) {
                         path: `${root}/${tuple.shortcode}${extension === ".svg" ? ".svg" : ".webp"}`,
                         attribution: master.record.creator ?? "",
                         source: "",
-                        ai:
-                            master.record.ai ??
-                            (GENERATED_SOURCE_TYPES.has(master.record.digitalSourceType) ? true
-                            : master.record.digitalSourceType === HUMAN_SOURCE_TYPE ? false
-                            : null),
+                        ai: provenanceAi(master.record),
+                        nonAiAlternative: master.record.nonAiAlternative ?? null,
                         license: master.record.license ?? "",
                         notes: "",
                         role: "",
@@ -222,6 +222,7 @@ export function masterAssetRecords(masters) {
                     },
                 },
                 master.file,
+                { master: true },
             );
         });
 }

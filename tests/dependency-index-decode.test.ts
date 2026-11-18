@@ -38,6 +38,10 @@ describe("a dependency's index in a shape this package-build does not read", () 
     it.each([
         ["anchors[].link", { anchors: [{ id: "appearance", link: "being-aurochs#appearance" }] }],
         ["documentation", { documentation: "being-aurochs" }],
+        ["asset.nonAiAlternative", { asset: { nonAiAlternative: "icon-placeholder" } }],
+        ["asset.nonAiAlternative", { asset: { nonAiAlternative: "sample-note-image-example" } }],
+        ["asset.nonAiAlternative", { asset: { nonAiAlternative: "sample-none-audio-example" } }],
+        ["asset.nonAiAlternative", { asset: { nonAiAlternative: "" } }],
         ["documents", { documents: "being-aurochs" }],
         ["address.canonical", { address: { slug: "being-aurochs", canonical: "being-aurochs" } }],
     ])("names the dependency, the index file and the remedy for %s", (field, over) => {

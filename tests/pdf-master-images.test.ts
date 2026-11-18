@@ -21,6 +21,7 @@ it("renders master-derived editions with public trace and a white matte", async 
         creator: "Artist",
         rights: "Rights",
         prompt: "private prompt",
+        nonAiAlternative: "sample-none-icon-placeholder",
         generator: '{"model":"private"}',
         primaryNote: "sample-note-being-subject",
         name: "Private name",
@@ -45,6 +46,7 @@ it("renders master-derived editions with public trace and a white matte", async 
         creator: "Artist",
         rights: "Rights",
     });
+    expect(metadata).not.toHaveProperty("nonAiAlternative");
     expect(metadata).not.toHaveProperty("prompt");
     expect(metadata).not.toHaveProperty("generator");
     expect(metadata).not.toHaveProperty("primaryNote");

@@ -41,8 +41,14 @@ import { checkArtSlotSizes } from "../engine/art-fields.mjs";
 import { artSource } from "../engine/art-source.mjs";
 import { publishToCdn } from "../engine/cdn-publish.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
-import { emitContentIndex } from "../engine/content-index.mjs";
+import {
+    collectContentIndex,
+    serializeContentIndex,
+    emitContentIndex,
+} from "../engine/content-index.mjs";
 import { stagePackageBuildAssets } from "../engine/build-assets.mjs";
+import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
+import { isAddressTuple, renderAddress } from "../engine/address.mjs";
 import { resetStage } from "../stage.mjs";
 import { generatePacksJson } from "../engine/generate.mjs";
 import { cleanPacks, compilePacks, unpackPacks } from "../engine/compendiums.mjs";
@@ -418,7 +424,10 @@ it("indexes PNG and SVG identities and reports missing and duplicate identities"
         .png()
         .toBuffer();
     const address = "sample-none-image-example";
-    fs.writeFileSync(path.join(root, "one.png"), writeProvenance(png, { address }).bytes);
+    fs.writeFileSync(
+        path.join(root, "one.png"),
+        writeProvenance(png, { address, digitalSourceType: "none" }).bytes,
+    );
     fs.writeFileSync(
         path.join(root, "two.svg"),
         writeSvgProvenance('<svg xmlns="http://www.w3.org/2000/svg"/>', {
@@ -697,6 +706,7 @@ it.each([
             primaryNote: publicNote ? "sample-note-being-public" : "sample-note-being-hidden",
             name: "Private name",
             prompt: "private text",
+            nonAiAlternative: "sample-none-icon-placeholder",
             creator: "Author",
             rights: "Terms",
         };
@@ -953,8 +963,14 @@ it.each([
             '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1"/></svg>';
         fs.writeFileSync(
             path.join(privateRoot, "source.svg"),
-            writeSvgProvenance(svg, { address, ai, license, creator: "Author", rights: "Terms" })
-                .bytes,
+            writeSvgProvenance(svg, {
+                address,
+                ai,
+                license,
+                creator: "Author",
+                rights: "Terms",
+                ...(ai === true ? { nonAiAlternative: "sample-none-icon-drawing" } : {}),
+            }).bytes,
         );
         const masters = collectArtMasters([privateRoot], "sample");
         expect(masters.findings).toEqual([]);
@@ -977,3 +993,84 @@ it.each([
         expect(result.staged).toHaveLength(staged ? 1 : 0);
     },
 );
+
+it("publishes alternative Addresses through standard JSONL without private source provenance", () => {
+    const privateRoot = path.join(root, "private");
+    fs.mkdirSync(privateRoot, { recursive: true });
+    const alternative = "library-none-icon-placeholder";
+    const componentRoot = path.join(root, "components");
+    fs.mkdirSync(componentRoot, { recursive: true });
+    fs.writeFileSync(
+        path.join(componentRoot, "source.svg"),
+        writeSvgProvenance("<svg/>", {
+            address: "sample-none-image-component",
+            ai: false,
+            creator: "Artist",
+            rights: "Terms",
+        }).bytes,
+    );
+    for (const [shortcode, status] of [
+        ["explicit", { ai: true }],
+        ["source", { digitalSourceType: "trainedAlgorithmicMedia" }],
+        ["unknown", {}],
+    ] as const) {
+        fs.writeFileSync(
+            path.join(privateRoot, `${shortcode}.svg`),
+            writeSvgProvenance("<svg/>", {
+                address: `sample-none-image-${shortcode}`,
+                ...status,
+                ...(shortcode === "explicit" ?
+                    { composition: { layers: [{ address: "sample-none-image-component" }] } }
+                :   {}),
+                nonAiAlternative: alternative,
+                creator: "Artist",
+                rights: "Terms",
+                license: "CC-BY-SA-4.0",
+                prompt: "secret prompt",
+                generator: '{"model":"secret model"}',
+                source: "https://private.example/source",
+                processing: "private processing",
+            }).bytes,
+        );
+    }
+    const collected = collectArtMasters([privateRoot], "sample", {
+        componentRoots: [componentRoot],
+    });
+    expect(collected.findings).toEqual([]);
+    const masters = masterAssetRecords(new Map([...collected.masters, ...collected.components]));
+    const records = collectContentIndex(path.join(root, "content"), {
+        skipDirectories: [],
+        contentPackage: "sample",
+        assetsBase: path.join(root, "assets"),
+        masterRecords: masters,
+    });
+    const assets = records.filter((record) => record.asset);
+    expect(assets).toHaveLength(3);
+    for (const record of assets) {
+        expect(isAddressTuple(record.asset.nonAiAlternative)).toBe(true);
+        expect(renderAddress(record.asset.nonAiAlternative)).toBe(alternative);
+    }
+    expect(assets.find((record) => record.shortcode === "unknown")!.asset.ai).toBeNull();
+    expect(assets.filter((record) => record.asset.ai === true)).toHaveLength(2);
+    const jsonl = serializeContentIndex(records);
+    for (const value of [
+        privateRoot,
+        "secret prompt",
+        "secret model",
+        "private.example",
+        "private processing",
+        "composition",
+        "sample-none-image-component",
+    ])
+        expect(jsonl).not.toContain(value);
+    for (const line of jsonl.trim().split("\n")) {
+        const published = JSON.parse(line);
+        expect(published.asset.nonAiAlternative).toBe(alternative);
+        const decoded = decodeIndexAddresses(published, { package: "sample" });
+        expect(isAddressTuple(decoded.asset.nonAiAlternative)).toBe(true);
+        expect(renderAddress(decoded.asset.nonAiAlternative)).toBe(alternative);
+    }
+    expect(serializeContentIndex(assets)).toBe(jsonl);
+    expect(assets.every((record) => isAddressTuple(record.asset.nonAiAlternative))).toBe(true);
+    expect(masterAssetRecords(collected.components)).toEqual([]);
+});

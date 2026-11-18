@@ -120,6 +120,7 @@ import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
 import { requiredModulePackages, resolveItemDefaults } from "./item-entries.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { readArtLock, loadPinnedArt, privateArtRoots } from "./art-lock.mjs";
+import { checkArtAlternatives } from "./art-alternatives.mjs";
 import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
 import { copyArtSource } from "./art-source.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
@@ -1521,7 +1522,8 @@ export function collectContentIndex(
 }
 
 /**
- * Serialize records as JSON Lines.
+ * Serialize records as JSON Lines. Asset alternatives use canonical Address
+ * strings; other Address positions use the standard published encoding.
  *
  * @param {Array<Record<string, any>>} records - From {@link collectContentIndex}.
  * @returns {string} One compact JSON object per line, newline-terminated. An
@@ -1530,7 +1532,13 @@ export function collectContentIndex(
  */
 export function serializeContentIndex(records) {
     if (records.length === 0) return "";
-    return `${records.map((r) => JSON.stringify(sortKeysDeep(publishAddresses(r)))).join("\n")}\n`;
+    const lines = records.map((record) => {
+        const published = publishAddresses(record);
+        if (record.asset?.nonAiAlternative != null)
+            published.asset.nonAiAlternative = encodeAddresses(record.asset.nonAiAlternative);
+        return JSON.stringify(sortKeysDeep(published));
+    });
+    return `${lines.join("\n")}\n`;
 }
 
 /**
@@ -1725,6 +1733,23 @@ export function indexRecordsFor({
         masterRecords,
         warnings,
     });
+    const alternativeFindings = checkArtAlternatives(records, {
+        config: resolved,
+        foreignIndex: () =>
+            (foreign ??=
+                foreignIndex ?? loadForeignIndexes(resolved, [resolved.contentPackage]).index),
+        assetsBase: assetsBase ?? resolved.paths.assets,
+    });
+    if (problems) {
+        const key = ({ file, message }) => JSON.stringify([file, message]);
+        const seen = new Set(problems.map(key));
+        for (const finding of alternativeFindings) {
+            const identity = key(finding);
+            if (seen.has(identity)) continue;
+            problems.push(finding);
+            seen.add(identity);
+        }
+    } else publicationProblems(alternativeFindings);
     if (!pinnedArt) return records;
     const pinned = loadPinnedArt(resolved, records);
     problems?.push(...pinned.findings);

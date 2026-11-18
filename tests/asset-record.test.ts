@@ -306,8 +306,10 @@ describe("provenance resolves per address", () => {
         const problems: any[] = [];
         const [record] = collectAssetRecords(base, { contentPackage: "harnensemble", problems });
         for (const field of ASSET_RECORD_FIELDS) {
-            // `ai` is the one field whose blank is a boolean rather than an
-            // empty string — every other field states nothing by carrying "".
+            if (field.from === "master") {
+                expect(record.asset[field.name]).toBeNull();
+                continue;
+            }
             const expected = field.type === "boolean" ? "boolean" : "string";
             expect(typeof record.asset[field.name], field.name).toBe(expected);
         }
@@ -572,4 +574,17 @@ describe("a renderer sizes a picture by the pathname it resolved to", () => {
         const key = `sohl/${ASSETS_SEGMENT}/images/map.webp`;
         expect(info.get(key)?.role).toBeUndefined();
     });
+});
+
+it("refuses the master-only alternative in a provenance sidecar", () => {
+    const base = assetTree({
+        "images/example.svg": "<svg/>",
+        "images/example.svg.yaml": `${COMPLETE}\nnonAiAlternative: sample-none-icon-drawing\n`,
+    });
+    const problems: any[] = [];
+    const [record] = collectAssetRecords(base, { contentPackage: "sample", problems });
+    expect(record.asset.nonAiAlternative).toBeNull();
+    expect(
+        problems.some((finding) => /nonAiAlternative.*not a provenance key/.test(finding.message)),
+    ).toBe(true);
 });
