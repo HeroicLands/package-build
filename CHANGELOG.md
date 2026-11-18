@@ -1,5 +1,18 @@
 # @heroiclands/package-build
 
+## 25.8.3
+
+**Content and notes**
+
+- References to stubs in declared dependencies retain their note identity.
+- Indexing bundles works when the consumer configuration is supplied from another directory.
+
+**Builds and commands**
+
+- Artwork descriptions can mention composition without producing a malformed metadata error.
+- Artwork errors no longer report misleading line and column numbers when their location is unknown.
+- Culture and item helpers can be imported directly without an initialization error.
+
 ## 25.8.2
 
 **Content and notes**
