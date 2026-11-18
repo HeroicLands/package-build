@@ -704,7 +704,11 @@ describe("a key the schema does not declare", () => {
             shortcode: "town",
             subType: "settlement",
             name: { full: "Town" },
-            data: { notes: "A settlement.", events: [fullEvent({ precision: "year" })] },
+            data: {
+                notes: "A settlement.",
+                population: null,
+                events: [fullEvent({ precision: "year" })],
+            },
         });
         const { findings } = lintFrontmatter(indexOf([...WORLD, place]) as any, {
             schemas: NOTE_SCHEMAS as any,

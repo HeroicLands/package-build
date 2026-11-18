@@ -543,6 +543,39 @@ describe("checkHomepage — package.json's homepage, against contentPackage", ()
 });
 
 describe("settlement exemptions", () => {
+    it("accepts closed scopes and refuses urban-share in complete mode", () => {
+        const entry = {
+            address: "affiliation-council",
+            scope: "urban-share",
+            reason: "Municipal territory",
+        };
+        expect(
+            resolvePackageBuildConfig(shared({ settlementExemptions: [entry] }))
+                .settlementExemptions,
+        ).toEqual([entry]);
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({ settlementExemptions: [{ ...entry, scope: "total" }] }),
+            ),
+        ).toThrow(/settlementExemptions\[0\].scope/);
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({
+                    settlementPopulation: { mode: "complete" },
+                    settlementExemptions: [entry],
+                }),
+            ),
+        ).toThrow(/scope.*complete/);
+        expect(
+            resolvePackageBuildConfig(
+                shared({
+                    settlementPopulation: { mode: "complete" },
+                    settlementExemptions: [{ ...entry, scope: "all" }],
+                }),
+            ).settlementExemptions[0].scope,
+        ).toBe("all");
+    });
+
     it("accepts hyphenated selectors and rejects duplicate selectors", () => {
         for (const entry of [
             { address: "place-north-har", reason: "pending" },

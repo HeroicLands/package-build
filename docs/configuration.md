@@ -2523,6 +2523,7 @@ ships with that stage in the release archive. See the
 `prefix` for the start of a local `type-shortcode` address. Prefixes may end
 at the hyphen, such as `place-`. Exact addresses may include the package and
 `note` system. Selectors use lowercase letters and digits, never paths.
+An optional `scope` is `all` or `urban-share`; omission means `all`.
 
 ```yaml
 packageBuild:
@@ -2533,13 +2534,37 @@ packageBuild:
       reason: The northern settlement tables are being completed.
 ```
 
-An entry suppresses settlement notes, type, market, territorial population requirement,
+An entry with `scope: all`, or no scope, suppresses settlement notes, type, market, territorial population requirement,
 and aggregate territorial population findings for matching notes in this package. Other checks still run, and settlement facts remain available to other
 notes' checks. Lint reports the number of affected notes and reports an entry
 that matches no settlement violation as an error. An identical written `address` selector or identical `prefix` selector is rejected.
 Distinct overlapping selectors each receive credit for matching eligible findings;
 a note is counted once. Use an exact polity address
 for an owner exception to the aggregate population rules.
+
+A municipality whose territory is one town can exempt only its urban share:
+
+```yaml
+packageBuild:
+  settlementExemptions:
+    - address: affiliation-towncouncil
+      scope: urban-share
+      reason: The territory consists of its seat and the seat's districts.
+```
+
+For example, a town council with a territorial population of 4,000 and a
+single town of 4,000 passes with this entry. If its settlements total 5,000,
+the territorial ceiling still fails. An unexcepted region with a territorial
+population of 10,000 and a town of 4,000 still fails the default urban-share
+limit, including when the town belongs to an exempt subordinate council.
+Town, city and metropolis populations all contribute to the superior's check;
+sub-settlements remain in the indexed settlement inventory.
+
+`scope: urban-share` suppresses only the ceiling-mode urban-share finding. It
+retains total ceilings, population precision, required facts, references and
+hierarchy checks. This scope is refused in complete mode. A scoped selector
+that matches a note but suppresses no finding is stale; overlapping selectors
+receive credit only for findings within their scope.
 
 ### Settlement population
 
@@ -2558,8 +2583,9 @@ packageBuild:
 ```
 
 A package that lists a complete inventory selects `mode: complete`. Its listed
-total must be within five percent of the territorial population. `urbanShare`
-is not accepted in complete mode.
+known total must not exceed the territorial population by more than five percent.
+The lower allowance applies when every settlement population is known; unknown
+populations are skipped. `urbanShare` is not accepted in complete mode.
 
 For example, a configuration whose `packageBuild` section begins at line 10
 rejects a fraction above 1:

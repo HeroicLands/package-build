@@ -574,9 +574,11 @@ function normalizeExceptions(value, field, where) {
 /**
  * Validate reasoned settlement address selectors.
  * @param {unknown} value - The configured list.
- * @returns {readonly {address?: string, prefix?: string, reason: string}[]} Validated selectors.
+ * @param {{mode?: "ceiling"|"complete", urbanShare?: number}} [population] - The population policy.
+ * @returns {readonly {address?: string, prefix?: string, reason: string, scope?: "all"|"urban-share"}[]} Validated selectors.
  */
-export function normalizeSettlementExemptions(value) {
+export function normalizeSettlementExemptions(value, population = {}) {
+    const policy = normalizeSettlementPopulation(population, fail);
     const where = "packageBuild.settlementExemptions";
     if (value === undefined) return Object.freeze([]);
     if (!Array.isArray(value)) fail(where, "must be a list");
@@ -585,7 +587,11 @@ export function normalizeSettlementExemptions(value) {
         value.map((entry, index) => {
             const at = `${where}[${index}]`;
             if (!isMapping(entry)) fail(at, "must be a mapping");
-            rejectUnknownKeys(entry, ["address", "prefix", "reason"], `${at}.`);
+            rejectUnknownKeys(entry, ["address", "prefix", "reason", "scope"], `${at}.`);
+            if (entry.scope !== undefined && !["all", "urban-share"].includes(entry.scope))
+                fail(`${at}.scope`, "must be all or urban-share");
+            if (entry.scope === "urban-share" && policy.mode === "complete")
+                fail(`${at}.scope`, "urban-share is not allowed in complete mode");
             requireNonEmptyString(entry.reason, `${at}.reason`);
             if ((entry.address === undefined) === (entry.prefix === undefined))
                 fail(at, "must declare exactly one of address or prefix");
@@ -601,7 +607,11 @@ export function normalizeSettlementExemptions(value) {
             const key = `${field}:${written}`;
             if (seen.has(key)) fail(`${at}.${field}`, "duplicates a settlement exemption selector");
             seen.add(key);
-            return Object.freeze({ [field]: written, reason: entry.reason });
+            return Object.freeze({
+                [field]: written,
+                reason: entry.reason,
+                ...(entry.scope === undefined ? {} : { scope: entry.scope }),
+            });
         }),
     );
 }
@@ -611,7 +621,7 @@ export function normalizeSettlementExemptions(value) {
  *
  * @typedef {object} PackageBuildConfig
  * @property {{readonly mode: "ceiling"|"complete", readonly urbanShare?: number}} settlementPopulation Settlement population policy.
- * @property {readonly {address?: string, prefix?: string, reason: string}[]} settlementExemptions Settlement-rule exceptions.
+ * @property {readonly {address?: string, prefix?: string, reason: string, scope?: "all"|"urban-share"}[]} settlementExemptions Settlement-rule exceptions.
  * @property {string} rootDir        The repository root, from package-build.
  * @property {{age: number, threshold: number, minWords: number, rules: string}} proseLint Optional prose lint settings.
  * @property {{minWords: number, bands: Record<string, {min?: number, max?: number}>}} proseScore Optional note score settings.
@@ -964,6 +974,8 @@ export function resolvePackageBuildConfig(shared) {
         ),
     );
 
+    const settlementPopulation = normalizeSettlementPopulation(section.settlementPopulation, fail);
+
     return Object.freeze({
         rootDir: shared.rootDir,
         proseLint: Object.freeze(proseOptions),
@@ -1050,8 +1062,11 @@ export function resolvePackageBuildConfig(shared) {
                     shared.rootDir,
                     requireNonEmptyString(langInput.references, "packageBuild.lang.references"),
                 ),
-        settlementExemptions: normalizeSettlementExemptions(section.settlementExemptions),
-        settlementPopulation: normalizeSettlementPopulation(section.settlementPopulation, fail),
+        settlementExemptions: normalizeSettlementExemptions(
+            section.settlementExemptions,
+            settlementPopulation,
+        ),
+        settlementPopulation,
         langRetained: normalizeExceptions(
             langInput.retained,
             "prefix",

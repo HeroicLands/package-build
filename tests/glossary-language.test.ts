@@ -24,6 +24,8 @@ import path from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { loadForeignIndexes, metadataFileName } from "../engine/metadata-index.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
@@ -159,6 +161,47 @@ const WORLD: Record<string, string> = {
 describe("a glossary entry's language, linted", () => {
     it("resolves at every step in a world that states its languages", () => {
         expect(lint(WORLD).filter((finding) => finding.severity === "error")).toEqual([]);
+    });
+
+    it("accepts a dependency language stub as a glossary language", () => {
+        const root = tree({
+            "Lore/Folk.md": culture("folk", [
+                "glossary:",
+                "  - {name: hearth, definition: a fire, language: remote-note-skill-tongue}",
+            ]),
+        });
+        const cache = tree({
+            [`remote@1.0.0/${metadataFileName("remote")}`]:
+                JSON.stringify({
+                    package: "remote",
+                    type: "skill",
+                    subType: "language",
+                    shortcode: "tongue",
+                    name: { full: "Tongue" },
+                    address: null,
+                    anchors: [],
+                    foundry: null,
+                    documentation: null,
+                }) + "\n",
+            "remote@1.0.0/.complete": "",
+        });
+        const config = {
+            ...loadPackConfig(),
+            contentPackage: "sohl",
+            paths: { metadataCache: cache },
+            relationships: {
+                requires: [{ id: "remote", manifest: "https://example.com/system.json" }],
+            },
+        } as never;
+        const foreign = loadForeignIndexes(config, ["sohl"], {});
+        const index = buildLinkIndex(root, { config, skipDirectories: [], foreign });
+        const findings = lintFrontmatter(index, {
+            schemas: NOTE_SCHEMAS,
+            vocabulary: NOTE_VOCABULARY,
+        }).findings;
+        expect(
+            findings.filter((finding: any) => /language.*(resolve|subType)/.test(finding.message)),
+        ).toEqual([]);
     });
 
     it("is an error, at the entry, where a culture states no language", () => {

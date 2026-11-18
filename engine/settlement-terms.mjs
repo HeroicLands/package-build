@@ -77,8 +77,8 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
             name: "population",
             kind: "number",
             required: true,
-            shape: "a positive integer with at most two significant digits",
-            describe: "People living here.",
+            shape: "zero, null, or a positive integer with at most two significant digits",
+            describe: "People living here; null means unknown and zero means abandoned.",
         },
         {
             ...enumeration(
@@ -132,7 +132,7 @@ export const SETTLEMENT_TABLE_RULES = Object.freeze(
         ],
         [
             "people figure",
-            "Settlement populations are positive whole numbers with at most two significant digits.",
+            "Settlement populations are null when unknown, zero when abandoned, or positive whole numbers with at most two significant digits.",
         ],
         ["duplicate settlement", "Each settlement is listed or noted exactly once."],
         [

@@ -337,6 +337,10 @@ export function buildLinkIndex(
             loadForeignIndexes(config, localPackages)
         :   { index: new Map(), packages: new Set(), stale: [] });
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
+    for (const key of foreign.stubs?.keys() ?? []) {
+        const parts = readCanonicalKey(key);
+        if (parts) types.add(parts.type);
+    }
 
     // A stub counts. It publishes no page, so nothing may *link* to one, but its
     // address is a name the tree holds and a reference reaches it — a border's
@@ -634,7 +638,8 @@ export function buildLinkIndex(
             byKey.get(canonical) ??
             byAssetKey.get(canonical) ??
             byStub.get(canonical) ??
-            foreign.index.get(canonical)
+            foreign.index.get(canonical) ??
+            foreign.stubs?.get(canonical)
         );
     }
 

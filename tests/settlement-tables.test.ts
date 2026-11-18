@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -130,6 +130,113 @@ function checked(
         f.dispose();
     }
 }
+describe("settlement population declarations", () => {
+    it.each([null, 0])("accepts %s in notes and listed rows", (value) =>
+        checked(
+            (n) => {
+                n[3].data.population = value;
+                n[1].data.settlements[0].population = value;
+            },
+            (f) =>
+                expect(
+                    f.findings.filter((x: any) => x.message.startsWith("people figure:")),
+                ).toEqual([]),
+        ),
+    );
+    it("warns for omitted population in notes and listed rows", () =>
+        checked(
+            (n) => {
+                delete n[3].data.population;
+                delete n[1].data.settlements[0].population;
+            },
+            (f) =>
+                expect(
+                    f.findings.filter(
+                        (x: any) => x.severity === "warning" && x.message.includes("population"),
+                    ),
+                ).toHaveLength(2),
+        ));
+    it("leaves unknown figures blank in publication and skips complete totals", () =>
+        checked(
+            (n) => {
+                delete n[1].data.settlements[0].population;
+                n[3].data.population = null;
+            },
+            (f) => {
+                expect(
+                    f.findings.some((x: any) => x.message.startsWith("territorial population:")),
+                ).toBe(false);
+                const records = f.records();
+                expect(() =>
+                    assertSettlementRecords(records, {
+                        fileOf: (fm: any) => path.join(f.root, `${fm.shortcode}.md`),
+                        config: { packageBuild: { settlementPopulation: { mode: "complete" } } },
+                    }),
+                ).not.toThrow();
+                const authored = f.index.notes.map((note: any) => note.fm);
+                const markdown = settlementMarkdown(
+                    authored.find((r: any) => r.shortcode === "crown"),
+                    authored,
+                );
+                expect(markdown).toMatch(/East Farm[^\n]*\|\s*\|/);
+            },
+        ));
+    it.each([null, undefined])("checks a known complete-mode overflow with unknown %s", (value) =>
+        checked(
+            (n) => {
+                n[1].data.territorial_population = 1000;
+                n[3].data.population = 2000;
+                n[1].data.settlements[0].population = value;
+            },
+            (f) =>
+                expect(
+                    f.findings.some(
+                        (x: any) =>
+                            x.message.startsWith("territorial population:") &&
+                            x.file.endsWith("crown.md"),
+                    ),
+                ).toBe(true),
+        ),
+    );
+    it("reports omission during derived publication", () =>
+        checked(
+            (n) => {
+                delete n[3].data.population;
+            },
+            ({ root, records }) => {
+                const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+                try {
+                    expect(() =>
+                        derivedSections(records(), {
+                            fileOf: (r: any) => path.join(root, `${r.shortcode}.md`),
+                            config: {
+                                packageBuild: { settlementPopulation: { mode: "complete" } },
+                            },
+                        }),
+                    ).not.toThrow();
+                    expect(warn).toHaveBeenCalledWith(
+                        expect.stringContaining(
+                            "warning: people figure: population must be provided",
+                        ),
+                    );
+                } finally {
+                    warn.mockRestore();
+                }
+            },
+        ));
+    it.each([-1, 1.5, 101, "100"])("rejects invalid population %s", (value) =>
+        checked(
+            (n) => {
+                n[3].data.population = value;
+                n[1].data.settlements[0].population = value;
+            },
+            (f) =>
+                expect(
+                    f.findings.filter((x: any) => x.message.startsWith("people figure:")).length,
+                ).toBe(2),
+        ),
+    );
+});
 describe("polity settlement guards", () => {
     it("counts mixed rows and notes once, including seats, without membership or subordinate totals", () =>
         checked(
@@ -693,6 +800,157 @@ describe("settlement graph reuse", () => {
 });
 
 describe("settlement exemptions", () => {
+    it.each(["town", "city", "metropolis"])(
+        "keeps %s populations and seat districts subject to the superior's limit",
+        (urbanType) =>
+            checked(
+                (notes) => {
+                    notes[2].data.settlements = [];
+                    notes[2].data.territorial_population = 500;
+                    notes[4].data.type = urbanType;
+                    notes.push({
+                        type: "place",
+                        subType: "settlement",
+                        shortcode: "district",
+                        name: { full: "District" },
+                        data: {
+                            parents: ["place-town"],
+                            government: "affiliation-council",
+                            type: "village",
+                            population: 100,
+                            market: "local",
+                            notes: "A district within the seat.",
+                        },
+                    });
+                },
+                ({ index }) => {
+                    const tracker = settlementExemptionTracker(
+                        [
+                            {
+                                address: "affiliation-council",
+                                scope: "urban-share",
+                                reason: "Municipal territory",
+                            },
+                        ],
+                        index.contentPackage,
+                    );
+                    const council = index.notes.find((n: any) => n.fm.shortcode === "council")!;
+                    const crown = index.notes.find((n: any) => n.fm.shortcode === "crown")!;
+                    expect(
+                        checkSettlementTables(council, { index, settlementExemptions: tracker }),
+                    ).toEqual([]);
+                    expect(
+                        checkSettlementTables(crown, { index, settlementExemptions: tracker }),
+                    ).toEqual(
+                        expect.arrayContaining([
+                            expect.objectContaining({ settlementScope: "urban-share" }),
+                        ]),
+                    );
+                    expect(tracker.stale("config.yaml")).toEqual([]);
+                    expect(tracker.count).toBe(1);
+                },
+            ),
+    );
+    it("retains over-total findings and credits only scopes that suppress a finding", () =>
+        checked(
+            (notes) => {
+                notes[2].data.territorial_population = 100;
+            },
+            ({ index }) => {
+                const tracker = settlementExemptionTracker(
+                    [
+                        {
+                            address: "affiliation-council",
+                            scope: "urban-share",
+                            reason: "Municipal territory",
+                        },
+                        { prefix: "affiliation-coun", reason: "Population reconciliation" },
+                    ],
+                    index.contentPackage,
+                );
+                const council = index.notes.find((n: any) => n.fm.shortcode === "council")!;
+                const narrow = settlementExemptionTracker(
+                    [
+                        {
+                            address: "affiliation-council",
+                            scope: "urban-share",
+                            reason: "Municipal territory",
+                        },
+                    ],
+                    index.contentPackage,
+                );
+                const findings = checkSettlementTables(council, {
+                    index,
+                    settlementExemptions: narrow,
+                });
+                expect(findings).toHaveLength(1);
+                expect(findings[0].message).toMatch(/exceed the territorial ceiling/);
+                expect(
+                    checkSettlementTables(council, { index, settlementExemptions: tracker }),
+                ).toEqual([]);
+                expect(
+                    checkSettlementTables(council, { index, settlementExemptions: tracker }),
+                ).toEqual([]);
+                expect(tracker.count).toBe(1);
+                expect(tracker.stale("config.yaml")).toEqual([]);
+            },
+        ));
+    it("leaves an urban-share selector stale when only the total ceiling fails", () =>
+        checked(
+            (notes) => {
+                notes[4].data.type = "village";
+                notes[2].data.territorial_population = 100;
+            },
+            ({ index }) => {
+                const tracker = settlementExemptionTracker(
+                    [
+                        {
+                            address: "affiliation-council",
+                            scope: "urban-share",
+                            reason: "Municipal territory",
+                        },
+                    ],
+                    index.contentPackage,
+                );
+                const council = index.notes.find((n: any) => n.fm.shortcode === "council")!;
+                expect(
+                    checkSettlementTables(council, { index, settlementExemptions: tracker }),
+                ).toHaveLength(1);
+                expect(tracker.count).toBe(0);
+                expect(tracker.stale("missing.yaml")).toEqual([
+                    expect.objectContaining({ file: "missing.yaml", severity: "error" }),
+                ]);
+            },
+        ));
+    it("refuses urban-only scopes in complete mode through public entrypoints", () => {
+        const entries = [
+            { address: "affiliation-council", scope: "urban-share", reason: "Municipal territory" },
+        ];
+        const tracker = settlementExemptionTracker(entries);
+        expect(() =>
+            checkSettlementTables(
+                {},
+                { settlementExemptions: tracker, settlementPopulation: { mode: "complete" } },
+            ),
+        ).toThrow(/scope.*complete/);
+        expect(() =>
+            lintFrontmatter({ notes: [] }, {
+                settlementExemptions: entries,
+                settlementPopulation: { mode: "complete" },
+            } as any),
+        ).toThrow(/scope.*complete/);
+        expect(() =>
+            assertSettlementRecords([], {
+                config: {
+                    packageBuild: {
+                        settlementExemptions: entries,
+                        settlementPopulation: { mode: "complete" },
+                    },
+                },
+            }),
+        ).toThrow(/scope.*complete/);
+    });
+
     it("locates each unused selector in its authored YAML and falls back for unavailable sources", () =>
         checked(
             (notes) => {

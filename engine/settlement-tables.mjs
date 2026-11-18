@@ -16,7 +16,12 @@ import fs from "node:fs";
 import { normalizeSettlementPopulation } from "./settlement-population.mjs";
 import { fail, normalizeSettlementExemptions } from "../config.mjs";
 import { declaredHeadings } from "./declared-sections.mjs";
-import { positionOfFrontmatterPath, positionOfYamlPath, formatDiagnostic } from "./diagnostics.mjs";
+import {
+    positionOfFrontmatterPath,
+    positionOfYamlPath,
+    formatDiagnostic,
+    emitDiagnostic,
+} from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
 import {
@@ -255,7 +260,11 @@ function rowsOf(corpus, owner, recursive) {
     for (const node of owners)
         for (const row of Array.isArray(node.fm.data?.settlements) ? node.fm.data.settlements : [])
             if (map(row))
-                add(`name:${text(row.settlement).toLowerCase()}`, { ...row, source: node });
+                add(`name:${text(row.settlement).toLowerCase()}`, {
+                    ...row,
+                    population: row.population ?? null,
+                    source: node,
+                });
     const noted = new Map();
     for (const node of owners)
         for (const place of corpus.notedByOwner.get(node.key) ?? []) noted.set(place.key, place);
@@ -265,6 +274,7 @@ function rowsOf(corpus, owner, recursive) {
         const government = corpus.resolve(node.fm.data?.government, "affiliation", node.fm.package);
         add(node.key, {
             ...node.fm.data,
+            population: node.fm.data?.population ?? null,
             settlement: node.key,
             polity: government?.key,
             location: node.fm.data?.parents?.[0],
@@ -277,15 +287,24 @@ function rowsOf(corpus, owner, recursive) {
 
 /**
  * Track settlement exceptions against actual findings in local notes.
- * @param {readonly {address?: string, prefix?: string, reason: string}[]} entries - Reasoned selectors.
+ * @param {readonly {address?: string, prefix?: string, reason: string, scope?: "all"|"urban-share"}[]} entries - Reasoned selectors.
  * @param {string} contentPackage - The local package.
+ * @param {{mode?: "ceiling"|"complete", urbanShare?: number}} [population] - Population policy.
  * @returns {object} Finding filter, count and stale-entry reporter.
  */
-export function settlementExemptionTracker(entries = [], contentPackage = "local") {
+export function settlementExemptionTracker(
+    entries = [],
+    contentPackage = "local",
+    population = {},
+) {
+    entries = normalizeSettlementExemptions(entries, population);
     const used = new Set();
-    let count = 0;
+    const affected = new Set();
     return {
-        filter(note, findings) {
+        filter(note, findings, policy = population) {
+            const normalizedPolicy = normalizeSettlementPopulation(policy, fail);
+            if (normalizedPolicy.mode === "complete")
+                normalizeSettlementExemptions(entries, normalizedPolicy);
             if (!findings.some((finding) => finding.settlementExemptible)) return findings;
             const fm = fmOf(note);
             if (!fm.type || !fm.shortcode || (fm.package && fm.package !== contentPackage))
@@ -312,12 +331,21 @@ export function settlementExemptionTracker(entries = [], contentPackage = "local
                 if (matches) matched.push(i);
             }
             if (!matched.length) return findings;
-            for (const i of matched) used.add(i);
-            count++;
-            return findings.filter((finding) => !finding.settlementExemptible);
+            const retained = findings.filter((finding) => {
+                if (!finding.settlementExemptible) return true;
+                const covering = matched.filter(
+                    (i) =>
+                        entries[i].scope !== "urban-share" ||
+                        finding.settlementScope === "urban-share",
+                );
+                for (const i of covering) used.add(i);
+                return covering.length === 0;
+            });
+            if (retained.length < findings.length) affected.add(typed);
+            return retained;
         },
         get count() {
-            return count;
+            return affected.size;
         },
         stale(file) {
             let text = "";
@@ -366,11 +394,19 @@ export function checkSettlementTables(
         return settlementExemptions.filter(
             note,
             checkSettlementTables(note, { index, settlementPopulation }),
+            settlementPopulation,
         );
     if (!index) return [];
     const fm = fmOf(note);
     const findings = [];
-    const report = (rule, path, message, settlementExemptible = false) => {
+    const report = (
+        rule,
+        path,
+        message,
+        settlementExemptible = false,
+        severity = "error",
+        settlementScope = undefined,
+    ) => {
         let at = Array.isArray(path) ? {} : path;
         if (Array.isArray(path))
             for (let length = path.length; length; length--) {
@@ -382,8 +418,9 @@ export function checkSettlementTables(
         findings.push({
             file: note.file,
             ...at,
-            severity: "error",
+            severity,
             ...(settlementExemptible ? { settlementExemptible: true } : {}),
+            ...(settlementScope ? { settlementScope } : {}),
             message: `${rule}: ${message}`,
         });
     };
@@ -418,10 +455,23 @@ export function checkSettlementTables(
                 listed ?
                     field.required
                 :   key === "notes" || (row.population > 0 && ["type", "market"].includes(key));
+            if (key === "population") {
+                if (value === undefined) {
+                    report(
+                        "people figure",
+                        [...at, key],
+                        "population must be provided; use null when unknown",
+                        false,
+                        "warning",
+                    );
+                    continue;
+                }
+                if (value === null || value === 0) continue;
+            }
             if (value == null && field.nullable) continue;
             if (value === undefined && !required) continue;
             if (key === "population") {
-                if (!(value === 0 && !listed) && !population(value))
+                if (!population(value))
                     report(
                         "people figure",
                         [...at, key],
@@ -547,7 +597,11 @@ export function checkSettlementTables(
             const format = (n) => n.toLocaleString("en-US");
             const name = typeof fm.name === "string" ? fm.name : (fm.name?.full ?? fm.shortcode);
             if (settlementPopulation.mode === "complete") {
-                if (Math.abs(sum - total) > total * 0.05)
+                if (
+                    sum - total > total * 0.05 ||
+                    (rows.every((row) => Number.isFinite(row.population)) &&
+                        total - sum > total * 0.05)
+                )
                     report(
                         "territorial population",
                         ["data", "territorial_population"],
@@ -569,6 +623,8 @@ export function checkSettlementTables(
                         ["data", "territorial_population"],
                         `${name}: listed settlements total ${format(sum)} people against territorial population ${format(total)}; urban settlements total ${format(urban)} (${format((urban / total) * 100)} percent) and exceed the allowed share of ${format(share * 100)} percent.`,
                         true,
+                        "error",
+                        "urban-share",
                     );
             }
         }
@@ -598,19 +654,22 @@ export function assertSettlementRecords(
         notes: [...notes, ...new Set([...foreignIndex.values()].map((record) => fmOf(record)))],
         contentPackage: records.find((r) => r.package)?.package,
     };
-    const tracker = settlementExemptionTracker(
-        normalizeSettlementExemptions(config?.packageBuild?.settlementExemptions),
-        index.contentPackage,
-    );
     const settlementPopulation = normalizeSettlementPopulation(
         config?.packageBuild?.settlementPopulation,
         fail,
     );
+    const tracker = settlementExemptionTracker(
+        config?.packageBuild?.settlementExemptions,
+        index.contentPackage,
+        settlementPopulation,
+    );
     const findings = notes.flatMap((note) =>
         checkSettlementTables(note, { index, settlementExemptions: tracker, settlementPopulation }),
     );
-    if (findings.length)
-        throw Object.assign(new Error(findings.map(formatDiagnostic).join("\n")), {
+    for (const finding of findings) if (finding.severity === "warning") emitDiagnostic(finding);
+    const errors = findings.filter((finding) => finding.severity === "error");
+    if (errors.length)
+        throw Object.assign(new Error(errors.map(formatDiagnostic).join("\n")), {
             located: true,
             findings,
         });

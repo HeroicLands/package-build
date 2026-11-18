@@ -464,6 +464,21 @@ describe("Address read and write boundaries", () => {
             expect(targets.get("world-sohl-skill-language")?.uuid).toBe("Item.language");
         }
     });
+    it("preserves a defined subtype when a later identity omits it", () => {
+        const records = [
+            { package: "world", type: "being", shortcode: "animal", subType: "creature" },
+            { package: "world", type: "being", shortcode: "animal" },
+        ];
+        expect(buildReferenceTargets(records).get("world-note-being-animal")?.subType).toBe(
+            "creature",
+        );
+        expect(
+            buildReferenceTargets([...records, { ...records[0], subType: "npc" }]).get(
+                "world-note-being-animal",
+            )?.subType,
+        ).toBe("npc");
+        expect(buildReferenceTargets(records).has("other-note-being-animal")).toBe(false);
+    });
     it("rejects malformed containers at every structured wildcard boundary", () => {
         let count = 0;
         for (const type of Object.keys(NOTE_VOCABULARY)) {

@@ -1788,7 +1788,7 @@ export function lintNote(
  *   {@link lintNote}.
  * @param {(type: string) => {document: string|null, art: readonly string[]}|null} [opts.emittedArt]
  *   What art a type reaches its document through; see {@link lintNote}.
- * @param {readonly {address?: string, prefix?: string, reason: string}[]} [opts.settlementExemptions] Reasoned local selectors.
+ * @param {readonly {address?: string, prefix?: string, reason: string, scope?: "all"|"urban-share"}[]} [opts.settlementExemptions] Reasoned local selectors.
  * @param {{mode?: "ceiling"|"complete", urbanShare?: number}} [opts.settlementPopulation] Aggregate population policy.
  * @param {string} [opts.configFile] Configuration path for stale selector findings.
  * @returns {{findings: object[], notes: number, settlementExemptNotes: number}} Findings and note counts.
@@ -1811,7 +1811,11 @@ export function lintFrontmatter(
 ) {
     const findings = [];
     const settlementPopulation = normalizeSettlementPopulation(authoredPopulation, fail);
-    const tracker = settlementExemptionTracker(settlementExemptions, index.contentPackage);
+    const tracker = settlementExemptionTracker(
+        settlementExemptions,
+        index.contentPackage,
+        settlementPopulation,
+    );
     const notes = [...index.notes].sort((a, b) =>
         a.file < b.file ? -1
         : a.file > b.file ? 1
