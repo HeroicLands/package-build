@@ -812,9 +812,29 @@ function readProperty(xml, name) {
     return attribute ? unescapeXml(attribute[1] ?? attribute[2]) : undefined;
 }
 
-/** Read the single JSON composition property from its declared namespace. */
+/** Read a declared composition with strict XML and property validation. */
 function readComposition(packet) {
-    if (!/(?:<|\s)(?:[^\s<=>/]+:)?composition(?:\s|[=/>])/u.test(packet)) return undefined;
+    const markup =
+        /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<\?[\s\S]*?(?:\?>|$)|<(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^<>"'])*(?:>|(?=<)|$)/gu;
+    const element = /^<\s*(?:[^\s<=>/]+:)?composition(?=[\s=/>]|$)/u;
+    const qualifiedAttribute =
+        /^<\s*\/?\s*[^\s<=>/]+[\s\S]*?[\s"'](?:[^\s<=>/]+:)composition(?=[\s=/>]|$)/u;
+    const attribute =
+        /^<\s*\/?\s*[:_a-zA-Z\xC0-\xD6\xD8-\xF6\xF8-\u02FF\u0370-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u{10000}-\u{10FFFF}][^\s<=>/]*[\s\S]*?[\s"']composition(?=\s*=|\/?>)/u;
+    if (
+        ![...packet.matchAll(markup)].some((match) => {
+            const tag = match[0];
+            if (tag.startsWith("<!") || tag.startsWith("<?")) return false;
+            const masked = tag.replace(/"[^"]*(?:"|$)|'[^']*(?:'|$)/gu, '""');
+            return (
+                element.test(masked) ||
+                qualifiedAttribute.test(masked) ||
+                (attribute.test(masked) &&
+                    (tag.endsWith(">") || /[\s"']composition\s*=\s*""/u.test(masked)))
+            );
+        })
+    )
+        return undefined;
     let invalid = false;
     let document;
     try {
@@ -830,7 +850,19 @@ function readComposition(packet) {
     const nodes = document.getElementsByTagNameNS(HL_NAMESPACE, "composition");
     const elements = document.getElementsByTagName("*");
     for (let index = 0; index < elements.length; index++) {
-        if (elements.item(index).hasAttributeNS(HL_NAMESPACE, "composition"))
+        const element = elements.item(index);
+        if (element.localName === "composition" && element.namespaceURI !== HL_NAMESPACE)
+            throw new Error("composition: property has the wrong namespace");
+        for (let attribute = 0; attribute < element.attributes.length; attribute++) {
+            const item = element.attributes.item(attribute);
+            if (
+                item.localName === "composition" &&
+                item.namespaceURI !== HL_NAMESPACE &&
+                item.namespaceURI !== "http://www.w3.org/2000/xmlns/"
+            )
+                throw new Error("composition: property has the wrong namespace");
+        }
+        if (element.hasAttributeNS(HL_NAMESPACE, "composition"))
             throw new Error("composition: use one JSON text element, not an attribute");
     }
     if (nodes.length === 0) return undefined;
@@ -855,7 +887,11 @@ function readComposition(packet) {
 }
 
 /**
- * Read the record stored in an XMP packet.
+ * Read the record stored in an XMP packet. Composition parsing imposes XML
+ * validity only when a composition declaration is present, then checks its
+ * namespace, structure, and recipe. Unframed prose such as `a <b composition c`
+ * does not declare the property; `a <b composition>` is a framed attribute
+ * attempt and selects composition validation.
  *
  * @param {string} packet - The XMP text.
  * @returns {ProvenanceRecord} The fields the packet holds; fields it lacks are

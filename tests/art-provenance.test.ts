@@ -25,6 +25,7 @@ import {
     planRenames,
     readChunks,
     readProvenance,
+    readXmpRecord,
     readSvgProvenance,
     readTextChunk,
     readWebpProvenance,
@@ -37,6 +38,102 @@ import {
 
 import { buildPrimaryNoteIndex } from "../engine/art-primary-note.mjs";
 import { renderPdfMaster } from "../engine/pdf-images.mjs";
+
+describe("composition declaration detection", () => {
+    it.each([
+        "a centered study",
+        "a centered composition study",
+        `<root dc:x="a hl:composition='{}'"/>`,
+        "<rdf:Description><dc:description>a centered composition study</dc:description></rdf:Description>",
+        '<root note="a composition study"/>',
+        "<root><!-- <hl:composition> --></root>",
+        "<root><![CDATA[<hl:composition>]]></root>",
+        '<root note="a > <hl:composition>"',
+        "<root><!-- <hl:composition> -->",
+        "<root><![CDATA[<hl:composition>]]>",
+    ])("accepts text without a composition declaration: %s", (packet) => {
+        expect(() => readXmpRecord(packet)).not.toThrow();
+        expect(readXmpRecord(packet)).not.toHaveProperty("composition");
+    });
+
+    it.each([
+        "a < b composition study",
+        "a < b study",
+        "x <3 composition y",
+        "if a<b then composition c>d",
+        "a <b composition=3",
+        "I <3 composition",
+        "a<b composition",
+        "1<2 composition>1",
+        "a <b composition c",
+    ])("accepts less-than prose: %s", (packet) => {
+        expect(readXmpRecord(packet)).toEqual({});
+    });
+
+    it("extracts recognized fields across the non-XML packet boundary", () => {
+        expect(readXmpRecord("<dc:title>a <b composition</dc:title>")).toEqual({
+            title: "a <b composition",
+        });
+    });
+
+    it("refuses a framed composition attribute attempt in prose", () => {
+        expect(() => readXmpRecord("a <b composition>")).toThrow("composition: malformed XMP");
+    });
+
+    it("reads a recipe alongside a prose title", () => {
+        const packet = `<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:hl="https://heroiclands.org/ns/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>a composition study</dc:title><hl:composition>{"layers":[{"address":"sample-none-image-source"}]}</hl:composition></rdf:Description>`;
+        expect(readXmpRecord(packet)).toEqual({
+            title: "a composition study",
+            composition: { layers: [{ address: "sample-none-image-source" }] },
+        });
+    });
+
+    it.each([
+        [
+            `<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:hl="https://heroiclands.org/ns/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" dc:x="a"hl:composition='{}'/>`,
+            "composition: malformed XMP",
+        ],
+        [
+            `<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:other="urn:other" xmlns:dc="http://purl.org/dc/elements/1.1/" dc:x="a"other:composition='{}'/>`,
+            "composition: malformed XMP",
+        ],
+    ])("refuses adjacent composition attributes", (packet, message) => {
+        expect(() => readXmpRecord(packet)).toThrow(message);
+    });
+
+    it.each([
+        `< root xmlns:hl="https://heroiclands.org/ns/1.0/" hl:composition="{}"/>`,
+        `< root xmlns:other="urn:other" other:composition="{}"/>`,
+        `</root hl:composition="{}">`,
+        `< /root other:composition="{}">`,
+        `<root composition="{}"`,
+        "< hl:composition>{}</hl:composition>",
+        "< composition>{}</composition>",
+        "<hl:composition",
+        "<root><hl:composition>",
+        '<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:hl="https://heroiclands.org/ns/1.0/"\n<hl:composition>{"layers":[{"address":"sample-none-image-source"}]}</hl:composition></rdf:Description>',
+        '<root hl:composition="{}"',
+        "<root hl:composition/>",
+    ])("refuses malformed declarations: %s", (packet) => {
+        expect(() => readXmpRecord(packet)).toThrow("composition: malformed XMP");
+    });
+
+    it.each([
+        '<root xmlns:other="urn:other"><other:composition>{}</other:composition></root>',
+        '<root xmlns:other="urn:other" other:composition="{}"/>',
+        '<é composition="{}"/>',
+        '<〇 composition="{}"/>',
+        '<\u200c composition="{}"/>',
+        '<\u2070 composition="{}"/>',
+        '<\u2c00 composition="{}"/>',
+        '<\u{10000} composition="{}"/>',
+        '<root composition="{}"/>',
+    ])("refuses declarations in the wrong namespace: %s", (packet) => {
+        expect(() => readXmpRecord(packet)).toThrow(
+            "composition: property has the wrong namespace",
+        );
+    });
+});
 
 const PROMPT = `A "drake" of the deep, café-lit — naïve & <wild>, 'quoted'\r\nsecond line\ttabbed 日本語 🐉`;
 const GENERATOR = JSON.stringify({
