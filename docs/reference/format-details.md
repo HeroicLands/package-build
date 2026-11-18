@@ -2718,14 +2718,32 @@ duplicate identities are errors at the source files. A master marked as a
 derivative is refused. A master supplies the record and public output for its
 Address when a public asset also carries that Address.
 
-The index uses the embedded creator, license and IPTC digital source type.
-Trained-model generation and generative augmentation are classified as
-machine-generated; human digital creation is classified as non-generated.
-Other and absent source types have unknown classification, recorded as
-`asset.ai: null`, and are excluded from package shipping. Derivatives repeat identity, creator, rights and parent
-trace; an indexed public primary note also supplies its name and Address.
-Prompts, generation details, private paths and the master license field are
-not embedded in public derivatives.
+The index uses the embedded creator, license, optional boolean `hl:ai` and IPTC
+digital source type. Explicit `hl:ai` states whether the image is generated and
+takes precedence over source type. Writers use `True` or `False`; readers also
+accept `true` and `false`. Malformed or duplicate `hl:ai` declarations and
+self-closing `hl:ai` properties are refused. Bare AI prose and literal
+less-than comparisons do not declare a property. A spaced unprefixed `ai` tag
+is a managed attempt when its default namespace is the managed namespace,
+whether inherited from an open ancestor or declared on the tag itself. Closed
+ancestors, foreign defaults and namespace resets do not supply that namespace.
+A managed attempt is refused even after unrelated malformed markup; validation
+uses the original packet. When `hl:ai` is present, malformed or duplicate
+source type declarations are also refused. A PNG containing multiple XMP
+packets is refused when any packet declares `hl:ai`, even if the other packets
+are unrelated. A WebP is also refused when a later
+XMP packet declares `hl:ai`, or when the first packet declares `hl:ai` and a
+later packet declares a source type. A contradiction with a recognized source
+type is an error. Without `hl:ai`, trained-model generation and generative
+augmentation are classified as machine-generated; human digital creation is
+classified as non-generated. Other and absent source types leave the status
+unknown, recorded as `asset.ai: null`. Shipping excludes generated and unknown
+status and requires an allowed license. A new PNG receives the generated source
+type by default only when neither source type nor `ai` is supplied; SVG and
+WebP have no default. Derivatives repeat identity, creator, rights, declared
+`hl:ai` and parent trace; an indexed public primary note also supplies its name
+and Address. Prompts, generation details, private paths and the master license
+field are not embedded in public derivatives.
 
 A **master** is a PNG or an SVG. A **derivative** is a WebP or an SVG rendered
 from a master, possibly at another size. A master and its derivatives are one
@@ -2741,7 +2759,7 @@ It is written in the XMP packet of all three formats, and a rewrite keeps it.
 with the same `hl:address` and no `hl:derived`. The derivative's own packet
 holds `hl:address`, `hl:derived` and, by default, the rights fields
 (`dc:rights`, the copyright and license statement, and `dc:creator`, the
-attribution). Repeated properties must equal the master's values, with two
+attribution), plus `hl:ai` when declared. Repeated properties must equal the master's values, with two
 additional authorities: `hl:derivedFrom` names the canonical master Address,
 and `hl:name` and `hl:primarynote` may take their values from a supplied public
 note index. A note-field override requires that index. Canonical-master audits

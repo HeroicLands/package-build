@@ -1299,8 +1299,8 @@ and any number of derivatives; neither a filename nor a sidecar supplies identit
 `ProvenanceRecord` has optional string fields `address`, `identifier`, `kind`,
 `name`, `primaryNote`, `role`, `derived`, `derivedFrom`, `prompt`, `generator`,
 `title`, `creator`, `rights`, `license`, `digitalSourceType`, `created`, `software`,
-`description`, `source` and `processing`, plus `formerNames: string[]` and
-`composition: ArtComposition`.
+`description`, `source` and `processing`. It also has optional `formerNames: string[]`,
+`composition: ArtComposition` and `ai: boolean`.
 Writers require a complete `<package>-<system>-<type>-<shortcode>` Address.
 They set both `hl:address` and `dc:identifier` from `address`. Readers fill in
 either missing value from the other, retaining disagreements for the checker.
@@ -1309,15 +1309,34 @@ input, `source` states where the image was obtained, and `processing` describes
 how it was made. `description` is separate from the prompt.
 
 `license` is an explicit machine-readable identifier such as `CC-BY-SA-4.0`,
-stored as `hl:license`; the build does not extract a license from `rights` prose.
-`digitalSourceType` accepts a key of `DIGITAL_SOURCE_TOKENS` or a full URI and
-reads back as a URI. `none` or `null` removes it. A PNG with no addressed record
-receives `trainedAlgorithmicMedia` on write unless the caller supplies the field;
-SVG and WebP writers supply no default. Private-master asset indexing classifies
-`trainedAlgorithmicMedia` and `compositeWithTrainedAlgorithmicMedia` as generated,
-`digitalCreation` as human-created, and every other or absent classification as
-unknown. Existing shipping rules exclude generated and unknown classifications
-from packaged assets and require an allowed exact license ID.
+stored as `hl:license`; the build does not extract a license from `rights`
+prose. `digitalSourceType` accepts a key of `DIGITAL_SOURCE_TOKENS` or a full
+URI and reads back as a URI. `none` or `null` removes it. A PNG with no
+addressed record receives `trainedAlgorithmicMedia` on write unless the caller
+supplies that field or `ai`; SVG and WebP writers supply no default. `ai` is an
+optional boolean stored as `hl:ai`; `null` removes it. Writers use `True` or
+`False`; readers also accept `true` and `false`. An explicit value takes
+precedence over source type. Malformed or duplicate `hl:ai` declarations and
+self-closing `hl:ai` properties are refused. Whitespace after `<` does not turn
+bare prose into a declaration. A spaced unprefixed `ai` tag selects validation
+only in the managed default namespace, inherited from an open ancestor or
+declared on that tag. A closed ancestor, a foreign namespace or a namespace
+reset does not supply it. Selection skips quoted values, comments, CDATA,
+processing instructions and DOCTYPE contents without parsing a DOM. Selected
+packets are validated from their original bytes; earlier unrelated malformed
+markup cannot hide a managed attempt. When `hl:ai` is present, malformed or
+duplicate source type declarations are also refused. A PNG containing multiple XMP
+packets is refused when any packet declares `hl:ai`, even if the other packets
+are unrelated. A WebP is also refused
+when a later XMP packet declares `hl:ai`, or when the first packet declares
+`hl:ai` and a later packet declares a source type. `trainedAlgorithmicMedia`
+and `compositeWithTrainedAlgorithmicMedia` conflict with `ai: false`;
+`digitalCreation` conflicts with `ai: true`. Other source types do not
+establish AI status. Without `ai`, those two generated types and
+`digitalCreation` provide the recognized classification; other or absent types
+leave it unknown. Derivatives repeat `ai` only when the master explicitly
+declares it. Shipping excludes generated and unknown classifications and
+requires an allowed exact license ID.
 
 All four readers return `{xmp, standard, packet, record}`: the XMP fields,
 standard text fields, packet text or `null`, and their combined record with XMP

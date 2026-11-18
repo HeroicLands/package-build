@@ -171,6 +171,7 @@ import {
     deriveRecord,
     sniffFormat,
     readWebpChunks,
+    readWebpProvenance,
     writeWebpProvenance,
     writeSvgProvenance,
     hasForeignXmp,
@@ -449,6 +450,7 @@ export function writeDerivativeProvenance(input, master, options = {}) {
     if (format === "png") throw new Error("a PNG is a master, never a derivative");
     if (format === "jpeg") throw new Error("JPEG derivatives are rendered from a master");
     if (format === "webp") {
+        readWebpProvenance(original);
         const { chunks } = readWebpChunks(original);
         const imageChunks = new Set(["VP8X", "VP8 ", "VP8L", "ALPH", "ANIM", "ANMF", "ICCP"]);
         const kept = chunks

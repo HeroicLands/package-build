@@ -45,6 +45,16 @@ ai: false
 role: portrait
 ```
 
+## Master generation status
+
+A master may declare AI generation with the optional boolean `hl:ai`. An absent
+value leaves the status unknown unless its recognized IPTC source type states it.
+`trainedAlgorithmicMedia` and `compositeWithTrainedAlgorithmicMedia` conflict
+with `ai: false`; `digitalCreation` conflicts with `ai: true`. Other source types
+do not settle AI status. Derivatives repeat `hl:ai` only when the master
+explicitly declares it. The build admits only non-AI assets with an allowed
+license.
+
 ## Which note an image shows
 
 A master's embedded provenance may carry `hl:name` and `hl:primarynote`: a name for the image's subject and the Address of its note. Both are optional and independent. When a being or an affiliation is the only such note naming a picture, through an art slot, an embed or a body image, the build fills both from that note (the content index records which notes name which pictures), using its `name.full` and its Address, so a portrait found on its own traces back to its character. A note with no `name.full` supplies only the Address. A picture named by several beings or affiliations, or by none, gets nothing filled in. On any other picture the fields are written as given and survive a rewrite. See [the note an embedded image shows](../reference/format-details.md#the-note-an-embedded-image-shows).
@@ -53,7 +63,7 @@ A master is a PNG or an SVG, and a derivative is a WebP, SVG or JPEG rendered fr
 
 ## Book images
 
-Books render addressed PNG and SVG masters as JPEGs for their placements. Screen images use 150 DPI and JPEG quality 76; print images use 300 DPI and quality 82. Both use sRGB and flatten transparency onto white. Raster masters are never enlarged; SVG masters render at the placement resolution. Each JPEG carries its image Address, creator, rights, license and the master Address as `hl:derivedFrom`. Its name and primary note appear only when the indexed note is public. Prompts, generation details and foreign metadata are omitted. The provenance check requires the JPEG's derivative marker and master trace and refuses fields outside this public set.
+Books render addressed PNG and SVG masters as JPEGs for their placements. Screen images use 150 DPI and JPEG quality 76; print images use 300 DPI and quality 82. Both use sRGB and flatten transparency onto white. Raster masters are never enlarged; SVG masters render at the placement resolution. Each JPEG carries its image Address, creator, rights, license, declared AI status and the master Address as `hl:derivedFrom`. Its name and primary note appear only when the indexed note is public. Prompts, generation details and foreign metadata are omitted. The provenance check requires the JPEG's derivative marker and master trace and refuses fields outside this public set.
 
 ## What the Foundry package ships
 

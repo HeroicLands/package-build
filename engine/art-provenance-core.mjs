@@ -169,6 +169,8 @@ import { formatDiagnostic } from "./diagnostics.mjs";
 import { validateComposition, checkCompositionSources } from "./art-composition.mjs";
 
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
+import { QName } from "@xmldom/xmldom/lib/grammar.js";
+import { __DOMHandler as XmpDomHandler } from "@xmldom/xmldom/lib/dom-parser.js";
 
 import { readCanonicalKey } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
@@ -232,6 +234,7 @@ const FIELDS = Object.freeze([
     "rights",
     "license",
     "digitalSourceType",
+    "ai",
     "created",
     "software",
     "description",
@@ -282,11 +285,12 @@ const COMPLETE_ADDRESS = {
  *   only. A write accepts `true` or the string `true`, and `null` removes it.
  * @property {string} [derivedFrom] - A former path or address of the image this
  *   one was made from. Written as `hl:derivedFrom` in the XMP packet only.
+ * @property {boolean} [ai] - Whether the image is AI-generated, stored as `hl:ai`.
  * @property {string} [digitalSourceType] - The IPTC digital source type, as a
  *   key of {@link DIGITAL_SOURCE_TOKENS} or a full URI; read back as the URI.
  *   Written as `Iptc4xmpExt:DigitalSourceType`. On write, `none` or `null`
  *   removes it, and a PNG with no record yet that is written without the field
- *   receives {@link DIGITAL_SOURCE_TRAINED_ALGORITHMIC}.
+ *   receives {@link DIGITAL_SOURCE_TRAINED_ALGORITHMIC} unless `ai` is supplied.
  * @property {string[]} [formerNames] - Paths the file held under earlier names,
  *   oldest first, relative to the masters directory. Written as an `rdf:Bag`
  *   in the XMP packet only. A write appends the names it is given that the
@@ -458,6 +462,7 @@ const XMP_PROPERTIES = Object.freeze([
     ["creator", "dc:creator", "seq"],
     ["rights", "dc:rights", "alt"],
     ["license", "hl:license", "plain"],
+    ["ai", "hl:ai", "boolean"],
     ["prompt", "dc:description", "alt"],
     ["address", "hl:address", "plain"],
     ["identifier", "dc:identifier", "plain"],
@@ -498,7 +503,11 @@ function descriptionBlock(record, eol = "\n") {
             continue;
         }
         const text = escapeXml(
-            shape === "json" ? JSON.stringify(validateComposition(value)) : value,
+            shape === "json" ? JSON.stringify(validateComposition(value))
+            : shape === "boolean" ?
+                value ? "True"
+                :   "False"
+            :   value,
         );
         if (shape === "alt") {
             lines.push(
@@ -887,6 +896,309 @@ function readComposition(packet) {
 }
 
 /**
+ * Select generation declarations with a forward namespace scan.
+ * Selection tolerates unrelated malformed markup; validation reads the original packet.
+ */
+function hasGenerationDeclaration(packet, includeSource = false) {
+    const namePattern = new RegExp(QName.source, "uy");
+    const space = (at) => /\s/u.test(packet[at] ?? "");
+    const skipSpace = (at) => {
+        while (at < packet.length && space(at)) at++;
+        return at;
+    };
+    const property = (name) => {
+        const local = name.slice(name.lastIndexOf(":") + 1);
+        return local === "ai" || (includeSource && local === "DigitalSourceType");
+    };
+    const frames = [];
+    const heads = new Map();
+    let namespace = "";
+    let cursor = 0;
+    while (cursor < packet.length) {
+        const start = packet.indexOf("<", cursor);
+        if (start < 0) break;
+        cursor = start + 1;
+        let skipped = false;
+        for (const [open, close] of [
+            ["<!--", "-->"],
+            ["<![CDATA[", "]]>"],
+            ["<?", "?>"],
+        ]) {
+            if (!packet.startsWith(open, start)) continue;
+            const end = packet.indexOf(close, start + open.length);
+            cursor = end < 0 ? packet.length : end + close.length;
+            skipped = true;
+            break;
+        }
+        if (skipped) continue;
+        if (packet.startsWith("<!", start)) {
+            let brackets = 0;
+            let quote;
+            while (cursor < packet.length) {
+                if (!quote && packet.startsWith("<!--", cursor)) {
+                    const end = packet.indexOf("-->", cursor + 4);
+                    cursor = end < 0 ? packet.length : end + 3;
+                    continue;
+                }
+                const char = packet[cursor++];
+                if (quote) {
+                    if (char === quote) quote = undefined;
+                    continue;
+                }
+                if (char === '"' || char === "'") quote = char;
+                else if (char === "[") brackets++;
+                else if (char === "]") brackets = Math.max(0, brackets - 1);
+                else if (char === ">" && brackets === 0) break;
+            }
+            continue;
+        }
+        const spaced = space(cursor);
+        cursor = skipSpace(cursor);
+        const closing = packet[cursor] === "/";
+        if (closing) cursor = skipSpace(cursor + 1);
+        namePattern.lastIndex = cursor;
+        const element = namePattern.exec(packet);
+        let name = element?.[0] ?? "";
+        if (element) cursor = namePattern.lastIndex;
+        if (!element || (cursor < packet.length && !/[\s=/>]/u.test(packet[cursor]))) {
+            name = "";
+            while (cursor < packet.length && !/[\s=<>/"']/u.test(packet[cursor])) cursor++;
+        }
+        const afterName = skipSpace(cursor);
+        let tail = afterName;
+        if (packet[tail] === "/") tail = skipSpace(tail + 1);
+        const framed =
+            afterName === packet.length || packet[afterName] === "=" || packet[tail] === ">";
+        let localNamespace = namespace;
+        let assigned = false;
+        let declared = false;
+        let completed = false;
+        let selfClosing = false;
+        while (cursor < packet.length) {
+            cursor = skipSpace(cursor);
+            if (packet[cursor] === "<" || cursor === packet.length) break;
+            if (packet[cursor] === ">") {
+                cursor++;
+                completed = true;
+                break;
+            }
+            if (packet[cursor] === "/") {
+                const end = skipSpace(cursor + 1);
+                if (packet[end] === ">") {
+                    cursor = end + 1;
+                    completed = true;
+                    selfClosing = true;
+                    break;
+                }
+                cursor++;
+                continue;
+            }
+            if (packet[cursor] === '"' || packet[cursor] === "'") {
+                const end = packet.indexOf(packet[cursor], cursor + 1);
+                cursor = end < 0 ? packet.length : end + 1;
+                continue;
+            }
+            namePattern.lastIndex = cursor;
+            const attribute = namePattern.exec(packet);
+            if (!attribute) {
+                cursor++;
+                continue;
+            }
+            cursor = namePattern.lastIndex;
+            if (cursor < packet.length && !/[\s=/>"']/u.test(packet[cursor])) {
+                while (cursor < packet.length && !/[\s=<>/"']/u.test(packet[cursor])) cursor++;
+                continue;
+            }
+            const key = attribute[0];
+            if (key.includes(":") && !key.startsWith("xmlns:") && property(key)) declared = true;
+            cursor = skipSpace(cursor);
+            if (packet[cursor] !== "=") continue;
+            assigned = true;
+            cursor = skipSpace(cursor + 1);
+            const quote = packet[cursor];
+            if (quote !== '"' && quote !== "'") {
+                while (cursor < packet.length && !/[\s<>]/u.test(packet[cursor])) cursor++;
+                continue;
+            }
+            const end = packet.indexOf(quote, cursor + 1);
+            if (end < 0) {
+                cursor = packet.length;
+                break;
+            }
+            if (key === "xmlns") {
+                localNamespace = packet
+                    .slice(cursor + 1, end)
+                    .replace(/&(#x[0-9a-fA-F]+|#[0-9]+|amp|lt|gt|quot|apos);/g, (encoded, ref) => {
+                        if (!ref.startsWith("#")) return unescapeXml(encoded);
+                        const point =
+                            ref[1] === "x" ?
+                                parseInt(ref.slice(2), 16)
+                            :   parseInt(ref.slice(1), 10);
+                        return point >= 0 && point <= 0x10ffff ?
+                                String.fromCodePoint(point)
+                            :   encoded;
+                    });
+            }
+            cursor = end + 1;
+        }
+        if (declared) return true;
+        if (
+            property(name) &&
+            (name.includes(":") ||
+                ((framed || assigned) &&
+                    (!spaced ||
+                        localNamespace === (name === "ai" ? HL_NAMESPACE : IPTC_NAMESPACE))))
+        )
+            return true;
+        if (!completed || !name) continue;
+        if (closing) {
+            const head = heads.get(name);
+            if (head === undefined) continue;
+            while (frames.length > head) {
+                const frame = frames.pop();
+                namespace = frame.before;
+                if (frame.previous === undefined) heads.delete(frame.name);
+                else heads.set(frame.name, frame.previous);
+            }
+        } else if (!selfClosing) {
+            const frame = { name, before: namespace, previous: heads.get(name) };
+            heads.set(name, frames.length);
+            frames.push(frame);
+            namespace = localNamespace;
+        }
+    }
+    return false;
+}
+
+/** Read generation facts by expanded XMP property name. */
+function readGeneration(packet, includeSource = false) {
+    if (!hasGenerationDeclaration(packet, includeSource)) return undefined;
+    let invalid = false;
+    let duplicateAttribute = false;
+    let document;
+    let aiCount = 0;
+    let sourceCount = 0;
+    class GenerationHandler extends XmpDomHandler {
+        startElement(namespaceURI, localName, qName, attrs) {
+            const managedElement =
+                (namespaceURI === HL_NAMESPACE && localName === "ai") ||
+                (namespaceURI === IPTC_NAMESPACE && localName === "DigitalSourceType");
+            if (namespaceURI === HL_NAMESPACE && localName === "ai") aiCount++;
+            if (namespaceURI === IPTC_NAMESPACE && localName === "DigitalSourceType") sourceCount++;
+            const elementAttributes = new Set();
+            for (let i = 0; i < attrs.length; i++) {
+                if (managedElement && attrs.getURI(i) !== "http://www.w3.org/2000/xmlns/") {
+                    const key = `${attrs.getURI(i) ?? ""}|${attrs.getLocalName(i)}`;
+                    if (elementAttributes.has(key)) duplicateAttribute = true;
+                    elementAttributes.add(key);
+                }
+                if (attrs.getURI(i) === HL_NAMESPACE && attrs.getLocalName(i) === "ai") aiCount++;
+                if (
+                    attrs.getURI(i) === IPTC_NAMESPACE &&
+                    attrs.getLocalName(i) === "DigitalSourceType"
+                )
+                    sourceCount++;
+            }
+            super.startElement(namespaceURI, localName, qName, attrs);
+        }
+    }
+    try {
+        document = new DOMParser({
+            domHandler: GenerationHandler,
+            onError: () => {
+                invalid = true;
+            },
+        }).parseFromString(packet, "application/xml");
+    } catch {
+        throw new Error("generation metadata: malformed XMP");
+    }
+    if (invalid) throw new Error("generation metadata: malformed XMP");
+    if (!includeSource && aiCount === 0) return undefined;
+    if (duplicateAttribute) throw new Error("generation metadata: duplicate XMP attributes");
+    if (aiCount > 1) throw new Error("ai: duplicate XMP properties");
+    if (sourceCount > 1) throw new Error("digitalSourceType: duplicate XMP properties");
+    const values = [];
+    const sources = [];
+    const elements = document.getElementsByTagName("*");
+    const description = (node) =>
+        node?.namespaceURI === RDF_NAMESPACE && node.localName === "Description";
+    const textOnly = (node) =>
+        Array.from({ length: node.childNodes.length }, (_, i) => node.childNodes.item(i)).every(
+            (child) => child.nodeType === 3 || child.nodeType === 4,
+        );
+    for (let i = 0; i < elements.length; i++) {
+        const node = elements.item(i);
+        for (let j = 0; j < node.attributes.length; j++) {
+            const attr = node.attributes.item(j);
+            const ai = attr.namespaceURI === HL_NAMESPACE && attr.localName === "ai";
+            const source =
+                attr.namespaceURI === IPTC_NAMESPACE && attr.localName === "DigitalSourceType";
+            if (ai || source) {
+                if (!description(node))
+                    throw new Error(
+                        "generation metadata: property must belong to an RDF Description",
+                    );
+                (ai ? values : sources).push(attr.value);
+            }
+        }
+        if (node.namespaceURI === HL_NAMESPACE && node.localName === "ai") {
+            if (
+                !description(node.parentNode) ||
+                !textOnly(node) ||
+                Array.from({ length: node.attributes.length }, (_, j) =>
+                    node.attributes.item(j),
+                ).some((attr) => attr.namespaceURI !== "http://www.w3.org/2000/xmlns/")
+            )
+                throw new Error("ai: expected a boolean XMP property");
+            values.push(node.textContent);
+        }
+        if (node.namespaceURI === IPTC_NAMESPACE && node.localName === "DigitalSourceType") {
+            if (!description(node.parentNode) || !textOnly(node))
+                throw new Error("digitalSourceType: invalid XMP property");
+            let resource;
+            for (let j = 0; j < node.attributes.length; j++) {
+                const attr = node.attributes.item(j);
+                if (attr.namespaceURI === "http://www.w3.org/2000/xmlns/") continue;
+                if (
+                    attr.namespaceURI === RDF_NAMESPACE &&
+                    attr.localName === "resource" &&
+                    resource === undefined
+                )
+                    resource = attr.value;
+                else throw new Error("digitalSourceType: invalid XMP property");
+            }
+            if (resource !== undefined && node.textContent.trim() !== "")
+                throw new Error("digitalSourceType: conflicting XMP values");
+            sources.push(resource ?? node.textContent);
+        }
+    }
+    if (values.length > 1) throw new Error("ai: duplicate XMP properties");
+    if (sources.length > 1) throw new Error("digitalSourceType: duplicate XMP properties");
+    if (values.length && !["True", "False", "true", "false"].includes(values[0]))
+        throw new Error("ai: expected a boolean XMP value");
+    if (sources.length && !/^[A-Za-z][A-Za-z0-9+.-]*:\S+$/.test(sources[0]))
+        throw new Error("digitalSourceType: expected a URI");
+    if (!values.length && !sources.length) return undefined;
+    return {
+        ai: values.length ? values[0].toLowerCase() === "true" : undefined,
+        source: sources[0],
+    };
+}
+
+/** Refuse explicit status that conflicts with a recognized source type. */
+function validateAiClassification(record) {
+    if (record.ai !== undefined && typeof record.ai !== "boolean")
+        throw new Error("ai must be a boolean");
+    const source = record.digitalSourceType;
+    const generated =
+        source === DIGITAL_SOURCE_TOKENS.trainedAlgorithmicMedia ||
+        source === DIGITAL_SOURCE_TOKENS.compositeWithTrainedAlgorithmicMedia;
+    const human = source === DIGITAL_SOURCE_TOKENS.digitalCreation;
+    if (record.ai !== undefined && ((generated && !record.ai) || (human && record.ai)))
+        throw new Error("ai conflicts with digitalSourceType");
+}
+
+/**
  * Read the record stored in an XMP packet. Composition parsing imposes XML
  * validity only when a composition declaration is present, then checks its
  * namespace, structure, and recipe. Unframed prose such as `a <b composition c`
@@ -902,7 +1214,12 @@ export function readXmpRecord(packet) {
     const xml = own ? own[0] : packet;
     const record = {};
     for (const [field, name] of XMP_PROPERTIES) {
-        if (field === "composition" || (field === "prompt" && name === "dc:description")) continue;
+        if (
+            field === "composition" ||
+            field === "ai" ||
+            (field === "prompt" && name === "dc:description")
+        )
+            continue;
         if (field === "formerNames") {
             const bag = new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)</${name}>`).exec(xml);
             if (bag) {
@@ -915,6 +1232,15 @@ export function readXmpRecord(packet) {
         const value = readProperty(xml, name);
         if (value !== undefined) record[field] = value;
     }
+    const ai = readGeneration(packet);
+    if (ai !== undefined) {
+        if (ai.ai !== undefined) {
+            record.ai = ai.ai;
+            if (ai.source === undefined) delete record.digitalSourceType;
+            else record.digitalSourceType = ai.source;
+        }
+    }
+    validateAiClassification(record);
     const composition = readComposition(packet);
     if (composition !== undefined) record.composition = composition;
     return record;
@@ -956,7 +1282,13 @@ function isXmpChunk(chunk) {
  */
 export function readProvenance(bytes) {
     const chunks = readChunks(bytes);
-    const xmpChunk = chunks.find(isXmpChunk);
+    const xmpChunks = chunks.filter(isXmpChunk);
+    if (
+        xmpChunks.length > 1 &&
+        xmpChunks.some((chunk) => readGeneration(readTextChunk(chunk).text)?.ai !== undefined)
+    )
+        throw new Error("ai: multiple XMP packets cannot carry an unambiguous declaration");
+    const xmpChunk = xmpChunks[0];
     const packet = xmpChunk ? readTextChunk(xmpChunk).text : null;
     const xmp = packet === null ? {} : readXmpRecord(packet);
     const standard = readStandardRecord(chunks);
@@ -1019,8 +1351,9 @@ function validateRecord(record) {
         if (record.derived !== undefined)
             throw new Error("composition is private and never repeated on a derivative");
     }
+    validateAiClassification(record);
     for (const field of FIELDS) {
-        if (field === "composition") continue;
+        if (field === "composition" || field === "ai") continue;
         const value = record[field];
         if (value !== undefined && (typeof value !== "string" || value === "")) {
             throw new Error(`${field} must be a non-empty string`);
@@ -1202,7 +1535,11 @@ export function writeProvenance(bytes, fields, options = {}) {
     const existing = readProvenance(bytes).record;
     const record = mergeRecord(existing, fields);
     const primary = options.index ? applyPrimaryNote(record, options.index) : undefined;
-    if (fields.digitalSourceType === undefined && existing.address === undefined) {
+    if (
+        fields.digitalSourceType === undefined &&
+        fields.ai === undefined &&
+        existing.address === undefined
+    ) {
         record.digitalSourceType ??= DIGITAL_SOURCE_TRAINED_ALGORITHMIC;
     }
     validateRecord(record);
@@ -1566,8 +1903,15 @@ function makeWebpChunk(type, data) {
 
 /** The XMP packet in a WebP's chunks, or `null`. */
 function webpPacket(chunks) {
-    const chunk = chunks.find((entry) => entry.type === "XMP ");
-    return chunk ? chunk.data.toString("utf8") : null;
+    const packets = chunks
+        .filter((entry) => entry.type === "XMP ")
+        .map((entry) => entry.data.toString("utf8"));
+    const firstAi = packets.length > 0 && readGeneration(packets[0])?.ai !== undefined;
+    for (const packet of packets.slice(1)) {
+        if (readGeneration(packet, firstAi) !== undefined)
+            throw new Error("generation metadata: ambiguous WebP XMP packets");
+    }
+    return packets[0] ?? null;
 }
 
 /**
@@ -1770,15 +2114,15 @@ const NEVER_REPEATED = Object.freeze(["prompt", "generator", "composition"]);
 const NOTE_FIELDS = Object.freeze(["name", "primaryNote"]);
 
 /** The record fields a derivative carries unless told otherwise. */
-const DERIVATIVE_FIELDS = Object.freeze(["address", "creator", "rights"]);
+const DERIVATIVE_FIELDS = Object.freeze(["address", "creator", "rights", "ai"]);
 
 /**
  * The record of a derivative made from a master.
  *
  * The record holds `address` (unchanged), `derived` set to `true`, `rights`
- * (`dc:rights`) and `creator` (`dc:creator`, the attribution), and the master's
- * value of each property named in `repeat`. Every other field of the master is
- * left out.
+ * (`dc:rights`) and `creator` (`dc:creator`, the attribution). It repeats `ai`
+ * when explicitly declared and each property named in `repeat`. Other master
+ * fields are left out.
  *
  * `prompt` and `generator` (generation details) are never repeated, and `name`
  * and `primaryNote` are repeated only when `notePublic` is `true`.
@@ -1931,6 +2275,7 @@ export function checkProvenance(entries, options = {}) {
                 "creator",
                 "rights",
                 "license",
+                "ai",
                 "name",
                 "primaryNote",
             ]);
