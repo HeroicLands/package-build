@@ -425,8 +425,8 @@ export class SystemActorCompiler extends BasePackCompiler {
     static emitsArt = Object.freeze(["icon", "tokenIcon"]);
 
     /**
-     * The actor's two pieces of art, resolved, with the being default beneath
-     * them.
+     * Resolve an actor's profile and token art above its subtype default.
+     * Being subtypes also select their declared person or creature artwork.
      *
      * **The default follows the note's `subType`**. Both addresses belong to
      * the package that ships them. A tree whose index cannot answer an
@@ -443,7 +443,7 @@ export class SystemActorCompiler extends BasePackCompiler {
      * @returns {{img: string, token: string}} The two paths.
      */
     actorArt(fm, fallback) {
-        const address = beingDefaultArt(fm);
+        const address = fm.type === "vehicle" ? null : beingDefaultArt(fm);
         const byTag = address ? this.artPathOf(address, "icon", "icon") : null;
         const base = byTag ?? fallback;
         // A note that names no art takes the default.

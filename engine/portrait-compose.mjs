@@ -15,22 +15,33 @@
 import { createHash } from "node:crypto";
 import { pathLabel } from "./data-keys.mjs";
 
-const STYLES = Object.freeze({
+const STYLE_NEGATIVE = "cartoon, comic, ink outlines, flat colors, cel shading";
+/** Shared style keys and prompt channels for each subject. */
+export const STYLES = Object.freeze({
     "flux-dev": {
+        vehicle:
+            "Realistic painterly full-vehicle view; natural proportions, detailed construction, atmospheric light and a softly blurred environment; no outlines or flat color fills",
         positive:
             "Realistic painterly portrait, head and shoulders, close framing, the subject looking at the viewer; dramatic atmospheric light, softly blurred environment; natural asymmetric face with visible skin texture and pores; individual strands of hair; no outlines, no flat colour fills, no full-body pose.",
     },
     "flux2-pro": {
+        vehicle:
+            "A realistic oil painting of the complete vehicle, with its construction and materials clearly visible, lit by atmospheric light against a softly blurred setting. No ink outlines or cartoon shading",
         positive:
             "A realistic oil-painted portrait framed from the chest up, lit with dramatic atmospheric light against a softly blurred setting. The face belongs to an ordinary person: asymmetric, with visible skin texture and small imperfections, neither retouched nor idealised. No ink outlines, cartoon shading or full-length pose.",
     },
     sdxl: {
+        vehicle:
+            "realistic oil painting, full-vehicle view, natural proportions, detailed materials and construction, atmospheric lighting, shallow depth of field",
+        vehicleNegative: STYLE_NEGATIVE,
         positive:
             "realistic oil painting portrait, head and shoulders, dramatic atmospheric lighting, shallow depth of field, detailed skin texture, natural asymmetrical face, individual hair strands",
-        negative:
-            "cartoon, comic, ink outlines, flat colors, cel shading, full body, plain background, airbrushed skin, symmetrical face, glamour, model",
+        negative: `${STYLE_NEGATIVE}, full body, plain background, airbrushed skin, symmetrical face, glamour, model`,
     },
 });
+
+/** Model styles accepted by picture commands. */
+export const STYLE_KEYS = Object.freeze(Object.keys(STYLES));
 
 const AGE_WORDS = Object.freeze({
     youth: ["freckles", "a few blemishes", "acne scars"],
@@ -38,8 +49,26 @@ const AGE_WORDS = Object.freeze({
     middle: ["lines across the brow", "lines around the mouth", "weathered skin", "some grey hair"],
     elder: ["deep wrinkles", "weathered skin", "age spots", "coarse thinning hair"],
 });
-const EXCLUDED =
-    /(?:^\s*ink\s*$|\b(?:ink(?:ed|ing)|ink[ -]*(?:and[ -]*wash|wash|outlin(?:e|es|ed|ing)|illustrations?|paintings?|drawings?|sketch(?:es)?|contours?|style)|(?:drawn|rendered|painted)[ -]+in[ -]+ink|pen[ -]+and[ -]+ink|outlin(?:e|es|ed|ing)|cartoon(?:ish|s)?|cel(?:[ -]*shad(?:e|ed|ing))?|flat[ _–-]*colou?r(?:s|ed|ing)?|full[ _–-]*(?:body|length))\b)/iu;
+const STYLE_EXCLUDED =
+    /(?:^\s*ink\s*$|\b(?:ink(?:ed|ing)|ink[ -]*(?:and[ -]*wash|wash|outlin(?:e|es|ed|ing)|illustrations?|paintings?|drawings?|sketch(?:es)?|contours?|style)|(?:drawn|rendered|painted)[ -]+in[ -]+ink|pen[ -]+and[ -]+ink|outlin(?:e|es|ed|ing)|cartoon(?:ish|s)?|cel(?:[ -]*shad(?:e|ed|ing))?|flat[ _–-]*colou?r(?:s|ed|ing)?)\b)/iu;
+
+const EXCLUDED = new RegExp(`${STYLE_EXCLUDED.source}|\\bfull[ _–-]*(?:body|length)\\b`, "iu");
+
+/**
+ * Check one vehicle detail for an excluded style direction.
+ * @param {unknown} value - The authored value.
+ * @param {Array<string|number>} keyPath - Its frontmatter path.
+ * @returns {(Error & {keyPath: Array<string|number>})|undefined} The located error, if any.
+ */
+export function vehicleDirectionError(value, keyPath) {
+    const match = typeof value === "string" ? STYLE_EXCLUDED.exec(value) : null;
+    return match ?
+            Object.assign(
+                new Error(`\`${pathLabel(keyPath)}\` contains excluded direction ${match[0]}`),
+                { keyPath },
+            )
+        :   undefined;
+}
 
 /**
  * Check one authored value for an excluded style direction.

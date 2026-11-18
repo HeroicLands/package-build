@@ -415,7 +415,7 @@
                 ]
             },
             "vehicle": {
-                "own": ["occupants", "templatePriority"],
+                "own": ["carryingCapacity", "occupantCapacity", "occupants", "templatePriority"],
                 "inherited": [
                     "actionDefs",
                     "appearance",

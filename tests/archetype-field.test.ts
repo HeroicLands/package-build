@@ -272,23 +272,23 @@ describe("the compiled Item carries `system.templatePriority`, not the flag", ()
 describe("the compiled Actor carries `system.templatePriority`, not the flag", () => {
     it("emits the number, and `0` as `0`", () => {
         expect(
-            actors().buildBeing(new Map(), beingNote({ templatePriority: 2 }), "").system
+            actors().buildActor(new Map(), beingNote({ templatePriority: 2 }), "").system
                 .templatePriority,
         ).toBe(2);
-        const zero = actors().buildBeing(new Map(), beingNote({ templatePriority: 0 }), "");
+        const zero = actors().buildActor(new Map(), beingNote({ templatePriority: 0 }), "");
         expect(zero.system.templatePriority).toBe(0);
         expect(typeof zero.system.templatePriority).toBe("number");
     });
 
     it("emits `null` for a being that is not an archetype", () => {
-        const doc = actors().buildBeing(new Map(), beingNote({ templatePriority: null }), "");
+        const doc = actors().buildActor(new Map(), beingNote({ templatePriority: null }), "");
         expect(doc.system.templatePriority).toBeNull();
         expect("templatePriority" in doc.system).toBe(true);
     });
 
     it("writes no `flags.sohl.docArchetype`, whatever the priority", () => {
         for (const archetype of [0, 1, null]) {
-            const doc = actors().buildBeing(
+            const doc = actors().buildActor(
                 new Map(),
                 beingNote({ templatePriority: archetype }),
                 "",
@@ -299,9 +299,9 @@ describe("the compiled Actor carries `system.templatePriority`, not the flag", (
 
     it("passes the block's `flags` through unchanged, defaulting to an empty object", () => {
         expect(
-            actors().buildBeing(new Map(), beingNote({ templatePriority: 1 }), "").flags,
+            actors().buildActor(new Map(), beingNote({ templatePriority: 1 }), "").flags,
         ).toEqual({});
-        const authored = actors().buildBeing(
+        const authored = actors().buildActor(
             new Map(),
             beingNote({ templatePriority: 1, flags: { core: { keep: true } } }),
             "",
@@ -310,7 +310,7 @@ describe("the compiled Actor carries `system.templatePriority`, not the flag", (
     });
 
     it("refuses a note with no archetype at all", () => {
-        expect(() => actors().buildBeing(new Map(), beingNote({}), "")).toThrow(
+        expect(() => actors().buildActor(new Map(), beingNote({}), "")).toThrow(
             /templatePriority/i,
         );
     });

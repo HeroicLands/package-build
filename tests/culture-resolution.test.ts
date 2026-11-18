@@ -379,6 +379,26 @@ describe("the resolution order, type by type", () => {
             expected: undefined,
         },
         {
+            name: "vehicle: its own value",
+            type: "vehicle",
+            build: () =>
+                note(
+                    "Vehicles/Cart.md",
+                    "type: vehicle",
+                    "shortcode: cart",
+                    "data: {culture: lore-osket}",
+                ),
+            shortcode: "cart",
+            expected: OSKET,
+        },
+        {
+            name: "vehicle: none",
+            type: "vehicle",
+            build: () => note("Vehicles/Cart.md", "type: vehicle", "shortcode: cart"),
+            shortcode: "cart",
+            expected: undefined,
+        },
+        {
             name: "doc: a setting guide's own value",
             type: "doc",
             build: () =>

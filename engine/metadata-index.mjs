@@ -546,13 +546,16 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                     {
                         data: {
                             appearanceProfile: record.data?.appearanceProfile,
+                            vehicleAppearanceProfile: record.data?.vehicleAppearanceProfile,
                             items: record.data?.items,
                         },
                     }
+                : parts.type === "vehicle" ? { data: record.data }
                 : parts.type === "being" ?
                     {
                         data: {
                             items: record.data?.items,
+                            movementProfiles: record.data?.movementProfiles,
                             appearance: record.data?.appearance,
                             gender: record.data?.gender,
                             frame: record.data?.frame,

@@ -44,6 +44,14 @@ export {
 /** Structured positions whose Address is nested inside a declared container. */
 export const STRUCTURED_ADDRESSES = Object.freeze([
     {
+        noteType: "vehicle",
+        path: ["data", "occupants", "*", "address"],
+        shape: "value",
+        type: "being",
+        accepts: ["being"],
+        lenient: true,
+    },
+    {
         noteType: "affiliation",
         path: ["data", "settlements", "*", "location"],
         shape: "value",
@@ -81,7 +89,7 @@ export const STRUCTURED_ADDRESSES = Object.freeze([
     { path: ["data", "seeAlso", "*", "address"], shape: "value", lenient: true },
     // A listed item's model is read leniently: a value that is no Address stays
     // as written, for the items check to refuse at its own key.
-    ...["being", "lore"].flatMap((noteType) => [
+    ...["being", "lore", "vehicle"].flatMap((noteType) => [
         {
             noteType,
             path: ["data", "items", "*", "model"],

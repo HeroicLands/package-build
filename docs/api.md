@@ -229,7 +229,6 @@ Which note types a configuration compiles at all, and the two findings that foll
 | -------------------------- | ---------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NEVER_PACKED_TYPES`       | `const NEVER_PACKED_TYPES`               | —                     | enumerating note types that compile into no compendium document by design                                                                     |
 | `DOCUMENTATION_NOTE_TYPES` | `const DOCUMENTATION_NOTE_TYPES`         | —                     | reading the whole note vocabulary a `documentation` package may use — `doc` and `homepage`, both already pages rather than compendium entries |
-| `UNIMPLEMENTED_TYPES`      | `const UNIMPLEMENTED_TYPES`              | —                     | enumerating content types the specification states that this toolchain does not yet compile                                                   |
 | `DERIVED_PACKED_TYPES`     | `const DERIVED_PACKED_TYPES`             | —                     | enumerating note types that reach a pack by a route other than the pack router                                                                |
 | `noteTypesClaimedBy`       | `noteTypesClaimedBy(docType, sources)`   | `ReadonlySet<string>` | listing the note types a pass of one document type would claim                                                                                |
 | `CLAIMABLE_DOCUMENT_TYPES` | `const CLAIMABLE_DOCUMENT_TYPES`         | —                     | enumerating every Foundry document class `noteTypesClaimedBy` answers for                                                                     |
@@ -2270,6 +2269,16 @@ source locations and frontmatter source slicing.
 | ------------------ | ----------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `splitFrontmatter` | `splitFrontmatter(raw)` | `{yaml: string, body: string} \| null` | Split opening LF or CRLF frontmatter into exact YAML and untrimmed body slices, without parsing or rewriting the source. |
 
+`locatedFinding(note, keyPath, message, severity = "error")` returns a finding with
+`file`, the available `line` and `column`, `severity`, `message`, and `keyPath`.
+It locates the field's key or the nearest declared parent when the key is absent.
+
+### `./engine/portrait-compose`
+
+`STYLES` holds each model's being and vehicle prompt text and negative channels.
+`STYLE_KEYS` is the frozen list of accepted model names used by picture commands.
+Vehicle negative text excludes whole-vehicle framing from the style restrictions.
+
 ### `engine.itemRegistry`
 
 **The resolved item-type registry** — the consuming repository's `itemBuilders` table, and the type whitelist derived from its keys. Both are read from the one resolved configuration, so they are literally the same object's keys and values: a type cannot be whitelisted for compilation without the builder that compiles it, which is the guarantee this exists for. Where a consumer declares **several** registries, one per system, the vocabulary is their union and every lookup below takes the system that is asking — a type both systems declare has two builders, and answering with one of them because it was declared first is the silent-wrong-output failure this package spends its time removing. The Item compiler dispatches through {@link itemBuilder}, so the table a consumer configured is the table its notes compile with — the whitelist and the dispatch would otherwise come from different places, and a consumer supplying its own registry got the types it asked for and the builders it did not.
@@ -3859,3 +3868,25 @@ handling of unrelated corpus problems. Private restoration and reproduction use 
 as offline public builds. All outputs remain under `build/`. The separate
 standard-index supply and integrity contract is described in the
 [command manual](commands.md#package-build-art).
+
+### `engine.vehicleAppearance`
+
+The `vehicleAppearance` namespace exposes `drawVehicleAppearance(data, profile, seed, locomotion)`, which returns a new appearance record with missing eligible fields drawn from the culture profile. The selected locomotion must be declared on the vehicle. An exact family row takes precedence over the mode-only row; a missing or ambiguous match throws. Authored fields remain in the result. The function does not mutate its inputs.
+
+`vehicleAppearance` also exposes `VEHICLE_LOOK_VOCABULARY`, `checkVehicleAppearance(note)`, and `checkVehicleAppearanceProfile(note)`. The checks return located findings for authored vehicle appearance and culture profiles.
+
+| Export                          | Signature                                                | Returns                    | Use                                           |
+| ------------------------------- | -------------------------------------------------------- | -------------------------- | --------------------------------------------- |
+| `VEHICLE_LOOK_VOCABULARY`       | constant                                                 | Closed words and meanings. | Describe vehicle looks.                       |
+| `checkVehicleAppearance`        | `checkVehicleAppearance(note)`                           | Located findings.          | Validate a vehicle's look.                    |
+| `checkVehicleAppearanceProfile` | `checkVehicleAppearanceProfile(note)`                    | Located findings.          | Validate a culture's vehicle profile.         |
+| `drawVehicleAppearance`         | `drawVehicleAppearance(data, profile, seed, locomotion)` | A new appearance record.   | Draw missing eligible look fields explicitly. |
+
+### `engine.vehiclePrompt`
+
+Compose a full-vehicle picture prompt from explicit note data and resolved items.
+
+| Export                  | Signature                                            | Returns                                  | Use                                                                                           |
+| ----------------------- | ---------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `vehiclePromptFromData` | `vehiclePromptFromData(data, items, sources, index)` | Positive and optional negative channels. | Compose a vehicle picture prompt; supply the link index to validate item art.                 |
+| `checkVehiclePortrait`  | `checkVehiclePortrait(note, context)`                | Located findings.                        | Validate a stored picture record and its freshness; supply the link index to resolve artwork. |

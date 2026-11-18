@@ -81,6 +81,12 @@ export * as homepage from "./homepage.mjs";
 /** The note types the engine itself declares, whatever a consumer registers. */
 export * as noteSchemas from "./note-schemas.mjs";
 
+/** Vehicle picture prompt composition and validation. */
+export * as vehiclePrompt from "./vehicle-prompt.mjs";
+
+/** Vehicle appearance validation and explicit draws. */
+export * as vehicleAppearance from "./vehicle-appearance.mjs";
+
 /** The closed frontmatter regions: the `data:` container and each type's `subType`. */
 export * as noteVocabulary from "./note-vocabulary.mjs";
 

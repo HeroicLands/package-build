@@ -59,7 +59,7 @@ The formatter keeps a collection on one line when the full line is under 100 cha
 
 ## Shared facts and game mechanics
 
-The [note-type reference](../reference/note-types.md) lists every field accepted under `data`, including the shared `id`, `pack`, `packFolder`, `harnworld`, `banner`, and `seeAlso` fields. A type such as `being` also has its own fields, including `homes` and `affiliations`. `culture` is shared by `being`, `place`, `affiliation`, `lore` and `doc`: it names a `lore` note of `subType: culture`, is required on a `doc` of `subType: settingguide`, and is inherited down `data.parents` by places and affiliations. See [culture in the index](../reference/format-details.md#culture-in-the-index). A field absent from a type's vocabulary is a lint error; an unrelated field is not silently repurposed.
+The [note-type reference](../reference/note-types.md) lists every field accepted under `data`, including the shared `id`, `pack`, `packFolder`, `harnworld`, `banner`, and `seeAlso` fields. A type such as `being` also has its own fields, including `homes` and `affiliations`. `culture` is shared by `being`, `vehicle`, `place`, `affiliation`, `lore` and `doc`: it names a `lore` note of `subType: culture`, is required on a `doc` of `subType: settingguide`, and is inherited down `data.parents` by places and affiliations. See [culture in the index](../reference/format-details.md#culture-in-the-index). A field absent from a type's vocabulary is a lint error; an unrelated field is not silently repurposed.
 
 An affiliation can name a headquarters in `data.seat`, or, when it has no seat,
 list the places where it is active in `data.range`. For example,
@@ -160,3 +160,55 @@ A note infobox draws from shared `data`. A being profile shows its top-level `su
 Settlement-table exceptions are declared by address with a reason in the
 [package configuration](../configuration.md#settlement-exemptions). The same
 mechanism records an aggregate population exception for a polity.
+
+## Vehicles
+
+A vehicle note describes one vehicle size. Its occupant rows contain a being
+Address and a role; native occupant counts belong to the system-specific
+roster. Its `data.role` is an ordered list;
+the first role is primary. `data.movementProperties` lists distributions by
+movement medium. Each rate gives the probability of traveling a distance in one
+stated time unit. Each distribution uses one distance unit and one time unit.
+`movementProperties` distinguishes surface `floating` from underwater `aquatic`.
+`movementProfiles` supplies SoHL movement defaults and uses `aquatic` for water,
+with `none` also available; it has no `floating` medium.
+Distances within a distribution are distinct and ascending,
+and probabilities sum to one within 1e-9. A watch is four hours.
+
+```yaml
+---
+type: vehicle
+shortcode: cart
+name: { full: Cart }
+sohl:
+  system:
+    carryingCapacity: 280
+data:
+  templatePriority: null
+  occupantCapacity: 2
+  movementProfiles:
+    - { medium: terrestrial, feetPerRound: 20 }
+  family: Cart
+  size: 1
+  locomotion: [wheeled]
+  role: [merchant, utility]
+  capacity: 1
+  movementProperties:
+    - medium: terrestrial
+      rates:
+        - { prob: 0.25, distance: 0, distUnit: feet, timeUnit: hour }
+        - { prob: 0.75, distance: 100, distUnit: feet, timeUnit: hour }
+---
+Cart.
+```
+
+Capacity is measured in seams; fractions are allowed. The
+[note-type reference](../reference/note-types.md#vehicle) describes the
+vehicle fields and their units.
+
+The `sohl` block produces a vehicle Actor. Native `sohl.system` values override
+generic defaults; capacities in seams do not determine the native pounds limit.
+A generic occupant maps to one native roster entry, with quantity one. This
+quantity requires a SoHL release with native vehicle occupant quantity support.
+
+Vehicle notes can list actual cargo and fittings in `data.items`; an item entry may name an item model or define an item inline, using the same fields, including `chance`, as a being’s items. A vehicle picture record pairs `data.portrait` and `data.portraitSettings` with an authored `data.icon` image or icon Address. The text-only [vehicle prompt command](../commands/vehicle.md) composes from indexed facts and items without writing the note.

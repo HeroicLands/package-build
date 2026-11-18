@@ -5,6 +5,7 @@ types:
         data:
             - tokenIcon
             - templatePriority
+            - movementProfiles
             - archetypes
             - occupation
             - occupationNote
@@ -52,6 +53,38 @@ types:
         data:
             - tokenIcon
             - templatePriority
+            - movementProfiles
+            - items
+            - portrait.prompt
+            - portrait.negativePrompt
+            - portraitSettings.model
+            - portraitSettings.seed
+            - portraitSettings.extras
+            - portraitSettings.view
+            - appearance.form
+            - appearance.material
+            - appearance.extra_features
+            - family
+            - size
+            - locomotion
+            - role
+            - length
+            - width
+            - height
+            - hullDepth
+            - draft
+            - capacity
+            - cargoCapacity
+            - occupantCapacity
+            - occupants
+            - crew
+            - passengers
+            - movementProperties
+            - construction
+            - buildTime
+            - cost
+            - rules
+            - culture
         subTypes: []
     affiliation:
         data:
@@ -345,6 +378,7 @@ types:
             - events
             - items
             - appearanceProfile
+            - vehicleAppearanceProfile
             - glossary
         subTypes:
             - cosmology

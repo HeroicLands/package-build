@@ -302,7 +302,7 @@ describe("`templatePriority` — the key the check was blind to", () => {
     const compiledSkill = () => items().buildEntry(skillNote({}), "").system;
 
     /** Every `system` key a real compiled being carries. */
-    const compiledBeing = () => actors().buildBeing(new Map(), beingNote({}), "").system;
+    const compiledBeing = () => actors().buildActor(new Map(), beingNote({}), "").system;
 
     it("fires on a compiled Item against a schema that omits it", () => {
         const findings = compareEmittedSystem({

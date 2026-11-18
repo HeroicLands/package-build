@@ -93,6 +93,10 @@ describe("packForType (content type → the pack it compiles into)", () => {
             pack: "actors",
             docType: "Actor",
         });
+        expect(packForType("vehicle")).toEqual({
+            pack: "actors",
+            docType: "Actor",
+        });
         // A map note compiles into a Scene, so a link to one addresses the
         // scenes pack rather than falling through to items.
         for (const type of ["map"]) {
@@ -118,6 +122,7 @@ describe("packForType (content type → the pack it compiles into)", () => {
             "map",
             "place",
             "scenario",
+            "vehicle",
         ]);
     });
 

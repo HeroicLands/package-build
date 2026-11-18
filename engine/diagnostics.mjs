@@ -494,3 +494,20 @@ export function positionOfFrontmatterPath(raw, keyPath, { key = false } = {}) {
     // first. `positionOfYamlPath` already counts from 1 within the block.
     return position.line === undefined ? {} : { ...position, line: position.line + 1 };
 }
+
+/**
+ * Locate a finding at its frontmatter key or the nearest declared parent.
+ * @param {{file?: string, raw?: string}} note - Indexed note source.
+ * @param {Array<string|number>} keyPath - The field's path.
+ * @param {string} message - The diagnostic message.
+ * @param {"error"|"warning"} [severity="error"] - Diagnostic severity.
+ * @returns {{file?: string, line?: number, column?: number, severity: "error"|"warning", message: string, keyPath: Array<string|number>}} Located finding.
+ */
+export function locatedFinding(note, keyPath, message, severity = "error") {
+    let position = {};
+    for (let n = keyPath.length; n; n--) {
+        position = positionOfFrontmatterPath(note.raw ?? "", keyPath.slice(0, n), { key: true });
+        if (position.line) break;
+    }
+    return { file: note.file, ...position, severity, message, keyPath };
+}

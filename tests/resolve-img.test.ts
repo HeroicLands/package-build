@@ -297,7 +297,7 @@ describe("an item note's art obeys the ownership rule", () => {
 
 describe("an actor note's art obeys the ownership rule, on every slot", () => {
     it("resolves profile art and token art alike", () => {
-        const doc = actors().buildBeing(
+        const doc = actors().buildActor(
             new Map(),
             beingNote({ icon: "person", tokenIcon: "folktoken" }),
             "",
@@ -308,12 +308,12 @@ describe("an actor note's art obeys the ownership rule, on every slot", () => {
     });
 
     it("writes no `system.portrait` — a being's portrait is an image in its prose", () => {
-        const doc = actors().buildBeing(new Map(), beingNote({ icon: "person" }), "");
+        const doc = actors().buildActor(new Map(), beingNote({ icon: "person" }), "");
         expect(doc.system).not.toHaveProperty("portrait");
     });
 
     it("lets a token follow the profile art where the note names only one", () => {
-        const doc = actors().buildBeing(new Map(), beingNote({ icon: "person" }), "");
+        const doc = actors().buildActor(new Map(), beingNote({ icon: "person" }), "");
         expect(doc.prototypeToken.texture.src).toBe(doc.img);
     });
 });

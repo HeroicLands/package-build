@@ -43,8 +43,8 @@ import { defineDocumentSubtypes } from "../engine/document-subtypes.mjs";
  * Every content type SoHL compiles into a Foundry document, and what it
  * becomes.
  *
- * The Item rows are the thirteen types the item registry declares; the one
- * Actor row is `being`. Types this
+ * The Item rows are the thirteen types the item registry declares; the Actor
+ * rows are `being` and `vehicle`. Types this
  * map does not name — `doc`, `macro`, the three map types — compile into
  * documents that carry no system subtype at all, so they have no row and never
  * needed one.
@@ -69,5 +69,6 @@ export const SOHL_DOCUMENT_SUBTYPES = defineDocumentSubtypes({
         weapongear: { document: "Item", subType: "weapongear" },
 
         being: { document: "Actor", subType: "being" },
+        vehicle: { document: "Actor", subType: "vehicle" },
     },
 });

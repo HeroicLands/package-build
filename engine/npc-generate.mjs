@@ -65,6 +65,7 @@
  * @module
  */
 
+import { stream, weighted } from "./seeded-draw.mjs";
 import unidecode from "unidecode";
 import YAML from "yaml";
 import { BEING_LOOK_VOCABULARY } from "./note-vocabulary.mjs";
@@ -93,50 +94,6 @@ const PROSE_KEYS = Object.freeze(["appearance", "dossier"]);
 
 const INCHES_PER_METRE = 39.3701;
 const POUNDS_PER_KILOGRAM = 2.20462;
-
-/** A 32-bit hash of a string (cyrb53's low half), the seed of one stream. */
-function hash(text) {
-    let h1 = 0xdeadbeef;
-    let h2 = 0x41c6ce57;
-    for (let i = 0; i < text.length; i++) {
-        const ch = text.charCodeAt(i);
-        h1 = Math.imul(h1 ^ ch, 2654435761);
-        h2 = Math.imul(h2 ^ ch, 1597334677);
-    }
-    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-    return h1 >>> 0;
-}
-
-/**
- * A deterministic stream of numbers in `[0, 1)` (mulberry32), seeded by the
- * generation's seed and the path of the field it draws.
- *
- * @param {string} seed - The canonical spec and the caller's seed.
- * @param {string} field - The field's path.
- * @returns {() => number} The stream.
- */
-function stream(seed, field) {
-    let state = hash(`${seed}\u0000${field}`);
-    return () => {
-        state = (state + 0x6d2b79f5) >>> 0;
-        let t = state;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
-/** One word drawn from a map of words to weights, in the map's own order. */
-function weighted(weights, next) {
-    const entries = Object.entries(weights).filter(([, w]) => Number(w) > 0);
-    const total = entries.reduce((sum, [, w]) => sum + Number(w), 0);
-    let point = next() * total;
-    for (const [word, w] of entries) {
-        point -= Number(w);
-        if (point < 0) return word;
-    }
-    return entries.at(-1)?.[0];
-}
 
 /**
  * A value as JSON with every map's keys sorted, so two specs stating the same

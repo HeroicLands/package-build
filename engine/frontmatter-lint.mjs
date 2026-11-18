@@ -57,7 +57,7 @@ import { fail } from "../config.mjs";
 import { normalizeSettlementPopulation } from "./settlement-population.mjs";
 import { settlementExemptionTracker } from "./settlement-tables.mjs";
 import { listed, nearest } from "./near-miss.mjs";
-import { checkDataKeys } from "./data-keys.mjs";
+import { checkDataKeys, fitsKind } from "./data-keys.mjs";
 import { FALLBACK_LANGUAGE, normalizeName } from "./name-forms.mjs";
 import {
     authoredNoteKeys,
@@ -84,7 +84,13 @@ import {
 } from "./diagnostics.mjs";
 import { pathnameProblem } from "./pathnames.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
-import { parseAddress, acceptsType, renderAddress, hasAnchor } from "./address.mjs";
+import {
+    parseAddress,
+    acceptsType,
+    renderAddress,
+    hasAnchor,
+    ownDocumentSystem,
+} from "./address.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 // The one place the "every pack not named" key is spelled. Imported rather
@@ -453,6 +459,48 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
             continue;
         }
         findings.push(...checkDataReferences(note, field, value, segments, addressContext, index));
+        if (type === "vehicle" && field.name === "occupants" && Array.isArray(value)) {
+            const addressField = field.entries.fields.find((entry) => entry.name === "address");
+            const occupantIndex =
+                index?.addressHit ?
+                    {
+                        ...index,
+                        addressHit(target) {
+                            const hit = index.addressHit(target);
+                            if (hit) return hit;
+                            const tuple = parseAddress(target, addressContext, { declared: true });
+                            if (
+                                tuple.reason ||
+                                tuple.package === index.contentPackage ||
+                                tuple.system !== "note"
+                            )
+                                return undefined;
+                            return index.foreign?.references?.get(
+                                renderAddress({ ...tuple, system: ownDocumentSystem(tuple.type) }),
+                            );
+                        },
+                    }
+                :   index;
+            value.forEach((row, i) => {
+                const address = row?.address;
+                if (
+                    address == null ||
+                    (typeof address === "string" && !address.trim()) ||
+                    !fitsKind(address, "address")
+                )
+                    return;
+                findings.push(
+                    ...checkDataReferences(
+                        note,
+                        addressField,
+                        address,
+                        [...segments, i, "address"],
+                        addressContext,
+                        occupantIndex,
+                    ),
+                );
+            });
+        }
         // A `scalar-or-map` written in its map form is checked entry by entry,
         // because that is the correction an author has to make: one key's
         // value, not the whole map. Quoting the map back would name every
@@ -544,7 +592,7 @@ function eventReferenceProblem(value, field, defaults, index) {
  * @param {object} note - The authored note.
  * @param {object} field - Its data field declaration.
  * @param {unknown} value - The field value.
- * @param {string[]} segments - The field's path under `data`.
+ * @param {Array<string|number>} segments - The field's path under `data`.
  * @param {object} context - The builder's Address context.
  * @param {object} [index] - The local and declared dependency Address index.
  * @returns {object[]} Located findings.

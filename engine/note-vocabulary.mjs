@@ -72,6 +72,13 @@
  * @module
  */
 
+import { VEHICLE_LOOK_VOCABULARY } from "./vehicle-appearance-terms.mjs";
+import { checkVehicleAppearance, checkVehicleAppearanceProfile } from "./vehicle-appearance.mjs";
+import { MOVEMENT_PROFILE_FIELD } from "./movement-profile-terms.mjs";
+import { checkMovementProfiles } from "./movement-profiles.mjs";
+import { VEHICLE_FIELDS } from "./vehicle-terms.mjs";
+import { checkVehiclePortrait } from "./vehicle-prompt.mjs";
+import { checkVehicleData } from "./vehicle-data.mjs";
 import { checkSeeAlso } from "./see-also.mjs";
 import { checkOccupationChoice } from "./occupation-choice.mjs";
 // The one charset, read rather than restated. A second spelling of the pattern
@@ -1748,11 +1755,13 @@ export const NOTE_VOCABULARY = Object.freeze({
         // configured current date compute — see `engine/being-age.mjs`.
         check: (note, context) => [
             ...checkBeingAge(note, context),
+            ...checkMovementProfiles(note),
             ...checkPortraitSettings(note, context),
         ],
         data: Object.freeze([
             TOKEN_ICON,
             TEMPLATE_PRIORITY,
+            MOVEMENT_PROFILE_FIELD,
             { name: "archetypes", ...TEXT_LIST, describe: "Archetypal behaviours the being fits." },
             { name: "occupation", ...TEXT, describe: "What the being does for a living." },
             {
@@ -1965,7 +1974,68 @@ export const NOTE_VOCABULARY = Object.freeze({
     vehicle: Object.freeze({
         stubbable: true,
         subTypes: null,
-        data: Object.freeze([TOKEN_ICON, TEMPLATE_PRIORITY]),
+        check: (note, context) => [
+            ...checkVehicleData(note, context),
+            ...checkMovementProfiles(note),
+            ...checkVehicleAppearance(note),
+            ...checkVehiclePortrait(note, context),
+        ],
+        data: Object.freeze([
+            TOKEN_ICON,
+            TEMPLATE_PRIORITY,
+            MOVEMENT_PROFILE_FIELD,
+            ...Object.entries(VEHICLE_LOOK_VOCABULARY).map(([key, words]) => ({
+                name: `appearance.${key}`,
+                kind: "string",
+                shape: "A vehicle look word.",
+                describe: words.map(({ value, meaning }) => `\`${value}\`: ${meaning}`).join(" "),
+            })),
+            {
+                name: "appearance.extra_features",
+                kind: "list",
+                entryKind: "string",
+                shape: "A list of visible details.",
+                describe:
+                    "Short plain descriptions of visible physical details, including colors, condition, sail details, hull count, wheels, and runners.",
+            },
+            {
+                ...ITEMS_FIELD,
+                describe: "The vehicle's items, with the same entry fields as a being's items.",
+            },
+            {
+                name: "portrait.prompt",
+                ...TEXT,
+                describe: "The stored positive prompt for the vehicle picture.",
+            },
+            {
+                name: "portrait.negativePrompt",
+                ...TEXT,
+                describe: "The stored negative channel when the style uses one.",
+            },
+            {
+                name: "portraitSettings.model",
+                ...TEXT,
+                describe: "The picture style: `flux-dev`, `flux2-pro`, or `sdxl`.",
+            },
+            {
+                name: "portraitSettings.seed",
+                ...TEXT,
+                shape: "a nonblank string or finite number",
+                describe: "The seed for the picture view.",
+            },
+            {
+                name: "portraitSettings.extras",
+                ...TEXT_LIST,
+                describe: "Additional visible prompt details.",
+            },
+            {
+                name: "portraitSettings.view",
+                ...TEXT,
+                allowed: ["side", "three-quarter"],
+                describe: "Optional vehicle view: `side` or `three-quarter`.",
+            },
+            ...VEHICLE_FIELDS,
+        ]),
     }),
 
     /* ----- items ---------------------------------------------------- */
@@ -2690,6 +2760,52 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "item inline with `name` and `kind`.",
             },
             APPEARANCE_PROFILE_FIELD,
+            {
+                name: "vehicleAppearanceProfile",
+                kind: "list",
+                shape: "A list of vehicle appearance profile rows.",
+                describe:
+                    "Culture only: weighted vehicle looks by locomotion and optional exact family.",
+                check: checkVehicleAppearanceProfile,
+                entries: {
+                    kind: "map",
+                    shape: "A vehicle profile row.",
+                    fields: [
+                        {
+                            name: "locomotion",
+                            kind: "string",
+                            required: true,
+                            shape: "A locomotion mode.",
+                            describe: "The vehicle locomotion mode.",
+                        },
+                        {
+                            name: "family",
+                            kind: "string",
+                            shape: "An exact family.",
+                            describe: "Optional exact vehicle family.",
+                        },
+                        {
+                            name: "fields",
+                            kind: "map",
+                            required: true,
+                            shape: "Weighted look fields.",
+                            describe: "Required form and material.",
+                            fields: Object.keys(VEHICLE_LOOK_VOCABULARY).map((key) => ({
+                                name: key,
+                                kind: "map",
+                                required: ["form", "material"].includes(key),
+                                shape: "A map of words to weights.",
+                                describe: `Positive weights for ${key} words.`,
+                                values: {
+                                    kind: "number",
+                                    shape: "A positive weight.",
+                                    describe: "A finite positive weight.",
+                                },
+                            })),
+                        },
+                    ],
+                },
+            },
             {
                 ...GLOSSARY_FIELD,
                 describe: `\`culture\` only: ${GLOSSARY_FIELD.describe}`,

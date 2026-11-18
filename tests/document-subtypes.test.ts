@@ -238,8 +238,8 @@ describe("SOHL_DOCUMENT_SUBTYPES (the declaration this system ships)", () => {
         expect(noteTypesFor(SOHL_DOCUMENT_SUBTYPES, "Item")).toEqual([...itemTypes()].sort());
     });
 
-    it("declares `being` as this system's one Actor row", () => {
-        expect(noteTypesFor(SOHL_DOCUMENT_SUBTYPES, "Actor")).toEqual(["being"]);
+    it("declares being and vehicle Actor rows", () => {
+        expect(noteTypesFor(SOHL_DOCUMENT_SUBTYPES, "Actor")).toEqual(["being", "vehicle"]);
     });
 
     it("maps every row to the identical subtype", () => {
@@ -307,13 +307,13 @@ describe("the compilers look the subtype up", () => {
     });
 
     it("emits the actor subtype the map declares", () => {
-        expect(actors().buildBeing(new Map(), BEING_FM, "").type).toBe("being");
+        expect(actors().buildActor(new Map(), BEING_FM, "").type).toBe("being");
     });
 
     it("compiles NPC artwork from its note subtype", () => {
         const compiler = actors();
         compiler.artPathOf = (address: string) => address;
-        const emitted = compiler.buildBeing(new Map(), { ...BEING_FM, subType: "npc" }, "");
+        const emitted = compiler.buildActor(new Map(), { ...BEING_FM, subType: "npc" }, "");
         expect(emitted.type).toBe("being");
         expect(emitted.img).toBe("sohl-none-icon-defaultcharhead");
     });

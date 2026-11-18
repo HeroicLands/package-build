@@ -95,6 +95,7 @@ import { lintContentTaskLists } from "../engine/content-tasklists.mjs";
 import {
     declaredSystems,
     lintFrontmatter,
+    lintNote,
     systemAddressFindings,
     systemBlocksFor,
 } from "../engine/frontmatter-lint.mjs";
@@ -204,6 +205,8 @@ import {
 import { cultureKey, generateNpc, npcDefaults, npcSpecProblems } from "../engine/npc-generate.mjs";
 import { occupationKey } from "../engine/occupation-choice.mjs";
 import { cultureFieldSource, cultureHierarchyProblems } from "../engine/culture-parents.mjs";
+import { vehiclePromptFromData, checkVehiclePortrait } from "../engine/vehicle-prompt.mjs";
+import { STYLE_KEYS } from "../engine/portrait-compose.mjs";
 import { portraitFromData, resolvePortraitItems } from "../engine/portrait-prompt.mjs";
 
 /**
@@ -359,7 +362,8 @@ export function registerContentCommands(cli) {
         .command(lexiconCommand())
         .command(coreCommand())
         .command(addressesCommand())
-        .command(withIndexPreflight(npcCommand()));
+        .command(withIndexPreflight(npcCommand()))
+        .command(withIndexPreflight(vehicleCommand()));
 }
 
 /** Optional sentence findings and note-level readability reports. */
@@ -3763,6 +3767,142 @@ function npcCommand() {
                 const config = argv[CONTENT_CONFIG] ?? loadPackConfig();
                 if (argv.action === "prompt") promptNpc(config, argv.address);
                 else newNpc(config, argv);
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/** Build a vehicle prompt from indexed facts and explicit or stored settings. */
+function promptVehicle(config, argv) {
+    const contentBase = config.paths.content;
+    const records = indexRecordsFor({
+        contentBase,
+        config,
+        skipDirectories: config.skipDirectories,
+    });
+    const index = buildLinkIndex(contentBase, {
+        config,
+        records,
+        skipDirectories: config.skipDirectories,
+    });
+    const tuple = parseAddress(argv.address, {
+        package: index.contentPackage,
+        system: "note",
+        type: "vehicle",
+        types: index.types,
+        packages: index.packages,
+        config,
+    });
+    if (tuple.reason || tuple.type !== "vehicle")
+        throw new Error(`vehicle prompt: ${JSON.stringify(argv.address)} is not a vehicle Address`);
+    const hit =
+        index.addressHit(renderAddress(tuple)) ??
+        index.foreign?.index?.get(
+            canonicalKey(tuple.package, ownDocumentSystem(tuple.type), tuple.type, tuple.shortcode),
+        );
+    if (!hit) throw new Error(`vehicle prompt: ${JSON.stringify(argv.address)} names no vehicle`);
+    const record = hit.fm ?? hit;
+    if (record.type !== "vehicle") throw new Error("vehicle prompt: Address is not a vehicle");
+    const data = record.data ?? {};
+    const invalidSource = lintNote(
+        { ...hit, fm: record },
+        {
+            schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+            vocabulary: NOTE_VOCABULARY,
+            index,
+        },
+    ).find((finding) => finding.severity === "error");
+    if (invalidSource) {
+        emitDiagnostic(invalidSource);
+        process.exitCode = 1;
+        return;
+    }
+    const stored = data.portrait !== undefined || data.portraitSettings !== undefined;
+    if (stored && ["model", "seed", "view"].some((key) => argv[key] !== undefined))
+        throw new Error("vehicle prompt uses stored settings without overrides");
+    if (!stored && (argv.model === undefined || argv.seed === undefined))
+        throw new Error("vehicle prompt requires --model and --seed without a picture record");
+    try {
+        if (stored) {
+            const invalid = checkVehiclePortrait({ ...hit, fm: record }, { index }).find(
+                (entry) => entry.severity === "error",
+            );
+            if (invalid)
+                throw Object.assign(new Error(invalid.message), { keyPath: invalid.keyPath });
+        }
+        const effective =
+            stored ? data : (
+                {
+                    ...data,
+                    portraitSettings: {
+                        model: argv.model,
+                        seed: argv.seed,
+                        ...(argv.view !== undefined ? { view: argv.view } : {}),
+                    },
+                }
+            );
+        const result = vehiclePromptFromData(
+            effective,
+            resolvePortraitItems(data, index, hit.authoredItems),
+            hit.authoredItems ?? data.items,
+            index,
+        );
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    } catch (error) {
+        const note = { file: hit.file ?? packConfigPath(), raw: hit.raw ?? "" },
+            keyPath = error?.keyPath ?? ["data", "portraitSettings"];
+        const diagnostic = noteError(
+            note,
+            keyPath,
+            error instanceof Error ? error.message : String(error),
+        );
+        for (
+            let length = keyPath.length - 1;
+            diagnostic.position?.line === undefined && length > 0;
+            length--
+        )
+            diagnostic.position = positionOfFrontmatterPath(note.raw, keyPath.slice(0, length), {
+                key: true,
+            });
+        throw diagnostic;
+    }
+}
+/** Text-only vehicle picture prompt command. */
+function vehicleCommand() {
+    return {
+        command: "vehicle <action> <address>",
+        describe: "Build a vehicle picture prompt from indexed facts",
+        builder: (yargs) =>
+            yargs
+                .positional("action", {
+                    choices: ["prompt"],
+                    describe: "Build the prompt",
+                    type: "string",
+                })
+                .positional("address", { describe: "Vehicle Address", type: "string" })
+                .option("model", {
+                    describe:
+                        "Style: flux-dev, flux2-pro, or sdxl; required with --seed without a picture record. Stored records refuse all model, seed, and view overrides.",
+                    type: "string",
+                    choices: STYLE_KEYS,
+                })
+                .option("seed", {
+                    describe:
+                        "Seed: required with --model without a picture record; stored records refuse overrides.",
+                    type: "string",
+                })
+                .option("view", {
+                    describe:
+                        "View: side or three-quarter; omitted view is selected from the seed. Stored records refuse overrides.",
+                    choices: ["side", "three-quarter"],
+                    type: "string",
+                }),
+        handler: async (argv) => {
+            try {
+                promptVehicle(argv[CONTENT_CONFIG] ?? loadPackConfig(), argv);
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

@@ -325,3 +325,72 @@ describe("culture parents", () => {
         ).toBe(true);
     });
 });
+
+it("inherits vehicle and being appearance profiles independently", () => {
+    const vehicle = [
+        {
+            locomotion: "floating",
+            fields: {
+                form: { round_hull: 1 },
+                material: { wood: 1 },
+            },
+        },
+    ];
+    const root = tree({
+        parent: { appearanceProfile: profile, vehicleAppearanceProfile: vehicle },
+        child: { parents: ["parent"] },
+        own: { parents: ["parent"], vehicleAppearanceProfile: [{ ...vehicle[0], family: "Ship" }] },
+    });
+    const all = records(root);
+    expect(dataAt(all, "child")).toMatchObject({
+        appearanceProfile: profile,
+        vehicleAppearanceProfile: vehicle,
+    });
+    expect(dataAt(all, "own")).toMatchObject({
+        appearanceProfile: profile,
+        vehicleAppearanceProfile: [{ ...vehicle[0], family: "Ship" }],
+    });
+});
+
+it("reports conflicting inherited vehicle profiles and accepts an explicit override", () => {
+    const first = [
+        {
+            locomotion: "wheeled",
+            fields: {
+                form: { open_body: 1 },
+                material: { wood: 1 },
+            },
+        },
+    ];
+    const second = [{ ...first[0], fields: { ...first[0].fields, material: { pine: 1 } } }];
+    const root = tree({
+        first: { vehicleAppearanceProfile: first },
+        second: { vehicleAppearanceProfile: second },
+        child: { parents: ["first", "second"] },
+        own: { parents: ["first", "second"], vehicleAppearanceProfile: second },
+    });
+    const problems: any[] = [];
+    const all = records(root, problems);
+    expect(dataAt(all, "child").vehicleAppearanceProfile).toBeUndefined();
+    expect(dataAt(all, "own").vehicleAppearanceProfile).toEqual(second);
+    expect(problems.some((item) => item.message.includes("disagree"))).toBe(true);
+});
+it("inherits a vehicle profile from a dependency without a file path", () => {
+    const vehicleAppearanceProfile = [
+        {
+            locomotion: "carried",
+            fields: {
+                form: { litter: 1 },
+                material: { wood: 1 },
+            },
+        },
+    ];
+    const root = tree({ child: { parents: ["other-note-lore-parent"] } });
+    const foreign = { type: "lore", subType: "culture", data: { vehicleAppearanceProfile } };
+    const all = collectContentIndex(root, {
+        contentPackage: "sohl",
+        skipDirectories: [],
+        foreignRecord: (key: string) => (key === "other-note-lore-parent" ? foreign : undefined),
+    });
+    expect(dataAt(all, "child").vehicleAppearanceProfile).toEqual(vehicleAppearanceProfile);
+});

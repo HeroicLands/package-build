@@ -137,30 +137,6 @@ export const NEVER_PACKED_TYPES = Object.freeze(new Set([HOMEPAGE_TYPE]));
 export const DOCUMENTATION_NOTE_TYPES = Object.freeze(new Set(["doc", HOMEPAGE_TYPE]));
 
 /**
- * Content types the specification states and this toolchain does not yet
- * compile.
- *
- * **Stated, never inferred, and that distinction is the whole point.** An
- * unimplemented type and a type somebody forgot to route look identical from
- * the outside: both are documented, both validate, and neither reaches a pass.
- * The only thing separating them is intent, so intent is written down here.
- *
- * Inferring it — "declared, but absent from the configured vocabulary" — reads
- * correctly and is worthless, because the configured vocabulary is *derived
- * from the routing*. Take a type's route away and it leaves the vocabulary too,
- * so the inference excuses precisely the mistake it was meant to catch. That is
- * not hypothetical: `place`, `lore` and `scenario` were declared, validated
- * and unrouted, and every gate reported success until a downstream repository
- * failed on the notes carrying them.
- *
- * A type leaves this set when it is implemented.
- * The membership is asserted, so it cannot be forgotten in either direction.
- *
- * @type {ReadonlySet<string>}
- */
-export const UNIMPLEMENTED_TYPES = Object.freeze(new Set(["vehicle"]));
-
-/**
  * Note types that reach a pack by a route **other than the pack router**.
  *
  * A folder is the only one, and it is not unclaimed: it compiles to a real
@@ -416,11 +392,7 @@ function noteHasProse(absPath) {
  * rather than compiled, so it has no pass and no note is routed into one —
  * which `content-config.mjs` already states by refusing `default: true`
  * alongside `prebuilt`. Counting it would tell an author their note is claimed
- * by a pack that will never look at it. With no unimplemented type declared,
- * the point cannot arise:
- * the only prebuilt pack in the wild is `harn-adventures`'s Adventure pack, and
- * no compiler was registered for that document type, so the row answered for
- * nothing whatever it was asked. Now one is.
+ * by a pack that will never look at it. A prebuilt Adventure pack does not claim bundle notes.
  *
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
@@ -533,32 +505,6 @@ function configurationMessage(type, config, sources) {
     return (
         `no configured pack claims a note of type "${type}", so it compiles ` +
         `into nothing. ${becomes}, but ${remedy}, or stop authoring the type.`
-    );
-}
-
-/**
- * The **specification** finding: the format states the type, nothing compiles it.
- *
- * A third thing that can be wrong, and the only one that is not the author's
- * fault. `docs/content-format.md` documents the type and the vocabulary declares
- * its properties, so a note written against the published specification is
- * correct — this toolchain simply has not implemented it yet.
- *
- * It earns its own message because the other two would both mislead here.
- * Naming a missing pack or registry sends an author to
- * `package-build.config.yaml`, where nothing they can write will help; saying
- * the type is unknown flatly contradicts the specification they read it in.
- *
- * @param {string} type - The note's declared `type`.
- * @returns {string} The message.
- */
-function specifiedMessage(type) {
-    return (
-        `no configured pack claims a note of type "${type}", so it compiles ` +
-        `into nothing. The content format specifies "${type}", so the note is ` +
-        `not wrong — this toolchain has not implemented the type yet. Nothing ` +
-        `in this repository's configuration will change that; do not author ` +
-        `the type until a release compiles it.`
     );
 }
 
@@ -816,15 +762,9 @@ export function unclaimedNoteFindings(
             severity: /** @type {"error"} */ ("error"),
             type,
             message:
-                // The unimplemented set is asked *first*: such a type is
-                // absent from the configured vocabulary precisely because
-                // nothing routes it, so the `vocabulary.has` branch would never
-                // reach it — and reading its absence as the reason is the
-                // inference {@link UNIMPLEMENTED_TYPES} exists to replace.
-                UNIMPLEMENTED_TYPES.has(type) ? specifiedMessage(type)
-                : vocabulary.has(type) ? configurationMessage(type, config, resolved)
-                : Object.hasOwn(NOTE_VOCABULARY, type) ? specifiedMessage(type)
-                : authoringMessage(type),
+                vocabulary.has(type) || Object.hasOwn(NOTE_VOCABULARY, type) ?
+                    configurationMessage(type, config, resolved)
+                :   authoringMessage(type),
         });
     }
     return findings;

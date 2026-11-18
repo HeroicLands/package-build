@@ -783,7 +783,7 @@ const SETTING_GUIDE_SUBTYPE = "settingguide";
 const POLITY_SUBTYPE = "polity";
 
 /** The types whose culture is their own value and nothing else. */
-const OWN_CULTURE_TYPES = new Set(["lore", "being", "doc"]);
+const OWN_CULTURE_TYPES = new Set(["lore", "being", "doc", "vehicle"]);
 
 /** The types that inherit a culture through `data.parents`. */
 const INHERITING_TYPES = new Set(["place", "affiliation"]);

@@ -308,6 +308,47 @@ describe("resolving foreign addresses from cached indexes", () => {
     const fetched = (index: Map<string, { package?: string }>) =>
         [...index].filter(([, entry]) => entry.package !== PACKAGEBUILD_PACKAGE);
 
+    it("retains published being movement profiles in dependency metadata", () => {
+        const being = record({
+            type: "being",
+            subType: "creature",
+            shortcode: "horse",
+            name: { full: "Horse" },
+            address: { canonical: "thalorna-note-being-horse", slug: "being-horse" },
+            data: { movementProfiles: [{ medium: "terrestrial", feetPerRound: 30 }] },
+        });
+        cacheIndex("thalorna", "0.1.0", [being]);
+        expect(
+            loadForeignIndexes(config(), ["sohl"]).index.get("thalorna-note-being-horse"),
+        ).toMatchObject({
+            data: { movementProfiles: [{ medium: "terrestrial", feetPerRound: 30 }] },
+        });
+    });
+
+    it("retains both culture appearance profiles in dependency metadata", () => {
+        const vehicleAppearanceProfile = [
+            {
+                locomotion: "floating",
+                fields: {
+                    form: { round_hull: 1 },
+                    material: { wood: 1 },
+                },
+            },
+        ];
+        const appearanceProfile = { frame: { light: 1 } };
+        cacheIndex("thalorna", "0.1.0", [
+            record({
+                type: "lore",
+                subType: "culture",
+                address: { canonical: "thalorna-note-lore-culture", slug: "lore-culture" },
+                data: { appearanceProfile, vehicleAppearanceProfile },
+            }),
+        ]);
+        expect(
+            loadForeignIndexes(config(), ["sohl"]).index.get("thalorna-note-lore-culture"),
+        ).toMatchObject({ data: { appearanceProfile, vehicleAppearanceProfile } });
+    });
+
     it("includes fetched settlement facts in polity tables", () => {
         const crown = record({ subType: "polity", data: {} });
         const place = record({
@@ -338,6 +379,49 @@ describe("resolving foreign addresses from cached indexes", () => {
         expect(
             settlementMarkdown(local, [local, ...foreign.values()], { recursive: true }),
         ).toContain("place-vale");
+    });
+
+    it("retains vehicle facts and nested references from a dependency", () => {
+        cacheIndex("thalorna", "0.1.0", [
+            record({
+                type: "vehicle",
+                shortcode: "cart",
+                name: { full: "Cart" },
+                address: { canonical: "thalorna-note-vehicle-cart", slug: "vehicle-cart" },
+                data: {
+                    family: "Cart",
+                    size: 1,
+                    capacity: 0.5,
+                    occupants: [{ address: "thalorna-note-being-horse", role: "draft_animal" }],
+                    movementProperties: [
+                        {
+                            medium: "terrestrial",
+                            rates: [{ prob: 1, distance: 0, distUnit: "feet", timeUnit: "hour" }],
+                        },
+                    ],
+                },
+            }),
+        ]);
+        const entry = loadForeignIndexes(config(), ["sohl"]).index.get(
+            "thalorna-note-vehicle-cart",
+        )!;
+        expect(entry.data).toMatchObject({
+            family: "Cart",
+            size: 1,
+            capacity: 0.5,
+            movementProperties: [
+                {
+                    medium: "terrestrial",
+                    rates: [{ prob: 1, distance: 0, distUnit: "feet", timeUnit: "hour" }],
+                },
+            ],
+            occupants: [
+                {
+                    address: { type: "being", shortcode: "horse" },
+                    role: "draft_animal",
+                },
+            ],
+        });
     });
 
     it("keys every record by its canonical address", () => {
@@ -575,7 +659,13 @@ describe("resolving foreign addresses from cached indexes", () => {
         const note = (code: string, body: string) =>
             `---\ntype: being\nsubType: creature\nshortcode: ${code}\nname:\n  full: ${code}\ndata: {}\n---\n${body}`;
         fs.writeFileSync(path.join(tree, "stub.md"), note("stub", ""));
-        fs.writeFileSync(path.join(tree, "full.md"), note("full", "\nA creature.\n"));
+        fs.writeFileSync(
+            path.join(tree, "full.md"),
+            note("full", "\nA creature.\n").replace(
+                "data: {}",
+                "data:\n  movementProfiles:\n    - medium: aerial\n      leaguesPerWatch: 1.5",
+            ),
+        );
         fs.writeFileSync(path.join(local, "stub.md"), note("localstub", ""));
         const serialized = serializeContentIndex(
             collectContentIndex(tree, { contentPackage: "remote", skipDirectories: [] }),
@@ -646,6 +736,9 @@ describe("resolving foreign addresses from cached indexes", () => {
         });
         expect(foreign.references.get("remote-note-being-full")).toMatchObject({
             subType: "creature",
+        });
+        expect(records.find((record) => record.shortcode === "full")).toMatchObject({
+            data: { movementProfiles: [{ medium: "aerial", leaguesPerWatch: 1.5 }] },
         });
         expect(foreign.references.has("remote-note-being-missing")).toBe(false);
         expect(foreign.references.has("remote-note-lore-stub")).toBe(false);

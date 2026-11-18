@@ -4062,3 +4062,35 @@ without a portrait block produces no portrait finding.
 
 [A being's portrait](reference/format-details.md#a-beings-portrait),
 `package-build lint [root]`.
+
+### `package-build vehicle`
+
+**NAME**
+
+Build a vehicle picture prompt.
+
+**SYNOPSIS**
+
+`package-build vehicle prompt <Address> [--model <style> --seed <text>] [--view <view>]`
+
+**DESCRIPTION**
+
+The `prompt` action prints JSON with a `positive` string and, for `sdxl`, a `negative` string from indexed vehicle facts and items. It refuses any lint error in the vehicle note and prints located diagnostics to stderr.
+
+**OPTIONS**
+
+`--model` accepts `flux-dev`, `flux2-pro`, or `sdxl`. It and `--seed` supply transient settings without a picture record. `--view` selects `side` or `three-quarter`; an omitted view is seeded. A stored record refuses overrides.
+
+**EXIT STATUS**
+
+0 on success; 1 for invalid arguments, unresolved inputs, lint errors, or prompt composition errors.
+
+**EXAMPLES**
+
+```sh
+package-build vehicle prompt vehicle-cart --model sdxl --seed example
+```
+
+**SEE ALSO**
+
+[Vehicle command manual](commands/vehicle.md).

@@ -12,21 +12,9 @@
  */
 
 /**
- * **SoHL's Actor pass** — what a SoHL `being` document holds, and nothing else.
- *
- * The machinery an actor of any system needs — the predefined-item catalogue,
- * reference translation through the system's map, embedding and its stable ids,
- * the anchored prose sections — lives in
- * {@link module:engine/actor-compiler}, where a second system reaches it.
- * What is left here is SoHL's data model: the `sohl.items` frontmatter that
- * becomes embedded documents, the opening mastery level a skill is baked with,
- * and the `system` block itself.
- *
- * One content type today, and the actor subtype it produces is **declared**
- * rather than assumed to be the same word: `sohl/document-subtypes.mjs` maps
- * `being` → `Actor` / `being`, and this pass looks it up. It read
- * `ACTOR_VAULT_TYPE = "being"` here and emitted `type: "being"` several hundred
- * lines below, which made the two vocabularies agree by coincidence.
+ * **SoHL's Actor pass** compiles being and vehicle notes into Actors.
+ * Shared identity, embedded items, art and anchored prose are assembled here;
+ * being-specific memberships and skill opening apply only to beings.
  *
  * Each entry in `sohl.items` is resolved by `(type, shortcode)` and deep-merged
  * with the entry's other properties, so an attribute carries its `scoreBase`
@@ -74,7 +62,7 @@ import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 // The note-level `sohl:` block: `sohl.system` onto the document's `system`
 // verbatim, and `sohl.img` / `sohl.effects` / `sohl.flags` overriding their
 // shared top-level forms for this system alone.
-import { blockProperty, mergeSystemData } from "../engine/system-block.mjs";
+import { blockProperty, mergeSystemData, systemData } from "../engine/system-block.mjs";
 // A being's memberships and the standing it holds in each, read from the one
 // place they are authored. The rank *is* the affiliation item's `level`, so
 // there is nothing to map and nowhere for a second authoring to disagree.
@@ -97,6 +85,7 @@ const SYSTEM = SOHL_DOCUMENT_SUBTYPES.block;
 // layout of the package that ships it.
 const DEFAULT_IMG = {
     being: "sohl/assets/icons/game-icons/delapouite/person.svg",
+    vehicle: "sohl/assets/icons/game-icons/delapouite/oldwagon.svg",
 };
 
 /**
@@ -142,7 +131,7 @@ export class Actors extends SystemActorCompiler {
     static documentSubtypes = SOHL_DOCUMENT_SUBTYPES;
 
     /**
-     * Compile one `being` note into its actor document.
+     * Compile one Actor note into its document.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} markdown - The body, tables expanded and wikilinks
@@ -150,12 +139,12 @@ export class Actors extends SystemActorCompiler {
      * @returns {object} The actor document, keyed for the pack.
      */
     buildEntry(fm, markdown) {
-        return this.buildBeing(this.itemsMap, fm, markdown);
+        return this.buildActor(this.itemsMap, fm, markdown);
     }
 
     /**
-     * Build all embedded items for an actor: one per `sohl.items` entry, plus
-     * one per body the being belongs to.
+     * Build an actor's generic items and native item entries, joined by key.
+     * A being also receives an affiliation item for each membership.
      */
     buildEmbeddedItems(itemsMap, actorId, fm, ctx) {
         const sohlItems = sohlField(fm, "items", null);
@@ -210,11 +199,12 @@ export class Actors extends SystemActorCompiler {
             });
         }
 
-        for (const embedded of this.buildMemberships(itemsMap, actorId, fm, ctx)) {
-            items.push(embedded);
+        if (fm.type !== "vehicle") {
+            for (const embedded of this.buildMemberships(itemsMap, actorId, fm, ctx)) {
+                items.push(embedded);
+            }
+            this.openUnopenedSkills(items, ctx);
         }
-
-        this.openUnopenedSkills(items, ctx);
         return items;
     }
 
@@ -321,7 +311,8 @@ export class Actors extends SystemActorCompiler {
         }
     }
 
-    buildBeing(itemsMap, fm, body) {
+    /** Build a SoHL Actor with native fields overriding generic defaults. */
+    buildActor(itemsMap, fm, body) {
         const name = resolveName(fm);
         const id = fm.id;
         const ctx = `actor "${name}"`;
@@ -332,9 +323,6 @@ export class Actors extends SystemActorCompiler {
                 absPath: this.currentNote?.absPath,
             })
         );
-        // The being's own default sits above the subtype's: only the note's
-        // tags say whether it is a person or a creature, and only this pass
-        // reads them.
         const art = this.actorArt(fm, resolveImg(defaultActorImg(subType)));
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
@@ -365,8 +353,39 @@ export class Actors extends SystemActorCompiler {
             dossier: withDraftNotice(fm, renderSection(body || "", "dossier")),
         };
 
-        // Being-only combat grouping (mirrors `system.defaultCombatGroup`).
-        const defaultCombatGroup = sohlField(fm, "defaultCombatGroup", undefined);
+        const native = systemData(fm, SYSTEM);
+        if (
+            !Object.hasOwn(native, "movementProfiles") &&
+            Array.isArray(fm.data?.movementProfiles)
+        ) {
+            system.movementProfiles = fm.data.movementProfiles.map((row) => ({ ...row }));
+        }
+        if (fm.type === "vehicle") {
+            if (
+                !Object.hasOwn(native, "occupantCapacity") &&
+                fm.data?.occupantCapacity !== undefined
+            ) {
+                system.occupantCapacity = fm.data.occupantCapacity;
+            }
+            if (!Object.hasOwn(native, "occupants") && Array.isArray(fm.data?.occupants)) {
+                const addresses = { occupants: fm.data.occupants.map((row) => row.address) };
+                this.reduceEmittedAddresses(addresses, [
+                    {
+                        name: "occupants",
+                        to: "occupants",
+                        address: { type: "being", accepts: ["being"], holds: "items" },
+                    },
+                ]);
+                system.occupants = fm.data.occupants.map((row, i) => ({
+                    actorCodeOrUuid: addresses.occupants[i],
+                    role: row.role === "draft_animal" ? "draftCreature" : row.role,
+                    quantity: 1,
+                }));
+            }
+        }
+        // Being-only combat grouping.
+        const defaultCombatGroup =
+            fm.type === "being" ? sohlField(fm, "defaultCombatGroup", undefined) : undefined;
         if (defaultCombatGroup !== undefined) {
             system.defaultCombatGroup = defaultCombatGroup;
         }

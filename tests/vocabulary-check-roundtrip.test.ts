@@ -121,6 +121,16 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             },
         }),
     },
+    vehicle: {
+        covers: ["items"],
+        fm: () => ({
+            type: "vehicle",
+            shortcode: "subject",
+            data: {
+                items: [{ key: "blade", model: "weapongear-sword", system: { quantity: 1 } }],
+            },
+        }),
+    },
     place: {
         covers: ["events", "purpose", "culture", "population", "market", "borders", "routes"],
         fm: () => ({
@@ -198,7 +208,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     "lore:culture": {
-        covers: ["appearanceProfile", "parents", "items"],
+        covers: ["appearanceProfile", "vehicleAppearanceProfile", "parents", "items"],
         fm: () => ({
             type: "lore",
             subType: "culture",
@@ -206,6 +216,15 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             data: {
                 parents: [],
                 items: [{ model: "miscgear-rope", chance: 40 }],
+                vehicleAppearanceProfile: [
+                    {
+                        locomotion: "floating",
+                        fields: {
+                            form: { round_hull: 1 },
+                            material: { wood: 1 },
+                        },
+                    },
+                ],
                 appearanceProfile: {
                     frame: { light: 1, medium: 2 },
                     eye_color: { brown: 1 },

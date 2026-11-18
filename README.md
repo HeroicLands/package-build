@@ -99,6 +99,7 @@ The documentation lives in the Markdown files in this repository. Start with [th
 | Encoding rules and the conversion core            | [Encoding core](docs/encoding-core.md)                                    |
 | Buffer-only preview and Gitea rendering           | [Source preview](docs/source-preview.md)                                  |
 | One note as its site page's body                  | [`./note-page`](docs/api.md#note-page)                                    |
+| Vehicle prompt generation                         | [Vehicle command](docs/commands/vehicle.md)                               |
 | Every CLI command                                 | [Commands](docs/commands.md)                                              |
 | Every build setting                               | [Configuration](docs/configuration.md)                                    |
 | Programmatic exports                              | [API](docs/api.md)                                                        |

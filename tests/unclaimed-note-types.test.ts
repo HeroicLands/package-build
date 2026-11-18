@@ -41,7 +41,6 @@ import { contentPackage } from "../engine/content-package.mjs";
 import {
     DERIVED_PACKED_TYPES,
     KNOWN_DOCUMENT_SUBTYPE_MAPS,
-    UNIMPLEMENTED_TYPES,
     NEVER_PACKED_TYPES,
     claimedNoteTypes,
     noteTypeVocabulary,
@@ -173,10 +172,7 @@ describe("claimedNoteTypes — what some configured pack would compile", () => {
         // `harn-adventures` ships a prebuilt `Adventure` pack: its per-document
         // JSON is checked in rather than compiled, so it has no pass and no
         // note is routed into it — `content-config.mjs` says as much by
-        // refusing `default: true` beside `prebuilt`. With no unimplemented
-        // type declared the row could
-        // not be wrong, because no compiler was registered for the document
-        // type at all; now one is, so the exemption has to be stated.
+        // refusing `default: true` beside `prebuilt`.
         const config = baseConfig({
             packs: [{ name: "adventures", type: "Adventure", prebuilt: "packs/adventures" }],
         });
@@ -303,38 +299,6 @@ describe("unclaimedNoteFindings", () => {
         // `type: affiliation` is the sixth line of the note above.
         expect(findings[0].line).toBe(6);
     });
-
-    it.each(["vehicle"])(
-        "says a specified-but-unimplemented %s is this toolchain's gap, not the note's",
-        (type) => {
-            // `vehicle` is documented in `docs/content-format.md` and declared
-            // in the vocabulary, and nothing here compiles it: no shipped
-            // system map names it and — with the registries this fixture
-            // supplies — no `itemBuilders` entry declares it either. The
-            // message is chosen from the vocabulary rather than from a list of
-            // types, which is the property this parameterisation asserts: it
-            // covered `bundle` with no edit until the type was implemented,
-            // and moving off it cost one word here.
-            const root = repo({
-                "Note.md":
-                    `---\ntype: ${type}\nid: probeid000000001\nshortcode: probe\n` +
-                    "name:\n  full: Probe\n---\n\nBody.\n",
-            });
-            roots.push(root);
-            const config = baseConfig({ packs: ACTORS_ONLY, rootDir: root });
-            const [finding] = unclaimedNoteFindings(
-                config,
-                { itemTypes: new Set(), docEntryTypes: new Set() },
-                corpusOf(config),
-            );
-
-            expect(finding.message).toMatch(new RegExp(`content format specifies "${type}"`));
-            expect(finding.message).toMatch(/not implemented the type yet/);
-            // Neither of the other two wordings may appear.
-            expect(finding.message).not.toMatch(/not a content type/);
-            expect(finding.message).not.toMatch(/declare (one|both) in/);
-        },
-    );
 
     it("never reports a type that compiles to a page rather than a document", () => {
         const root = repo({ "homepage.md": "---\ntype: homepage\n---\n\nHello.\n" });
@@ -558,35 +522,11 @@ describe("the claim table and the compilers agree", () => {
     });
 });
 
-/*
- * `vehicle` and `armorlocation` are the other two declared-but-unexercised
- * types, and neither is a second instance of the unrouted-type trap. They are
- * not even the same case as each other.
- *
- * `armorlocation` is **HM3's**: the specification says "HM3 only", it has no
- * SoHL form, and `hm3/document-subtypes.mjs` maps it. A SoHL configuration
- * claiming it would be wrong, so its absence from this map is the answer rather
- * than a gap — which is what the rows below pin, since nothing else did.
- *
- * `vehicle` is **specified but not yet implemented**, and says so: a note of
- * that type is reported as "the content format specifies `vehicle`, so the note
- * is not wrong — this toolchain has not implemented the type yet … do not
- * author the type until a release compiles it". That is the opposite of the
- * trap, where the failure is silent and misattributed. It is asserted by the
- * `it.each` case above, which is deliberately parameterised so that a type
- * moves off it when implemented.
- */
-describe("the two declared-but-unexercised types", () => {
-    it("leaves armorlocation to HM3, which maps it", () => {
+describe("system-specific and vehicle types", () => {
+    it("leaves armorlocation to HM3 and routes vehicle to a SoHL Actor", () => {
         expect(Object.keys(SOHL_DOCUMENT_SUBTYPES.types)).not.toContain("armorlocation");
         expect(noteTypesClaimedBy("Item").has("armorlocation")).toBe(false);
-    });
-
-    it("claims neither for a SoHL pass, which is why each is reported rather than compiled", () => {
-        for (const docType of ["Actor", "Item", "JournalEntry"]) {
-            expect(noteTypesClaimedBy(docType).has("vehicle"), docType).toBe(false);
-            expect(noteTypesClaimedBy(docType).has("armorlocation"), docType).toBe(false);
-        }
+        expect(noteTypesClaimedBy("Actor").has("vehicle")).toBe(true);
     });
 });
 
@@ -650,8 +590,7 @@ describe("a type whose whole document is a journal", () => {
  *    references it, so no one pass owns it (`folder`);
  * 4. **another system's** — a shipped system map declares it, so a
  *    configuration that ships that system's packs claims it (`armorlocation`,
- *    which is HM3's); or **named in `UNIMPLEMENTED_TYPES`**, the set that states
- *    which specified types this toolchain does not compile yet (`vehicle`).
+ *    which is HM3's).
  */
 describe("every declared note type is routed, or excused for a stated reason", () => {
     /** Why a type needs no pass of its own, or `null` when it needs one. */
@@ -664,12 +603,6 @@ describe("every declared note type is routed, or excused for a stated reason", (
         if (KNOWN_DOCUMENT_SUBTYPE_MAPS.some((map) => Object.hasOwn(map.types, type))) {
             return "another system's map";
         }
-        // Stated, never inferred. "Declared but absent from the configured
-        // vocabulary" reads correctly and is worthless: that vocabulary is
-        // derived from the routing, so taking a type's route away removes it
-        // from the vocabulary too and the inference excuses exactly the mistake
-        // this guard exists to catch. See `UNIMPLEMENTED_TYPES`.
-        if (UNIMPLEMENTED_TYPES.has(type)) return "specified, not implemented";
         return null;
     }
 
@@ -728,7 +661,6 @@ describe("every declared note type is routed, or excused for a stated reason", (
             armorlocation: "another system's map",
             folder: "derived packed",
             homepage: "never packed",
-            vehicle: "specified, not implemented",
         });
     });
 });
