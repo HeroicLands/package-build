@@ -560,6 +560,7 @@ export function noteAddressContext(config) {
     }
     return {
         package: config.contentPackage,
+        config,
         system: "note",
         types: new Set(Object.keys(NOTE_VOCABULARY)),
         systemBlocks,
