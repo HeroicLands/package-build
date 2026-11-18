@@ -1,5 +1,27 @@
 # @heroiclands/package-build
 
+## 25.9.0
+
+**Content and notes**
+
+- Artwork builds require an eligible non-AI alternative for each AI master. Foundry uses the alternative; websites and books keep the original, and public indexes record the alternative without private generation details.
+- Image metadata that only mentions AI in its text is not treated as an AI declaration; malformed or duplicated `hl:ai` declarations are refused. An explicit AI status is preserved when its source type is unknown.
+- Editing artwork metadata preserves every credited creator and rights statement, licenses and eligible editor properties across equivalent XML namespace prefixes.
+- References to dependency stubs pass address checks when the target exists.
+- Item model images written as short Addresses resolve to their assets when inherited by items.
+- Item models need no repeated type when the system can determine it, including weapon gear. A valid system-block type selects the note's Item and carried-copy type; invalid types produce a finding.
+- Single-settlement polities can exempt their urban share while retaining population ceilings and other settlement checks.
+- Vehicle notes describe travel probabilities; `package-build vehicle prompt` generates picture prompts from their features and cargo. They compile into Actors with overridable cargo, occupant and movement defaults, and use a wagon icon when artwork is absent.
+- Being Actors use authored movement profiles unless their system data supplies its own.
+- Occupant references to missing beings or beings outside declared dependencies produce findings.
+
+**Upgrading**
+
+- Vehicle occupant quantities require a SoHL release with native vehicle occupant quantity support.
+- Assign and embed missing alternatives for existing artwork before lint or any build can pass.
+- If other packages use your item models, regenerate your content index and publish a new release to include corrected item image Addresses.
+- Record unknown settlement populations as `null` and abandoned settlements as zero. Missing populations produce a warning.
+
 ## 25.8.3
 
 **Content and notes**
