@@ -46,6 +46,7 @@
  * @module
  */
 
+import { ITEM_NOTE_TYPES } from "./item-terms.mjs";
 import log from "loglevel";
 
 import { resolveName } from "./helpers.mjs";
@@ -59,7 +60,7 @@ import { itemDocEntryId, itemDocPointer } from "./item-docs.mjs";
 import { itemTypes, itemBuilder, itemArt, itemFields } from "./item-registry.mjs";
 // Which Foundry Item subtype a note's `type` compiles into. Looked up in the
 // system's declared map, never inferred from the type itself.
-import { documentSubtype, subtypeRow } from "./document-subtypes.mjs";
+import { documentSubtype, itemDocumentSubtype, subtypeRow } from "./document-subtypes.mjs";
 // The note-level `<system>:` block: `<system>.system` onto the document's
 // `system` verbatim, and `<system>.img` / `.effects` / `.flags` overriding
 // their shared top-level forms for this system alone.
@@ -254,25 +255,16 @@ export class SystemItemCompiler extends BasePackCompiler {
     /**
      * The Foundry Item subtype a note compiles into.
      *
-     * **Looked up, not inferred.** For every type this system declares, the
-     * emitted subtype is the map's, so the note vocabulary and the document
-     * vocabulary are two separately-stated things rather than one string
-     * written twice.
-     *
-     * **A type the map does not name belongs to the consumer**, and its
-     * registry entry is the declaration: a repository shipping an item type of
-     * its own writes it once, in the `itemBuilders` table of its
-     * `package-build.config.yaml`, and that key is what the document is a
-     * subtype of. That is an authored statement in the consumer's own
-     * configuration, not a coincidence inside this package's source — and
-     * refusing it here would silently drop every document of a type this system
-     * has no opinion about.
+     * Item notes use the system mapping and a valid system-block override.
+     * Consumer-defined types pass through unchanged.
      *
      * @param {object} fm - The note's frontmatter.
      * @returns {string} The document's `type`.
      */
     itemSubtype(fm) {
         const map = /** @type {typeof SystemItemCompiler} */ (this.constructor).documentSubtypes;
+        if (ITEM_NOTE_TYPES.includes(fm.type))
+            return itemDocumentSubtype(map, fm, { absPath: this.currentNote?.absPath });
         const declared = documentSubtype(/** @type {never} */ (map), fm.type, fm, {
             absPath: this.currentNote?.absPath,
         });

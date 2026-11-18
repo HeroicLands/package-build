@@ -12,6 +12,22 @@
  */
 import { isPlainMap } from "./data-keys.mjs";
 import { deepMerge } from "./deep-merge.mjs";
+import { itemDocumentSubtype } from "./document-subtypes.mjs";
+import { subtypeMapFor } from "./subtype-registry.mjs";
+
+/**
+ * Read a model's system fields and resolve its mapped item type.
+ * @param {object|undefined} model - The indexed item note.
+ * @param {string} system - The target system.
+ * @returns {object|undefined} The system block, absent when the note has none.
+ */
+export function itemSystemBlock(model, system) {
+    const block = model?.[system];
+    if (!model || !Object.hasOwn(model, system)) return undefined;
+    if (!isPlainMap(block)) throw new Error(`\`${system}\` must be a map of system fields`);
+    const map = subtypeMapFor(system);
+    return { ...block, type: map ? itemDocumentSubtype(map, model) : (block.type ?? model.type) };
+}
 
 /**
  * Apply an item note's neutral defaults to an entry, preserving its identity.
@@ -41,7 +57,6 @@ export function systemItemEntries(neutral, declared, system, findModel) {
     const remainingIndices = remaining.map((_, index) => index);
     const entries = [];
     const sources = [];
-    const missingType = [];
     for (const [index, entry] of (Array.isArray(neutral) ? neutral : []).entries()) {
         if (!isPlainMap(entry)) continue;
         const match =
@@ -51,15 +66,7 @@ export function systemItemEntries(neutral, declared, system, findModel) {
         const override = match < 0 ? undefined : remaining.splice(match, 1)[0];
         const originalIndex = match < 0 ? undefined : remainingIndices.splice(match, 1)[0];
         const model = entry.model == null ? undefined : findModel(entry.model);
-        const block = model?.[system];
-        if (block && !block.type) {
-            missingType.push(index);
-            if (match >= 0) {
-                remaining.splice(match, 0, override);
-                remainingIndices.splice(match, 0, originalIndex);
-            }
-            continue;
-        }
+        const block = itemSystemBlock(model, system);
         if (!block?.type && !override?.type && !override?.model) {
             if (match >= 0) {
                 remaining.splice(match, 0, override);
@@ -71,11 +78,12 @@ export function systemItemEntries(neutral, declared, system, findModel) {
         entries.push(deepMerge(deepMerge(block ?? {}, fields), override ?? {}));
         sources.push({
             index,
+            systemIndex: originalIndex,
             neutralModel: entry.model,
             systemModel: override?.model,
             neutral: entry,
             override,
         });
     }
-    return { entries, sources, remaining, remainingIndices, missingType };
+    return { entries, sources, remaining, remainingIndices };
 }

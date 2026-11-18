@@ -66,23 +66,30 @@ describe("system item entries", () => {
         );
         expect(result.entries).toEqual([{ key: "a", name: "A", type: "weapongear" }]);
         expect(result.remaining).toEqual([]);
-        expect(result.missingType).toEqual([]);
     });
-    it("reports an existing model block lacking type but ignores an absent block", () => {
-        const result = systemItemEntries([{ model: "a" }, { model: "b" }], [], "sohl", (model) =>
-            model === "a" ? { sohl: { system: {} } } : {},
-        );
-        expect(result.entries).toEqual([]);
-        expect(result.missingType).toEqual([0]);
-    });
-    it("keeps a matching system entry when the model block lacks a type", () => {
-        const declared = [{ key: "a", type: "weapongear", name: "Blade", system: {} }];
-        const result = systemItemEntries([{ key: "a", model: "blade" }], declared, "sohl", () => ({
-            sohl: { system: {} },
+    for (const system of ["sohl", "hm3"]) {
+        it(`${system} inherits the note type and preserves a block override`, () => {
+            const model = { type: "weapongear", [system]: { system: { weight: 3 } } };
+            const result = systemItemEntries([{ model: "blade" }], [], system, () => model);
+            expect(result.entries).toEqual([
+                { model: "blade", type: "weapongear", system: { weight: 3 } },
+            ]);
+            expect(model[system]).not.toHaveProperty("type");
+            const override = {
+                ...model,
+                [system]: { type: system === "hm3" ? "missilegear" : "miscgear" },
+            };
+            expect(
+                systemItemEntries([{ model: "blade" }], [], system, () => override).entries,
+            ).toEqual([{ model: "blade", type: system === "hm3" ? "missilegear" : "miscgear" }]);
+        });
+    }
+    it("omits a model without the selected system's block", () => {
+        const result = systemItemEntries([{ model: "blade" }], [], "sohl", () => ({
+            type: "weapongear",
+            hm3: {},
         }));
-        expect(result.missingType).toEqual([0]);
-        expect(result.remaining).toEqual(declared);
-        expect(result.remainingIndices).toEqual([0]);
+        expect(result.entries).toEqual([]);
     });
 });
 
@@ -168,6 +175,372 @@ for (const [system, Compiler] of [
     ["hm3", Hm3Actors],
 ] as const) {
     describe(`${system} neutral embedded items`, () => {
+        it("consumes a system-only entry's matching key before emitting the Item", () => {
+            const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
+            const items = compiler.buildEmbeddedItems(
+                new Map(),
+                "actor0000000000",
+                {
+                    [system]: {
+                        items: [
+                            {
+                                key: "blade",
+                                type: "weapongear",
+                                name: "Blade",
+                                system: { shortcode: "blade" },
+                            },
+                        ],
+                    },
+                },
+                "test",
+            );
+            expect(items).toHaveLength(1);
+            expect(items[0]).toMatchObject({ type: "weapongear", name: "Blade" });
+            expect(items[0]).not.toHaveProperty("key");
+            expect(compiler.errorCount).toBe(0);
+        });
+        it("resolves native defaults and validates explicit types", () => {
+            const compiler = new Compiler.itemCompiler({
+                contentBase: ".",
+                dest: ".",
+                skipDirectories: [],
+            });
+            const projectile = { type: "projectilegear", [system]: {} };
+            expect(compiler.itemSubtype(projectile)).toBe(
+                system === "hm3" ? "missilegear" : "projectilegear",
+            );
+            expect(compiler.itemSubtype({ type: "weapongear", [system]: {} })).toBe("weapongear");
+            expect(() =>
+                compiler.itemSubtype({ type: "weapongear", [system]: { type: "missilgear" } }),
+            ).toThrow();
+            if (system === "hm3") {
+                for (const type of ["mysticalability", "trauma"]) {
+                    expect(() => compiler.itemSubtype({ type, hm3: {} })).toThrow();
+                }
+                expect(
+                    compiler.itemSubtype({ type: "mysticalability", hm3: { type: "spell" } }),
+                ).toBe("spell");
+                expect(
+                    compiler.itemSubtype({ type: "weapongear", hm3: { type: "missilegear" } }),
+                ).toBe("missilegear");
+                expect(
+                    compiler.itemSubtype({ type: "projectilegear", hm3: { type: "armorgear" } }),
+                ).toBe("armorgear");
+                for (const type of ["affliction", "concoctiongear"]) {
+                    expect(() => compiler.itemSubtype({ type, hm3: {} })).toThrow(
+                        /no default Item type/,
+                    );
+                    expect(compiler.itemSubtype({ type, hm3: { type: "armorgear" } })).toBe(
+                        "armorgear",
+                    );
+                }
+            }
+        });
+        it("applies a system-block override to the note's own Item", () => {
+            const compiler = new Compiler.itemCompiler({
+                contentBase: ".",
+                dest: ".",
+                skipDirectories: [],
+            });
+            const item = compiler.buildEntry(
+                {
+                    type: "projectilegear",
+                    subType: "arrow",
+                    id: "item000000000000",
+                    shortcode: "arrow",
+                    name: { full: "Arrow" },
+                    data: { kind: "projectile" },
+                    [system]: { type: "armorgear", templatePriority: null, system: {} },
+                },
+                "",
+            );
+            expect(item.type).toBe("armorgear");
+        });
+        it("reports an ambiguous model and continues with other entries", () => {
+            if (system !== "hm3") return;
+            const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
+            const model = completeAddress({
+                package: "demo",
+                system: "note",
+                type: "trauma",
+                shortcode: "harm",
+            });
+            compiler.corpus = {
+                records: [{ package: "demo", type: "trauma", shortcode: "harm", hm3: {} }],
+            };
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ambiguous-item-"));
+            const file = path.join(dir, "being.md");
+            fs.writeFileSync(
+                file,
+                "---\ndata:\n  items:\n    - model: demo-note-trauma-harm\n---\n",
+            );
+            compiler.currentNote = { absPath: file };
+            const findings = vi.spyOn(compiler, "noteError").mockImplementation(() => {});
+            const items = compiler.buildEmbeddedItems(
+                new Map(),
+                "actor0000000000",
+                {
+                    data: { items: [{ model }] },
+                    hm3: {
+                        items: [
+                            { type: "weapongear", name: "Blade", system: { shortcode: "blade" } },
+                        ],
+                    },
+                },
+                "test",
+            );
+            expect(findings).toHaveBeenCalledWith(
+                expect.stringContaining("hm3.type"),
+                expect.anything(),
+            );
+            expect(compiler.errorCount).toBe(1);
+            expect(items).toHaveLength(1);
+            expect(items[0].type).toBe("weapongear");
+            fs.rmSync(dir, { recursive: true, force: true });
+        });
+        it("locates invalid item note types on the system field", () => {
+            if (system !== "hm3") return;
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), "invalid-item-type-"));
+            const file = path.join(dir, "item.md");
+            const compiler = new Compiler.itemCompiler({
+                contentBase: ".",
+                dest: ".",
+                skipDirectories: [],
+            });
+            compiler.currentNote = { absPath: file };
+            for (const [raw, authored] of [
+                ["projectilegear", "projectilegear"],
+                [["missilegear"], "[missilegear]"],
+                [42, "42"],
+                [{}, "{}"],
+                ["", "''"],
+            ] as const) {
+                fs.writeFileSync(
+                    file,
+                    `---\ntype: projectilegear\nhm3:\n  type: ${authored}\n---\n`,
+                );
+                try {
+                    compiler.itemSubtype({ type: "projectilegear", hm3: { type: raw } });
+                    throw new Error("expected a finding");
+                } catch (error) {
+                    const finding = error as Error & {
+                        position?: { line: number; column: number };
+                    };
+                    expect(finding.message).toContain("hm3.type");
+                    expect(finding.position).toEqual({ line: 4, column: 3 });
+                }
+            }
+            fs.rmSync(dir, { recursive: true, force: true });
+        });
+        it("reports malformed indexed models at the exact reference and keeps other entries", () => {
+            if (system !== "hm3") return;
+            for (const block of ["missilegear", { type: ["missilegear"] }, { type: 42 }]) {
+                for (const cached of [false, true]) {
+                    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bad-model-"));
+                    const file = path.join(dir, "being.md");
+                    fs.writeFileSync(
+                        file,
+                        "---\ndata:\n  items:\n    - key: a\n      model: demo-note-weapongear-blade\n---\n",
+                    );
+                    const compiler = new Compiler({
+                        contentBase: ".",
+                        dest: ".",
+                        skipDirectories: [],
+                    });
+                    compiler.currentNote = { absPath: file };
+                    const record = {
+                        package: "demo",
+                        type: "weapongear",
+                        shortcode: "blade",
+                        hm3: block,
+                    };
+                    if (cached)
+                        compiler.linkIndex = {
+                            foreign: new Map([
+                                ["demo-sohl-weapongear-blade", { itemRecord: record }],
+                            ]),
+                        };
+                    else compiler.corpus = { records: [record] };
+                    const findings = vi.spyOn(compiler, "noteError").mockImplementation(() => {});
+                    const model = completeAddress({
+                        package: "demo",
+                        system: "note",
+                        type: "weapongear",
+                        shortcode: "blade",
+                    });
+                    const items = compiler.buildEmbeddedItems(
+                        new Map(),
+                        "actor0000000000",
+                        {
+                            data: { items: [{ key: "a", model }] },
+                            hm3: {
+                                items: [
+                                    { key: "a", system: { weight: 2 } },
+                                    {
+                                        type: "weapongear",
+                                        name: "Blade",
+                                        system: { shortcode: "blade" },
+                                    },
+                                ],
+                            },
+                        },
+                        "test",
+                    );
+                    expect(findings).toHaveBeenCalledTimes(1);
+                    expect(findings.mock.calls[0][1]).toEqual({ line: 5, column: 14 });
+                    expect(compiler.errorCount).toBe(1);
+                    expect(items).toHaveLength(1);
+                    fs.rmSync(dir, { recursive: true, force: true });
+                }
+            }
+        });
+        it("rejects an unknown same-key reference type at its own field", () => {
+            if (system !== "hm3") return;
+            for (const type of ["missilgear", "trauma", "being", ["missilegear"]]) {
+                const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bad-overlay-"));
+                const file = path.join(dir, "being.md");
+                fs.writeFileSync(
+                    file,
+                    `---\nhm3:\n  items:\n    - key: a\n      type: ${typeof type === "string" ? type : "[missilegear]"}\ndata:\n  items:\n    - key: a\n      model: demo-note-weapongear-blade\n---\n`,
+                );
+                const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
+                compiler.currentNote = { absPath: file };
+                const model = completeAddress({
+                    package: "demo",
+                    system: "note",
+                    type: "weapongear",
+                    shortcode: "blade",
+                });
+                compiler.corpus = {
+                    records: [{ package: "demo", type: "weapongear", shortcode: "blade", hm3: {} }],
+                };
+                const findings = vi.spyOn(compiler, "noteError").mockImplementation(() => {});
+                const catalogue = new Map([
+                    ["demo:weapongear:blade", { type: "weapongear", name: "Blade", system: {} }],
+                ]);
+                const items = compiler.buildEmbeddedItems(
+                    catalogue,
+                    "actor0000000000",
+                    {
+                        data: { items: [{ key: "a", model }] },
+                        hm3: { items: [{ key: "a", type }] },
+                    },
+                    "test",
+                );
+                expect(items).toEqual([]);
+                expect(findings).toHaveBeenCalledTimes(1);
+                expect(findings.mock.calls[0][1]).toEqual({ line: 5, column: 7 });
+                if (type === "trauma") {
+                    expect(findings.mock.calls[0][0]).toContain("injury");
+                    expect(findings.mock.calls[0][0]).toContain("trait");
+                    expect(findings.mock.calls[0][0]).toContain("one of those subtypes");
+                }
+                if (type === "being") {
+                    expect(findings.mock.calls[0][0]).toContain("write a declared item type");
+                    expect(findings.mock.calls[0][0]).not.toContain("one of those subtypes");
+                }
+                expect(compiler.errorCount).toBe(1);
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        });
+        it("translates the same system reference type with or without a neutral model", () => {
+            if (system !== "hm3") return;
+            const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
+            const model = completeAddress({
+                package: "demo",
+                system: "note",
+                type: "weapongear",
+                shortcode: "blade",
+            });
+            compiler.corpus = {
+                records: [{ package: "demo", type: "weapongear", shortcode: "blade", hm3: {} }],
+            };
+            const catalogue = new Map([
+                [
+                    "demo:weapongear:blade",
+                    { type: "weapongear", name: "Blade", img: "blade.webp", system: {} },
+                ],
+            ]);
+            const paired = compiler.buildEmbeddedItems(
+                catalogue,
+                "actor0000000000",
+                {
+                    data: { items: [{ key: "a", model }] },
+                    hm3: { items: [{ key: "a", type: "projectilegear" }] },
+                },
+                "test",
+            );
+            const inline = compiler.buildEmbeddedItems(
+                new Map(),
+                "actor0000000001",
+                {
+                    hm3: {
+                        items: [
+                            {
+                                type: "projectilegear",
+                                name: "Arrow",
+                                system: { shortcode: "arrow" },
+                            },
+                        ],
+                    },
+                },
+                "test",
+            );
+            expect(paired[0].type).toBe("missilegear");
+            expect(inline[0].type).toBe("missilegear");
+            expect(compiler.errorCount).toBe(0);
+        });
+        it("keeps a projectile model's resolved system type in the catalogue", () => {
+            const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
+            const model = completeAddress({
+                package: "demo",
+                system: "note",
+                type: "projectilegear",
+                shortcode: "arrow",
+            });
+            compiler.corpus = {
+                records: [
+                    {
+                        package: "demo",
+                        type: "projectilegear",
+                        shortcode: "arrow",
+                        id: "item000000000000",
+                        name: { full: "Arrow" },
+                        data: { kind: "projectile" },
+                        [system]: { templatePriority: null, system: { subType: "arrow" } },
+                    },
+                ],
+            };
+            const nativeType = system === "hm3" ? "missilegear" : "projectilegear";
+            const catalogue = new Map([
+                [
+                    `demo:${nativeType}:arrow`,
+                    {
+                        type: nativeType,
+                        name: "Arrow",
+                        system: { shortcode: "arrow", quantity: 1 },
+                    },
+                ],
+            ]);
+            const items = compiler.buildEmbeddedItems(
+                catalogue,
+                "actor0000000000",
+                {
+                    data: { items: [{ key: "arrow", model }] },
+                    [system]: { items: [{ key: "arrow", system: { quantity: 2 } }] },
+                },
+                "test",
+            );
+            expect(items).toHaveLength(1);
+            expect(items[0].type).toBe(nativeType);
+            // The shared fixture registers SoHL's item defaults for both compilers.
+            expect(items[0].img).toBe("systems/sohl/icons/arrow.svg");
+            expect(items[0]).not.toHaveProperty("key");
+            expect(items[0]).not.toHaveProperty("kind");
+            expect(catalogue.has(`demo:${nativeType}:arrow`)).toBe(true);
+            expect(compiler.errorCount).toBe(0);
+        });
+
         it("locates a missing documentation page at the neutral model and gives a remedy", () => {
             const dir = fs.mkdtempSync(path.join(os.tmpdir(), "item-model-position-"));
             const file = path.join(dir, "being.md");
@@ -302,7 +675,7 @@ for (const [system, Compiler] of [
                     id: "item000000000000",
                     name: { full: "Blade" },
                     data: { kind: "weapon" },
-                    [system]: { type: "weapongear", templatePriority: null, system: { weight: 3 } },
+                    [system]: { templatePriority: null, system: { weight: 3 } },
                 }),
             } as any);
             const catalogue = new Map([
@@ -350,7 +723,7 @@ for (const [system, Compiler] of [
             expect(fallback.has("demo:armorgear:blade")).toBe(false);
             expect(secondCompiler.errorCount).toBe(0);
         });
-        it("uses a required module's indexed model without a compiled catalogue", () => {
+        it("compiles a neutral model with no block type and its same-key system override", () => {
             const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
             const model = completeAddress({
                 package: "demo",
@@ -365,7 +738,7 @@ for (const [system, Compiler] of [
                     id: "item000000000000",
                     name: { full: "Blade" },
                     data: { kind: "weapon", system: { quantity: 2 } },
-                    [system]: { type: "weapongear", templatePriority: null, system: { weight: 3 } },
+                    [system]: { templatePriority: null, system: { weight: 3 } },
                 }),
                 foreign: {
                     index: new Map([
@@ -380,13 +753,22 @@ for (const [system, Compiler] of [
                     ]),
                 },
             } as any);
-            const fm = { data: { items: [{ model }] }, [system]: {} };
+            const fm = {
+                data: { items: [{ key: "blade", kind: "weapon", model }] },
+                [system]: { items: [{ key: "blade", system: { quantity: 4 } }] },
+            };
             const items = compiler.buildEmbeddedItems(new Map(), "actor0000000000", fm, "test");
             expect(items).toHaveLength(1);
-            expect(items[0]).toMatchObject({ name: "Blade", system: { quantity: 2, weight: 3 } });
+            expect(items[0]).toMatchObject({
+                type: "weapongear",
+                name: "Blade",
+                system: { quantity: 4, weight: 3 },
+            });
             expect(items[0].system[system === "sohl" ? "docHtml" : "description"]).toBe(
                 "@UUID[Compendium.demo.docs.JournalEntry.blade.JournalEntryPage.intro]{Blade}",
             );
+            expect(items[0]).not.toHaveProperty("key");
+            expect(items[0]).not.toHaveProperty("kind");
             expect(compiler.errorCount).toBe(0);
         });
         it("emits an inline item with a type and silently skips absent system blocks", () => {
@@ -419,52 +801,6 @@ for (const [system, Compiler] of [
             expect(items).toHaveLength(1);
             expect(items[0].name).toBe("Inline");
             expect(compiler.errorCount).toBe(0);
-        });
-        it("reports a model block without a type", () => {
-            const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
-            const model = completeAddress({
-                package: "demo",
-                system: "note",
-                type: "weapongear",
-                shortcode: "blade",
-            });
-            setModelIndex(compiler, {
-                addressHit: () => ({ fm: { [system]: { system: {} } } }),
-            } as any);
-            const fm = { data: { items: [{ model }] }, [system]: {} };
-            expect(compiler.buildEmbeddedItems(new Map(), "actor0000000000", fm, "test")).toEqual(
-                [],
-            );
-            expect(compiler.errorCount).toBe(1);
-        });
-        it("reports a missing model type while retaining the matching system item", () => {
-            const compiler = new Compiler({ contentBase: ".", dest: ".", skipDirectories: [] });
-            const model = completeAddress({
-                package: "demo",
-                system: "note",
-                type: "weapongear",
-                shortcode: "blade",
-            });
-            setModelIndex(compiler, {
-                addressHit: () => ({ fm: { [system]: { system: {} } } }),
-            } as any);
-            const fm = {
-                data: { items: [{ key: "a", model }] },
-                [system]: {
-                    items: [
-                        {
-                            key: "a",
-                            type: "weapongear",
-                            name: "Blade",
-                            system: { shortcode: "blade" },
-                        },
-                    ],
-                },
-            };
-            const items = compiler.buildEmbeddedItems(new Map(), "actor0000000000", fm, "test");
-            expect(items).toHaveLength(1);
-            expect(items[0].name).toBe("Blade");
-            expect(compiler.errorCount).toBe(1);
         });
         it("reports a missing subclass item compiler", () => {
             class IncompleteCompiler extends Compiler {

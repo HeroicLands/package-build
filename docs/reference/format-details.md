@@ -809,37 +809,24 @@ SoHL's and not HM3's. It says what the note _is_ and the scope it covers,
 irrespective of whether it becomes an Actor, an Item, a JournalEntry or nothing
 at all in any particular system.
 
-Each system then declares a map from the note's `(type, subType)` onto its own
-document type — and, for SoHL, its own `system.subType`. The map is **declared**,
-never inferred from a coincidence of names: `skill`, `weapongear`, `armorgear`,
-`containergear` and `miscgear` exist in both systems with _different_ data
-models, so name-matching there would not fail, it would succeed wrongly.
+Each system's declared map determines an item note's document type. For example,
+HM3 maps `projectilegear` to `missilegear`. A system block may state a valid
+native `type` to override the mapped type. Where a map offers multiple types
+and the note type does not identify one, the block must choose one. This rule
+applies to the note's Item and to a `data.items` entry naming it as a model.
 
-Because the map derives the document type, `hm3.type` and `sohl.system.subType`
-are **overrides**, not required declarations. A note states them only when the
-map cannot decide, or decides wrongly.
+Other note types use each system's declared document-subtype map. A `being`
+with an `hm3` block must state `hm3.type: character` or `hm3.type: creature`.
+The actor's type is not derived from its neutral appearance or kind.
 
-**Four rows cannot decide, and there `hm3.type` is required.** HM3 splits four
-of the note vocabulary's types across several documents — `mysticalability` into
-a `psionic`, a `spell` or an `invocation`; `trauma` into an `injury` or a
-`trait`; `weapongear` into a `weapongear` or a `missilegear`; `being` into a
-`character` or a `creature`. Nothing in the note's own vocabulary partitions
-cleanly onto any of those splits, so the note says which, in its own block, and
-a note that says nothing is **an error naming the note and listing the permitted
-values**. It is never defaulted: a default would pick one and be right about
-half the time.
+A system-specific embedded reference uses that system's reference vocabulary.
+A neutral `data.items` model names the note and reads the item type from its
+system block and the system's map.
 
-A consequence worth knowing before you author a being's embedded items: a
-`(type, shortcode)` reference has no block of its own to read a discriminator
-from, so it **cannot address a one-to-many type**. `[[weapongear-spear]]` names
-no single HM3 document, and the reference is refused rather than resolved to
-whichever came first.
-
-A note whose `(type, subType)` has no mapping for a system it carries a block
-for is an **error naming the note**, never a silent skip and never a guess at the
-first matching value. Where a mapping is missing for a whole class of note, that
-is a gap in the vocabulary rather than something to write into every note: an
-override that thousands of notes need is a missing subType value.
+The system-specific reference map is explicitly declared, including identity
+mappings. A reference by `(type, shortcode)` cannot name a note type that maps
+to several document subtypes: it supplies no discriminator to choose among
+them. An unmapped or ambiguous reference produces a finding.
 
 **A type's `subType` values are stated in one shape**, so that they can be read
 and compared to the vocabulary that enforces them. Under the type's
@@ -3321,11 +3308,9 @@ objects with a SoHL counterpart — `Arrow (Longbow)`, `Bolt (Crossbow)`,
 both blocks. Only four are companions: `Javelin (thrown)`, `Shorkana (thrown)`,
 `Spear (thrown)`, `Taburi (thrown)`.
 
-**Every note carrying an `hm3:` block states its type.** Nothing can derive
-whether `Spear (thrown)` is a `weapongear` or a `missilegear` — there is no other
-system to infer from and no subType to read — and the same is true of the note
-carrying both blocks, whose SoHL strike modes describe every usage at once. So
-`hm3.type` is _required_ on both, not only on the companion.
+**An item note's `hm3:` block overrides its type when needed.** A
+`weapongear` note uses `hm3.type: missilegear` for a thrown usage; without an
+override its HM3 item type is `weapongear`.
 
 The following special markdown sequences are recognized:
 
@@ -5318,7 +5303,10 @@ ability types (`weapongear`, `armorgear`, `containergear`, `miscgear`,
 `projectilegear`, `concoctiongear`, `affliction`, `trauma` and `mysticalability`)
 carry the same keys in `data` as an entry does: `kind` is required, and `name`,
 `img` and `system` (`subType`, `quantity`, `weight`) are optional. The note's
-`sohl` and `hm3` blocks hold each system's own `type` and fields.
+`sohl` and `hm3` blocks hold each system's fields. Each system's map determines the item type; a valid `type` in the system
+block overrides it. A map with several choices requires a type where the note's
+type does not identify one. An item note with a system block but no map row
+must state a valid native `type` in that block.
 `package-build items coverage --system <id>` lists this package's item notes
 without the selected system's block, grouped and counted by kind. It is an
 on-demand report; the build and lint do not require a block for every system.
@@ -5344,14 +5332,14 @@ to the entry it adds to.
 
 **A being's entries compile for each supported system.** The model's neutral
 fields supply defaults, the entry overrides them, and the model's system block
-supplies that system's item type and fields. A same-key system entry overrides
-the result. Nested maps merge field by field; lists and scalar values replace
+supplies that system's fields. The system's map supplies the model's item type; a valid system-block
+`type` overrides it. A same-key system entry
+overrides the result. Nested maps merge field by field; lists and scalar values replace
 the corresponding defaults. `kind`, `key` and `chance` stay in the content
 index and do not become Foundry fields. An inline entry compiles when its
 same-key system entry supplies a `type`. An item with no block for a system and
-no same-key entry supplying a type makes no Item for that system. A model's
-system block that exists must state its `type`. System entries without a
-matching neutral entry compile independently.
+no same-key entry supplying a type makes no Item for that system. A same-key system entry's `type` uses the system's reference vocabulary.
+System entries without a matching neutral entry compile independently.
 
 Findings, each at the key at fault with a message that says how to correct it:
 
@@ -5362,8 +5350,9 @@ Findings, each at the key at fault with a message that says how to correct it:
   package that is not required, a type that is not an item type, or no note;
 - a `key` used twice in one list;
 - an item note without `data.kind`;
-- a model's system block without `type`; add the system's item type or remove
-  that block;
+- an item note or model with a system block that is not a map;
+- an item note or model with no mapped system type, or one requiring a choice that its system block omits;
+- an invalid native type in an item note or model's system block, or an invalid reference type in a same-key system entry;
 - a model's documentation with no published page; publish a page, or correct
   the model Address and fetch the updated index;
 - `data.items` on a lore note that is not a culture.
@@ -6604,7 +6593,7 @@ if a `sohl` property is present, a SoHL item of type "mystery" is created.
 
 if a `sohl` property is present, a SoHL item of type "mysticalability" is created.
 
-If an `hm3` property is present, an HM3 item is created, and `hm3.type` states which — `psionic`, `spell` or `invocation`. It is **authored, not derived from `subType`**: the ten mystical-ability subtypes do not partition onto HM3's three documents (a `spiritrite`, an `alchemy` and a `divination` each answer to none of them), so a derivation would be a guess with a plausible shape. A note that omits it is an error naming the note.
+If an `hm3` property is present, an HM3 item is created. The `hm3.type` must be `psionic`, `spell` or `invocation`. The override is authored rather than derived from `subType`.
 
 `system.assocSkillCode` and `system.assocAffiliationCode` are authored under
 `sohl.system` as shortcodes and have no shared source; `data.assocSkill` and
@@ -7721,7 +7710,7 @@ SoHL reads a skill’s base mastery from `sohl.masteryLevelBase`.
 
 if a `sohl` property is present, a SoHL item of type "trauma" is created.
 
-If an `hm3` property is present, an HM3 item is created. `hm3.type` must be specified as either `injury` or `trait`.
+If an `hm3` property is present, an HM3 item is created. The `hm3.type` must be `injury` or `trait`.
 
 | shared source                          | → sohl                                   | → hm3 |
 | -------------------------------------- | ---------------------------------------- | ----- |
@@ -7772,7 +7761,7 @@ if a `sohl` property is present, a SoHL item of type "weapongear" is created,
 carrying every strike mode the weapon has — melee and missile alike — on
 `system.strikeModes`.
 
-If an `hm3` property is present, an HM3 item is created, and `hm3.type` states whether it is a `weapongear` or a `missilegear`. **`weapon` has no `subType`**: SoHL distinguishes a weapon's uses with strike modes rather than by kind, and HM3 has one document per usage, so nothing but the note can say which usage it describes. Every note carrying an `hm3:` block states it — the one carrying both blocks as well as the companion carrying only `hm3:`, which is usually a `missilegear` — see _One note is at most one document per system_.
+If an `hm3` property is present, an HM3 item is created. Its type defaults to `weapongear`; `hm3.type: missilegear` overrides it for a missile usage. SoHL describes weapon uses with strike modes; each HM3 usage has its own note — see _One note is at most one document per system_.
 
 | shared source     | → sohl                  | → hm3           |
 | ----------------- | ----------------------- | --------------- |

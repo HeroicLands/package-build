@@ -281,8 +281,10 @@ shape in its `data` block with `kind` required. See
 [items in a note](reference/format-details.md#items-in-a-note).
 
 A being's entries compile into embedded Items for each supported system when
-the model supplies that system's item type or a same-key system entry states
-one. Model defaults and entry fields merge with the same-key system entry;
+the model has that system's block or a same-key system entry states a type.
+The system's declared map supplies the model's item type; a valid `type`
+in the model's system block overrides it. Model defaults and entry fields merge with
+the same-key system entry;
 nested maps merge and lists replace. An item without a type for a system is
 omitted from that system's actor.
 

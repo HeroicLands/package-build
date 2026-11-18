@@ -755,9 +755,9 @@ A small pouch.
     );
 });
 
-describe("a one-to-many note that says nothing fails, naming the note", () => {
+describe("an item note selects a native type in each system", () => {
     it(
-        "reports `hm3.type` rather than guessing a subtype",
+        "compiles with an explicit native type",
         () => {
             const root = dualRepo({
                 "Sword.md": SWORD,
@@ -774,6 +774,7 @@ sohl:
   subType: arcanetalent
 hm3:
   pack: items-hm3
+  type: psionic
 ---
 
 Seeing what is not there.
@@ -781,10 +782,8 @@ Seeing what is not there.
             });
             roots.push(root);
             const result = compile(root);
-            expect(result.errors).toBeGreaterThan(0);
-            expect(result.output).toMatch(/hm3\.type/);
-            expect(result.output).toMatch(/psionic/);
-            // And the SoHL half of the same note still compiled.
+            expect(result.errors).toBe(0);
+            expect(packDocs(root, "items-hm3")["Second Sight"].type).toBe("psionic");
             expect(Object.keys(packDocs(root, "items-sohl")).sort()).toEqual([
                 "Broadsword",
                 "Second Sight",

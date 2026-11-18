@@ -57,7 +57,7 @@ import {
     parseAddress,
     renderAddress,
 } from "./address.mjs";
-import { resolveItemDefaults, systemItemEntries } from "./system-item-entries.mjs";
+import { itemSystemBlock, resolveItemDefaults, systemItemEntries } from "./system-item-entries.mjs";
 import { deepMerge } from "./deep-merge.mjs";
 export { deepMerge, isPlainObject } from "./deep-merge.mjs";
 import { makeId } from "./helpers.mjs";
@@ -73,7 +73,7 @@ import { isNoteRecord } from "./index-records.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into, and which note
 // types are actors at all. Looked up in the system's declared map, never
 // inferred from the type itself.
-import { mapsNoteType, noteTypesFor, referencedSubtype } from "./document-subtypes.mjs";
+import { mapsNoteType, noteTypesFor, referencedSubtype, subtypeRow } from "./document-subtypes.mjs";
 // An `items:` entry's `system:` overlay is merged verbatim, so it reaches the
 // document by a path no field declaration sits on — including the
 // fields the document is supposed to write for itself in play. `itemArt` is
@@ -669,16 +669,41 @@ export class SystemActorCompiler extends BasePackCompiler {
             );
             return this.#itemNotes.get(key) ?? foreign?.itemRecord;
         };
-        const planned = systemItemEntries(fm?.data?.items, declared, this.system, findModel);
-        for (const index of planned.missingType) {
-            const raw =
-                this.currentNote?.absPath ? fs.readFileSync(this.currentNote.absPath, "utf8") : "";
-            this.noteError(
-                `${ctx}: data.items[${index}] model's ${this.system} block has no type; ` +
-                    `add a type to the model's ${this.system} block or remove that block`,
-                positionOfFrontmatterPath(raw, ["data", "items", index, "model"]),
-            );
-            this.errorCount++;
+        const invalidModels = new Set();
+        const safeFindModel = (address) => {
+            const model = findModel(address);
+            if (!model) return model;
+            try {
+                itemSystemBlock(model, this.system);
+                return model;
+            } catch (error) {
+                if (!invalidModels.has(address)) {
+                    invalidModels.add(address);
+                    const sourceIndex = (fm?.data?.items ?? []).findIndex(
+                        (entry) => entry?.model === address,
+                    );
+                    const position = positionOfFrontmatterPath(
+                        this.currentNote?.absPath ?
+                            fs.readFileSync(this.currentNote.absPath, "utf8")
+                        :   "",
+                        ["data", "items", sourceIndex, "model"],
+                    );
+                    const modelAddress =
+                        isAddressTuple(address) ? renderAddress(address) : String(address);
+                    this.noteError(`${ctx}: model "${modelAddress}": ${error.message}`, position);
+                    this.errorCount++;
+                }
+                return undefined;
+            }
+        };
+        const planned = systemItemEntries(fm?.data?.items, declared, this.system, safeFindModel);
+        for (const entry of fm?.data?.items ?? []) {
+            if (!invalidModels.has(entry?.model) || typeof entry.key !== "string") continue;
+            const index = planned.remaining.findIndex((candidate) => candidate?.key === entry.key);
+            if (index >= 0) {
+                planned.remaining.splice(index, 1);
+                planned.remainingIndices.splice(index, 1);
+            }
         }
         const items = [];
         for (const [index, entry] of planned.entries.entries()) {
@@ -688,8 +713,10 @@ export class SystemActorCompiler extends BasePackCompiler {
                 neutral,
                 override,
                 index: sourceIndex,
+                systemIndex,
             } = planned.sources[index];
-            const source = neutralModel == null ? undefined : findModel(neutralModel);
+            if (invalidModels.has(neutralModel)) continue;
+            const source = neutralModel == null ? undefined : safeFindModel(neutralModel);
             const fieldsToApply = deepMerge(resolveItemDefaults(neutral, source), override ?? {});
             const {
                 model: _model,
@@ -704,10 +731,35 @@ export class SystemActorCompiler extends BasePackCompiler {
             const systemRead =
                 systemModel == null ? null : this.readModel(systemModel, sourceIndex, ctx);
             if (systemModel != null && !systemRead) continue;
-            const useModel = tuple && source?.[this.system]?.type;
+            const modelBlock = itemSystemBlock(source, this.system);
+            const useModel = tuple && modelBlock?.type;
             const read = systemRead ?? (useModel ? tuple : null);
+            if (useModel && !systemRead && override && Object.hasOwn(override, "type")) {
+                const { subType, problem } = this.embeddedSubtype(override.type);
+                if (problem) {
+                    const position = positionOfFrontmatterPath(
+                        this.currentNote?.absPath ?
+                            fs.readFileSync(this.currentNote.absPath, "utf8")
+                        :   "",
+                        [this.system, "items", systemIndex, "type"],
+                        { key: true },
+                    );
+                    const row = subtypeRow(this.documentSubtypes, override.type);
+                    const remedy =
+                        row?.document === "Item" && row.subTypes ?
+                            "write one of those subtypes"
+                        :   "write a declared item type";
+                    this.noteError(
+                        `${ctx}: ${this.system}.items type: ${problem}; ${remedy}`,
+                        position,
+                    );
+                    this.errorCount++;
+                    continue;
+                }
+                entry.type = subType;
+            }
             if (useModel && !systemRead) {
-                const subtype = this.embeddedSubtype(source[this.system].type).subType;
+                const subtype = modelBlock.type;
                 const key = subtype && catalogueKey(subtype, tuple.shortcode, tuple.package);
                 if (key && !itemsMap.has(key)) {
                     const ItemCompiler = this.constructor.itemCompiler;
@@ -779,7 +831,9 @@ export class SystemActorCompiler extends BasePackCompiler {
                 {
                     fmKey: "items",
                     modelPackage: read?.package ?? null,
-                    modelType: useModel && !systemRead ? source[this.system].type : undefined,
+                    modelType: useModel && !systemRead ? modelBlock.type : undefined,
+                    noteType: useModel && !systemRead ? source.type : undefined,
+                    systemTypes: Boolean(useModel && !systemRead),
                 },
             );
             if (embedded) items.push(embedded);
@@ -935,6 +989,8 @@ export class SystemActorCompiler extends BasePackCompiler {
      *   where the template comes from another package's catalogue. Given one,
      *   the packaged address is what resolves and nothing local shadows it.
      * @param {string} [at.modelType] - The model's type when the emitted type differs.
+     * @param {string} [at.noteType] - The model note's type for field and art lookup.
+     * @param {boolean} [at.systemTypes] - Types are resolved system item types.
      * @returns {object|null} The embedded item, or null when it resolved to
      *   nothing — always with a finding emitted.
      */
@@ -946,7 +1002,7 @@ export class SystemActorCompiler extends BasePackCompiler {
         overlay,
         indexKey,
         ctx,
-        { fmKey, modelPackage = null, modelType } = {},
+        { fmKey, modelPackage = null, modelType, noteType, systemTypes = false } = {},
     ) {
         // Where a finding about this reference points. The value locates the
         // exact entry in a list; the key is the fallback when it cannot be
@@ -954,7 +1010,7 @@ export class SystemActorCompiler extends BasePackCompiler {
         const where = () =>
             locateFrontmatterKey(this.currentNote?.absPath, fmKey ?? "items", shortcode || type);
 
-        const { subType, problem } = this.embeddedSubtype(type);
+        const { subType, problem } = systemTypes ? { subType: type } : this.embeddedSubtype(type);
         if (problem) {
             this.noteError(`${ctx}: ${indexKey}: ${problem}`, where());
             this.errorCount++;
@@ -962,7 +1018,11 @@ export class SystemActorCompiler extends BasePackCompiler {
         }
         // A model names one package. Omitted packages are completed at the
         // read boundary; native embedded identities use the local catalogue.
-        const modelSubtype = modelType ? this.embeddedSubtype(modelType).subType : subType;
+        const modelSubtype =
+            modelType ?
+                systemTypes ? modelType
+                :   this.embeddedSubtype(modelType).subType
+            :   subType;
         const address = catalogueKey(
             /** @type {string} */ (modelSubtype),
             shortcode ?? "",
@@ -976,7 +1036,10 @@ export class SystemActorCompiler extends BasePackCompiler {
         // the merged result: the template it merges onto is a compiled
         // document, which by then carries none, and a finding has to name what
         // this note wrote.
-        const [runtimeOnly] = runtimeOnlyIn(overlay?.system, itemFields(type, this.system));
+        const [runtimeOnly] = runtimeOnlyIn(
+            overlay?.system,
+            itemFields(noteType ?? type, this.system),
+        );
         if (runtimeOnly) {
             this.noteError(
                 `${ctx}: ${indexKey}: ` +
@@ -1024,7 +1087,8 @@ export class SystemActorCompiler extends BasePackCompiler {
         const { data: _authored, ...fields } = overlay ?? {};
         const merged = overlay ? deepMerge(base, fields) : base;
         merged.type = subType;
-        if (this.reduceEmittedAddresses(merged.system, itemFields(type, this.system))) return null;
+        if (this.reduceEmittedAddresses(merged.system, itemFields(noteType ?? type, this.system)))
+            return null;
         // The two art rules an item note compiles under, applied to an entry
         // that is one in every respect but where it is written: the address it
         // names wins, the template it copies answers next, and the type's own
@@ -1032,7 +1096,7 @@ export class SystemActorCompiler extends BasePackCompiler {
         merged.img =
             this.artPath(overlay ?? {}, "icon") ??
             merged.img ??
-            this.embeddedItemArt(type, /** @type {string} */ (subType));
+            this.embeddedItemArt(noteType ?? type, /** @type {string} */ (subType));
         const identity = embeddedIdentity(merged, this.system);
         const claim = `${actorId}\u0000${itemAddress(/** @type {string} */ (subType), identity)}`;
         const first = this.#embeddedClaims.get(claim);

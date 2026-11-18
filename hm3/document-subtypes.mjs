@@ -42,11 +42,10 @@
  * built by *its own system's* registry, and the schema check reads that
  * system's published `schema.json`.
  *
- * **The four one-to-many rows are authored, never derived.** A note says which
- * HM3 subtype it is, in its own `hm3:` block, by writing `hm3.type`. Nothing is
- * inferred from the note's `subType`: an author who says nothing gets an error
- * naming the note and listing the permitted values, because a default would
- * pick one of them and be right about half the time.
+ * **The four one-to-many rows use `hm3.type` to choose a subtype.** A
+ * `weapongear` note defaults to `weapongear`, which its row permits. The other
+ * item rows require a choice; a being also states its subtype. Nothing is
+ * inferred from the note's `subType`.
  *
  * `hm3.type` is not a new spelling. `type` is already one of the properties a
  * system block may carry ({@link module:engine/system-block.BLOCK_DOCUMENT_PROPERTIES}),
@@ -79,10 +78,10 @@ export const HM3_TYPE_KEY = "type";
  *
  * The Item rows are the nine types `item-builders.mjs` declares; the one Actor
  * row is `being`, which HM3 splits into `character` and `creature`. Types this
- * map does not name — `affiliation`, `affliction`, `attribute`,
- * `concoction`, `mystery`, and every core type — compile into no HM3
- * document at all, silently and correctly: HM3 has no form of them, and a
- * finding on every such note would be the noise the rule exists to prevent.
+ * map does not name include `affiliation`, `affliction`, `attribute`,
+ * `concoctiongear` and `mystery`. An unmapped standard item note with an
+ * HM3 block must name a native Item type in that block. Other unmapped types
+ * follow the consuming package's item registry.
  *
  * @type {import("../engine/document-subtypes.mjs").DocumentSubtypeMap}
  */

@@ -248,7 +248,7 @@ export class Hm3Actors extends SystemActorCompiler {
                 this.errorCount++;
                 return;
             }
-            const { shortcode, type, ...rest } = entry;
+            const { shortcode, type, key: _key, ...rest } = entry;
             if (!type) {
                 this.noteError(`${ctx}: ${this.system}.items[${index}] missing type`);
                 this.errorCount++;

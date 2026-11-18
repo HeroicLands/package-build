@@ -11,6 +11,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 /** Item field declarations. @module */
+import { ART_SLOTS } from "./art-slots.mjs";
 /**
  * What sort of thing an item is, from one system-neutral list. It categorises
  * the item for the setting and has no mapping to a system's item types.
@@ -96,6 +97,8 @@ const SYSTEM_MAP = Object.freeze({
 const IMG_FIELD = Object.freeze({
     name: "img",
     kind: "address",
+    ref: "icon",
+    accepts: ART_SLOTS.find((slot) => slot.key === "icon").accepts,
     shape: "an Address",
     describe: "The item's image — an `icon` or `image` Address.",
 });

@@ -414,6 +414,48 @@ describe("resolving foreign addresses from cached indexes", () => {
         expect(index.get("thalorna-note-affiliation-unfigured")?.population).toBeUndefined();
     });
 
+    it("defaults indexed item blocks to the note type and keeps system overrides", () => {
+        cacheIndex("thalorna", "0.1.0", [
+            record({
+                type: "weapongear",
+                shortcode: "blade",
+                address: { slug: "weapongear-blade", canonical: "thalorna-note-weapongear-blade" },
+                sohl: { system: { weight: 3 } },
+                hm3: { type: "missilegear", system: { weight: 4 } },
+            }),
+        ]);
+        const entry = loadForeignIndexes(config(), ["sohl", "hm3"]).index.get(
+            "thalorna-note-weapongear-blade",
+        )!;
+        expect(entry.sohl).toEqual({ type: "weapongear", system: { weight: 3 } });
+        expect(entry.hm3).toEqual({ type: "missilegear", system: { weight: 4 } });
+        expect(entry.itemRecord.sohl).not.toHaveProperty("type");
+    });
+
+    it("preserves malformed cached item blocks and values for located validation", () => {
+        for (const [shortcode, hm3] of [
+            ["badblock", "missilegear"],
+            ["badtype", { type: ["missilegear"] }],
+        ] as const) {
+            cacheIndex("thalorna", "0.1.0", [
+                record({
+                    type: "weapongear",
+                    shortcode,
+                    address: {
+                        slug: `weapongear-${shortcode}`,
+                        canonical: `thalorna-note-weapongear-${shortcode}`,
+                    },
+                    hm3,
+                }),
+            ]);
+            const entry = loadForeignIndexes(config(), ["hm3"]).index.get(
+                `thalorna-note-weapongear-${shortcode}`,
+            )!;
+            expect(entry.hm3).toEqual(hm3);
+            expect(entry.itemRecord.hm3).toEqual(hm3);
+        }
+    });
+
     it("preserves an explicitly unknown settlement population", () => {
         cacheIndex("thalorna", "0.1.0", [
             record({

@@ -12,61 +12,28 @@
  */
 
 /**
- * **The note-type → document-subtype map** — the mechanism that stops a build
- * inferring a Foundry document's subtype from the markdown note's `type`.
+ * A system's declared note-type to document-subtype map.
  *
- * A note's `type` and the subtype of the document it compiles into are two
- * vocabularies, and until now they were the same identifier for one reason
- * only: a builder wrote the same string twice. `sohl/actors.mjs` declared
- * `ACTOR_VAULT_TYPE = "being"` and emitted `type: "being"` several hundred
- * lines below it, under a comment reading _"One content type, named for the
- * Foundry actor it produces."_ Nothing related the two, so changing one and
- * not the other produced a wrongly-typed document in silence — a wrong-output
- * risk with **one** system, not merely with two.
+ * Each row names a Foundry document class and either one subtype or a
+ * discriminator with permitted subtypes. The discriminator is read from the
+ * system block; missing or unsupported values produce a located error.
  *
- * **The mechanism is here; the declaration is the system's.** That is the
- * `engine/` ÷ `sohl/` line everywhere else in this package: note-format
- * knowledge here, game-system knowledge there. `sohl/document-subtypes.mjs`
- * declares SoHL's own map, *including its identity rows* — the coincidence of
- * names may never stand in for a mapping, so `skill` → `skill` is written out
- * like any other row rather than derived from the registry's keys.
- *
- * **Three properties the map exists to give:**
- *
- * - _A mapped type compiles to the subtype the row declares_, whatever the
- *   note calls itself.
- * - _An unmapped type produces no document for that system_ —
- *   {@link documentSubtype} answers `undefined` and the pass claims nothing.
- *   Silent and correct: a `place` note is not a SoHL document, and never was.
- * - _A one-to-many row is resolved by the note_, which supplies the
- *   discriminator in that system's own block. An absent one is an **error
- *   naming the note**, never a default — a default would pick one of the
- *   subtypes for the author and be right about half the time.
- *
- * A row is one of exactly two shapes, and declaring both or neither is refused
- * at definition time:
- *
- * ```js
- * skill:  { document: "Item",  subType: "skill" }
- * being:  { document: "Actor", discriminator: "kindOf",
- *           subTypes: ["character", "creature"] }
- * ```
- *
- * **A note is not the only thing that names a type.** A being's frontmatter
- * addresses each of its embedded items by `(type, shortcode)`, and that `type`
- * is the note vocabulary too — while the items it resolves against are
- * *compiled documents*, which carry only the subtype. {@link referencedSubtype}
- * is the translation for that side, and the reason it is separate from
- * {@link documentSubtype} is that a reference has no frontmatter of its own to
- * read a discriminator from.
+ * System-specific embedded references use {@link referencedSubtype}. A
+ * reference supplies no discriminator; a split row resolves only when its
+ * spelling identifies one of the permitted subtypes.
+ * Unmapped references produce a finding unless a consumer declares the type.
+ * A standard item note with a system block but no mapped type must select a
+ * native item type. Item notes may supply a valid system override.
  *
  * @module
  */
 
+import fs from "node:fs";
+import { ITEM_NOTE_TYPES } from "./item-terms.mjs";
 import { NO_SYSTEM } from "./systems.mjs";
 
 export { NO_SYSTEM };
-import { locateFrontmatterKey } from "./diagnostics.mjs";
+import { locateFrontmatterKey, positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 /**
  * One row of a system's map: what a note of this type becomes.
@@ -298,6 +265,82 @@ export function documentSubtype(map, noteType, fm, { file, absPath } = {}) {
     return declared;
 }
 
+/** Resolve an item note's native type, including a valid system override.
+ * @param {DocumentSubtypeMap} map - The target system map.
+ * @param {object} fm - The note frontmatter.
+ * @param {object} [options] - Source location.
+ * @param {string} [options.file] - File displayed in the finding.
+ * @param {string} [options.absPath] - File containing the finding.
+ * @returns {string} The native item type.
+ */
+export function itemDocumentSubtype(map, fm, options = {}) {
+    const row = subtypeRow(map, fm.type);
+    const block = fm?.[map.block];
+    const supplied = block != null && Object.hasOwn(block, "type");
+    const raw = supplied ? block.type : undefined;
+    if (supplied) {
+        const value = typeof raw === "string" ? raw.trim() : "";
+        const allowed = row?.discriminator === "type" ? row.subTypes : undefined;
+        if (!value || (allowed ? !allowed.includes(value) : !isNativeItemSubtype(map, value))) {
+            const choices = allowed ?? nativeItemSubtypes(map);
+            throw located(
+                `\`${map.block}.type\` on a "${fm.type}" note must name one of ${list(choices)}`,
+                { ...options, path: [map.block, "type"] },
+            );
+        }
+        return value;
+    }
+    if (!row && ITEM_NOTE_TYPES.includes(fm.type)) {
+        throw located(
+            `${map.system} has no default Item type for a "${fm.type}" note; write \`${map.block}.type\` as one of ${list(nativeItemSubtypes(map))}`,
+            { ...options, path: [map.block] },
+        );
+    }
+    if (row?.discriminator === "type" && row.subTypes?.includes(fm.type)) return fm.type;
+    try {
+        return documentSubtype(map, fm.type, fm, options) ?? fm.type;
+    } catch (error) {
+        if (options.absPath) {
+            error.position = positionOfFrontmatterPath(
+                fs.readFileSync(options.absPath, "utf8"),
+                [map.block],
+                { key: true },
+            );
+        }
+        throw error;
+    }
+}
+
+/** @param {DocumentSubtypeMap} map - The target system map.
+ * @returns {string[]} The native item subtypes.
+ */
+function nativeItemSubtypes(map) {
+    return [
+        ...new Set(
+            Object.values(map.types)
+                .filter((row) => row.document === "Item")
+                .flatMap((row) => (row.subType ? [row.subType] : (row.subTypes ?? []))),
+        ),
+    ].sort();
+}
+
+/** Check a native item type without interpreting it as a note type.
+ * @param {DocumentSubtypeMap} map - The target system map.
+ * @param {unknown} value - The authored native type.
+ * @returns {boolean} Whether the map declares this native item type.
+ */
+export function isNativeItemSubtype(map, value) {
+    return (
+        typeof value === "string" &&
+        value.trim() !== "" &&
+        Object.values(map.types).some(
+            (candidate) =>
+                candidate.document === "Item" &&
+                (candidate.subType === value || candidate.subTypes?.includes(value)),
+        )
+    );
+}
+
 /**
  * The answer {@link referencedSubtype} gives: a subtype, or why there is none.
  *
@@ -465,13 +508,18 @@ function readDiscriminator(fm, block, key) {
  * @param {string} [at.absPath] - The note's file, read to locate the key.
  * @param {string} [at.key] - The frontmatter key to locate.
  * @param {string} [at.value] - Prefer the line carrying this value.
+ * @param {string[]} [at.path] - Exact frontmatter path.
  * @returns {Error & {position?: {line?: number, column?: number}}} The error.
  */
-function located(message, { file, absPath, key, value } = {}) {
+function located(message, { file, absPath, key, value, path } = {}) {
     const err = /** @type {Error & {position?: object}} */ (
         new Error(message + (file ? ` — ${file}` : ""))
     );
-    const position = key ? locateFrontmatterKey(absPath, key, value) : undefined;
+    const position =
+        path && absPath ?
+            positionOfFrontmatterPath(fs.readFileSync(absPath, "utf8"), path, { key: true })
+        : key ? locateFrontmatterKey(absPath, key, value)
+        : undefined;
     if (position) err.position = position;
     return err;
 }

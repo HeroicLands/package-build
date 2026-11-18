@@ -174,7 +174,7 @@ export class Actors extends SystemActorCompiler {
                     this.errorCount++;
                     return;
                 }
-                const { model, type, ...rest } = entry;
+                const { model, type, key: _key, ...rest } = entry;
                 const read = model === undefined ? null : this.readModel(model, index, ctx);
                 if (model !== undefined && !read) return;
                 if (read && type !== undefined) {

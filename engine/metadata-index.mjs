@@ -52,6 +52,7 @@ import { formatDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
 // own index can name its file without importing this module back.
 import { metadataFileName, PACKAGEBUILD_PACKAGE } from "./packages.mjs";
 import { packageBuildRecords } from "./packagebuild-index.mjs";
+import { itemSystemBlock } from "./system-item-entries.mjs";
 import { isPackageRecord } from "./index-records.mjs";
 import { ITEM_NOTE_TYPES, systemPackages } from "./item-entries.mjs";
 
@@ -535,7 +536,12 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                     { authoredItems: record.authoredItems }
                 :   {}),
                 ...(ITEM_NOTE_TYPES.includes(parts.type) ?
-                    { data: record.data, sohl: record.sohl, hm3: record.hm3, itemRecord: record }
+                    {
+                        data: record.data,
+                        sohl: indexedItemBlock(record, "sohl"),
+                        hm3: indexedItemBlock(record, "hm3"),
+                        itemRecord: record,
+                    }
                 : parts.type === "lore" && record.subType === "culture" ?
                     {
                         data: {
@@ -819,4 +825,17 @@ export function formatUnaddressableFinding(finding, config) {
             `first is \`${finding.sampleKey}\`) — every cross-package link to ` +
             `${finding.package} would resolve to nothing, silently`,
     });
+}
+
+/** Keep authored blocks when a compiler must report an invalid type.
+ * @param {object} record - The indexed note.
+ * @param {string} system - The target system.
+ * @returns {object|undefined} The system block.
+ */
+function indexedItemBlock(record, system) {
+    try {
+        return itemSystemBlock(record, system);
+    } catch {
+        return record[system];
+    }
 }
