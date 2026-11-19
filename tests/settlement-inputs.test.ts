@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { createContentSession } from "../engine/content-session.mjs";
-import { settlementMembership } from "../engine/settlement-tables.mjs";
+import { checkSettlementTables, settlementMembership } from "../engine/settlement-tables.mjs";
 import { prepareSettlementInputs } from "../engine/settlement-inputs.mjs";
 import { proposeSettlements } from "../engine/settlement-generate.mjs";
 import { proposeUrbanSupply } from "../engine/settlement-urban.mjs";
@@ -1712,7 +1712,74 @@ describe("automatic rural placement", () => {
                 selection,
             );
             expect(seven.selection.result.reservedPopulation).toBe(35);
-            expect(seven.selection.result.unallocatedPopulation).toBe(3);
+            expect(seven.selection.result.unallocatedPopulation).toBe(276);
+            expect(seven.existingFacts.map((entry: any) => entry.fact.population)).toEqual([
+                0, 300,
+            ]);
+            expect(seven.existingRows).toEqual(baseline.existingRows);
+            const checkGeneratedRows = (session: any, selected: any) => {
+                const rows = [
+                    ...selected.existingRows,
+                    ...selected.selection.result.proposals.map((proposal: any, i: number) => {
+                        const population = proposal.calculation.estimatedPopulation;
+                        return {
+                            settlement: `Generated settlement ${i}`,
+                            polity: f.polityAddress,
+                            population,
+                            households: proposal.calculation.households,
+                            type:
+                                population < 10 ? "homestead"
+                                : population < 100 ? "hamlet"
+                                : "village",
+                            market: population <= 80 ? "subsistence" : "local",
+                            economicFocus: proposal.calculation.economicFocus,
+                            generatorSource: proposal.source,
+                        };
+                    }),
+                ];
+                const records = session.records.map((record: any) =>
+                    record.shortcode === "crown" && record.type === "affiliation" ?
+                        { ...record, data: { ...record.data, settlements: rows } }
+                    :   record,
+                );
+                const polity = records.find(
+                    (record: any) => record.shortcode === "crown" && record.type === "affiliation",
+                );
+                return checkSettlementTables(polity, {
+                    index: {
+                        notes: records,
+                        contentPackage: session.config.contentPackage,
+                        foreign: session.foreign,
+                    },
+                });
+            };
+            expect(checkGeneratedRows(sevenSession, seven)).toEqual([]);
+            const consistentSession = {
+                ...sevenSession,
+                records: sevenSession.records.map((record: any) =>
+                    record.shortcode === "capital" && record.type === "place" ?
+                        { ...record, data: { ...record.data, population: 35 } }
+                    :   record,
+                ),
+            };
+            const consistent = selectSettlementPlacements(
+                { ...f, session: consistentSession, map, settings },
+                selection,
+            );
+            expect(consistent.selection.result.reservedPopulation).toBe(35);
+            expect(consistent.selection.result.unallocatedPopulation).toBe(3);
+            expect(checkGeneratedRows(consistentSession, consistent)).toEqual([]);
+            expect(
+                checkGeneratedRows(sevenSession, consistent).some((finding: any) =>
+                    finding.message.includes("exceed the territorial ceiling of 500"),
+                ),
+            ).toBe(true);
+            expect(
+                sevenSession.records.find(
+                    (record: any) => record.shortcode === "capital" && record.type === "place",
+                )?.data.population,
+            ).toBe(300);
+            expect(fs.readFileSync(f.crownFile, "utf8")).toBe(before);
             expect(
                 seven.selection.result.proposals.every(
                     (p: any) => p.calculation.explanation.householdSize === 7,

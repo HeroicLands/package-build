@@ -430,6 +430,7 @@ export function selectSettlementPlacements(options, selection) {
                 householdSize: entry.householdSize,
             })),
         );
+        // Territorial checks sum authored populations, even when households reserve another total.
         const displayedExisting = initial.existingFacts.reduce(
             (sum, entry) =>
                 sum + (Number.isFinite(entry.fact.population) ? entry.fact.population : 0),

@@ -61,6 +61,14 @@ from their household holdings. The report includes the weights, ceilings, cell
 ledgers, unallocated population and final food calculations. Candidate points
 are operation data rather than settlement note fields.
 
+Selection respects both household-derived reservations and the territorial
+check's sum of displayed populations. Existing authored populations stay intact.
+For example, five households of seven reserve 35 people in the model, but an
+authored population of 300 still counts as 300 against the territorial ceiling.
+In a territory of 500, generated rows may therefore display at most 200 people.
+Whole-household allocation and two-significant-figure rounding can leave part of
+that allowance unused; the report keeps that remainder visible.
+
 ## Command
 
 `package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE`
@@ -123,8 +131,9 @@ expansion, ownership edges, membership results and hierarchy traversal debit
 `M` before expansion. Cached ancestry and the corpus are reused within the
 operation; a deep or multiply parented graph can cost more than a flat one.
 Repeated references count for each expanded traversal, including appearances
-in records, parsed frontmatter
-and raw-source captures; cycles are refused. For example, `G = 6,137,056`,
+in records, parsed frontmatter and raw-source captures; shared objects are not
+deduplicated when charging this traversal. Reusing one array from several records
+therefore consumes budget for each appearance. Cycles are refused. For example, `G = 6,137,056`,
 `T = 135,720,164`, `R = 19,805`, no authored placements and 100 candidates need
 about 575 million units before `M`. A selection budget of one billion leaves
 about 425 million units for membership work in that assembly example. Geometry,
