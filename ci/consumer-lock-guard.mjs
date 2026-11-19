@@ -13,6 +13,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 
+/** Check that only the candidate and its newly required dependencies change. */
 export function checkConsumerLock(before, after) {
     const candidate = "node_modules/@heroiclands/package-build";
     const { packages: oldPackages, ...oldMetadata } = before;
