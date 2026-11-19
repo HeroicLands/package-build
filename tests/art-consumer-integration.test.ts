@@ -5,14 +5,19 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import YAML from "yaml";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { configFromData } from "../engine/pack-config.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { routerFor } from "../engine/pack-router.mjs";
 import { noteTree } from "../engine/note-cache.mjs";
-import { serializeContentIndex } from "../engine/content-index.mjs";
+import {
+    serializeContentIndex,
+    prepareContentIndex,
+    emitContentIndex,
+} from "../engine/content-index.mjs";
+import { buildSite } from "../engine/site-build.mjs";
 import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
 import { writeDerivativeProvenance } from "../engine/art-provenance.mjs";
 import { stagePackageAssets } from "../engine/asset-shipping.mjs";
@@ -120,6 +125,56 @@ function fixture(options: { name?: string; primaryNote?: string; ai?: boolean | 
     return { root, config, dir, image, subject, address };
 }
 
+function addSplit(f: ReturnType<typeof fixture>, assetPath: string, shortcode: string) {
+    const name = "@example/art-second",
+        version = "1.0.0",
+        dir = path.join(f.root, "node_modules", name);
+    fs.mkdirSync(path.dirname(path.join(dir, assetPath)), { recursive: true });
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name, version }));
+    const address = `sample-none-image-${shortcode}`;
+    const record = {
+        package: "sample",
+        type: "image",
+        shortcode,
+        address: { canonical: address },
+        asset: { path: assetPath, attribution: "Artist", license: "CC0-1.0", ai: false },
+    };
+    const bytes = writeDerivativeProvenance(
+        svg,
+        { address, creator: "Artist", rights: "Terms", derivedFrom: address },
+        { repeat: ["derivedFrom"] },
+    ).bytes;
+    fs.writeFileSync(path.join(dir, assetPath), bytes);
+    const index = serializeContentIndex([decodeIndexAddresses(record, { package: "sample" })]);
+    fs.writeFileSync(path.join(dir, "index.jsonl"), index);
+    fs.writeFileSync(
+        path.join(dir, "artwork.json"),
+        JSON.stringify({
+            formatVersion: 1,
+            contentPackage: "sample",
+            index: { path: "index.jsonl", sha256: sha(index) },
+            assets: [{ path: assetPath, sha256: sha(bytes) }],
+        }),
+    );
+    const packageFile = path.join(f.root, "package.json"),
+        lockFile = path.join(f.root, "package-lock.json");
+    const pkg = JSON.parse(fs.readFileSync(packageFile, "utf8")),
+        lock = JSON.parse(fs.readFileSync(lockFile, "utf8"));
+    pkg.devDependencies[name] = version;
+    lock.packages[""].devDependencies[name] = version;
+    lock.packages[`node_modules/${name}`] = {
+        version,
+        integrity: `sha512-${Buffer.alloc(64).toString("base64")}`,
+    };
+    fs.writeFileSync(packageFile, JSON.stringify(pkg));
+    fs.writeFileSync(lockFile, JSON.stringify(lock));
+    const configPath = path.join(f.root, "package-build.config.yaml"),
+        data = YAML.parse(fs.readFileSync(configPath, "utf8"));
+    data.art.packages.push(name);
+    fs.writeFileSync(configPath, YAML.stringify(data));
+    return { config: configFromData(data, configPath), bytes };
+}
+
 describe("installed artwork in the content session", () => {
     it("keeps standalone compiler body scanning and the configured date after capture closes", async () => {
         const f = fixture();
@@ -144,6 +199,77 @@ describe("installed artwork in the content session", () => {
         expect(compiler.currentDate).toBe("721.1");
         expect(compiler.convertBody({}, "A paragraph.")).toBe("A paragraph.");
     });
+    it("publishes normal index records and supplies them to the website entry", async () => {
+        const f = fixture();
+        fs.writeFileSync(
+            path.join(f.root, "assets/content/home.md"),
+            note({ type: "homepage", shortcode: "home", name: { full: "Home" } }),
+        );
+        const session = await createContentSession({ config: f.config });
+        try {
+            const publication = await prepareContentIndex({ config: f.config, session });
+            const standalone = await prepareContentIndex({ config: f.config });
+            expect(
+                standalone.records.filter((row: any) => row.asset).map((row: any) => row.shortcode),
+            ).toEqual(["portrait"]);
+            const outDir = path.join(f.root, "index-output");
+            const emitted = emitContentIndex({ config: f.config, publication, outDir });
+            const text = fs.readFileSync(emitted.file, "utf8");
+            expect(text).toContain("sample-none-image-portrait");
+            expect(text).not.toContain("legacy.webp");
+            const built = buildSite({ config: f.config, records: session.records });
+            expect(
+                built.site?.records
+                    .filter((row: any) => row.asset)
+                    .map((row: any) => row.shortcode),
+            ).toContain("portrait");
+        } finally {
+            session.dispose();
+        }
+    });
+    it("loads distinct installed splits and rejects a flattened deployment collision", async () => {
+        const f = fixture();
+        const good = addSplit(f, "images/second.svg", "second");
+        const session = await createContentSession({ config: good.config });
+        try {
+            expect(session.artSources.size).toBe(2);
+        } finally {
+            session.dispose();
+        }
+        const other = fixture();
+        const collision = addSplit(other, "images/sub/portrait.svg", "other");
+        await expect(createContentSession({ config: collision.config })).rejects.toThrow(
+            /deployment path|duplicate/i,
+        );
+    });
+    it("keeps unknown AI visible to the index but excludes it from Foundry", async () => {
+        const f = fixture({ ai: null });
+        fs.writeFileSync(
+            path.join(f.root, "assets/content/home.md"),
+            note({ type: "homepage", shortcode: "home", name: { full: "Home" } }),
+        );
+        const session = await createContentSession({ config: f.config });
+        try {
+            expect(session.records.find((row) => row.asset)?.asset.ai).toBeNull();
+            const stage = stagePackageAssets({
+                assetsBase: f.config.paths.assets,
+                contentPackage: "sample",
+                stageDir: path.join(f.root, "stage"),
+                title: "Sample",
+                records: shippingAssetRecords(session.records),
+                artSources: session.artSources,
+            });
+            expect(stage.excluded.map((entry) => entry.record.shortcode)).toContain("portrait");
+            expect(fs.existsSync(path.join(f.root, "stage/images/portrait.svg"))).toBe(false);
+            expect(
+                buildSite({ config: f.config, records: session.records }).site?.records.find(
+                    (row: any) => row.asset,
+                )?.asset.ai,
+            ).toBeNull();
+        } finally {
+            session.dispose();
+        }
+    });
     it("derives its own asset records and stages validated bytes without legacy fallback", async () => {
         const f = fixture();
         const session = await createContentSession({ config: f.config });
@@ -166,6 +292,66 @@ describe("installed artwork in the content session", () => {
             );
         } finally {
             session.dispose();
+        }
+    });
+    it("uses a private snapshot and physically removes it on disposal", async () => {
+        const f = fixture();
+        const original = fs.mkdtempSync;
+        const created: string[] = [];
+        const spy = vi.spyOn(fs, "mkdtempSync").mockImplementation(((
+            prefix: any,
+            ...args: any[]
+        ) => {
+            const result = original(prefix, ...(args as []));
+            if (String(prefix).includes("content-art-snapshot-")) created.push(String(result));
+            return result;
+        }) as typeof fs.mkdtempSync);
+        try {
+            const session = await createContentSession({ config: f.config });
+            expect(created).toHaveLength(1);
+            const directory = created[0];
+            expect(fs.statSync(directory).mode & 0o777).toBe(0o700);
+            const entries = fs.readdirSync(directory);
+            expect(entries).toHaveLength(1);
+            expect(fs.statSync(path.join(directory, entries[0])).mode & 0o777).toBe(0o600);
+            session.dispose();
+            expect(fs.existsSync(directory)).toBe(false);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+    it("removes a partially captured snapshot when a later capture fails", async () => {
+        const f = fixture();
+        const split = addSplit(f, "images/second.svg", "second");
+        const originalMkdir = fs.mkdtempSync,
+            originalWrite = fs.writeFileSync;
+        const created: string[] = [];
+        const mkdir = vi.spyOn(fs, "mkdtempSync").mockImplementation(((
+            prefix: any,
+            ...args: any[]
+        ) => {
+            const result = originalMkdir(prefix, ...(args as []));
+            if (String(prefix).includes("content-art-snapshot-")) created.push(String(result));
+            return result;
+        }) as typeof fs.mkdtempSync);
+        const write = vi.spyOn(fs, "writeFileSync").mockImplementation(((
+            file: any,
+            data: any,
+            options: any,
+        ) => {
+            if (created.length && String(file) === path.join(created[0], "1"))
+                throw new Error("capture failed");
+            return originalWrite(file, data, options);
+        }) as typeof fs.writeFileSync);
+        try {
+            await expect(createContentSession({ config: split.config })).rejects.toThrow(
+                /capture failed/,
+            );
+            expect(created).toHaveLength(1);
+            expect(fs.existsSync(created[0])).toBe(false);
+        } finally {
+            write.mockRestore();
+            mkdir.mockRestore();
         }
     });
     it("does not retain usable captured artwork after the session closes", async () => {
@@ -353,6 +539,38 @@ describe("installed artwork in the content session", () => {
         expect(second.cache.tree).toBe("hit");
         fs.appendFileSync(f.image, "changed");
         await expect(noteTree(f.config, { toolchain: "fixture" })).rejects.toThrow();
+    });
+    it("invalidates the note cache for metadata-only and local-note edits", async () => {
+        const f = fixture();
+        await noteTree(f.config, { toolchain: "fixture" });
+        expect((await noteTree(f.config, { toolchain: "fixture" })).cache.tree).toBe("hit");
+        const indexPath = path.join(f.dir, "index.jsonl"),
+            descriptorPath = path.join(f.dir, "artwork.json");
+        const row = JSON.parse(fs.readFileSync(indexPath, "utf8").trim());
+        row.asset.license = "CC-BY-4.0";
+        const index = serializeContentIndex([decodeIndexAddresses(row, { package: "sample" })]);
+        const descriptor = JSON.parse(fs.readFileSync(descriptorPath, "utf8"));
+        descriptor.index.sha256 = sha(index);
+        fs.writeFileSync(indexPath, index);
+        fs.writeFileSync(descriptorPath, JSON.stringify(descriptor));
+        const changed = await noteTree(f.config, { toolchain: "fixture" });
+        expect(changed.cache.tree).toBe("miss");
+        expect(changed.records.find((row: any) => row.asset)?.asset.license).toBe("CC-BY-4.0");
+        expect((await noteTree(f.config, { toolchain: "fixture" })).cache.tree).toBe("hit");
+        fs.writeFileSync(
+            f.subject,
+            note({
+                type: "being",
+                shortcode: "subject",
+                name: { full: "Revised subject" },
+                data: { icon: "image-portrait" },
+            }),
+        );
+        const renamed = await noteTree(f.config, { toolchain: "fixture" });
+        expect(renamed.cache.tree).toBe("miss");
+        expect(renamed.records.find((row: any) => row.shortcode === "subject")?.name?.full).toBe(
+            "Revised subject",
+        );
     });
     it("rejects installed-image corruption before a session is returned", async () => {
         const f = fixture();
