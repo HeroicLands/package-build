@@ -145,6 +145,96 @@ describe("settlement name candidates", () => {
         });
         expect(failure.status).toBe("validation-error");
     });
+    it("contains exceptions from callback result inspection and preserves the check identity", () => {
+        const throwingThen = Object.defineProperty({ available: true, valid: true }, "then", {
+            get() {
+                throw new Error("then failed");
+            },
+        });
+        const throwingAvailable = Object.defineProperty({ valid: true }, "available", {
+            enumerable: true,
+            get() {
+                throw new Error("availability failed");
+            },
+        });
+        const throwingEvidence = Object.defineProperty(
+            { available: true, valid: true },
+            "evidence",
+            {
+                enumerable: true,
+                get() {
+                    throw new Error("evidence failed");
+                },
+            },
+        );
+        const revoked = Proxy.revocable({}, {});
+        revoked.revoke();
+        for (const [value, message] of [
+            [throwingThen, "then failed"],
+            [throwingAvailable, "availability failed"],
+            [throwingEvidence, "evidence failed"],
+            [revoked.proxy, undefined],
+        ] as const) {
+            const result = proposeSettlementName({
+                ...request(),
+                validators: { ...validators(), spelling: () => value },
+            });
+            expect(result).toMatchObject({
+                status: "validation-error",
+                field: "validators.spelling",
+                examined: 1,
+            });
+            if (message) expect(result.message).toContain(message);
+        }
+        const inheritedThen = Object.assign(Object.create({ then() {} }), {
+            available: true,
+            valid: true,
+        });
+        expect(
+            proposeSettlementName({
+                ...request(),
+                validators: { ...validators(), spelling: () => inheritedThen },
+            }),
+        ).toMatchObject({ status: "validation-error", field: "validators.spelling" });
+        expect(
+            proposeSettlementName({
+                ...request(),
+                validators: {
+                    ...validators(),
+                    spelling: () => Promise.reject(new Error("async failure")),
+                },
+            }),
+        ).toMatchObject({ status: "validation-error", field: "validators.spelling" });
+        const invalidCallbacks = Proxy.revocable({}, {});
+        invalidCallbacks.revoke();
+        expect(
+            proposeSettlementName({ ...request(), validators: invalidCallbacks.proxy }),
+        ).toMatchObject({ status: "validation-error", field: "validators" });
+    });
+    it("uses one snapshot of validation flags and retains evidence", () => {
+        let reads = 0;
+        const result = proposeSettlementName({
+            ...request(),
+            validators: {
+                ...validators(),
+                spelling: () => ({
+                    available: true,
+                    get valid() {
+                        reads++;
+                        return reads === 1;
+                    },
+                    evidence: "checked",
+                }),
+            },
+        });
+        expect(result.status).toBe("accepted");
+        expect(result.checks.spelling).toEqual({
+            available: true,
+            valid: true,
+            evidence: "checked",
+        });
+        expect(reads).toBe(1);
+    });
     it("distinguishes rejection exhaustion from stopping at the budget", () => {
         const reject = () => ({ available: true, valid: false });
         const limited = proposeSettlementName({

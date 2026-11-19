@@ -21,6 +21,20 @@ const text = (value) => typeof value === "string" && value.trim().length > 0;
 const checks = Object.freeze(["spelling", "language", "earthWords", "earthNames", "indexedNames"]);
 const plain = (value) => typeof value === "string" && /^\p{L}[\p{L}\p{M}]*$/u.test(value);
 const missing = (field, message) => ({ status: "missing", field, message });
+function validationError(field, error, examined) {
+    let message = "validation failed while inspecting the result";
+    try {
+        message = String(error?.message ?? error);
+    } catch {
+        // A thrown value can itself refuse inspection.
+    }
+    return {
+        status: "validation-error",
+        field,
+        message,
+        ...(examined === undefined ? {} : { examined }),
+    };
+}
 const addressOf = (record) => canonicalKey(record.package, "note", record.type, record.shortcode);
 const order = (seed, identity, side, index) =>
     createHash("sha256")
@@ -83,11 +97,22 @@ export function proposeSettlementName({
         return missing("exclusions", "provide existing and selected names as a list");
     if (!Number.isSafeInteger(maxCandidates) || maxCandidates < 1)
         return missing("maxCandidates", "provide a positive candidate budget");
-    if (!object(validators))
-        return missing("validators", "provide all required validation callbacks");
-    for (const name of checks)
-        if (typeof validators[name] !== "function")
-            return missing(`validators.${name}`, `provide the ${name} validation callback`);
+    const callbacks = {};
+    try {
+        if (!object(validators))
+            return missing("validators", "provide all required validation callbacks");
+        for (const name of checks) {
+            try {
+                callbacks[name] = validators[name];
+            } catch (error) {
+                return validationError(`validators.${name}`, error);
+            }
+            if (typeof callbacks[name] !== "function")
+                return missing(`validators.${name}`, `provide the ${name} validation callback`);
+        }
+    } catch (error) {
+        return validationError("validators", error);
+    }
     const data = language.data;
     if (
         !object(data) ||
@@ -179,58 +204,67 @@ export function proposeSettlementName({
             const outcomes = {};
             let rejected = false;
             for (const check of checks) {
-                let outcome;
                 try {
-                    outcome = validators[check](name, context);
+                    const outcome = callbacks[check](name, context);
+                    if (outcome instanceof Promise) {
+                        Promise.prototype.then.call(outcome, undefined, () => {});
+                        return {
+                            status: "validation-error",
+                            field: `validators.${check}`,
+                            message: "validation must return a synchronous result",
+                            examined,
+                        };
+                    }
+                    if (!object(outcome))
+                        return {
+                            status: "validation-error",
+                            field: `validators.${check}`,
+                            message: "validation must report availability and validity",
+                            examined,
+                        };
+                    if (typeof outcome.then === "function")
+                        return {
+                            status: "validation-error",
+                            field: `validators.${check}`,
+                            message: "validation must return a synchronous result",
+                            examined,
+                        };
+                    const snapshot = { ...outcome };
+                    if (typeof snapshot.then === "function")
+                        return {
+                            status: "validation-error",
+                            field: `validators.${check}`,
+                            message: "validation must return a synchronous result",
+                            examined,
+                        };
+                    if (typeof snapshot.available !== "boolean")
+                        return {
+                            status: "validation-error",
+                            field: `validators.${check}`,
+                            message: "validation must report availability and validity",
+                            examined,
+                        };
+                    if (!snapshot.available)
+                        return {
+                            status: "missing",
+                            field: `validators.${check}`,
+                            message: "required validation data is unavailable",
+                            examined,
+                        };
+                    if (typeof snapshot.valid !== "boolean")
+                        return {
+                            status: "validation-error",
+                            field: `validators.${check}`,
+                            message: "validation must report availability and validity",
+                            examined,
+                        };
+                    outcomes[check] = snapshot;
+                    if (!snapshot.valid) {
+                        rejected = true;
+                        break;
+                    }
                 } catch (error) {
-                    return {
-                        status: "validation-error",
-                        field: `validators.${check}`,
-                        message: String(error?.message ?? error),
-                        examined,
-                    };
-                }
-                if (outcome instanceof Promise) {
-                    outcome.catch(() => {});
-                    return {
-                        status: "validation-error",
-                        field: `validators.${check}`,
-                        message: "validation must return a synchronous result",
-                        examined,
-                    };
-                }
-                if (object(outcome) && typeof outcome.then === "function")
-                    return {
-                        status: "validation-error",
-                        field: `validators.${check}`,
-                        message: "validation must return a synchronous result",
-                        examined,
-                    };
-                if (!object(outcome) || typeof outcome.available !== "boolean")
-                    return {
-                        status: "validation-error",
-                        field: `validators.${check}`,
-                        message: "validation must report availability and validity",
-                        examined,
-                    };
-                if (!outcome.available)
-                    return {
-                        status: "missing",
-                        field: `validators.${check}`,
-                        message: "required validation data is unavailable",
-                        examined,
-                    };
-                if (typeof outcome.valid !== "boolean")
-                    return {
-                        status: "validation-error",
-                        field: `validators.${check}`,
-                        message: "validation must report availability and validity",
-                        examined,
-                    };
-                outcomes[check] = { ...outcome };
-                if (!outcome.valid) {
-                    rejected = true;
-                    break;
+                    return validationError(`validators.${check}`, error, examined);
                 }
             }
             if (!rejected)
