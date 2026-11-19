@@ -172,10 +172,32 @@ it("bounds chunked JSONL downloads and removes temporary files", async () => {
 });
 
 it("times out stalled index bodies and cleans download files", async () => {
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    const fakeSetTimeout = globalThis.setTimeout;
+    const starts = Array.from({ length: 5 }, () => Promise.withResolvers<void>());
+    const retries = Array.from({ length: 4 }, () => Promise.withResolvers<number>());
+    let started = 0;
+    let retryCount = 0;
+    const timerSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+        callback,
+        delay,
+        ...args
+    ) => {
+        const timer = fakeSetTimeout(callback, delay, ...args);
+        if (
+            typeof delay === "number" &&
+            delay >= 1000 &&
+            delay < 10000 &&
+            retryCount < retries.length
+        ) {
+            retries[retryCount++].resolve(delay);
+        }
+        return timer;
+    }) as typeof setTimeout);
     try {
         const { config, root } = setup(`${digest("index")}  index.jsonl\n`);
-        let started = 0;
         vi.stubGlobal(
             "fetch",
             vi.fn(async (url: string, options: RequestInit) => {
@@ -186,26 +208,61 @@ it("times out stalled index bodies and cleans download files", async () => {
                 return new Response(
                     new ReadableStream({
                         start(controller) {
-                            started++;
-                            options.signal!.addEventListener("abort", () =>
-                                controller.error(new Error("aborted")),
-                            );
+                            const signal = options.signal!;
+                            const abort = () => controller.error(new Error("aborted"));
+                            if (signal.aborted) abort();
+                            else signal.addEventListener("abort", abort, { once: true });
+                            starts[started++].resolve();
                         },
                     }),
                 );
             }),
         );
-        const result = fetchMetadata(config, rel).catch((error) => error);
-        for (let attempt = 1; attempt <= 5; attempt++) {
-            while (started < attempt) {
-                await new Promise<void>((resolve) => setImmediate(resolve));
-                await vi.advanceTimersByTimeAsync(1000);
+        const result = fetchMetadata(config, rel).then(
+            () => ({ error: undefined }),
+            (error) => ({ error }),
+        );
+        const waitFor = async <T>(milestone: Promise<T>, watchResult = true): Promise<T> => {
+            let guard: ReturnType<typeof realSetTimeout>;
+            const deadline = new Promise<never>((_, reject) => {
+                guard = realSetTimeout(
+                    () => reject(new Error("fixture milestone timed out")),
+                    10000,
+                );
+            });
+            try {
+                return await Promise.race([
+                    milestone,
+                    ...(watchResult ?
+                        [
+                            result.then(() => {
+                                throw new Error("request settled before the fixture milestone");
+                            }),
+                        ]
+                    :   []),
+                    deadline,
+                ]);
+            } finally {
+                realClearTimeout(guard!);
             }
+        };
+        for (let attempt = 0; attempt < 5; attempt++) {
+            await waitFor(starts[attempt].promise);
             await vi.advanceTimersByTimeAsync(60000);
+            if (attempt < 4) {
+                const delay = await waitFor(retries[attempt].promise);
+                expect(delay).toBeGreaterThanOrEqual(1000 * 2 ** attempt);
+                expect(delay).toBeLessThan(1000 * 2 ** attempt + 250);
+                await vi.advanceTimersByTimeAsync(delay);
+            }
         }
-        expect(await result).toBeInstanceOf(Error);
+        const outcome = await waitFor(result, false);
+        expect(outcome.error).toBeInstanceOf(Error);
+        expect(outcome.error.message).toMatch(/download stream failed/);
+        expect(started).toBe(5);
         expect(fs.readdirSync(path.join(root, "shared", "heroiclands", "downloads"))).toEqual([]);
     } finally {
+        timerSpy.mockRestore();
         vi.useRealTimers();
     }
-});
+}, 110000);
