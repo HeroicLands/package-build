@@ -466,6 +466,151 @@ describe("settlement input assembly", () => {
 });
 
 describe("settlement assembly authority and identities", () => {
+    it("reserves existing and explicit cell slots before assigning new placements", async () => {
+        const f = await assemblyFixture();
+        try {
+            const placement = (source?: object) => ({
+                cellId: 7,
+                ...(source ? { source } : {}),
+                areaAcres: 1000,
+                cellAreaAcres: 5000,
+            });
+            const settings = {
+                ...f.settings,
+                placements: [
+                    placement(f.source(0)),
+                    placement(f.source(1)),
+                    placement(),
+                    placement(f.source(4)),
+                    placement(),
+                ],
+            };
+            const first = prepareSettlementInputs({ ...f, settings });
+            expect(first.resolvedPlacements.map((item: any) => item.source.slot)).toEqual([
+                0, 1, 2, 4, 3,
+            ]);
+            expect(first.ruralInput.placements).toEqual(first.resolvedPlacements);
+            expect(prepareSettlementInputs({ ...f, settings }).resolvedPlacements).toEqual(
+                first.resolvedPlacements,
+            );
+            const saved = {
+                ...settings,
+                placements: [
+                    placement(f.source(0)),
+                    placement(f.source(1)),
+                    placement(f.source(2)),
+                    placement(f.source(4)),
+                    placement(),
+                ],
+            };
+            const frontmatter = structuredClone(first.sourceCapture.get(f.crownFile).frontmatter);
+            frontmatter.data.settlements.push({
+                ...frontmatter.data.settlements[0],
+                settlement: "New Farm",
+                generatorSource: f.source(2),
+            });
+            write(f.crownFile, note(frontmatter, "Unrelated text stays intact."));
+            const nextSession = await createContentSession({ config: f.session.config });
+            try {
+                const next = prepareSettlementInputs({
+                    ...f,
+                    session: nextSession,
+                    settings: saved,
+                });
+                expect(next.existingRows[1].generatorSource).toEqual(f.source(2));
+                expect(next.resolvedPlacements.map((item: any) => item.source.slot)).toEqual([
+                    0, 1, 2, 4, 3,
+                ]);
+                expect(next.ruralInput.placements).toEqual(next.resolvedPlacements);
+            } finally {
+                nextSession.dispose();
+            }
+            expect(f.settings.placements[0].source).toEqual(f.source(0));
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("rejects duplicate explicit source tuples before assigning new slots", async () => {
+        const f = await assemblyFixture();
+        try {
+            const settings = {
+                ...f.settings,
+                placements: [
+                    {
+                        cellId: 7,
+                        source: { mapId: "map", kind: "cell", id: 7 },
+                        areaAcres: 1,
+                        cellAreaAcres: 3,
+                    },
+                    { cellId: 7, source: f.source(0), areaAcres: 1, cellAreaAcres: 3 },
+                    { cellId: 7, areaAcres: 1, cellAreaAcres: 3 },
+                ],
+            };
+            const result = prepareSettlementInputs({ ...f, settings });
+            expect(result.ruralInput).toBeUndefined();
+            expect(result.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ field: "settings.placements.1.source" }),
+                ]),
+            );
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("uses an explicitly bound note's existing source for its placement", async () => {
+        const f = await assemblyFixture();
+        try {
+            const settings = {
+                ...f.settings,
+                placements: [
+                    { cellId: 7, source: f.source(0), areaAcres: 1000, cellAreaAcres: 3000 },
+                    { cellId: 7, noteAddress: f.noteAddress, areaAcres: 1000, cellAreaAcres: 3000 },
+                    { cellId: 7, areaAcres: 1000, cellAreaAcres: 3000 },
+                ],
+            };
+            const result = prepareSettlementInputs({ ...f, settings });
+            expect(result.resolvedPlacements.map((item: any) => item.source.slot)).toEqual([
+                0, 1, 2,
+            ]);
+            expect(proposeSettlements(result.ruralInput)).toMatchObject({ reservedPopulation: 25 });
+            const missingNote = {
+                ...settings,
+                placements: [
+                    { ...settings.placements[1], noteAddress: "sessionproof-note-place-unknown" },
+                ],
+            };
+            const invalid = prepareSettlementInputs({ ...f, settings: missingNote });
+            expect(invalid.ruralInput).toBeUndefined();
+            expect(invalid.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ field: "settings.placements.0.source" }),
+                ]),
+            );
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("retains an unknown authored count when assigning an independent slot", async () => {
+        const f = await assemblyFixture(true);
+        try {
+            const settings = {
+                ...f.settings,
+                placements: [
+                    ...f.settings.placements.slice(0, 2),
+                    { cellId: 7, areaAcres: 1000, cellAreaAcres: 3000 },
+                ],
+            };
+            const result = prepareSettlementInputs({ ...f, settings });
+            expect(result.existingRows[0].households).toBeNull();
+            expect(result.resolvedPlacements[2].source).toEqual(f.source(2));
+            expect(result.ruralInput).toBeUndefined();
+            expect(result.missing).toEqual(
+                expect.arrayContaining([expect.objectContaining({ field: "households" })]),
+            );
+        } finally {
+            f.session.dispose();
+        }
+    });
     it("uses an indexed settlement culture for rural reservations ahead of the map", async () => {
         const f = await assemblyFixture(false, false, false, false, true);
         try {

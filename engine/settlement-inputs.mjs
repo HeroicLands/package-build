@@ -500,6 +500,77 @@ export function prepareSettlementInputs({
                 "bindings.subpolities",
                 `binding ${binding.address} is not a direct subordinate polity`,
             );
+    let resolvedPlacements;
+    if (Array.isArray(settings.placements) && object(map) && typeof map.mapId === "string") {
+        const reserved = new Set(
+            facts.map((entry) => sourceKey(entry.source, map.mapId)).filter(Boolean),
+        );
+        const explicit = new Set();
+        let valid = true;
+        const placements = settings.placements.map((placement, index) => {
+            if (
+                !object(placement) ||
+                !count(placement.cellId) ||
+                !cells.some((cell) => cell.id === placement.cellId)
+            ) {
+                inputMissing(
+                    `settings.placements.${index}`,
+                    "bind this placement to a mapped cell",
+                );
+                valid = false;
+                return undefined;
+            }
+            const result = { ...placement };
+            if (!own(result, "source") && result.noteAddress !== undefined) {
+                const matches = facts.filter((entry) => entry.fact.identity === result.noteAddress);
+                if (matches.length === 1 && matches[0].source !== undefined)
+                    result.source = matches[0].source;
+                else {
+                    inputMissing(
+                        `settings.placements.${index}.source`,
+                        "bind this noted settlement to its existing map identity",
+                    );
+                    valid = false;
+                }
+            }
+            if (own(result, "source")) {
+                const key = sourceKey(result.source, map.mapId);
+                const cell = cellFor(result.source);
+                if (!key || !cell || cell.id !== result.cellId) {
+                    inputMissing(
+                        `settings.placements.${index}.source`,
+                        "bind a valid identity in this mapped cell",
+                    );
+                    valid = false;
+                } else if (explicit.has(key)) {
+                    inputMissing(
+                        `settings.placements.${index}.source`,
+                        "each placement needs a distinct map identity",
+                    );
+                    valid = false;
+                } else {
+                    explicit.add(key);
+                    reserved.add(key);
+                }
+            }
+            return result;
+        });
+        if (valid) {
+            for (const placement of placements) {
+                if (own(placement, "source")) continue;
+                let slot = 0;
+                let source = { mapId: map.mapId, kind: "cell", id: placement.cellId, slot };
+                while (reserved.has(sourceKey(source, map.mapId))) {
+                    if (!Number.isSafeInteger(++slot))
+                        throw new RangeError("no representable cell slot remains");
+                    source = { ...source, slot };
+                }
+                placement.source = source;
+                reserved.add(sourceKey(source, map.mapId));
+            }
+            resolvedPlacements = placements;
+        }
+    }
     inputMissing("placement", "discover settlement placements and acreage automatically");
     if (!Array.isArray(settings.landRules))
         inputMissing("settings.landRules", "provide land profiles for mapped placements");
@@ -521,12 +592,12 @@ export function prepareSettlementInputs({
     let ruralInput, urbanInput;
     if (
         !baseMissing.length &&
-        Array.isArray(settings.placements) &&
+        Array.isArray(resolvedPlacements) &&
         Array.isArray(settings.landRules)
     ) {
         const candidate = {
             map,
-            placements: settings.placements,
+            placements: resolvedPlacements,
             existing: facts.map((entry) => entry.fact),
             subpolities,
             cultureSizes,
@@ -615,6 +686,7 @@ export function prepareSettlementInputs({
         existingFacts: facts,
         cultureSizes,
         subpolities,
+        resolvedPlacements,
         ruralInput,
         urbanInput,
         missing,
