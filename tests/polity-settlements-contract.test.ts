@@ -10,6 +10,7 @@ import {
 } from "../engine/settlement-terms.mjs";
 import { checkSettlementTables, settlementMarkdown } from "../engine/settlement-tables.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { checkDataKeys } from "../engine/data-keys.mjs";
 
 describe("polity settlement contract", () => {
     it("declares the complete table and row vocabulary", () => {
@@ -36,6 +37,9 @@ describe("polity settlement contract", () => {
             "population",
             "market",
             "notes",
+            "households",
+            "economicFocus",
+            "generatorSource",
         ]);
         expect(SETTLEMENTS_FIELD.kind).toBe("list");
     });
@@ -45,6 +49,7 @@ describe("polity settlement contract", () => {
         expect(affiliation).toContain("settlements");
         expect(affiliation).toContain("territorial_population");
         expect(place).not.toContain("settlements");
+        expect(NOTE_VOCABULARY.lore.data.map((field) => field.name)).toContain("householdSize");
         expect(place).toEqual(
             expect.arrayContaining([
                 "type",
@@ -53,6 +58,8 @@ describe("polity settlement contract", () => {
                 "holder",
                 "market",
                 "notes",
+                "households",
+                "economicFocus",
             ]),
         );
     });
@@ -118,6 +125,21 @@ describe("settlement population and hierarchy", () => {
                 ),
             ).toBe(true);
         }
+    });
+    it("accepts authoring facts without applying economic or map rules", () => {
+        const { polity, index } = corpus([
+            {
+                ...row,
+                households: 0,
+                economicFocus: "mining",
+                generatorSource: { mapId: "map-1", kind: "cell", id: 123, slot: 0 },
+            },
+        ]);
+        expect(checkSettlementTables(polity, { index })).toEqual([]);
+        expect(checkDataKeys(polity, [SETTLEMENTS_FIELD])).toEqual([]);
+        const unknown = corpus([{ ...row, households: null, economicFocus: "custom livelihood" }]);
+        expect(checkSettlementTables(unknown.polity, { index: unknown.index })).toEqual([]);
+        expect(checkDataKeys(unknown.polity, [SETTLEMENTS_FIELD])).toEqual([]);
     });
     it("locates a finding at the authored field", () => {
         const { polity, index } = corpus([{ ...row, market: "weekly" }]);

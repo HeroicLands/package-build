@@ -448,6 +448,7 @@ export function checkSettlementTables(
     };
     const checkFacts = (row, at, listed) => {
         for (const field of SETTLEMENT_ROW_FIELDS) {
+            if (field.table === false) continue;
             const key = field.name;
             const value = row[key];
             if (!listed && ["settlement", "polity", "location"].includes(key)) continue;

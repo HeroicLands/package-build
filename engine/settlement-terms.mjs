@@ -37,6 +37,59 @@ const enumeration = (name, allowed, nullable = false) => ({
     shape: allowed.join(", ") + (nullable ? ", or null" : ""),
     describe: `The settlement's ${name}.`,
 });
+/** A settlement's recorded household count. */
+export const HOUSEHOLDS_FIELD = Object.freeze({
+    name: "households",
+    kind: "integer",
+    nullable: true,
+    shape: "a nonnegative household count or null",
+    describe: "Exact households; null means unknown.",
+    table: false,
+});
+/** A settlement's primary livelihood. */
+export const ECONOMIC_FOCUS_FIELD = Object.freeze({
+    name: "economicFocus",
+    kind: "string",
+    shape: "a primary livelihood",
+    describe: "The settlement's primary livelihood.",
+    table: false,
+});
+/** Map identity associated with a generated settlement row. */
+export const GENERATOR_SOURCE_FIELD = Object.freeze({
+    name: "generatorSource",
+    kind: "map",
+    shape: "a map source identity",
+    describe: "The map cell or burg used to identify this row.",
+    table: false,
+    fields: Object.freeze(
+        [
+            {
+                name: "mapId",
+                kind: "string",
+                shape: "a map identity",
+                describe: "Stable map identity.",
+            },
+            {
+                name: "kind",
+                kind: "string",
+                shape: "cell or burg",
+                describe: "The map object kind.",
+            },
+            {
+                name: "id",
+                kind: "integer",
+                shape: "a nonnegative integer",
+                describe: "The map object ID.",
+            },
+            {
+                name: "slot",
+                kind: "integer",
+                shape: "a nonnegative integer",
+                describe: "A settlement's slot within a cell.",
+            },
+        ].map(Object.freeze),
+    ),
+});
 /** Fields declared by each settlement row. */
 export const SETTLEMENT_ROW_FIELDS = Object.freeze(
     [
@@ -91,11 +144,14 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
             shape: "nonempty short text",
             describe: "What distinguishes this settlement.",
         },
+        HOUSEHOLDS_FIELD,
+        ECONOMIC_FOCUS_FIELD,
+        GENERATOR_SOURCE_FIELD,
     ].map(Object.freeze),
 );
 /** Columns in the generated table. */
 export const SETTLEMENT_COLUMNS = Object.freeze(
-    SETTLEMENT_ROW_FIELDS.map((field) =>
+    SETTLEMENT_ROW_FIELDS.filter((field) => field.table !== false).map((field) =>
         Object.freeze({ name: field.name[0].toUpperCase() + field.name.slice(1), required: true }),
     ),
 );

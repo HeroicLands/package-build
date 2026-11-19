@@ -161,6 +161,13 @@ A polity may omit a listed settlement’s location, holder and notes when they
 are unknown. A supplied location must resolve to a place; a holder is a
 nonempty name or a resolving Address. Supplied notes must be nonempty. The [settlement table reference](../reference/format-details.md#a-politys-settlements-table) describes the row.
 
+A settlement row or note can state an exact `households` count and its primary
+livelihood in `economicFocus`. A culture can state its average people per
+household as `data.householdSize`. A row can record a map identity in
+`generatorSource`; authored facts take precedence over defaults. The
+[settlement table reference](../reference/format-details.md#a-politys-settlements-table)
+describes the identity fields and unknown household counts.
+
 Settlement-table exceptions are declared by address with a reason in the
 [package configuration](../configuration.md#settlement-exemptions). The same
 mechanism records an aggregate population exception for a polity.

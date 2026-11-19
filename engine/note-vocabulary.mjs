@@ -2761,6 +2761,11 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             APPEARANCE_PROFILE_FIELD,
             {
+                name: "householdSize",
+                ...NUM,
+                describe: "Culture: average people per household, used as an authoring default.",
+            },
+            {
                 name: "vehicleAppearanceProfile",
                 kind: "list",
                 shape: "A list of vehicle appearance profile rows.",
@@ -2881,13 +2886,20 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "Populated settlements require a polity; other populated places without the key receive an advisory.",
             },
             ...SETTLEMENT_ROW_FIELDS.filter((field) =>
-                ["type", "fortification", "stronghold", "holder", "market", "notes"].includes(
-                    field.name,
-                ),
+                [
+                    "type",
+                    "fortification",
+                    "stronghold",
+                    "holder",
+                    "market",
+                    "notes",
+                    "households",
+                    "economicFocus",
+                ].includes(field.name),
             ).map(({ required, ...field }) =>
-                field.name === "market" ?
-                    { ...field, allowed: undefined, check: checkMarket }
-                :   field,
+                field.name === "market" ? { ...field, allowed: undefined, check: checkMarket }
+                : field.name === "households" ? { ...field, kind: "number" }
+                : field,
             ),
             {
                 name: "borders",

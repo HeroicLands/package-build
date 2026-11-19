@@ -6202,6 +6202,9 @@ rank names the standing, and the standing says.
 | `settlements[].population`                      | nonnegative integer or null                                               | Residents, to at most two significant digits; null means unknown and zero means abandoned.                                  |
 | `settlements[].market`                          | market class                                                              | The market's reach.                                                                                                         |
 | `settlements[].notes`                           | nonempty short text                                                       | What distinguishes the settlement.                                                                                          |
+| `settlements[].households`                      | nonnegative integer or null                                               | Exact household count, or null when unknown.                                                                                |
+| `settlements[].economicFocus`                   | text                                                                      | Primary livelihood.                                                                                                         |
+| `settlements[].generatorSource`                 | map                                                                       | Identity of the map cell or burg associated with the row.                                                                   |
 | `economy`                                       | `Address[]`                                                               | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default                                      |
 | `lore`                                          | `Address[]`                                                               | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar                              |
 | `parents`                                       | `Address[]`                                                               | Affiliations that this affiliation is subordinate to                                                                        |
@@ -8867,6 +8870,21 @@ A polity (`affiliation`, `subType: polity`) lists settlements without notes in
 market. Location, holder and short notes may be omitted when unknown. Polity
 and holder accept an Address with an explicit type or a plain name; location
 is a place Address. Fortification and stronghold may be omitted or null.
+
+A listed row or settlement note may state `households` as the exact household
+count, with `null` for unknown and `0` for none. A culture may state its average
+people per household as `data.householdSize`; the average is not a universal
+constant. A settlement's `economicFocus` names its primary livelihood, such as
+`agrarian`, `fishing`, `hunting`, `trapping`, `mining`, `trading`, or
+`subsistence`. This vocabulary is open. A mining settlement on savannah is
+valid; its livelihood does not assert a mineral deposit.
+
+A listed row's optional `generatorSource` identifies its map origin with a
+nonempty `mapId`, `kind` of `cell` or `burg`, and a nonnegative integer `id`.
+A cell identity may also carry a nonnegative `slot` for a settlement within
+the cell; a burg identity has no slot. This identity is separate from the map
+snapshot hash. Specific settlement notes and authored household counts take
+precedence over generator defaults, including zero and unknown counts.
 
 A settlement with a note states its own facts in `data`, with `government`
 naming its polity and `parents` naming its enclosing places. It has no authored
