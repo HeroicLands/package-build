@@ -161,6 +161,25 @@ describe("the art a compiled sohl item actually gets", () => {
         expect(entry.img).toBe("systems/sohl/icons/headgear.svg");
     });
 
+    it("keeps language samples in the index rather than the compiled item", () => {
+        const entry = compiler().buildEntry(
+            {
+                ...SKILL_FM,
+                subType: "language",
+                data: { writing: { examples: ["hello"] }, samples: { prose: ["text"] } },
+                sohl: {
+                    subType: "language",
+                    templatePriority: null,
+                    flags: { demo: { retained: true } },
+                },
+            },
+            "",
+        );
+        expect(entry.flags.demo).toEqual({ retained: true });
+        expect(JSON.stringify(entry.flags)).not.toMatch(/writing|samples|hello|text/);
+        expect(JSON.stringify(entry.system)).not.toMatch(/writing|samples|hello|text/);
+    });
+
     it("still lets a note override it", () => {
         const pack = compiler();
         // The one file the note names. An art slot resolves through the

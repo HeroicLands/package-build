@@ -849,3 +849,79 @@ describe("a spelling guide's sounds", () => {
         expect(findings[0].message).toMatch(/"stress" is not a key of `data\.sounds`/);
     });
 });
+
+describe("language writing and samples", () => {
+    const withData = (lines: string) => DUNHARI.replace("data:\n", `data:\n${lines}\n`);
+    const sections = [
+        "  writing:\n    paradigms: [{verb: speak, I: speak, thou: speak, heSheIt: speaks, plural: speak}]",
+        "  writing:\n    examples: [one, two]",
+        "  writing:\n    worked: [{meaning: hello, text: greeting}]",
+        "  writing:\n    conversation: [hello, goodbye]",
+        "  samples:\n    prose: [first, second]",
+        "  samples:\n    verse: [{work: song, lines: [first, second]}]",
+    ];
+    it.each(sections)("accepts each optional member independently", (section) => {
+        expect(dunhari(withData(section))).toEqual([]);
+    });
+    it.each([
+        "  writing: [text]",
+        "  samples: text",
+        "  writing: {examples: [1]}",
+        "  writing: {paradigms: [{verb: speak, I: speak, thou: speak, heSheIt: speaks}]}",
+        "  writing: {worked: [{meaning: hello}]}",
+        "  samples: {verse: [{work: song, lines: [1]}]}",
+        "  samples: {verse: [{work: song}]}",
+        "  writing: {unknown: text}",
+        "  samples: {verse: [{work: song, lines: [], extra: text}]}",
+    ])("rejects invalid nested data", (section) => {
+        expect(dunhari(withData(section)).length).toBeGreaterThan(0);
+    });
+    it.each([
+        "  writing: {paradigms: [], examples: [], worked: [], conversation: []}",
+        "  samples: {prose: [], verse: []}",
+        "  samples: {verse: [{work: song, lines: []}]}",
+    ])("accepts empty optional containers", (section) => {
+        expect(dunhari(withData(section))).toEqual([]);
+    });
+    it.each([
+        ["  writing: {examples: [null]}", "data.writing.examples[0]", "null"],
+        ["  writing: {conversation: [null]}", "data.writing.conversation[0]", "null"],
+        ["  samples: {prose: [null]}", "data.samples.prose[0]", "null"],
+        [
+            "  samples: {verse: [{work: song, lines: [null]}]}",
+            "data.samples.verse[0].lines[0]",
+            "null",
+        ],
+        ["  writing: {paradigms: [null]}", "data.writing.paradigms[0]", "null"],
+        ["  writing: {paradigms: [[]]}", "data.writing.paradigms[0]", "[]"],
+        ["  writing: {worked: [null]}", "data.writing.worked[0]", "null"],
+        ["  writing: {worked: [[]]}", "data.writing.worked[0]", "[]"],
+        ["  samples: {verse: [null]}", "data.samples.verse[0]", "null"],
+        ["  samples: {verse: [[]]}", "data.samples.verse[0]", "[]"],
+    ])("locates invalid entries at their paths", (section, path, value) => {
+        const text = withData(section);
+        const findings = dunhari(text);
+        const finding = findings.find((f) => f.message.includes(`\`${path}\``));
+        expect(finding, JSON.stringify(findings)).toBeDefined();
+        expect(at(text, finding).startsWith(value)).toBe(true);
+    });
+    it("rejects these keys on a non-language skill", () => {
+        const text = [
+            "---",
+            "shortcode: riding",
+            "name: {full: Riding}",
+            "type: skill",
+            "subType: physical",
+            "data:",
+            "  writing: {examples: [hello]}",
+            "  samples: {prose: [hello]}",
+            "---",
+            "",
+            "Body.",
+            "",
+        ].join("\n");
+        const findings = lint({ "Skills/Riding.md": text });
+        expect(findings.some((f) => /writing/.test(f.message))).toBe(true);
+        expect(findings.some((f) => /samples/.test(f.message))).toBe(true);
+    });
+});

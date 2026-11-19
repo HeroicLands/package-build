@@ -9,7 +9,7 @@
  * `docs/commands.md` documents the real command surface, not a hand-kept
  * transcription of it.
  *
- * The CLI registers commands from `bin/package-build.mjs` and
+ * The CLI registers commands from `bin/package-build-commands.mjs` and
  * `bin/content-commands.mjs`. Both build their yargs command trees from `<name>Command()` factory functions, each
  * returning a `{ command, describe, builder, handler }` module. This file
  * parses both sources directly: it locates every `*Command()` function body by
@@ -193,7 +193,10 @@ function flatten(nodes: CommandNode[]): CommandNode[] {
     return nodes.flatMap((n) => [n, ...flatten(n.children)]);
 }
 
-const PACKAGE_BUILD_SRC = fs.readFileSync(path.join(ROOT, "bin/package-build.mjs"), "utf8");
+const PACKAGE_BUILD_SRC = fs.readFileSync(
+    path.join(ROOT, "bin/package-build-commands.mjs"),
+    "utf8",
+);
 const CONTENT_COMMANDS_SRC = fs.readFileSync(path.join(ROOT, "bin/content-commands.mjs"), "utf8");
 
 const COMMAND_SOURCES: { binary: string; source: string }[] = [

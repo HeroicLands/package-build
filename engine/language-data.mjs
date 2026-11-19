@@ -638,6 +638,46 @@ export function checkLanguageData(note, { index, types } = {}) {
         finding(["data", "roman"], "error", message),
     );
 
+    // Supplied list entries have the declared row or string shape.
+    const writing = isMap(data.writing) ? data.writing : {};
+    const samples = isMap(data.samples) ? data.samples : {};
+    for (const [section, value, keys] of [
+        ["writing", writing, ["paradigms", "worked"]],
+        ["samples", samples, ["verse"]],
+    ]) {
+        for (const key of keys) {
+            listOf(value[key]).forEach((row, i) => {
+                if (row == null || (Array.isArray(row) && row.length === 0))
+                    findings.push(
+                        finding(
+                            ["data", section, key, i],
+                            "error",
+                            `\`data.${section}.${key}[${i}]\` must be a map with its required fields`,
+                        ),
+                    );
+            });
+        }
+    }
+    const checkNullStrings = (value, path, label) => {
+        listOf(value).forEach((entry, i) => {
+            if (entry == null)
+                findings.push(
+                    finding([...path, i], "error", `\`${label}[${i}]\` must be a string`),
+                );
+        });
+    };
+    for (const key of ["examples", "conversation"])
+        checkNullStrings(writing[key], ["data", "writing", key], `data.writing.${key}`);
+    checkNullStrings(samples.prose, ["data", "samples", "prose"], "data.samples.prose");
+    listOf(samples.verse).forEach((row, i) => {
+        if (isMap(row))
+            checkNullStrings(
+                row.lines,
+                ["data", "samples", "verse", i, "lines"],
+                `data.samples.verse[${i}].lines`,
+            );
+    });
+
     // Only the shape of a supplied declaration: no word is compared with it.
     const grammar = isMap(data.grammar) ? data.grammar : {};
     listOf(grammar.plural).forEach((row, i) => {
