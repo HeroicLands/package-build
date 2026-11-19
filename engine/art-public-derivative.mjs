@@ -13,6 +13,7 @@ import {
     readWebpProvenance,
     sniffFormat,
     hasForeignXmp,
+    provenancePacket,
 } from "./art-provenance-core.mjs";
 import { writeDerivativeProvenance } from "./art-provenance.mjs";
 
@@ -142,7 +143,11 @@ export function inspectPublicDerivative(
         throw failure("public image metadata exceeds the publication allowlist");
     let sanitized;
     try {
-        if (format === "jpeg") return { name, bytes, format, metadata: r };
+        if (format === "jpeg") {
+            if (read.packet !== provenancePacket(r))
+                throw new Error("JPEG XMP does not match its public record");
+            return { name, bytes, format, metadata: r };
+        }
         sanitized = writeDerivativeProvenance(bytes, r, {
             repeat: [
                 "derivedFrom",

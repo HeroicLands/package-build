@@ -110,7 +110,7 @@ A master is a PNG or an SVG, and a derivative is a WebP, SVG or JPEG rendered fr
 
 ## Book images
 
-Screen books reuse the same JPEG, WebP and SVG artwork files as Foundry. Print books require private masters and render JPEGs at 300 DPI and quality 82, using sRGB and flattening transparency onto white. Raster masters are never enlarged; SVG masters render at the placement resolution. Each JPEG carries its image Address, creator, rights, license, declared AI status and the master Address as `hl:derivedFrom`. Its name and primary note appear only when the indexed note is public. Prompts, generation details and foreign metadata are omitted. The provenance check requires the JPEG's derivative marker and master trace and refuses fields outside this public set.
+Screen books reuse the same JPEG, WebP and SVG artwork files as Foundry. An opaque PNG master, including an opaque icon or a PNG with an unused alpha channel, produces JPEG; a PNG with any transparent pixel produces WebP. SVG remains vector. A print book using npm artwork cannot be built. A print book rendered from private masters produces JPEGs at 300 DPI and quality 82, using sRGB and flattening transparency onto white. Raster masters are never enlarged; SVG masters render at the placement resolution. Each JPEG carries its image Address, creator, rights, license, declared AI status and the master Address as `hl:derivedFrom`. Its name and primary note appear only when the indexed note is public. Prompts, generation details and foreign metadata are omitted. The provenance check requires the JPEG's derivative marker and master trace and refuses fields outside this public set.
 
 ## What the Foundry package ships
 

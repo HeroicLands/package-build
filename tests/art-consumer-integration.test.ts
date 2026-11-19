@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import sharp from "sharp";
+import { deriveRecord, provenancePacket } from "../engine/art-provenance-core.mjs";
 import { spawnSync } from "node:child_process";
 import YAML from "yaml";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -777,4 +779,229 @@ it("stages the same verified installed screen asset in a book and refuses npm pr
     await expect(buildPdf({ config, edition: "print", compile: false })).rejects.toThrow(
         /print.*artwork/i,
     );
+});
+
+async function rasterBookFixture(format: "jpeg" | "webp") {
+    const f = fixture();
+    const rowPath = path.join(f.dir, "index.jsonl"),
+        descriptorPath = path.join(f.dir, "artwork.json");
+    const row = JSON.parse(fs.readFileSync(rowPath, "utf8").trim());
+    const extension = format === "jpeg" ? "jpg" : "webp",
+        relative = `images/portrait.${extension}`;
+    row.asset.path = relative;
+    const publicRecord = {
+        address: f.address,
+        creator: ["Artist"],
+        rights: "Terms",
+        derivedFrom: f.address,
+    };
+    const source = sharp({
+        create: {
+            width: 4,
+            height: 4,
+            channels: 4,
+            background: { r: 255, g: 0, b: 0, alpha: format === "jpeg" ? 1 : 0.4 },
+        },
+    });
+    const bytes =
+        format === "jpeg" ?
+            await source
+                .jpeg()
+                .withXmp(provenancePacket(deriveRecord(publicRecord, { repeat: ["derivedFrom"] })))
+                .toBuffer()
+        :   writeDerivativeProvenance(await source.webp().toBuffer(), publicRecord, {
+                repeat: ["derivedFrom"],
+            }).bytes;
+    const file = path.join(f.dir, relative);
+    fs.unlinkSync(f.image);
+    fs.unlinkSync(path.join(f.root, "assets/images/legacy.webp"));
+    fs.writeFileSync(file, bytes);
+    const index = serializeContentIndex([decodeIndexAddresses(row, { package: "sample" })]);
+    fs.writeFileSync(rowPath, index);
+    const descriptor = JSON.parse(fs.readFileSync(descriptorPath, "utf8"));
+    descriptor.index.sha256 = sha(index);
+    descriptor.assets = [{ path: relative, sha256: sha(bytes) }];
+    fs.writeFileSync(descriptorPath, JSON.stringify(descriptor));
+    const manifestPath = path.join(f.root, "package.json"),
+        manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    manifest.homepage = "https://example.invalid/sample/";
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    fs.writeFileSync(
+        f.subject,
+        note(
+            {
+                type: "being",
+                shortcode: "subject",
+                name: { full: "Subject" },
+                data: { icon: "image-portrait" },
+            },
+            `![Portrait](${relative})`,
+        ),
+    );
+    fs.writeFileSync(
+        path.join(f.root, "assets/content/map.md"),
+        note(
+            {
+                type: "map",
+                subType: "battlemap",
+                shortcode: "samplemap",
+                name: { full: "Sample map" },
+                data: {
+                    fixup: [
+                        {
+                            path: ".levels[level0000000000].background.src",
+                            type: "address",
+                            value: "portrait",
+                        },
+                    ],
+                    scene: {
+                        name: "Sample map",
+                        width: 4,
+                        height: 4,
+                        levels: [
+                            {
+                                _id: "level0000000000",
+                                name: "Ground",
+                                background: { src: `modules/sample/${relative}` },
+                            },
+                        ],
+                    },
+                },
+            },
+            "A map.",
+        ),
+    );
+    fs.writeFileSync(
+        path.join(f.root, "book.yaml"),
+        `contents:\n  - sectionName: People\n    page:\n      banner: assets/${relative}\n    contents:\n      - filter: "type = 'being'"\n      - filter: "type = 'map'"\n`,
+    );
+    const configPath = path.join(f.root, "package-build.config.yaml"),
+        data = YAML.parse(fs.readFileSync(configPath, "utf8"));
+    data.pdf = {
+        unprinted: "type = 'homepage'",
+        books: [
+            {
+                id: "core",
+                title: "People",
+                document: "book.yaml",
+                coverImage: `assets/${relative}`,
+            },
+        ],
+    };
+    fs.writeFileSync(configPath, YAML.stringify(data));
+    return { ...f, file, bytes, config: configFromData(data, configPath), extension };
+}
+
+it.each(["jpeg", "webp"] as const)(
+    "reuses captured installed %s bytes for screen book body, cover, banner and map",
+    async (format) => {
+        const f = await rasterBookFixture(format);
+        const { buildPdf } = await import("../engine/pdf-build.mjs");
+        const originalMkdir = fs.mkdtempSync,
+            originalWrite = fs.writeFileSync,
+            captures: string[] = [];
+        const mkdir = vi.spyOn(fs, "mkdtempSync").mockImplementation(((
+            prefix: any,
+            ...args: any[]
+        ) => {
+            const result = originalMkdir(prefix, ...(args as []));
+            if (String(prefix).includes("content-art-snapshot-")) captures.push(String(result));
+            return result;
+        }) as typeof fs.mkdtempSync);
+        let changed = false;
+        const write = vi.spyOn(fs, "writeFileSync").mockImplementation(((
+            file: any,
+            data: any,
+            options: any,
+        ) => {
+            const result = originalWrite(file, data, options);
+            if (!changed && captures.some((dir) => String(file) === path.join(dir, "0"))) {
+                changed = true;
+                fs.appendFileSync(f.file, "changed after capture");
+            }
+            return result;
+        }) as typeof fs.writeFileSync);
+        try {
+            const result = await buildPdf({ config: f.config, edition: "screen", compile: false });
+            expect(result.built, JSON.stringify(result.findings)).toBe(true);
+            expect(changed).toBe(true);
+            expect(captures.length).toBeGreaterThan(0);
+            for (const dir of captures) expect(fs.existsSync(dir)).toBe(false);
+            const files: string[] = [];
+            const visit = (dir: string) => {
+                for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                    const file = path.join(dir, entry.name);
+                    if (entry.isDirectory()) visit(file);
+                    else if (entry.name.endsWith(`.${f.extension}`)) files.push(file);
+                }
+            };
+            visit(path.join(f.root, "build/dist"));
+            expect(files.length).toBeGreaterThan(0);
+            for (const file of files) expect(fs.readFileSync(file)).toEqual(f.bytes);
+            const typst = result.books
+                .filter((book: any) => book.typ)
+                .map((book: any) => fs.readFileSync(book.typ, "utf8"))
+                .join("\n");
+            expect(typst).toContain(`portrait.${f.extension}`);
+            expect(typst).toContain("book-place-map");
+        } finally {
+            write.mockRestore();
+            mkdir.mockRestore();
+        }
+    },
+);
+
+it("disposes the private snapshot after a screen-book staging error", async () => {
+    const f = await rasterBookFixture("jpeg");
+    const { buildPdf } = await import("../engine/pdf-build.mjs");
+    const originalMkdir = fs.mkdtempSync,
+        originalWrite = fs.writeFileSync,
+        captures: string[] = [];
+    const mkdir = vi.spyOn(fs, "mkdtempSync").mockImplementation(((prefix: any, ...args: any[]) => {
+        const result = originalMkdir(prefix, ...(args as []));
+        if (String(prefix).includes("content-art-snapshot-")) captures.push(String(result));
+        return result;
+    }) as typeof fs.mkdtempSync);
+    let failed = false;
+    const write = vi.spyOn(fs, "writeFileSync").mockImplementation(((
+        file: any,
+        data: any,
+        options: any,
+    ) => {
+        if (
+            String(file).includes(`${path.sep}build${path.sep}dist${path.sep}`) &&
+            String(file).endsWith("portrait.jpg")
+        ) {
+            failed = true;
+            throw new Error("screen staging failure");
+        }
+        return originalWrite(file, data, options);
+    }) as typeof fs.writeFileSync);
+    try {
+        try {
+            await buildPdf({ config: f.config, edition: "screen", compile: false });
+        } catch {
+            /* the stage may propagate its finding */
+        }
+        expect(failed).toBe(true);
+        expect(captures.length).toBeGreaterThan(0);
+        for (const dir of captures) expect(fs.existsSync(dir)).toBe(false);
+    } finally {
+        write.mockRestore();
+        mkdir.mockRestore();
+    }
+});
+
+it("preserves an existing book output when installed screen bytes fail validation", async () => {
+    const f = await rasterBookFixture("jpeg");
+    const { buildPdf } = await import("../engine/pdf-build.mjs");
+    const dir = path.join(f.root, "build/dist");
+    fs.mkdirSync(dir, { recursive: true });
+    const sentinel = path.join(dir, "sentinel");
+    fs.writeFileSync(sentinel, "previous book");
+    fs.appendFileSync(f.file, "tampered");
+    await expect(buildPdf({ config: f.config, edition: "screen", compile: false })).rejects.toThrow(
+        /digest|SHA-256/i,
+    );
+    expect(fs.readFileSync(sentinel, "utf8")).toBe("previous book");
 });

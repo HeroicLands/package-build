@@ -1717,12 +1717,12 @@ as `true`, `false` or `null` for unknown. `MISSING_ALTERNATIVE` is the shared
 missing-alternative diagnostic and remedy. Both are exported by `art-provenance-core`.
 
 `art-masters` exports `assertPrivateArtRoots`, `collectArtMasters`,
-`masterAssetRecords` and `shippingAssetRecords` for private-root validation,
+`masterAssetRecords`, `screenRasterFormat` and `shippingAssetRecords` for private-root validation,
 master collection, asset-record projection and shipping-record adaptation.
 `collectArtMasters(masterRoots, contentPackage, {componentRoots}?)` returns
 separate `masters` and `components` maps, `findings` and input `paths`. Collection
 marks component entries with `publication: "component"`; asset indexing and
-master rendering exclude those entries even when maps are combined.
+master rendering exclude those entries even when maps are combined. `screenRasterFormat(pngBytes)` returns `"jpeg"` when every decoded pixel is opaque and `"webp"` when any pixel is transparent; invalid PNG input throws. The choice applies to icons and other raster artwork alike, including opaque PNGs with an alpha channel. SVG remains vector.
 `art-master-render` exports `renderArtMasters` for public rendering under the
 build directory. `art-source` exports `setArtSource(record, file, {master}?)`,
 `copyArtSource(from, to)`, `artSource(record, assetsBase)` and
