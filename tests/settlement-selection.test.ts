@@ -126,3 +126,54 @@ it("rejects oversized initial rules and IDs without inspecting their entries", a
     );
     expect(ids.missing[0].message).toContain("work limit");
 });
+
+it("bounds captured and dependency maps before opening their iterators", async () => {
+    const { selectSettlementPlacements } = await import("../engine/settlement-selection.mjs");
+    class GuardedMap extends Map {
+        override [Symbol.iterator](): MapIterator<[any, any]> {
+            throw new Error("opened oversized map");
+        }
+        override values(): MapIterator<any> {
+            throw new Error("opened oversized map");
+        }
+    }
+    const large = new GuardedMap();
+    for (let i = 0; i < 10000; i++) large.set(i, {});
+    for (const session of [
+        { records: [], foreign: { index: large } },
+        { records: [], parsed: large },
+        { records: [], sources: large },
+    ]) {
+        const result = selectSettlementPlacements(
+            { session, map: { cells: [] }, settings: { placements: [], landRules: [] } },
+            { cellIds: [], existingSites: [], workLimit: 100 },
+        );
+        expect(result.missing[0].message).toContain("work limit");
+    }
+});
+
+it("charges nested dependency and captured arrays before visiting their entries", async () => {
+    const { selectSettlementPlacements } = await import("../engine/settlement-selection.mjs");
+    const large = new Proxy(new Array(10000), {
+        get(target, key, receiver) {
+            if (typeof key === "string" && /^\d+$/.test(key)) throw new Error("visited entry");
+            return Reflect.get(target, key, receiver);
+        },
+    });
+    for (const field of ["settlements", "parents"]) {
+        const record = { data: { [field]: large } };
+        for (const session of [
+            {
+                records: [],
+                foreign: { index: new Map([["dependency", { settlementRecord: record }]]) },
+            },
+            { records: [], parsed: new Map([["source.md", { frontmatter: record }]]) },
+        ]) {
+            const result = selectSettlementPlacements(
+                { session, map: { cells: [] }, settings: { placements: [], landRules: [] } },
+                { cellIds: [], existingSites: [], workLimit: 10000 },
+            );
+            expect(result.missing[0].message).toContain("work limit");
+        }
+    }
+});

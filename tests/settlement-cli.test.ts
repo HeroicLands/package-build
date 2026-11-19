@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import { execFileSync } from "node:child_process";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 
 it("describes on-demand settlement inputs without loading project configuration", () => {
     const env = { ...process.env };
@@ -32,6 +32,57 @@ it("bounds a growing file through one descriptor and closes it", async () => {
     expect(() => boundedRead("growing", 8, io as any)).toThrow(/limit/);
     expect(requested).toBe(9);
     expect(closed).toBe(true);
+});
+
+it("preserves a located configuration file in both error outputs", async () => {
+    const fs = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const config = await import("../engine/pack-config.mjs");
+    const adapter = await import("../engine/azgaar-map.mjs");
+    const { settlementCommand } = await import("../bin/settlement-command.mjs");
+    const root = fs.mkdtempSync(join(tmpdir(), "settlement-config-error-"));
+    const priorExit = process.exitCode;
+    try {
+        const inputs = join(root, "inputs.json"),
+            map = join(root, "map"),
+            json = join(root, "map.json"),
+            configFile = join(root, "package-build.config.yaml");
+        fs.writeFileSync(inputs, "{}");
+        fs.writeFileSync(map, "map");
+        fs.writeFileSync(json, "{}");
+        fs.writeFileSync(configFile, "contentPackage: invalid\n");
+        const failure = config.locateConfigError(
+            Object.assign(new Error("invalid package"), { field: "contentPackage" }),
+            configFile,
+        ) as Error & { file: string; located: boolean };
+        expect(failure.file).toBe(configFile);
+        expect(failure.located).toBe(true);
+        vi.spyOn(adapter, "readAzgaarMap").mockReturnValue({} as any);
+        vi.spyOn(config, "loadPackConfig").mockImplementation(() => {
+            throw failure;
+        });
+        const stdout = vi.spyOn(console, "log").mockImplementation(() => {});
+        const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
+        await settlementCommand().handler({
+            inputs,
+            map,
+            json,
+            polity: "example-note-affiliation-crown",
+        });
+        expect(process.exitCode).toBe(1);
+        expect(stderr.mock.calls).toEqual([[failure.message]]);
+        expect(stdout).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(String(stdout.mock.calls[0][0])).missing).toEqual([
+            { file: configFile, message: failure.message },
+        ]);
+        expect(fs.readFileSync(inputs, "utf8")).toBe("{}");
+        expect(fs.readFileSync(configFile, "utf8")).toBe("contentPackage: invalid\n");
+    } finally {
+        process.exitCode = priorExit;
+        vi.restoreAllMocks();
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 it("reports malformed and missing input as located diagnostics", async () => {

@@ -167,9 +167,9 @@ export function settlementCommand() {
             } catch (error) {
                 const raw = String(error?.message ?? error);
                 const file =
-                    typeof error?.path === "string" ?
-                        error.path
-                    :   ([argv.map, argv.json, argv.inputs].find((path) =>
+                    typeof error?.path === "string" ? error.path
+                    : typeof error?.file === "string" ? error.file
+                    : ([argv.map, argv.json, argv.inputs].find((path) =>
                             raw.startsWith(`${path}:`),
                         ) ?? argv.inputs);
                 const message = error?.located ? raw : locatedError(file, raw).message;

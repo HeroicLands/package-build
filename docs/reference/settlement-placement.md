@@ -45,6 +45,12 @@ spacing, and work and candidate limits. Existing placements provide acreage;
 zero is a known value. Missing positions and acreage stop selection. The result
 contains assembled calculation inputs and a selection report; it writes no notes.
 
+The work limit includes the captured source and dependency data used by assembly.
+Collection sizes are charged before iteration, including nested settlement and
+parent lists. A conservative allowance covers repeated membership calculations,
+placement scans and source text. Candidate assembly uses the same allowance;
+an operation that exceeds it reports the missing budget before assembly.
+
 Each grid square is clipped to its owning cell. Its share of the cell polygon
 weights the physical acreage remaining after existing reservations. This is a
 modeling assumption, not a surveyed parcel or a statement of worked land.

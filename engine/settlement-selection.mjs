@@ -97,6 +97,101 @@ export function measurePlacementFootprints(input) {
     return { ...discovery, candidates, interval };
 }
 
+// Bound collection expansion, source scans and repeated membership/calculation passes.
+// Map sizes and array lengths are charged before their iterators are opened.
+function assemblyBudget(options, selection) {
+    const limit = selection.workLimit;
+    const session = options.session;
+    const length = (value) => (Array.isArray(value) ? value.length : 0);
+    const size = (value) => (value instanceof Map ? value.size : 0);
+    const records = length(session?.records) + size(session?.foreign?.index);
+    const placements = length(options.settings?.placements);
+    let units = 1,
+        text = 0;
+    const requireBudget = (additional = 0) => {
+        const extent = units + additional;
+        // Each polity can rebuild membership; each placement can scan rules and cells.
+        // Source locations and copied strings can be visited once per input entry.
+        const work = 4 * (records + placements + additional + 1) * extent ** 2 + text * extent;
+        if (
+            !Number.isSafeInteger(limit) ||
+            limit < 1 ||
+            !Number.isSafeInteger(work) ||
+            work > limit
+        )
+            throw new RangeError("assembly exceeds the work limit");
+    };
+    const charged = new WeakSet(),
+        visited = new WeakSet();
+    const reserve = (value) => {
+        if (!value || typeof value !== "object" || charged.has(value)) return;
+        charged.add(value);
+        units +=
+            Array.isArray(value) ? value.length + 1
+            : value instanceof Map ? 2 * value.size + 1
+            : 1;
+        requireBudget();
+    };
+    const roots = [
+        session?.records,
+        session?.parsed,
+        session?.sources,
+        session?.foreign?.index,
+        session?.problems,
+        session?.config?.contentPackage,
+        session?.config?.paths?.metadataCache,
+        session?.contentBase,
+        options.polityAddress,
+        options.map,
+        options.settings,
+        options.bindings,
+        selection.cellIds,
+        selection.existingSites,
+    ];
+    requireBudget();
+    for (const value of roots) reserve(value);
+    function* entries(value) {
+        if (value instanceof Map) {
+            for (const [key, entry] of value) {
+                yield key;
+                yield (
+                    value === session?.parsed ? entry?.frontmatter
+                    : value === session?.sources ? entry?.raw
+                    : entry
+                );
+            }
+        } else if (Array.isArray(value)) {
+            yield* value;
+        } else {
+            for (const key in value) {
+                units++;
+                requireBudget();
+                if (!Object.hasOwn(value, key)) continue;
+                yield key;
+                yield value[key];
+            }
+        }
+    }
+    const pending = [roots.values()];
+    while (pending.length) {
+        const next = pending.at(-1).next();
+        if (next.done) {
+            pending.pop();
+            continue;
+        }
+        const value = next.value;
+        if (typeof value === "string" || Buffer.isBuffer(value)) {
+            text += value.length;
+            requireBudget();
+        } else if (value && typeof value === "object" && !visited.has(value)) {
+            reserve(value);
+            visited.add(value);
+            pending.push(entries(value));
+        }
+    }
+    return requireBudget;
+}
+
 /**
  * Select rural sites from captured facts and assemble their calculation inputs.
  * Positions and acreage for existing settlements are explicit operation inputs.
@@ -113,52 +208,8 @@ export function selectSettlementPlacements(options, selection) {
             !Array.isArray(selection.existingSites)
         )
             return fail("provide direct cell IDs and existing settlement positions");
+        const requireAssemblyBudget = assemblyBudget(options, selection);
         const rawPlacements = options.settings?.placements;
-        const length = (value) => (Array.isArray(value) ? value.length : 0);
-        const existingCount = length(rawPlacements);
-        const lists = [
-            rawPlacements,
-            options.map?.cells,
-            options.session?.records,
-            selection.cellIds,
-            selection.existingSites,
-            options.settings?.landRules,
-            options.bindings?.notes,
-            options.bindings?.rows,
-            options.bindings?.subpolities,
-            options.settings?.urban?.sources,
-            options.settings?.urban?.routes,
-            options.settings?.urban?.cities,
-        ];
-        let inputSize = 1;
-        for (const list of lists) inputSize += length(list);
-        if (
-            !Number.isSafeInteger(selection.workLimit) ||
-            selection.workLimit < 1 ||
-            !Number.isSafeInteger(inputSize * inputSize) ||
-            inputSize * inputSize > selection.workLimit
-        )
-            return fail("assembly exceeds the work limit");
-        for (const binding of Array.isArray(options.bindings?.subpolities) ?
-            options.bindings.subpolities
-        :   []) {
-            inputSize += length(binding?.cellIds);
-            if (
-                !Number.isSafeInteger(inputSize * inputSize) ||
-                inputSize * inputSize > selection.workLimit
-            )
-                return fail("assembly exceeds the work limit");
-        }
-        for (const record of Array.isArray(options.session?.records) ?
-            options.session.records
-        :   []) {
-            inputSize += length(record?.data?.settlements);
-            if (
-                !Number.isSafeInteger(inputSize * inputSize) ||
-                inputSize * inputSize > selection.workLimit
-            )
-                return fail("assembly exceeds the work limit");
-        }
         // A declared physical total applies to every placement in its cell.
         if (Array.isArray(rawPlacements)) {
             const declared = new Map();
@@ -229,6 +280,7 @@ export function selectSettlementPlacements(options, selection) {
         if (!Array.isArray(existing))
             return fail("provide explicit existing placements and acreage");
         const candidateCount = footprints.candidates.length;
+        requireAssemblyBudget(candidateCount);
         const placementCount = existing.length + candidateCount;
         const work =
             2 *

@@ -1643,7 +1643,7 @@ describe("automatic rural placement", () => {
                 existingSites,
                 spacingMeters: 5556,
                 candidateLimit: 100,
-                workLimit: 10000,
+                workLimit: 1000000000,
             };
             const result = selectSettlementPlacements({ ...f, map, settings }, selection);
             expect(result.selection.result.reservedPopulation).toBe(25);
