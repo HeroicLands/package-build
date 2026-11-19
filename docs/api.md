@@ -1764,7 +1764,12 @@ The deployed layout of a package's pictures, and which of them ship. A Foundry p
 Import `@heroiclands/package-build/engine/cdn-publish` directly. `planCdnPublish`
 collects the same asset records and shipping selection as staging, applies the
 provided transform, and builds destination-relative keys plus a named set whose
-sources use its `host` argument. It does not upload anything.
+sources use its `host` argument. It does not upload anything. Each upload's `size` is its
+byte length; `body` is present for ordinary file inputs and omitted for captured
+artwork. Pass the original upload entries to `publishToCdn`: captured artwork
+uses private readers bound to those entries. Copying or serializing an entry
+cannot carry its reader and publication refuses it. Keep the artwork session
+open through publication so its captured files remain available.
 
 `publishToCdn(plan, { store, dryRun, log })` accepts a destination-independent
 store with async `size(key)`, `read(key)`, optional `write(key, body, contentType)`

@@ -491,7 +491,8 @@ const artworkReaders = new WeakMap();
  * @property {object[]} findings - What stops the publish; nothing is planned
  *   when non-empty.
  * @property {object[]} records - Every asset record the package has.
- * @property {CdnUpload[]} uploads - One per picture, in key order.
+ * @property {CdnUpload[]} uploads - One per picture, in key order. Preserve
+ *   these entries when passing the plan to publication.
  * @property {{key: string, body: Buffer, set: object}|null} set - The set file.
  * @property {string} cdnRoot - `<site.assets>/<package>/`.
  */
@@ -659,7 +660,11 @@ export async function publishToCdn(plan, { store, dryRun = false, log = () => {}
         try {
             const reader = artworkReaders.get(upload);
             const body = reader ? reader() : upload.body;
+            if (!Buffer.isBuffer(body))
+                throw new Error(`CDN upload has no valid byte source for ${upload.address}`);
             const expectedSize = upload.size ?? body.length;
+            if (body.length !== expectedSize)
+                throw new Error(`CDN upload byte length changed for ${upload.address}`);
             const size = await store.size(upload.key);
             if (size === expectedSize) {
                 skipped.push(upload);

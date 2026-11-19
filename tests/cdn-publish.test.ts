@@ -592,6 +592,42 @@ describe("captured artwork publication", () => {
         }
     });
 
+    it("withholds the set when copied artwork entries lose their private source", async () => {
+        const item = art("one");
+        const plan = planCdnPublish(
+            options([item], new Map([[item.address.canonical, () => Buffer.from("abc")]])),
+        );
+        for (const upload of [
+            { ...plan.uploads[0] },
+            JSON.parse(JSON.stringify(plan.uploads[0])),
+        ]) {
+            for (const dryRun of [false, true]) {
+                let comparisons = 0;
+                let writes = 0;
+                const store = {
+                    describe: "test",
+                    size: async () => {
+                        comparisons++;
+                        return 3;
+                    },
+                    read: async () => undefined,
+                    write: async () => {
+                        writes++;
+                    },
+                };
+                const result = await publishToCdn(
+                    { ...plan, uploads: [upload] },
+                    { store, dryRun },
+                );
+                expect(result.failed).toHaveLength(1);
+                expect(result.published.size).toBe(0);
+                expect(result.set).toBe("withheld");
+                expect(comparisons).toBe(0);
+                expect(writes).toBe(0);
+            }
+        }
+    });
+
     it("accepts non-picture records alongside captured artwork", () => {
         const item = art("one");
         const font = {
