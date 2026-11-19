@@ -37,6 +37,67 @@ const enumeration = (name, allowed, nullable = false) => ({
     shape: allowed.join(", ") + (nullable ? ", or null" : ""),
     describe: `The settlement's ${name}.`,
 });
+/** A settlement's recorded household count. */
+export const HOUSEHOLDS_FIELD = Object.freeze({
+    name: "households",
+    kind: "integer",
+    kindChecked: true,
+    nullable: true,
+    shape: "a nonnegative household count or null",
+    describe: "Exact households; null means unknown.",
+    table: false,
+});
+/** A settlement's primary livelihood. */
+export const ECONOMIC_FOCUS_FIELD = Object.freeze({
+    name: "economicFocus",
+    kind: "string",
+    kindChecked: true,
+    shape: "a primary livelihood",
+    describe: "The settlement's primary livelihood.",
+    table: false,
+});
+/** Map identity associated with a generated settlement row. */
+export const GENERATOR_SOURCE_FIELD = Object.freeze({
+    name: "generatorSource",
+    kind: "map",
+    shape: "a map source identity",
+    describe: "The map cell or burg identifying this row.",
+    table: false,
+    fields: Object.freeze(
+        [
+            {
+                name: "mapId",
+                kind: "string",
+                required: true,
+                shape: "a map identity",
+                describe: "Stable map identity.",
+            },
+            {
+                name: "kind",
+                kind: "string",
+                required: true,
+                allowed: Object.freeze(["cell", "burg"]),
+                shape: "cell or burg",
+                describe: "The map object kind.",
+            },
+            {
+                name: "id",
+                kind: "integer",
+                kindChecked: true,
+                required: true,
+                shape: "a nonnegative integer",
+                describe: "The map object ID.",
+            },
+            {
+                name: "slot",
+                kind: "integer",
+                kindChecked: true,
+                shape: "a nonnegative integer",
+                describe: "A settlement's slot within a cell.",
+            },
+        ].map(Object.freeze),
+    ),
+});
 /** Fields declared by each settlement row. */
 export const SETTLEMENT_ROW_FIELDS = Object.freeze(
     [
@@ -57,7 +118,6 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
         {
             name: "location",
             kind: "address",
-            required: true,
             ref: "place",
             accepts: ["place"],
             shape: "a place Address",
@@ -69,7 +129,6 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
         {
             name: "holder",
             kind: "address-or-string",
-            required: true,
             shape: "an affiliation or being Address, or a name",
             describe: "Who holds the land.",
         },
@@ -90,15 +149,17 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
         {
             name: "notes",
             kind: "string",
-            required: true,
             shape: "nonempty short text",
             describe: "What distinguishes this settlement.",
         },
+        HOUSEHOLDS_FIELD,
+        ECONOMIC_FOCUS_FIELD,
+        GENERATOR_SOURCE_FIELD,
     ].map(Object.freeze),
 );
 /** Columns in the generated table. */
 export const SETTLEMENT_COLUMNS = Object.freeze(
-    SETTLEMENT_ROW_FIELDS.map((field) =>
+    SETTLEMENT_ROW_FIELDS.filter((field) => field.table !== false).map((field) =>
         Object.freeze({ name: field.name[0].toUpperCase() + field.name.slice(1), required: true }),
     ),
 );
@@ -124,7 +185,7 @@ export const SETTLEMENT_TABLE_RULES = Object.freeze(
         ],
         [
             "settlement field",
-            "Required settlement facts are present and enumerated facts take declared values.",
+            "Required settlement facts, enumerated values, household counts and map identities have the declared shapes.",
         ],
         [
             "unresolved settlement reference",

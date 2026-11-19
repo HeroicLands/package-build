@@ -213,10 +213,12 @@ The [first-note guide](authoring/first-note.md) shows the build commands and how
 Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. A populated settlement requires a government that resolves to a polity; other populated places with an omitted government produce an advisory. See [place governments](authoring/frontmatter.md#place-governments).
 
 A polity (`affiliation`, `subType: polity`) lists settlements without notes in
-`data.settlements`. Each row names its settlement, polity, location, type,
-fortification, stronghold, holder, population, market and short notes. Polity
-and holder accept an Address with an explicit type or a plain name; location
-is a place Address. Fortification and stronghold may be omitted or null.
+`data.settlements`. Each row names its settlement and polity and states its type, population and market.
+Location, holder and short notes may be omitted; supplied location is a place Address,
+and polity and holder accept an Address or a plain name. Fortification and stronghold
+may be omitted or null. Rows may also state households, economicFocus and generatorSource;
+settlement notes may state households and economicFocus. Culture notes may state a
+positive householdSize.
 
 A settlement with a note states its own facts in `data`, with `government`
 naming its polity and `parents` naming its enclosing places. It has no authored
@@ -232,8 +234,7 @@ throughout its subordinate chain must not exceed that total. Towns, cities, and 
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
-settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. Each settlement
-has short `data.notes`; a populated settlement note also requires `data.type`,
+settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. A settlement note states short `data.notes`; a populated settlement note also requires `data.type`,
 a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity. A settlement note with a null or omitted population does not require those three fields.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](configuration.md#settlement-exemptions).
 

@@ -157,6 +157,18 @@ A settlement with a positive population requires a government that resolves to a
 
 A note infobox draws from shared `data`. A being profile shows its top-level `subType` as `Type: Character`, `Type: NPC`, or `Type: Creature`. A system infobox draws from the system's fields, and a mapped system with no document says “Not available.” The same authored body appears in Foundry, on the website, and in the book; the book places boxes after the authored body, Foundry appends one page per box, and the website places boxes in its responsive side rail. [Infobox details](../reference/format-details.md#the-infobox) describe field order and empty values.
 
+A polity may omit a listed settlement’s location, holder and notes when they
+are unknown. A supplied location must resolve to a place; a holder is a
+nonempty name or a resolving Address. Supplied notes must be nonempty. The [settlement table reference](../reference/format-details.md#a-politys-settlements-table) describes the row.
+
+A settlement row or note can state an exact `households` count and its primary
+livelihood in `economicFocus`. A culture can state its average people per
+household as `data.householdSize`. A row can record `generatorSource` with a stable map identifier (`mapId`),
+a `cell` or `burg` kind, and a nonnegative numeric object ID. A cell may also
+state a nonnegative slot number for the settlement within it. The
+[settlement table reference](../reference/format-details.md#a-politys-settlements-table)
+describes the identity fields and unknown household counts.
+
 Settlement-table exceptions are declared by address with a reason in the
 [package configuration](../configuration.md#settlement-exemptions). The same
 mechanism records an aggregate population exception for a polity.

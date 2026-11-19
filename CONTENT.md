@@ -133,10 +133,12 @@ nested maps merge and lists replace. An item without a type for a system is
 omitted from that system's actor.
 
 A polity (`affiliation`, `subType: polity`) lists settlements without notes in
-`data.settlements`. Each row names its settlement, polity, location, type,
-fortification, stronghold, holder, population, market and short notes. Polity
-and holder accept an Address with an explicit type or a plain name; location
-is a place Address. Fortification and stronghold may be omitted or null.
+`data.settlements`. Each row names its settlement and polity and states its type, population and market.
+Location, holder and short notes may be omitted; supplied location is a place Address,
+and polity and holder accept an Address or a plain name. Fortification and stronghold
+may be omitted or null. Rows may also state households, economicFocus and generatorSource;
+settlement notes may state households and economicFocus. Culture notes may state a
+positive householdSize.
 
 A settlement with a note states its own facts in `data`, with `government`
 naming its polity and `parents` naming its enclosing places. It has no authored
@@ -152,8 +154,7 @@ throughout its subordinate chain must not exceed that total. Towns and cities mu
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
-settlement sum. Populations use at most two significant digits. Each settlement
-has short `data.notes`; a populated settlement note also requires `data.type`,
+settlement sum. Populations use at most two significant digits. A settlement note states short `data.notes`; a populated settlement note also requires `data.type`,
 a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](docs/configuration.md#settlement-exemptions).
 
