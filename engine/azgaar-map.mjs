@@ -21,7 +21,7 @@ const address = (value) => typeof value === "string" && Boolean(value.trim());
 
 /**
  * Read an Azgaar 1.156.0 Full JSON export alongside its saved map.
- * @param {{map: string|Buffer, json: string|Buffer, mapFile: string, jsonFile: string, pin: object, mapping: object}} input - Pinned input files and explicit identities.
+ * @param {{map: string|Buffer, json: string|Buffer, mapFile: string, jsonFile: string, pin: object, mapping: object, limits?: {mapBytes?: number, jsonBytes?: number, records?: number}}} input - Pinned input files and explicit identities.
  * @returns {object} Map metadata, selected cells and referenced map records.
  */
 export function readAzgaarMap({ map, json, mapFile, jsonFile, pin, mapping, limits = {} }) {
@@ -65,7 +65,7 @@ export function readAzgaarMap({ map, json, mapFile, jsonFile, pin, mapping, limi
         try {
             return JSON.parse(text);
         } catch (error) {
-            const match = /position (\d+)/.exec(error.message);
+            const match = / in JSON at position (\d+) \(line \d+ column \d+\)$/.exec(error.message);
             if (!match) fail(file, "invalid JSON");
             const before = text.slice(0, Number(match[1]));
             const lines = before.split("\n");

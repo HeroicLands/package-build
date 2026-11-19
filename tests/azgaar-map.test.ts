@@ -204,14 +204,23 @@ describe("Azgaar Full JSON", () => {
     });
     it("locates malformed JSON when possible and reports hash errors at file scope", () => {
         const f = fixture();
-        const bad = '{\n"x": }';
+        const bad = '{\n"x":1,\n}';
         expect(() =>
             readAzgaarMap({
                 ...f.input(),
                 json: bad,
                 pin: { ...f.input().pin, jsonHash: digest(bad) },
             }),
-        ).toThrow(/world\.json:2:\d+: error: invalid JSON/);
+        ).toThrow(/world\.json:3:1: error: invalid JSON/);
+        for (const invalid of ['{\n"x": }', "position 1"]) {
+            expect(() =>
+                readAzgaarMap({
+                    ...f.input(),
+                    json: invalid,
+                    pin: { ...f.input().pin, jsonHash: digest(invalid) },
+                }),
+            ).toThrow(/^world\.json: error: invalid JSON$/);
+        }
         expect(() => readAzgaarMap(f.input(f.data, { mapHash: "0".repeat(64) }))).toThrow(
             /^world\.map: error:/,
         );
