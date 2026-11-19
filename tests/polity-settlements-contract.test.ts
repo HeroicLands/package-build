@@ -250,7 +250,7 @@ describe("settlement population and hierarchy", () => {
         { mapId: "map", kind: "cell", id: 0, slot: null },
     ])("rejects an invalid source identity during publication %#", (generatorSource) => {
         const { index } = corpus([{ ...row, generatorSource }]);
-        const records = index.notes.map((note) => note.fm);
+        const records = index.notes.map((note) => ({ ...note.fm, package: "test" }));
         expect(() =>
             assertSettlementRecords(records, {
                 fileOf: (fm: any) => `${fm.shortcode}.md`,
@@ -263,7 +263,7 @@ describe("settlement population and hierarchy", () => {
         { mapId: "map", kind: "cell", id: 0, slot: 0 },
     ])("accepts a valid source identity during publication %#", (generatorSource) => {
         const { index } = corpus([{ ...row, generatorSource }]);
-        const records = index.notes.map((note) => note.fm);
+        const records = index.notes.map((note) => ({ ...note.fm, package: "test" }));
         expect(() =>
             assertSettlementRecords(records, {
                 fileOf: (fm: any) => `${fm.shortcode}.md`,
