@@ -47,3 +47,56 @@ describe("settlement footprint weights", () => {
         ).toBe("unknown-location");
     });
 });
+
+it("owns shared boundary sites once and leaves every cell within its area", () => {
+    const cells = [
+        {
+            id: 8,
+            boundary: [
+                [3, 0],
+                [9, 0],
+                [9, 3],
+                [3, 3],
+            ],
+        },
+        {
+            id: 2,
+            boundary: [
+                [0, 0],
+                [3, 0],
+                [3, 3],
+                [0, 3],
+            ],
+        },
+    ];
+    const input = {
+        map: {
+            mapId: "m",
+            mapHash: "a",
+            jsonHash: "b",
+            units: { distanceUnit: "nmi", distanceScale: 1 },
+            cells,
+        },
+        existingSites: [],
+        spacingMeters: 5556,
+        candidateLimit: 30,
+        workLimit: 10000,
+    };
+    const first = measurePlacementFootprints(input);
+    expect(first.missing).toEqual([]);
+    expect(
+        first.candidates.filter((p: any) => p.point[0] === 3).every((p: any) => p.cellId === 2),
+    ).toBe(true);
+    for (const id of [2, 8])
+        expect(
+            first.candidates
+                .filter((p: any) => p.cellId === id)
+                .reduce((sum: number, p: any) => sum + p.weight, 0),
+        ).toBeLessThanOrEqual(1 + 1e-12);
+    expect(
+        measurePlacementFootprints({
+            ...input,
+            map: { ...input.map, cells: [...cells].reverse() },
+        }),
+    ).toEqual(first);
+});

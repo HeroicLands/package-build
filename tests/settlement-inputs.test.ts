@@ -1661,6 +1661,93 @@ describe("automatic rural placement", () => {
             ).toBe(true);
             expect(selectSettlementPlacements({ ...f, map, settings }, selection)).toEqual(result);
             expect(fs.readFileSync(f.crownFile, "utf8")).toBe(before);
+            const sevenSession = {
+                ...f.session,
+                records: f.session.records.map((record: any) =>
+                    record.shortcode === "folk" && record.type === "lore" ?
+                        { ...record, data: { ...record.data, householdSize: 7 } }
+                    :   record,
+                ),
+            };
+            const seven = selectSettlementPlacements(
+                { ...f, session: sevenSession, map, settings },
+                selection,
+            );
+            expect(seven.selection.result.reservedPopulation).toBe(35);
+            expect(seven.selection.result.unallocatedPopulation).toBe(3);
+            expect(
+                seven.selection.result.proposals.every(
+                    (p: any) => p.calculation.explanation.householdSize === 7,
+                ),
+            ).toBe(true);
+            const zeroSession = {
+                ...f.session,
+                records: f.session.records.map((record: any) => {
+                    if (record.shortcode === "crown" && record.type === "affiliation")
+                        return { ...record, data: { ...record.data, territorial_population: 0 } };
+                    if (record.shortcode === "capital" && record.type === "place")
+                        return {
+                            ...record,
+                            data: { ...record.data, households: 0, population: 0 },
+                        };
+                    return record;
+                }),
+            };
+            const zero = selectSettlementPlacements(
+                { ...f, session: zeroSession, map, settings },
+                selection,
+            );
+            expect(zero.selection.result.reservedPopulation).toBe(0);
+            expect(zero.selection.result.proposals).toEqual([]);
+            expect(zero.selection.result.unallocatedPopulation).toBe(0);
+            const unknownSession = {
+                ...f.session,
+                records: f.session.records.map((record: any) =>
+                    record.shortcode === "capital" && record.type === "place" ?
+                        { ...record, data: { ...record.data, households: null } }
+                    :   record,
+                ),
+            };
+            const unknownCount = selectSettlementPlacements(
+                { ...f, session: unknownSession, map, settings },
+                selection,
+            );
+            expect(unknownCount.ruralInput).toBeUndefined();
+            expect(
+                unknownCount.missing.some((item: any) => item.field.includes("households")),
+            ).toBe(true);
+            const highSession = {
+                ...f.session,
+                records: f.session.records.map((record: any) =>
+                    record.shortcode === "crown" && record.type === "affiliation" ?
+                        { ...record, data: { ...record.data, territorial_population: 100000 } }
+                    :   record,
+                ),
+            };
+            const high = selectSettlementPlacements(
+                { ...f, session: highSession, map, settings },
+                selection,
+            );
+            expect(high.selection.result.proposals.length).toBeGreaterThan(0);
+            expect(
+                high.selection.result.proposals.every(
+                    (p: any) => p.calculation.estimatedPopulation < 1000,
+                ),
+            ).toBe(true);
+            expect(high.selection.result.unallocatedPopulation).toBeGreaterThan(0);
+            const noLand = {
+                ...settings,
+                landRules: [
+                    {
+                        ...settings.landRules[0],
+                        profile: { ...settings.landRules[0].profile, holdingAcres: 1e12 },
+                    },
+                ],
+            };
+            const empty = selectSettlementPlacements({ ...f, map, settings: noLand }, selection);
+            expect(empty.selection.result.proposals).toEqual([]);
+            expect(empty.selection.result.unallocatedPopulation).toBe(475);
+
             const unknown = selectSettlementPlacements(
                 { ...f, map, settings },
                 { ...selection, existingSites: existingSites.slice(1) },
@@ -1674,7 +1761,6 @@ describe("automatic rural placement", () => {
                 },
                 selection,
             );
-            expect(missingAcres.selection).toBeDefined();
             expect(missingAcres.ruralInput).toBeUndefined();
             expect(
                 missingAcres.missing.some((item: any) => item.message.includes("placement")),

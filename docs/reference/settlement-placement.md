@@ -54,3 +54,22 @@ allocator assigns whole households, and occupied sites receive modeled acreage
 from their household holdings. The report includes the weights, ceilings, cell
 ledgers, unallocated population and final food calculations. Candidate points
 are operation data rather than settlement note fields.
+
+## Command
+
+`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE`
+prints a JSON report for a captured local polity. The command reads the saved
+map and its Full JSON export only on demand. The inputs file is a JSON object
+with these keys:
+
+- `pin` and `mapping`: the [Azgaar map input](azgaar-map-input.md) pin and
+  explicit state and culture mapping.
+- `bindings` and `settings`: the [settlement assembly](settlement-inputs.md)
+  inputs, including existing placements, land rules and urban supply inputs.
+- `selection`: `cellIds`, `existingSites` (each with an existing settlement
+  `identity` and coordinate pair `point`), `spacingMeters`, `candidateLimit`
+  and `workLimit`.
+
+The report includes missing inputs and exits unsuccessfully when the operation
+is incomplete. The default is a dry run. `--write` reports the required
+setting name checks and does not write rows while those checks are unavailable.
