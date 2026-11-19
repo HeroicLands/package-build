@@ -15,7 +15,7 @@ import { constants, createWriteStream } from "node:fs";
 import { lstat, mkdir, mkdtemp, open, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Transform } from "node:stream";
+import { Transform, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createInflateRaw } from "node:zlib";
 import { downloadCached } from "./download-cache.mjs";
@@ -135,14 +135,15 @@ async function entries(file, size, limits, signal) {
         checkExtra(directory.subarray(at + 46 + nl, at + 46 + nl + el));
         const nameBytes = directory.subarray(at + 46, at + 46 + nl),
             name = entryName(nameBytes),
-            isDir = name.endsWith("/");
+            isDir = name.endsWith("/"),
+            documentation = name === "README.md" || name === "CHANGELOG.md";
         const key = name.replace(/\/$/u, "").normalize("NFC").toLowerCase();
         if (seen.has(key)) throw new Error("duplicate artwork archive path");
         seen.add(key);
         if (
             isDir ?
                 plain !== 0 || compressed !== 0 || (mode & 0xf000) === 0x8000
-            :   !/\.(?:png|svg)$/iu.test(name) || (mode & 0xf000) === 0x4000
+            :   (!documentation && !/\.(?:png|svg)$/iu.test(name)) || (mode & 0xf000) === 0x4000
         )
             throw new Error("unsupported artwork archive content");
         const header = await readAt(file, 30, local);
@@ -182,7 +183,7 @@ async function entries(file, size, limits, signal) {
             rangeEnd += signed ? 16 : 12;
         }
         ranges.push([local, rangeEnd]);
-        result.push({ name, isDir, method, crc, compressed, plain, start });
+        result.push({ name, isDir, documentation, method, crc, compressed, plain, start });
         at += 46 + nl + el + cl;
     }
     if (at !== directory.length) throw new Error("invalid artwork archive directory length");
@@ -264,7 +265,8 @@ export async function openArtArchive(url, sha256, options = {}) {
                 await mkdir(output, { recursive: true, mode: 0o700 });
                 continue;
             }
-            await mkdir(path.dirname(output), { recursive: true, mode: 0o700 });
+            if (!item.documentation)
+                await mkdir(path.dirname(output), { recursive: true, mode: 0o700 });
             let crc = 0xffffffff,
                 actual = 0;
             const check = new Transform({
@@ -279,7 +281,7 @@ export async function openArtArchive(url, sha256, options = {}) {
             if (item.compressed === 0) {
                 if (item.plain !== 0 || item.method !== 0)
                     throw new Error("invalid empty artwork entry");
-                await open(output, "wx", 0o600).then((f) => f.close());
+                if (!item.documentation) await open(output, "wx", 0o600).then((f) => f.close());
             } else {
                 const input = archive.createReadStream({
                     autoClose: false,
@@ -288,15 +290,16 @@ export async function openArtArchive(url, sha256, options = {}) {
                     signal: options.signal,
                 });
                 const inflater = item.method === 8 ? createInflateRaw() : undefined;
+                const target =
+                    item.documentation ?
+                        new Writable({
+                            write(_chunk, _encoding, done) {
+                                done();
+                            },
+                        })
+                    :   createWriteStream(output, { flags: "wx", mode: 0o600 });
                 const streams =
-                    inflater ?
-                        [
-                            input,
-                            inflater,
-                            check,
-                            createWriteStream(output, { flags: "wx", mode: 0o600 }),
-                        ]
-                    :   [input, check, createWriteStream(output, { flags: "wx", mode: 0o600 })];
+                    inflater ? [input, inflater, check, target] : [input, check, target];
                 await pipeline(streams, { signal: options.signal });
                 if (inflater && inflater.bytesWritten !== item.compressed)
                     throw new Error("artwork entry has trailing compressed bytes");

@@ -55,12 +55,18 @@ afterEach(async () => {
 
 it("extracts exact original bytes and disposes the private root", async () => {
     const { dir, cacheDir } = await setup();
-    const bytes = zip({ "images/sample.png": png, "icons/sample.svg": svg });
+    const bytes = zip({
+        "README.md": new TextEncoder().encode("Release information"),
+        "CHANGELOG.md": new TextEncoder().encode("Release changes"),
+        "images/sample.png": png,
+        "icons/sample.svg": svg,
+    });
     const result = await openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) });
     expect(await fs.readFile(path.join(result.root, "images/sample.png"))).toEqual(
         Buffer.from(png),
     );
     expect(await fs.readFile(path.join(result.root, "icons/sample.svg"))).toEqual(Buffer.from(svg));
+    expect((await fs.readdir(result.root)).sort()).toEqual(["icons", "images"]);
     expect((await fs.stat(result.root)).mode & 0o777).toBe(0o700);
     expect((await fs.stat(path.join(result.root, "images/sample.png"))).mode & 0o777).toBe(0o600);
     await result.dispose();
@@ -68,17 +74,22 @@ it("extracts exact original bytes and disposes the private root", async () => {
     expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
 });
 
-it.each(["../outside.png", "/outside.png", "a\\outside.png", "bad.txt"])(
-    "rejects unsafe archive entry %s",
-    async (name) => {
-        const { dir, cacheDir } = await setup();
-        const bytes = zip({ [name]: png });
-        await expect(
-            openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
-        ).rejects.toThrow();
-        expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
-    },
-);
+it.each([
+    "../outside.png",
+    "/outside.png",
+    "a\\outside.png",
+    "bad.txt",
+    ".env",
+    "nested/README.md",
+    "readme.md",
+])("rejects unsafe archive entry %s", async (name) => {
+    const { dir, cacheDir } = await setup();
+    const bytes = zip({ [name]: png });
+    await expect(
+        openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
+    ).rejects.toThrow();
+    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+});
 
 it("rejects case collisions, bad CRC and truncated archives", async () => {
     const { dir, cacheDir } = await setup();
@@ -97,6 +108,44 @@ it("rejects case collisions, bad CRC and truncated archives", async () => {
         openArtArchive(url, hash(truncated), { cacheDir, fetch: fetcher(truncated) }),
     ).rejects.toThrow();
     expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+});
+
+it("checks documentation CRC, duplicate names and limits without exposing it as artwork", async () => {
+    const { cacheDir } = await setup();
+    const info = new TextEncoder().encode("release information");
+    const corrupted = zip({ "README.md": info, "image.png": png });
+    const start = 30 + corrupted.readUInt16LE(26) + corrupted.readUInt16LE(28);
+    corrupted[start] ^= 1;
+    await expect(
+        openArtArchive(url, hash(corrupted), { cacheDir, fetch: fetcher(corrupted) }),
+    ).rejects.toThrow(/checksum/);
+    const duplicate = zip({ "README.md": info, "readme.md": info, "image.png": png });
+    await expect(
+        openArtArchive(url, hash(duplicate), { cacheDir, fetch: fetcher(duplicate) }),
+    ).rejects.toThrow(/duplicate/);
+    const oversized = zip({ "README.md": info, "image.png": png });
+    const largeDoc = zip({ "README.md": new Uint8Array(png.length + 1), "image.png": png });
+    await expect(
+        openArtArchive(url, hash(largeDoc), {
+            cacheDir,
+            fetch: fetcher(largeDoc),
+            maxEntryBytes: png.length,
+        }),
+    ).rejects.toThrow(/size/);
+    await expect(
+        openArtArchive(url, hash(oversized), {
+            cacheDir,
+            fetch: fetcher(oversized),
+            maxEntries: 1,
+        }),
+    ).rejects.toThrow(/directory/);
+    await expect(
+        openArtArchive(url, hash(oversized), {
+            cacheDir,
+            fetch: fetcher(oversized),
+            maxTotalBytes: png.length,
+        }),
+    ).rejects.toThrow(/size/);
 });
 
 it("enforces entry limits and cancellation without leaving session files", async () => {

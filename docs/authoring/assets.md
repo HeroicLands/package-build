@@ -162,4 +162,7 @@ Each entry names an HTTPS URL and SHA-256 digest. Builds verify the shared cache
 archive and extract private originals for the content session. Public outputs are
 derived under `build/`; local notes remain authoritative. AI assets name explicit
 eligible non-AI alternatives by address, and unknown AI status remains unknown.
-Archive inputs and local master or component roots are separate modes.
+An archive may also contain root-level `README.md` and `CHANGELOG.md`. These
+files count toward archive safety limits and are checked for corruption; they
+are not artwork inputs. Other non-image files are refused. Archive inputs and
+local master or component roots are separate modes.
