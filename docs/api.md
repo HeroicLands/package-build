@@ -3213,7 +3213,7 @@ console.log(normalizeRepoUrl("git@github.com:HeroicLands/sohl.git"));
 
 ## `./release`
 
-The release publishes each content index with a sibling `.sha256` file containing the lowercase SHA-256, two spaces, the index filename and a newline. Dependency fetch checks this value before caching and verifies every shared cache hit. A remote release must publish both files; local `deps fetch --from` accepts a local artifact.
+Dependency fetch reads the SHA-256 for the exact content-index asset from GitHub release metadata and verifies every shared cache hit. Remote fetch requires a pinned GitHub release with an available asset digest and access to the GitHub API; API rate limits or missing digests stop the fetch. Local `deps fetch --from` accepts a local artifact.
 
 A Foundry package release carries: `<artifact>.zip` (the staged tree), `<artifact>.json` (the manifest, re-fetched by an already-installed package to notice updates), and, when the package ships content, a published content index other packages resolve addresses through. Kept apart from `stage.mjs` because this is the only part of assembly that needs a dependency (the zip archiver); a repository that never cuts a release from a local build pays nothing for it.
 

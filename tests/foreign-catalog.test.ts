@@ -700,12 +700,23 @@ describe("dependency download retries", () => {
             .mockResolvedValueOnce(
                 Response.json({
                     version: "1",
-                    flags: { metadataUrl: "https://example.test/index.jsonl" },
+                    flags: {
+                        metadataUrl:
+                            "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                    },
                 }),
             )
             .mockResolvedValue(response(503));
         vi.stubGlobal("fetch", fetcher);
-        const error = await settle(fetchMetadata({ paths: { metadataCache: root } }, rel));
+        const error = await settle(
+            fetchMetadata(
+                { paths: { metadataCache: root } },
+                {
+                    ...rel,
+                    manifest: "https://github.com/example/repo/releases/download/v1/system.json",
+                },
+            ),
+        );
         expect(fetcher).toHaveBeenCalledTimes(6);
         expect(String(error)).toContain("checksum unavailable");
         expect(fetcher.mock.calls[1][1].signal).toBeInstanceOf(AbortSignal);
@@ -795,14 +806,15 @@ describe("mirrored dependency releases", () => {
                 res.end(
                     JSON.stringify({
                         version: "1",
-                        download: "https://public.test/release/system.zip",
+                        download: "https://github.com/example/repo/releases/download/v1/system.zip",
                         packs: [{ name: "items", type: "Item", path: "packs/items" }],
-                        flags: { metadataUrl: "https://public.test/release/index.jsonl" },
+                        flags: {
+                            metadataUrl:
+                                "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                        },
                     }),
                 );
-            } else if (!missing && req.url === "/mirror/index.jsonl.sha256")
-                res.end(`${createHash("sha256").update(bytes).digest("hex")}  index.jsonl\n`);
-            else if (!missing && req.url === "/mirror/index.jsonl") res.end(bytes);
+            } else if (!missing && req.url === "/mirror/index.jsonl") res.end(bytes);
             else if (!missing && req.url === "/mirror/system.zip") res.end(archive);
             else {
                 res.statusCode = 404;
@@ -815,18 +827,34 @@ describe("mirrored dependency releases", () => {
             if (!address || typeof address === "string") throw new Error("server address missing");
             const rel = {
                 id: "example",
-                manifest: "https://public.test/release/system.json",
+                manifest: "https://github.com/example/repo/releases/download/v1/system.json",
                 buildManifest: `http://127.0.0.1:${address.port}/mirror/system.json`,
                 verified: "1",
             };
+            const realFetch = globalThis.fetch;
+            vi.stubGlobal(
+                "fetch",
+                vi.fn(async (url: string, options: RequestInit) => {
+                    if (url.includes("api.github.com")) {
+                        expect(JSON.stringify(options.headers)).not.toContain(token);
+                        if (url.includes("/tags/"))
+                            return Response.json({ id: 123, tag_name: "v1" });
+                        return Response.json([
+                            {
+                                id: 1,
+                                browser_download_url:
+                                    "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                                digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+                            },
+                        ]);
+                    }
+                    return realFetch(url, options);
+                }),
+            );
             const config = { paths: { metadataCache: root } };
             const file = await fetchMetadata(config, rel);
             expect(fs.readFileSync(file)).toEqual(bytes);
-            expect(requests).toEqual([
-                "/mirror/system.json",
-                "/mirror/index.jsonl.sha256",
-                "/mirror/index.jsonl",
-            ]);
+            expect(requests).toEqual(["/mirror/system.json", "/mirror/index.jsonl"]);
             const catalog = await fetchCatalog(
                 { paths: { foreignCache: path.join(root, "catalog") } },
                 rel,
@@ -835,13 +863,24 @@ describe("mirrored dependency releases", () => {
             expect(requests.slice(-2)).toEqual(["/mirror/system.json", "/mirror/system.zip"]);
             expect(authorized).toBe(true);
             missing = true;
+            fs.writeFileSync(
+                path.join(
+                    root,
+                    "shared",
+                    "heroiclands",
+                    "downloads",
+                    createHash("sha256").update(bytes).digest("hex"),
+                ),
+                "damaged",
+            );
             await expect(
                 fetchMetadata({ paths: { metadataCache: path.join(root, "cold") } }, rel),
-            ).rejects.toThrow(/checksum unavailable/);
+            ).rejects.toThrow();
         } finally {
             await new Promise<void>((resolve, reject) =>
                 server.close((err) => (err ? reject(err) : resolve())),
             );
+            vi.unstubAllGlobals();
             vi.unstubAllEnvs();
             fs.rmSync(root, { recursive: true, force: true });
         }
@@ -1103,7 +1142,7 @@ describe("mirrored dependency releases", () => {
         vi.stubEnv("XDG_CACHE_HOME", path.join(root, "shared"));
         const rel = {
             id: "example",
-            manifest: "https://public.test/release/system.json",
+            manifest: "https://github.com/example/repo/releases/download/v1/system.json",
             buildManifest: "https://mirror.test/release/system.json",
             verified: "1",
         };
@@ -1116,19 +1155,28 @@ describe("mirrored dependency releases", () => {
                 .mockResolvedValueOnce(
                     Response.json({
                         version: "1",
-                        flags: { metadataUrl: "https://public.test/release/index.jsonl" },
+                        flags: {
+                            metadataUrl:
+                                "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                        },
                     }),
                 )
+                .mockResolvedValueOnce(Response.json({ id: 123, tag_name: "v1" }))
                 .mockResolvedValueOnce(
-                    new Response(
-                        `${createHash("sha256").update("index").digest("hex")}  index.jsonl\n`,
-                    ),
+                    Response.json([
+                        {
+                            id: 1,
+                            browser_download_url:
+                                "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                            digest: `sha256:${createHash("sha256").update("index").digest("hex")}`,
+                        },
+                    ]),
                 )
                 .mockResolvedValueOnce(new Response("index"));
             vi.stubGlobal("fetch", fetcher);
             const result = await fetchMetadata({ paths: { metadataCache: root } }, rel);
             expect(fs.readFileSync(result, "utf8")).toBe("index");
-            expect(fetcher).toHaveBeenCalledTimes(5);
+            expect(fetcher).toHaveBeenCalledTimes(6);
         } finally {
             vi.unstubAllGlobals();
             vi.unstubAllEnvs();

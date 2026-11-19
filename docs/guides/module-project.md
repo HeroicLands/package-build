@@ -862,7 +862,7 @@ module.json
 module.zip
 ```
 
-Publish the checksum beside the content index so dependency fetch can verify it. The manifest and the content index sit beside the archive rather than only
+Publish the content index as a GitHub release asset so dependency fetch can verify it against GitHub’s asset digest. The manifest and the content index sit beside the archive rather than only
 inside it, because that is where the addresses in the manifest point: a
 consumer reads `module.json` from the release without downloading the zip, and
 then fetches the index it names.

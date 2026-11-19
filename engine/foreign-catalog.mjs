@@ -392,50 +392,25 @@ async function fetchBytes(url, context, token, mirror = false) {
     }
 }
 
-/** Read a small checksum over a secure release or build-mirror connection. */
-async function fetchChecksum(url, token, mirror, signal) {
-    const allowed = (value, base) => {
-        const parsed = new URL(value, base);
-        const host = parsed.hostname;
-        const loopback =
-            host === "localhost" || host === "[::1]" || /^127\.\d+\.\d+\.\d+$/.test(host);
-        if (
-            parsed.username ||
-            parsed.password ||
-            (parsed.protocol !== "https:" && !(mirror && parsed.protocol === "http:" && loopback))
-        )
-            throw new Error("checksum URL must use HTTPS or an explicit loopback mirror");
-        return parsed;
-    };
-    let current = allowed(url);
-    const origin = current.origin;
+/** Read bounded GitHub API JSON without passing mirror credentials. */
+async function githubJson(url, signal) {
     let response;
     try {
-        for (let redirects = 0; ; redirects++) {
-            try {
-                response = await fetch(current.href, {
-                    redirect: "manual",
-                    signal,
-                    headers: token ? { Authorization: `token ${token}` } : {},
-                });
-            } catch {
-                const error = new Error("checksum request failed");
-                error.retryable = true;
-                throw error;
-            }
-            if (![301, 302, 303, 307, 308].includes(response.status)) break;
-            const location = response.headers.get("location");
-            await response.body?.cancel();
-            if (!location || redirects >= MAX_MIRROR_REDIRECTS)
-                throw new Error("checksum redirect refused");
-            const next = allowed(location, current);
-            if (current.protocol === "https:" && next.protocol !== "https:")
-                throw new Error("checksum redirect refused");
-            if (token && next.origin !== origin) throw new Error("checksum redirect refused");
-            current = next;
+        try {
+            response = await fetch(url, {
+                redirect: "manual",
+                signal,
+                headers: { Accept: "application/vnd.github+json" },
+            });
+        } catch {
+            const error = new Error("GitHub release metadata request failed");
+            error.retryable = true;
+            throw error;
         }
         if (!response.ok || !response.body) {
-            const error = new Error(`checksum request failed (HTTP ${response.status})`);
+            const error = new Error(
+                `GitHub release metadata request failed (HTTP ${response.status})`,
+            );
             error.retryable = response.status >= 500 && response.status < 600;
             throw error;
         }
@@ -444,19 +419,87 @@ async function fetchChecksum(url, token, mirror, signal) {
         try {
             for await (const chunk of response.body) {
                 size += chunk.length;
-                if (size > 1024) throw new Error("checksum exceeds size limit");
+                if (size > 2 * 1024 * 1024)
+                    throw new Error("GitHub release metadata exceeds size limit");
                 chunks.push(chunk);
             }
-        } catch {
-            if (size > 1024) throw new Error("checksum exceeds size limit");
-            const error = new Error("checksum response interrupted");
+        } catch (cause) {
+            if (size > 2 * 1024 * 1024) throw cause;
+            const error = new Error("GitHub release metadata response interrupted");
             error.retryable = true;
             throw error;
         }
-        return Buffer.concat(chunks);
+        return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
     } finally {
         if (response?.body && !response.body.locked) await response.body.cancel().catch(() => {});
     }
+}
+
+/** Resolve a pinned GitHub release asset's digest from its exact advertised URL. */
+async function githubAssetDigest(manifestUrl, assetUrl, cache) {
+    const parse = (value) => {
+        const url = new URL(value);
+        if (
+            url.protocol !== "https:" ||
+            url.hostname !== "github.com" ||
+            url.port ||
+            url.username ||
+            url.password ||
+            url.search ||
+            url.hash
+        )
+            throw new Error("not a pinned GitHub release asset URL");
+        const parts = url.pathname.split("/");
+        if (
+            parts.length !== 7 ||
+            parts[0] !== "" ||
+            parts[3] !== "releases" ||
+            parts[4] !== "download" ||
+            !parts[1] ||
+            !parts[2] ||
+            !parts[5] ||
+            !parts[6]
+        )
+            throw new Error("not a pinned GitHub release asset URL");
+        return parts;
+    };
+    const manifest = parse(manifestUrl);
+    const asset = parse(assetUrl);
+    if (manifest.slice(1, 6).join("/") !== asset.slice(1, 6).join("/"))
+        throw new Error("content index is not in the pinned GitHub release");
+    const api = `https://api.github.com/repos/${manifest[1]}/${manifest[2]}/releases/tags/${manifest[5]}`;
+    let pending = cache.get(api);
+    if (!pending) {
+        pending = (async () => {
+            const release = await retryMetadata((signal) => githubJson(api, signal));
+            if (
+                !Number.isSafeInteger(release.id) ||
+                release.id <= 0 ||
+                release.tag_name !== decodeURIComponent(manifest[5])
+            )
+                throw new Error("GitHub release identity mismatch");
+            const assets = [];
+            for (let page = 1; page <= 100; page++) {
+                const url = `https://api.github.com/repos/${manifest[1]}/${manifest[2]}/releases/${release.id}/assets?per_page=100&page=${page}`;
+                const batch = await retryMetadata((signal) => githubJson(url, signal));
+                if (!Array.isArray(batch) || batch.length > 100)
+                    throw new Error("invalid GitHub asset listing");
+                assets.push(...batch);
+                if (batch.length < 100) return assets;
+            }
+            throw new Error("GitHub asset listing exceeds page limit");
+        })();
+        cache.set(api, pending);
+    }
+    const matches = (await pending).filter((entry) => entry.browser_download_url === assetUrl);
+    if (
+        matches.length !== 1 ||
+        !Number.isSafeInteger(matches[0].id) ||
+        matches[0].id <= 0 ||
+        !/^sha256:[0-9a-f]{64}$/.test(matches[0].digest ?? "")
+    )
+        throw new Error("GitHub release asset digest unavailable or ambiguous");
+    return matches[0].digest.slice(7);
 }
 
 /** Retry transient metadata requests with bounded time per attempt. */
@@ -850,7 +893,7 @@ export async function fetchMetadata(config, rel) {
  * @returns {Promise<{file: string, manifest: object}>} The cached index file
  *   and the parsed manifest.
  */
-async function fetchMetadataWithManifest(config, rel) {
+async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
     const { url } = pinnedManifestUrl(rel.manifest, rel.verified);
     const manifest = await fetchManifest(rel.buildManifest ?? url, mirrorToken(rel), rel);
     const version = manifest.version;
@@ -878,27 +921,18 @@ async function fetchMetadataWithManifest(config, rel) {
         );
     }
 
-    const name = path.basename(new URL(indexUrl).pathname);
-    const sidecarUrl = new URL(indexUrl);
-    sidecarUrl.pathname += ".sha256";
     const token = mirrorToken(rel);
-    let sidecar;
+    let expected;
     try {
-        sidecar = await retryMetadata((signal) =>
-            fetchChecksum(sidecarUrl.href, token, !!rel.buildManifest, signal),
-        );
+        expected = await githubAssetDigest(url, advertisedIndex, githubCache);
     } catch (cause) {
         throw new Error(
-            `${rel.id}@${version}: content index checksum unavailable; use a release that publishes its checksum`,
+            `${rel.id}@${version}: content index GitHub checksum unavailable`,
             token ? undefined : { cause },
         );
     }
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(sidecar);
-    const match = /^([0-9a-f]{64})  ([^\r\n]+)\n$/.exec(text);
-    if (!match || match[2] !== name)
-        throw new Error(`${rel.id}@${version}: invalid content index checksum for ${name}`);
     const cached = await retryMetadata((signal) =>
-        downloadCached(indexUrl, match[1], {
+        downloadCached(indexUrl, expected, {
             token,
             allowLoopback: !!rel.buildManifest,
             maxBytes: 256 * 1024 * 1024,
@@ -907,14 +941,14 @@ async function fetchMetadataWithManifest(config, rel) {
     );
     fs.mkdirSync(dir, { recursive: true });
     const temporary = fs.mkdtempSync(path.join(dir, ".metadata-"));
-    const file = path.join(dir, `${match[1]}.jsonl`);
+    const file = path.join(dir, `${expected}.jsonl`);
     try {
         const staged = path.join(temporary, "index.jsonl");
         fs.copyFileSync(cached, staged);
-        if ((await indexDigest(staged)) !== match[1])
+        if ((await indexDigest(staged)) !== expected)
             throw new Error(`${rel.id}@${version}: cached content index failed verification`);
         fs.renameSync(staged, file);
-        markMetadataComplete(dir, path.basename(file), match[1]);
+        markMetadataComplete(dir, path.basename(file), expected);
     } finally {
         fs.rmSync(temporary, { recursive: true, force: true });
     }
@@ -1053,9 +1087,10 @@ export async function fetchAllMetadata(config) {
     const queue = metadataRelationships(config);
     const seen = new Set([config.contentPackage, ...queue.map((rel) => rel.id)]);
     let count = 0;
+    const githubCache = new Map();
     while (queue.length) {
         const rel = queue.shift();
-        const { file, manifest } = await fetchMetadataWithManifest(config, rel);
+        const { file, manifest } = await fetchMetadataWithManifest(config, rel, githubCache);
         count += 1;
         if (systems.has(rel.id)) continue;
         for (const id of publishedModules(file)) {

@@ -4,4 +4,4 @@
 
 **Upgrading**
 
-- Pin dependencies to releases that publish the content index and its matching `.sha256` file, or publish the matching checksum beside an existing release index.
+- Pin dependencies to GitHub releases that publish the content index as an asset with an available SHA-256 digest.

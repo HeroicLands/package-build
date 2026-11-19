@@ -9,17 +9,29 @@ import { loadPackConfig } from "../engine/pack-config.mjs";
 
 const roots: string[] = [];
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
-const manifest = "https://example.test/releases/download/v1/system.json";
-const index = "https://example.test/releases/download/v1/index.jsonl";
+const manifest = "https://github.com/example/repo/releases/download/v1/system.json";
+const index = "https://github.com/example/repo/releases/download/v1/index.jsonl";
 const rel = { id: "example", manifest, verified: "1" };
+const api = "https://api.github.com/repos/example/repo/releases/tags/v1";
+const assets = "https://api.github.com/repos/example/repo/releases/123/assets?per_page=100&page=1";
+function apiResponse(url: string, checksum: string | null) {
+    if (url === api) return Response.json({ id: 123, tag_name: "v1" });
+    if (url === assets)
+        return Response.json(
+            checksum === null ?
+                []
+            :   [{ id: 99, browser_download_url: index, digest: `sha256:${checksum}` }],
+        );
+}
+
 function setup(sidecar: string | null, content = "index") {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "metadata-checksum-"));
     roots.push(root);
     vi.stubEnv("XDG_CACHE_HOME", path.join(root, "shared"));
     const fetcher = vi.fn(async (url: string) => {
         if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
-        if (url === `${index}.sha256`)
-            return sidecar === null ? new Response("", { status: 404 }) : new Response(sidecar);
+        if (url === api || url === assets)
+            return apiResponse(url, sidecar?.split("  ")[0] ?? null)!;
         if (url === index) return new Response(content);
         return new Response("", { status: 404 });
     });
@@ -46,14 +58,11 @@ it("verifies shared hits and restores damaged materialized and shared files", as
     await fetchMetadata(config, rel);
     expect(fetcher.mock.calls.filter(([url]) => url === index)).toHaveLength(2);
 });
-it.each([null, "bad\n", `${digest("index")}  other.jsonl\n`])(
-    "rejects missing or invalid checksum %s",
-    async (sidecar) => {
-        const { config, fetcher } = setup(sidecar);
-        await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum/);
-        expect(fetcher.mock.calls.some(([url]) => url === index)).toBe(false);
-    },
-);
+it.each([null, "bad\n"])("rejects missing or invalid checksum %s", async (sidecar) => {
+    const { config, fetcher } = setup(sidecar);
+    await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum/);
+    expect(fetcher.mock.calls.some(([url]) => url === index)).toBe(false);
+});
 it("rejects bytes that do not match the prior checksum", async () => {
     const { config } = setup(`${digest("other")}  index.jsonl\n`);
     await expect(fetchMetadata(config, rel)).rejects.toThrow(/SHA-256/);
@@ -110,7 +119,7 @@ it("never exposes an authenticated redirect location through error causes", asyn
     expect(error.cause).toBeUndefined();
 });
 
-it("refuses a checksum redirect from HTTPS to a loopback HTTP mirror", async () => {
+it("refuses a GitHub API redirect to a loopback HTTP endpoint", async () => {
     const { config } = setup(null);
     const mirror = "https://mirror.test/system.json";
     const fetcher = vi.fn(async (url: string) => {
@@ -127,7 +136,7 @@ it("refuses a checksum redirect from HTTPS to a loopback HTTP mirror", async () 
     expect(fetcher.mock.calls.some(([url]) => url.startsWith("http://"))).toBe(false);
 });
 
-it("retries transient sidecar and index responses", async () => {
+it("retries transient GitHub metadata and index responses", async () => {
     const { config } = setup(`${digest("index")}  index.jsonl\n`);
     let checks = 0;
     let indexes = 0;
@@ -136,10 +145,11 @@ it("retries transient sidecar and index responses", async () => {
         vi.fn(async (url: string) => {
             if (url === manifest)
                 return Response.json({ version: "1", flags: { metadataUrl: index } });
-            if (url === `${index}.sha256`)
+            if (url === api)
                 return ++checks === 1 ?
                         new Response("", { status: 503 })
-                    :   new Response(`${digest("index")}  index.jsonl\n`);
+                    :   apiResponse(url, digest("index"))!;
+            if (url === assets) return apiResponse(url, digest("index"))!;
             return ++indexes === 1 ? new Response("", { status: 503 }) : new Response("index");
         }),
     );
@@ -155,7 +165,7 @@ it("bounds chunked JSONL downloads and removes temporary files", async () => {
         vi.fn(async (url: string) => {
             if (url === manifest)
                 return Response.json({ version: "1", flags: { metadataUrl: index } });
-            if (url.endsWith(".sha256")) return new Response(`${digest("index")}  index.jsonl\n`);
+            if (url === api || url === assets) return apiResponse(url, digest("index"))!;
             let count = 0;
             return new Response(
                 new ReadableStream({
@@ -203,8 +213,7 @@ it("times out stalled index bodies and cleans download files", async () => {
             vi.fn(async (url: string, options: RequestInit) => {
                 if (url === manifest)
                     return Response.json({ version: "1", flags: { metadataUrl: index } });
-                if (url.endsWith(".sha256"))
-                    return new Response(`${digest("index")}  index.jsonl\n`);
+                if (url === api || url === assets) return apiResponse(url, digest("index"))!;
                 return new Response(
                     new ReadableStream({
                         start(controller) {
@@ -266,3 +275,79 @@ it("times out stalled index bodies and cleans download files", async () => {
         vi.useRealTimers();
     }
 }, 110000);
+
+it.each(["missing", "duplicate", "malformed", "wrong-url"])(
+    "rejects %s GitHub asset metadata before downloading",
+    async (kind) => {
+        const { config } = setup(null);
+        const good = { id: 99, browser_download_url: index, digest: `sha256:${digest("index")}` };
+        const fetcher = vi.fn(async (url: string) => {
+            if (url === manifest)
+                return Response.json({ version: "1", flags: { metadataUrl: index } });
+            if (url === api) return Response.json({ id: 123, tag_name: "v1" });
+            if (url === assets)
+                return Response.json(
+                    kind === "missing" ? []
+                    : kind === "duplicate" ? [good, good]
+                    : kind === "malformed" ? [{ ...good, digest: "sha256:bad" }]
+                    : [{ ...good, browser_download_url: `${index}.other` }],
+                );
+            return new Response("unexpected", { status: 500 });
+        });
+        vi.stubGlobal("fetch", fetcher);
+        await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum unavailable/);
+        expect(fetcher.mock.calls.some(([url]) => url === index)).toBe(false);
+    },
+);
+
+it("selects the exact asset across pages and never sends mirror credentials to GitHub", async () => {
+    const { root, config } = setup(null);
+    const tokenFile = path.join(root, "token");
+    fs.writeFileSync(tokenFile, "mirror-secret");
+    vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+    const mirror = "https://mirror.test/releases/download/v1/system.json";
+    const mirroredIndex = "https://mirror.test/releases/download/v1/index.jsonl";
+    const fetcher = vi.fn(async (url: string, options: RequestInit) => {
+        if (url === mirror) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        if (url.startsWith("https://api.github.com/")) {
+            expect(JSON.stringify(options.headers)).not.toContain("mirror-secret");
+            if (url === api) return Response.json({ id: 123, tag_name: "v1" });
+            if (url === assets)
+                return Response.json(
+                    Array.from({ length: 100 }, (_, i) => ({
+                        id: i + 1,
+                        browser_download_url: `${index}-${i}`,
+                        digest: `sha256:${digest("index")}`,
+                    })),
+                );
+            return Response.json([
+                { id: 101, browser_download_url: index, digest: `sha256:${digest("index")}` },
+            ]);
+        }
+        if (url === mirroredIndex) {
+            expect(JSON.stringify(options.headers)).toContain("mirror-secret");
+            return new Response("index");
+        }
+        return new Response("unexpected", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    expect(
+        fs.readFileSync(await fetchMetadata(config, { ...rel, buildManifest: mirror }), "utf8"),
+    ).toBe("index");
+    expect(fetcher.mock.calls.some(([url]) => url.endsWith("&page=2"))).toBe(true);
+});
+
+it("rejects an index from another release before requesting GitHub metadata", async () => {
+    const { config } = setup(null);
+    const fetcher = vi.fn(async (url: string) => {
+        if (url === manifest)
+            return Response.json({
+                version: "1",
+                flags: { metadataUrl: index.replace("/v1/", "/v2/") },
+            });
+        return new Response("unexpected", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum unavailable/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+});

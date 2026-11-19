@@ -33,9 +33,9 @@ import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { configFromData } from "../engine/pack-config.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
-const HOST = "https://example.invalid";
-const manifestUrl = (id: string) => `${HOST}/${id}/module.json`;
-const indexUrl = (id: string) => `${HOST}/${id}/${metadataFileName(id)}`;
+const HOST = "https://github.com/example";
+const manifestUrl = (id: string) => `${HOST}/${id}/releases/download/v1.0.0/module.json`;
+const indexUrl = (id: string) => `${HOST}/${id}/releases/download/v1.0.0/${metadataFileName(id)}`;
 
 let root: string;
 let counter = 0;
@@ -86,11 +86,25 @@ const graph: Record<string, Published> = {
 
 /** The response body a URL serves, or undefined for an unknown one. */
 function serve(url: string): BodyInit | undefined {
-    if (url.endsWith(".sha256")) {
-        const index = url.slice(0, -7);
+    const tag =
+        /^https:\/\/api\.github\.com\/repos\/example\/([^/]+)\/releases\/tags\/v1\.0\.0$/.exec(url);
+    if (tag)
+        return JSON.stringify({ id: Object.keys(graph).indexOf(tag[1]) + 1, tag_name: "v1.0.0" });
+    const listing =
+        /^https:\/\/api\.github\.com\/repos\/example\/([^/]+)\/releases\/([0-9]+)\/assets\?per_page=100&page=1$/.exec(
+            url,
+        );
+    if (listing) {
+        const index = indexUrl(listing[1]);
         const body = serve(index);
         if (typeof body !== "string") return undefined;
-        return `${createHash("sha256").update(body).digest("hex")}  ${path.basename(new URL(index).pathname)}\n`;
+        return JSON.stringify([
+            {
+                id: 1,
+                browser_download_url: index,
+                digest: `sha256:${createHash("sha256").update(body).digest("hex")}`,
+            },
+        ]);
     }
     for (const [id, pkg] of Object.entries(graph)) {
         if (url === manifestUrl(id)) {
