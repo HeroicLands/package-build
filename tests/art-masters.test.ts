@@ -500,7 +500,7 @@ it("renders stable derivatives and preserves targets across a private master mov
     const original = writeProvenance(png, {
         address,
         license: "CC-BY-SA-4.0",
-        creator: "Author",
+        creator: ["Author"],
         rights: "Terms",
         digitalSourceType: "digitalCreation",
         prompt: "private text",
@@ -558,7 +558,7 @@ it("renders stable derivatives and preserves targets across a private master mov
     const metadata = readWebpProvenance(first).record;
     expect(metadata).toMatchObject({
         address,
-        creator: "Author",
+        creator: ["Author"],
         rights: "Terms",
         name: "Public name",
         primaryNote: "sample-note-being-person",
@@ -644,7 +644,7 @@ it("withholds private note names and safely excludes unknown classification", as
     const bytes = writeSvgProvenance(svg, {
         address,
         license: "CC-BY-SA-4.0",
-        creator: "Author",
+        creator: ["Author"],
         rights: "Terms",
         digitalSourceType: "algorithmicMedia",
         primaryNote: "sample-note-being-person",
@@ -707,7 +707,7 @@ it.each([
             name: "Private name",
             prompt: "private text",
             nonAiAlternative: "sample-none-icon-placeholder",
-            creator: "Author",
+            creator: ["Author"],
             rights: "Terms",
         };
         const bytes =
@@ -751,7 +751,7 @@ it.each([
             format === "png" ? readWebpProvenance(output).record : readSvgProvenance(output).record;
         expect(record).toMatchObject({
             address: fields.address,
-            creator: "Author",
+            creator: ["Author"],
             rights: "Terms",
         });
         expect(record.primaryNote).toBe(publicNote ? fields.primaryNote : undefined);
@@ -967,7 +967,7 @@ it.each([
                 address,
                 ai,
                 license,
-                creator: "Author",
+                creator: ["Author"],
                 rights: "Terms",
                 ...(ai === true ? { nonAiAlternative: "sample-none-icon-drawing" } : {}),
             }).bytes,
@@ -1005,7 +1005,7 @@ it("publishes alternative Addresses through standard JSONL without private sourc
         writeSvgProvenance("<svg/>", {
             address: "sample-none-image-component",
             ai: false,
-            creator: "Artist",
+            creator: ["Artist"],
             rights: "Terms",
         }).bytes,
     );
@@ -1023,7 +1023,7 @@ it("publishes alternative Addresses through standard JSONL without private sourc
                     { composition: { layers: [{ address: "sample-none-image-component" }] } }
                 :   {}),
                 nonAiAlternative: alternative,
-                creator: "Artist",
+                creator: ["Artist"],
                 rights: "Terms",
                 license: "CC-BY-SA-4.0",
                 prompt: "secret prompt",

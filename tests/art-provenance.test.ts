@@ -150,7 +150,7 @@ const FIELDS = {
     prompt: PROMPT,
     generator: GENERATOR,
     title: "Abyssdrake",
-    creator: "Tom Rodriguez",
+    creator: ["Tom Rodriguez"],
     rights: "© 2026 Tom Rodriguez. CC-BY-SA 4.0",
     created: "2026-03-20T10:00:00Z",
     software: "replicate.com",
@@ -1005,7 +1005,7 @@ describe("checkProvenance by master and derivative", () => {
     it("keeps generated credit XML stable in PNG, WebP and SVG masters", async () => {
         const fields = {
             ...FIELDS,
-            creator: `Artist's "name" & <credit>\rnext line`,
+            creator: [`Artist's "name" & <credit>\rnext line`],
             rights: `Artist's "terms" & <rights>\rnext line`,
         };
         const cases = [
@@ -1898,7 +1898,7 @@ describe("deriveRecord", () => {
             expect(Object.keys(xmp).sort()).toEqual(
                 ["address", "creator", "derived", "identifier", "rights"].sort(),
             );
-            expect(xmp.creator).toBe(MASTER.creator);
+            expect(xmp.creator).toEqual(MASTER.creator);
             expect(xmp.rights).toBe(MASTER.rights);
             for (const leaked of [
                 "hl:prompt",
@@ -1934,7 +1934,7 @@ describe("generated derivative authorities", () => {
     const primaryNote = "sample-note-being-subject";
     const record = {
         address,
-        creator: "Artist",
+        creator: ["Artist"],
         rights: "Terms",
         primaryNote,
         nonAiAlternative: "sample-none-icon-placeholder",
@@ -2711,7 +2711,7 @@ describe("managed provenance namespace bindings", () => {
         prompt: PROMPT,
         generator: GENERATOR,
         title: "A title & another",
-        creator: "First & second",
+        creator: ["First & second"],
         rights: "Rights & terms",
         license: "CC-BY-SA-4.0",
         digitalSourceType: "digitalCreation",
@@ -2763,11 +2763,11 @@ describe("managed provenance namespace bindings", () => {
                 ["Weitere Rechte", "de"],
             ]);
             expect(read(edited.bytes).record).toMatchObject({
-                creator: "First & artist",
+                creator: ["First & artist", "Second artist"],
                 rights: "Default rights",
             });
             expect(write(edited.bytes, { title: "New title" }).bytes).toEqual(edited.bytes);
-            const replaced = write(edited.bytes, { creator: "Replacement", rights: "New terms" });
+            const replaced = write(edited.bytes, { creator: ["Replacement"], rights: "New terms" });
             expect(values(replaced.bytes, "creator").map(([text]) => text)).toEqual([
                 "Replacement",
             ]);
@@ -2849,7 +2849,8 @@ describe("managed provenance namespace bindings", () => {
                         expect(read(edited.bytes).record).toMatchObject({
                             address: "sample-none-image-example",
                             title: "New title",
-                            [field]: "Artist & colleague",
+                            [field]:
+                                field === "creator" ? ["Artist & colleague"] : "Artist & colleague",
                         });
                         expect(write(edited.bytes, { title: "New title" }).bytes).toEqual(
                             edited.bytes,
@@ -2865,7 +2866,9 @@ describe("managed provenance namespace bindings", () => {
         const lang = field === "rights" ? ' xml:lang="x-default"' : "";
         const plain = `<rdf:li${lang}>Credit</rdf:li>`;
         const properties = [
-            `<dc:${field}><rdf:${shape}>${plain}${plain}</rdf:${shape}></dc:${field}>`,
+            ...(field === "rights" ?
+                [`<dc:${field}><rdf:${shape}>${plain}${plain}</rdf:${shape}></dc:${field}>`]
+            :   []),
             `<dc:${field} other:role="owner"><rdf:${shape}>${plain}</rdf:${shape}></dc:${field}>`,
             `<dc:${field}><rdf:${shape} other:role="owner">${plain}</rdf:${shape}></dc:${field}>`,
             `<dc:${field}><rdf:${shape}><rdf:li${lang} other:role="owner">Credit</rdf:li></rdf:${shape}></dc:${field}>`,
@@ -2886,8 +2889,9 @@ describe("managed provenance namespace bindings", () => {
                 expect(() => write(input, { title: "New title" })).toThrow(
                     `${field}: cannot preserve`,
                 );
-                expect(read(write(input, { [field]: "Replacement" }).bytes).record[field]).toBe(
-                    "Replacement",
+                const replacement = field === "creator" ? ["Replacement"] : "Replacement";
+                expect(read(write(input, { [field]: replacement }).bytes).record[field]).toEqual(
+                    replacement,
                 );
                 expect(read(write(input, { [field]: null }).bytes).record).not.toHaveProperty(
                     field,
@@ -2904,12 +2908,13 @@ describe("managed provenance namespace bindings", () => {
         );
     });
 
-    it("refuses an unrelated edit when complete credits cannot be retained safely", () => {
+    it("retains an ordered creator list when foreign markup is discarded", () => {
         const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:dc="${dc}" xmlns:hl="urn:foreign" xmlns:p="${HL_NAMESPACE}"><rdf:Description p:address="sample-none-image-example"><dc:creator><rdf:Seq><rdf:li>First</rdf:li><rdf:li>Second</rdf:li></rdf:Seq></dc:creator></rdf:Description></rdf:RDF>`;
         const input = `<svg><metadata id="hl-provenance">${packet}</metadata></svg>`;
-        expect(() => writeSvgProvenance(input, { title: "New title" })).toThrow(
-            /creator.*cannot preserve/,
-        );
+        expect(
+            readSvgProvenance(writeSvgProvenance(input, { title: "New title" }).bytes).record
+                .creator,
+        ).toEqual(["First", "Second"]);
     });
 
     it.each(["creator", "rights"])(
@@ -2939,8 +2944,10 @@ describe("managed provenance namespace bindings", () => {
                     expect(() => write(input, { title: "New title" })).toThrow(
                         `${field}: duplicate XMP properties`,
                     );
-                    const replaced = write(input, { [field]: "Replacement credit" });
-                    expect(read(replaced.bytes).record[field]).toBe("Replacement credit");
+                    const replacement =
+                        field === "creator" ? ["Replacement credit"] : "Replacement credit";
+                    const replaced = write(input, { [field]: replacement });
+                    expect(read(replaced.bytes).record[field]).toEqual(replacement);
                     const removed = write(input, { [field]: null });
                     expect(read(removed.bytes).record).not.toHaveProperty(field);
                     for (const output of [replaced, removed]) {
@@ -2976,7 +2983,7 @@ describe("managed provenance namespace bindings", () => {
             const edited = write(input, { title: "New title" });
             expect(read(edited.bytes).record).toEqual({ ...before, title: "New title" });
             expect(read(edited.bytes).record.license).toBe(fields.license);
-            expect(read(edited.bytes).record.creator).toBe(fields.creator);
+            expect(read(edited.bytes).record.creator).toEqual(fields.creator);
             expect(write(edited.bytes, { title: "New title" }).changed).toBe(false);
         },
     );
@@ -2986,7 +2993,7 @@ describe("managed provenance namespace bindings", () => {
         expect(readXmpRecord(packet)).toEqual({
             address: fields.address,
             license: fields.license,
-            creator: "An artist & another",
+            creator: ["An artist & another"],
             title: "First & only",
             name: "Subject",
         });
@@ -2994,7 +3001,7 @@ describe("managed provenance namespace bindings", () => {
 
     it("uses namespace bindings for RDF list entries and preserves attribute text", () => {
         const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:credit="${dc}"><rdf:Description credit:creator="A&#13;\nB &amp; C"><credit:title><Alt xmlns="${rdf}"><rdf:li xmlns:rdf="urn:foreign">Wrong</rdf:li><li>First</li><li>Second</li></Alt></credit:title></rdf:Description></rdf:RDF>`;
-        expect(readXmpRecord(packet)).toEqual({ creator: "A\r\nB & C", title: "First" });
+        expect(readXmpRecord(packet)).toEqual({ creator: ["A\r\nB & C"], title: "First" });
     });
 
     it("does not let rebound prefixes supply managed elements or attributes", () => {

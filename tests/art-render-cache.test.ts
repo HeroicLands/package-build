@@ -163,7 +163,7 @@ it.each(["png", "svg"])(
             primaryNote: "sample-note-being-subject",
             name: "Private identity",
             prompt: "Private prompt",
-            creator: "Artist",
+            creator: ["Artist"],
             rights: "Rights",
         };
         const raw =
@@ -230,7 +230,7 @@ it("book cache separates profiles, placements and public metadata", async () => 
         address: "sample-none-image-portrait",
         primaryNote: "sample-note-being-subject",
         name: "Subject",
-        creator: "Artist",
+        creator: ["Artist"],
         rights: "Rights",
         prompt: "private",
     };

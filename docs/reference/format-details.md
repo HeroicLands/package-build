@@ -2533,10 +2533,14 @@ carries no frontmatter, no anchors and no `foundry` block: a file declares
 nothing about itself, compiles into no document, and publishes no page, so the
 `address` holds the canonical key and no page slug.
 
+Public asset records carry `attribution` as an ordered list of credit strings.
+The attribution text in a provenance sidecar becomes one opaque list entry; it
+is never split into names. Creator lists preserve order and repeated entries.
+
 | `asset` field      | Source      | What it says                                                                                                                                                                                                                         |
 | ------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `path`             | the walk    | Where the file sits inside the emitting package's asset directory.                                                                                                                                                                   |
-| `attribution`      | provenance  | The person holding the rights, to whom attribution is legally due.                                                                                                                                                                   |
+| `attribution`      | provenance  | An ordered list of opaque creator-credit strings, preserving repeated entries.                                                                                                                                                       |
 | `source`           | provenance  | Where it came from — a URL, or a sentence.                                                                                                                                                                                           |
 | `ai`               | provenance  | Whether the file is machine-generated — strictly the YAML boolean `true` or `false`; any other value is a finding, never a stringified record. Required: a record that leaves it out is a finding, never read as `false`.            |
 | `nonAiAlternative` | master only | The canonical Address of a non-AI image or icon alternative, or `null` when absent. Provenance sidecars cannot declare it.                                                                                                           |
@@ -2857,7 +2861,8 @@ Several derivatives may share an address. An SVG passes as either.
 A `provenance.yaml` states the provenance fields in the table above, and nothing
 else: an unknown key is a finding rather than a silent drop, because `licence`
 beside `license` is otherwise an attribution record that looks complete and
-carries nothing.
+carries nothing. Write `attribution` as one text string; lists and other value
+types are errors. The complete text becomes one entry in the indexed credit list.
 
 One address resolves its record in this order:
 

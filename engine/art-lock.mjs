@@ -25,6 +25,7 @@ import {
     readWebpProvenance,
     sniffFormat,
     hasForeignXmp,
+    assertPublicCreators,
 } from "./art-provenance-core.mjs";
 import { writeDerivativeProvenance } from "./art-provenance.mjs";
 import { buildPrimaryNoteIndex, resolvePrimaryNote } from "./art-primary-note.mjs";
@@ -324,6 +325,7 @@ function inspectPublic(config, lock, files) {
         let read;
         try {
             read = format === "svg" ? readSvgProvenance(bytes) : readWebpProvenance(bytes);
+            assertPublicCreators(read.packet);
         } catch {
             throw failure(config, "invalid image metadata in public artwork archive");
         }
@@ -382,7 +384,13 @@ function publicFindings(addressed, records, folder) {
         const standard = indexed.get(address);
         const reasons = [];
         if (!standard) reasons.push("public archive address is absent from the standard index");
-        else if (r.creator !== (standard.asset.attribution || undefined))
+        else if (
+            !Array.isArray(standard.asset.attribution) ||
+            standard.asset.attribution.some(
+                (value) => typeof value !== "string" || !value.length,
+            ) ||
+            JSON.stringify(r.creator ?? []) !== JSON.stringify(standard.asset.attribution)
+        )
             reasons.push("public image attribution differs from the standard index");
         if (r.name !== undefined || r.primaryNote !== undefined) {
             const resolved = resolvePrimaryNote(noteIndex, address).note;

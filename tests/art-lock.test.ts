@@ -37,7 +37,7 @@ function fixture() {
             address: { canonical: address },
             asset: {
                 path: "images/example.svg",
-                attribution: "Artist",
+                attribution: ["Artist"],
                 license: "CC-BY-SA-4.0",
                 ai: false,
             },
@@ -45,7 +45,7 @@ function fixture() {
     ];
     const rendered = writeDerivativeProvenance(
         '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>',
-        { address, creator: "Artist", rights: "Terms", derivedFrom: address },
+        { address, creator: ["Artist"], rights: "Terms", derivedFrom: address },
         { repeat: ["derivedFrom"] },
     ).bytes;
     const zip = Buffer.from(zipSync({ "arbitrary/name.svg": rendered }));
@@ -104,6 +104,57 @@ describe("pinned artwork", () => {
         expect(fs.readFileSync(loadPinnedArt(f.config, f.records).files.get(f.address)!)).toEqual(
             f.rendered,
         );
+    });
+    it("binds every ordered creator credit in the public archive to the index", async () => {
+        const f = fixture();
+        const credits = ["Artist, lead", "Élodie & Co.", "Artist, lead"];
+        const rendered = writeDerivativeProvenance(
+            '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>',
+            { address: f.address, creator: credits, rights: "Terms", derivedFrom: f.address },
+            { repeat: ["derivedFrom"] },
+        ).bytes;
+        const zip = zipSync({ "image.svg": rendered });
+        fs.writeFileSync(f.from, zip);
+        f.lock.rendered.sha256 = hash(zip);
+        fs.writeFileSync(path.join(f.root, "art.lock"), JSON.stringify(f.lock));
+        const row = (attribution: any) => [
+            { ...f.records[0], asset: { ...f.records[0].asset, attribution } },
+        ];
+        await fetchPublicArt(f.config, { from: f.from, records: row(credits) });
+        expect(
+            fs.readFileSync(loadPinnedArt(f.config, row(credits)).files.get(f.address)!),
+        ).toEqual(rendered);
+        for (const attribution of [
+            undefined,
+            credits[0],
+            credits.slice(0, 2),
+            [credits[1], credits[0], credits[2]],
+        ]) {
+            expect(loadPinnedArt(f.config, row(attribution)).findings).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ message: expect.stringMatching(/attribution/) }),
+                ]),
+            );
+            await expect(
+                fetchPublicArt(f.config, { from: f.from, records: row(attribution) }),
+            ).rejects.toThrow(/attribution/);
+        }
+    });
+    it("refuses an archive with unsupported creator membership", async () => {
+        const f = fixture();
+        const text = f.rendered.toString("utf8");
+        expect(text).toContain("<rdf:li>Artist</rdf:li>");
+        const modified = text.replace(
+            "<rdf:li>Artist</rdf:li>",
+            '<rdf:li>Artist</rdf:li><rdf:_2 rdf:resource="urn:credit:second"/>',
+        );
+        const zip = zipSync({ "image.svg": Buffer.from(modified) });
+        fs.writeFileSync(f.from, zip);
+        f.lock.rendered.sha256 = hash(zip);
+        fs.writeFileSync(path.join(f.root, "art.lock"), JSON.stringify(f.lock));
+        await expect(
+            fetchPublicArt(f.config, { from: f.from, records: f.records }),
+        ).rejects.toThrow(/invalid image metadata/);
     });
     it("requires explicit fetch and refuses digest mismatch without exposing a cache", async () => {
         const f = fixture();
@@ -275,7 +326,7 @@ it.skipIf(spawnSync("git", ["lfs", "version"]).status !== 0)(
         git(["lfs", "track", "*.svg"]);
         const master = writeSvgProvenance(
             '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>',
-            { address: f.address, creator: "Artist", rights: "Terms", license: "CC-BY-SA-4.0" },
+            { address: f.address, creator: ["Artist"], rights: "Terms", license: "CC-BY-SA-4.0" },
         ).bytes;
         fs.writeFileSync(path.join(repository, "source.svg"), master);
         const component = writeSvgProvenance(master, {
@@ -401,7 +452,7 @@ it("requires public indexed authority for current note metadata", async () => {
         f.rendered,
         {
             address: f.address,
-            creator: "Artist",
+            creator: ["Artist"],
             rights: "Terms",
             derivedFrom: f.address,
             primaryNote: primary,
@@ -453,7 +504,7 @@ function sourceFixture(objectFormat = "sha1") {
         '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>',
         {
             address: f.address,
-            creator: "Artist",
+            creator: ["Artist"],
             rights: "Terms",
             license: "CC-BY-SA-4.0",
         },
@@ -800,7 +851,7 @@ it.skipIf(spawnSync("git", ["lfs", "version"]).status !== 0)(
             f.rendered,
             {
                 address: f.address,
-                creator: "Artist",
+                creator: ["Artist"],
                 rights: "Terms",
                 derivedFrom: f.address,
                 primaryNote: primary,
@@ -821,7 +872,7 @@ it.skipIf(spawnSync("git", ["lfs", "version"]).status !== 0)(
         for (const records of [
             [...f.records, { ...note, name: { full: "Current" } }],
             [...f.records, { ...note, tags: ["gm"] }],
-            [{ ...f.records[0], asset: { ...f.records[0].asset, attribution: "Current" } }, note],
+            [{ ...f.records[0], asset: { ...f.records[0].asset, attribution: ["Current"] } }, note],
             [note],
             [{ ...f.records[0], address: { canonical: "sample-none-image-other" } }, note],
         ]) {

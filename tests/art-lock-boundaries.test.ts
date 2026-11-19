@@ -94,7 +94,7 @@ async function fixture() {
         fs.readFileSync(asset),
         {
             address,
-            creator: "Artist",
+            creator: ["Artist"],
             rights: "Terms",
             derivedFrom: address,
             primaryNote: primary,
@@ -236,7 +236,7 @@ it.each<Change>(["rename", "gm", "attribution", "removal", "readdress"])(
         ) as any;
         if (["removal", "readdress"].includes(kind)) expect(indexed).toBeUndefined();
         else {
-            expect(indexed.asset.attribution).toBe(f.provenance.attribution);
+            expect(indexed.asset.attribution).toEqual([f.provenance.attribution]);
             expect(indexed.asset.license).toBe("CC-BY-SA-4.0");
             expect(indexed.asset.ai).toBe(false);
         }
