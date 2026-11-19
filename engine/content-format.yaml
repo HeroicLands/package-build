@@ -378,6 +378,7 @@ types:
             - events
             - items
             - appearanceProfile
+            - householdSize
             - vehicleAppearanceProfile
             - glossary
         subTypes:
@@ -424,6 +425,8 @@ types:
             - holder
             - market
             - notes
+            - households
+            - economicFocus
             - borders
             - routes
             - world.equatorialCircumferenceKm

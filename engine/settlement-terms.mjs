@@ -59,7 +59,7 @@ export const GENERATOR_SOURCE_FIELD = Object.freeze({
     name: "generatorSource",
     kind: "map",
     shape: "a map source identity",
-    describe: "The map cell or burg used to identify this row.",
+    describe: "The map cell or burg identifying this row.",
     table: false,
     fields: Object.freeze(
         [
