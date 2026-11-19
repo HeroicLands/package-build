@@ -72,6 +72,11 @@ with these keys:
   explicit state and culture mapping.
 - `bindings` and `settings`: the [settlement assembly](settlement-inputs.md)
   inputs, including existing placements, land rules and urban supply inputs.
+- `bands`: optional numeric overrides for `homesteadBelow` (10), `hamletBelow`
+  (100), `townAt` (1000) and `localAbove` (80). Type uses the first three
+  boundaries; a population at or below `localAbove` has a subsistence market,
+  and a larger rural population has a local market. Thresholds are whole
+  numbers, increasing through `townAt`; `localAbove` is below `townAt`.
 - `selection`: `cellIds`, `existingSites` (each with an existing settlement
   `identity` and coordinate pair `point`), `spacingMeters`, `candidateLimit`
   and `workLimit`.
@@ -81,11 +86,17 @@ inputs and the land and population calculations. It exits unsuccessfully when
 the operation is incomplete. `--checks-module` explicitly selects a trusted
 local module exporting `loadSettingCheckResources` and `createSettingChecks`.
 The module runs with the caller's permissions. The loader receives `root`, an
-optional `indexFile`, and optional `wordlistDirs`; the factory receives its
-resources and the mutable list of selected names. The index must match the
+required `indexFile`, and optional `wordlistDirs`; the factory receives its
+resources and the mutable list of selected names. The index and explicit word
+lists are copied into private snapshots, limited together by `--checks-byte-limit`
+(default 268435456) and `--checks-entry-limit` (default 100000 directory entries).
+`--checks-work-limit` (default 1000000000000) bounds traversed values, text
+length, and a conservative allowance for comparisons and name preparation.
+The module is trusted code; its own imports and other fixed-path resource reads
+are outside those snapshot and work limits. The index must match the
 captured notes. Each selected culture must resolve to one indexed language.
 `--seed` and `--name-limit` bound the deterministic name selection; the number
-of proposed sites times that limit must fit the operation work limit.
+of proposed sites times that limit must fit the authoring work limit.
 
 The default is a dry run. `--write` commits the prepared append-only edit only
 when the selected names pass all checks and no inputs are missing. The writer

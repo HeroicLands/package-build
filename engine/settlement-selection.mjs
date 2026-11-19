@@ -16,6 +16,7 @@ import { discoverPlacementSites, placementGridInterval } from "./settlement-plac
 import { prepareSettlementInputs, settlementCellAreaConversion } from "./settlement-inputs.mjs";
 import { matchesLandRule, proposeSettlements } from "./settlement-generate.mjs";
 import { distributeRuralPopulation, roundPopulation } from "./settlement-model.mjs";
+import { settlementBands } from "./settlement-bands.mjs";
 
 const area = (polygon) => {
     let twice = 0;
@@ -145,6 +146,7 @@ function assemblyBudget(options, selection) {
         options.map,
         options.settings,
         options.bindings,
+        options.bands,
         selection.cellIds,
         selection.existingSites,
     ];
@@ -209,6 +211,7 @@ export function selectSettlementPlacements(options, selection) {
         )
             return fail("provide direct cell IDs and existing settlement positions");
         const requireAssemblyBudget = assemblyBudget(options, selection);
+        const bands = settlementBands(options.bands);
         const rawPlacements = options.settings?.placements;
         // A declared physical total applies to every placement in its cell.
         if (Array.isArray(rawPlacements)) {
@@ -381,7 +384,7 @@ export function selectSettlementPlacements(options, selection) {
                 high = capacity;
             while (low < high) {
                 const middle = low + Math.ceil((high - low) / 2);
-                if (roundPopulation(middle * householdSize) < 1000) low = middle;
+                if (roundPopulation(middle * householdSize) < bands.townAt) low = middle;
                 else high = middle - 1;
             }
             capacity = low;

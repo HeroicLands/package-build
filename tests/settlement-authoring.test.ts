@@ -136,7 +136,7 @@ function fixture() {
         polityAddress: "example-note-affiliation-crown",
         seed: "seed",
         maxCandidates: 4,
-        maxWork: 100,
+        maxWork: 1000000,
     };
 }
 
@@ -176,4 +176,59 @@ it("refuses a changed source after preparing an edit", () => {
     fs.appendFileSync(f.file, "Concurrent edit.\n");
     expect(() => commitSettlementEdit(result.edit)).toThrow(/stale|changed/i);
     expect(fs.readFileSync(f.file, "utf8")).toBe(f.raw + "Concurrent edit.\n");
+});
+
+it("rejects an index with a stale subtype before constructing checks", () => {
+    const f = fixture();
+    let calls = 0;
+    const session = {
+        ...f.session,
+        records: f.session.records.map((r: any) =>
+            r.shortcode === "tongue" ? { ...r, subType: "other" } : r,
+        ),
+    };
+    const result = prepareNamedSettlements({
+        ...f,
+        session,
+        factory: (...args: any[]) => {
+            calls++;
+            return (f.factory as any)(...args);
+        },
+    });
+    expect(result.missing[0].field).toBe("naming.index");
+    expect(calls).toBe(0);
+    expect(fs.readFileSync(f.file, "utf8")).toBe(f.raw);
+});
+
+it("charges oversized resources before iterating or constructing checks", () => {
+    const f = fixture();
+    let calls = 0;
+    const records = new Proxy(new Array(1000000), {
+        get(target, key, receiver) {
+            if (typeof key === "string" && /^\d+$/.test(key)) throw new Error("visited resource");
+            return Reflect.get(target, key, receiver);
+        },
+    });
+    const result = prepareNamedSettlements({
+        ...f,
+        maxWork: 10000,
+        resources: { index: { records } },
+        factory: () => {
+            calls++;
+            throw new Error("factory called");
+        },
+    });
+    expect(result.missing[0].message).toContain("work limit");
+    expect(calls).toBe(0);
+});
+
+it("uses editable type and market thresholds while preserving existing rows", () => {
+    const f = fixture();
+    const result = prepareNamedSettlements({
+        ...f,
+        bands: { homesteadBelow: 30, hamletBelow: 100, townAt: 1000, localAbove: 20 },
+    });
+    expect(result.missing).toEqual([]);
+    expect(result.rows[0]).toMatchObject({ type: "homestead", market: "local", households: 5 });
+    expect(f.selection.existingRows).toEqual([]);
 });

@@ -14,13 +14,18 @@
 /** On-demand settlement placement command. @module */
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { pathToFileURL } from "node:url";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { AZGAAR_LIMITS, readAzgaarMap } from "../engine/azgaar-map.mjs";
 import { selectSettlementPlacements } from "../engine/settlement-selection.mjs";
-import { prepareNamedSettlements } from "../engine/settlement-authoring.mjs";
+import {
+    prepareNamedSettlements,
+    preflightNamedSettlements,
+} from "../engine/settlement-authoring.mjs";
 import { commitSettlementEdit } from "../engine/settlement-source.mjs";
+import { formatDiagnostic } from "../engine/diagnostics.mjs";
 
 function locatedError(file, message, line, column) {
     const position =
@@ -29,6 +34,28 @@ function locatedError(file, message, line, column) {
         located: true,
         path: file,
     });
+}
+
+/** Preserve structured findings and source-editor locations at the command boundary.
+ * @param {unknown} error - Thrown error.
+ * @param {string} fallback - Input path for unlocated errors.
+ * @returns {object[]} Located findings.
+ */
+export function settlementErrorFindings(error, fallback) {
+    if (Array.isArray(error?.findings) && error.findings.length) return error.findings;
+    const raw = String(error?.message ?? error);
+    const match = /^(.*?)(?::(\d+))?(?::(\d+))?: error: ([\s\S]*)$/.exec(raw);
+    if (match)
+        return [
+            {
+                file: match[1],
+                ...(match[2] ? { line: Number(match[2]) } : {}),
+                ...(match[3] ? { column: Number(match[3]) } : {}),
+                severity: "error",
+                message: match[4],
+            },
+        ];
+    return [{ file: error?.path ?? error?.file ?? fallback, severity: "error", message: raw }];
 }
 
 /** Read at most limit plus one byte from one open file.
@@ -58,6 +85,87 @@ export function boundedRead(file, limit, io = fs) {
         throw locatedError(file, String(error?.message ?? error));
     } finally {
         if (fd !== undefined) io.closeSync(fd);
+    }
+}
+
+/** Capture explicit setting resources before handing paths to trusted code.
+ * @param {object} options - Root, paths and total byte limit.
+ * @returns {object} Snapshot paths and cleanup.
+ */
+export function snapshotSettingInputs({
+    root,
+    indexFile,
+    wordlistDirs = [],
+    maxBytes,
+    maxEntries = 100000,
+}) {
+    if (
+        typeof indexFile !== "string" ||
+        !indexFile ||
+        !Number.isSafeInteger(maxBytes) ||
+        maxBytes < 1 ||
+        !Number.isSafeInteger(maxEntries) ||
+        maxEntries < 1
+    )
+        throw new Error("provide a setting index and a positive resource byte limit");
+    const rootPath = path.resolve(root);
+    const exact = (file) => {
+        const resolved = path.resolve(file);
+        if (fs.realpathSync(resolved) !== resolved)
+            throw locatedError(resolved, "symbolic links are not accepted for setting resources");
+        return resolved;
+    };
+    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "settlement-checks-"));
+    let remaining = maxBytes;
+    let entries = 0;
+    const capture = (source, target) => {
+        const file = exact(source);
+        const bytes = boundedRead(file, remaining);
+        remaining -= bytes.length;
+        fs.writeFileSync(target, bytes, { flag: "wx", mode: 0o600 });
+    };
+    try {
+        const originalIndex = path.resolve(rootPath, indexFile);
+        const capturedIndex = path.join(temporary, "index.jsonl");
+        capture(originalIndex, capturedIndex);
+        const directories = [];
+        for (const [i, dir] of wordlistDirs.entries()) {
+            const source = exact(path.resolve(dir));
+            const target = path.join(temporary, `words-${i}`);
+            fs.mkdirSync(target, { mode: 0o700 });
+            const stream = fs.opendirSync(source);
+            try {
+                for (let entry = stream.readSync(); entry; entry = stream.readSync()) {
+                    if (++entries > maxEntries)
+                        throw new Error("setting resources exceed the entry limit");
+                    if (entry.isSymbolicLink())
+                        throw locatedError(
+                            path.join(source, entry.name),
+                            "symbolic links are not accepted for setting resources",
+                        );
+                    if (!entry.name.endsWith(".txt") && !entry.name.endsWith(".tsv")) continue;
+                    if (!entry.isFile())
+                        throw locatedError(
+                            path.join(source, entry.name),
+                            "word-list entry must be a regular file",
+                        );
+                    capture(path.join(source, entry.name), path.join(target, entry.name));
+                }
+            } finally {
+                stream.closeSync();
+            }
+            directories.push(target);
+        }
+        return {
+            indexFile: capturedIndex,
+            wordlistDirs: directories,
+            originalIndex,
+            originalDirs: [...wordlistDirs],
+            cleanup: () => fs.rmSync(temporary, { recursive: true, force: true }),
+        };
+    } catch (error) {
+        fs.rmSync(temporary, { recursive: true, force: true });
+        throw error;
     }
 }
 
@@ -117,6 +225,21 @@ export function settlementCommand() {
                     string: true,
                     describe: "Model-language word-list directory; repeatable",
                 })
+                .option("checks-byte-limit", {
+                    type: "number",
+                    default: 268435456,
+                    describe: "Maximum total bytes of explicit setting resources",
+                })
+                .option("checks-entry-limit", {
+                    type: "number",
+                    default: 100000,
+                    describe: "Maximum setting word-list directory entries",
+                })
+                .option("checks-work-limit", {
+                    type: "number",
+                    default: 1000000000000,
+                    describe: "Maximum authoring resource work units",
+                })
                 .option("seed", { type: "string", describe: "Deterministic name selection seed" })
                 .option("name-limit", {
                     type: "number",
@@ -136,7 +259,14 @@ export function settlementCommand() {
                     Array.isArray(inputs) ||
                     Object.keys(inputs).some(
                         (key) =>
-                            !["pin", "mapping", "bindings", "settings", "selection"].includes(key),
+                            ![
+                                "pin",
+                                "mapping",
+                                "bindings",
+                                "settings",
+                                "selection",
+                                "bands",
+                            ].includes(key),
                     )
                 )
                     throw locatedError(
@@ -161,6 +291,7 @@ export function settlementCommand() {
                             map,
                             bindings: inputs.bindings,
                             settings: inputs.settings,
+                            bands: inputs.bands,
                         },
                         inputs.selection,
                     );
@@ -177,6 +308,16 @@ export function settlementCommand() {
                         };
                     } else {
                         const modulePath = path.resolve(argv.checksModule);
+                        try {
+                            preflightNamedSettlements({
+                                session,
+                                selection: result,
+                                maxCandidates: argv.nameLimit,
+                                maxWork: argv.checksWorkLimit,
+                            });
+                        } catch (error) {
+                            throw locatedError(argv.inputs, error.message);
+                        }
                         let module;
                         try {
                             module = await import(pathToFileURL(modulePath).href);
@@ -194,11 +335,30 @@ export function settlementCommand() {
                                 modulePath,
                                 "setting module must export loadSettingCheckResources and createSettingChecks",
                             );
-                        const loaded = await module.loadSettingCheckResources({
+                        const snapshot = snapshotSettingInputs({
                             root: argv.checksRoot ?? process.cwd(),
-                            ...(argv.checksIndex ? { indexFile: argv.checksIndex } : {}),
-                            ...(argv.wordlistDir ? { wordlistDirs: argv.wordlistDir } : {}),
+                            indexFile: argv.checksIndex,
+                            wordlistDirs: argv.wordlistDir ?? [],
+                            maxBytes: argv.checksByteLimit,
+                            maxEntries: argv.checksEntryLimit,
                         });
+                        let loaded;
+                        try {
+                            loaded = await module.loadSettingCheckResources({
+                                root: argv.checksRoot ?? process.cwd(),
+                                indexFile: snapshot.indexFile,
+                                ...(argv.wordlistDir ?
+                                    { wordlistDirs: snapshot.wordlistDirs }
+                                :   {}),
+                            });
+                            if (loaded?.resources?.index?.id)
+                                loaded.resources.index.id.source = snapshot.originalIndex;
+                            if (loaded?.resources?.earthWordLists?.id)
+                                loaded.resources.earthWordLists.id.source =
+                                    snapshot.originalDirs.join(path.delimiter);
+                        } finally {
+                            snapshot.cleanup();
+                        }
                         authoring = prepareNamedSettlements({
                             session,
                             polityAddress: argv.polity,
@@ -207,7 +367,8 @@ export function settlementCommand() {
                             resources: loaded?.resources,
                             seed: argv.seed,
                             maxCandidates: argv.nameLimit,
-                            maxWork: inputs.selection?.workLimit,
+                            maxWork: argv.checksWorkLimit,
+                            bands: inputs.bands,
                         });
                     }
                     const missing = authoring.missing;
@@ -254,16 +415,12 @@ export function settlementCommand() {
                     session.dispose();
                 }
             } catch (error) {
-                const raw = String(error?.message ?? error);
-                const file =
-                    typeof error?.path === "string" ? error.path
-                    : typeof error?.file === "string" ? error.file
-                    : ([argv.map, argv.json, argv.inputs].find((path) =>
-                            raw.startsWith(`${path}:`),
-                        ) ?? argv.inputs);
-                const message = error?.located ? raw : locatedError(file, raw).message;
-                console.log(JSON.stringify({ missing: [{ file, message: raw }] }, null, 2));
-                console.error(message);
+                const findings = settlementErrorFindings(error, argv.inputs);
+                console.log(JSON.stringify({ missing: findings }, null, 2));
+                for (const finding of findings)
+                    console.error(
+                        formatDiagnostic({ ...finding, severity: finding.severity ?? "error" }),
+                    );
                 process.exitCode = 1;
             }
         },

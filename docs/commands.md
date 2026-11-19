@@ -4103,7 +4103,7 @@ Propose named rural settlements and optionally save their rows.
 
 **SYNOPSIS**
 
-`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE --checks-module FILE --seed TEXT --name-limit NUMBER [--checks-root DIR] [--checks-index FILE] [--wordlist-dir DIR] [--write]`
+`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE --checks-module FILE --seed TEXT --name-limit NUMBER [--checks-root DIR] --checks-index FILE [--wordlist-dir DIR] [--checks-byte-limit NUMBER] [--checks-entry-limit NUMBER] [--checks-work-limit NUMBER] [--write]`
 
 **DESCRIPTION**
 
@@ -4124,8 +4124,12 @@ must match the captured notes.
 - `--checks-module FILE` — trusted local JavaScript module supplying the setting
   resource loader and check factory. The module executes with the caller's access.
 - `--checks-root DIR` — root for setting resources; defaults to the current directory.
-- `--checks-index FILE` — index path passed to the setting resource loader; the
-  loader chooses its default when omitted.
+- `--checks-index FILE` — required index path, relative to the checks root.
+- `--checks-byte-limit NUMBER` — maximum combined index and word-list bytes;
+  defaults to 268435456.
+- `--checks-entry-limit NUMBER` — maximum word-list directory entries; defaults to 100000.
+- `--checks-work-limit NUMBER` — authoring graph and calculation work allowance;
+  defaults to 1000000000000 units.
 - `--wordlist-dir DIR` — model-language word-list directory; repeatable, omitted by default.
 - `--seed TEXT` — deterministic name selection seed, required for generated names.
 - `--name-limit NUMBER` — positive candidate budget per generated name.
@@ -4139,11 +4143,11 @@ output contains a JSON report; diagnostics go to standard error.
 **EXAMPLES**
 
 ```sh
-package-build settlement --polity example-note-affiliation-crown --map world.map --json world.json --inputs settlement-inputs.json --checks-module ./utils/setting-checks.mjs --seed example --name-limit 100
+package-build settlement --polity example-note-affiliation-crown --map world.map --json world.json --inputs settlement-inputs.json --checks-module ./utils/setting-checks.mjs --checks-index build/content-index/example-metadata.jsonl --seed example --name-limit 100
 ```
 
 The input file supplies `pin`, `mapping`, `bindings`, `settings`, and
-`selection`; the selection includes `cellIds`, `existingSites`,
+`selection` and optional `bands`; the selection includes `cellIds`, `existingSites`,
 `spacingMeters`, `candidateLimit`, and `workLimit`.
 
 **SEE ALSO**
