@@ -387,7 +387,7 @@ export function settlementExemptionTracker(
 /**
  * Check settlement facts and political hierarchy at their authored positions.
  * @param {object} note - The indexed note and its source.
- * @param {{index?: any, settlementExemptions?: any, settlementPopulation?: {mode?: "ceiling"|"complete", urbanShare?: number}}} [options] - The address index and optional exemption tracker.
+ * @param {{index?: any, settlementExemptions?: any, settlementPopulation?: {mode?: "ceiling"|"complete", urbanShare?: number}, publishing?: boolean}} [options] - The address index, optional exemption tracker and publication mode.
  * @returns {object[]} Findings at known positions.
  */
 export function checkSettlementTables(
