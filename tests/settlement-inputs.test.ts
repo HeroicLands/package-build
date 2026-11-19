@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { createContentSession } from "../engine/content-session.mjs";
+import { isNoteRecord } from "../engine/index-records.mjs";
 import { checkSettlementTables, settlementMembership } from "../engine/settlement-tables.mjs";
 import { prepareSettlementInputs } from "../engine/settlement-inputs.mjs";
 import { proposeSettlements } from "../engine/settlement-generate.mjs";
@@ -1737,14 +1738,18 @@ describe("automatic rural placement", () => {
                         };
                     }),
                 ];
-                const records = session.records.map((record: any) =>
-                    record.shortcode === "crown" && record.type === "affiliation" ?
-                        { ...record, data: { ...record.data, settlements: rows } }
-                    :   record,
-                );
+                const records = session.records
+                    .filter(isNoteRecord)
+                    .map((record: any) =>
+                        record.shortcode === "crown" && record.type === "affiliation" ?
+                            { ...record, data: { ...record.data, settlements: rows } }
+                        :   record,
+                    );
                 const polity = records.find(
                     (record: any) => record.shortcode === "crown" && record.type === "affiliation",
                 );
+                expect(polity).toMatchObject({ type: "affiliation", subType: "polity" });
+                expect(Array.isArray(polity.data.settlements)).toBe(true);
                 return checkSettlementTables(
                     { fm: polity, file: f.crownFile, raw: before },
                     {
