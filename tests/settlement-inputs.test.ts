@@ -1748,6 +1748,84 @@ describe("automatic rural placement", () => {
             expect(empty.selection.result.proposals).toEqual([]);
             expect(empty.selection.result.unallocatedPopulation).toBe(475);
 
+            const explicitSettings = {
+                ...settings,
+                placements: settings.placements.map((p: any, i: number) => ({
+                    ...p,
+                    areaAcres: i === 0 ? 100 : 200,
+                    cellAreaAcres: 1000,
+                })),
+            };
+            const explicit = selectSettlementPlacements(
+                { ...f, map, settings: explicitSettings },
+                selection,
+            );
+            const ledger = explicit.selection.cellLedgers[0];
+            expect(ledger.physicalAcres).toBe(1000);
+            expect(ledger.reservedAcres).toBe(300);
+            expect(ledger.assignedAcres + ledger.unassignedAcres).toBeCloseTo(700);
+            expect(
+                explicit.selection.candidates.every(
+                    (candidate: any) => candidate.ceilingAcres === 700 * candidate.weight,
+                ),
+            ).toBe(true);
+            const mixedSettings = {
+                ...explicitSettings,
+                placements: explicitSettings.placements.map((p: any, i: number) => {
+                    if (i === 0) return p;
+                    const { cellAreaAcres, ...rest } = p;
+                    return rest;
+                }),
+            };
+            const mixed = selectSettlementPlacements(
+                { ...f, map, settings: mixedSettings },
+                selection,
+            );
+            expect(mixed.selection.cellLedgers[0].physicalAcres).toBe(1000);
+            const zeroArea = {
+                ...settings,
+                placements: settings.placements.map((p: any) => ({ ...p, cellAreaAcres: 0 })),
+            };
+            const zeroPhysical = selectSettlementPlacements(
+                { ...f, map, settings: zeroArea },
+                selection,
+            );
+            expect(zeroPhysical.selection.cellLedgers[0]).toMatchObject({
+                physicalAcres: 0,
+                reservedAcres: 0,
+                assignedAcres: 0,
+                unassignedAcres: 0,
+            });
+            const conflict = {
+                ...explicitSettings,
+                placements: explicitSettings.placements.map((p: any, i: number) => ({
+                    ...p,
+                    cellAreaAcres: 1000 + i,
+                })),
+            };
+            expect(
+                selectSettlementPlacements({ ...f, map, settings: conflict }, selection).ruralInput,
+            ).toBeUndefined();
+            const manyRules = {
+                ...settings,
+                landRules: Array.from({ length: 100 }, () => settings.landRules[0]),
+            };
+            const limited = selectSettlementPlacements(
+                { ...f, map, settings: manyRules },
+                { ...selection, workLimit: 1000 },
+            );
+            expect(limited.missing.some((item: any) => item.message.includes("work limit"))).toBe(
+                true,
+            );
+            const uncovered = selectSettlementPlacements(
+                { ...f, map, settings },
+                { ...selection, spacingMeters: 185200 },
+            );
+            expect(uncovered.selection.candidates).toEqual([]);
+            expect(uncovered.selection.cellLedgers[0].physicalAcres).toBeGreaterThan(0);
+            expect(uncovered.selection.cellLedgers[0].unassignedAcres).toBe(
+                uncovered.selection.cellLedgers[0].physicalAcres,
+            );
             const unknown = selectSettlementPlacements(
                 { ...f, map, settings },
                 { ...selection, existingSites: existingSites.slice(1) },

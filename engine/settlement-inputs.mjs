@@ -51,6 +51,43 @@ const DISTANCE_UNITS = Object.freeze({
     nmi: { meters: 1852, acresPerSquareUnit: 1852 ** 2 / ACRE_SQUARE_METERS },
     nlg: { meters: 5556, acresPerSquareUnit: 5556 ** 2 / ACRE_SQUARE_METERS },
 });
+/** Derive a physical cell area from verified normalized map units.
+ * @param {object} cell - Normalized map cell.
+ * @param {object} units - Pinned map units.
+ * @returns {object|undefined} Conversion details when the basis is valid.
+ */
+export function settlementCellAreaConversion(cell, units) {
+    const unit =
+        (
+            object(units) &&
+            typeof units.distanceUnit === "string" &&
+            own(DISTANCE_UNITS, units.distanceUnit)
+        ) ?
+            DISTANCE_UNITS[units.distanceUnit]
+        :   undefined;
+    const valid =
+        unit &&
+        positive(units?.distanceScale) &&
+        typeof units?.areaUnit === "string" &&
+        units.areaUnit.length > 0 &&
+        nonnegative(cell?.rawArea) &&
+        nonnegative(cell?.area);
+    const expected = valid ? cell.rawArea * units.distanceScale ** 2 : undefined;
+    const acres = valid ? cell.area * unit.acresPerSquareUnit : undefined;
+    if (!valid || !nonnegative(expected) || cell.area !== expected || !nonnegative(acres))
+        return undefined;
+    return {
+        distanceUnit: units.distanceUnit,
+        distanceScale: units.distanceScale,
+        areaUnit: units.areaUnit,
+        rawArea: cell.rawArea,
+        scaledArea: cell.area,
+        metersPerUnit: unit.meters,
+        acreSquareMeters: ACRE_SQUARE_METERS,
+        acresPerSquareUnit: unit.acresPerSquareUnit,
+        acres,
+    };
+}
 function sourceKey(source, mapId) {
     if (
         !object(source) ||
@@ -911,9 +948,10 @@ export function prepareSettlementInputs({
             return result;
         });
         if (valid) {
+            const nextSlots = new Map();
             for (const placement of placements) {
                 if (own(placement, "source")) continue;
-                let slot = 0;
+                let slot = nextSlots.get(placement.cellId) ?? 0;
                 let source = { mapId: map.mapId, kind: "cell", id: placement.cellId, slot };
                 while (reserved.has(sourceKey(source, map.mapId))) {
                     if (!Number.isSafeInteger(++slot))
@@ -922,52 +960,21 @@ export function prepareSettlementInputs({
                 }
                 placement.source = source;
                 reserved.add(sourceKey(source, map.mapId));
+                nextSlots.set(placement.cellId, slot + 1);
             }
             for (const [index, placement] of placements.entries()) {
                 if (own(placement, "cellAreaAcres")) continue;
                 const cell = cells.find((entry) => entry.id === placement.cellId);
-                const units = map.units;
-                const unit =
-                    (
-                        object(units) &&
-                        typeof units.distanceUnit === "string" &&
-                        own(DISTANCE_UNITS, units.distanceUnit)
-                    ) ?
-                        DISTANCE_UNITS[units.distanceUnit]
-                    :   undefined;
-                const basisValid =
-                    unit &&
-                    positive(units?.distanceScale) &&
-                    typeof units?.areaUnit === "string" &&
-                    units.areaUnit.length > 0 &&
-                    nonnegative(cell?.rawArea) &&
-                    nonnegative(cell?.area);
-                const expected = basisValid ? cell.rawArea * units.distanceScale ** 2 : undefined;
-                const acres = basisValid ? cell.area * unit.acresPerSquareUnit : undefined;
-                if (
-                    !basisValid ||
-                    !nonnegative(expected) ||
-                    cell.area !== expected ||
-                    !nonnegative(acres)
-                ) {
+                const conversion = settlementCellAreaConversion(cell, map.units);
+                if (!conversion) {
                     inputMissing(
                         `settings.placements.${index}.cellAreaAcres`,
                         "provide a mapped cell with verified area and a supported pinned distance unit",
                     );
                     continue;
                 }
-                placement.cellAreaAcres = acres;
-                cellAreaConversions[cell.id] = {
-                    distanceUnit: units.distanceUnit,
-                    distanceScale: units.distanceScale,
-                    areaUnit: units.areaUnit,
-                    rawArea: cell.rawArea,
-                    scaledArea: cell.area,
-                    metersPerUnit: unit.meters,
-                    acreSquareMeters: ACRE_SQUARE_METERS,
-                    acresPerSquareUnit: unit.acresPerSquareUnit,
-                    acres,
-                };
+                placement.cellAreaAcres = conversion.acres;
+                cellAreaConversions[cell.id] = conversion;
             }
             resolvedPlacements = placements;
         }

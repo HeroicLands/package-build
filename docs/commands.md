@@ -4094,3 +4094,52 @@ package-build vehicle prompt vehicle-cart --model sdxl --seed example
 **SEE ALSO**
 
 [Vehicle command manual](commands/vehicle.md).
+
+### `package-build settlement`
+
+**NAME**
+
+Preview modeled rural settlement placements.
+
+**SYNOPSIS**
+
+`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE [--write]`
+
+**DESCRIPTION**
+
+Reads a captured polity and a pinned Azgaar map and Full JSON export. The JSON
+inputs file supplies the map pin and mapping, existing bindings and acreage,
+land rules, and bounded selection settings. The command reports modeled
+footprints, household allocations, land ledgers and missing inputs. It does not
+write settlement rows; `--write` refuses because the setting name checks are
+unavailable.
+
+**OPTIONS**
+
+- `--polity ADDRESS` — required fully qualified local polity Address.
+- `--map FILE` — required pinned saved map.
+- `--json FILE` — required pinned Full JSON export.
+- `--inputs FILE` — required JSON operation inputs.
+- `--write` — request writing; the command reports the missing name checks and
+  exits without writing. The default is a preview.
+
+**EXIT STATUS**
+
+0 when no inputs are missing, 1 for an error or incomplete operation. Standard
+output contains a JSON report; diagnostics go to standard error.
+
+**EXAMPLES**
+
+```sh
+package-build settlement --polity example-note-affiliation-crown --map world.map --json world.json --inputs settlement-inputs.json
+```
+
+The input file supplies `pin`, `mapping`, `bindings`, `settings`, and
+`selection`; the selection includes `cellIds`, `existingSites`,
+`spacingMeters`, `candidateLimit`, and `workLimit`.
+
+**SEE ALSO**
+
+[Settlement placement](reference/settlement-placement.md),
+[settlement input assembly](reference/settlement-inputs.md), and
+[Azgaar map input](reference/azgaar-map-input.md).

@@ -194,7 +194,10 @@ function flatten(nodes: CommandNode[]): CommandNode[] {
 }
 
 const PACKAGE_BUILD_SRC = fs.readFileSync(path.join(ROOT, "bin/package-build.mjs"), "utf8");
-const CONTENT_COMMANDS_SRC = fs.readFileSync(path.join(ROOT, "bin/content-commands.mjs"), "utf8");
+const CONTENT_COMMANDS_SRC =
+    fs.readFileSync(path.join(ROOT, "bin/content-commands.mjs"), "utf8") +
+    "\n" +
+    fs.readFileSync(path.join(ROOT, "bin/settlement-command.mjs"), "utf8");
 
 const COMMAND_SOURCES: { binary: string; source: string }[] = [
     {
@@ -231,9 +234,9 @@ const nodes = allNodes();
 const doc = fs.readFileSync(DOC_PATH, "utf8");
 
 describe("the command's real surface, extracted from source", () => {
-    it("has 46 top-level commands", () => {
+    it("has 47 top-level commands", () => {
         const topLevel = nodes.filter((n) => n.path.length === 1);
-        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(46);
+        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(47);
     });
 
     it("includes `package-build site-root`", () => {

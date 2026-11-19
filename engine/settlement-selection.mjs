@@ -13,7 +13,7 @@
 
 /** Geometric accounting for candidate settlement sites. @module */
 import { discoverPlacementSites, placementGridInterval } from "./settlement-placement.mjs";
-import { prepareSettlementInputs } from "./settlement-inputs.mjs";
+import { prepareSettlementInputs, settlementCellAreaConversion } from "./settlement-inputs.mjs";
 import { matchesLandRule, proposeSettlements } from "./settlement-generate.mjs";
 import { distributeRuralPopulation, roundPopulation } from "./settlement-model.mjs";
 
@@ -113,6 +113,47 @@ export function selectSettlementPlacements(options, selection) {
             !Array.isArray(selection.existingSites)
         )
             return fail("provide direct cell IDs and existing settlement positions");
+        const rawPlacements = options.settings?.placements;
+        const existingCount = Array.isArray(rawPlacements) ? rawPlacements.length : 0;
+        const initialSize =
+            existingCount +
+            (options.map?.cells?.length ?? 0) +
+            (options.session?.records?.length ?? 0) +
+            selection.existingSites.length +
+            1;
+        if (
+            !Number.isSafeInteger(selection.workLimit) ||
+            selection.workLimit < 1 ||
+            !Number.isSafeInteger(initialSize * initialSize) ||
+            initialSize * initialSize > selection.workLimit
+        )
+            return fail("assembly exceeds the work limit");
+        // A declared physical total applies to every placement in its cell.
+        if (Array.isArray(rawPlacements)) {
+            const declared = new Map();
+            for (const placement of rawPlacements) {
+                if (!placement || !Object.hasOwn(placement, "cellAreaAcres")) continue;
+                const amount = placement.cellAreaAcres;
+                if (declared.has(placement.cellId) && declared.get(placement.cellId) !== amount)
+                    return fail(`cell ${placement.cellId} has conflicting physical acreage`);
+                declared.set(placement.cellId, amount);
+            }
+            options = {
+                ...options,
+                settings: {
+                    ...options.settings,
+                    placements: rawPlacements.map((placement) =>
+                        (
+                            placement &&
+                            !Object.hasOwn(placement, "cellAreaAcres") &&
+                            declared.has(placement.cellId)
+                        ) ?
+                            { ...placement, cellAreaAcres: declared.get(placement.cellId) }
+                        :   placement,
+                    ),
+                },
+            };
+        }
         const initial = prepareSettlementInputs(options);
         if (!initial.ruralInput) return { ...initial, selection: undefined };
         const ids = new Set(selection.cellIds);
@@ -121,7 +162,9 @@ export function selectSettlementPlacements(options, selection) {
             [...ids].some((id) => !Number.isSafeInteger(id) || id < 0)
         )
             return fail("direct cell IDs must be distinct nonnegative integers");
-        const cells = options.map.cells.filter((cell) => ids.has(cell.id));
+        const cells = options.map.cells
+            .filter((cell) => ids.has(cell.id))
+            .sort((a, b) => a.id - b.id);
         if (
             cells.length !== ids.size ||
             initial.subpolities.some((sub) => sub.cellIds.some((id) => ids.has(id)))
@@ -154,18 +197,20 @@ export function selectSettlementPlacements(options, selection) {
         const existing = options.settings?.placements;
         if (!Array.isArray(existing))
             return fail("provide explicit existing placements and acreage");
-        // Zero-acre trial placements obtain the assembler's physical-area conversion and identity checks.
-        const trial = prepareSettlementInputs({
-            ...options,
-            settings: {
-                ...options.settings,
-                placements: [
-                    ...existing,
-                    ...footprints.candidates.map(({ cellId }) => ({ cellId, areaAcres: 0 })),
-                ],
-            },
-        });
-        if (!trial.ruralInput) return { ...trial, selection: footprints };
+        const candidateCount = footprints.candidates.length;
+        const placementCount = existing.length + candidateCount;
+        const work =
+            2 *
+                placementCount *
+                (placementCount +
+                    options.map.cells.length +
+                    initial.ruralInput.landRules.length +
+                    initial.existingFacts.length +
+                    1) +
+            cells.length +
+            candidateCount * (initial.ruralInput.landRules.length + 1);
+        if (!Number.isSafeInteger(work) || work > selection.workLimit)
+            return fail("assembly and land rule matching exceed the work limit");
         const factSources = initial.existingFacts.map((entry) => ({
             identity: entry.fact.identity,
             source: entry.fact.source,
@@ -205,16 +250,22 @@ export function selectSettlementPlacements(options, selection) {
         if (base.proposals.length)
             return fail("existing placements must bind captured settlements");
         const reserved = new Map();
-        for (const p of trial.resolvedPlacements.slice(0, existing.length))
+        const physical = new Map();
+        for (const p of initial.resolvedPlacements) {
             reserved.set(p.cellId, (reserved.get(p.cellId) ?? 0) + p.areaAcres);
-        const trialNew = trial.resolvedPlacements.slice(existing.length);
-        if (
-            footprints.candidates.length * (initial.ruralInput.landRules.length + 1) >
-            selection.workLimit
-        )
-            return fail("land rule matching exceeds the work limit");
+            if (physical.has(p.cellId) && physical.get(p.cellId) !== p.cellAreaAcres)
+                return fail(`cell ${p.cellId} has conflicting physical acreage`);
+            physical.set(p.cellId, p.cellAreaAcres);
+        }
+        for (const cell of cells) {
+            if (!physical.has(cell.id)) {
+                const conversion = settlementCellAreaConversion(cell, options.map.units);
+                if (!conversion) return fail(`cell ${cell.id} needs verified physical acreage`);
+                physical.set(cell.id, conversion.acres);
+            }
+        }
         const cellsById = new Map(cells.map((cell) => [cell.id, cell]));
-        const modeled = footprints.candidates.map((candidate, i) => {
+        const modeled = footprints.candidates.map((candidate) => {
             const cell = cellsById.get(candidate.cellId);
             const rules = initial.ruralInput.landRules.filter((rule) =>
                 matchesLandRule(rule, cell),
@@ -234,9 +285,9 @@ export function selectSettlementPlacements(options, selection) {
                 throw new RangeError(
                     `cell ${cell.id} needs a positive holding and mapped culture household size`,
                 );
-            const physical = trialNew[i].cellAreaAcres;
+            const physicalAcres = physical.get(cell.id);
             const used = reserved.get(cell.id) ?? 0;
-            const ceiling = (physical - used) * candidate.weight;
+            const ceiling = (physicalAcres - used) * candidate.weight;
             if (!Number.isFinite(ceiling) || ceiling < 0)
                 throw new RangeError(`cell ${cell.id} has inconsistent acreage`);
             let capacity = Math.floor(ceiling / holding);
@@ -253,7 +304,7 @@ export function selectSettlementPlacements(options, selection) {
             capacity = low;
             return {
                 ...candidate,
-                physicalAcres: physical,
+                physicalAcres,
                 reservedAcres: used,
                 ceilingAcres: ceiling,
                 holdingAcres: holding,
@@ -283,7 +334,12 @@ export function selectSettlementPlacements(options, selection) {
                 throw new RangeError(
                     `cell ${entry.cellId} modeled acreage cannot represent its households`,
                 );
-            if (households) chosen.push({ cellId: entry.cellId, areaAcres: entry.areaAcres });
+            if (households)
+                chosen.push({
+                    cellId: entry.cellId,
+                    areaAcres: entry.areaAcres,
+                    cellAreaAcres: entry.physicalAcres,
+                });
         }
         const assembled = prepareSettlementInputs({
             ...options,
@@ -300,12 +356,13 @@ export function selectSettlementPlacements(options, selection) {
             )
         )
             throw new RangeError("final settlement allocation does not match selected households");
+        const assigned = new Map();
+        for (const entry of modeled)
+            assigned.set(entry.cellId, (assigned.get(entry.cellId) ?? 0) + entry.areaAcres);
         const cellLedgers = cells.map((cell) => {
-            const entries = modeled.filter((entry) => entry.cellId === cell.id);
-            if (!entries.length) return { cellId: cell.id, uncovered: true };
-            const physicalAcres = entries[0].physicalAcres;
-            const reservedAcres = entries[0].reservedAcres;
-            const assignedAcres = entries.reduce((sum, entry) => sum + entry.areaAcres, 0);
+            const physicalAcres = physical.get(cell.id);
+            const reservedAcres = reserved.get(cell.id) ?? 0;
+            const assignedAcres = assigned.get(cell.id) ?? 0;
             return {
                 cellId: cell.id,
                 physicalAcres,
