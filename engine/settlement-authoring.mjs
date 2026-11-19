@@ -51,7 +51,7 @@ export function authoringGraphWork(roots, limit) {
     if (!Number.isSafeInteger(limit) || limit < 1)
         throw new RangeError("authoring work limit must be a positive safe integer");
     let work = 0;
-    const seen = new WeakSet();
+    const active = new WeakSet();
     const charge = (n) => {
         work += n;
         if (!Number.isSafeInteger(work) || work > limit)
@@ -72,25 +72,28 @@ export function authoringGraphWork(roots, limit) {
                     yield value[key];
                 }
     }
-    const pending = [roots.values()];
+    const pending = [{ iterator: roots.values(), value: null }];
     while (pending.length) {
-        const next = pending.at(-1).next();
+        const frame = pending.at(-1);
+        const next = frame.iterator.next();
         if (next.done) {
             pending.pop();
+            if (frame.value) active.delete(frame.value);
             continue;
         }
         const value = next.value;
         if (typeof value === "string") charge(value.length + 1);
         else if (Buffer.isBuffer(value)) charge(value.length + 1);
-        else if (value && typeof value === "object" && !seen.has(value)) {
-            seen.add(value);
+        else if (value && typeof value === "object") {
+            if (active.has(value)) throw new RangeError("authoring inputs contain a cycle");
+            active.add(value);
             charge(
                 Array.isArray(value) ? value.length + 1
                 : value instanceof Map ? 2 * value.size + 1
                 : value instanceof Set ? value.size + 1
                 : 1,
             );
-            pending.push(children(value));
+            pending.push({ iterator: children(value), value });
         } else charge(1);
     }
     return work;

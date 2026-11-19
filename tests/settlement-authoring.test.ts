@@ -329,6 +329,59 @@ it("reserves repeated descendant row validation before constructing checks", () 
     expect(calls).toBe(0);
 });
 
+it("charges repeated row contents before serializing or constructing checks", () => {
+    const f = fixture();
+    let calls = 0;
+    const row = {
+        settlement: "x".repeat(10000),
+        toJSON() {
+            throw new Error("serialization reached");
+        },
+    };
+    const extra = {
+        package: "example",
+        type: "affiliation",
+        subType: "polity",
+        shortcode: "other",
+        file: { path: "Other.md" },
+        data: { settlements: Array(200).fill(row) },
+    };
+    const records = [...f.session.records, extra];
+    const sources = new Map(f.session.sources);
+    sources.set(path.join(f.session.contentBase, "Other.md"), { raw: "", frontmatter: {} });
+    const result = prepareNamedSettlements({
+        ...f,
+        session: { ...f.session, records, sources },
+        resources: { ...f.resources, index: { records } },
+        maxWork: 200000,
+        factory: () => {
+            calls++;
+            throw new Error("factory called");
+        },
+    });
+    expect(result.missing[0].message).toContain("work limit");
+    expect(calls).toBe(0);
+});
+
+it("refuses cyclic records before serialization or factory construction", () => {
+    const f = fixture();
+    const cycle: any = {};
+    cycle.self = cycle;
+    const records = [...f.session.records, { data: cycle }];
+    let calls = 0;
+    const result = prepareNamedSettlements({
+        ...f,
+        session: { ...f.session, records },
+        resources: { ...f.resources, index: { records } },
+        factory: () => {
+            calls++;
+            throw new Error("factory called");
+        },
+    });
+    expect(result.missing[0].message).toContain("cycle");
+    expect(calls).toBe(0);
+});
+
 it("refuses missing captured note text before building checks", () => {
     const f = fixture();
     const sources = new Map(f.session.sources);
