@@ -149,7 +149,7 @@ async function assemblyFixture(
                 subType: "culture",
                 shortcode: "otherfolk",
                 name: { full: "Other Folk" },
-                data: missingCulture ? {} : { householdSize: 10 },
+                data: missingCulture ? { lang: "en" } : { lang: "en", householdSize: 10 },
             }),
         );
     const cache = path.join(input.root, "dependency-cache");
@@ -472,6 +472,9 @@ describe("settlement assembly authority and identities", () => {
             const result = prepareSettlementInputs(f);
             const culture = "sessionproof-note-lore-otherfolk";
             expect(result.cultureSizes[culture]).toBe(10);
+            expect(
+                result.missing.filter((item: any) => !["placement", "naming"].includes(item.field)),
+            ).toEqual([]);
             expect(result.ruralInput.existing).toEqual(
                 expect.arrayContaining([
                     expect.objectContaining({
@@ -509,6 +512,9 @@ describe("settlement assembly authority and identities", () => {
                 },
             };
             const result = prepareSettlementInputs({ ...f, settings });
+            expect(
+                result.missing.filter((item: any) => !["placement", "naming"].includes(item.field)),
+            ).toEqual([]);
             expect(result.urbanInput.cities[0].cultureAddress).toBe(
                 "sessionproof-note-lore-otherfolk",
             );

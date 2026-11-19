@@ -127,7 +127,7 @@ describe("settlement source edits", () => {
     it("preserves multiline flow comments and trailing commas", () => {
         const source =
             heading +
-            "data: {settlements: [\n  {settlement: Existing}, # keep row comment\n  # keep next comment\n], note: kept}\n" +
+            "data: {settlements: [\n  {settlement: Existing}, # keep row comment\n  # keep next comment\n  ], note: kept}\n" +
             ending;
         const f = fixture(source);
         f.args.rows = [...f.args.sources.get(f.file)!.frontmatter.data.settlements, row];
@@ -136,7 +136,7 @@ describe("settlement source edits", () => {
         expect(actual).toContain(
             "{settlement: Existing}, # keep row comment\n  # keep next comment\n",
         );
-        expect(actual).toContain("], note: kept}\n" + ending);
+        expect(actual).toContain("  ], note: kept}\n" + ending);
     });
 
     it("preserves existing values and refuses removal, reordering or silent refresh", () => {
