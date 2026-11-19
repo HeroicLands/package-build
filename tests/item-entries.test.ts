@@ -89,7 +89,7 @@ function publish(pkg: string, notes: object[], requiredModules: string[] = []) {
     });
     const dir = metadataCacheDir(config, pkg, "1.0.0");
     write(path.join(dir, metadataFileName(pkg)), serializeContentIndex(records));
-    markComplete(dir);
+    markComplete(dir, metadataFileName(pkg));
 }
 
 beforeAll(() => {
@@ -453,7 +453,7 @@ describe("transitive modules", () => {
         });
         const dir = metadataCacheDir(cfg, pkg, "1.0.0");
         write(path.join(dir, metadataFileName(pkg)), serializeContentIndex(records));
-        markComplete(dir);
+        markComplete(dir, metadataFileName(pkg));
     }
 
     const lore = { type: "lore", subType: "law", shortcode: "oath", name: { full: "Oath" } };

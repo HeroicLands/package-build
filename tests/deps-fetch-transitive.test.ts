@@ -14,6 +14,7 @@
  */
 
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import YAML from "yaml";
@@ -85,6 +86,12 @@ const graph: Record<string, Published> = {
 
 /** The response body a URL serves, or undefined for an unknown one. */
 function serve(url: string): BodyInit | undefined {
+    if (url.endsWith(".sha256")) {
+        const index = url.slice(0, -7);
+        const body = serve(index);
+        if (typeof body !== "string") return undefined;
+        return `${createHash("sha256").update(body).digest("hex")}  ${path.basename(new URL(index).pathname)}\n`;
+    }
     for (const [id, pkg] of Object.entries(graph)) {
         if (url === manifestUrl(id)) {
             return JSON.stringify({
@@ -117,6 +124,7 @@ function serve(url: string): BodyInit | undefined {
 /** Stub `fetch` with the graph and record the URLs requested. */
 function stubFetch() {
     const requested: string[] = [];
+    vi.stubEnv("XDG_CACHE_HOME", path.join(root, "downloads"));
     vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string) => {
@@ -181,7 +189,11 @@ beforeAll(() => {
     root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "deps-fetch-transitive-")));
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    fs.rmSync(path.join(root, "downloads"), { recursive: true, force: true });
+});
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
 describe("`deps fetch` follows required modules", () => {

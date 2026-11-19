@@ -140,7 +140,11 @@ function consumer() {
             collectContentIndex(dependency, { contentPackage: "foreign", skipDirectories: [] }),
         ),
     );
-    write(root, `${cache}/.complete`, "");
+    write(
+        root,
+        `${cache}/.complete`,
+        JSON.stringify({ file: metadataFileName("foreign"), sha256: null }),
+    );
     return root;
 }
 

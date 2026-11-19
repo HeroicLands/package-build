@@ -191,7 +191,10 @@ it("resolves equal item prompts from actual local and cached dependency indexes"
                 }),
             ),
         );
-        fs.writeFileSync(path.join(cacheDir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(cacheDir, ".complete"),
+            JSON.stringify({ file: metadataFileName("remote"), sha256: null }),
+        );
         const config = {
             ...loadPackConfig(),
             contentPackage: "local",

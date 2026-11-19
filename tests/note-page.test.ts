@@ -440,7 +440,7 @@ describe("the note cache", () => {
                     anchors: [],
                 }) + "\n",
             );
-            markComplete(dir);
+            markComplete(dir, metadataFileName(id));
         };
         publish("Old Craft");
         let loads = 0;

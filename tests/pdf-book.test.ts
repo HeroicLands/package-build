@@ -105,7 +105,10 @@ function makeRepo(mode: "homepage" | "content", withPdf = true, withTree = true)
     );
 
     fs.mkdirSync(path.join(dir, "build/cache/metadata/thalorna@1.0.0"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "build/cache/metadata/thalorna@1.0.0/.complete"), "");
+    fs.writeFileSync(
+        path.join(dir, "build/cache/metadata/thalorna@1.0.0/.complete"),
+        JSON.stringify({ file: "thalorna-metadata.jsonl", sha256: null }),
+    );
     fs.writeFileSync(
         path.join(dir, "build/cache/metadata/thalorna@1.0.0/thalorna-metadata.jsonl"),
         JSON.stringify({

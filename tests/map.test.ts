@@ -320,7 +320,10 @@ describe("the places are read from the content index", () => {
             documentation: null,
         };
         fs.writeFileSync(path.join(dir, "thalorna-metadata.jsonl"), JSON.stringify(abroad) + "\n");
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: "thalorna-metadata.jsonl", sha256: null }),
+        );
         const config = {
             ...loadPackConfig(),
             contentPackage: "demo",

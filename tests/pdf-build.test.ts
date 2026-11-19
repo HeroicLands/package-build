@@ -174,7 +174,10 @@ function cacheDependency(config) {
             asset: { path: "icons/anvil.svg" },
         })}\n`,
     );
-    fs.writeFileSync(path.join(metaDir, ".complete"), "");
+    fs.writeFileSync(
+        path.join(metaDir, ".complete"),
+        JSON.stringify({ file: "otherpkg-metadata.jsonl", sha256: null }),
+    );
 }
 
 describe("buildPdf image findings", () => {

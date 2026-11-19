@@ -360,7 +360,10 @@ it("loads a declared replacement through the cached dependency index and stages 
     });
     const cache = path.join(cfg.paths.metadataCache, "library@1.0.0");
     fs.mkdirSync(cache, { recursive: true });
-    fs.writeFileSync(path.join(cache, ".complete"), "");
+    fs.writeFileSync(
+        path.join(cache, ".complete"),
+        JSON.stringify({ file: "library-metadata.jsonl", sha256: null }),
+    );
     fs.writeFileSync(
         path.join(cache, "library-metadata.jsonl"),
         JSON.stringify({

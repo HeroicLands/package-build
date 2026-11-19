@@ -32,7 +32,10 @@ it.each([false, true])(
     async (concurrent) => {
         const input = fixture();
         const dep = path.join(input.config.paths.metadataCache, "source@1.0.0");
-        write(path.join(dep, ".complete"), "");
+        write(
+            path.join(dep, ".complete"),
+            JSON.stringify({ file: "source-metadata.jsonl", sha256: null }),
+        );
         write(
             path.join(dep, "source-metadata.jsonl"),
             [false, true]

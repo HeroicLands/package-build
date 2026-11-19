@@ -218,3 +218,53 @@ it("rechecks a verified file replaced by another writer during verification", as
     expect(await fs.readFile(target)).toEqual(content);
     expect(await fs.readdir(cacheDir)).toEqual([digest]);
 });
+
+it("keeps mirror credentials on the original origin and restricts HTTP to loopback", async () => {
+    const cacheDir = await root();
+    const seen: string[] = [];
+    const fetcher = vi.fn(async (request: string, options: RequestInit) => {
+        seen.push(`${request} ${new Headers(options.headers).get("Authorization")}`);
+        return new Response(null, {
+            status: 302,
+            headers: { location: "https://other.test/file" },
+        });
+    });
+    await expect(
+        downloadCached("https://mirror.test/file", digest, {
+            cacheDir,
+            token: "secret",
+            fetch: fetcher,
+        }),
+    ).rejects.toThrow(/redirect refused/);
+    expect(seen).toEqual(["https://mirror.test/file token secret"]);
+    await expect(
+        downloadCached("http://mirror.test/file", digest, {
+            cacheDir,
+            allowLoopback: true,
+            fetch: fetcher,
+        }),
+    ).rejects.toThrow(/HTTPS/);
+    const loopback = await downloadCached("http://127.0.0.1/file", digest, {
+        cacheDir,
+        allowLoopback: true,
+        token: "secret",
+        fetch: async () => response(),
+    });
+    expect(await fs.readFile(loopback)).toEqual(content);
+});
+
+it("refuses an HTTPS downgrade even when initial loopback mirrors are allowed", async () => {
+    const cacheDir = await root();
+    const fetcher = vi.fn(
+        async () =>
+            new Response(null, { status: 302, headers: { location: "http://127.0.0.1/file" } }),
+    );
+    await expect(
+        downloadCached("https://mirror.test/file", digest, {
+            cacheDir,
+            allowLoopback: true,
+            fetch: fetcher,
+        }),
+    ).rejects.toThrow(/redirect refused/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+});
