@@ -372,6 +372,7 @@ export async function createContentSession({
                     foreign,
                 });
                 return {
+                    currentDate: config.currentDate,
                     runs: runContext(config, records, {
                         referenceName: (target) => resolveReference(linkIndex, target)?.name,
                     }),

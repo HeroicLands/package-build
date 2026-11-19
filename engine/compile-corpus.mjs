@@ -39,6 +39,9 @@
  */
 
 import { indexRecordsFor } from "./content-index.mjs";
+import { scanBlocks } from "./content-blocks.mjs";
+import { scanAlerts } from "./content-alerts.mjs";
+import { scanSpans } from "./content-spans.mjs";
 import { buildContentLinkIndex } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { runContext } from "./content-scripts.mjs";
@@ -98,7 +101,21 @@ export async function buildCompileCorpus({
         });
         try {
             if (problems && problems !== capture.problems) problems.push(...capture.problems);
-            return await capture.compileCorpus();
+            const corpus = await capture.compileCorpus();
+            /** @type {Map<string, ReturnType<import("./content-session.mjs").ContentSyntax>>} */
+            const scanned = new Map();
+            /** @type {import("./content-session.mjs").ContentSyntax} */
+            const syntax = (source) => {
+                const text = String(source ?? "");
+                if (!scanned.has(text))
+                    scanned.set(text, {
+                        blocks: scanBlocks(text),
+                        alerts: scanAlerts(text),
+                        spans: scanSpans(text),
+                    });
+                return scanned.get(text);
+            };
+            return { ...corpus, syntax };
         } finally {
             capture.dispose();
         }

@@ -8,6 +8,9 @@ import YAML from "yaml";
 import { afterEach, describe, expect, it } from "vitest";
 import { configFromData } from "../engine/pack-config.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
+import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
+import { BasePackCompiler } from "../engine/base-compiler.mjs";
+import { routerFor } from "../engine/pack-router.mjs";
 import { noteTree } from "../engine/note-cache.mjs";
 import { serializeContentIndex } from "../engine/content-index.mjs";
 import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
@@ -104,6 +107,7 @@ function fixture(options: { name?: string; primaryNote?: string; ai?: boolean | 
     );
     const configData = {
         contentPackage: "sample",
+        currentDate: "721.1",
         packageKind: "modules",
         stats: { lastModifiedBy: "samplebuilder000" },
         compatibility: { minimum: "14", verified: "14" },
@@ -117,6 +121,29 @@ function fixture(options: { name?: string; primaryNote?: string; ai?: boolean | 
 }
 
 describe("installed artwork in the content session", () => {
+    it("keeps standalone compiler body scanning and the configured date after capture closes", async () => {
+        const f = fixture();
+        const corpus = await buildCompileCorpus({
+            config: f.config,
+            contentBase: f.config.paths.content,
+            assetsBase: f.config.paths.assets,
+            skipDirectories: f.config.skipDirectories,
+            router: routerFor(f.config),
+        });
+        class Consumer extends BasePackCompiler {
+            static convertsWikilinks = false;
+        }
+        const compiler = new Consumer({
+            corpus,
+            contentBase: f.config.paths.content,
+            assetsBase: f.config.paths.assets,
+            skipDirectories: f.config.skipDirectories,
+            dest: path.join(f.root, "build/consumer"),
+        });
+        await compiler.prepare();
+        expect(compiler.currentDate).toBe("721.1");
+        expect(compiler.convertBody({}, "A paragraph.")).toBe("A paragraph.");
+    });
     it("derives its own asset records and stages validated bytes without legacy fallback", async () => {
         const f = fixture();
         const session = await createContentSession({ config: f.config });
