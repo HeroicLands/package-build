@@ -534,6 +534,7 @@ export function prepareSettlementInputs({
         inputMissing("settings.urbanShares", "provide a mapping of polity Addresses to shares");
     const urbanTargets = {};
     const computed = new Map();
+    const ranges = new Map();
     const computing = new Set();
     const reserveFact = (data, identity, file, keyPath, source, noted) => {
         if (!object(data) || (!urbanTypes.has(data.type) && !ruralTypes.has(data.type))) {
@@ -579,13 +580,33 @@ export function prepareSettlementInputs({
         }
         return { urban: urbanTypes.has(data.type), population };
     };
-    const rememberSource = (source, identity, file, keyPath) => {
+    const subordinateSources = new Set();
+    const rememberSource = (source, identity, file, keyPath, ownerAddress) => {
         if (source === undefined) return;
         const key = sourceKey(source, map?.mapId);
-        if (!key || !cellFor(source)) {
+        const cell = cellFor(source);
+        if (!key || !cell) {
             add(file, "generatorSource", `bind ${identity} to a mapped source`, keyPath);
             return;
         }
+        let owner = tree.get(ownerAddress);
+        while (owner?.parent && owner.parent !== selected) owner = tree.get(owner.parent);
+        const bound = subBindings.filter(
+            (binding) => canonical(binding.address) === owner?.address,
+        );
+        if (
+            owner?.parent !== selected ||
+            bound.length !== 1 ||
+            !Array.isArray(bound[0]?.cellIds) ||
+            !bound[0].cellIds.includes(cell.id)
+        )
+            add(
+                file,
+                "generatorSource",
+                `source for ${identity} is outside its subordinate polity's bound cells`,
+                keyPath,
+            );
+        subordinateSources.add(key);
         if (sourcesSeen.has(key))
             add(
                 file,
@@ -596,7 +617,7 @@ export function prepareSettlementInputs({
         else sourcesSeen.set(key, identity);
     };
     const split = (address) => {
-        if (computed.has(address)) return computed.get(address);
+        if (ranges.has(address)) return ranges.get(address);
         if (computing.has(address) || !tree.has(address)) return undefined;
         computing.add(address);
         const node = tree.get(address);
@@ -637,12 +658,13 @@ export function prepareSettlementInputs({
             for (const [index, row] of (Array.isArray(rows) ? rows : []).entries()) {
                 const identity = `${address}#row:${index}`;
                 const source = row?.generatorSource;
-                rememberSource(source, identity, file, [
-                    "data",
-                    "settlements",
-                    index,
-                    "generatorSource",
-                ]);
+                rememberSource(
+                    source,
+                    identity,
+                    file,
+                    ["data", "settlements", index, "generatorSource"],
+                    address,
+                );
                 reserve(
                     reserveFact(row, identity, file, ["data", "settlements", index], source, false),
                 );
@@ -659,7 +681,7 @@ export function prepareSettlementInputs({
                     complete = false;
                 }
                 const source = bound[0]?.source;
-                rememberSource(source, item.address, noteFile, ["data"]);
+                rememberSource(source, item.address, noteFile, ["data"], address);
                 reserve(
                     reserveFact(
                         item.record.data ?? {},
@@ -672,14 +694,14 @@ export function prepareSettlementInputs({
                 );
             }
         }
+        const children = [];
         for (const child of node.children) {
             const value = split(child);
             if (!value) {
                 complete = false;
                 continue;
             }
-            urbanFloor += value.urbanPopulation;
-            ruralFloor += value.ruralPopulation;
+            children.push(value);
         }
         const total = record.data?.territorial_population;
         if (!nonnegative(total)) {
@@ -704,7 +726,12 @@ export function prepareSettlementInputs({
             );
             complete = false;
         }
-        if (!nonnegative(urbanFloor) || !nonnegative(ruralFloor)) {
+        const childTotal = children.reduce((sum, child) => sum + child.total, 0);
+        const minimum = urbanFloor + children.reduce((sum, child) => sum + child.minimum, 0);
+        const requiredRural =
+            ruralFloor + children.reduce((sum, child) => sum + child.total - child.maximum, 0);
+        const maximum = total - requiredRural;
+        if (![urbanFloor, ruralFloor, childTotal, minimum, requiredRural].every(nonnegative)) {
             add(
                 file,
                 "data.territorial_population",
@@ -713,7 +740,7 @@ export function prepareSettlementInputs({
             );
             complete = false;
         }
-        if (complete && urbanFloor + ruralFloor > total) {
+        if (complete && (urbanFloor + ruralFloor + childTotal > total || minimum > maximum)) {
             add(
                 file,
                 "data.territorial_population",
@@ -725,31 +752,76 @@ export function prepareSettlementInputs({
         let result;
         if (complete) {
             const original = total * share;
-            const upper = total - ruralFloor;
-            if (hasShare && (original < urbanFloor || original > upper)) {
+            if (hasShare && (original < minimum || original > maximum)) {
                 inputMissing(
                     `settings.urbanShares.${address}`,
                     "the stated urban share conflicts with authored population reservations",
                 );
             } else {
-                const effective =
-                    hasShare ? original : Math.min(upper, Math.max(original, urbanFloor));
-                urbanTargets[address] = {
+                result = {
+                    address,
+                    total,
                     original,
-                    effective,
-                    adjustment: effective - original,
-                    urbanFloor,
-                    ruralFloor,
-                    source: hasShare ? "explicit" : "default",
+                    hasShare,
+                    directUrban: urbanFloor,
+                    directRural: ruralFloor,
+                    childTotal,
+                    children,
+                    urbanFloor: minimum,
+                    ruralFloor: requiredRural,
+                    minimum: hasShare ? original : minimum,
+                    maximum: hasShare ? original : maximum,
                 };
-                result = { ruralPopulation: total - effective, urbanPopulation: effective };
             }
         }
         computing.delete(address);
-        computed.set(address, result);
+        ranges.set(address, result);
         return result;
     };
-    const total = split(selected) ?? {};
+    const clamp = (value, lower, upper) => Math.min(upper, Math.max(lower, value));
+    const select = (node, target) => {
+        urbanTargets[node.address] = {
+            original: node.original,
+            effective: target,
+            adjustment: target - node.original,
+            urbanFloor: node.urbanFloor,
+            ruralFloor: node.ruralFloor,
+            source: node.hasShare ? "explicit" : "default",
+        };
+        computed.set(node.address, {
+            ruralPopulation: node.total - target,
+            urbanPopulation: target,
+        });
+        const children = [...node.children].sort((a, b) =>
+            a.address < b.address ? -1
+            : a.address > b.address ? 1
+            : 0,
+        );
+        const minimum = Math.max(
+            children.reduce((sum, child) => sum + child.minimum, 0),
+            target - (node.total - node.childTotal - node.directRural),
+        );
+        const maximum = Math.min(
+            children.reduce((sum, child) => sum + child.maximum, 0),
+            target - node.directUrban,
+        );
+        const chosen = children.map((child) => clamp(child.original, child.minimum, child.maximum));
+        let sum = chosen.reduce((a, b) => a + b, 0);
+        for (let i = 0; i < children.length && sum < minimum; i++) {
+            const amount = Math.min(minimum - sum, children[i].maximum - chosen[i]);
+            chosen[i] += amount;
+            sum += amount;
+        }
+        for (let i = 0; i < children.length && sum > maximum; i++) {
+            const amount = Math.min(sum - maximum, chosen[i] - children[i].minimum);
+            chosen[i] -= amount;
+            sum -= amount;
+        }
+        children.forEach((child, index) => select(child, chosen[index]));
+    };
+    const root = split(selected);
+    if (root) select(root, clamp(root.original, root.minimum, root.maximum));
+    const total = computed.get(selected) ?? {};
     const subpolities = member.polities.map((item) => {
         const found = subBindings.filter((entry) => canonical(entry.address) === item.address);
         if (found.length !== 1 || !Array.isArray(found[0]?.cellIds))
@@ -771,9 +843,7 @@ export function prepareSettlementInputs({
             );
     let resolvedPlacements;
     if (Array.isArray(settings.placements) && object(map) && typeof map.mapId === "string") {
-        const reserved = new Set(
-            facts.map((entry) => sourceKey(entry.source, map.mapId)).filter(Boolean),
-        );
+        const reserved = new Set(sourcesSeen.keys());
         const explicit = new Set();
         let valid = true;
         const placements = settings.placements.map((placement, index) => {
@@ -809,6 +879,12 @@ export function prepareSettlementInputs({
                     inputMissing(
                         `settings.placements.${index}.source`,
                         "bind a valid identity in this mapped cell",
+                    );
+                    valid = false;
+                } else if (subordinateSources.has(key)) {
+                    inputMissing(
+                        `settings.placements.${index}.source`,
+                        "a parent placement cannot use a subordinate settlement's identity",
                     );
                     valid = false;
                 } else if (explicit.has(key)) {

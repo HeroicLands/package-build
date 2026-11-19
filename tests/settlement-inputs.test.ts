@@ -269,6 +269,139 @@ async function assemblyFixture(
 }
 
 describe("settlement input assembly", () => {
+    it("adjusts a child's soft default to fit a zero parent share", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            const result = prepareSettlementInputs({
+                ...f,
+                settings: { ...f.settings, urbanShares: { [f.polityAddress]: 0 } },
+            });
+            expect(result.urbanTargets["sessionproof-note-affiliation-child"]).toMatchObject({
+                original: 3.75,
+                effective: 0,
+                adjustment: -3.75,
+            });
+            expect(result.subpolities[0]).toMatchObject({
+                urbanPopulation: 0,
+                ruralPopulation: 50,
+            });
+            expect(result.urbanInput.urbanPopulation).toBe(0);
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("raises a child's soft default to fit a high parent share", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            write(
+                path.join(f.session.contentBase, "Child.md"),
+                note({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "child",
+                    name: { full: "Child" },
+                    data: { parents: ["affiliation-crown"], territorial_population: 450 },
+                }),
+            );
+            const session = await createContentSession({ config: f.session.config });
+            try {
+                const result = prepareSettlementInputs({
+                    ...f,
+                    session,
+                    settings: { ...f.settings, urbanShares: { [f.polityAddress]: 0.9 } },
+                });
+                expect(result.urbanTargets["sessionproof-note-affiliation-child"]).toMatchObject({
+                    original: 33.75,
+                    effective: 425,
+                });
+                expect(result.subpolities[0]).toMatchObject({
+                    urbanPopulation: 425,
+                    ruralPopulation: 25,
+                });
+                expect(result.urbanInput.urbanPopulation).toBe(450);
+                const impossible = prepareSettlementInputs({
+                    ...f,
+                    session,
+                    settings: {
+                        ...f.settings,
+                        urbanShares: {
+                            [f.polityAddress]: 0.9,
+                            "sessionproof-note-affiliation-child": 0,
+                        },
+                    },
+                });
+                expect(impossible.urbanInput).toBeUndefined();
+                expect(impossible.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            field: `settings.urbanShares.${f.polityAddress}`,
+                        }),
+                    ]),
+                );
+            } finally {
+                session.dispose();
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("honors an explicit child share while adjusting its sibling", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            for (const [shortcode, filename] of [
+                ["child", "Child.md"],
+                ["sibling", "Sibling.md"],
+            ])
+                write(
+                    path.join(f.session.contentBase, filename),
+                    note({
+                        type: "affiliation",
+                        subType: "polity",
+                        shortcode,
+                        name: { full: shortcode },
+                        data: { parents: ["affiliation-crown"], territorial_population: 200 },
+                    }),
+                );
+            const session = await createContentSession({ config: f.session.config });
+            try {
+                const sibling = "sessionproof-note-affiliation-sibling";
+                const child = "sessionproof-note-affiliation-child";
+                const map = { ...f.map, cells: [...f.map.cells, { ...f.map.cells[1], id: 9 }] };
+                const bindings = {
+                    ...f.bindings,
+                    subpolities: [
+                        { address: child, cellIds: [8] },
+                        { address: sibling, cellIds: [9] },
+                    ],
+                };
+                const result = prepareSettlementInputs({
+                    ...f,
+                    session,
+                    map,
+                    bindings,
+                    settings: {
+                        ...f.settings,
+                        urbanShares: { [f.polityAddress]: 0.4, [child]: 0 },
+                    },
+                });
+                expect(result.urbanTargets[child]).toMatchObject({
+                    effective: 0,
+                    source: "explicit",
+                });
+                expect(result.urbanTargets[sibling]).toMatchObject({
+                    original: 15,
+                    effective: 125,
+                    adjustment: 110,
+                });
+                expect(result.urbanInput.urbanPopulation).toBe(200);
+                expect(result.ruralInput.ruralPopulation).toBe(300);
+            } finally {
+                session.dispose();
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
     it("raises only the default urban target to reserve an authored city", async () => {
         const f = await assemblyFixture(false, true);
         try {
@@ -548,6 +681,127 @@ describe("settlement input assembly", () => {
                             field: "generatorSource",
                             message: expect.stringContaining("also bound"),
                         }),
+                    ]),
+                );
+            } finally {
+                session.dispose();
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("reserves subordinate row identities and reports conflicting cell ownership", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            write(
+                path.join(f.session.contentBase, "Child.md"),
+                note({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "child",
+                    name: { full: "Child" },
+                    data: {
+                        parents: ["affiliation-crown"],
+                        territorial_population: 50,
+                        settlements: [
+                            {
+                                settlement: "Child Farm",
+                                type: "village",
+                                population: 10,
+                                generatorSource: f.source(2),
+                            },
+                        ],
+                    },
+                }),
+            );
+            const session = await createContentSession({ config: f.session.config });
+            try {
+                const settings = {
+                    ...f.settings,
+                    placements: [
+                        ...f.settings.placements.slice(0, 2),
+                        { cellId: 7, areaAcres: 1000, cellAreaAcres: 3000 },
+                    ],
+                };
+                const result = prepareSettlementInputs({ ...f, session, settings });
+                expect(result.resolvedPlacements[2].source.slot).toBe(3);
+                expect(result.ruralInput).toBeUndefined();
+                expect(result.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            field: "generatorSource",
+                            message: expect.stringContaining("subordinate"),
+                        }),
+                    ]),
+                );
+                const explicit = prepareSettlementInputs({
+                    ...f,
+                    session,
+                    settings: {
+                        ...settings,
+                        placements: [
+                            ...settings.placements.slice(0, 2),
+                            {
+                                cellId: 7,
+                                source: f.source(2),
+                                areaAcres: 1000,
+                                cellAreaAcres: 3000,
+                            },
+                        ],
+                    },
+                });
+                expect(explicit.ruralInput).toBeUndefined();
+                expect(explicit.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({ field: "settings.placements.2.source" }),
+                    ]),
+                );
+            } finally {
+                session.dispose();
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("retains a bound subordinate note source and rejects a parent claim", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            const address = "sessionproof-note-place-childfarm";
+            const source = { mapId: "map", kind: "cell", id: 8, slot: 2 };
+            write(
+                path.join(f.session.contentBase, "ChildFarm.md"),
+                note({
+                    type: "place",
+                    subType: "settlement",
+                    shortcode: "childfarm",
+                    name: { full: "Child Farm" },
+                    data: { government: "affiliation-child", type: "village", population: 10 },
+                }),
+            );
+            const session = await createContentSession({ config: f.session.config });
+            try {
+                const bindings = {
+                    ...f.bindings,
+                    notes: [...f.bindings.notes, { address, source }],
+                };
+                const result = prepareSettlementInputs({ ...f, session, bindings });
+                expect(result.ruralInput).toBeDefined();
+                expect(result.subpolities[0]).toMatchObject({
+                    urbanPopulation: 0,
+                    ruralPopulation: 50,
+                });
+                const settings = {
+                    ...f.settings,
+                    placements: [
+                        ...f.settings.placements.slice(0, 2),
+                        { cellId: 8, source, areaAcres: 1000, cellAreaAcres: 3000 },
+                    ],
+                };
+                const conflicting = prepareSettlementInputs({ ...f, session, bindings, settings });
+                expect(conflicting.ruralInput).toBeUndefined();
+                expect(conflicting.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({ field: "settings.placements.2.source" }),
                     ]),
                 );
             } finally {
