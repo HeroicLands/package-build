@@ -8,4 +8,4 @@
 
 **Upgrading**
 
-- Declare each artwork package in `art.packages` and as an exact required development dependency, then run `npm ci`.
+- Replace `art.lock` and the removed `art fetch`, `art source fetch`, and `art reproduce` commands with `art.packages` and exact required artwork development dependencies, then run `npm ci`.

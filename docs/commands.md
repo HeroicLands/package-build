@@ -1679,12 +1679,11 @@ source generation belongs before this command.
 After all three index files are published successfully, the command writes
 `<paths.contentIndex>/.publication-ready` (normally
 `build/content-index/.publication-ready`). It removes that marker during output
-cleanup, after any pinned-art preflight succeeds. The marker records a complete
+cleanup. The marker records a complete
 published index, even when calendar emission, asset staging, lint, link checks or
 compilation later fails.
 A subsequent index consumer can check it to report independent findings after a
-build failure. It does not replace checking the build's exit status; a pin
-preflight failure retains the prior publication and its marker. Clear the marker
+build failure. It does not replace checking the build's exit status. Clear the marker
 before a surrounding workflow starts as well,
 so failures before the command starts cannot expose an earlier run's index.
 Never restore the marker or resolved indexes from a cache.

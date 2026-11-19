@@ -962,9 +962,7 @@ is persisted or shared across sessions.
 The session exposes `config`, `contentBase`, `assetsBase`, `skipDirectories`,
 `router`, physical `inventory`, raw `sources`, derived `records`, authored
 `parsed` notes, preparation `problems` and captured dependency `foreign`
-views. Pinned artwork supplies integrity-verified `pinnedArt` paths and a separate
-`pinnedArtFindings` array for live publication disagreements; those findings also
-appear in `problems`. Treat these inputs as read-only. Parsed notes retain exact `raw`
+views. Treat these inputs as read-only. Parsed notes retain exact `raw`
 strings, trimmed `body`, authored `frontmatter` and file coordinates; malformed
 or untyped physical files remain available to raw checks. Derivation and
 publication use their own record projections, including per-system clones.
