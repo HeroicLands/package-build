@@ -124,6 +124,10 @@ export function preflightNamedSettlements({ session, selection, maxCandidates, m
         ],
         maxWork - allowance,
     );
+    // Each local validation can expand and scan every captured descendant row.
+    const validationWork = 4 * count * used;
+    if (!Number.isSafeInteger(validationWork) || validationWork > maxWork - allowance - used)
+        throw new RangeError("authoring inputs exceed the work limit");
     for (const record of session.records) {
         if (!isNoteRecord(record)) continue;
         if (typeof record.file?.path !== "string")
@@ -136,7 +140,7 @@ export function preflightNamedSettlements({ session, selection, maxCandidates, m
                 { file },
             );
     }
-    return allowance + used;
+    return allowance + used + validationWork;
 }
 /**
  * Prepare complete rows and an optimistic source edit without writing.

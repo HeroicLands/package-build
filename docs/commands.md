@@ -4128,7 +4128,7 @@ must match the captured notes.
 - `--checks-english-words FILE` — required English word-list JSON, relative to the checks root.
 - `--checks-english-sources FILE` — required English word-list source manifest, relative to the checks root.
 - `--checks-index FILE` — required index path, relative to the checks root.
-- `--checks-byte-limit NUMBER` — maximum combined index and word-list bytes;
+- `--checks-byte-limit NUMBER` — maximum combined bytes of the index, guide, English resources and word lists;
   defaults to 268435456.
 - `--checks-entry-limit NUMBER` — maximum word-list directory entries; defaults to 100000.
 - `--checks-work-limit NUMBER` — authoring graph and calculation work allowance;

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { prepareNamedSettlements } from "../engine/settlement-authoring.mjs";
+import { authoringGraphWork, prepareNamedSettlements } from "../engine/settlement-authoring.mjs";
 import { commitSettlementEdit } from "../engine/settlement-source.mjs";
 
 const roots: string[] = [];
@@ -269,6 +269,63 @@ it("charges raw source text and foreign records before calling the factory", () 
         factory,
     });
     expect(largeForeign.missing[0].message).toContain("work limit");
+    expect(calls).toBe(0);
+});
+
+it("reserves repeated descendant row validation before constructing checks", () => {
+    const f = fixture();
+    const rows = Array.from({ length: 1000 }, (_, i) => ({
+        settlement: `Settlement ${i}`,
+        type: "hamlet",
+        population: 25,
+    }));
+    const sources = new Map(f.session.sources);
+    const chain = Array.from({ length: 24 }, (_, i) => {
+        const file = `Chain${i}.md`;
+        sources.set(path.join(f.session.contentBase, file), { raw: "", frontmatter: {} });
+        return {
+            package: "example",
+            type: "affiliation",
+            subType: "polity",
+            shortcode: `chain${i}`,
+            name: { full: `Chain ${i}` },
+            file: { path: file },
+            data: {
+                territorial_population: 100000,
+                parents: i ? [`example-note-affiliation-chain${i - 1}`] : [],
+                settlements: i === 23 ? rows : [],
+            },
+        };
+    });
+    const session = { ...f.session, records: [...f.session.records, ...chain], sources };
+    const extent = session.records.length + f.selection.selection.result.proposals.length + 1;
+    const oldAllowance =
+        2 * extent * extent +
+        f.selection.selection.result.proposals.length * (extent + f.maxCandidates + 1);
+    const onePass = authoringGraphWork(
+        [
+            session.records,
+            session.sources,
+            session.foreign.index,
+            (session.config as any).packageBuild,
+            f.selection.existingRows,
+            f.selection.selection.result.proposals,
+        ],
+        Number.MAX_SAFE_INTEGER,
+    );
+    const maxWork = onePass + oldAllowance + 1000;
+    expect(onePass + oldAllowance).toBeLessThan(maxWork);
+    let calls = 0;
+    const result = prepareNamedSettlements({
+        ...f,
+        session,
+        maxWork,
+        factory: () => {
+            calls++;
+            throw new Error("factory called");
+        },
+    });
+    expect(result.missing[0].message).toContain("work limit");
     expect(calls).toBe(0);
 });
 

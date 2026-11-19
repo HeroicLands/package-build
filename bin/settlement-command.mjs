@@ -272,7 +272,8 @@ export function settlementCommand() {
                 .option("checks-byte-limit", {
                     type: "number",
                     default: 268435456,
-                    describe: "Maximum total bytes of explicit setting resources",
+                    describe:
+                        "Maximum combined bytes of index, guide, English resources and word lists",
                 })
                 .option("checks-entry-limit", {
                     type: "number",
