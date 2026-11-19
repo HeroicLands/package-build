@@ -2861,7 +2861,8 @@ Several derivatives may share an address. An SVG passes as either.
 A `provenance.yaml` states the provenance fields in the table above, and nothing
 else: an unknown key is a finding rather than a silent drop, because `licence`
 beside `license` is otherwise an attribution record that looks complete and
-carries nothing.
+carries nothing. Write `attribution` as one text string; lists and other value
+types are errors. The complete text becomes one entry in the indexed credit list.
 
 One address resolves its record in this order:
 

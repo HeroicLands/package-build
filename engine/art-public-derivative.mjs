@@ -14,6 +14,7 @@ import {
     sniffFormat,
     hasForeignXmp,
     provenancePacket,
+    assertPublicCreators,
 } from "./art-provenance-core.mjs";
 import { writeDerivativeProvenance } from "./art-provenance.mjs";
 
@@ -117,6 +118,7 @@ export function inspectPublicDerivative(
             format === "svg" ? readSvgProvenance(bytes)
             : format === "jpeg" ? readJpegProvenance(bytes)
             : readWebpProvenance(bytes);
+        assertPublicCreators(read.packet);
         if (format === "jpeg" && (read.foreignMetadata || !sanitizedJpeg(bytes)))
             throw new Error("invalid JPEG metadata");
     } catch {

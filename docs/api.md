@@ -1322,9 +1322,12 @@ if that XML cannot be retained safely, the write fails before producing output.
 creator properties before public projection. It does not edit the packet.
 
 `creator` and public `asset.attribution` are ordered lists of opaque credit strings.
+Provenance writer functions require a list for `creator`; pass `["Artist"]` for
+a single credit. Consumers of the public index read `asset.attribution` as a list.
 An authored sidecar attribution remains one list entry. The PNG Author text
 presents those entries joined by `, `; XMP retains the individual entries.
-Unrelated metadata edits preserve existing creator XML. Explicit `creator` values
+Unrelated metadata edits preserve existing creator XML, including language tags.
+Public derivative credits retain the text without language tags. Explicit `creator` values
 replace the whole list, and `null` removes it.
 
 Multiple creator or rights properties are ambiguous, including

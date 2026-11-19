@@ -39,6 +39,7 @@ it("keeps all ordered credits through masters, index, public pictures and JPEG",
         address: "sample-none-image-one",
         creator: credits,
         rights: "Rights",
+        ai: false,
         license: "CC0-1.0",
     };
     const master = writeProvenance(png, fields).bytes;

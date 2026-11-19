@@ -386,6 +386,32 @@ describe("provenance resolves per address", () => {
         },
     );
 
+    it.each(["[Ann Artist, Bo Producer]", "42", "true", "{name: Artist}", "null"])(
+        "refuses non-text attribution %s with a located finding",
+        (value) => {
+            const base = assetTree({
+                [`icons/${PROVENANCE_FILE}`]: [
+                    `attribution: ${value}`,
+                    "license: CC0",
+                    "ai: false",
+                ].join("\n"),
+                "icons/anvil.svg": "<svg/>",
+            });
+            const problems: any[] = [];
+            const [record] = collectAssetRecords(base, { contentPackage: "sohl", problems });
+            expect(record.asset.attribution).toEqual([]);
+            expect(problems).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        severity: "error",
+                        line: 1,
+                        message: expect.stringMatching(/attribution.*single text string/),
+                    }),
+                ]),
+            );
+        },
+    );
+
     it("keeps the present string parsing for every other provenance key", () => {
         const base = assetTree({
             [`icons/${PROVENANCE_FILE}`]: [

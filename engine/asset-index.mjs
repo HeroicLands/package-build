@@ -167,7 +167,7 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
         from: "provenance",
         type: "strings",
         required: true,
-        describe: "Ordered public credit strings for the rights holders.",
+        describe: "Ordered public credit strings for the contributors.",
     }),
     Object.freeze({
         name: "source",
@@ -351,6 +351,15 @@ function readProvenanceFile(file, findings) {
             continue;
         }
         const field = PROVENANCE_FIELD_BY_KEY.get(key);
+        if (key === "attribution" && typeof value !== "string") {
+            findings.push({
+                file,
+                ...positionOfYamlPath(text, [key], { key: true }),
+                severity: "error",
+                message: "`attribution` must be a single text string",
+            });
+            continue;
+        }
         if (field?.type === "boolean") {
             if (typeof value === "boolean") {
                 out[key] = value;
@@ -401,7 +410,15 @@ function readProvenanceFile(file, findings) {
     // already has its own finding above.
     for (const key of REQUIRED_PROVENANCE_KEYS) {
         const field = PROVENANCE_FIELD_BY_KEY.get(key);
-        const stated = field?.type === "boolean" ? Object.hasOwn(parsed, key) : Boolean(out[key]);
+        const stated =
+            (
+                field?.type === "boolean" ||
+                (key === "attribution" &&
+                    Object.hasOwn(parsed, key) &&
+                    typeof parsed[key] !== "string")
+            ) ?
+                Object.hasOwn(parsed, key)
+            :   Boolean(out[key]);
         if (stated) continue;
         findings.push({
             file,

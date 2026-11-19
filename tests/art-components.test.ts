@@ -397,6 +397,23 @@ it("refuses private component roots with installed artwork packages", () => {
         /art\.packages/,
     );
 });
+it("rejects unsupported creator membership in a public derivative", async () => {
+    const { inspectPublicDerivative } = await import("../engine/art-public-derivative.mjs");
+    const { writeDerivativeProvenance } = await import("../engine/art-provenance.mjs");
+    const clean = writeDerivativeProvenance(
+        svg,
+        { ...fields(address), creator: ["Artist"], derivedFrom: address },
+        { repeat: ["derivedFrom"] },
+    ).bytes.toString("utf8");
+    expect(clean).toContain("<rdf:li>Artist</rdf:li>");
+    const invalid = clean.replace(
+        "<rdf:li>Artist</rdf:li>",
+        '<rdf:li>Artist</rdf:li><rdf:_2 rdf:resource="urn:credit:second"/>',
+    );
+    expect(() => inspectPublicDerivative("composite.svg", Buffer.from(invalid), "sample")).toThrow(
+        /invalid public artwork image metadata/,
+    );
+});
 it("rejects private composition metadata in a public derivative", async () => {
     const { inspectPublicDerivative } = await import("../engine/art-public-derivative.mjs");
     const { writeDerivativeProvenance } = await import("../engine/art-provenance.mjs");
