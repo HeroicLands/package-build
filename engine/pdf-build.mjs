@@ -88,6 +88,7 @@ import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 import { createContentSession } from "./content-session.mjs";
 import { privateArtRoots } from "./art-inputs.mjs";
+import { renderArtMasters } from "./art-master-render.mjs";
 import { assertPrivateArtRoots } from "./art-masters.mjs";
 import { readCanonicalKey, renderAddress } from "./address.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
@@ -883,15 +884,27 @@ async function prepareWorld(resolved, { contentBase, findings, edition }) {
         );
         const masterByPath = new Map();
         const screenByPath = new Map();
+        const renderedScreens =
+            edition === "screen" && masters.size ?
+                await renderArtMasters(
+                    masters,
+                    records,
+                    path.join(resolved.rootDir, "build", "art"),
+                    path.join(resolved.rootDir, "build", ".cache", "art"),
+                )
+            :   new Map();
         for (const record of records) {
             const address = addressText(record);
-            const screen = session?.artSources?.get(address);
+            const rendered = renderedScreens.get(address);
+            const screen =
+                session?.artSources?.get(address) ??
+                (rendered ? () => fs.readFileSync(rendered) : undefined);
             if (screen && record.asset?.path)
                 screenByPath.set(`${record.package}/assets/${record.asset.path}`, screen);
         }
         for (const record of records) {
             const master = masters.get(addressText(record));
-            if (!master || !record.asset?.path) continue;
+            if (!master || !record.asset?.path || edition === "screen") continue;
             const key = `${record.package}/assets/${record.asset.path}`;
             const note = publicNotes.get(master.record.primaryNote);
             const provenance = { ...master.record };

@@ -258,7 +258,7 @@ it(
                     .readFileSync(configFile, "utf8")
                     .replace(
                         "          document: book.yaml",
-                        "          document: book.yaml\n          coverImage: assets/images/portrait.webp",
+                        "          document: book.yaml\n          coverImage: assets/images/portrait.jpg",
                     ),
             );
             const treeFile = path.join(dir, "book.yaml");
@@ -268,12 +268,12 @@ it(
                     .readFileSync(treeFile, "utf8")
                     .replace(
                         "    contents:",
-                        "    page:\n      banner: assets/images/portrait.webp\n    contents:",
+                        "    page:\n      banner: assets/images/portrait.jpg\n    contents:",
                     ),
             );
             fs.appendFileSync(
                 path.join(dir, "assets/content/Gear/dagger.md"),
-                "\n![Portrait](images/portrait.webp){size=medium}\n",
+                "\n![Portrait](images/portrait.jpg){size=medium}\n",
             );
             const built = build(dir, "--no-compile");
             expect(built.status, built.out).toBe(0);
@@ -284,7 +284,8 @@ it(
             expect(typ).toContain("plates/assets/images/portrait.jpg");
             const jpeg = fs.readFileSync(path.join(dist, "sohl-core/assets/images/portrait.jpg"));
             expect(readJpegProvenance(jpeg).record.derivedFrom).toBe("sohl-none-image-portrait");
-            expect((await sharp(jpeg).metadata()).width).toBe(Math.round((3.2 / 2.54) * 150));
+            expect((await sharp(jpeg).metadata()).width).toBe(600);
+            expect(jpeg).toEqual(fs.readFileSync(path.join(dir, "build/art/images/portrait.jpg")));
             const printed = build(dir, "--no-compile", "--edition", "print");
             expect(printed.status, printed.out).toBe(0);
             expect(fs.readFileSync(path.join(dist, "sohl-core-print.typ"), "utf8")).toContain(

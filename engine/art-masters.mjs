@@ -82,7 +82,11 @@ export function assertPrivateArtRoots(
     for (const source of sources) check(source);
 }
 
-/** Select the screen codec from the actual PNG alpha samples. */
+/**
+ * Select the screen codec from the actual PNG alpha samples.
+ * @param {Buffer|Uint8Array} bytes - PNG master bytes.
+ * @returns {"jpeg"|"webp"} Screen codec.
+ */
 export function screenRasterFormat(bytes) {
     const image = PNG.sync.read(bytes, { skipRescale: true });
     const opaque = image.colorType === 3 ? 255 : 2 ** image.depth - 1;
