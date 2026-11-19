@@ -78,7 +78,13 @@ function fixture() {
         const address = row.address.canonical;
         const bytes = writeDerivativeProvenance(
             row.type === "icon" || row.shortcode === "third" ? svg : webp,
-            { address, creator: "Artist", rights: "Terms", derivedFrom: address },
+            {
+                address,
+                creator: "Artist",
+                rights: "Terms",
+                derivedFrom: address,
+                ...(row.asset.ai !== null ? { ai: row.asset.ai } : {}),
+            },
             { repeat: ["derivedFrom"] },
         ).bytes;
         fs.writeFileSync(path.join(root, row.asset.path), bytes);
@@ -228,6 +234,40 @@ describe("installed artwork packages", () => {
         change(f);
         f.save();
         await expect(loadArtPackage(f.root, expected)).rejects.toThrow();
+    });
+    it.each([
+        [true, false],
+        [true, null],
+        [false, true],
+        [false, null],
+    ])("rejects explicit image AI %s against index AI %s", async (embedded, indexed) => {
+        const f = fixture();
+        const row = f.rows[0];
+        const address = row.address.canonical;
+        const bytes = writeDerivativeProvenance(
+            webp,
+            { address, creator: "Artist", rights: "Terms", derivedFrom: address, ai: embedded },
+            { repeat: ["derivedFrom"] },
+        ).bytes;
+        f.replace(row.asset.path, bytes);
+        row.asset.ai = indexed;
+        if (indexed !== true) delete row.asset.nonAiAlternative;
+        f.save();
+        await expect(loadArtPackage(f.root, expected)).rejects.toThrow(/AI status/);
+    });
+    it("allows an index classification inferred from source when the public derivative omits AI", async () => {
+        const f = fixture();
+        const row = f.rows[0];
+        const address = row.address.canonical;
+        const bytes = writeDerivativeProvenance(
+            webp,
+            { address, creator: "Artist", rights: "Terms", derivedFrom: address },
+            { repeat: ["derivedFrom"] },
+        ).bytes;
+        f.replace(row.asset.path, bytes);
+        f.save();
+        const result = await loadArtPackage(f.root, expected);
+        expect(result.records[0].asset.ai).toBe(true);
     });
     it("requires authoritative public-note verification when derivative metadata names a note", async () => {
         const f = fixture();

@@ -3908,3 +3908,15 @@ The index retains the three AI states and complete alternative addresses.
 The caller checks the consumer's dependency declarations and lockfile integrity.
 
 When an image carries a public primary-note name or address, `expected.validatePublicNote(address, metadata)` must confirm it against authoritative local public notes. Without that verifier the loader refuses those fields.
+
+### Public artwork derivative inspection
+
+| Export                    | Signature                                                        | Returns                           | Use                                                                           |
+| ------------------------- | ---------------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------- |
+| `inspectPublicDerivative` | `inspectPublicDerivative(name, bytes, contentPackage, failure?)` | `{name, bytes, format, metadata}` | Validate public provenance, embedded identity and sanitized derivative bytes. |
+
+Import it from `@heroiclands/package-build/engine/art-public-derivative`. Invalid
+input throws; the optional failure callback constructs contextual errors. This
+inspection does not decode image pixels or establish the authority of public
+note metadata. The caller must validate image payloads, verify referenced public
+notes against local notes, and check artwork eligibility for the intended output.

@@ -12,6 +12,7 @@ import { ASSET_RECORD_FIELDS } from "./asset-index.mjs";
 import { readCanonicalKey, renderAddress } from "./address.mjs";
 import sharp from "sharp";
 import { inspectPublicDerivative } from "./art-public-derivative.mjs";
+import { provenanceAi } from "./art-provenance-core.mjs";
 import { decodeIndexAddresses } from "./note-addresses.mjs";
 
 const assetFields = new Set(ASSET_RECORD_FIELDS.map((field) => field.name));
@@ -147,6 +148,8 @@ export async function loadArtPackage(directory, expected) {
             image.metadata.creator !== (record.asset.attribution || undefined)
         )
             throw new Error("asset image identity or creator does not match its index record");
+        if (image.metadata.ai !== undefined && provenanceAi(image.metadata) !== record.asset.ai)
+            throw new Error("asset image AI status does not match its index record");
         used.add(record.asset.path);
         records.push(record);
     }
