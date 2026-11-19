@@ -95,54 +95,70 @@ it("keeps all ordered credits through masters, index, public pictures and JPEG",
     expect(updatedBytes).not.toEqual(firstRendered);
     expect(readJpegProvenance(updatedBytes).record.creator).toEqual(changed);
 });
-it("rejects reordered public creator credits even with a matching index digest", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "art-credit-package-"));
-    roots.push(root);
-    const address = "sample-none-icon-one",
-        file = "icons/one.svg";
-    const image = writeSvgProvenance(
-        '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><rect width="2" height="2"/></svg>',
-        { address, creator: credits, rights: "Rights" },
-    ).bytes;
-    const { writeDerivativeProvenance } = await import("../engine/art-provenance.mjs");
-    const publicImage = writeDerivativeProvenance(
-        image,
-        { address, creator: credits, rights: "Rights", derivedFrom: address },
-        { repeat: ["derivedFrom"] },
-    ).bytes;
-    fs.mkdirSync(path.join(root, "icons"));
-    fs.writeFileSync(path.join(root, file), publicImage);
-    fs.writeFileSync(
-        path.join(root, "package.json"),
-        JSON.stringify({ name: "art-test", version: "1.0.0" }),
-    );
-    const row = {
-        package: "sample",
-        type: "icon",
-        shortcode: "one",
-        address: { canonical: address },
-        asset: {
-            path: file,
-            attribution: [credits[1], credits[0], credits[2]],
-            license: "CC0-1.0",
-            ai: false,
-        },
-    };
-    const index = serializeContentIndex([decodeIndexAddresses(row, { package: "sample" })]);
-    fs.writeFileSync(path.join(root, "index.jsonl"), index);
-    fs.writeFileSync(
-        path.join(root, "artwork.json"),
-        JSON.stringify({
-            formatVersion: 1,
-            contentPackage: "sample",
-            index: { path: "index.jsonl", sha256: sha(index) },
-            assets: [{ path: file, sha256: sha(publicImage) }],
-        }),
-    );
-    await expect(
-        prepareArtPackage(root, { name: "art-test", version: "1.0.0", contentPackage: "sample" }),
-    ).rejects.toThrow(/creator/);
-});
+it.each([
+    ["missing", undefined, /invalid asset attribution/],
+    ["scalar", credits[0], /invalid asset attribution/],
+    ["truncated", credits.slice(0, 2), /creator/],
+    ["reordered", [credits[1], credits[0], credits[2]], /creator/],
+])(
+    "rejects %s public creator credits even with a matching index digest",
+    async (_kind, attribution, error) => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "art-credit-package-"));
+        roots.push(root);
+        const address = "sample-none-icon-one",
+            file = "icons/one.svg";
+        const image = writeSvgProvenance(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><rect width="2" height="2"/></svg>',
+            { address, creator: credits, rights: "Rights" },
+        ).bytes;
+        const { writeDerivativeProvenance } = await import("../engine/art-provenance.mjs");
+        const publicImage = writeDerivativeProvenance(
+            image,
+            { address, creator: credits, rights: "Rights", derivedFrom: address },
+            { repeat: ["derivedFrom"] },
+        ).bytes;
+        fs.mkdirSync(path.join(root, "icons"));
+        fs.writeFileSync(path.join(root, file), publicImage);
+        fs.writeFileSync(
+            path.join(root, "package.json"),
+            JSON.stringify({ name: "art-test", version: "1.0.0" }),
+        );
+        const row = {
+            package: "sample",
+            type: "icon",
+            shortcode: "one",
+            address: { canonical: address },
+            asset: {
+                path: file,
+                attribution: credits,
+                license: "CC0-1.0",
+                ai: false,
+            },
+        };
+        const published = JSON.parse(
+            serializeContentIndex([decodeIndexAddresses(row, { package: "sample" })]),
+        );
+        published.asset.attribution = attribution;
+        const index = `${JSON.stringify(published)}\n`;
+        fs.writeFileSync(path.join(root, "index.jsonl"), index);
+        fs.writeFileSync(
+            path.join(root, "artwork.json"),
+            JSON.stringify({
+                formatVersion: 1,
+                contentPackage: "sample",
+                index: { path: "index.jsonl", sha256: sha(index) },
+                assets: [{ path: file, sha256: sha(publicImage) }],
+            }),
+        );
+        await expect(
+            prepareArtPackage(root, {
+                name: "art-test",
+                version: "1.0.0",
+                contentPackage: "sample",
+            }),
+        ).rejects.toThrow(error);
+    },
+);
 
 it.each([
     '<dc:creator rdf:resource="urn:person"/>',
