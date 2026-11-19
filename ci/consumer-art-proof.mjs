@@ -219,7 +219,8 @@ function inspectOutputs() {
         assert.equal(inspected.format, spec.format);
         assert.equal(inspected.metadata.address, `kethira-none-image-${spec.shortcode}`);
         assert.equal(inspected.metadata.ai, false);
-        assert.equal(inspected.metadata.license, "CC0-1.0");
+        assert.equal(inspected.metadata.rights, "Geometric CI fixture dedicated to CC0-1.0");
+        assert.equal(inspected.metadata.license, undefined);
         assert.deepEqual(inspected.metadata.creator, credits);
         assert.equal(inspected.metadata.prompt, undefined);
         assert.ok(!bytes.includes(Buffer.from(sentinel)), "private metadata in derivative");
@@ -240,6 +241,8 @@ function inspectOutputs() {
             format: inspected.format,
             sha256: hash(bytes),
             attribution: record.asset.attribution,
+            license: record.asset.license,
+            rights: inspected.metadata.rights,
         };
     });
     assert.deepEqual(
