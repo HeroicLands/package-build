@@ -1,0 +1,21 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+
+# Settlement name candidates
+
+`proposeSettlementName` builds one candidate for an explicit on-demand operation. It consumes an indexed culture with a resolved `lang`, an indexed language note with the matching configured `languageCode`, a stable settlement identity and seed, exclusions, and validation callbacks. It neither discovers settlements nor writes names into notes. Ordinary indexing, lint and builds do not call it.
+
+The supported composition is one plain place-compatible opening or either element followed by one plain place-compatible closing or either element. A single indexed `data.naming.draws` entry for `kind: place` must permit place elements. An element whose `kind` is absent applies to every kind; elements limited to given names or bynames cannot supply this pool. A link element is not an opening or closing. The helper uses the declared base `form` and does not select variants, joining forms, clipping, a linker, a founder, a deity, or held-from sources. An element carrying a joining form is outside this plain subset. A language declaring held-from operations needs a supported source-specific composition before this helper can use it. Missing or unsupported declarations produce a `missing` result, not an invented recipe.
+
+The caller supplies `exclusions` as all existing names and aliases and names already selected by the current operation. Exclusions use the shared `normalizeName` comparison: Unicode NFC, straight apostrophes, normalized whitespace and case folding. The candidate itself is composed in NFC without changing case or removing pronunciation marks. Each check receives that candidate and a context containing the selected culture, language, identity and lexical components. Component senses describe the declared words; they do not establish a settlement's geography, holder or history.
+
+## Validation boundary
+
+The caller supplies five synchronous callbacks in `validators`: `spelling`, `language`, `earthWords`, `earthNames`, and `indexedNames`. Each receives `(candidate, context)` and returns `{available: true, valid: true}` for acceptance or `{available: true, valid: false}` for rejection. It returns `{available: false}` when the required checker or its data is unavailable. The callback may include additional evidence in its result. Throws, promises, thenables, and ambiguous results produce `validation-error`; absent callbacks or unavailable data produce `missing`. Every callback must report available and valid before a candidate is accepted.
+
+The caller connects actual checks and preloaded data for the selected language. `spelling` covers the governing pronunciation and spelling guide; `language` covers the selected language's declared inventory, applicable shape and edge constraints, and flavor; `earthWords` covers the applicable model-language whole-word and English-word collisions; `earthNames` covers proper-name collisions; `indexedNames` covers indexed names, aliases and registers. None of those resources is bundled or validated by this helper. A callback must report unavailable when its required data or coverage is unavailable; it must not interpret the absence of a list as a successful check. The supplied exclusions are an additional explicit guard, not a substitute for the indexed-name checker.
+
+## Selection and results
+
+The seed and stable identity determine a reproducible ordering of the finite opening and closing pools. `maxCandidates` is a required positive integer limiting examined pairs, including excluded and rejected pairs. A `budget` result means more pairs remain; `exhausted` means every pair was considered without acceptance. Neither produces a replacement name. An accepted result contains the candidate, culture and language Addresses, declared component forms and senses, and all callback outcomes. It does not prove the suitability of those meanings for a particular place.
+
+An `authored` value must bind an existing captured name to the same stable identity with `{identity, name}`. It returns the exact authored text as `authored`, with no claim that a newly generated candidate passed validation. The caller obtains this binding from the captured content session. Without that explicit binding the helper does not infer an existing identity from a name.

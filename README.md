@@ -109,7 +109,7 @@ The documentation lives in the Markdown files in this repository. Start with [th
 Settlement authoring references cover [map input](docs/reference/azgaar-map-input.md),
 [input assembly](docs/reference/settlement-inputs.md), the [model](docs/reference/settlement-model.md),
 [rural proposals](docs/reference/settlement-proposals.md), [urban food](docs/reference/settlement-urban.md),
-and [source edits](docs/reference/settlement-source.md).
+[place-name candidates](docs/reference/settlement-names.md), and [source edits](docs/reference/settlement-source.md).
 
 Place notes may declare a governing affiliation with `data.government` (`Address`, default target type `affiliation`), or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](docs/authoring/frontmatter.md#place-governments).
 
