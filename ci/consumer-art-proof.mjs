@@ -232,7 +232,8 @@ function inspectOutputs() {
         assert.equal(typeof uuid, "string");
         const doc = documents.get(`mysteries/${uuid.split(".").at(-1)}`);
         assert.ok(doc, `missing compiled real note: ${spec.note}`);
-        assert.equal(doc.img, `modules/kethira/${relative}`);
+        // Foundry paths use the module ID; image Addresses use contentPackage.
+        assert.equal(doc.img, `modules/sohl-kethira-basic/${relative}`);
         return {
             address: inspected.metadata.address,
             note: spec.note,
