@@ -9,7 +9,6 @@ import {
     writeProvenance,
     readProvenance,
     readJpegProvenance,
-    readJpegProvenance,
     writeSvgProvenance,
     readSvgProvenance,
 } from "../engine/art-provenance.mjs";
