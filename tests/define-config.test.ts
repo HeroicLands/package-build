@@ -60,6 +60,26 @@ describe("defineConfig", () => {
             defineConfig({ ...minimal(), art: { masterRoots: ["one", "one/sub"] } }),
         ).toThrow(/overlaps/);
     });
+    it("normalizes artwork packages and keeps consumer and private inputs exclusive", () => {
+        const config = defineConfig({ ...minimal(), art: { packages: ["@heroiclands/art-sohl"] } });
+        expect(config.art.packages).toEqual(["@heroiclands/art-sohl"]);
+        expect(Object.isFrozen(config.art.packages)).toBe(true);
+        expect(defineConfig(minimal()).art.packages).toEqual([]);
+        expect(
+            defineConfig({ ...minimal(), art: { packages: [], masterRoots: ["art"] } }).art
+                .masterRoots,
+        ).toHaveLength(1);
+        for (const packages of [["../escape"], ["A"], ["@scope/"], ["art", "art"]])
+            expect(() => defineConfig({ ...minimal(), art: { packages } })).toThrow(
+                /art\.packages/,
+            );
+        expect(() =>
+            defineConfig({ ...minimal(), art: { packages: ["art"], masterRoots: ["art"] } }),
+        ).toThrow(/art\.packages/);
+        expect(() =>
+            defineConfig({ ...minimal(), art: { packages: ["art"], componentRoots: ["art"] } }),
+        ).toThrow(/art\.packages/);
+    });
     it("returns a config carrying every field it was given", () => {
         const config = defineConfig({
             ...minimal(),
