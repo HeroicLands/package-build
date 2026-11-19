@@ -208,7 +208,7 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
                     contentPackage: captured.config.contentPackage,
                     polityAddress: polity,
                     records: captured.records,
-                    sources: captured.sources,
+                    sources: captured.parsed,
                     rows: dryReport.rows,
                 });
                 expect(edit.changed).toBe(true);
