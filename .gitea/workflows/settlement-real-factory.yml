@@ -18,7 +18,7 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   repository: HeroicLands/thalorna
-                  ref: 6eae39a65c8370dd7a3a7944081a7a2aefd2c13a
+                  ref: d42f1c90dd8a5947d080dc42fe0c9a4ba7a92966
                   path: .setting-candidate
                   github-server-url: https://git.pupluppy.org
                   persist-credentials: false

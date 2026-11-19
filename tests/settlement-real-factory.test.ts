@@ -53,11 +53,30 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
             );
             write(crown, before);
             const session = await createContentSession({ config });
+            const candidateLimit = 100;
+            let selectionWorkLimit: number;
             try {
-                write(
-                    path.join(f.root, "index.jsonl"),
-                    session.records.map((r: any) => JSON.stringify(r)).join("\n") + "\n",
-                );
+                const index = session.records.map((r: any) => JSON.stringify(r)).join("\n") + "\n";
+                // Assembly charges the indexed graph quadratically. Its language runs
+                // and source captures need a corpus-sized allowance in this fixture.
+                // Serialized captures bound their entries and text; the extra 64 KiB
+                // covers the small map, settings, paths and the saved settlement row.
+                const captureSize =
+                    index.length +
+                    JSON.stringify(
+                        [...session.parsed].map(([file, entry]) => [file, entry.frontmatter]),
+                    ).length +
+                    JSON.stringify([...session.sources].map(([file, entry]) => [file, entry.raw]))
+                        .length +
+                    65536;
+                expect(session.records.length).toBeLessThanOrEqual(16);
+                expect(captureSize).toBeLessThanOrEqual(2 * 1024 * 1024);
+                const extent = captureSize + candidateLimit;
+                selectionWorkLimit =
+                    4 * (session.records.length + candidateLimit + 2) * extent ** 2 +
+                    captureSize * extent;
+                expect(Number.isSafeInteger(selectionWorkLimit)).toBe(true);
+                write(path.join(f.root, "index.jsonl"), index);
             } finally {
                 session.dispose();
             }
@@ -95,8 +114,8 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
                         cellIds: [0],
                         existingSites: [],
                         spacingMeters: 5556,
-                        candidateLimit: 100,
-                        workLimit: 1000000000000,
+                        candidateLimit,
+                        workLimit: selectionWorkLimit,
                     },
                 }),
             );
@@ -138,6 +157,19 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
                     },
                     timeout: 30000,
                 });
+            const inputFile = path.join(f.root, "inputs.json");
+            const inputBytes = fs.readFileSync(inputFile, "utf8");
+            const limitedInput = JSON.parse(inputBytes);
+            limitedInput.selection.workLimit = 1;
+            write(inputFile, JSON.stringify(limitedInput));
+            const limited = run("--write");
+            expect(limited.status, limited.stderr).toBe(1);
+            expect(JSON.parse(limited.stdout).missing).toContainEqual({
+                field: "selection",
+                message: "assembly exceeds the work limit",
+            });
+            expect(fs.readFileSync(crown, "utf8")).toBe(before);
+            write(inputFile, inputBytes);
             const dry = run();
             expect(dry.status, `${dry.stderr}\n${dry.stdout}`).toBe(0);
             const dryReport = JSON.parse(dry.stdout);
