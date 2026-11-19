@@ -57,7 +57,6 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
         {
             name: "location",
             kind: "address",
-            required: true,
             ref: "place",
             accepts: ["place"],
             shape: "a place Address",
@@ -69,7 +68,6 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
         {
             name: "holder",
             kind: "address-or-string",
-            required: true,
             shape: "an affiliation or being Address, or a name",
             describe: "Who holds the land.",
         },
@@ -90,7 +88,6 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
         {
             name: "notes",
             kind: "string",
-            required: true,
             shape: "nonempty short text",
             describe: "What distinguishes this settlement.",
         },

@@ -8,7 +8,7 @@ import {
     SETTLEMENT_ROW_FIELDS,
     SETTLEMENTS_FIELD,
 } from "../engine/settlement-terms.mjs";
-import { checkSettlementTables } from "../engine/settlement-tables.mjs";
+import { checkSettlementTables, settlementMarkdown } from "../engine/settlement-tables.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 
 describe("polity settlement contract", () => {
@@ -96,6 +96,29 @@ describe("settlement population and hierarchy", () => {
             },
         };
     }
+    it("allows unknown location, holder and notes while checking supplied values", () => {
+        const unknown: Partial<typeof row> = { ...row };
+        delete unknown.location;
+        delete unknown.holder;
+        delete unknown.notes;
+        const { polity, index } = corpus([unknown]);
+        expect(checkSettlementTables(polity, { index })).toEqual([]);
+        expect(settlementMarkdown(polity.fm)).toContain(
+            "|  | Homestead | None | None |  | 100 | Subsistence |  |",
+        );
+        for (const [key, value] of [
+            ["location", "place-missing"],
+            ["holder", ""],
+            ["notes", ""],
+        ]) {
+            const invalid = corpus([{ ...unknown, [key]: value }]);
+            expect(
+                checkSettlementTables(invalid.polity, { index: invalid.index }).some((finding) =>
+                    finding.message.includes(key),
+                ),
+            ).toBe(true);
+        }
+    });
     it("locates a finding at the authored field", () => {
         const { polity, index } = corpus([{ ...row, market: "weekly" }]);
         polity.raw = "---\ndata:\n  settlements:\n    - market: weekly\n---\n";
