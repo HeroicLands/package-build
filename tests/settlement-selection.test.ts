@@ -5,7 +5,10 @@ import {
     measurePlacementFootprints,
     selectSettlementPlacements,
 } from "../engine/settlement-selection.mjs";
-import { assertSettlementRecords } from "../engine/settlement-tables.mjs";
+import {
+    assertSettlementRecords,
+    createSettlementMembership,
+} from "../engine/settlement-tables.mjs";
 import { note } from "./content-session-fixture.js";
 
 function selectionFixture() {
@@ -385,4 +388,89 @@ it("charges nested dependency and captured arrays before visiting their entries"
             expect(result.missing[0].message).toContain("work limit");
         }
     }
+});
+
+it("reuses one corpus across many subpolities in a captured setting", () => {
+    const options = selectionFixture();
+    const subpolities: { address: string; cellIds: number[] }[] = [];
+    for (let i = 0; i < 2176; i++) {
+        const child = i < 128;
+        const type = child ? "affiliation" : "lore";
+        const record = {
+            package: "example",
+            type,
+            subType: child ? "polity" : "history",
+            shortcode: `record${i}`,
+            name: { full: `Record ${i}` },
+            address: { canonical: `example-note-${type}-record${i}` },
+            file: { path: `Record${i}.md` },
+            data:
+                child ?
+                    { parents: [options.polityAddress], territorial_population: 0, settlements: [] }
+                :   {},
+        };
+        options.session.records.push(record);
+        options.session.parsed.set(record.file.path, { frontmatter: record });
+        options.session.sources.set(record.file.path, { raw: note(record) });
+        if (child) subpolities.push({ address: record.address.canonical, cellIds: [] });
+    }
+    let scans = 0;
+    const records = new Proxy(options.session.records, {
+        get(target, property, receiver) {
+            if (property === Symbol.iterator) {
+                scans++;
+                return target[Symbol.iterator].bind(target);
+            }
+            return Reflect.get(target, property, receiver);
+        },
+    });
+    const input = {
+        ...options,
+        session: { ...options.session, records },
+        bindings: { subpolities },
+    };
+    const result = selectSettlementPlacements(input, {
+        ...selectionLimits(5556),
+        workLimit: 50_000_000,
+    });
+    expect(result.selection, JSON.stringify(result.missing)).toBeDefined();
+    expect(result.selection.result.proposals).toHaveLength(1);
+    expect(result.subpolities).toHaveLength(128);
+    // Each operation may scan the capture; each subordinate must not rebuild it.
+    expect(scans).toBeLessThan(24);
+    expect(
+        selectSettlementPlacements(input, { ...selectionLimits(5556), workLimit: 1000 }).missing[0]
+            .message,
+    ).toContain("work limit");
+});
+
+it("charges ancestor expansion once and refuses an insufficient hierarchy budget", () => {
+    const records = Array.from({ length: 256 }, (_, i) => ({
+        package: "example",
+        type: "affiliation",
+        subType: "polity",
+        shortcode: `part${i}`,
+        data: { parents: i ? [`example-note-affiliation-part${i - 1}`] : [] },
+    }));
+    let charged = 0;
+    const membership = createSettlementMembership(
+        records,
+        new Map(),
+        "example",
+        (units: number) => {
+            charged += units;
+            if (charged > 1_000_000) throw new RangeError("hierarchy exceeds the work limit");
+        },
+    );
+    expect(membership(records[0]).polities).toHaveLength(1);
+    expect(charged).toBeGreaterThan(10000);
+    const built = charged;
+    for (const record of records) membership(record);
+    expect(charged - built).toBeLessThan(1024);
+    let limited = 0;
+    const refused = createSettlementMembership(records, new Map(), "example", (units: number) => {
+        limited += units;
+        if (limited > 10000) throw new RangeError("hierarchy exceeds the work limit");
+    });
+    expect(() => refused(records[0])).toThrow("hierarchy exceeds the work limit");
 });

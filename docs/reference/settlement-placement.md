@@ -116,12 +116,19 @@ independently. Setting modules remain trusted code, not a sandbox.
 For selection assembly, let `G` be graph units (object properties and collection
 entries), `T` the captured text length, `R` the local and foreign record count,
 `P` the authored placement count and `C` the candidate count. The assembly
-allowance is `4 × (G + T + R × (P + C + 1) + C)`. Repeated references count for
-each expanded traversal, including appearances in records, parsed frontmatter
+allowance is `4 × (G + T + R × (P + C + 1) + C) + M`, where `M` counts
+charged membership graph and hierarchy work. One membership corpus serves both
+assembly passes and every subordinate polity. Parent comparisons, ancestor
+expansion, ownership edges, membership results and hierarchy traversal debit
+`M` before expansion. Cached ancestry and the corpus are reused within the
+operation; a deep or multiply parented graph can cost more than a flat one.
+Repeated references count for each expanded traversal, including appearances
+in records, parsed frontmatter
 and raw-source captures; cycles are refused. For example, `G = 6,137,056`,
 `T = 135,720,164`, `R = 19,805`, no authored placements and 100 candidates need
-about 575 million units. A selection budget of one billion accommodates that
-assembly example. Geometry, grid traversal, footprint and land-rule work also
+about 575 million units before `M`. A selection budget of one billion leaves
+about 425 million units for membership work in that assembly example. Geometry,
+grid traversal, footprint and land-rule work also
 have to fit their bounds, including 54 units per candidate for the bounded
 whole-household search; denser spacing or more selected cells can require a
 larger allowance. A limit is not a request to stop after a partial set of sites.

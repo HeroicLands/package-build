@@ -16,6 +16,7 @@ import { discoverPlacementSites, placementGridInterval } from "./settlement-plac
 import { prepareSettlementInputs, settlementCellAreaConversion } from "./settlement-inputs.mjs";
 import { matchesLandRule, proposeSettlements } from "./settlement-generate.mjs";
 import { distributeRuralPopulation, roundPopulation } from "./settlement-model.mjs";
+import { createSettlementMembership } from "./settlement-tables.mjs";
 import { settlementBands } from "./settlement-bands.mjs";
 
 const area = (polygon) => {
@@ -108,10 +109,19 @@ function assemblyBudget(options, selection) {
     const records = length(session?.records) + size(session?.foreign?.index);
     const placements = length(options.settings?.placements);
     let units = 1,
-        text = 0;
-    const requireBudget = (additional = 0) => {
+        text = 0,
+        membershipWork = 0,
+        reservedCandidates = 0;
+    const requireBudget = (additional = reservedCandidates) => {
+        reservedCandidates = Math.max(reservedCandidates, additional);
         // Captures are traversed linearly; placements can scan the record collection.
-        const work = 4 * (units + text + records * (placements + additional + 1) + additional);
+        const work =
+            4 *
+                (units +
+                    text +
+                    records * (placements + reservedCandidates + 1) +
+                    reservedCandidates) +
+            membershipWork;
         if (
             !Number.isSafeInteger(limit) ||
             limit < 1 ||
@@ -191,7 +201,13 @@ function assemblyBudget(options, selection) {
             pending.push({ iterator: entries(value), owner: value });
         }
     }
-    return requireBudget;
+    return {
+        requireBudget,
+        charge(units) {
+            membershipWork += units;
+            requireBudget();
+        },
+    };
 }
 
 /**
@@ -210,7 +226,14 @@ export function selectSettlementPlacements(options, selection) {
             !Array.isArray(selection.existingSites)
         )
             return fail("provide direct cell IDs and existing settlement positions");
-        const requireAssemblyBudget = assemblyBudget(options, selection);
+        const { requireBudget: requireAssemblyBudget, charge } = assemblyBudget(options, selection);
+        const membership = createSettlementMembership(
+            options.session?.records,
+            options.session?.foreign?.index ?? new Map(),
+            options.session?.config?.contentPackage,
+            charge,
+        );
+        const context = { membership, charge };
         const bands = settlementBands(options.bands);
         const rawPlacements = options.settings?.placements;
         // A declared physical total applies to every placement in its cell.
@@ -239,7 +262,7 @@ export function selectSettlementPlacements(options, selection) {
                 },
             };
         }
-        const initial = prepareSettlementInputs(options);
+        const initial = prepareSettlementInputs(options, context);
         if (!initial.ruralInput) return { ...initial, selection: undefined };
         const ids = new Set(selection.cellIds);
         if (
@@ -463,10 +486,13 @@ export function selectSettlementPlacements(options, selection) {
                     cellAreaAcres: entry.physicalAcres,
                 });
         }
-        const assembled = prepareSettlementInputs({
-            ...options,
-            settings: { ...options.settings, placements: [...existing, ...chosen] },
-        });
+        const assembled = prepareSettlementInputs(
+            {
+                ...options,
+                settings: { ...options.settings, placements: [...existing, ...chosen] },
+            },
+            context,
+        );
         if (!assembled.ruralInput) return { ...assembled, selection: footprints };
         const result = proposeSettlements(assembled.ruralInput, options.settings.model);
         const occupied = modeled.filter((entry) => entry.households);

@@ -24,7 +24,7 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { cachedIndexPath } from "./metadata-index.mjs";
 import { AddressLink } from "./address-values.mjs";
 import { isNoteRecord } from "./index-records.mjs";
-import { settlementMembership } from "./settlement-tables.mjs";
+import { createSettlementMembership } from "./settlement-tables.mjs";
 import { proposeSettlements } from "./settlement-generate.mjs";
 import { proposeUrbanSupply } from "./settlement-urban.mjs";
 import { SETTLEMENT_MODEL_DEFAULTS } from "./settlement-model.mjs";
@@ -116,15 +116,13 @@ function sourceKey(source, mapId) {
  * @param {object} options.map - Normalized map.
  * @param {object} [options.bindings] - Explicit map and note bindings.
  * @param {object} [options.settings] - Calculation settings and physical inputs.
+ * @param {{membership?: Function, charge?: Function}} [context] - Operation-local membership query and work meter.
  * @returns {object} Selected facts, writer capture, calculator inputs and missing stages.
  */
-export function prepareSettlementInputs({
-    session,
-    polityAddress,
-    map,
-    bindings = {},
-    settings = {},
-}) {
+export function prepareSettlementInputs(
+    { session, polityAddress, map, bindings = {}, settings = {} },
+    { membership: capturedMembership, charge = () => {} } = {},
+) {
     if (
         !session ||
         !Array.isArray(session.records) ||
@@ -203,7 +201,9 @@ export function prepareSettlementInputs({
         if (!["rows", "notes", "subpolities"].includes(key))
             inputMissing(`bindings.${key}`, "this binding is not a settlement input");
     const foreignIndex = session.foreign?.index ?? new Map();
-    const member = settlementMembership(polity, records, foreignIndex);
+    const membershipOf =
+        capturedMembership ?? createSettlementMembership(records, foreignIndex, pkg, charge);
+    const member = membershipOf(polity);
     const recordByAddress = new Map();
     for (const record of records) {
         if (
@@ -398,50 +398,69 @@ export function prepareSettlementInputs({
     const subBindings = readBindings("subpolities");
     const tree = new Map();
     const active = new Set();
+    const postorder = [];
     const noteClaims = new Map();
     const locationOf = (record) =>
         (sourcesByAddress.get(sourceAddress(record, record.package)) ?? [
             cachedIndexPath(session.config, record.package),
         ])[0];
-    const walk = (record, address, parent) => {
+    const pendingPolities = [
+        { record: polity, address: selected, parent: undefined, leaving: false },
+    ];
+    while (pendingPolities.length) {
+        charge(1);
+        const { record, address, parent, leaving } = pendingPolities.pop();
+        if (leaving) {
+            active.delete(address);
+            postorder.push(address);
+            continue;
+        }
         const file = locationOf(record);
         if (active.has(address)) {
             add(file, "data.parents", "the subordinate polity chain contains a cycle", [
                 "data",
                 "parents",
             ]);
-            return;
+            continue;
         }
         if (tree.has(address)) {
             add(file, "data.parents", "a subordinate polity has ambiguous membership", [
                 "data",
                 "parents",
             ]);
-            return;
+            continue;
         }
         if (Array.isArray(record.data?.parents) && record.data.parents.length > 1)
             add(file, "data.parents", "a polity declares at most one superior", [
                 "data",
                 "parents",
             ]);
-        const membership = settlementMembership(record, records, foreignIndex);
+        const membership = membershipOf(record);
         const node = { address, record, parent, membership, children: [] };
         tree.set(address, node);
         active.add(address);
+        charge(membership.settlements.length + membership.polities.length);
         for (const settlement of membership.settlements) {
             if (!noteClaims.has(settlement.address)) noteClaims.set(settlement.address, []);
             noteClaims.get(settlement.address).push(node);
         }
-        for (const child of membership.polities) {
-            node.children.push(child.address);
-            walk(child.record, child.address, address);
+        pendingPolities.push({ record, address, parent, leaving: true });
+        for (const child of membership.polities) node.children.push(child.address);
+        for (let i = membership.polities.length - 1; i >= 0; i--) {
+            const child = membership.polities[i];
+            pendingPolities.push({
+                record: child.record,
+                address: child.address,
+                parent: address,
+                leaving: false,
+            });
         }
-        active.delete(address);
-    };
-    walk(polity, selected, undefined);
+    }
     const ancestor = (a, b) => {
-        for (let node = tree.get(b); node?.parent; node = tree.get(node.parent))
+        for (let node = tree.get(b); node?.parent; node = tree.get(node.parent)) {
+            charge(1);
             if (node.parent === a) return true;
+        }
         return false;
     };
     const noteOwner = new Map();
@@ -581,7 +600,6 @@ export function prepareSettlementInputs({
     const urbanTargets = {};
     const computed = new Map();
     const ranges = new Map();
-    const computing = new Set();
     const reserveFact = (data, identity, file, keyPath, source, noted) => {
         if (!object(data) || (!urbanTypes.has(data.type) && !ruralTypes.has(data.type))) {
             add(file, "type", `state the settlement type for ${identity}`, keyPath);
@@ -636,7 +654,10 @@ export function prepareSettlementInputs({
             return;
         }
         let owner = tree.get(ownerAddress);
-        while (owner?.parent && owner.parent !== selected) owner = tree.get(owner.parent);
+        while (owner?.parent && owner.parent !== selected) {
+            charge(1);
+            owner = tree.get(owner.parent);
+        }
         const bound = subBindings.filter(
             (binding) => canonical(binding.address) === owner?.address,
         );
@@ -663,9 +684,9 @@ export function prepareSettlementInputs({
         else sourcesSeen.set(key, identity);
     };
     const split = (address) => {
+        charge(1);
         if (ranges.has(address)) return ranges.get(address);
-        if (computing.has(address) || !tree.has(address)) return undefined;
-        computing.add(address);
+        if (!tree.has(address)) return undefined;
         const node = tree.get(address);
         const { record } = node;
         const file = locationOf(record);
@@ -742,7 +763,8 @@ export function prepareSettlementInputs({
         }
         const children = [];
         for (const child of node.children) {
-            const value = split(child);
+            charge(1);
+            const value = ranges.get(child);
             if (!value) {
                 complete = false;
                 continue;
@@ -820,51 +842,61 @@ export function prepareSettlementInputs({
                 };
             }
         }
-        computing.delete(address);
         ranges.set(address, result);
         return result;
     };
     const clamp = (value, lower, upper) => Math.min(upper, Math.max(lower, value));
-    const select = (node, target) => {
-        urbanTargets[node.address] = {
-            original: node.original,
-            effective: target,
-            adjustment: target - node.original,
-            urbanFloor: node.urbanFloor,
-            ruralFloor: node.ruralFloor,
-            source: node.hasShare ? "explicit" : "default",
-        };
-        computed.set(node.address, {
-            ruralPopulation: node.total - target,
-            urbanPopulation: target,
-        });
-        const children = [...node.children].sort((a, b) =>
-            a.address < b.address ? -1
-            : a.address > b.address ? 1
-            : 0,
-        );
-        const minimum = Math.max(
-            children.reduce((sum, child) => sum + child.minimum, 0),
-            target - (node.total - node.childTotal - node.directRural),
-        );
-        const maximum = Math.min(
-            children.reduce((sum, child) => sum + child.maximum, 0),
-            target - node.directUrban,
-        );
-        const chosen = children.map((child) => clamp(child.original, child.minimum, child.maximum));
-        let sum = chosen.reduce((a, b) => a + b, 0);
-        for (let i = 0; i < children.length && sum < minimum; i++) {
-            const amount = Math.min(minimum - sum, children[i].maximum - chosen[i]);
-            chosen[i] += amount;
-            sum += amount;
+    const select = (root, initialTarget) => {
+        const pending = [{ node: root, target: initialTarget }];
+        while (pending.length) {
+            charge(1);
+            const { node, target } = pending.pop();
+            charge(node.children.length * (Math.ceil(Math.log2(node.children.length + 1)) + 1));
+            urbanTargets[node.address] = {
+                original: node.original,
+                effective: target,
+                adjustment: target - node.original,
+                urbanFloor: node.urbanFloor,
+                ruralFloor: node.ruralFloor,
+                source: node.hasShare ? "explicit" : "default",
+            };
+            computed.set(node.address, {
+                ruralPopulation: node.total - target,
+                urbanPopulation: target,
+            });
+            const children = [...node.children].sort((a, b) =>
+                a.address < b.address ? -1
+                : a.address > b.address ? 1
+                : 0,
+            );
+            const minimum = Math.max(
+                children.reduce((sum, child) => sum + child.minimum, 0),
+                target - (node.total - node.childTotal - node.directRural),
+            );
+            const maximum = Math.min(
+                children.reduce((sum, child) => sum + child.maximum, 0),
+                target - node.directUrban,
+            );
+            const chosen = children.map((child) =>
+                clamp(child.original, child.minimum, child.maximum),
+            );
+            let sum = chosen.reduce((a, b) => a + b, 0);
+            for (let i = 0; i < children.length && sum < minimum; i++) {
+                const amount = Math.min(minimum - sum, children[i].maximum - chosen[i]);
+                chosen[i] += amount;
+                sum += amount;
+            }
+            for (let i = 0; i < children.length && sum > maximum; i++) {
+                const amount = Math.min(sum - maximum, chosen[i] - children[i].minimum);
+                chosen[i] -= amount;
+                sum -= amount;
+            }
+            for (let i = children.length - 1; i >= 0; i--)
+                pending.push({ node: children[i], target: chosen[i] });
         }
-        for (let i = 0; i < children.length && sum > maximum; i++) {
-            const amount = Math.min(sum - maximum, chosen[i] - children[i].minimum);
-            chosen[i] -= amount;
-            sum -= amount;
-        }
-        children.forEach((child, index) => select(child, chosen[index]));
     };
+    // Finished descendants precede their parents without recursive calls.
+    for (const address of postorder) split(address);
     const root = split(selected);
     if (root) select(root, clamp(root.original, root.minimum, root.maximum));
     const total = computed.get(selected) ?? {};
