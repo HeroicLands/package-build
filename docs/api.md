@@ -1310,12 +1310,12 @@ prefixes and inherited or default element namespaces retain the same values on
 an edit; a prefix rebound to a foreign namespace cannot supply a managed value.
 The RDF container also uses namespace identity; inherited bindings preserve
 eligible editor properties and comments inside it. Content outside RDF is omitted.
-Structured titles and credits expose their first RDF list value in the scalar
-record; former names expose their RDF list order. Unrelated edits preserve every
+Structured titles and rights expose their first RDF list value in the scalar
+record; creator credits and former names expose their RDF list order. Unrelated edits preserve every
 entry and language tag in `dc:creator` and `dc:rights` lists. An
 explicit creator or rights value replaces that whole field; `null` removes it.
-When foreign XMP cannot be retained, one plain creator entry or one plain
-`x-default` rights entry can be rewritten from its exact scalar value. Extra
+When foreign XMP cannot be retained, plain creator entries or one plain
+`x-default` rights entry can be rewritten from their exact values. Extra rights
 entries, attributes, language tags or structure require the original credit XML;
 if that XML cannot be retained safely, the write fails before producing output.
 `assertPublicCreators(packet)` in `engine/art-provenance-core` refuses ambiguous

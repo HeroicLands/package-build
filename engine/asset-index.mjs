@@ -120,7 +120,7 @@ export const PROVENANCE_SIDECAR_SUFFIX = ".yaml";
  *   state this key. Omitting one is a finding rather than a blank, because a
  *   record resolves wholesale: the nearest one is the whole answer, so a key it
  *   leaves out is not inherited from above but simply absent.
- * @property {"boolean"|"integer"|"address"} [type] - The value's own type, for a field
+ * @property {"boolean"|"integer"|"address"|"strings"} [type] - The value's own type, for a field
  *   whose answer is not a string. Omitted for every string field; `ai` carries
  *   the YAML boolean itself rather than a stringified copy, and `width` and
  *   `height` carry the pixel count the walk measured. A master Address is null
@@ -165,6 +165,7 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "attribution",
         from: "provenance",
+        type: "strings",
         required: true,
         describe: "Ordered public credit strings for the rights holders.",
     }),
@@ -472,7 +473,7 @@ function assetBlock(walkValues, provenance, type) {
             continue;
         }
         const value = field.from === "walk" ? walkValues[field.name] : provenance?.[field.name];
-        if (field.name === "attribution") {
+        if (field.type === "strings") {
             block[field.name] = typeof value === "string" && value ? [value] : [];
         } else if (field.type === "boolean") {
             block[field.name] = typeof value === "boolean" ? value : false;

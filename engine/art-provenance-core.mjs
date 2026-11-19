@@ -1115,6 +1115,23 @@ function readManagedProperties(packet, unsafeCredits, creditCounts, invalidCreat
         const credit = unsafeCredits && ["creator", "rights"].includes(property?.field);
         if (credit) unsafeCredits.add(property.field);
         const selfClosing = /\/\s*>$/.test(tag);
+        if (
+            invalidCreator &&
+            (property?.field === "creator" ||
+                (key === `${RDF_NAMESPACE}|li` && active?.shape === "seq"))
+        ) {
+            if (
+                selfClosing ||
+                attrs.some((attr) => {
+                    const attribute = expanded(attr[1], true);
+                    return (
+                        attribute === `${RDF_NAMESPACE}|resource` ||
+                        attribute === `${RDF_NAMESPACE}|parseType`
+                    );
+                })
+            )
+                invalidCreator.bad = true;
+        }
         let capture;
         if (property && !selfClosing) {
             const previous = elements.get(property.field);

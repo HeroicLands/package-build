@@ -310,6 +310,10 @@ describe("provenance resolves per address", () => {
                 expect(record.asset[field.name]).toBeNull();
                 continue;
             }
+            if (field.type === "strings") {
+                expect(Array.isArray(record.asset[field.name]), field.name).toBe(true);
+                continue;
+            }
             const expected = field.type === "boolean" ? "boolean" : "string";
             expect(typeof record.asset[field.name], field.name).toBe(expected);
         }

@@ -2849,7 +2849,8 @@ describe("managed provenance namespace bindings", () => {
                         expect(read(edited.bytes).record).toMatchObject({
                             address: "sample-none-image-example",
                             title: "New title",
-                            [field]: "Artist & colleague",
+                            [field]:
+                                field === "creator" ? ["Artist & colleague"] : "Artist & colleague",
                         });
                         expect(write(edited.bytes, { title: "New title" }).bytes).toEqual(
                             edited.bytes,
@@ -2865,7 +2866,9 @@ describe("managed provenance namespace bindings", () => {
         const lang = field === "rights" ? ' xml:lang="x-default"' : "";
         const plain = `<rdf:li${lang}>Credit</rdf:li>`;
         const properties = [
-            `<dc:${field}><rdf:${shape}>${plain}${plain}</rdf:${shape}></dc:${field}>`,
+            ...(field === "rights" ?
+                [`<dc:${field}><rdf:${shape}>${plain}${plain}</rdf:${shape}></dc:${field}>`]
+            :   []),
             `<dc:${field} other:role="owner"><rdf:${shape}>${plain}</rdf:${shape}></dc:${field}>`,
             `<dc:${field}><rdf:${shape} other:role="owner">${plain}</rdf:${shape}></dc:${field}>`,
             `<dc:${field}><rdf:${shape}><rdf:li${lang} other:role="owner">Credit</rdf:li></rdf:${shape}></dc:${field}>`,
@@ -2886,8 +2889,9 @@ describe("managed provenance namespace bindings", () => {
                 expect(() => write(input, { title: "New title" })).toThrow(
                     `${field}: cannot preserve`,
                 );
-                expect(read(write(input, { [field]: "Replacement" }).bytes).record[field]).toBe(
-                    "Replacement",
+                const replacement = field === "creator" ? ["Replacement"] : "Replacement";
+                expect(read(write(input, { [field]: replacement }).bytes).record[field]).toEqual(
+                    replacement,
                 );
                 expect(read(write(input, { [field]: null }).bytes).record).not.toHaveProperty(
                     field,
@@ -2904,12 +2908,13 @@ describe("managed provenance namespace bindings", () => {
         );
     });
 
-    it("refuses an unrelated edit when complete credits cannot be retained safely", () => {
+    it("retains an ordered creator list when foreign markup is discarded", () => {
         const packet = `<rdf:RDF xmlns:rdf="${rdf}" xmlns:dc="${dc}" xmlns:hl="urn:foreign" xmlns:p="${HL_NAMESPACE}"><rdf:Description p:address="sample-none-image-example"><dc:creator><rdf:Seq><rdf:li>First</rdf:li><rdf:li>Second</rdf:li></rdf:Seq></dc:creator></rdf:Description></rdf:RDF>`;
         const input = `<svg><metadata id="hl-provenance">${packet}</metadata></svg>`;
-        expect(() => writeSvgProvenance(input, { title: "New title" })).toThrow(
-            /creator.*cannot preserve/,
-        );
+        expect(
+            readSvgProvenance(writeSvgProvenance(input, { title: "New title" }).bytes).record
+                .creator,
+        ).toEqual(["First", "Second"]);
     });
 
     it.each(["creator", "rights"])(

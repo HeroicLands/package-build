@@ -20,6 +20,8 @@ import { serializeContentIndex } from "../engine/content-index.mjs";
 import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
 import { prepareArtPackage } from "../engine/art-package.mjs";
 
+import { assertPublicCreators } from "../engine/art-provenance-core.mjs";
+
 const roots: string[] = [];
 afterEach(() => {
     for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
@@ -140,4 +142,22 @@ it("rejects reordered public creator credits even with a matching index digest",
     await expect(
         prepareArtPackage(root, { name: "art-test", version: "1.0.0", contentPackage: "sample" }),
     ).rejects.toThrow(/creator/);
+});
+
+it.each([
+    '<dc:creator rdf:resource="urn:person"/>',
+    '<dc:creator><rdf:Seq><rdf:li>A</rdf:li><rdf:li rdf:resource="urn:person"/></rdf:Seq></dc:creator>',
+    '<dc:creator><rdf:Seq><rdf:li>A</rdf:li><rdf:li rdf:parseType="Resource"><rdf:value>B</rdf:value></rdf:li></rdf:Seq></dc:creator>',
+])("refuses public projection of resource-valued creator structure %s", (property) => {
+    const packet = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description>${property}</rdf:Description></rdf:RDF>`;
+    expect(() => assertPublicCreators(packet)).toThrow(/creator/);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "art-unsupported-credit-"));
+    roots.push(root);
+    const vector = `<svg xmlns="http://www.w3.org/2000/svg"><metadata id="hl-provenance">${packet.replace("<rdf:Description>", '<rdf:Description xmlns:hl="https://heroiclands.org/ns/1.0/" hl:address="sample-none-image-one">')}</metadata></svg>`;
+    fs.writeFileSync(path.join(root, "one.svg"), vector);
+    expect(
+        collectArtMasters([root], "sample").findings.some((finding) =>
+            /creator/.test(finding.message),
+        ),
+    ).toBe(true);
 });
