@@ -36,7 +36,7 @@ function master(address: string, fields: Record<string, unknown> = {}) {
             '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><rect width="2" height="2"/></svg>',
             {
                 address,
-                creator: "Artist",
+                creator: ["Artist"],
                 rights: "Terms",
                 license: "CC0-1.0",
                 ...fields,

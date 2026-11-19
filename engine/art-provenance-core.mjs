@@ -290,7 +290,7 @@ const COMPLETE_ADDRESS = {
  * @property {string} [generator] - A JSON object, as a string, describing the
  *   service and model.
  * @property {string} [title] - The display name.
- * @property {string} [creator] - The person holding the rights.
+ * @property {string[]} [creator] - Ordered creator credits.
  * @property {string} [rights] - The rights statement.
  * @property {string} [license] - Exact machine-readable license identifier, stored as `hl:license`.
  * @property {string} [role] - What the image is for, such as `icon`,
@@ -524,6 +524,11 @@ function descriptionBlock(record, eol = "\n", creditLists = new Map()) {
             lines.push(`   <${name}><rdf:Bag>${items}</rdf:Bag></${name}>`);
             continue;
         }
+        if (shape === "seq") {
+            const items = value.map((item) => `<rdf:li>${escapeXml(item)}</rdf:li>`).join("");
+            lines.push(`   <${name}><rdf:Seq>${items}</rdf:Seq></${name}>`);
+            continue;
+        }
         const text = escapeXml(
             shape === "json" ? JSON.stringify(validateComposition(value))
             : shape === "boolean" ?
@@ -535,8 +540,6 @@ function descriptionBlock(record, eol = "\n", creditLists = new Map()) {
             lines.push(
                 `   <${name}><rdf:Alt><rdf:li xml:lang="x-default">${text}</rdf:li></rdf:Alt></${name}>`,
             );
-        } else if (shape === "seq") {
-            lines.push(`   <${name}><rdf:Seq><rdf:li>${text}</rdf:li></rdf:Seq></${name}>`);
         } else {
             lines.push(`   <${name}>${text}</${name}>`);
         }
@@ -987,6 +990,24 @@ function losslessCreditProperty(markup, bindings, field, value) {
     if (!property || !attributesOnly(property)) return false;
     const container = onlyElement(property, RDF_NAMESPACE, field === "creator" ? "Seq" : "Alt");
     if (!container || !attributesOnly(container)) return false;
+    if (field === "creator") {
+        const items = Array.from(container.childNodes).filter(
+            (node) => !(node.nodeType === 3 && node.data.trim() === ""),
+        );
+        return (
+            Array.isArray(value) &&
+            items.length === value.length &&
+            items.every(
+                (item, at) =>
+                    item.nodeType === 1 &&
+                    item.namespaceURI === RDF_NAMESPACE &&
+                    item.localName === "li" &&
+                    attributesOnly(item) &&
+                    Array.from(item.childNodes).every((node) => node.nodeType === 3) &&
+                    item.textContent === value[at],
+            )
+        );
+    }
     const item = onlyElement(container, RDF_NAMESPACE, "li");
     if (!item || !attributesOnly(item, field === "rights")) return false;
     if (
@@ -1007,7 +1028,7 @@ function losslessCreditProperty(markup, bindings, field, value) {
  * @param {Map<string, number>} [creditCounts] - Receives all credit-property occurrence counts.
  * @returns {object} Scalar properties and the former-name list.
  */
-function readManagedProperties(packet, unsafeCredits, creditCounts) {
+function readManagedProperties(packet, unsafeCredits, creditCounts, invalidCreator) {
     const own = OWN_DESCRIPTION.exec(packet);
     const inOwn = (at) => own !== null && at >= own.index && at < own.index + own[0].length;
     const countCredit = (field) => {
@@ -1094,6 +1115,23 @@ function readManagedProperties(packet, unsafeCredits, creditCounts) {
         const credit = unsafeCredits && ["creator", "rights"].includes(property?.field);
         if (credit) unsafeCredits.add(property.field);
         const selfClosing = /\/\s*>$/.test(tag);
+        if (
+            invalidCreator &&
+            (property?.field === "creator" ||
+                (key === `${RDF_NAMESPACE}|li` && active?.shape === "seq"))
+        ) {
+            if (
+                selfClosing ||
+                attrs.some((attr) => {
+                    const attribute = expanded(attr[1], true);
+                    return (
+                        attribute === `${RDF_NAMESPACE}|resource` ||
+                        attribute === `${RDF_NAMESPACE}|parseType`
+                    );
+                })
+            )
+                invalidCreator.bad = true;
+        }
         let capture;
         if (property && !selfClosing) {
             const previous = elements.get(property.field);
@@ -1135,11 +1173,21 @@ function readManagedProperties(packet, unsafeCredits, creditCounts) {
         const element = elements.get(field);
         const attribute = attributes.get(field);
         if (element?.end !== undefined && !(attribute?.own && !element.own)) {
-            if (element.shape === "bag")
+            if (element.shape === "bag" || element.shape === "seq") {
+                if (
+                    field === "creator" &&
+                    invalidCreator &&
+                    element.items.some(([start, end]) => packet.slice(start, end).includes("<"))
+                )
+                    invalidCreator.bad = true;
                 record[field] = element.items.map(([start, end]) =>
                     unescapeXml(packet.slice(start, end)),
                 );
-            else {
+                if (field === "creator" && !element.items.length) {
+                    const raw = packet.slice(element.start, element.end);
+                    if (raw && !raw.includes("<")) record[field] = [unescapeXml(raw)];
+                }
+            } else {
                 const [start, end] = element.items[0] ?? [element.start, element.end];
                 record[field] = unescapeXml(packet.slice(start, end));
             }
@@ -1154,9 +1202,103 @@ function readManagedProperties(packet, unsafeCredits, creditCounts) {
                 )
             )
                 unsafeCredits.delete(field);
-        } else if (attribute) record[field] = unescapeXml(attribute.value);
+        } else if (attribute)
+            record[field] =
+                field === "creator" ? [unescapeXml(attribute.value)] : unescapeXml(attribute.value);
     }
     return record;
+}
+
+/** Refuse ambiguous creator structures when projecting public credits.
+ * @param {string|null} packet Source XMP packet.
+ * @returns {void}
+ */
+export function assertPublicCreators(packet) {
+    if (packet === null) return;
+    const fail = () => {
+        throw new Error("creator: public credits require one unambiguous list of text entries");
+    };
+    let invalid = false,
+        document;
+    try {
+        document = new DOMParser({
+            onError: () => {
+                invalid = true;
+            },
+        }).parseFromString(packet, "application/xml");
+    } catch {
+        fail();
+    }
+    if (invalid || !document) fail();
+    const counts = new Map(),
+        bad = { bad: false };
+    const record = readManagedProperties(packet, undefined, counts, bad);
+    if ((counts.get("creator") ?? 0) > 1 || bad.bad) fail();
+    const creators = Array.from(document.getElementsByTagNameNS(DC_NAMESPACE, "creator"));
+    const descriptions = Array.from(document.getElementsByTagNameNS(RDF_NAMESPACE, "Description"));
+    const attributes = descriptions.flatMap((element) =>
+        Array.from(element.attributes).filter(
+            (attribute) =>
+                attribute.namespaceURI === DC_NAMESPACE && attribute.localName === "creator",
+        ),
+    );
+    if (creators.length + attributes.length > 1) fail();
+    if (!creators.length && !attributes.length) {
+        if ((counts.get("creator") ?? 0) > 0) fail();
+        return;
+    }
+    const permittedAttributes = (element) =>
+        Array.from(element.attributes).every(
+            (attribute) =>
+                attribute.namespaceURI === "http://www.w3.org/2000/xmlns/" ||
+                (attribute.namespaceURI === "http://www.w3.org/XML/1998/namespace" &&
+                    attribute.localName === "lang"),
+        );
+    const significant = (element) =>
+        Array.from(element.childNodes).filter(
+            (node) => node.nodeType !== 8 && !(node.nodeType === 3 && !node.data.trim()),
+        );
+    let values;
+    if (attributes.length) values = [attributes[0].value];
+    else {
+        const property = creators[0];
+        if (!permittedAttributes(property)) fail();
+        const children = significant(property);
+        if (
+            property.childNodes.length &&
+            Array.from(property.childNodes).every((node) => node.nodeType === 3)
+        )
+            values = [property.textContent];
+        else {
+            if (
+                children.length !== 1 ||
+                children[0].nodeType !== 1 ||
+                children[0].namespaceURI !== RDF_NAMESPACE ||
+                children[0].localName !== "Seq"
+            )
+                fail();
+            const sequence = children[0];
+            if (!permittedAttributes(sequence)) fail();
+            const items = significant(sequence);
+            if (!items.length) fail();
+            values = items.map((item) => {
+                if (
+                    item.nodeType !== 1 ||
+                    item.namespaceURI !== RDF_NAMESPACE ||
+                    item.localName !== "li" ||
+                    !permittedAttributes(item)
+                )
+                    fail();
+                if (!Array.from(item.childNodes).every((node) => node.nodeType === 3)) fail();
+                return item.textContent;
+            });
+        }
+    }
+    if (
+        values.some((value) => typeof value !== "string" || !value.length) ||
+        JSON.stringify(record.creator) !== JSON.stringify(values)
+    )
+        fail();
 }
 
 /** Read a declared composition with strict XML and property validation. */
@@ -1672,7 +1814,8 @@ export function readStandardRecord(chunks) {
     }
     const record = {};
     for (const [field, keyword] of Object.entries(STANDARD_KEYWORDS)) {
-        if (byKeyword.has(keyword)) record[field] = byKeyword.get(keyword);
+        if (byKeyword.has(keyword))
+            record[field] = field === "creator" ? [byKeyword.get(keyword)] : byKeyword.get(keyword);
     }
     return record;
 }
@@ -1747,6 +1890,13 @@ function validateRecord(record) {
             throw new Error("generator must be a JSON object written as a string");
         }
     }
+    if (
+        record.creator !== undefined &&
+        (!Array.isArray(record.creator) ||
+            record.creator.length === 0 ||
+            record.creator.some((entry) => typeof entry !== "string" || entry.length === 0))
+    )
+        throw new Error("creator must be a non-empty list of non-empty strings");
     if (record.formerNames !== undefined) {
         const names = record.formerNames;
         if (
@@ -1766,7 +1916,7 @@ function validateRecord(record) {
     validateAiClassification(record);
     validateNonAiAlternative(record);
     for (const field of FIELDS) {
-        if (field === "composition" || field === "ai") continue;
+        if (field === "composition" || field === "ai" || field === "creator") continue;
         const value = record[field];
         if (value !== undefined && (typeof value !== "string" || value === "")) {
             throw new Error(`${field} must be a non-empty string`);
@@ -1989,7 +2139,13 @@ export function writeProvenance(bytes, fields, options = {}) {
     const standardOut = new Map();
     for (const [field, keyword] of Object.entries(STANDARD_KEYWORDS)) {
         if (record[field] !== undefined)
-            standardOut.set(keyword, makeTextChunk(keyword, record[field]));
+            standardOut.set(
+                keyword,
+                makeTextChunk(
+                    keyword,
+                    field === "creator" ? record.creator.join(", ") : record[field],
+                ),
+            );
     }
 
     const out = [];
@@ -2820,7 +2976,9 @@ export function checkProvenance(entries, options = {}) {
             } else if (
                 xmp[field] !== undefined &&
                 standard[field] !== undefined &&
-                xmp[field] !== standard[field]
+                (field === "creator" ?
+                    xmp.creator.join(", ") !== standard.creator[0]
+                :   xmp[field] !== standard[field])
             ) {
                 add(file, `the XMP ${field} and the ${keyword} text chunk disagree`);
             }

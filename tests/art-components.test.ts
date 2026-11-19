@@ -38,7 +38,7 @@ const svg =
     '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><rect width="2" height="2" fill="red"/></svg>';
 const fields = (address: string) => ({
     address,
-    creator: "Example Artist",
+    creator: ["Example Artist"],
     rights: "Example rights",
     license: "CC-BY-SA-4.0",
     digitalSourceType: "none",
@@ -421,7 +421,7 @@ it("rejects private source addresses and composition metadata from pinned public
             address: { canonical: address },
             asset: {
                 path: "icons/composite.svg",
-                attribution: "Example Artist",
+                attribution: ["Example Artist"],
                 license: "CC-BY-SA-4.0",
                 ai: false,
             },

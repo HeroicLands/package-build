@@ -233,7 +233,7 @@ describe("provenance resolves per address", () => {
             "icons/noun/deep/anvil.svg": "<svg/>",
         });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
-        expect(record.asset.attribution).toBe("The Noun Project");
+        expect(record.asset.attribution).toEqual(["The Noun Project"]);
         expect(record.asset.license).toBe("LicenseRef-NounProject-Pro");
     });
 
@@ -246,7 +246,7 @@ describe("provenance resolves per address", () => {
         });
         const problems: any[] = [];
         const [record] = collectAssetRecords(base, { contentPackage: "sohl", problems });
-        expect(record.asset.attribution).toBe("");
+        expect(record.asset.attribution).toEqual([]);
         expect(problems.map((p) => p.message)).toEqual([
             expect.stringMatching(/no provenance record covers this file/),
         ]);
@@ -271,7 +271,7 @@ describe("provenance resolves per address", () => {
             "icons/game-icons/anvil.svg": "<svg/>",
         });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
-        expect(record.asset.attribution).toBe("Lorc");
+        expect(record.asset.attribution).toEqual(["Lorc"]);
         expect(record.asset.source).toBe("https://game-icons.net");
         expect(record.asset.notes).toBe("");
     });
@@ -290,7 +290,7 @@ describe("provenance resolves per address", () => {
             ),
         });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
-        expect(record.asset.attribution).toBe("Lorc");
+        expect(record.asset.attribution).toEqual(["Lorc"]);
         expect(record.asset.license).toBe("CC-BY-3.0");
         expect(record.asset.ai).toBe(false);
         // Replaced, not merged: the inherited note does not survive, which is
@@ -310,10 +310,14 @@ describe("provenance resolves per address", () => {
                 expect(record.asset[field.name]).toBeNull();
                 continue;
             }
+            if (field.type === "strings") {
+                expect(Array.isArray(record.asset[field.name]), field.name).toBe(true);
+                continue;
+            }
             const expected = field.type === "boolean" ? "boolean" : "string";
             expect(typeof record.asset[field.name], field.name).toBe(expected);
         }
-        expect(record.asset.attribution).toBe("");
+        expect(record.asset.attribution).toEqual([]);
         expect(record.asset.ai).toBe(false);
     });
 
@@ -382,6 +386,32 @@ describe("provenance resolves per address", () => {
         },
     );
 
+    it.each(["[Ann Artist, Bo Producer]", "42", "true", "{name: Artist}", "null"])(
+        "refuses non-text attribution %s with a located finding",
+        (value) => {
+            const base = assetTree({
+                [`icons/${PROVENANCE_FILE}`]: [
+                    `attribution: ${value}`,
+                    "license: CC0",
+                    "ai: false",
+                ].join("\n"),
+                "icons/anvil.svg": "<svg/>",
+            });
+            const problems: any[] = [];
+            const [record] = collectAssetRecords(base, { contentPackage: "sohl", problems });
+            expect(record.asset.attribution).toEqual([]);
+            expect(problems).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        severity: "error",
+                        line: 1,
+                        message: expect.stringMatching(/attribution.*single text string/),
+                    }),
+                ]),
+            );
+        },
+    );
+
     it("keeps the present string parsing for every other provenance key", () => {
         const base = assetTree({
             [`icons/${PROVENANCE_FILE}`]: [
@@ -394,11 +424,11 @@ describe("provenance resolves per address", () => {
             "icons/anvil.svg": "<svg/>",
         });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
-        expect(record.asset.attribution).toBe("Tom Rodriguez");
+        expect(record.asset.attribution).toEqual(["Tom Rodriguez"]);
         expect(record.asset.source).toBe("https://example.test/");
         expect(record.asset.license).toBe("CC-BY-SA-4.0");
         expect(record.asset.notes).toBe("a note");
-        expect(typeof record.asset.attribution).toBe("string");
+        expect(Array.isArray(record.asset.attribution)).toBe(true);
         expect(typeof record.asset.source).toBe("string");
         expect(typeof record.asset.license).toBe("string");
         expect(typeof record.asset.notes).toBe("string");

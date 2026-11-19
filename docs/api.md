@@ -1312,14 +1312,26 @@ prefixes and inherited or default element namespaces retain the same values on
 an edit; a prefix rebound to a foreign namespace cannot supply a managed value.
 The RDF container also uses namespace identity; inherited bindings preserve
 eligible editor properties and comments inside it. Content outside RDF is omitted.
-Structured titles and credits expose their first RDF list value in the scalar
-record; former names expose their RDF list order. Unrelated edits preserve every
+Structured titles and rights expose their first RDF list value in the scalar
+record; creator credits and former names expose their RDF list order. Unrelated edits preserve every
 entry and language tag in `dc:creator` and `dc:rights` lists. An
 explicit creator or rights value replaces that whole field; `null` removes it.
-When foreign XMP cannot be retained, one plain creator entry or one plain
-`x-default` rights entry can be rewritten from its exact scalar value. Extra
+When foreign XMP cannot be retained, plain creator entries or one plain
+`x-default` rights entry can be rewritten from their exact values. Extra rights
 entries, attributes, language tags or structure require the original credit XML;
 if that XML cannot be retained safely, the write fails before producing output.
+`assertPublicCreators(packet)` in `engine/art-provenance-core` refuses ambiguous
+creator properties before public projection. It does not edit the packet.
+
+`creator` and public `asset.attribution` are ordered lists of opaque credit strings.
+Provenance writer functions require a list for `creator`; pass `["Artist"]` for
+a single credit. Consumers of the public index read `asset.attribution` as a list.
+An authored sidecar attribution remains one list entry. The PNG Author text
+presents those entries joined by `, `; XMP retains the individual entries.
+Unrelated metadata edits preserve existing creator XML, including language tags.
+Public derivative credits retain the text without language tags. Explicit `creator` values
+replace the whole list, and `null` removes it.
+
 Multiple creator or rights properties are ambiguous, including
 attribute and element forms across separate RDF descriptions. An unrelated edit
 refuses them; explicitly replace or remove the affected field to edit that packet.
@@ -1534,7 +1546,7 @@ const master = writeSvgProvenance(
   drawing,
   {
     address,
-    creator: "Example artist",
+    creator: ["Example artist"],
     rights: "Example artist, licensed under CC BY-SA 4.0",
     license: "CC-BY-SA-4.0",
     digitalSourceType: "digitalCreation",
@@ -1578,7 +1590,7 @@ import {
 
 const master = writeProvenance(await readFile("input.png"), {
   address: "example-none-image-sample",
-  creator: "Example artist",
+  creator: ["Example artist"],
   rights: "Example artist, licensed under CC BY-SA 4.0",
   license: "CC-BY-SA-4.0",
   digitalSourceType: "digitalCreation",

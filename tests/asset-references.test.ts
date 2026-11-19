@@ -43,7 +43,7 @@ function asset(pkg: string, type: string, path: string, license: string, ai: boo
         type,
         shortcode,
         address: { canonical: `${pkg}-none-${type}-${shortcode}` },
-        asset: { path, license, ai, attribution: "A" },
+        asset: { path, license, ai, attribution: ["A"] },
     };
 }
 

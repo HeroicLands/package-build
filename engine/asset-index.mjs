@@ -119,7 +119,7 @@ export const PROVENANCE_SIDECAR_SUFFIX = ".yaml";
  *   state this key. Omitting one is a finding rather than a blank, because a
  *   record resolves wholesale: the nearest one is the whole answer, so a key it
  *   leaves out is not inherited from above but simply absent.
- * @property {"boolean"|"integer"|"address"} [type] - The value's own type, for a field
+ * @property {"boolean"|"integer"|"address"|"strings"} [type] - The value's own type, for a field
  *   whose answer is not a string. Omitted for every string field; `ai` carries
  *   the YAML boolean itself rather than a stringified copy, and `width` and
  *   `height` carry the pixel count the walk measured. A master Address is null
@@ -164,8 +164,9 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "attribution",
         from: "provenance",
+        type: "strings",
         required: true,
-        describe: "The person holding the rights, to whom attribution is legally due.",
+        describe: "Ordered public credit strings for the contributors.",
     }),
     Object.freeze({
         name: "source",
@@ -349,6 +350,15 @@ function readProvenanceFile(file, findings) {
             continue;
         }
         const field = PROVENANCE_FIELD_BY_KEY.get(key);
+        if (key === "attribution" && typeof value !== "string") {
+            findings.push({
+                file,
+                ...positionOfYamlPath(text, [key], { key: true }),
+                severity: "error",
+                message: "`attribution` must be a single text string",
+            });
+            continue;
+        }
         if (field?.type === "boolean") {
             if (typeof value === "boolean") {
                 out[key] = value;
@@ -399,7 +409,15 @@ function readProvenanceFile(file, findings) {
     // already has its own finding above.
     for (const key of REQUIRED_PROVENANCE_KEYS) {
         const field = PROVENANCE_FIELD_BY_KEY.get(key);
-        const stated = field?.type === "boolean" ? Object.hasOwn(parsed, key) : Boolean(out[key]);
+        const stated =
+            (
+                field?.type === "boolean" ||
+                (key === "attribution" &&
+                    Object.hasOwn(parsed, key) &&
+                    typeof parsed[key] !== "string")
+            ) ?
+                Object.hasOwn(parsed, key)
+            :   Boolean(out[key]);
         if (stated) continue;
         findings.push({
             file,
@@ -455,7 +473,7 @@ function inheritedProvenance(dir, root, cache, findings) {
  * @param {Record<string, string|boolean>|null} provenance - The resolved record.
  * @param {string} type - The asset type this file was walked as, so a field
  *   declaring `onlyType` can be dropped for every other type.
- * @returns {Record<string, string|boolean|number|null>} The block, every field
+ * @returns {Record<string, string|string[]|boolean|number|null>} The block, every field
  *   present — blank (`""`) for a string or integer field nothing states,
  *   `false` for `ai`.
  */
@@ -471,7 +489,9 @@ function assetBlock(walkValues, provenance, type) {
             continue;
         }
         const value = field.from === "walk" ? walkValues[field.name] : provenance?.[field.name];
-        if (field.type === "boolean") {
+        if (field.type === "strings") {
+            block[field.name] = typeof value === "string" && value ? [value] : [];
+        } else if (field.type === "boolean") {
             block[field.name] = typeof value === "boolean" ? value : false;
         } else if (field.type === "integer") {
             block[field.name] = typeof value === "number" ? value : "";

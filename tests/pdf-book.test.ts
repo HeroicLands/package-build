@@ -181,7 +181,7 @@ it(
                     .toBuffer(),
                 {
                     address: "sohl-none-image-picture",
-                    creator: "Artist",
+                    creator: ["Artist"],
                     rights: "Rights",
                     digitalSourceType: "digitalCreation",
                 },
@@ -232,7 +232,7 @@ it(
                 .toBuffer();
             const source = writeProvenance(png, {
                 address: "sohl-none-image-portrait",
-                creator: "Artist",
+                creator: ["Artist"],
                 rights: "Rights",
                 nonAiAlternative: "sohl-none-image-drawing",
             }).bytes;
@@ -241,7 +241,7 @@ it(
                 path.join(masters, "drawing.png"),
                 writeProvenance(png, {
                     address: "sohl-none-image-drawing",
-                    creator: "Artist",
+                    creator: ["Artist"],
                     rights: "Rights",
                     license: "CC0-1.0",
                     digitalSourceType: "digitalCreation",
