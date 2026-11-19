@@ -133,10 +133,11 @@ describe("settlement source edits", () => {
         f.args.rows = [...f.args.sources.get(f.file)!.frontmatter.data.settlements, row];
         commitSettlementEdit(prepareSettlementEdit(f.args));
         const actual = fs.readFileSync(f.file, "utf8");
-        expect(actual).toContain(
-            "{settlement: Existing}, # keep row comment\n  # keep next comment\n",
+        expect(actual).toBe(
+            heading +
+                'data: {settlements: [\n  {settlement: Existing}, # keep row comment\n  # keep next comment\n  {"settlement":"Example","households":7,"notes":"A quoted: fact"}], note: kept}\n' +
+                ending,
         );
-        expect(actual).toContain("  ], note: kept}\n" + ending);
     });
 
     it("preserves existing values and refuses removal, reordering or silent refresh", () => {
