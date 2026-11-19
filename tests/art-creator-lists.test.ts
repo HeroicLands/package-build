@@ -148,6 +148,10 @@ it.each([
     '<dc:creator rdf:resource="urn:person"/>',
     '<dc:creator><rdf:Seq><rdf:li>A</rdf:li><rdf:li rdf:resource="urn:person"/></rdf:Seq></dc:creator>',
     '<dc:creator><rdf:Seq><rdf:li>A</rdf:li><rdf:li rdf:parseType="Resource"><rdf:value>B</rdf:value></rdf:li></rdf:Seq></dc:creator>',
+    '<dc:creator><rdf:Seq><rdf:li>A</rdf:li><rdf:_2 rdf:resource="urn:person"/></rdf:Seq></dc:creator>',
+    "<dc:creator><rdf:Seq><rdf:li>A</rdf:li><rdf:_2>B</rdf:_2></rdf:Seq></dc:creator>",
+    "<dc:creator><rdf:Seq><rdf:li>A</rdf:li><rdf:Bag><rdf:li>B</rdf:li></rdf:Bag></rdf:Seq></dc:creator>",
+    "<dc:creator><rdf:Seq><rdf:li>A</rdf:li>unrepresented text</rdf:Seq></dc:creator>",
 ])("refuses public projection of resource-valued creator structure %s", (property) => {
     const packet = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description>${property}</rdf:Description></rdf:RDF>`;
     expect(() => assertPublicCreators(packet)).toThrow(/creator/);
@@ -160,4 +164,14 @@ it.each([
             /creator/.test(finding.message),
         ),
     ).toBe(true);
+});
+
+it("accepts namespace aliases and inherited language without changing the raw master credits", () => {
+    const packet =
+        '<r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:c="http://purl.org/dc/elements/1.1/" xmlns:h="https://heroiclands.org/ns/1.0/" xml:lang="en"><r:Description h:address="sample-none-image-one"><c:creator><r:Seq><r:li>First</r:li><r:li xml:lang="">Second</r:li></r:Seq></c:creator></r:Description></r:RDF>';
+    expect(() => assertPublicCreators(packet)).not.toThrow();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg"><metadata id="hl-provenance">${packet}</metadata></svg>`;
+    const edited = writeSvgProvenance(svg, { title: "Title" });
+    expect(readSvgProvenance(edited.bytes).record.creator).toEqual(["First", "Second"]);
+    expect(edited.text).toContain('xml:lang=""');
 });
