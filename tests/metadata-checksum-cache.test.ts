@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { fetchMetadata } from "../engine/foreign-catalog.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 
 const roots: string[] = [];
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -81,7 +82,10 @@ it("selects the verified index with stale siblings and concurrent fetches", asyn
     const { cachedIndexFile, loadForeignIndexes } = await import("../engine/metadata-index.mjs");
     const file = cachedIndexFile(config, "example");
     expect(file).toBe(path.join(dir, `${digest(body)}.jsonl`));
-    const resolved = loadForeignIndexes({ ...config, relationships: { requires: [rel] } }, []);
+    const resolved = loadForeignIndexes(
+        { ...loadPackConfig(), ...config, relationships: { requires: [rel] } },
+        [],
+    );
     expect(resolved.index.has("example-note-lore-valid")).toBe(true);
     expect(resolved.stale).toEqual([]);
 });
@@ -124,31 +128,25 @@ it("refuses a checksum redirect from HTTPS to a loopback HTTP mirror", async () 
 });
 
 it("retries transient sidecar and index responses", async () => {
-    vi.useFakeTimers();
-    try {
-        const { config } = setup(`${digest("index")}  index.jsonl\n`);
-        let checks = 0;
-        let indexes = 0;
-        vi.stubGlobal(
-            "fetch",
-            vi.fn(async (url: string) => {
-                if (url === manifest)
-                    return Response.json({ version: "1", flags: { metadataUrl: index } });
-                if (url === `${index}.sha256`)
-                    return ++checks === 1 ?
-                            new Response("", { status: 503 })
-                        :   new Response(`${digest("index")}  index.jsonl\n`);
-                return ++indexes === 1 ? new Response("", { status: 503 }) : new Response("index");
-            }),
-        );
-        const result = fetchMetadata(config, rel);
-        await vi.runAllTimersAsync();
-        expect(fs.readFileSync(await result, "utf8")).toBe("index");
-        expect([checks, indexes]).toEqual([2, 2]);
-    } finally {
-        vi.useRealTimers();
-    }
-});
+    const { config } = setup(`${digest("index")}  index.jsonl\n`);
+    let checks = 0;
+    let indexes = 0;
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => {
+            if (url === manifest)
+                return Response.json({ version: "1", flags: { metadataUrl: index } });
+            if (url === `${index}.sha256`)
+                return ++checks === 1 ?
+                        new Response("", { status: 503 })
+                    :   new Response(`${digest("index")}  index.jsonl\n`);
+            return ++indexes === 1 ? new Response("", { status: 503 }) : new Response("index");
+        }),
+    );
+    const result = await fetchMetadata(config, rel);
+    expect(fs.readFileSync(result, "utf8")).toBe("index");
+    expect([checks, indexes]).toEqual([2, 2]);
+}, 15000);
 
 it("bounds chunked JSONL downloads and removes temporary files", async () => {
     const { config, root } = setup(`${digest("index")}  index.jsonl\n`);
@@ -174,7 +172,30 @@ it("bounds chunked JSONL downloads and removes temporary files", async () => {
 });
 
 it("times out stalled index bodies and cleans download files", async () => {
-    vi.useFakeTimers();
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    const fakeSetTimeout = globalThis.setTimeout;
+    const starts = Array.from({ length: 5 }, () => Promise.withResolvers<void>());
+    const retries = Array.from({ length: 4 }, () => Promise.withResolvers<number>());
+    let started = 0;
+    let retryCount = 0;
+    const timerSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+        callback,
+        delay,
+        ...args
+    ) => {
+        const timer = fakeSetTimeout(callback, delay, ...args);
+        if (
+            typeof delay === "number" &&
+            delay >= 1000 &&
+            delay < 10000 &&
+            retryCount < retries.length
+        ) {
+            retries[retryCount++].resolve(delay);
+        }
+        return timer;
+    }) as typeof setTimeout);
     try {
         const { config, root } = setup(`${digest("index")}  index.jsonl\n`);
         vi.stubGlobal(
@@ -187,19 +208,61 @@ it("times out stalled index bodies and cleans download files", async () => {
                 return new Response(
                     new ReadableStream({
                         start(controller) {
-                            options.signal!.addEventListener("abort", () =>
-                                controller.error(new Error("aborted")),
-                            );
+                            const signal = options.signal!;
+                            const abort = () => controller.error(new Error("aborted"));
+                            if (signal.aborted) abort();
+                            else signal.addEventListener("abort", abort, { once: true });
+                            starts[started++].resolve();
                         },
                     }),
                 );
             }),
         );
-        const result = fetchMetadata(config, rel).catch((error) => error);
-        await vi.runAllTimersAsync();
-        expect(await result).toBeInstanceOf(Error);
+        const result = fetchMetadata(config, rel).then(
+            () => ({ error: undefined }),
+            (error) => ({ error }),
+        );
+        const waitFor = async <T>(milestone: Promise<T>, watchResult = true): Promise<T> => {
+            let guard: ReturnType<typeof realSetTimeout>;
+            const deadline = new Promise<never>((_, reject) => {
+                guard = realSetTimeout(
+                    () => reject(new Error("fixture milestone timed out")),
+                    10000,
+                );
+            });
+            try {
+                return await Promise.race([
+                    milestone,
+                    ...(watchResult ?
+                        [
+                            result.then(() => {
+                                throw new Error("request settled before the fixture milestone");
+                            }),
+                        ]
+                    :   []),
+                    deadline,
+                ]);
+            } finally {
+                realClearTimeout(guard!);
+            }
+        };
+        for (let attempt = 0; attempt < 5; attempt++) {
+            await waitFor(starts[attempt].promise);
+            await vi.advanceTimersByTimeAsync(60000);
+            if (attempt < 4) {
+                const delay = await waitFor(retries[attempt].promise);
+                expect(delay).toBeGreaterThanOrEqual(1000 * 2 ** attempt);
+                expect(delay).toBeLessThan(1000 * 2 ** attempt + 250);
+                await vi.advanceTimersByTimeAsync(delay);
+            }
+        }
+        const outcome = await waitFor(result, false);
+        expect(outcome.error).toBeInstanceOf(Error);
+        expect(outcome.error.message).toMatch(/download stream failed/);
+        expect(started).toBe(5);
         expect(fs.readdirSync(path.join(root, "shared", "heroiclands", "downloads"))).toEqual([]);
     } finally {
+        timerSpy.mockRestore();
         vi.useRealTimers();
     }
-});
+}, 110000);
