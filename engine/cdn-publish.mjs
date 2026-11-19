@@ -509,6 +509,7 @@ export function internalStore({
  *   leaves out.
  * @param {object[]} [opts.records] - Asset records for this build.
  * @param {Map<string, string>} [opts.preparedMasters] - Rendered private inputs by address.
+ * @param {Map<string, () => Buffer>} [opts.artSources] - Captured verified artwork by address.
  * @returns {CdnPlan} The plan.
  */
 export function planCdnPublish({
@@ -521,6 +522,7 @@ export function planCdnPublish({
     shippingLicenses = [],
     records: suppliedRecords,
     preparedMasters,
+    artSources,
 }) {
     const findings = [];
     const cdnRoot = `${host.replace(/\/+$/, "")}/${contentPackage}/`;
@@ -533,10 +535,15 @@ export function planCdnPublish({
     const uploads = [...staged, ...excluded.map(({ record }) => record)]
         .map((record) => {
             const prepared = preparedMasters?.get(record.address.canonical);
+            const source = artSources?.get(record.address.canonical);
+            if (artSources && !source)
+                throw new Error(`artwork input is missing for ${record.address.canonical}`);
             const from = prepared ?? path.join(assetsBase, ...record.asset.path.split("/"));
-            const transformed = !prepared && transform ? transform(from) : null;
+            const transformed = !prepared && !source && transform ? transform(from) : null;
             const body =
-                transformed != null ? Buffer.from(transformed, "utf8") : fs.readFileSync(from);
+                source ? source()
+                : transformed != null ? Buffer.from(transformed, "utf8")
+                : fs.readFileSync(from);
             const target = /** @type {string} */ (deployedAssetPath(record));
             return {
                 record,
