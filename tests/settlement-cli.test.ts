@@ -485,6 +485,46 @@ it(
             expect(refused.stdout + refused.stderr).not.toContain("settlement-checks-");
             expect(fs.readFileSync(crown, "utf8")).toBe(before);
             write(path.join(f.root, "guide.md"), "alphabet");
+            const incomplete = before.replace(
+                "territorial_population: 5",
+                "territorial_population: 9",
+            );
+            write(crown, incomplete);
+            const incompleteSession = await createContentSession({ config: f.config });
+            try {
+                write(
+                    path.join(f.root, "index.jsonl"),
+                    serializeContentIndex(incompleteSession.records),
+                );
+            } finally {
+                incompleteSession.dispose();
+            }
+            const incompletePreview = run();
+            expect(incompletePreview.status, incompletePreview.stderr).toBe(0);
+            expect(
+                JSON.parse(incompletePreview.stdout).selection.result.unallocatedPopulation,
+            ).toBe(4);
+            const configFile = path.join(f.root, "package-build.config.yaml");
+            const originalConfig = fs.readFileSync(configFile, "utf8");
+            write(
+                configFile,
+                originalConfig + "\npackageBuild:\n  settlementPopulation:\n    mode: complete\n",
+            );
+            const incompleteWrite = run("--write");
+            expect(incompleteWrite.status).toBe(1);
+            expect(incompleteWrite.stderr).toContain("allowed difference is five percent");
+            expect(fs.readFileSync(crown, "utf8")).toBe(incomplete);
+            write(configFile, originalConfig);
+            write(crown, before);
+            const restoredSession = await createContentSession({ config: f.config });
+            try {
+                write(
+                    path.join(f.root, "index.jsonl"),
+                    serializeContentIndex(restoredSession.records),
+                );
+            } finally {
+                restoredSession.dispose();
+            }
             const dry = run();
             expect(dry.status, dry.stderr).toBe(0);
             const dryReport = JSON.parse(dry.stdout);
@@ -519,5 +559,5 @@ it(
             fs.rmSync(f.root, { recursive: true, force: true });
         }
     },
-    subprocessTimeout(6),
+    subprocessTimeout(8),
 );

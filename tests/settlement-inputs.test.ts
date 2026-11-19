@@ -1745,13 +1745,16 @@ describe("automatic rural placement", () => {
                 const polity = records.find(
                     (record: any) => record.shortcode === "crown" && record.type === "affiliation",
                 );
-                return checkSettlementTables(polity, {
-                    index: {
-                        notes: records,
-                        contentPackage: session.config.contentPackage,
-                        foreign: session.foreign,
+                return checkSettlementTables(
+                    { fm: polity, file: f.crownFile, raw: before },
+                    {
+                        index: {
+                            notes: records.map((fm: any) => ({ fm, file: fm.file?.path, raw: "" })),
+                            contentPackage: session.config.contentPackage,
+                            foreign: session.foreign,
+                        },
                     },
-                });
+                );
             };
             expect(checkGeneratedRows(sevenSession, seven)).toEqual([]);
             const consistentSession = {
