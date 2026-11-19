@@ -515,6 +515,97 @@ describe("store size()", () => {
     }
 });
 
+describe("captured artwork publication", () => {
+    const art = (name: string) => ({
+        type: "image",
+        address: { canonical: `tpkg-none-image-${name}` },
+        asset: { path: `images/${name}.webp`, ai: false, license: "CC-BY-4.0" },
+    });
+    const options = (records: any[], artSources: Map<string, () => Buffer>) => ({
+        assetsBase: "/unused-private-path",
+        contentPackage: PKG,
+        host: "https://cdn.test",
+        setFile: "art.json",
+        setName: "Art",
+        records,
+        artSources,
+    });
+
+    it("keeps snapshot bytes out of plans and bounds batch writes", async () => {
+        const records = Array.from({ length: 20 }, (_, i) => art(`art${i}`));
+        let reads = 0;
+        const sources = new Map(
+            records.map((r) => [
+                r.address.canonical,
+                () => {
+                    reads++;
+                    return Buffer.from(r.address.canonical);
+                },
+            ]),
+        );
+        const plan = planCdnPublish(options(records, sources));
+        expect(reads).toBe(20);
+        expect(plan.uploads.every((upload) => !upload.body)).toBe(true);
+        expect(JSON.stringify(plan)).not.toContain("/unused-private-path");
+        let active = 0;
+        let peak = 0;
+        const store = {
+            describe: "test",
+            size: async () => undefined,
+            read: async () => undefined,
+            write: async () => {},
+            writeMany: async (uploads: { key: string; body: Buffer }[]) => {
+                expect(uploads).toHaveLength(1);
+                expect(uploads[0].body.length).toBeGreaterThan(0);
+                peak = Math.max(peak, ++active);
+                await new Promise((resolve) => setTimeout(resolve, 1));
+                active--;
+            },
+        };
+        const result = await publishToCdn(plan, { store });
+        expect(result.failed).toEqual([]);
+        expect(result.uploaded).toHaveLength(20);
+        expect(reads).toBe(40);
+        expect(peak).toBeLessThanOrEqual(8);
+    });
+
+    it("refuses missing artwork and detects changed bytes, length and invalid readers", async () => {
+        const item = art("one");
+        expect(() => planCdnPublish(options([item], new Map()))).toThrow(/missing/);
+        for (const replacement of [Buffer.from("xyz"), Buffer.from("longer"), "bad"]) {
+            let value: any = Buffer.from("abc");
+            const plan = planCdnPublish(
+                options([item], new Map([[item.address.canonical, () => value]])),
+            );
+            value = replacement;
+            const store = {
+                describe: "test",
+                size: async () => 3,
+                read: async () => undefined,
+                write: async () => {
+                    throw new Error("unexpected write");
+                },
+            };
+            const result = await publishToCdn(plan, { store });
+            expect(result.failed).toHaveLength(1);
+            expect(result.set).toBe("withheld");
+        }
+    });
+
+    it("accepts non-picture records alongside captured artwork", () => {
+        const item = art("one");
+        const font = {
+            type: "font",
+            address: { canonical: "tpkg-none-font-one" },
+            asset: { path: "fonts/one.woff2" },
+        };
+        const plan = planCdnPublish(
+            options([item, font], new Map([[item.address.canonical, () => Buffer.from("abc")]])),
+        );
+        expect(plan.uploads).toHaveLength(1);
+    });
+});
+
 describe("internal CDN transport", () => {
     it("uploads the same transformed plan through rsync and skips an unchanged second run", async () => {
         const repo = makeRepo("package-build-internal-", "https://unused.test");
