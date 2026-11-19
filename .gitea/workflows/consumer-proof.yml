@@ -25,6 +25,8 @@ jobs:
               with:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
                   cache: npm
+            - name: Check the consumer lock guard
+              run: node --test ci/consumer-lock-guard.test.mjs
             - name: Pack the candidate
               env:
                   CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}

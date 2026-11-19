@@ -3,54 +3,23 @@
 set -euo pipefail
 
 proof="$RUNNER_TEMP/consumer-proof"
+guard="$PWD/ci/consumer-lock-guard.mjs"
 cd consumer-proof-kethira
 test "$(git rev-parse HEAD)" = "$CONSUMER_SHA"
 printf 'Kethira commit: %s\n' "$(git rev-parse HEAD)"
 cp package-lock.json "$proof/original-lock.json"
 npm pkg set "devDependencies.@heroiclands/package-build=file:$proof/candidate.tgz"
 npm update @heroiclands/package-build --package-lock-only --ignore-scripts
-node - "$proof/original-lock.json" <<'NODE'
-const fs = require('node:fs');
-const assert = require('node:assert/strict');
+node --input-type=module - "$proof/original-lock.json" "$guard" <<'NODE'
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { pathToFileURL } from 'node:url';
+import crypto from 'node:crypto';
+const { checkConsumerLock } = await import(pathToFileURL(process.argv[3]));
 const before = JSON.parse(fs.readFileSync(process.argv[2]));
 const after = JSON.parse(fs.readFileSync('package-lock.json'));
 const candidate = 'node_modules/@heroiclands/package-build';
-const path = require('node:path').posix;
-const reachable = new Set();
-function visit(key) {
-    if (reachable.has(key)) return;
-    reachable.add(key);
-    const entry = after.packages[key];
-    assert.ok(entry, `missing lock entry: ${key}`);
-    const dependencies = { ...entry.dependencies, ...entry.optionalDependencies };
-    for (const name of Object.keys(dependencies)) {
-        let dir = key;
-        let resolved;
-        while (true) {
-            const target = dir ? `${dir}/node_modules/${name}` : `node_modules/${name}`;
-            if (after.packages[target]) { resolved = target; break; }
-            if (!dir) break;
-            dir = path.dirname(dir);
-            if (dir === '.') dir = '';
-        }
-        if (resolved) visit(resolved);
-        else assert.ok(entry.optionalDependencies?.[name], `missing dependency: ${name} from ${key}`);
-    }
-}
-visit(candidate);
-for (const key of new Set([...Object.keys(before.packages), ...Object.keys(after.packages)])) {
-    if (key === candidate) continue;
-    if (key === '') {
-        const a = structuredClone(before.packages[key]);
-        const b = structuredClone(after.packages[key]);
-        delete a.devDependencies['@heroiclands/package-build'];
-        delete b.devDependencies['@heroiclands/package-build'];
-        assert.deepEqual(b, a, 'consumer root dependencies changed');
-    } else if (!(before.packages[key] === undefined && reachable.has(key))) {
-        assert.deepEqual(after.packages[key], before.packages[key], `unrelated lock entry changed: ${key}`);
-    }
-}
-const crypto = require('node:crypto');
+checkConsumerLock(before, after);
 const archive = fs.readFileSync(process.env.RUNNER_TEMP + '/consumer-proof/candidate.tgz');
 const integrity = 'sha512-' + crypto.createHash('sha512').update(archive).digest('base64');
 assert.equal(after.packages[candidate].integrity, integrity);
