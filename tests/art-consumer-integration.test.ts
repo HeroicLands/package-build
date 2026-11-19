@@ -896,7 +896,7 @@ it.each(["jpeg", "webp"] as const)(
     "reuses captured installed %s bytes for screen book body, cover, banner and map",
     async (format) => {
         const f = await rasterBookFixture(format);
-        const { buildPdf } = await import("../engine/pdf-build.mjs");
+        const { buildPdf, pdfFileName } = await import("../engine/pdf-build.mjs");
         const originalMkdir = fs.mkdtempSync,
             originalWrite = fs.writeFileSync,
             captures: string[] = [];
@@ -927,29 +927,62 @@ it.each(["jpeg", "webp"] as const)(
             expect(changed).toBe(true);
             expect(captures.length).toBeGreaterThan(0);
             for (const dir of captures) expect(fs.existsSync(dir)).toBe(false);
-            const files: string[] = [];
-            const visit = (dir: string) => {
-                for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-                    const file = path.join(dir, entry.name);
-                    if (entry.isDirectory()) visit(file);
-                    else if (entry.name.endsWith(`.${f.extension}`)) files.push(file);
-                }
-            };
-            visit(path.join(f.root, "build/dist"));
-            expect(files.length).toBeGreaterThan(0);
-            for (const file of files) expect(fs.readFileSync(file)).toEqual(f.bytes);
+            const stage = pdfFileName(f.config.pdf.books[0].out, "", "screen").replace(
+                /\.pdf$/,
+                "",
+            );
+            const dist = path.join(f.root, "build/dist");
+            const body = `${stage}/assets/images/portrait.${f.extension}`;
+            const cover = `${stage}/cover/portrait.${f.extension}`;
+            const banner = `${stage}/plates/assets/images/portrait.${f.extension}`;
+            for (const relative of [body, cover, banner])
+                expect(fs.readFileSync(path.join(dist, relative)), relative).toEqual(f.bytes);
             const typst = result.books
                 .filter((book: any) => book.typ)
                 .map((book: any) => fs.readFileSync(book.typ, "utf8"))
                 .join("\n");
-            expect(typst).toContain(`portrait.${f.extension}`);
-            expect(typst).toContain("book-place-map");
+            expect(typst).toContain(body);
+            expect(typst).toContain(cover);
+            expect(typst).toContain(banner);
+            expect(typst).toContain(`#book-place-map([Sample map: Ground], "${body}")`);
         } finally {
             write.mockRestore();
             mkdir.mockRestore();
         }
     },
 );
+
+it("removes the captured artwork and preserves output when book setup fails", async () => {
+    const f = await rasterBookFixture("jpeg");
+    const { buildPdf } = await import("../engine/pdf-build.mjs");
+    const dist = path.join(f.root, "build/dist");
+    fs.mkdirSync(dist, { recursive: true });
+    const sentinel = path.join(dist, "sentinel");
+    fs.writeFileSync(sentinel, "previous book");
+    const original = fs.mkdtempSync,
+        captures: string[] = [];
+    let setupFailed = false;
+    const mkdir = vi.spyOn(fs, "mkdtempSync").mockImplementation(((prefix: any, ...args: any[]) => {
+        if (String(prefix).includes("content-pdf-")) {
+            setupFailed = true;
+            throw new Error("book setup failure");
+        }
+        const result = original(prefix, ...(args as []));
+        if (String(prefix).includes("content-art-snapshot-")) captures.push(String(result));
+        return result;
+    }) as typeof fs.mkdtempSync);
+    try {
+        await expect(
+            buildPdf({ config: f.config, edition: "screen", compile: false }),
+        ).rejects.toThrow("book setup failure");
+        expect(setupFailed).toBe(true);
+        expect(captures.length).toBeGreaterThan(0);
+        for (const dir of captures) expect(fs.existsSync(dir)).toBe(false);
+        expect(fs.readFileSync(sentinel, "utf8")).toBe("previous book");
+    } finally {
+        mkdir.mockRestore();
+    }
+});
 
 it("disposes the private snapshot after a screen-book staging error", async () => {
     const f = await rasterBookFixture("jpeg");
@@ -978,11 +1011,9 @@ it("disposes the private snapshot after a screen-book staging error", async () =
         return originalWrite(file, data, options);
     }) as typeof fs.writeFileSync);
     try {
-        try {
-            await buildPdf({ config: f.config, edition: "screen", compile: false });
-        } catch {
-            /* the stage may propagate its finding */
-        }
+        await expect(
+            buildPdf({ config: f.config, edition: "screen", compile: false }),
+        ).rejects.toThrow("screen staging failure");
         expect(failed).toBe(true);
         expect(captures.length).toBeGreaterThan(0);
         for (const dir of captures) expect(fs.existsSync(dir)).toBe(false);
