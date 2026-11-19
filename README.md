@@ -106,6 +106,11 @@ The documentation lives in the Markdown files in this repository. Start with [th
 | Error locations and severities                    | [Diagnostics](docs/diagnostics.md)                                        |
 | Architectural rationale                           | [Design](docs/design.md)                                                  |
 
+Settlement authoring references cover [map input](docs/reference/azgaar-map-input.md),
+[input assembly](docs/reference/settlement-inputs.md), the [model](docs/reference/settlement-model.md),
+[rural proposals](docs/reference/settlement-proposals.md), [urban food](docs/reference/settlement-urban.md),
+and [source edits](docs/reference/settlement-source.md).
+
 Place notes may declare a governing affiliation with `data.government` (`Address`, default target type `affiliation`), or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](docs/authoring/frontmatter.md#place-governments).
 
 Every icon and image is covered by a provenance record stating `attribution`, `license` and `ai`. A Foundry package ships only the pictures whose record says `ai: false` under a licence on the shipping list, staged flat at the package root as `icons/<basename>` and `images/<basename>` and listed in its asset set, `asset-sets/default.json`; a reference to an excluded known-AI master draws its declared non-AI alternative. Other excluded pictures draw the package's `missing` stand-in. Every compiled reference keeps the original asset's address. See [assets](docs/authoring/assets.md#what-the-foundry-package-ships) and [what a package ships](docs/reference/format-details.md#what-a-package-ships).

@@ -15,6 +15,7 @@
 import { createHash } from "node:crypto";
 
 const VERSION = "1.156.0";
+/** Upper bounds for pinned map and export input. */
 export const AZGAAR_LIMITS = Object.freeze({
     mapBytes: 64 * 1024 * 1024,
     jsonBytes: 256 * 1024 * 1024,

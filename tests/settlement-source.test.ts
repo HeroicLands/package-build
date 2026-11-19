@@ -183,6 +183,17 @@ describe("settlement source edits", () => {
         expect(() => prepareSettlementEdit({ ...f.args, sources: new Map() })).toThrow(
             /exactly one/,
         );
+        expect(() =>
+            prepareSettlementEdit({
+                ...f.args,
+                records: [
+                    {
+                        ...f.args.records[0],
+                        address: { canonical: "example-hm3-affiliation-crown" },
+                    },
+                ],
+            }),
+        ).toThrow(/exactly one/);
         const source = f.args.sources.get(f.file)!;
         source.raw = Buffer.from(
             (heading + ending).replace("shortcode: crown", "shortcode: other"),

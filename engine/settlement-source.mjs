@@ -18,6 +18,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import YAML from "yaml";
 import { canonicalKey, ownDocumentSystem, readCanonicalKey, renderAddress } from "./address.mjs";
+import { isNoteRecord } from "./index-records.mjs";
 
 const prepared = new WeakMap();
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -32,12 +33,7 @@ function fail(file, message, raw = "", offset = 0) {
 
 function sourceAddress(frontmatter, contentPackage) {
     if (!object(frontmatter) || !frontmatter.type || !frontmatter.shortcode) return null;
-    return canonicalKey(
-        contentPackage,
-        ownDocumentSystem(frontmatter.type),
-        frontmatter.type,
-        frontmatter.shortcode,
-    );
+    return canonicalKey(contentPackage, "note", frontmatter.type, frontmatter.shortcode);
 }
 
 function within(root, file) {
@@ -288,7 +284,18 @@ export function prepareSettlementEdit({
     const selected = renderAddress(tuple);
     const matches = records.filter((record) => {
         const address = readCanonicalKey(record.address?.canonical);
-        return address && renderAddress(address) === selected;
+        if (!address || !isNoteRecord(record) || sourceAddress(record, contentPackage) !== selected)
+            return false;
+        return (
+            renderAddress(address) === selected ||
+            renderAddress(address) ===
+                canonicalKey(
+                    contentPackage,
+                    ownDocumentSystem(record.type),
+                    record.type,
+                    record.shortcode,
+                )
+        );
     });
     if (matches.length !== 1)
         fail(root, "exactly one indexed record must match the selected polity Address");

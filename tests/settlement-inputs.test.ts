@@ -8,6 +8,7 @@ import { settlementMembership } from "../engine/settlement-tables.mjs";
 import { prepareSettlementInputs } from "../engine/settlement-inputs.mjs";
 import { proposeSettlements } from "../engine/settlement-generate.mjs";
 import { proposeUrbanSupply } from "../engine/settlement-urban.mjs";
+import { prepareSettlementEdit } from "../engine/settlement-source.mjs";
 import { metadataFileName } from "../engine/metadata-index.mjs";
 import { fixture, note, write } from "./content-session-fixture.js";
 
@@ -45,7 +46,9 @@ describe("settlement membership from a content session", () => {
         });
         const session = await createContentSession({ config: input.config });
         try {
-            const crown = session.records.find((record: any) => record.shortcode === "crown")!;
+            const crown = session.records.find(
+                (record: any) => record.shortcode === "crown" && !record.documents,
+            )!;
             const membership = settlementMembership(crown, session.records);
             expect(membership.polities.map((entry: any) => entry.address)).toEqual([
                 "sessionproof-note-affiliation-council",
@@ -170,7 +173,10 @@ async function assemblyFixture(
             subType,
             shortcode,
             name: { full: shortcode },
-            address: { slug: `${type}-${shortcode}`, canonical: `other-note-${type}-${shortcode}` },
+            address: {
+                slug: `${type}-${shortcode}`,
+                canonical: `other-${type === "affiliation" ? "sohl" : "note"}-${type}-${shortcode}`,
+            },
             anchors: [],
             foundry: null,
             documentation: null,
@@ -268,7 +274,7 @@ describe("settlement input assembly", () => {
             const result = prepareSettlementInputs(f);
             expect(result.polity.address.canonical).toMatchObject({
                 package: "sessionproof",
-                system: "note",
+                system: "sohl",
                 type: "affiliation",
                 shortcode: "crown",
             });
@@ -278,6 +284,15 @@ describe("settlement input assembly", () => {
                 result.existingRows,
             );
             expect(result.sourceCapture.get(f.capitalFile).raw).toBe(f.capitalRaw);
+            const edit = prepareSettlementEdit({
+                contentRoot: f.session.contentBase,
+                contentPackage: f.session.config.contentPackage,
+                polityAddress: f.polityAddress,
+                records: f.session.records,
+                sources: result.sourceCapture,
+                rows: result.existingRows,
+            });
+            expect(edit.changed).toBe(false);
             expect(result.cultureSizes[f.cultureAddress]).toBe(5);
             expect(result.ruralInput.existing).toEqual(
                 expect.arrayContaining([

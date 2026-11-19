@@ -23,6 +23,7 @@ import {
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { cachedIndexPath } from "./metadata-index.mjs";
 import { AddressLink } from "./address-values.mjs";
+import { isNoteRecord } from "./index-records.mjs";
 import { settlementMembership } from "./settlement-tables.mjs";
 import { proposeSettlements } from "./settlement-generate.mjs";
 import { proposeUrbanSupply } from "./settlement-urban.mjs";
@@ -34,9 +35,7 @@ const canonical = (value) => {
     return tuple ? renderAddress(tuple) : undefined;
 };
 const sourceAddress = (fm, pkg) =>
-    fm?.type && fm?.shortcode ?
-        canonicalKey(pkg, ownDocumentSystem(fm.type), fm.type, fm.shortcode)
-    :   undefined;
+    fm?.type && fm?.shortcode ? canonicalKey(pkg, "note", fm.type, fm.shortcode) : undefined;
 const urbanTypes = new Set(["town", "city", "metropolis"]);
 const ruralTypes = new Set(["encampment", "homestead", "hamlet", "village"]);
 const positive = (n) => typeof n === "number" && Number.isFinite(n) && n > 0;
@@ -87,7 +86,15 @@ export function prepareSettlementInputs({
     if (!tuple || tuple.package !== pkg || tuple.system !== "note" || tuple.type !== "affiliation")
         throw new TypeError("select a fully qualified local polity Address");
     const records = session.records;
-    const matches = records.filter((r) => canonical(r.address?.canonical) === selected);
+    const matches = records.filter((r) => {
+        if (!isNoteRecord(r) || r.package !== pkg || sourceAddress(r, pkg) !== selected)
+            return false;
+        const address = canonical(r.address?.canonical);
+        return (
+            address === selected ||
+            address === canonicalKey(pkg, ownDocumentSystem(r.type), r.type, r.shortcode)
+        );
+    });
     if (
         matches.length !== 1 ||
         matches[0].type !== "affiliation" ||
@@ -147,7 +154,27 @@ export function prepareSettlementInputs({
     const member = settlementMembership(polity, records, foreignIndex);
     const recordByAddress = new Map();
     for (const record of records) {
-        const address = canonical(record.address?.canonical);
+        if (
+            !isNoteRecord(record) ||
+            !record.package ||
+            !record.type ||
+            !record.shortcode ||
+            !record.address?.canonical
+        )
+            continue;
+        const address = sourceAddress(record, record.package);
+        const actual = canonical(record.address.canonical);
+        if (
+            actual !== address &&
+            actual !==
+                canonicalKey(
+                    record.package,
+                    ownDocumentSystem(record.type),
+                    record.type,
+                    record.shortcode,
+                )
+        )
+            continue;
         if (!address) continue;
         if (recordByAddress.has(address))
             inputMissing("session.records", `resolve the duplicate indexed Address ${address}`);
@@ -156,6 +183,10 @@ export function prepareSettlementInputs({
     for (const [address, entry] of foreignIndex) {
         const record = entry.settlementRecord ?? entry;
         if (!recordByAddress.has(address)) recordByAddress.set(address, record);
+        if (entry.settlementRecord && record.package && record.type && record.shortcode) {
+            const alias = sourceAddress(record, record.package);
+            if (!recordByAddress.has(alias)) recordByAddress.set(alias, record);
+        }
     }
     const typeSet = new Set(records.map((record) => record.type).filter(Boolean));
     const packageSet = new Set(
@@ -208,7 +239,7 @@ export function prepareSettlementInputs({
                 !address ||
                 (!recordByAddress.has(address) && !session.foreign?.index?.has(address))
             ) {
-                const key = canonical(record.address?.canonical);
+                const key = sourceAddress(record, record.package);
                 const file = (sourcesByAddress.get(key) ?? [
                     cachedIndexPath(session.config, record.package),
                 ])[0];
@@ -245,7 +276,7 @@ export function prepareSettlementInputs({
                 !address ||
                 (!recordByAddress.has(address) && !session.foreign?.index?.has(address))
             ) {
-                const file = (sourcesByAddress.get(canonical(record.address?.canonical)) ?? [
+                const file = (sourcesByAddress.get(sourceAddress(record, record.package)) ?? [
                     cachedIndexPath(session.config, record.package),
                 ])[0];
                 add(
