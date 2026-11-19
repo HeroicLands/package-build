@@ -381,6 +381,13 @@ it.each(["corrupt", "invalid master", "second archive"])(
                 /master address must name an image or icon in this package/
             :   /download request failed/,
         );
+        if (kind === "invalid master") {
+            expect(
+                result.stderr.match(/master address must name an image or icon in this package/g) ??
+                    [],
+            ).toHaveLength(1);
+            expect(result.stderr).not.toContain("Content preparation failed");
+        }
         expect(fs.readFileSync(marker, "utf8")).toBe("ready");
         expect(fs.readFileSync(old, "utf8")).toBe("old output");
         expect(captures(f.root)).toEqual([]);

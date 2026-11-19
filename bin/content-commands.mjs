@@ -1752,7 +1752,10 @@ function contentBuildCommand() {
                         packageCommand().handler({ ...shared, action: "compile" }),
                     );
             } catch (error) {
-                fail(error);
+                if (Array.isArray(error.findings) && error.findings.length) {
+                    for (const finding of error.findings) emitDiagnostic(finding);
+                    process.exitCode = 1;
+                } else fail(error);
             } finally {
                 const summary = timings.snapshot();
                 log.info(
