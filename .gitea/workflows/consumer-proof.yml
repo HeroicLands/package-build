@@ -7,6 +7,11 @@ on:
                 description: Exact package-build commit to verify
                 required: true
                 type: string
+            art_archives:
+                description: Also compile with isolated artwork archive fixtures
+                required: false
+                default: false
+                type: boolean
 
 permissions:
     contents: read
@@ -15,12 +20,14 @@ jobs:
     kethira:
         name: Kethira consumer compile
         runs-on: ubuntu-vm
+        timeout-minutes: 60
         env:
             CONSUMER_SHA: fc95936a8a89449e5785835311c85428743f74f4
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
               with:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
@@ -46,5 +53,11 @@ jobs:
                   repository: HeroicLands/sohl-kethira-basic
                   ref: ${{ env.CONSUMER_SHA }}
                   path: consumer-proof-kethira
+                  persist-credentials: false
             - name: Compile Kethira with the candidate
               run: bash ci/consumer-proof.sh
+            - name: Prove cold and cached artwork in Kethira
+              if: ${{ github.event.inputs.art_archives == 'true' }}
+              env:
+                  CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+              run: node ci/consumer-art-proof.mjs

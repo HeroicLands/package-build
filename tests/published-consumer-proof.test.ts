@@ -25,5 +25,6 @@ it("keeps the consumer proof script out of the published package", () => {
     expect(Array.isArray(matching[0][1].files)).toBe(true);
     const paths = matching[0][1].files.map((file: { path: string }) => file.path);
     expect(paths).not.toContain("ci/consumer-proof.sh");
+    expect(paths).not.toContain("ci/consumer-art-proof.mjs");
     expect(paths).toContain("ci/prettier.mjs");
 });
