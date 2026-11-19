@@ -142,7 +142,8 @@ export const WORD_FIELDS = Object.freeze([
         kind: "string",
         required: true,
         shape: "the word as cited, bare",
-        describe: "The word as cited, with no backticks.",
+        describe:
+            "The word as cited, with no backticks. An NFC form and normalized class identify one entry; the same spelling in another class has its own gloss.",
     }),
     Object.freeze({
         name: "variants",
@@ -475,7 +476,7 @@ export const GLOSSARY_ENTRY_FIELDS = Object.freeze([
         shape: "a string",
         describe:
             "The sense text, overriding the word's or governance sources' senses. Unstated, " +
-            "a named dictionary word supplies all its senses and class; a named rank or office supplies its descriptions.",
+            "a named dictionary spelling supplies every matching class and its senses; a named rank or office supplies its descriptions.",
     }),
     Object.freeze({
         name: "pronunciation",

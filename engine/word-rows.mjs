@@ -34,6 +34,7 @@
  * @module
  */
 
+import { wordIdentity } from "./word-classes.mjs";
 import { renderAddress } from "./address.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
 import { languageNotesByCode } from "./note-language.mjs";
@@ -109,7 +110,8 @@ const bare = (form) => String(form).replace(/^-+|-+$/g, "");
  * `wulf-` finds the word `wulf`. Within a language a word's own gloss wins over
  * an affix's, and both precede an element's sense. Elements also match their
  * declared variants; affixes also match their front-vowel forms. Spelling,
- * including case and accents, is preserved.
+ * including case and accents, is preserved. Matching word classes keep their
+ * separate glosses, joined by `; `, with each class inherited independently.
  *
  * @param {...object} datas - Each language note's `data`, nearest first.
  * @returns {(piece: string) => string|null} The gloss, or `null` where none resolves.
@@ -117,26 +119,47 @@ const bare = (form) => String(form).replace(/^-+|-+$/g, "");
 export function pieceGlosses(...datas) {
     const exact = new Map();
     const loose = new Map();
-    const take = (entries, key = "gloss", alternateKey = "") => {
+    const inherited = new Set();
+    const take = (entries, key = "gloss", alternateKey = "", words = false) => {
         for (const entry of Array.isArray(entries) ? entries : []) {
             if (!isMap(entry) || typeof entry.form !== "string") continue;
+            const identity = wordIdentity(entry.form, entry.class);
+            if (words && inherited.has(identity)) continue;
+            if (words) inherited.add(identity);
             const gloss = glossText(entry[key]);
             if (gloss === null) continue;
             const alternate = entry[alternateKey];
             const forms = [entry.form, ...(Array.isArray(alternate) ? alternate : [alternate])];
             for (const form of forms) {
                 if (typeof form !== "string") continue;
-                if (!exact.has(form)) exact.set(form, gloss);
-                if (!loose.has(bare(form))) loose.set(bare(form), gloss);
+                const normalized = form.normalize("NFC");
+                for (const [map, spelling] of [
+                    [exact, normalized],
+                    [loose, bare(normalized)],
+                ]) {
+                    if (!map.has(spelling))
+                        map.set(spelling, { words, form: normalized, glosses: [] });
+                    const found = map.get(spelling);
+                    if (
+                        !found.glosses.length ||
+                        (words && found.words && found.form === normalized)
+                    ) {
+                        if (!found.glosses.includes(gloss)) found.glosses.push(gloss);
+                    }
+                }
             }
         }
     };
     for (const data of datas) {
-        take(data?.words);
+        take(data?.words, "gloss", "", true);
         take(data?.affixes, "gloss", "front");
         take(data?.elements, "sense", "variants");
     }
-    return (piece) => exact.get(piece) ?? loose.get(bare(piece)) ?? null;
+    return (piece) => {
+        const normalized = piece.normalize("NFC");
+        const found = exact.get(normalized) ?? loose.get(bare(normalized));
+        return found?.glosses.join("; ") ?? null;
+    };
 }
 
 /**

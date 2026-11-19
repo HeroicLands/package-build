@@ -26,7 +26,7 @@
  * - a word's `field` is one of `data.fields`;
  * - a word's `concept` names entries of the concept list, each once;
  * - a `borrowed` source names its `language`;
- * - no form stands twice in one language;
+ * - no form and normalized class stand twice in one language;
  * - a word's `gloss` states at least one sense;
  * - an affix that `replaces` the stem's close does not also `lengthen` it;
  * - an affix states `given` only where its `kind` is `name`;
@@ -61,7 +61,7 @@ import {
     glossSenses,
     pronunciationProblem,
 } from "./word-terms.mjs";
-import { WORD_CLASS_MODIFIERS, parseWordClass } from "./word-classes.mjs";
+import { WORD_CLASS_MODIFIERS, parseWordClass, wordIdentity } from "./word-classes.mjs";
 import { conceptIdsIn, conceptProblems } from "./core-vocabulary.mjs";
 import { lineageChain, pieceGlosses } from "./word-rows.mjs";
 
@@ -239,13 +239,13 @@ export function checkLanguageWords(note, { index } = {}) {
             );
 
         if (typeof word.form === "string") {
-            const key = word.form.normalize("NFC");
+            const key = wordIdentity(word.form, word.class);
             if (forms.has(key))
                 findings.push(
                     finding(
                         at("form"),
                         "error",
-                        `\`${word.form}\` stands twice in this language, first at ` +
+                        `\`${word.form}\` stands twice with class \`${word.class}\` in this language, first at ` +
                             `\`data.words[${forms.get(key)}]\``,
                     ),
                 );

@@ -165,3 +165,38 @@ export function expandWordClass(parsed) {
     }
     return out;
 }
+
+/**
+ * A class's identity: NFC tokens, one space, and modifiers in master-set order.
+ * Display text keeps the author's order. Invalid classes retain their tokens
+ * for diagnostics; validation owns whether those tokens are permitted.
+ * @param {unknown} text - The authored class.
+ * @returns {string} The normalized class.
+ */
+export function normalizedWordClass(text) {
+    const tokens = String(text ?? "")
+        .normalize("NFC")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    const [base, ...modifiers] = tokens;
+    const order = (token) => WORD_CLASS_MODIFIERS.findIndex((item) => item.token === token);
+    modifiers.sort(
+        (a, b) =>
+            order(a) - order(b) ||
+            (a < b ? -1
+            : a > b ? 1
+            : 0),
+    );
+    return [base, ...modifiers].filter(Boolean).join(" ");
+}
+
+/**
+ * One word entry's identity within a language, retaining case and separators.
+ * @param {unknown} form - The cited form.
+ * @param {unknown} wordClass - Its complete class.
+ * @returns {string} The NFC form and normalized class as an unambiguous key.
+ */
+export function wordIdentity(form, wordClass) {
+    return JSON.stringify([String(form ?? "").normalize("NFC"), normalizedWordClass(wordClass)]);
+}
