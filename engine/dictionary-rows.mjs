@@ -37,10 +37,11 @@
  * several words, joined by a space or a hyphen, always is.
  *
  * **A glossary entry naming a dictionary spelling** carries every matching
- * class on its own row and a link to the spelling group in the resolved language's dictionary. Without a
- * `definition` it carries the word's senses; with one it carries that sense
- * instead. An owner's own rank or office contributes its descriptions after
- * the word's senses, unless the entry states a definition. An entry naming
+ * class on its own row and a link to the spelling group in the resolved
+ * language's dictionary. A definition shared by several classes has one row
+ * without a class; otherwise the row carries the word's senses. An owner's own
+ * rank or office contributes its descriptions after the word's senses, unless
+ * the entry states a definition. An entry naming
  * another body's rank or office carries its senses on the entry's own row.
  * `common`, `name_sort` and `pronunciation` belong to each owner's entry;
  * nothing a glossary states changes a dictionary word.
@@ -583,7 +584,7 @@ export function dictionaryAndTermRows(records, all = records) {
 
     const terms = [];
     const termRow = (
-        { owner, ownerKind, language, name, cultures, found },
+        { owner, ownerKind, language, name, cultures, found, group },
         senses,
         usage,
         marks,
@@ -603,7 +604,7 @@ export function dictionaryAndTermRows(records, all = records) {
             name_sort: nameSort,
             letter: dictionaryLetter(nameSort),
             pronunciation: marked(marks, "pronunciation") ?? word?.pronunciation ?? null,
-            class: word?.class ?? null,
+            class: group ? null : (word?.class ?? null),
             word: found ? `${wordLanguage}#${dictionaryEntryAnchor(wordLanguage, name)}` : null,
             senses,
             usage: [...new Set(usage)].filter(citable).sort(compare),
@@ -639,7 +640,25 @@ export function dictionaryAndTermRows(records, all = records) {
             row.named ||
             (row.language !== null && hasWordIgnoringCase(row.language, row.name));
         if (!enters) continue;
-        for (const found of row.matches?.length ? row.matches : [row.found])
+        const matches =
+            row.matches?.length ? row.matches
+            : row.found ? [row.found]
+            : [];
+        const group =
+            matches.length > 1 &&
+            (row.definition || row.pieces.some((piece) => piece.text?.trim()));
+        if (group) {
+            const senses =
+                row.definition ?
+                    governanceSenses(row)
+                :   combineSenses(matches.flatMap((found) => governanceSenses({ ...row, found })));
+            termRow({ ...row, found: matches[0], group: true }, senses, [...row.usage], row.marks, [
+                ...row.pieces.map((piece) => piece.kind),
+                ...(row.marks.length ? ["glossary"] : []),
+            ]);
+            continue;
+        }
+        for (const found of matches.length ? matches : [undefined])
             termRow(
                 { ...row, found },
                 governanceSenses({ ...row, found }),
@@ -652,8 +671,15 @@ export function dictionaryAndTermRows(records, all = records) {
             );
     }
     for (const original of owned)
-        for (const found of original.matches.length ? original.matches : [undefined]) {
-            const one = { ...original, found };
+        for (const found of defines(original.mark.entry) && original.matches.length > 1 ?
+            [original.matches[0]]
+        : original.matches.length ? original.matches
+        : [undefined]) {
+            const one = {
+                ...original,
+                found,
+                group: defines(original.mark.entry) && original.matches.length > 1,
+            };
             const defined = defines(one.mark.entry);
             const senses =
                 defined ? [{ text: one.mark.entry.definition, bodies: [one.owner] }]

@@ -134,6 +134,50 @@ describe("class-qualified headwords", () => {
         expect(terms.find((row) => row.name === "unique")?.word).toBe(`${key("child")}#${unique}`);
     });
 
+    it("sets a shared definition or title description once without assigning a class", () => {
+        const defined = {
+            ...culture,
+            data: {
+                glossary: [
+                    { name: "read", language: key("child"), definition: "A shared definition." },
+                    { name: "unique", language: key("child"), definition: "One definition." },
+                ],
+            },
+        };
+        const order = {
+            package: "demo",
+            system: "note",
+            type: "affiliation",
+            subType: "order",
+            shortcode: "order",
+            name: { full: "Order" },
+            data: {
+                lang: "child",
+                glossary: [{ name: "read", language: key("child") }],
+                governance: {
+                    ranks: [{ level: 1, title: "read", description: "A rank." }],
+                    offices: { read: "An office." },
+                },
+            },
+        };
+        const { terms } = dictionaryAndTermRows([parent, child, defined, order]);
+        const rows = terms.filter((row) => row.name === "read");
+        expect(rows).toHaveLength(2);
+        for (const row of rows) {
+            expect(row.class).toBeNull();
+            expect(row.word).toBe(`${key("child")}#${dictionaryEntryAnchor(key("child"), "read")}`);
+        }
+        expect(
+            rows.find((row) => row.owner.includes("folk"))?.senses.map((sense) => sense.text),
+        ).toEqual(["A shared definition."]);
+        expect(
+            rows.find((row) => row.owner.includes("order"))?.senses.map((sense) => sense.text),
+        ).toEqual(
+            expect.arrayContaining(["A rank.", "An office.", "a reading", "understand writing"]),
+        );
+        expect(terms.find((row) => row.name === "unique")?.class).toBe("adj");
+    });
+
     it("links an empty daughter's inherited homographs to one complete ancestor group", () => {
         const root = language("root", {
             words: [

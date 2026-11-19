@@ -154,12 +154,12 @@ function culture(lines: string[], subType = "culture") {
 }
 
 /** Lint a tree holding the support notes and `text` at `rel`, returning its findings. */
-function lint(text: string, rel = "Lore/Sinale.md") {
+function lint(text: string, rel = "Lore/Sinale.md", support = SUPPORT) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "glossary-entries-"));
     roots.push(root);
     for (const [name, body] of Object.entries({
         "Lore/Sinale.md": culture([]),
-        ...SUPPORT,
+        ...support,
         [rel]: text,
     })) {
         const file = path.join(root, name);
@@ -274,6 +274,26 @@ describe("data.glossary", () => {
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toMatch(/`data\.glossary`.*culture/);
         expect(at(text, findings[0]).startsWith("glossary:")).toBe(true);
+    });
+
+    it("includes inherited meanings of other classes in the definition check", () => {
+        const support = {
+            ...SUPPORT,
+            "Skills/Sinale.md": SUPPORT["Skills/Sinale.md"].replace(
+                "    - {form: síladòr, class: n, field: Spirit, gloss: a spirit-walker}",
+                "    - {form: síladòr, class: n, field: Spirit, gloss: a spirit-walker}\n    - {form: ursíl, class: n, field: Spirit, gloss: the first spirit}",
+            ),
+            "Skills/Old.md": SUPPORT["Skills/Old.md"].replace(
+                "    - {form: ursíl, class: n, field: Spirit, gloss: the first spirit}",
+                "    - {form: ursíl, class: v, field: Spirit, gloss: lead a spirit}\n    - {form: ursíl, class: n, field: Spirit, gloss: an older sense}",
+            ),
+        };
+        const findings = lint(
+            culture(["    - {name: ursíl, definition: the first spirit}"]),
+            "Lore/Sinale.md",
+            support,
+        );
+        expect(findings).toEqual([]);
     });
 
     it("warns of a definition that only repeats the gloss it replaces", () => {

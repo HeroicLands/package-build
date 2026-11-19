@@ -61,7 +61,12 @@ import {
     glossSenses,
     pronunciationProblem,
 } from "./word-terms.mjs";
-import { WORD_CLASS_MODIFIERS, parseWordClass, wordIdentity } from "./word-classes.mjs";
+import {
+    WORD_CLASS_MODIFIERS,
+    normalizedWordClass,
+    parseWordClass,
+    wordIdentity,
+} from "./word-classes.mjs";
 import { conceptIdsIn, conceptProblems } from "./core-vocabulary.mjs";
 import { lineageChain, pieceGlosses } from "./word-rows.mjs";
 
@@ -245,7 +250,7 @@ export function checkLanguageWords(note, { index } = {}) {
                     finding(
                         at("form"),
                         "error",
-                        `\`${word.form}\` stands twice with class \`${word.class}\` in this language, first at ` +
+                        `\`${word.form}\` stands twice ${normalizedWordClass(word.class) ? `with class \`${normalizedWordClass(word.class)}\`` : "without a class"} in this language, first at ` +
                             `\`data.words[${forms.get(key)}]\``,
                     ),
                 );

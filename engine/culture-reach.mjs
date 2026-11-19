@@ -39,7 +39,7 @@ import { AddressLink } from "./address-values.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
 import { languageNotesByCode } from "./note-language.mjs";
-import { parseWordClass, WORD_CLASS_BASES } from "./word-classes.mjs";
+import { parseWordClass, wordIdentity, WORD_CLASS_BASES } from "./word-classes.mjs";
 import { glossSenses, LANGUAGE_SUBTYPE } from "./word-terms.mjs";
 
 /** The bases whose words are glossary terms. */
@@ -130,7 +130,7 @@ function addTerm(terms, culture, name, sense) {
  *
  * @param {readonly object[]} notes - The index's notes.
  * @param {object} index - The index.
- * @returns {Map<string, Array<{form: string, gloss: unknown}>>} Language to its
+ * @returns {Map<string, Array<{form: string, class: string, gloss: unknown}>>} Language to its
  *   glossary-base words.
  */
 function languageWords(notes, index) {
@@ -146,7 +146,7 @@ function languageWords(notes, index) {
             const parsed = parseWordClass(word.class);
             if (parsed.reason || !GLOSSARY_BASES.has(parsed.base)) continue;
             if (!out.has(language)) out.set(language, []);
-            out.get(language).push({ form: word.form, gloss: word.gloss });
+            out.get(language).push({ form: word.form, class: word.class, gloss: word.gloss });
         }
     }
     return out;
@@ -197,7 +197,7 @@ export function entryLanguage(index, note, entry) {
  *   give it.
  * @property {Map<string, Map<string, string[]>>} governance - The ranks and
  *   offices each owner can name.
- * @property {Map<string, Array<{form: string, gloss: unknown}>>} words - Each
+ * @property {Map<string, Array<{form: string, class: string, gloss: unknown}>>} words - Each
  *   language's dictionary words.
  * @property {Map<string, string|undefined>} families - Each language's parent.
  */
@@ -250,16 +250,17 @@ function reachedCultures(index, note) {
     return [...out];
 }
 
-/** Add the nearest dictionary definition of each form in a language's lineage. */
+/** Add the nearest dictionary definition of each form and class in a language's lineage. */
 function addLanguageWords(terms, key, language, words, families) {
     const seen = new Set();
-    const forms = new Set();
+    const identities = new Set();
     for (let current = language; current && !seen.has(current); current = families.get(current)) {
         seen.add(current);
         for (const word of words.get(current) ?? []) {
             const form = glossaryName(word.form);
-            if (forms.has(form)) continue;
-            forms.add(form);
+            const identity = wordIdentity(form, word.class);
+            if (identities.has(identity)) continue;
+            identities.add(identity);
             const senses = glossSenses(word.gloss);
             if (!senses.length) addTerm(terms, key, form, undefined);
             for (const sense of senses) addTerm(terms, key, form, sense);

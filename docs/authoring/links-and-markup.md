@@ -2152,8 +2152,9 @@ Each matching class supplies its own entry and meanings. A spelling-only
 link reaches the group of entries in the language dictionary; each homograph
 also has a class-qualified anchor. A unique spelling has one unqualified
 anchor. Those senses carry no body label. An entry with a `definition` uses that
-meaning and labels it with the owner, retaining its word link and class
-where it names a dictionary word. On the owner's own page, a sense attributed
+meaning and labels it with the owner, retaining its word link. When the spelling
+matches several classes, the definition appears once without a class; a single
+matching class is shown. Rank and office descriptions follow the same rule. On the owner's own page, a sense attributed
 only to that owner omits the repeated label; other bodies and shared senses
 keep their labels. A glossary sets the rows sharing a headword, normalized class
 and language as one entry, numbering their senses in query order and
