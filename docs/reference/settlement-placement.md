@@ -90,7 +90,7 @@ The module runs with the caller's permissions. The loader receives explicit
 resources and the mutable list of selected names. The guide, English word list, its source manifest, index and explicit word
 lists are copied into private snapshots, limited together by `--checks-byte-limit`
 (default 268435456) and `--checks-entry-limit` (default 100000 directory entries).
-`--checks-work-limit` (default 1000000000000) bounds traversed values, text
+`--checks-work-limit` (default 10000000000000) bounds traversed values, text
 length, and a conservative allowance for comparisons and name preparation.
 The report identifies each captured input by its original path and SHA-256.
 The module is trusted code; its imports and dependency reads are outside these
@@ -104,3 +104,41 @@ when the selected names pass all checks and no inputs are missing. The writer
 checks the source capture and preserves existing rows, comments and prose. The
 source must remain exclusively edited during commit, as described in
 [settlement source edits](settlement-source.md).
+
+## Work budgets
+
+Both work limits are positive safe integers and fail before returning partial
+results. They count conservative operation units, not elapsed milliseconds.
+`selection.workLimit` is required in the inputs file; `--checks-work-limit`
+defaults to 10,000,000,000,000. The byte and directory-entry limits apply
+independently. Setting modules remain trusted code, not a sandbox.
+
+For selection assembly, let `G` be graph units (object properties and collection
+entries), `T` the captured text length, `R` the local and foreign record count,
+`P` the authored placement count and `C` the candidate count. The assembly
+allowance is `4 × (G + T + R × (P + C + 1) + C)`. Repeated references count for
+each expanded traversal, including appearances in records, parsed frontmatter
+and raw-source captures; cycles are refused. For example, `G = 6,137,056`,
+`T = 135,720,164`, `R = 19,805`, no authored placements and 100 candidates need
+about 575 million units. A selection budget of one billion accommodates that
+assembly example. Geometry, grid traversal, footprint and land-rule work also
+have to fit their bounds, including 54 units per candidate for the bounded
+whole-household search; denser spacing or more selected cells can require a
+larger allowance. A limit is not a request to stop after a partial set of sites.
+
+For naming, let `N` be the local record count, `F` the foreign record count,
+`Q` the proposal count, `E` the existing row count, and `K` the per-name candidate
+limit. With `X = N + F + Q + E + 1`, the preflight reserves
+`2 × X² + Q × (X + K + 1)`, then counts the captured graph and text as `U`.
+Validation reserves a further `4 × N × U` for descendant-row scans. For example,
+11,912 local records and 131,600,718 captured units require about 6.27 trillion
+validation units. The ten-trillion default accommodates that bounded example
+with room for the preflight allowance, loaded resources and name ranking. It is
+not an unlimited corpus allowance: a larger capture or candidate pool must fit
+an explicitly chosen safe-integer limit.
+
+Loaded resources are traversed within the remaining naming allowance. For each
+proposal, ranking reserves the resource record count plus
+`L × (ceil(log2(L + 1)) + 1)`, where `L` is the largest language element pool.
+Use the captured record, text and collection sizes to size limits; do not treat
+raising a limit as evidence that the selected map or naming data is valid.

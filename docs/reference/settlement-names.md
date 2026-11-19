@@ -62,3 +62,17 @@ The result has one of these status shapes:
 | `exhausted`        | `identity`, `examined`, `totalPairs`                                                      | Every pair was examined without an accepted candidate.                                                       |
 
 `totalPairs` is the product of the eligible opening and closing declaration counts, and must be a safe integer. `examined` counts visited pairs, including those skipped by exclusions or rejected by a callback. When the budget equals the number of pairs and none passes, the outcome is `exhausted`.
+
+## Command resources
+
+The settlement command compares its captured note data with the supplied published
+content index using the production index serializer. Canonical and nested Address
+fields have the same published encoding on both sides. A stale name, subtype,
+relationship or other compared note value refuses naming before the check factory
+runs. Supply the index emitted by the normal content-index build, not an ad hoc
+JSON dump of in-memory records.
+
+Resource-loader problems appear in the JSON `missing` list and as located standard
+error diagnostics. Captured temporary paths are mapped to their original input
+paths. See [work budgets](settlement-placement.md#work-budgets) for the finite
+capture, validation and candidate limits.

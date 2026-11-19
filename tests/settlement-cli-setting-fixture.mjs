@@ -8,6 +8,13 @@ export function loadSettingCheckResources({
     englishSourcesFile,
 }) {
     const guide = fs.readFileSync(guideFile, "utf8");
+    if (guide === "refused")
+        return {
+            problems: [
+                { file: guideFile, line: 2, column: 3, message: "fixture guide is refused" },
+                `englishWords: ${englishSourcesFile} has an invalid baseline`,
+            ],
+        };
     const words = JSON.parse(fs.readFileSync(englishWordsFile, "utf8"));
     const sources = JSON.parse(fs.readFileSync(englishSourcesFile, "utf8"));
     if (!guide || !Array.isArray(words) || !sources.baseline?.name)

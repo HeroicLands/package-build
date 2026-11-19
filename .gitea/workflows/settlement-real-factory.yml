@@ -18,8 +18,8 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   repository: HeroicLands/thalorna
-                  ref: d42f1c90dd8a5947d080dc42fe0c9a4ba7a92966
-                  path: .setting-candidate
+                  ref: 94ebfacf326c2ef15584e399aa69eeab456203d2
+                  path: .setting-checkout
                   github-server-url: https://git.pupluppy.org
                   persist-credentials: false
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -27,8 +27,8 @@ jobs:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
             - run: npm ci
             - run: npm ci
-              working-directory: .setting-candidate
-            - name: Exercise the candidate setting checks
+              working-directory: .setting-checkout
+            - name: Exercise the accepted setting checks
               env:
-                  SETTLEMENT_SETTING_CHECKOUT: ${{ github.workspace }}/.setting-candidate
+                  SETTLEMENT_SETTING_CHECKOUT: ${{ github.workspace }}/.setting-checkout
               run: npm test -- tests/settlement-real-factory.test.ts

@@ -23,6 +23,7 @@ import { AZGAAR_LIMITS, readAzgaarMap } from "../engine/azgaar-map.mjs";
 import { selectSettlementPlacements } from "../engine/settlement-selection.mjs";
 import {
     prepareNamedSettlements,
+    DEFAULT_AUTHORING_WORK_LIMIT,
     preflightNamedSettlements,
 } from "../engine/settlement-authoring.mjs";
 import { commitSettlementEdit } from "../engine/settlement-source.mjs";
@@ -217,7 +218,7 @@ function parseInputs(file) {
 export function settlementCommand() {
     return {
         command: "settlement",
-        describe: "Preview modeled rural settlement placements",
+        describe: "Propose checked settlement names and rows; save them with --write",
         builder: (yargs) =>
             yargs
                 .option("polity", {
@@ -228,37 +229,38 @@ export function settlementCommand() {
                 .option("map", {
                     type: "string",
                     demandOption: true,
-                    describe: "Pinned Azgaar saved map",
+                    describe: "Pinned Azgaar saved map, relative to the current directory",
                 })
                 .option("json", {
                     type: "string",
                     demandOption: true,
-                    describe: "Pinned Azgaar Full JSON export",
+                    describe: "Pinned Azgaar Full JSON export, relative to the current directory",
                 })
                 .option("inputs", {
                     type: "string",
                     demandOption: true,
-                    describe: "JSON file containing map pin, bindings and placement inputs",
+                    describe: "JSON operation inputs, relative to the current directory",
                 })
                 .option("checks-module", {
                     type: "string",
-                    describe: "Trusted local setting-check module",
+                    describe: "Trusted setting-check module, relative to the current directory",
                 })
                 .option("checks-root", {
                     type: "string",
-                    describe: "Root for setting resources (default: current directory)",
+                    describe:
+                        "Setting-resource root, relative to the current directory (default: .)",
                 })
                 .option("checks-guide", {
                     type: "string",
-                    describe: "Setting pronunciation guide file",
+                    describe: "Setting pronunciation guide, relative to the checks root",
                 })
                 .option("checks-english-words", {
                     type: "string",
-                    describe: "English word-list JSON file",
+                    describe: "English word-list JSON, relative to the checks root",
                 })
                 .option("checks-english-sources", {
                     type: "string",
-                    describe: "English word-list source manifest",
+                    describe: "English word-list source manifest, relative to the checks root",
                 })
                 .option("checks-index", {
                     type: "string",
@@ -267,7 +269,8 @@ export function settlementCommand() {
                 .option("wordlist-dir", {
                     type: "array",
                     string: true,
-                    describe: "Model-language word-list directory; repeatable",
+                    describe:
+                        "Model-language word-list directory, relative to the current directory; repeatable",
                 })
                 .option("checks-byte-limit", {
                     type: "number",
@@ -282,8 +285,9 @@ export function settlementCommand() {
                 })
                 .option("checks-work-limit", {
                     type: "number",
-                    default: 1000000000000,
-                    describe: "Maximum authoring resource work units",
+                    default: DEFAULT_AUTHORING_WORK_LIMIT,
+                    describe:
+                        "Finite authoring work budget; sizing examples: docs/reference/settlement-placement.md",
                 })
                 .option("seed", { type: "string", describe: "Deterministic name selection seed" })
                 .option("name-limit", {
@@ -395,7 +399,7 @@ export function settlementCommand() {
                             maxBytes: argv.checksByteLimit,
                             maxEntries: argv.checksEntryLimit,
                         });
-                        let loaded;
+                        let loaded, loaderProblems;
                         resourceInputs = snapshot.evidence;
                         try {
                             loaded = await module.loadSettingCheckResources({
@@ -407,6 +411,44 @@ export function settlementCommand() {
                                 ...(argv.wordlistDir ?
                                     { wordlistDirs: snapshot.wordlistDirs }
                                 :   {}),
+                            });
+                            const paths = [
+                                [snapshot.indexFile, snapshot.originalIndex],
+                                ...Object.entries(snapshot.originals).map(([key, original]) => [
+                                    snapshot[key],
+                                    original,
+                                ]),
+                                ...snapshot.wordlistDirs.map((dir, i) => [
+                                    dir,
+                                    path.resolve(snapshot.originalDirs[i]),
+                                ]),
+                            ].sort(([a], [b]) => b.length - a.length);
+                            const restorePath = (value) =>
+                                paths.reduce(
+                                    (text, [captured, original]) =>
+                                        text.split(captured).join(original),
+                                    String(value),
+                                );
+                            loaderProblems = (loaded?.problems ?? []).map((problem) => {
+                                const raw =
+                                    typeof problem === "string" ? problem : String(problem.message);
+                                const source = paths.find(([captured]) =>
+                                    raw.includes(captured),
+                                )?.[1];
+                                const field = /^([A-Za-z]+):/.exec(raw)?.[1];
+                                const origin = {
+                                    guide: snapshot.originals.guideFile,
+                                    index: snapshot.originalIndex,
+                                    englishWords: snapshot.originals.englishWordsFile,
+                                }[field];
+                                return {
+                                    ...(typeof problem === "object" ? problem : {}),
+                                    file: restorePath(
+                                        problem?.file ?? source ?? origin ?? modulePath,
+                                    ),
+                                    severity: problem?.severity ?? "error",
+                                    message: restorePath(raw),
+                                };
                             });
                             if (loaded?.resources?.guide?.id)
                                 loaded.resources.guide.id.source = snapshot.originals.guideFile;
@@ -421,17 +463,20 @@ export function settlementCommand() {
                         } finally {
                             snapshot.cleanup();
                         }
-                        authoring = prepareNamedSettlements({
-                            session,
-                            polityAddress: argv.polity,
-                            selection: result,
-                            factory: module.createSettingChecks,
-                            resources: loaded?.resources,
-                            seed: argv.seed,
-                            maxCandidates: argv.nameLimit,
-                            maxWork: argv.checksWorkLimit,
-                            bands: inputs.bands,
-                        });
+                        authoring =
+                            loaderProblems.length ?
+                                { missing: loaderProblems }
+                            :   prepareNamedSettlements({
+                                    session,
+                                    polityAddress: argv.polity,
+                                    selection: result,
+                                    factory: module.createSettingChecks,
+                                    resources: loaded?.resources,
+                                    seed: argv.seed,
+                                    maxCandidates: argv.nameLimit,
+                                    maxWork: argv.checksWorkLimit,
+                                    bands: inputs.bands,
+                                });
                     }
                     const missing = authoring.missing;
                     let write;

@@ -4,7 +4,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { authoringGraphWork, prepareNamedSettlements } from "../engine/settlement-authoring.mjs";
+import {
+    authoringGraphWork,
+    prepareNamedSettlements,
+    preflightNamedSettlements,
+    DEFAULT_AUTHORING_WORK_LIMIT,
+} from "../engine/settlement-authoring.mjs";
+import { serializeContentIndex } from "../engine/content-index.mjs";
+import { readCanonicalKey } from "../engine/address.mjs";
 import { commitSettlementEdit } from "../engine/settlement-source.mjs";
 
 const roots: string[] = [];
@@ -98,7 +105,7 @@ function fixture() {
         },
     };
     const resources = {
-        index: { records },
+        index: { records: serializeContentIndex(records).trim().split("\n").map(JSON.parse) },
         alphabet: /^[a-z]+$/,
         blockedWords: new Set(["unwanted"]),
         blockedNames: new Set(["reserved"]),
@@ -397,4 +404,53 @@ it("refuses missing captured note text before building checks", () => {
     });
     expect(result.missing[0].message).toContain("captured source");
     expect(calls).toBe(0);
+});
+
+it("compares decoded and published Addresses, including nested references, without accepting stale data", () => {
+    const f = fixture();
+    for (const record of f.session.records as any[])
+        record.address = {
+            canonical: readCanonicalKey(`example-note-${record.type}-${record.shortcode}`),
+        };
+    const language = f.session.records.find((record) => record.shortcode === "tongue") as any;
+    language.data.culture = readCanonicalKey("example-note-lore-folk");
+    const records = serializeContentIndex(f.session.records).trim().split("\n").map(JSON.parse);
+    expect(records[0].address.canonical).toEqual({
+        address: "example-note-affiliation-crown",
+        anchor: null,
+        anchorKind: null,
+    });
+    const publishedLanguage = records.find((record: any) => record.shortcode === "tongue");
+    expect(publishedLanguage.data.culture).toEqual({
+        address: "example-note-lore-folk",
+        anchor: null,
+        anchorKind: null,
+    });
+    const resources = { ...f.resources, index: { records } };
+    expect(prepareNamedSettlements({ ...f, resources }).missing).toEqual([]);
+    publishedLanguage.data.culture.address = "example-note-lore-other";
+    expect(prepareNamedSettlements({ ...f, resources }).missing[0].field).toBe("naming.index");
+    expect(fs.readFileSync(f.file, "utf8")).toBe(f.raw);
+});
+
+it("admits a bounded setting-sized capture at the default and refuses a smaller allowance", () => {
+    const f = fixture();
+    const sources = new Map(f.session.sources);
+    const raw = "x".repeat(10000);
+    const records = Array.from({ length: 11909 }, (_, i) => {
+        const file = `Note${i}.md`;
+        sources.set(path.join(f.session.contentBase, file), { raw, frontmatter: {} });
+        return { type: "doc", file: { path: file } };
+    });
+    const session = { ...f.session, records: [...f.session.records, ...records], sources };
+    expect(() => preflightNamedSettlements({ ...f, session, maxWork: 1_000_000_000_000 })).toThrow(
+        "authoring inputs exceed the work limit",
+    );
+    const used = preflightNamedSettlements({
+        ...f,
+        session,
+        maxWork: DEFAULT_AUTHORING_WORK_LIMIT,
+    });
+    expect(used).toBeGreaterThan(1_000_000_000_000);
+    expect(used).toBeLessThan(DEFAULT_AUTHORING_WORK_LIMIT);
 });
