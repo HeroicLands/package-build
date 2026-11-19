@@ -1230,6 +1230,10 @@ export function assertPublicCreators(packet) {
         fail();
     }
     if (invalid || !document) fail();
+    const counts = new Map(),
+        bad = { bad: false };
+    const record = readManagedProperties(packet, undefined, counts, bad);
+    if ((counts.get("creator") ?? 0) > 1 || bad.bad) fail();
     const creators = Array.from(document.getElementsByTagNameNS(DC_NAMESPACE, "creator"));
     const descriptions = Array.from(document.getElementsByTagNameNS(RDF_NAMESPACE, "Description"));
     const attributes = descriptions.flatMap((element) =>
@@ -1239,7 +1243,10 @@ export function assertPublicCreators(packet) {
         ),
     );
     if (creators.length + attributes.length > 1) fail();
-    if (!creators.length && !attributes.length) return;
+    if (!creators.length && !attributes.length) {
+        if ((counts.get("creator") ?? 0) > 0) fail();
+        return;
+    }
     const permittedAttributes = (element) =>
         Array.from(element.attributes).every(
             (attribute) =>
@@ -1287,11 +1294,7 @@ export function assertPublicCreators(packet) {
             });
         }
     }
-    const counts = new Map(),
-        bad = { bad: false };
-    const record = readManagedProperties(packet, undefined, counts, bad);
     if (
-        bad.bad ||
         values.some((value) => typeof value !== "string" || !value.length) ||
         JSON.stringify(record.creator) !== JSON.stringify(values)
     )

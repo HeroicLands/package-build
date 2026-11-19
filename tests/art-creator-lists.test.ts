@@ -175,3 +175,20 @@ it("accepts namespace aliases and inherited language without changing the raw ma
     expect(readSvgProvenance(edited.bytes).record.creator).toEqual(["First", "Second"]);
     expect(edited.text).toContain('xml:lang=""');
 });
+
+it.each([
+    '<rdf:Description dc:creator="First"/><other:element dc:creator="Second"/>',
+    '<other:element dc:creator="Only"/>',
+])("refuses creator attributes outside supported RDF descriptions", (content) => {
+    const packet = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:other="urn:other">${content}</rdf:RDF>`;
+    expect(() => assertPublicCreators(packet)).toThrow(/creator/);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "art-outside-credit-"));
+    roots.push(root);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg"><metadata id="hl-provenance">${packet.replace("<rdf:RDF", '<rdf:RDF xmlns:hl="https://heroiclands.org/ns/1.0/"').replace("</rdf:RDF>", '<rdf:Description hl:address="sample-none-image-one"/></rdf:RDF>')}</metadata></svg>`;
+    fs.writeFileSync(path.join(root, "one.svg"), svg);
+    expect(
+        collectArtMasters([root], "sample").findings.some((finding) =>
+            /creator/.test(finding.message),
+        ),
+    ).toBe(true);
+});
