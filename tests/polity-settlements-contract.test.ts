@@ -11,6 +11,9 @@ import {
 import { checkSettlementTables, settlementMarkdown } from "../engine/settlement-tables.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkDataKeys } from "../engine/data-keys.mjs";
+import { lintNote } from "../engine/frontmatter-lint.mjs";
+import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
+import YAML from "yaml";
 
 describe("polity settlement contract", () => {
     it("declares the complete table and row vocabulary", () => {
@@ -140,6 +143,99 @@ describe("settlement population and hierarchy", () => {
         const unknown = corpus([{ ...row, households: null, economicFocus: "custom livelihood" }]);
         expect(checkSettlementTables(unknown.polity, { index: unknown.index })).toEqual([]);
         expect(checkDataKeys(unknown.polity, [SETTLEMENTS_FIELD])).toEqual([]);
+    });
+    it.each([-1, 1.5])("rejects household count %s on rows and notes", (households) => {
+        const { polity, index } = corpus([{ ...row, households }]);
+        polity.raw = `---\n${YAML.stringify(polity.fm)}---\n`;
+        const result = lintNote(polity, {
+            schemas: NOTE_SCHEMAS,
+            vocabulary: NOTE_VOCABULARY,
+            index,
+        });
+        expect(result.find((finding) => finding.message.includes("households"))).toMatchObject({
+            line: expect.any(Number),
+            column: expect.any(Number),
+        });
+        const place = {
+            file: "settlement.md",
+            fm: {
+                type: "place",
+                subType: "settlement",
+                shortcode: "settlement",
+                data: { population: null, notes: "A place.", households },
+            },
+            raw: "",
+        };
+        place.raw = `---\n${YAML.stringify(place.fm)}---\n`;
+        const placeIndex = { ...index, notes: [...index.notes, place] };
+        const findings = lintNote(place, {
+            schemas: NOTE_SCHEMAS,
+            vocabulary: NOTE_VOCABULARY,
+            index: placeIndex,
+        });
+        expect(findings.find((finding) => finding.message.includes("households"))).toMatchObject({
+            line: expect.any(Number),
+            column: expect.any(Number),
+        });
+    });
+    it.each([undefined, null, 0, 4])(
+        "accepts household count %s on a settlement note",
+        (households) => {
+            const { index } = corpus([]);
+            const data = {
+                population: null,
+                notes: "A place.",
+                ...(households === undefined ? {} : { households }),
+            };
+            const place = {
+                file: "settlement.md",
+                fm: { type: "place", subType: "settlement", shortcode: "settlement", data },
+                raw: "",
+            };
+            place.raw = `---\n${YAML.stringify(place.fm)}---\n`;
+            const findings = lintNote(place, {
+                schemas: NOTE_SCHEMAS,
+                vocabulary: NOTE_VOCABULARY,
+                index: { ...index, notes: [...index.notes, place] },
+            });
+            expect(findings.filter((finding) => finding.message.includes("households"))).toEqual(
+                [],
+            );
+        },
+    );
+    it.each([
+        {},
+        { mapId: "", kind: "cell", id: 0 },
+        { mapId: "map", kind: "other", id: 0 },
+        { mapId: "map", kind: "cell", id: -1 },
+        { mapId: "map", kind: "cell", id: 0, slot: -1 },
+        { mapId: "map", kind: "burg", id: 0, slot: 0 },
+        { mapId: "map", kind: "cell", id: 0, extra: 1 },
+    ])("rejects invalid source identity %#", (generatorSource) => {
+        const { polity, index } = corpus([{ ...row, generatorSource }]);
+        polity.raw = `---\n${YAML.stringify(polity.fm)}---\n`;
+        const findings = lintNote(polity, {
+            schemas: NOTE_SCHEMAS,
+            vocabulary: NOTE_VOCABULARY,
+            index,
+        });
+        expect(
+            findings.find((finding) => finding.message.includes("generatorSource")),
+        ).toMatchObject({ line: expect.any(Number), column: expect.any(Number) });
+    });
+    it.each([
+        { mapId: "map", kind: "cell", id: 0, slot: 0 },
+        { mapId: "map", kind: "burg", id: 0 },
+    ])("accepts a valid source identity %#", (generatorSource) => {
+        const { polity, index } = corpus([{ ...row, households: 1, generatorSource }]);
+        const findings = lintNote(polity, {
+            schemas: NOTE_SCHEMAS,
+            vocabulary: NOTE_VOCABULARY,
+            index,
+        });
+        expect(
+            findings.filter((finding) => /generatorSource|households/.test(finding.message)),
+        ).toEqual([]);
     });
     it("locates a finding at the authored field", () => {
         const { polity, index } = corpus([{ ...row, market: "weekly" }]);

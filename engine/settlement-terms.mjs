@@ -66,18 +66,22 @@ export const GENERATOR_SOURCE_FIELD = Object.freeze({
             {
                 name: "mapId",
                 kind: "string",
+                required: true,
                 shape: "a map identity",
                 describe: "Stable map identity.",
             },
             {
                 name: "kind",
                 kind: "string",
+                required: true,
+                allowed: Object.freeze(["cell", "burg"]),
                 shape: "cell or burg",
                 describe: "The map object kind.",
             },
             {
                 name: "id",
                 kind: "integer",
+                required: true,
                 shape: "a nonnegative integer",
                 describe: "The map object ID.",
             },

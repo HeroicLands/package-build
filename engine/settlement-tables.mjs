@@ -447,6 +447,38 @@ export function checkSettlementTables(
             );
     };
     const checkFacts = (row, at, listed) => {
+        const nonnegativeInteger = (value) =>
+            (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) &&
+            Number.isSafeInteger(Number(value)) &&
+            Number(value) >= 0;
+        if (row.households != null && !nonnegativeInteger(row.households))
+            report(
+                "settlement field",
+                [...at, "households"],
+                "households is a nonnegative whole number or null",
+            );
+        if (listed && row.generatorSource !== undefined && !map(row.generatorSource))
+            report(
+                "settlement field",
+                [...at, "generatorSource"],
+                "generatorSource is a map identity",
+            );
+        if (listed && map(row.generatorSource)) {
+            const source = row.generatorSource;
+            for (const key of ["id", "slot"])
+                if (source[key] != null && !nonnegativeInteger(source[key]))
+                    report(
+                        "settlement field",
+                        [...at, "generatorSource", key],
+                        `generatorSource.${key} is a nonnegative whole number`,
+                    );
+            if (source.kind === "burg" && source.slot !== undefined)
+                report(
+                    "settlement field",
+                    [...at, "generatorSource", "slot"],
+                    "generatorSource for a burg has no slot",
+                );
+        }
         for (const field of SETTLEMENT_ROW_FIELDS) {
             if (field.table === false) continue;
             const key = field.name;
