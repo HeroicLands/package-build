@@ -1774,8 +1774,31 @@ describe("automatic rural placement", () => {
                 { ...f, session: consistentSession, map, settings },
                 selection,
             );
-            expect(consistent.selection.result.reservedPopulation).toBe(35);
-            expect(consistent.selection.result.unallocatedPopulation).toBe(3);
+            // The first site's 105 people display as 110; 66 households display as 467.
+            // The 465-person displayed budget trims the final site by one household.
+            expect(
+                consistent.selection.result.proposals.map((proposal: any) => ({
+                    households: proposal.calculation.households,
+                    population: proposal.calculation.estimatedPopulation,
+                })),
+            ).toEqual([
+                { households: 15, population: 110 },
+                { households: 6, population: 42 },
+                { households: 11, population: 77 },
+                { households: 11, population: 77 },
+                { households: 6, population: 42 },
+                { households: 11, population: 77 },
+                { households: 5, population: 35 },
+            ]);
+            expect(consistent.selection.allocation).toMatchObject({
+                allocatedPopulation: 455,
+                unallocatedPopulation: 10,
+            });
+            expect(consistent.selection.result).toMatchObject({
+                reservedPopulation: 35,
+                proposedPopulation: 455,
+                unallocatedPopulation: 10,
+            });
             expect(checkGeneratedRows(consistentSession, consistent)).toEqual([]);
             expect(
                 checkGeneratedRows(sevenSession, consistent).some((finding: any) =>
