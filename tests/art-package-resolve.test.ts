@@ -6,19 +6,29 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readCanonicalKey } from "../engine/address.mjs";
 
 vi.mock("../engine/art-package.mjs", () => ({
-    loadArtPackage: vi.fn(async (_dir, expected) => ({
+    prepareArtPackage: vi.fn(async (_dir, expected) => ({
         records: [
             {
+                package: expected.contentPackage,
+                asset: { path: "images/first.webp" },
                 address: {
                     canonical: readCanonicalKey(`${expected.contentPackage}-none-image-first`),
                 },
             },
         ],
-        files: new Map([["images/first.webp", path.join(_dir, "images/first.webp")]]),
     })),
+    finalizeArtPackage: vi.fn((prepared) => ({
+        ...prepared,
+        files: new Map([["images/first.webp", Object.freeze({})]]),
+    })),
+    readVerifiedBytes: vi.fn(),
 }));
-import { resolveArtPackages } from "../engine/art-package-resolve.mjs";
-import { loadArtPackage } from "../engine/art-package.mjs";
+import {
+    resolveArtPackages,
+    prepareArtPackages,
+    finalizeArtPackages,
+} from "../engine/art-package-resolve.mjs";
+import { prepareArtPackage } from "../engine/art-package.mjs";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -55,21 +65,39 @@ function fixture(names = ["@heroiclands/art-test"]) {
     };
 }
 describe("resolveArtPackages", () => {
+    it("exposes no file bindings before authoritative finalization", async () => {
+        const f = fixture();
+        const prepared = await prepareArtPackages(f.config);
+        expect(prepared.records).toHaveLength(1);
+        expect(prepared.packages[0]).not.toHaveProperty("files");
+        expect(() => finalizeArtPackages({ ...prepared }, { records: [] })).toThrow(/not prepared/);
+        expect(finalizeArtPackages(prepared, { records: [] })[0].files.size).toBe(1);
+    });
+    it("rejects a deployment path reused by distinct package addresses", async () => {
+        const f = fixture(["@heroiclands/one", "@heroiclands/two"]);
+        vi.mocked(prepareArtPackage).mockResolvedValueOnce({
+            records: [
+                {
+                    address: { canonical: readCanonicalKey("sohl-none-image-different") },
+                    asset: { path: "images/first.webp" },
+                },
+            ],
+        });
+        await expect(prepareArtPackages(f.config)).rejects.toThrow(/deployment path/);
+    });
     it("loads the local exact installation with package-scoped bindings", async () => {
         const f = fixture();
         const result = await resolveArtPackages(f.config);
         expect(result[0].name).toBe("@heroiclands/art-test");
-        expect(result[0].files.get("images/first.webp")).toContain("node_modules");
+        expect(result[0].files.get("images/first.webp")).toEqual({});
     });
     it("passes the consumer identity to the validator and rejects undeclared names", async () => {
         const f = fixture();
-        const validatePublicNote = () => true;
-        await resolveArtPackages(f.config, { validatePublicNote });
-        expect(loadArtPackage).toHaveBeenCalledWith(expect.any(String), {
+        await prepareArtPackages(f.config);
+        expect(prepareArtPackage).toHaveBeenCalledWith(expect.any(String), {
             name: "@heroiclands/art-test",
             version: "1.2.3",
             contentPackage: "sohl",
-            validatePublicNote,
         });
         delete f.manifest.devDependencies["@heroiclands/art-test"];
         f.save();

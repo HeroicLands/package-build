@@ -3893,21 +3893,53 @@ Compose a full-vehicle picture prompt from explicit note data and resolved items
 
 ### Installed artwork packages
 
-`await loadArtPackage(directory, expected)` from `@heroiclands/package-build/engine/art-package`
-reads an explicitly supplied package directory. `expected` contains the npm
-`name`, `version`, and `contentPackage`. It returns decoded public asset records
-and a map from package-relative asset paths to verified absolute file paths.
+`prepareArtPackages(config)` from
+`@heroiclands/package-build/engine/art-package-resolve` resolves exact required
+artwork devDependencies from the consumer's own installation and verifies their
+lock identities, descriptors, indexes and public image bytes. It returns a
+prepared object with frozen `records` and `packages`; each package exposes
+`name`, `version` and `records`. No file source is exposed at this stage.
+The records may be used to build the local content index, but must not be
+published or staged before finalization and normal content validation.
+
+Call `finalizeArtPackages(prepared, {records})` with that authoritative local
+index. It checks embedded public-note names and primary-note Addresses against
+the package's own notes and their visibility. Imported asset rows cannot provide
+note authority. It returns packages with `name`, `version`, `records` and
+`files`, a map from package-relative asset paths to opaque verified sources.
+Duplicate asset Addresses and deployment paths across package splits are errors.
+Required alternative resolution and output eligibility checks still run against
+the complete index before publication. If the authoritative index already exists,
+`await resolveArtPackages(config, {records})` performs both phases.
+
+`readVerifiedBytes(source)`, exported from both `engine/art-package` and
+`engine/art-package-resolve`, rechecks containment and the prepared SHA-256 and
+returns a fresh Buffer. Write or transform that Buffer directly; do not reopen
+an installed pathname afterward. Build sessions capture all required verified
+buffers before clearing previous output, retain the snapshots privately, and
+supply copies to output writers. A changed package therefore fails before
+cleanup or cannot change the captured build input. Callers must account for
+snapshot memory and handle capture failures before output cleanup.
+
+For a single explicitly supplied directory, `prepareArtPackage(directory,
+expected)` and `finalizeArtPackage(prepared, {validatePublicNote})` from
+`engine/art-package` provide the corresponding package-level operations.
+`expected` contains npm `name`, `version` and `contentPackage`. The synchronous
+verifier must return exactly `true` for every claimed public note, based on
+authoritative local notes. Missing, false or asynchronous verification refuses
+the claim. `await loadArtPackage(directory, expected)` performs both operations
+with `expected.validatePublicNote`. Package-level callers also verify dependency
+declarations and lock integrity; the resolver does that for a consumer.
 
 The package's `artwork.json` has `formatVersion: 1`, `contentPackage`, an
 `index` object and an `assets` array. The index and each asset entry contain
 only `path` and lowercase hexadecimal `sha256`. The index is standard asset-only
-JSONL; its image and icon records refer to entries in `assets` by `asset.path`.
+JSONL; image and icon records refer to entries in `assets` by `asset.path`.
 Assets are SVG or WebP. Every entry is digest checked, stays within the package,
 and has a matching index record with the same embedded address and creator.
-The index retains the three AI states and complete alternative addresses.
-The caller checks the consumer's dependency declarations and lockfile integrity.
-
-When an image carries a public primary-note name or address, `expected.validatePublicNote(address, metadata)` must confirm it against authoritative local public notes. Without that verifier the loader refuses those fields.
+An explicit embedded AI declaration must agree with the index. The index retains
+true, false and unknown status and complete alternative Addresses. Private
+metadata, unsanitized drawing markup and invalid image payloads are refused.
 
 ### Public artwork derivative inspection
 

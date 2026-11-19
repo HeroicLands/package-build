@@ -10,8 +10,13 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { loadArtPackage } from "./art-package.mjs";
+import { prepareArtPackage, finalizeArtPackage } from "./art-package.mjs";
+import { buildPrimaryNoteIndex, resolvePrimaryNote } from "./art-primary-note.mjs";
+import { isNoteRecord } from "./index-records.mjs";
 import { readCanonicalKey, renderAddress } from "./address.mjs";
+export { readVerifiedBytes } from "./art-package.mjs";
+
+const preparedInputs = new WeakMap();
 
 const exactVersion =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
@@ -35,22 +40,25 @@ function json(file) {
 
 /**
  * Resolve required, locked artwork from this consumer's own installation.
- * Results keep each package's file bindings separate.
+ * Preparation exposes asset records for index construction, without byte sources.
  * @param {{rootDir:string, contentPackage:string, art:{packages:readonly string[]}}} config Consumer config.
- * @param {{validatePublicNote?:(address:string, metadata:Record<string,any>) => boolean}} [options] Public note verifier.
- * @returns {Promise<Array<{name:string, version:string, records:Record<string, any>[], files:Map<string,string>}>>} Validated packages.
+ * @returns {Promise<{records: readonly Record<string, any>[], packages: readonly {name:string, version:string, records:readonly Record<string,any>[]}[]}>} Opaque prepared inputs; public-note claims remain pending.
  */
-export async function resolveArtPackages(config, { validatePublicNote } = {}) {
+export async function prepareArtPackages(config) {
     const names = config.art.packages;
-    if (!names.length) return [];
     const root = path.resolve(config.rootDir);
-    const manifest = json(path.join(root, "package.json"));
-    const lock = json(path.join(root, "package-lock.json"));
+    const manifest = names.length ? json(path.join(root, "package.json")) : {};
+    const lock =
+        names.length ?
+            json(path.join(root, "package-lock.json"))
+        :   { lockfileVersion: 3, packages: {} };
     if (lock.lockfileVersion !== 3 || !lock.packages || typeof lock.packages !== "object")
         throw new Error("package-lock.json: artwork requires a lockfile version 3 packages map");
     const out = [],
         seen = new Set(),
-        selected = new Set();
+        selected = new Set(),
+        deployments = new Set(),
+        handles = [];
     for (const name of names) {
         if (
             typeof name !== "string" ||
@@ -105,20 +113,72 @@ export async function resolveArtPackages(config, { validatePublicNote } = {}) {
             throw new Error(
                 `${directory}/package.json: installed artwork identity or version differs`,
             );
-        const { records, files } = await loadArtPackage(directory, {
+        const prepared = await prepareArtPackage(directory, {
             name,
             version,
             contentPackage: config.contentPackage,
-            ...(validatePublicNote ? { validatePublicNote } : {}),
         });
+        const { records } = prepared;
         for (const record of records) {
             const address = readCanonicalKey(record.address.canonical);
             if (!address) throw new Error("invalid canonical artwork address");
             const key = renderAddress(address);
             if (seen.has(key)) throw new Error(`duplicate artwork address across packages: ${key}`);
             seen.add(key);
+            if (deployments.has(record.asset.path))
+                throw new Error(
+                    `duplicate artwork deployment path across packages: ${record.asset.path}`,
+                );
+            deployments.add(record.asset.path);
         }
-        out.push({ name, version, records, files });
+        out.push(Object.freeze({ name, version, records }));
+        handles.push(prepared);
     }
-    return out;
+    const prepared = Object.freeze({
+        records: Object.freeze(out.flatMap((pkg) => pkg.records)),
+        packages: Object.freeze(out),
+    });
+    preparedInputs.set(prepared, { handles, contentPackage: config.contentPackage });
+    return prepared;
+}
+
+/**
+ * Validate claims against the local authoritative index and expose byte sources.
+ * Required alternative eligibility must also pass before any output is published.
+ * @param {{records: readonly Record<string, any>[], packages: readonly any[]}} prepared Prepared inputs.
+ * @param {{records: readonly Record<string, any>[]}} authority Local index including own notes.
+ * @returns {Array<{name:string, version:string, records:readonly Record<string,any>[], files:Map<string,object>}>} Accepted packages.
+ */
+export function finalizeArtPackages(prepared, { records }) {
+    const state = preparedInputs.get(prepared);
+    if (!state) throw new Error("artwork inputs were not prepared by this resolver");
+    const local = records.filter(
+        (record) => record.package === state.contentPackage && isNoteRecord(record),
+    );
+    const index = buildPrimaryNoteIndex(local);
+    const validatePublicNote = (address, metadata) => {
+        const resolved = resolvePrimaryNote(index, address).note;
+        const primary = metadata.primaryNote ?? resolved?.address;
+        const named = index.notes.get(primary);
+        return Boolean(
+            named &&
+            index.publicNotes.has(primary) &&
+            (!resolved || resolved.address === primary) &&
+            (metadata.name === undefined || metadata.name === named.name),
+        );
+    };
+    return prepared.packages.map((pkg, at) => ({
+        ...pkg,
+        ...finalizeArtPackage(state.handles[at], { validatePublicNote }),
+    }));
+}
+
+/**
+ * Resolve and finalize artwork when the authoritative local index already exists.
+ * @param {object} config Consumer configuration.
+ * @param {{records: readonly Record<string, any>[]}} authority Authoritative local index.
+ * @returns {Promise<ReturnType<typeof finalizeArtPackages>>} Accepted packages.
+ */
+export async function resolveArtPackages(config, authority) {
+    return finalizeArtPackages(await prepareArtPackages(config), authority ?? { records: [] });
 }

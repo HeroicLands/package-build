@@ -9,7 +9,13 @@ import path from "node:path";
 import os from "node:os";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadArtPackage } from "../engine/art-package.mjs";
+import {
+    loadArtPackage,
+    prepareArtPackage,
+    finalizeArtPackage,
+    readVerifiedBytes,
+} from "../engine/art-package.mjs";
+import { prepareArtPackages, finalizeArtPackages } from "../engine/art-package-resolve.mjs";
 import { serializeContentIndex } from "../engine/content-index.mjs";
 import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
 import { writeDerivativeProvenance } from "../engine/art-provenance.mjs";
@@ -107,7 +113,143 @@ function fixture() {
     return { root, rows, descriptor, save, replace };
 }
 
+function installedFixture(f: ReturnType<typeof fixture>) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "art-consumer-"));
+    roots.push(root);
+    const directory = path.join(root, "node_modules", expected.name);
+    fs.mkdirSync(path.dirname(directory), { recursive: true });
+    fs.cpSync(f.root, directory, { recursive: true });
+    const deps = { [expected.name]: expected.version };
+    fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ devDependencies: deps }));
+    fs.writeFileSync(
+        path.join(root, "package-lock.json"),
+        JSON.stringify({
+            lockfileVersion: 3,
+            packages: {
+                "": { devDependencies: deps },
+                [`node_modules/${expected.name}`]: {
+                    version: expected.version,
+                    integrity: `sha512-${Buffer.alloc(64).toString("base64")}`,
+                },
+            },
+        }),
+    );
+    return {
+        rootDir: root,
+        contentPackage: expected.contentPackage,
+        art: { packages: [expected.name] },
+    };
+}
+
+function addPublicNote(f: ReturnType<typeof fixture>) {
+    const address = "sample-none-icon-second";
+    f.replace(
+        "icons/second.svg",
+        writeDerivativeProvenance(
+            svg,
+            {
+                address,
+                creator: "Artist",
+                rights: "Terms",
+                derivedFrom: address,
+                ai: false,
+                name: "Public subject",
+                primaryNote: "sample-sohl-being-subject",
+            },
+            { repeat: ["derivedFrom", "name", "primaryNote"], notePublic: true },
+        ).bytes,
+    );
+    f.save();
+}
+
+function publicNote() {
+    return decodeIndexAddresses(
+        {
+            package: "sample",
+            type: "being",
+            shortcode: "subject",
+            address: { canonical: "sample-sohl-being-subject" },
+            name: { full: "Public subject" },
+            tags: [],
+            namedImages: ["sample-none-icon-second"],
+        },
+        { package: "sample" },
+    );
+}
+
 describe("installed artwork packages", () => {
+    it("prepares note claims without exposing sources and finalizes against local public authority", async () => {
+        const f = fixture();
+        addPublicNote(f);
+        const config = installedFixture(f);
+        const prepared = await prepareArtPackages(config);
+        expect(prepared.records).toHaveLength(3);
+        expect(prepared.packages[0]).not.toHaveProperty("files");
+        expect(Object.isFrozen(prepared.records[0].asset)).toBe(true);
+        expect(() => readVerifiedBytes(prepared)).toThrow(/final validation/);
+        expect(() => finalizeArtPackages(prepared, { records: prepared.records })).toThrow(
+            /public note/,
+        );
+        const authority = publicNote();
+        for (const change of [
+            { tags: ["gm"] },
+            { name: { full: "Different subject" } },
+            { package: "foreign" },
+        ]) {
+            expect(() =>
+                finalizeArtPackages(prepared, { records: [{ ...authority, ...change }] }),
+            ).toThrow(/public note/);
+        }
+        const accepted = finalizeArtPackages(prepared, {
+            records: [authority, ...prepared.records],
+        });
+        const source = accepted[0].files.get("icons/second.svg")!;
+        expect(readVerifiedBytes(source)).toEqual(
+            fs.readFileSync(path.join(f.root, "icons/second.svg")),
+        );
+    });
+    it("refuses a forged or asynchronous authority result", async () => {
+        const f = fixture();
+        addPublicNote(f);
+        const prepared = await prepareArtPackage(f.root, expected);
+        expect(() => finalizeArtPackage({ ...prepared })).toThrow(/not prepared/);
+        expect(() =>
+            finalizeArtPackage(prepared, {
+                validatePublicNote: (() => Promise.resolve(false)) as any,
+            }),
+        ).toThrow(/public note/);
+    });
+    it("binds output reads to the prepared bytes despite rewritten files and descriptors", async () => {
+        const f = fixture();
+        const prepared = await prepareArtPackage(f.root, expected);
+        const result = finalizeArtPackage(prepared);
+        const source = result.files.get("images/first.webp")!;
+        const original = readVerifiedBytes(source);
+        const edited = Buffer.from(original);
+        edited[edited.length - 1] ^= 1;
+        f.replace("images/first.webp", edited);
+        f.save();
+        expect(() => readVerifiedBytes(source)).toThrow(/changed after preparation/);
+        fs.writeFileSync(path.join(f.root, "images/first.webp"), original);
+        const copy = readVerifiedBytes(source);
+        copy.fill(0);
+        expect(readVerifiedBytes(source)).toEqual(original);
+        expect(() => {
+            (prepared.records[0].asset as any).ai = false;
+        }).toThrow();
+    });
+    it("refuses a symlink escape introduced after finalization even when its bytes match", async () => {
+        const f = fixture();
+        const result = await loadArtPackage(f.root, expected);
+        const source = result.files.get("icons/second.svg")!;
+        const outside = fs.mkdtempSync(path.join(os.tmpdir(), "art-late-escape-"));
+        roots.push(outside);
+        const target = path.join(outside, "copy.svg");
+        fs.writeFileSync(target, readVerifiedBytes(source));
+        fs.unlinkSync(path.join(f.root, "icons/second.svg"));
+        fs.symlinkSync(target, path.join(f.root, "icons/second.svg"));
+        expect(() => readVerifiedBytes(source)).toThrow(/escapes package/);
+    });
     it("reads the standard serializer, validates identity and preserves AI and alternatives", async () => {
         const { root } = fixture();
         const result = await loadArtPackage(root, expected);
