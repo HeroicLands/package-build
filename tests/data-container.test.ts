@@ -132,6 +132,21 @@ describe("the `data:` container is closed", () => {
         expect(lintNote(note("lore", { data: [] }), opts)).toEqual([]);
     });
 
+    it("checks map fields with the property editor's empty representation", () => {
+        for (const appearanceProfile of [{}, [], { height: {} }]) {
+            const findings = lintNote(
+                note("lore", { subType: "culture", data: { appearanceProfile } }),
+                opts,
+            );
+            expect(messages(findings)).not.toContain("`data.appearanceProfile` should");
+        }
+        const findings = lintNote(
+            note("lore", { subType: "culture", data: { appearanceProfile: [{ height: {} }] } }),
+            opts,
+        );
+        expect(messages(findings)).toContain("`data.appearanceProfile` should");
+    });
+
     it("checks a type whose vocabulary is empty just as strictly", () => {
         const findings = lintNote(note("doc", { data: { weight: 4 } }), opts);
         expect(messages(findings)).toContain("`data:` property declared by doc");
