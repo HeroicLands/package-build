@@ -1215,18 +1215,90 @@ function readManagedProperties(packet, unsafeCredits, creditCounts, invalidCreat
  */
 export function assertPublicCreators(packet) {
     if (packet === null) return;
-    const counts = new Map(),
-        invalid = { bad: false };
-    const record = readManagedProperties(packet, undefined, counts, invalid);
-    if (
-        (counts.get("creator") ?? 0) > 1 ||
-        invalid.bad ||
-        (record.creator !== undefined &&
-            (!Array.isArray(record.creator) ||
-                !record.creator.length ||
-                record.creator.some((value) => typeof value !== "string" || !value.length)))
-    )
+    const fail = () => {
         throw new Error("creator: public credits require one unambiguous list of text entries");
+    };
+    let invalid = false,
+        document;
+    try {
+        document = new DOMParser({
+            onError: () => {
+                invalid = true;
+            },
+        }).parseFromString(packet, "application/xml");
+    } catch {
+        fail();
+    }
+    if (invalid || !document) fail();
+    const counts = new Map(),
+        bad = { bad: false };
+    const record = readManagedProperties(packet, undefined, counts, bad);
+    if ((counts.get("creator") ?? 0) > 1 || bad.bad) fail();
+    const creators = Array.from(document.getElementsByTagNameNS(DC_NAMESPACE, "creator"));
+    const descriptions = Array.from(document.getElementsByTagNameNS(RDF_NAMESPACE, "Description"));
+    const attributes = descriptions.flatMap((element) =>
+        Array.from(element.attributes).filter(
+            (attribute) =>
+                attribute.namespaceURI === DC_NAMESPACE && attribute.localName === "creator",
+        ),
+    );
+    if (creators.length + attributes.length > 1) fail();
+    if (!creators.length && !attributes.length) {
+        if ((counts.get("creator") ?? 0) > 0) fail();
+        return;
+    }
+    const permittedAttributes = (element) =>
+        Array.from(element.attributes).every(
+            (attribute) =>
+                attribute.namespaceURI === "http://www.w3.org/2000/xmlns/" ||
+                (attribute.namespaceURI === "http://www.w3.org/XML/1998/namespace" &&
+                    attribute.localName === "lang"),
+        );
+    const significant = (element) =>
+        Array.from(element.childNodes).filter(
+            (node) => node.nodeType !== 8 && !(node.nodeType === 3 && !node.data.trim()),
+        );
+    let values;
+    if (attributes.length) values = [attributes[0].value];
+    else {
+        const property = creators[0];
+        if (!permittedAttributes(property)) fail();
+        const children = significant(property);
+        if (
+            property.childNodes.length &&
+            Array.from(property.childNodes).every((node) => node.nodeType === 3)
+        )
+            values = [property.textContent];
+        else {
+            if (
+                children.length !== 1 ||
+                children[0].nodeType !== 1 ||
+                children[0].namespaceURI !== RDF_NAMESPACE ||
+                children[0].localName !== "Seq"
+            )
+                fail();
+            const sequence = children[0];
+            if (!permittedAttributes(sequence)) fail();
+            const items = significant(sequence);
+            if (!items.length) fail();
+            values = items.map((item) => {
+                if (
+                    item.nodeType !== 1 ||
+                    item.namespaceURI !== RDF_NAMESPACE ||
+                    item.localName !== "li" ||
+                    !permittedAttributes(item)
+                )
+                    fail();
+                if (!Array.from(item.childNodes).every((node) => node.nodeType === 3)) fail();
+                return item.textContent;
+            });
+        }
+    }
+    if (
+        values.some((value) => typeof value !== "string" || !value.length) ||
+        JSON.stringify(record.creator) !== JSON.stringify(values)
+    )
+        fail();
 }
 
 /** Read a declared composition with strict XML and property validation. */
