@@ -20,13 +20,7 @@ import { execFileSync } from "node:child_process";
 import { unzipSync } from "fflate";
 import { readCanonicalKey, renderAddress } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
-import {
-    readSvgProvenance,
-    readWebpProvenance,
-    sniffFormat,
-    hasForeignXmp,
-} from "./art-provenance-core.mjs";
-import { writeDerivativeProvenance } from "./art-provenance.mjs";
+import { inspectPublicDerivative } from "./art-public-derivative.mjs";
 import { buildPrimaryNoteIndex, resolvePrimaryNote } from "./art-primary-note.mjs";
 import { assertPrivateArtRoots, collectArtMasters } from "./art-masters.mjs";
 import { renderArtMasters } from "./art-master-render.mjs";
@@ -35,27 +29,6 @@ import { formatLocator, formatDiagnostic } from "./diagnostics.mjs";
 
 /** @typedef {{version: 1, package: string, source: {repository: string, revision: string}, rendered: {url: string, sha256: string}}} ArtLock */
 const digest = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
-const PUBLIC_FIELDS = new Set([
-    "address",
-    "identifier",
-    "derived",
-    "derivedFrom",
-    "creator",
-    "rights",
-    "name",
-    "primaryNote",
-]);
-const PUBLIC_PROPERTIES = [
-    "hl:address",
-    "dc:identifier",
-    "hl:derived",
-    "hl:derivedFrom",
-    "dc:creator",
-    "dc:rights",
-    "hl:name",
-    "hl:primarynote",
-];
-
 /** Located failure without including authored credential values. */
 function failure(config, message) {
     return Object.assign(
@@ -317,53 +290,12 @@ function inspectPublic(config, lock, files) {
             if (value.length) throw failure(config, "archive directory carries data");
             continue;
         }
-        const bytes = Buffer.from(value),
-            format = sniffFormat(bytes);
-        if (!["webp", "svg"].includes(format) || path.extname(name).toLowerCase() !== `.${format}`)
-            throw failure(config, "public artwork archive accepts only WebP and SVG derivatives");
-        let read;
-        try {
-            read = format === "svg" ? readSvgProvenance(bytes) : readWebpProvenance(bytes);
-        } catch {
-            throw failure(config, "invalid image metadata in public artwork archive");
-        }
-        const r = read.record,
-            tuple = readCanonicalKey(r.address);
-        if (
-            !tuple ||
-            tuple.package !== lock.package ||
-            tuple.system !== "none" ||
-            !["image", "icon"].includes(tuple.type) ||
-            !Object.values(tuple).every(isAddressSegment) ||
-            r.identifier !== r.address ||
-            r.derived !== "true" ||
-            r.derivedFrom !== r.address
-        )
-            throw failure(config, "invalid embedded public image identity or parent trace");
-        if (byAddress.has(r.address))
+        const row = inspectPublicDerivative(name, Buffer.from(value), lock.package, (message) =>
+            failure(config, message),
+        );
+        if (byAddress.has(row.metadata.address))
             throw failure(config, "duplicate embedded image address in public archive");
-        if (
-            Object.keys(r).some((key) => !PUBLIC_FIELDS.has(key)) ||
-            !read.packet ||
-            hasForeignXmp(read.packet, PUBLIC_PROPERTIES)
-        )
-            throw failure(config, "public image metadata exceeds the publication allowlist");
-        let sanitized;
-        try {
-            sanitized = writeDerivativeProvenance(bytes, r, {
-                repeat: [
-                    "derivedFrom",
-                    ...(r.name !== undefined ? ["name"] : []),
-                    ...(r.primaryNote !== undefined ? ["primaryNote"] : []),
-                ],
-                notePublic: r.name !== undefined || r.primaryNote !== undefined,
-            }).bytes;
-        } catch {
-            throw failure(config, "public archive contains unsafe image metadata or markup");
-        }
-        if (!sanitized.equals(bytes))
-            throw failure(config, "public archive contains unsanitized image metadata or markup");
-        byAddress.set(r.address, { name, bytes, format, metadata: r });
+        byAddress.set(row.metadata.address, row);
     }
     if (!byAddress.size) throw failure(config, "public artwork archive contains no images");
     return byAddress;

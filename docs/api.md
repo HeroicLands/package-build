@@ -3893,7 +3893,7 @@ Compose a full-vehicle picture prompt from explicit note data and resolved items
 
 ### Installed artwork packages
 
-`loadArtPackage(directory, expected)` from `@heroiclands/package-build/engine/art-package`
+`await loadArtPackage(directory, expected)` from `@heroiclands/package-build/engine/art-package`
 reads an explicitly supplied package directory. `expected` contains the npm
 `name`, `version`, and `contentPackage`. It returns decoded public asset records
 and a map from package-relative asset paths to verified absolute file paths.
@@ -3903,6 +3903,8 @@ The package's `artwork.json` has `formatVersion: 1`, `contentPackage`, an
 only `path` and lowercase hexadecimal `sha256`. The index is standard asset-only
 JSONL; its image and icon records refer to entries in `assets` by `asset.path`.
 Assets are SVG or WebP. Every entry is digest checked, stays within the package,
-and has a matching index record. More than one address can refer to one file.
+and has a matching index record with the same embedded address and creator.
 The index retains the three AI states and complete alternative addresses.
 The caller checks the consumer's dependency declarations and lockfile integrity.
+
+When an image carries a public primary-note name or address, `expected.validatePublicNote(address, metadata)` must confirm it against authoritative local public notes. Without that verifier the loader refuses those fields.

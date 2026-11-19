@@ -9,9 +9,10 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { ASSET_RECORD_FIELDS } from "./asset-index.mjs";
-import { readCanonicalKey } from "./address.mjs";
+import { readCanonicalKey, renderAddress } from "./address.mjs";
+import sharp from "sharp";
+import { inspectPublicDerivative } from "./art-public-derivative.mjs";
 import { decodeIndexAddresses } from "./note-addresses.mjs";
-import { sniffFormat, readSvgProvenance, readWebpChunks } from "./art-provenance-core.mjs";
 
 const assetFields = new Set(ASSET_RECORD_FIELDS.map((field) => field.name));
 
@@ -27,10 +28,10 @@ function object(value, keys, label) {
  * artwork package. The caller supplies the package directory explicitly.
  *
  * @param {string} directory - Installed package root.
- * @param {{name:string, version:string, contentPackage:string}} expected - Required identity.
- * @returns {{records: Record<string, any>[], files: Map<string, string>}} Decoded records and relative-to-absolute file bindings.
+ * @param {{name:string, version:string, contentPackage:string, validatePublicNote?:(address:string, metadata:Record<string,any>) => boolean}} expected - Required identity and optional note-visibility verifier.
+ * @returns {Promise<{records: Record<string, any>[], files: Map<string, string>}>} Decoded records and relative-to-absolute file bindings.
  */
-export function loadArtPackage(directory, expected) {
+export async function loadArtPackage(directory, expected) {
     const root = fs.realpathSync(directory);
     const readFile = (relative) => {
         if (
@@ -82,12 +83,24 @@ export function loadArtPackage(directory, expected) {
             throw new Error("artwork assets must be SVG or WebP files");
         if (files.has(entry.path)) throw new Error(`duplicate artwork binding: ${entry.path}`);
         const asset = check(entry, "artwork asset");
-        const format = entry.path.endsWith(".svg") ? "svg" : "webp";
-        if (sniffFormat(asset.bytes) !== format)
-            throw new Error(`artwork format does not match: ${entry.path}`);
-        if (format === "svg") readSvgProvenance(asset.bytes);
-        else readWebpChunks(asset.bytes);
-        files.set(entry.path, asset.file);
+        const publicImage = inspectPublicDerivative(
+            entry.path,
+            asset.bytes,
+            expected.contentPackage,
+        );
+        if (
+            (publicImage.metadata.name !== undefined ||
+                publicImage.metadata.primaryNote !== undefined) &&
+            (!expected.validatePublicNote ||
+                !expected.validatePublicNote(publicImage.metadata.address, publicImage.metadata))
+        )
+            throw new Error("public note metadata requires verification against local notes");
+        try {
+            await sharp(asset.bytes, { failOn: "error" }).stats();
+        } catch {
+            throw new Error(`artwork image payload is invalid: ${entry.path}`);
+        }
+        files.set(entry.path, { file: asset.file, metadata: publicImage.metadata });
     }
     const records = [];
     const addresses = new Set();
@@ -98,7 +111,9 @@ export function loadArtPackage(directory, expected) {
         object(record, ["package", "type", "shortcode", "address", "asset"], "asset record");
         object(record.address, ["canonical"], "asset address");
         object(record.asset, [...assetFields], "asset metadata");
+        decodeIndexAddresses(record, { package: expected.contentPackage });
         const address = readCanonicalKey(record.address.canonical);
+        const key = address && renderAddress(address);
         if (
             !address ||
             address.package !== expected.contentPackage ||
@@ -109,8 +124,8 @@ export function loadArtPackage(directory, expected) {
             record.shortcode !== address.shortcode
         )
             throw new Error("asset record has wrong package or address");
-        if (addresses.has(record.address.canonical)) throw new Error("duplicate asset address");
-        addresses.add(record.address.canonical);
+        if (addresses.has(key)) throw new Error("duplicate asset address");
+        addresses.add(key);
         if (![true, false, null].includes(record.asset.ai))
             throw new Error("invalid asset AI status");
         for (const key of ["attribution", "source", "license", "notes", "role"]) {
@@ -126,10 +141,16 @@ export function loadArtPackage(directory, expected) {
             throw new Error("AI asset lacks a non-AI alternative");
         if (typeof record.asset.path !== "string" || !files.has(record.asset.path))
             throw new Error("asset record has no file binding");
+        const image = files.get(record.asset.path);
+        if (
+            image.metadata.address !== key ||
+            image.metadata.creator !== (record.asset.attribution || undefined)
+        )
+            throw new Error("asset image identity or creator does not match its index record");
         used.add(record.asset.path);
-        records.push(decodeIndexAddresses(record, { package: expected.contentPackage }));
+        records.push(record);
     }
     for (const file of files.keys())
         if (!used.has(file)) throw new Error(`unused artwork binding: ${file}`);
-    return { records, files };
+    return { records, files: new Map([...files].map(([key, value]) => [key, value.file])) };
 }
