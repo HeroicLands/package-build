@@ -466,7 +466,7 @@ export function checkSettlementTables(
         if (listed && map(row.generatorSource)) {
             const source = row.generatorSource;
             for (const key of ["id", "slot"])
-                if (source[key] != null && !nonnegativeInteger(source[key]))
+                if (Object.hasOwn(source, key) && !nonnegativeInteger(source[key]))
                     report(
                         "settlement field",
                         [...at, "generatorSource", key],

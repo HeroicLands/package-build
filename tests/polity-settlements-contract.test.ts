@@ -209,6 +209,7 @@ describe("settlement population and hierarchy", () => {
         { mapId: "map", kind: "other", id: 0 },
         { mapId: "map", kind: "cell", id: -1 },
         { mapId: "map", kind: "cell", id: 0, slot: -1 },
+        { mapId: "map", kind: "cell", id: 0, slot: null },
         { mapId: "map", kind: "burg", id: 0, slot: 0 },
         { mapId: "map", kind: "cell", id: 0, extra: 1 },
     ])("rejects invalid source identity %#", (generatorSource) => {
@@ -225,6 +226,7 @@ describe("settlement population and hierarchy", () => {
     });
     it.each([
         { mapId: "map", kind: "cell", id: 0, slot: 0 },
+        { mapId: "map", kind: "cell", id: 0 },
         { mapId: "map", kind: "burg", id: 0 },
     ])("accepts a valid source identity %#", (generatorSource) => {
         const { polity, index } = corpus([{ ...row, households: 1, generatorSource }]);
