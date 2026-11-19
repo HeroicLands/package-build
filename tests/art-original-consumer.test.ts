@@ -163,9 +163,15 @@ it("cleans an earlier extracted archive when a later download fails", async () =
     );
     const prior = path.join(f.root, "existing-output");
     fs.writeFileSync(prior, "keep");
-    await expect(createContentSession({ config })).rejects.toThrow();
+    await expect(createContentSession({ config })).rejects.toThrow(
+        "art.archives[1]: download request failed: https://example.test/second.zip",
+    );
     expect(fs.readFileSync(prior, "utf8")).toBe("keep");
-    expect(fs.readdirSync(f.root).filter((name) => name.startsWith("art-archive-"))).toEqual([]);
+    expect(
+        fs
+            .readdirSync(path.join(f.root, "shared-cache/heroiclands/downloads"))
+            .filter((name) => name.startsWith(".art-archive-")),
+    ).toEqual([]);
     vi.restoreAllMocks();
 });
 

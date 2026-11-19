@@ -193,17 +193,18 @@ Whether a content tree has anything to compile. The pack build's worst failure i
 
 The consuming repository's resolved `package-build.config.yaml`: the content package, the Foundry package and its kind, every path, the `_stats` identity, item-type membership and the pack list — read on call rather than hoisted at import, so importing this package never requires a configuration to exist.
 
-| Export              | Signature                            | Returns                       | Use it when                                                                          |
-| ------------------- | ------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------ |
-| `CONFIG_BASENAME`   | `const CONFIG_BASENAME`              | —                             | naming the stem every consuming repository declares its build under                  |
-| `CONFIG_FILENAMES`  | `const CONFIG_FILENAMES`             | —                             | listing the file names a configuration may be written as                             |
-| `findConfigFile`    | `findConfigFile(from)`               | `string \| undefined`         | finding the nearest configuration file at or above a directory                       |
-| `resolveConfigFile` | `resolveConfigFile(...)`             | `{path, fromCwd, fromModule}` | asking which configuration file a build launched here would read, without loading it |
-| `locateConfigError` | `locateConfigError(err, configPath)` | the decorated error           | attaching the position of the key a configuration error names                        |
-| `configFromData`    | `configFromData(data, configPath)`   | `ContentBuildConfig`          | turning a parsed YAML configuration into the frozen one the engine reads             |
-| `loadPackConfig`    | `loadPackConfig()`                   | `ContentBuildConfig`          | reading the consuming repository's resolved, frozen configuration                    |
-| `packConfigPath`    | `packConfigPath()`                   | `string`                      | naming the file `loadPackConfig` resolved the configuration from, for a diagnostic   |
-| `readPackConfig`    | `readPackConfig(configPath)`         | `ContentBuildConfig`          | reading the configuration one named file declares, unmemoised                        |
+| Export              | Signature                            | Returns                       | Use it when                                                                           |
+| ------------------- | ------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------- |
+| `CONFIG_BASENAME`   | `const CONFIG_BASENAME`              | —                             | naming the stem every consuming repository declares its build under                   |
+| `CONFIG_FILENAMES`  | `const CONFIG_FILENAMES`             | —                             | listing the file names a configuration may be written as                              |
+| `findConfigFile`    | `findConfigFile(from)`               | `string \| undefined`         | finding the nearest configuration file at or above a directory                        |
+| `resolveConfigFile` | `resolveConfigFile(...)`             | `{path, fromCwd, fromModule}` | asking which configuration file a build launched here would read, without loading it  |
+| `locateConfigError` | `locateConfigError(err, configPath)` | the decorated error           | attaching the position of the key a configuration error names                         |
+| `configFromData`    | `configFromData(data, configPath)`   | `ContentBuildConfig`          | turning a parsed YAML configuration into the frozen one the engine reads              |
+| `loadPackConfig`    | `loadPackConfig()`                   | `ContentBuildConfig`          | reading the consuming repository's resolved, frozen configuration                     |
+| `configSourcePath`  | `configSourcePath(config)`           | `string \| undefined`         | locating this exact resolved configuration; absent for objects created only in memory |
+| `packConfigPath`    | `packConfigPath()`                   | `string`                      | naming the file `loadPackConfig` resolved the configuration from, for a diagnostic    |
+| `readPackConfig`    | `readPackConfig(configPath)`         | `ContentBuildConfig`          | reading the configuration one named file declares, unmemoised                         |
 
 Pass the resolved configuration to render and index operations that work with a specific repository.
 
@@ -3863,6 +3864,19 @@ index. Its master map is available to renderers until `await session.dispose()`.
 `indexRecordsWithArtwork` prepares and disposes a session for asynchronous callers.
 Local master roots remain available to synchronous callers.
 
+| Export                    | Signature                               | Returns             | Use                                                                                                                   |
+| ------------------------- | --------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `privateArtRoots`         | `privateArtRoots(config)`               | `string[]`          | Read declared local master and component roots for input/output separation checks. Archive sessions are not included. |
+| `indexRecordsWithArtwork` | `indexRecordsWithArtwork(options = {})` | `Promise<object[]>` | Resolve archive originals, derive records, copy parsed notes into `options.parsed`, and dispose the session.          |
+
+Import these from `engine/art-inputs` and `engine/art-index-input` respectively.
+`indexRecordsWithArtwork` accepts the `indexRecordsFor` options. With archives,
+it passes configuration, content/assets roots and skip directories to a new
+session. Findings append to `options.problems`; without that array, findings
+throw a located error. Without archives it delegates directly to `indexRecordsFor`.
+The returned records do not retain live archive files; rendering uses a content
+session and disposes it after readers finish.
+
 ### Public artwork derivative inspection
 
 | Export                    | Signature                                                        | Returns                           | Use                                                                           |
@@ -3881,4 +3895,7 @@ notes against local notes, and check artwork eligibility for the intended output
 
 ### Original artwork archive
 
-`openArtArchive(url, sha256, options)` in `engine/art-archive` acquires a verified ZIP and extracts its PNG and SVG files into a private temporary directory. It returns `{ root, dispose }`; call `await dispose()` after all readers finish. The original bytes are unchanged. It accepts stored and DEFLATE ZIP entries and refuses ZIP64. `cacheDir`, `fetch` and `signal` configure acquisition and cancellation. Positive safe integer limits are `maxArchiveBytes` (2,000,000,000), `maxDirectoryBytes` (16,000,000), `maxEntries` (10,000), `maxEntryBytes` (256,000,000), and `maxTotalBytes` (2,000,000,000). Failure or cancellation cleans up the temporary directory. The caller disposes a successful root after its readers finish. Artwork identity and eligibility are checked by the master collector.
+`openArtArchive(url, sha256, options)` in `engine/art-archive` acquires a verified ZIP and extracts its PNG and SVG files into a private temporary directory. It returns `{ root, dispose }`; call `await dispose()` after all readers finish. The original bytes are unchanged. It accepts stored and DEFLATE ZIP entries and refuses ZIP64. `cacheDir`, `fetch` and `signal` configure acquisition and cancellation. Positive safe integer limits are `maxArchiveBytes` (2,000,000,000), `maxDirectoryBytes` (16,000,000), `maxEntries` (10,000), `maxEntryBytes` (256,000,000), and `maxTotalBytes` (2,000,000,000). Session files live beside the verified download in the shared cache, outside the system temporary directory. Failure or cancellation cleans up the session directory. A subsequent acquisition reclaims directories owned by a dead process on this host; live owners and other hosts are untouched. The caller disposes a successful root after its readers finish. Artwork identity and eligibility are checked by the master collector.
+
+The [artwork authoring guide](authoring/assets.md#artwork-archives) describes the
+cache locations, disk requirements, multipart pins and cleanup behavior.

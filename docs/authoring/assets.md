@@ -166,3 +166,49 @@ An archive may also contain root-level `README.md` and `CHANGELOG.md`. These
 files count toward archive safety limits and are checked for corruption; they
 are not artwork inputs. Other non-image files are refused. Archive inputs and
 local master or component roots are separate modes.
+
+A release with several ZIP assets declares each complete ZIP separately, with its
+own digest. These are independent archives, not byte segments of a split ZIP.
+Use every part containing the package's originals. Duplicate image identities
+across parts are errors. The following example illustrates two pinned assets;
+use the published asset URLs and actual lowercase SHA-256 values for your release.
+
+```yaml
+art:
+  archives:
+    - url: https://github.com/example/artwork/releases/download/v1.0.0/originals-part1.zip
+      sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    - url: https://github.com/example/artwork/releases/download/v1.0.0/originals-part2.zip
+      sha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+```
+
+The first build needs network access to download missing archives. Subsequent
+builds verify each cached archive's SHA-256 before reuse and can acquire artwork
+offline while all declared archives remain cached. Other build dependencies have
+their own acquisition requirements. Original image bytes, including embedded
+metadata, remain unchanged; public derivatives omit private generation details.
+Screen output uses JPEG for opaque rasters, WebP for transparency and SVG for
+vectors. Print books render from these same originals.
+
+The shared download cache is outside project clones:
+
+| Platform                     | Default directory                                                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| macOS                        | `~/Library/Caches/heroiclands/downloads`                                                                          |
+| Linux and other Unix systems | `~/.cache/heroiclands/downloads`                                                                                  |
+| Windows                      | `%LOCALAPPDATA%/heroiclands/downloads` when that variable is absolute; otherwise `~/.cache/heroiclands/downloads` |
+
+An absolute `XDG_CACHE_HOME` overrides these defaults on every platform; the
+cache is then `$XDG_CACHE_HOME/heroiclands/downloads`. Relative values do not
+change the default. API callers can select an absolute `cacheDir` explicitly.
+Use a disk-backed cache with room for the verified ZIPs, an in-progress archive
+snapshot, and the expanded originals for each active session. Streams and archive
+size limits bound memory and extraction; system temp is not used for these files.
+
+`package-build clean` removes project build outputs and leaves this shared cache
+intact. Sessions remove their private `.art-archive-…` directories on disposal,
+failure or cancellation. After an abrupt process stop, the next archive
+acquisition removes abandoned sessions from the same host only when their owning
+process is absent. Live sessions, other hosts and unrecognized directories remain
+untouched. To reclaim the entire cache manually, stop builds using it and remove
+the cache directory; the next build downloads its declared inputs again.

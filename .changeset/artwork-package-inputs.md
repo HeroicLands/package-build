@@ -2,10 +2,8 @@
 "@heroiclands/package-build": minor
 ---
 
-**Content and notes**
+**Builds and commands**
 
-- Build with pinned original PNG and SVG artwork archives using a shared verified download cache. Screen books use the same JPEG, transparent WebP or SVG files as the package.
-
-**Upgrading**
-
-- Declare each original artwork archive by HTTPS URL and SHA-256 in `art.archives`.
+- Build screen and print books from pinned original artwork archives, with shared verified downloads across projects.
+- Replace `art.lock` and `package-build art` commands with HTTPS archive URLs and SHA-256 digests in `art.archives`.
+- Opaque artwork uses `.jpg`; update copied `.webp` paths in Foundry documents. Transparent artwork stays WebP, and vectors stay SVG.

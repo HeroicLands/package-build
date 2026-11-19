@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 // Build-time pack configuration (plain ESM, no Foundry). Imported by relative
 // path because the pack-build scripts live outside the `@src` alias tree.
-import { loadPackConfig } from "../engine/pack-config.mjs";
+import { loadPackConfig, configSourcePath, packConfigPath } from "../engine/pack-config.mjs";
 import { contentPackage, foundryPackageId } from "../engine/content-package.mjs";
 import { supportedCoreVersion } from "../engine/helpers.mjs";
 
@@ -148,4 +148,9 @@ describe("the core version is configuration, and the config is its source", () =
             /compatibility\.minimum/,
         );
     });
+});
+
+it("retains the authored configuration path only for the loaded object", () => {
+    expect(configSourcePath(packConfig)).toBe(packConfigPath());
+    expect(configSourcePath({ ...packConfig })).toBeUndefined();
 });

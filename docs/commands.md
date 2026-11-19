@@ -3110,14 +3110,14 @@ exactly these files and lists them in the release notes.
 
 **OPTIONS**
 
-| Option           | Type    | Default                  | Description                                                                                 |
-| ---------------- | ------- | ------------------------ | ------------------------------------------------------------------------------------------- |
-| `--book`         | string  | every declared book      | Build only the book with this `id`.                                                         |
-| `--edition`      | string  | `screen`                 | Select `screen` or `print` images and output names. Print requires private artwork masters. |
-| `--out`          | string  | the configured `pdf.out` | Write the books here instead.                                                               |
-| `--book-version` | string  | —                        | Stamp this version on the title page and in each file name.                                 |
-| `--compile`      | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops.                          |
-| `--list-assets`  | boolean | `false`                  | Print each book's `id`, `title` and output path as JSON; build nothing.                     |
+| Option           | Type    | Default                  | Description                                                                                                                     |
+| ---------------- | ------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `--book`         | string  | every declared book      | Build only the book with this `id`.                                                                                             |
+| `--edition`      | string  | `screen`                 | Select `screen` or `print` images and output names. Print uses original artwork from configured archives or local master roots. |
+| `--out`          | string  | the configured `pdf.out` | Write the books here instead.                                                                                                   |
+| `--book-version` | string  | —                        | Stamp this version on the title page and in each file name.                                                                     |
+| `--compile`      | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops.                                                              |
+| `--list-assets`  | boolean | `false`                  | Print each book's `id`, `title` and output path as JSON; build nothing.                                                         |
 
 **EXIT STATUS**
 

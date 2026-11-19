@@ -112,6 +112,17 @@ import {
     yamlKeyPath,
 } from "./diagnostics.mjs";
 
+const configSources = new WeakMap();
+
+/**
+ * Return the authored file associated with this exact configuration object.
+ * @param {object} config Resolved configuration.
+ * @returns {string|undefined} Authored path, absent for an in-memory configuration.
+ */
+export function configSourcePath(config) {
+    return configSources.get(config);
+}
+
 /** The stem every consuming repository declares its build under. */
 export const CONFIG_BASENAME = "package-build.config";
 
@@ -631,7 +642,9 @@ export function configFromData(data, configPath) {
     }
 
     try {
-        return defineConfig(/** @type {never} */ (input));
+        const config = defineConfig(/** @type {never} */ (input));
+        configSources.set(config, configPath);
+        return config;
     } catch (err) {
         // Every `fail()` in the validator names a key and knows nothing about
         // the file; this is where the two meet.
@@ -668,7 +681,9 @@ function loadCodeConfig(configPath) {
         }
         throw err;
     }
-    return module.default ?? module;
+    const config = module.default ?? module;
+    if (config && typeof config === "object") configSources.set(config, configPath);
+    return config;
 }
 
 /** The loaded configuration, memoised — the file is read at most once. */

@@ -1,5 +1,13 @@
 /*
- * Copyright (c) 2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
+ * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
+ * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
+ *
+ * This work is licensed under the GNU General Public License v3.0 (GPLv3).
+ * You may copy, modify, and distribute it under the terms of that license.
+ *
+ * For full terms, see the LICENSE.md file in the project root or visit:
+ * https://www.gnu.org/licenses/gpl-3.0.html
+ *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
@@ -37,6 +45,14 @@ const moduleAt = (file) => import(pathToFileURL(path.join(installed, "engine", f
 const { writeProvenance, writeSvgProvenance } = await moduleAt("art-provenance.mjs");
 const { inspectPublicDerivative } = await moduleAt("art-public-derivative.mjs");
 const { isNoteRecord } = await moduleAt("index-records.mjs");
+const { renderAddress } = await moduleAt("address.mjs");
+const fixtureAddress = (spec) =>
+    renderAddress({
+        package: "kethira",
+        system: "none",
+        type: "image",
+        shortcode: spec.shortcode,
+    });
 const scratch = fs.mkdtempSync(path.join(proof, "archive-fixture-"));
 const cacheHome = path.join(scratch, "cache");
 const temp = path.join(scratch, "tmp");
@@ -217,7 +233,7 @@ function inspectOutputs() {
         const bytes = fs.readFileSync(path.join(consumer, "build/stage", relative));
         const inspected = inspectPublicDerivative(relative, bytes, "kethira");
         assert.equal(inspected.format, spec.format);
-        assert.equal(inspected.metadata.address, `kethira-none-image-${spec.shortcode}`);
+        assert.equal(inspected.metadata.address, fixtureAddress(spec));
         assert.equal(inspected.metadata.ai, false);
         assert.equal(inspected.metadata.rights, "Geometric CI fixture dedicated to CC0-1.0");
         assert.equal(inspected.metadata.license, undefined);
@@ -249,7 +265,14 @@ function inspectOutputs() {
     assert.deepEqual(
         fs.readdirSync(temp).filter((name) => name.startsWith("art-archive-")),
         [],
-        "archive captures leak",
+        "system temporary archive captures leak",
+    );
+    assert.deepEqual(
+        fs
+            .readdirSync(path.join(cacheHome, "heroiclands/downloads"))
+            .filter((name) => name.startsWith(".art-archive-")),
+        [],
+        "cached archive captures leak",
     );
     return { assets, packs };
 }
@@ -265,7 +288,7 @@ try {
     };
     for (const spec of specs) {
         const metadata = {
-            address: `kethira-none-image-${spec.shortcode}`,
+            address: fixtureAddress(spec),
             creator: credits,
             rights: "Geometric CI fixture dedicated to CC0-1.0",
             license: "CC0-1.0",
@@ -397,7 +420,7 @@ try {
         const scalar = doc.getIn(["data", "icon"], true);
         assert.equal(typeof scalar?.value, "string");
         const start = raw.indexOf(match[1]);
-        const icon = `image-${spec.shortcode}`;
+        const icon = fixtureAddress(spec);
         const changed =
             raw.slice(0, start + scalar.range[0]) +
             JSON.stringify(icon) +

@@ -268,3 +268,34 @@ it("refuses an HTTPS downgrade even when initial loopback mirrors are allowed", 
     ).rejects.toThrow(/redirect refused/);
     expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+it.each([403, 404, 503])(
+    "reports HTTP %i and the public URL without response or signed secrets",
+    async (status) => {
+        const cacheDir = await root();
+        const error = await downloadCached(`${url}?token=query-secret#fragment-secret`, digest, {
+            cacheDir,
+            token: "header-secret",
+            fetch: async () => new Response("body-secret", { status, statusText: "status-secret" }),
+        }).catch((error) => error);
+        expect(error.message).toBe(`download request failed: ${url} (HTTP ${status})`);
+        expect(error.retryable).toBe(status >= 500);
+        expect(await fs.readdir(cacheDir)).toEqual([]);
+    },
+);
+
+it("bounds failed request URLs and omits raw network error details", async () => {
+    const cacheDir = await root();
+    const error = await downloadCached(
+        `https://example.test/${"a".repeat(2000)}?token=secret`,
+        digest,
+        {
+            cacheDir,
+            fetch: async () => {
+                throw new Error("secret network detail");
+            },
+        },
+    ).catch((error) => error);
+    expect(error.message).toHaveLength("download request failed: ".length + 512);
+    expect(error.message).not.toContain("secret");
+});

@@ -122,7 +122,9 @@ async function fixture(alpha = false) {
     };
 }
 function captures(root: string) {
-    return fs.readdirSync(root).filter((name) => name.startsWith("art-archive-"));
+    return fs
+        .readdirSync(path.join(root, "user-cache/heroiclands/downloads"))
+        .filter((name) => name.startsWith(".art-archive-"));
 }
 
 it("keeps archive records in publication and the standalone compiler after disposal", async () => {
@@ -379,8 +381,12 @@ it.each(["corrupt", "invalid master", "second archive"])(
         expect(result.stderr + result.stdout).toMatch(
             kind === "invalid master" ?
                 /master address must name an image or icon in this package/
-            :   /download request failed/,
+            :   /art\.archives\[[01]\]: download request failed: https:\/\/127\.0\.0\.1:1\/(?:original|missing)\.zip/,
         );
+        if (kind !== "invalid master") {
+            expect(result.stderr).toMatch(/package-build\.config\.yaml:\d+:\d+: error:/);
+            expect(result.stderr).toContain(`art.archives[${kind === "second archive" ? 1 : 0}]`);
+        }
         if (kind === "invalid master") {
             expect(
                 result.stderr.match(/master address must name an image or icon in this package/g) ??

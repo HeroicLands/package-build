@@ -12,13 +12,31 @@
  */
 import { createHash } from "node:crypto";
 import { constants, createWriteStream } from "node:fs";
-import { lstat, mkdir, mkdtemp, open, rm } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, open, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Transform, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createInflateRaw } from "node:zlib";
 import { downloadCached } from "./download-cache.mjs";
+
+// Cache sessions belong to one host and process; a live owner is never swept.
+async function archiveSession(cache) {
+    const host = createHash("sha256").update(os.hostname()).digest("hex").slice(0, 16);
+    const prefix = `.art-archive-${host}-`;
+    for (const entry of await readdir(cache, { withFileTypes: true })) {
+        if (!entry.isDirectory() || !entry.name.startsWith(prefix)) continue;
+        const owner = /^(\d+)-[A-Za-z0-9]+$/u.exec(entry.name.slice(prefix.length));
+        if (!owner || !Number.isSafeInteger(Number(owner[1])) || Number(owner[1]) <= 0) continue;
+        try {
+            process.kill(Number(owner[1]), 0);
+        } catch (error) {
+            if (error.code === "ESRCH")
+                await rm(path.join(cache, entry.name), { recursive: true, force: true });
+        }
+    }
+    return mkdtemp(path.join(cache, `${prefix}${process.pid}-`));
+}
 
 const crcTable = Uint32Array.from({ length: 256 }, (_, value) => {
     for (let bit = 0; bit < 8; bit++) value = (value >>> 1) ^ (value & 1 ? 0xedb88320 : 0);
@@ -217,7 +235,7 @@ export async function openArtArchive(url, sha256, options = {}) {
         signal: options.signal,
         maxBytes: limits.maxArchiveBytes,
     });
-    const session = await mkdtemp(path.join(os.tmpdir(), "art-archive-"));
+    const session = await archiveSession(path.dirname(cached));
     const root = path.join(session, "originals"),
         snapshot = path.join(session, "archive.zip");
     let source, archive;

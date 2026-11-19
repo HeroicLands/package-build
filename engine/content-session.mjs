@@ -27,7 +27,7 @@ import { buildContentLinkIndex } from "./helpers.mjs";
 import { runContext } from "./content-scripts.mjs";
 import { resolveReference } from "./wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
-import { loadPackConfig } from "./pack-config.mjs";
+import { loadPackConfig, configSourcePath, locateConfigError } from "./pack-config.mjs";
 import { privateArtRoots } from "./art-inputs.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { lintNoteStates } from "./stub-lint.mjs";
@@ -101,8 +101,15 @@ async function createContentSessionInternal(
         const { openArtArchive } = await import("./art-archive.mjs");
         const opened = [];
         try {
-            for (const archive of config.art.archives)
-                opened.push(await openArtArchive(archive.url, archive.sha256));
+            for (const [index, archive] of config.art.archives.entries()) {
+                try {
+                    opened.push(await openArtArchive(archive.url, archive.sha256));
+                } catch (cause) {
+                    const field = `art.archives[${index}]`;
+                    const error = Object.assign(new Error(`${field}: ${cause.message}`), { field });
+                    throw locateConfigError(error, configSourcePath(config));
+                }
+            }
             const session = await createContentSessionInternal(
                 {
                     config,

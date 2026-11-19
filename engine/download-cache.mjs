@@ -106,6 +106,10 @@ export async function downloadCached(url, sha256, options = {}) {
         throw new Error("expected a lowercase SHA-256 digest");
     let parsed = safeUrl(url, undefined, options.allowLoopback === true);
     const origin = parsed.origin;
+    // Query strings and fragments may carry signed download credentials.
+    const displayUrl = `${parsed.origin}${parsed.pathname}`.slice(0, 512);
+    const failure = (message, status) =>
+        new Error(`${message}: ${displayUrl}${status === undefined ? "" : ` (HTTP ${status})`}`);
     const cache = options.cacheDir ?? downloadCacheDirectory();
     if (typeof cache !== "string" || !path.isAbsolute(cache))
         throw new Error("download cache directory must be absolute");
@@ -130,7 +134,7 @@ export async function downloadCached(url, sha256, options = {}) {
                     },
                 });
             } catch {
-                const error = new Error("download request failed");
+                const error = failure("download request failed");
                 error.retryable = true;
                 throw error;
             }
@@ -138,39 +142,43 @@ export async function downloadCached(url, sha256, options = {}) {
                 const location = response.headers.get("location");
                 await response.body?.cancel().catch(() => {});
                 if (!location || redirects >= 5)
-                    throw new Error("download redirect limit or missing location");
+                    throw failure("download redirect limit or missing location", response?.status);
                 const next = safeUrl(location, parsed, options.allowLoopback === true);
                 if (parsed.protocol === "https:" && next.protocol !== "https:")
-                    throw new Error("download redirect refused");
+                    throw failure("download redirect refused", response?.status);
                 if (options.token && next.origin !== origin)
-                    throw new Error("authenticated download redirect refused");
+                    throw failure("authenticated download redirect refused", response?.status);
                 parsed = next;
                 continue;
             }
             if (!response.ok || !response.body) {
-                const error = new Error("download request failed");
+                const error = failure("download request failed", response.status);
                 error.retryable = response.status >= 500 && response.status < 600;
                 throw error;
             }
             if (response.url) {
                 const actual = safeUrl(response.url, undefined, options.allowLoopback === true);
                 if (options.token && actual.origin !== origin)
-                    throw new Error("authenticated download redirect refused");
+                    throw failure("authenticated download redirect refused", response?.status);
             }
             break;
         }
         const encoding = response.headers.get("content-encoding");
         if (encoding && encoding.toLowerCase() !== "identity")
-            throw new Error("download uses an unsupported content encoding");
+            throw failure("download uses an unsupported content encoding", response?.status);
         const length = response.headers.get("content-length");
         if (length !== null && (!/^\d+$/u.test(length) || Number(length) > maxBytes))
-            throw new Error("download exceeds its size limit or has an invalid length");
+            throw failure(
+                "download exceeds its size limit or has an invalid length",
+                response?.status,
+            );
         const hash = createHash("sha256");
         let size = 0;
         const meter = new Transform({
             transform(chunk, _encoding, callback) {
                 size += chunk.length;
-                if (size > maxBytes) return callback(new Error("download exceeds its size limit"));
+                if (size > maxBytes)
+                    return callback(failure("download exceeds its size limit", response?.status));
                 hash.update(chunk);
                 callback(null, chunk);
             },
@@ -183,21 +191,22 @@ export async function downloadCached(url, sha256, options = {}) {
                 { signal: options.signal },
             );
         } catch {
-            if (size > maxBytes) throw new Error("download exceeds its size limit");
-            const error = new Error("download stream failed");
+            if (size > maxBytes) throw failure("download exceeds its size limit", response?.status);
+            const error = failure("download stream failed", response?.status);
             error.retryable = true;
             throw error;
         }
         if (length !== null && size !== Number(length)) {
-            const error = new Error("download is incomplete");
+            const error = failure("download is incomplete", response?.status);
             error.retryable = true;
             throw error;
         }
-        if (hash.digest("hex") !== sha256) throw new Error("download SHA-256 does not match");
+        if (hash.digest("hex") !== sha256)
+            throw failure("download SHA-256 does not match", response?.status);
         await rename(file, target);
         for (let attempt = 0; attempt < 3; attempt++)
             if (await matches(target, sha256, maxBytes, options.signal)) return target;
-        throw new Error("cached download failed verification");
+        throw failure("cached download failed verification", response?.status);
     } finally {
         if (response?.body && !response.body.locked) await response.body.cancel().catch(() => {});
         await rm(temporary, { recursive: true, force: true });

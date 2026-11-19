@@ -34,7 +34,6 @@ async function setup() {
     roots.push(dir);
     const cacheDir = path.join(dir, "cache");
     await fs.mkdir(cacheDir);
-    vi.spyOn(os, "tmpdir").mockReturnValue(dir);
     return { dir, cacheDir };
 }
 const png = Buffer.from(
@@ -54,7 +53,7 @@ afterEach(async () => {
 });
 
 it("extracts exact original bytes and disposes the private root", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const bytes = zip({
         "README.md": new TextEncoder().encode("Release information"),
         "CHANGELOG.md": new TextEncoder().encode("Release changes"),
@@ -71,7 +70,7 @@ it("extracts exact original bytes and disposes the private root", async () => {
     expect((await fs.stat(path.join(result.root, "images/sample.png"))).mode & 0o777).toBe(0o600);
     await result.dispose();
     await expect(fs.stat(result.root)).rejects.toMatchObject({ code: "ENOENT" });
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it.each([
@@ -83,16 +82,16 @@ it.each([
     "nested/README.md",
     "readme.md",
 ])("rejects unsafe archive entry %s", async (name) => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const bytes = zip({ [name]: png });
     await expect(
         openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
     ).rejects.toThrow();
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it("rejects case collisions, bad CRC and truncated archives", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const collision = zip({ "A.png": png, "a.png": png });
     await expect(
         openArtArchive(url, hash(collision), { cacheDir, fetch: fetcher(collision) }),
@@ -107,7 +106,7 @@ it("rejects case collisions, bad CRC and truncated archives", async () => {
     await expect(
         openArtArchive(url, hash(truncated), { cacheDir, fetch: fetcher(truncated) }),
     ).rejects.toThrow();
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it("checks documentation CRC, duplicate names and limits without exposing it as artwork", async () => {
@@ -149,7 +148,7 @@ it("checks documentation CRC, duplicate names and limits without exposing it as 
 });
 
 it("enforces entry limits and cancellation without leaving session files", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const bytes = zip({ "sample.png": png });
     await expect(
         openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes), maxEntryBytes: 2 }),
@@ -159,7 +158,7 @@ it("enforces entry limits and cancellation without leaving session files", async
     await expect(
         openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes), signal: abort.signal }),
     ).rejects.toThrow();
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it("creates independent roots from one cached source", async () => {
@@ -170,6 +169,7 @@ it("creates independent roots from one cached source", async () => {
         openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
     ]);
     expect(a.root).not.toBe(b.root);
+    expect(path.dirname(path.dirname(a.root))).toBe(cacheDir);
     expect(hash(await fs.readFile(path.join(a.root, "sample.png")))).toBe(hash(Buffer.from(png)));
     await a.dispose();
     expect(await fs.readFile(path.join(b.root, "sample.png"))).toEqual(Buffer.from(png));
@@ -227,7 +227,7 @@ it.each([true, false])("validates streamed entry descriptors (signature %s)", as
 });
 
 it("rejects missing and mismatched descriptors", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const missing = zip({ "image.png": png });
     const center = missing.readUInt32LE(missing.length - 6);
     missing.writeUInt16LE(missing.readUInt16LE(6) | 8, 6);
@@ -241,7 +241,7 @@ it("rejects missing and mismatched descriptors", async () => {
     await expect(openArtArchive(url, hash(out), { cacheDir, fetch: fetcher(out) })).rejects.toThrow(
         /descriptor/,
     );
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it.each([2, 4, 6])("accepts DEFLATE option bits %i", async (flags) => {
@@ -256,7 +256,7 @@ it.each([2, 4, 6])("accepts DEFLATE option bits %i", async (flags) => {
 });
 
 it("rejects trailing bytes after a deflate stream", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const source = Buffer.from(zipSync({ "image.png": png }, { level: 6 }));
     const center = source.readUInt32LE(source.length - 6);
     const bytes = Buffer.concat([
@@ -271,11 +271,11 @@ it("rejects trailing bytes after a deflate stream", async () => {
     await expect(
         openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
     ).rejects.toThrow(/trailing/);
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it("rejects decompression output larger than both matching headers claim", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const bytes = Buffer.from(zipSync({ "image.png": png }, { level: 6 }));
     const center = bytes.readUInt32LE(bytes.length - 6);
     bytes.writeUInt32LE(2, 22);
@@ -283,11 +283,11 @@ it("rejects decompression output larger than both matching headers claim", async
     await expect(
         openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
     ).rejects.toThrow(/size limit/);
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it("rejects a cache mutation between verification and snapshot capture", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const bytes = zip({ "image.png": png });
     const digest = hash(bytes);
     const target = await downloadCached(url, digest, { cacheDir, fetch: fetcher(bytes) });
@@ -300,11 +300,11 @@ it("rejects a cache mutation between verification and snapshot capture", async (
         /SHA-256/,
     );
     expect(calls).toBe(3);
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it("cleans up when capture is aborted after reading begins", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const bytes = zip({ "image.png": png });
     const digest = hash(bytes);
     const target = await downloadCached(url, digest, { cacheDir, fetch: fetcher(bytes) });
@@ -327,22 +327,22 @@ it("cleans up when capture is aborted after reading begins", async () => {
         openArtArchive(url, digest, { cacheDir, fetch: fetcher(bytes), signal: controller.signal }),
     ).rejects.toThrow();
     expect(captured).toBe(true);
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it("rejects a truncated data descriptor", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const { out, descriptor, central } = withDescriptor(zip({ "image.png": png }), true);
     const bytes = Buffer.concat([out.subarray(0, descriptor + 8), out.subarray(central)]);
     bytes.writeUInt32LE(descriptor + 8, bytes.length - 6);
     await expect(
         openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
     ).rejects.toThrow(/descriptor/);
-    expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
+    expect((await fs.readdir(cacheDir)).filter((x) => x.startsWith(".art-archive-"))).toEqual([]);
 });
 
 it("rejects a signed descriptor that overlaps the central directory", async () => {
-    const { dir, cacheDir } = await setup();
+    const { cacheDir } = await setup();
     const { out, descriptor, central } = withDescriptor(zip({ "image.png": png }), true);
     // The signature, CRC and compressed length fit; the plain length would
     // begin at the central-directory boundary.
@@ -352,5 +352,71 @@ it("rejects a signed descriptor that overlaps the central directory", async () =
     await expect(
         openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
     ).rejects.toThrow("invalid artwork entry descriptor");
-    expect((await fs.readdir(dir)).filter((entry) => entry.startsWith("art-archive-"))).toEqual([]);
+    expect(
+        (await fs.readdir(cacheDir)).filter((entry) => entry.startsWith(".art-archive-")),
+    ).toEqual([]);
+});
+
+it.each(["encrypted", "unsupported method", "ZIP64 sizes", "ZIP64 footer", "ZIP64 extra"])(
+    "refuses %s without exposing extracted originals",
+    async (kind) => {
+        const { cacheDir } = await setup();
+        let bytes = zip({ "image.png": png });
+        const center = bytes.readUInt32LE(bytes.length - 6);
+        if (kind === "encrypted") {
+            bytes.writeUInt16LE(1, 6);
+            bytes.writeUInt16LE(1, center + 8);
+        } else if (kind === "unsupported method") {
+            bytes.writeUInt16LE(12, 8);
+            bytes.writeUInt16LE(12, center + 10);
+        } else if (kind === "ZIP64 sizes") {
+            bytes.writeUInt32LE(0xffffffff, 22);
+            bytes.writeUInt32LE(0xffffffff, center + 24);
+        } else if (kind === "ZIP64 footer") {
+            const end = bytes.length - 22;
+            const locator = Buffer.alloc(20);
+            locator.writeUInt32LE(0x07064b50);
+            bytes = Buffer.concat([bytes.subarray(0, end), locator, bytes.subarray(end)]);
+        } else {
+            const end = bytes.length - 22;
+            const extra = Buffer.from([1, 0, 0, 0]);
+            bytes = Buffer.concat([bytes.subarray(0, end), extra, bytes.subarray(end)]);
+            bytes.writeUInt16LE(4, center + 30);
+            bytes.writeUInt32LE(bytes.readUInt32LE(bytes.length - 10) + 4, bytes.length - 10);
+        }
+        await expect(
+            openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
+        ).rejects.toThrow(/unsupported|ZIP64/);
+        expect(
+            (await fs.readdir(cacheDir)).filter((name) => name.startsWith(".art-archive-")),
+        ).toEqual([]);
+    },
+);
+
+it("reclaims dead local sessions while preserving live, foreign and unrecognized directories", async () => {
+    const { cacheDir } = await setup();
+    const bytes = zip({ "image.png": png });
+    const a = await openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) });
+    const host = createHash("sha256").update(os.hostname()).digest("hex").slice(0, 16);
+    const deadPid = process.pid + 100000;
+    const dead = path.join(cacheDir, `.art-archive-${host}-${deadPid}-stale`);
+    const foreign = path.join(cacheDir, `.art-archive-otherhost-${deadPid}-keep`);
+    const unknown = path.join(cacheDir, `.art-archive-${host}-unknown`);
+    for (const dir of [dead, foreign, unknown]) {
+        await fs.mkdir(dir);
+        await fs.writeFile(path.join(dir, "original.png"), png);
+    }
+    const kill = process.kill.bind(process);
+    vi.spyOn(process, "kill").mockImplementation((pid, signal) => {
+        if (pid === deadPid) throw Object.assign(new Error("absent"), { code: "ESRCH" });
+        return kill(pid, signal);
+    });
+    const b = await openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) });
+    await expect(fs.stat(dead)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fs.readFile(path.join(a.root, "image.png"))).toEqual(png);
+    for (const dir of [foreign, unknown])
+        expect(await fs.readFile(path.join(dir, "original.png"))).toEqual(png);
+    await a.dispose();
+    expect(await fs.readFile(path.join(b.root, "image.png"))).toEqual(png);
+    await b.dispose();
 });
