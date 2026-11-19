@@ -112,7 +112,7 @@ async function entries(file, size, limits, signal) {
             local = directory.readUInt32LE(at + 42);
         if (
             at + 46 + nl + el + cl > directory.length ||
-            flags & ~0x0808 ||
+            flags & ~(method === 8 ? 0x080e : 0x0808) ||
             ![0, 8].includes(method) ||
             [compressed, plain, local].includes(0xffffffff) ||
             directory.readUInt16LE(at + 34) !== 0 ||
@@ -139,10 +139,10 @@ async function entries(file, size, limits, signal) {
             header.readUInt32LE(0) !== 0x04034b50 ||
             header.readUInt16LE(6) !== flags ||
             header.readUInt16LE(8) !== method ||
-            (!(flags & 8) &&
-                (header.readUInt32LE(14) !== crc ||
-                    header.readUInt32LE(18) !== compressed ||
-                    header.readUInt32LE(22) !== plain))
+            [crc, compressed, plain].some((value, index) => {
+                const localValue = header.readUInt32LE(14 + index * 4);
+                return localValue !== value && (!(flags & 8) || localValue !== 0);
+            })
         )
             throw new Error("invalid artwork archive local header");
         const localName = header.readUInt16LE(26),
@@ -155,7 +155,22 @@ async function entries(file, size, limits, signal) {
         )
             throw new Error("invalid artwork archive local path");
         checkExtra(await readAt(file, localExtra, local + 30 + localName));
-        ranges.push([local, start + compressed]);
+        let rangeEnd = start + compressed;
+        if (flags & 8) {
+            const remaining = dirStart - rangeEnd;
+            if (remaining < 12) throw new Error("missing artwork entry descriptor");
+            const descriptor = await readAt(file, Math.min(16, remaining), rangeEnd);
+            const validAt = (offset) =>
+                descriptor.length >= offset + 12 &&
+                descriptor.readUInt32LE(offset) === crc &&
+                descriptor.readUInt32LE(offset + 4) === compressed &&
+                descriptor.readUInt32LE(offset + 8) === plain;
+            const signed =
+                descriptor.length >= 16 && descriptor.readUInt32LE(0) === 0x08074b50 && validAt(4);
+            if (!signed && !validAt(0)) throw new Error("invalid artwork entry descriptor");
+            rangeEnd += signed ? 16 : 12;
+        }
+        ranges.push([local, rangeEnd]);
         result.push({ name, isDir, method, crc, compressed, plain, start });
         at += 46 + nl + el + cl;
     }
@@ -166,7 +181,13 @@ async function entries(file, size, limits, signal) {
     return result;
 }
 
-/** Extract verified original artwork into a disposable private directory. */
+/**
+ * Extract a verified original-art ZIP into a private directory.
+ * @param {string} url HTTPS archive URL.
+ * @param {string} sha256 Expected lowercase SHA-256.
+ * @param {{cacheDir?: string, fetch?: typeof globalThis.fetch, signal?: AbortSignal, maxArchiveBytes?: number, maxDirectoryBytes?: number, maxEntries?: number, maxEntryBytes?: number, maxTotalBytes?: number}} [options] Cache, request and archive limits.
+ * @returns {Promise<{root: string, dispose: () => Promise<void>}>} The root and its cleanup function.
+ */
 export async function openArtArchive(url, sha256, options = {}) {
     const limits = {
         maxArchiveBytes: options.maxArchiveBytes ?? 2_000_000_000,
@@ -255,16 +276,19 @@ export async function openArtArchive(url, sha256, options = {}) {
                     end: item.start + item.compressed - 1,
                     signal: options.signal,
                 });
+                const inflater = item.method === 8 ? createInflateRaw() : undefined;
                 const streams =
-                    item.method === 8 ?
+                    inflater ?
                         [
                             input,
-                            createInflateRaw(),
+                            inflater,
                             check,
                             createWriteStream(output, { flags: "wx", mode: 0o600 }),
                         ]
                     :   [input, check, createWriteStream(output, { flags: "wx", mode: 0o600 })];
                 await pipeline(streams, { signal: options.signal });
+                if (inflater && inflater.bytesWritten !== item.compressed)
+                    throw new Error("artwork entry has trailing compressed bytes");
             }
             if (actual !== item.plain || (crc ^ 0xffffffff) >>> 0 !== item.crc)
                 throw new Error("artwork entry checksum or size mismatch");
