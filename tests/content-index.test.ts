@@ -12,6 +12,8 @@
  */
 
 import { loadPackConfig } from "../engine/pack-config.mjs";
+import { readMatter, writeMatter } from "../engine/note-matter.mjs";
+import { matchesKind } from "../engine/frontmatter-lint.mjs";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -299,6 +301,33 @@ describe("buildIndexRecord", () => {
         // The nested path survives as written — a reader addresses what the
         // note says, which is what a dataview query writes.
         expect(record.sohl.system.body.weight.base).toBe(1500);
+    });
+
+    it("retains map values through the editor's cleared form and the index", () => {
+        for (const [yaml, expected] of [
+            ["{}", {}],
+            ["[]", []],
+            ["{ height: {} }", { height: {} }],
+            ["[{ height: {} }]", [{ height: {} }]],
+        ] as const) {
+            const source = `---\ntype: lore\nsubType: culture\nshortcode: example\ndata:\n  appearanceProfile: ${yaml}\n---\nBody.\n`;
+            const first = readMatter(source);
+            const saved = writeMatter(first.content, first.data as Record<string, unknown>);
+            const frontmatter = readMatter(saved).data as Record<string, any>;
+            expect(frontmatter.data.appearanceProfile).toEqual(expected);
+            expect(matchesKind(frontmatter.data.appearanceProfile, "map")).toBe(
+                !yaml.startsWith("[{"),
+            );
+            const record = buildIndexRecord({
+                frontmatter,
+                relPath: "example.md",
+                contentPackage: "sohl",
+                body: "Body.",
+            });
+            expect(record.data.appearanceProfile).toEqual(expected);
+            const indexed = JSON.parse(serializeContentIndex([record]));
+            expect(indexed.data.appearanceProfile).toEqual(expected);
+        }
     });
 
     it("namespaces the note's place in the tree under `file`", () => {
