@@ -114,20 +114,51 @@ export function selectSettlementPlacements(options, selection) {
         )
             return fail("provide direct cell IDs and existing settlement positions");
         const rawPlacements = options.settings?.placements;
-        const existingCount = Array.isArray(rawPlacements) ? rawPlacements.length : 0;
-        const initialSize =
-            existingCount +
-            (options.map?.cells?.length ?? 0) +
-            (options.session?.records?.length ?? 0) +
-            selection.existingSites.length +
-            1;
+        const length = (value) => (Array.isArray(value) ? value.length : 0);
+        const existingCount = length(rawPlacements);
+        const lists = [
+            rawPlacements,
+            options.map?.cells,
+            options.session?.records,
+            selection.cellIds,
+            selection.existingSites,
+            options.settings?.landRules,
+            options.bindings?.notes,
+            options.bindings?.rows,
+            options.bindings?.subpolities,
+            options.settings?.urban?.sources,
+            options.settings?.urban?.routes,
+            options.settings?.urban?.cities,
+        ];
+        let inputSize = 1;
+        for (const list of lists) inputSize += length(list);
         if (
             !Number.isSafeInteger(selection.workLimit) ||
             selection.workLimit < 1 ||
-            !Number.isSafeInteger(initialSize * initialSize) ||
-            initialSize * initialSize > selection.workLimit
+            !Number.isSafeInteger(inputSize * inputSize) ||
+            inputSize * inputSize > selection.workLimit
         )
             return fail("assembly exceeds the work limit");
+        for (const binding of Array.isArray(options.bindings?.subpolities) ?
+            options.bindings.subpolities
+        :   []) {
+            inputSize += length(binding?.cellIds);
+            if (
+                !Number.isSafeInteger(inputSize * inputSize) ||
+                inputSize * inputSize > selection.workLimit
+            )
+                return fail("assembly exceeds the work limit");
+        }
+        for (const record of Array.isArray(options.session?.records) ?
+            options.session.records
+        :   []) {
+            inputSize += length(record?.data?.settlements);
+            if (
+                !Number.isSafeInteger(inputSize * inputSize) ||
+                inputSize * inputSize > selection.workLimit
+            )
+                return fail("assembly exceeds the work limit");
+        }
         // A declared physical total applies to every placement in its cell.
         if (Array.isArray(rawPlacements)) {
             const declared = new Map();

@@ -100,3 +100,29 @@ it("owns shared boundary sites once and leaves every cell within its area", () =
         }),
     ).toEqual(first);
 });
+
+it("rejects oversized initial rules and IDs without inspecting their entries", async () => {
+    const { selectSettlementPlacements } = await import("../engine/settlement-selection.mjs");
+    const guarded = new Proxy(new Array(10000), {
+        get(target, key, receiver) {
+            if (typeof key === "string" && /^\d+$/.test(key)) throw new Error("inspected entry");
+            return Reflect.get(target, key, receiver);
+        },
+    });
+    const options = {
+        session: { records: [] },
+        map: { cells: [] },
+        settings: { placements: [{ cellId: 1, areaAcres: 0 }], landRules: guarded },
+    };
+    const result = selectSettlementPlacements(options, {
+        cellIds: [],
+        existingSites: [],
+        workLimit: 100,
+    });
+    expect(result.missing[0].message).toContain("work limit");
+    const ids = selectSettlementPlacements(
+        { ...options, settings: { ...options.settings, landRules: [] } },
+        { cellIds: guarded, existingSites: [], workLimit: 100 },
+    );
+    expect(ids.missing[0].message).toContain("work limit");
+});

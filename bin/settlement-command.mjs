@@ -18,6 +18,15 @@ import { createContentSession } from "../engine/content-session.mjs";
 import { AZGAAR_LIMITS, readAzgaarMap } from "../engine/azgaar-map.mjs";
 import { selectSettlementPlacements } from "../engine/settlement-selection.mjs";
 
+function locatedError(file, message, line, column) {
+    const position =
+        line === undefined ? "" : `:${line}${column === undefined ? "" : `:${column}`}`;
+    return Object.assign(new Error(`${file}${position}: error: ${message}`), {
+        located: true,
+        path: file,
+    });
+}
+
 /** Read at most limit plus one byte from one open file.
  * @param {string} file - Input path.
  * @param {number} limit - Maximum accepted byte count.
@@ -27,7 +36,7 @@ import { selectSettlementPlacements } from "../engine/settlement-selection.mjs";
 export function boundedRead(file, limit, io = fs) {
     let fd;
     try {
-        fd = io.openSync(file, "r");
+        fd = io.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
         const stat = io.fstatSync(fd);
         if (!stat.isFile() || stat.size > limit) throw new Error("input exceeds its file limit");
         const parts = [];
@@ -41,6 +50,8 @@ export function boundedRead(file, limit, io = fs) {
             parts.push(chunk.subarray(0, count));
         }
         return Buffer.concat(parts, total);
+    } catch (error) {
+        throw locatedError(file, String(error?.message ?? error));
     } finally {
         if (fd !== undefined) io.closeSync(fd);
     }
@@ -51,12 +62,10 @@ function parseInputs(file) {
     try {
         return JSON.parse(raw);
     } catch (error) {
-        const offset = Number(/position (\d+)/.exec(error.message)?.[1] ?? 0);
-        const before = raw.slice(0, offset).split("\n");
-        throw Object.assign(
-            new Error(`${file}:${before.length}:${before.at(-1).length + 1}: error: invalid JSON`),
-            { located: true },
-        );
+        const match = /position (\d+)/.exec(error.message);
+        if (!match) throw locatedError(file, "invalid JSON");
+        const before = raw.slice(0, Number(match[1])).split("\n");
+        throw locatedError(file, "invalid JSON", before.length, before.at(-1).length + 1);
     }
 }
 
@@ -104,8 +113,9 @@ export function settlementCommand() {
                             !["pin", "mapping", "bindings", "settings", "selection"].includes(key),
                     )
                 )
-                    throw new Error(
-                        `${argv.inputs}: error: provide pin, mapping, bindings, settings and selection`,
+                    throw locatedError(
+                        argv.inputs,
+                        "provide pin, mapping, bindings, settings and selection",
                     );
                 const map = readAzgaarMap({
                     map: boundedRead(argv.map, AZGAAR_LIMITS.mapBytes),
@@ -142,7 +152,12 @@ export function settlementCommand() {
                                 item.file
                             :   argv.inputs;
                         console.error(
-                            `${file}:${item.line ?? 1}:${item.column ?? 1}: error: ${item.field ? `${item.field}: ` : ""}${item.message}`,
+                            locatedError(
+                                file,
+                                `${item.field ? `${item.field}: ` : ""}${item.message}`,
+                                item.line,
+                                item.column,
+                            ).message,
                         );
                     }
                     if (missing.length) process.exitCode = 1;
@@ -151,11 +166,13 @@ export function settlementCommand() {
                 }
             } catch (error) {
                 const raw = String(error?.message ?? error);
-                const file = typeof error?.path === "string" ? error.path : argv.inputs;
-                const message =
-                    error?.located ?
-                        raw.replace(/^(.+?): error:/, "$1:1:1: error:")
-                    :   `${file}:1:1: error: ${raw}`;
+                const file =
+                    typeof error?.path === "string" ?
+                        error.path
+                    :   ([argv.map, argv.json, argv.inputs].find((path) =>
+                            raw.startsWith(`${path}:`),
+                        ) ?? argv.inputs);
+                const message = error?.located ? raw : locatedError(file, raw).message;
                 console.log(JSON.stringify({ missing: [{ file, message: raw }] }, null, 2));
                 console.error(message);
                 process.exitCode = 1;
