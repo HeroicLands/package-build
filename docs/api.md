@@ -3905,7 +3905,10 @@ published or staged before finalization and normal content validation.
 Call `finalizeArtPackages(prepared, {records})` with that authoritative local
 index. It checks embedded public-note names and primary-note Addresses against
 the package's own notes and their visibility. Imported asset rows cannot provide
-note authority. It returns packages with `name`, `version`, `records` and
+note authority. An explicit primary-note Address may name a public own-package
+note when the index derives no unique primary note; it must not contradict a
+unique being or affiliation association derived from `namedImages`. An embedded
+name must match the selected note exactly. It returns packages with `name`, `version`, `records` and
 `files`, a map from package-relative asset paths to opaque verified sources.
 Duplicate asset Addresses and deployment paths across package splits are errors.
 Required alternative resolution and output eligibility checks still run against
@@ -3915,11 +3918,14 @@ the complete index before publication. If the authoritative index already exists
 `readVerifiedBytes(source)`, exported from both `engine/art-package` and
 `engine/art-package-resolve`, rechecks containment and the prepared SHA-256 and
 returns a fresh Buffer. Write or transform that Buffer directly; do not reopen
-an installed pathname afterward. Build sessions capture all required verified
-buffers before clearing previous output, retain the snapshots privately, and
-supply copies to output writers. A changed package therefore fails before
-cleanup or cannot change the captured build input. Callers must account for
-snapshot memory and handle capture failures before output cleanup.
+an installed pathname afterward. Build sessions capture required inputs
+sequentially into private temporary files before clearing previous output.
+Snapshot read closures verify their retained digests; output writers receive
+those bytes, never the installed pathname. Capture failures occur before cleanup,
+and later installed-package edits cannot change captured inputs. Sessions keep
+the private snapshots alive through staging and remove them on disposal or
+failure. This bounds retained memory to the files currently being processed;
+snapshot storage still requires enough disk space.
 
 For a single explicitly supplied directory, `prepareArtPackage(directory,
 expected)` and `finalizeArtPackage(prepared, {validatePublicNote})` from

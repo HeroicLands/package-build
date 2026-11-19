@@ -208,6 +208,28 @@ describe("installed artwork packages", () => {
             fs.readFileSync(path.join(f.root, "icons/second.svg")),
         );
     });
+    it("accepts an explicit public note without an inferred association but refuses a conflicting association", async () => {
+        const f = fixture();
+        addPublicNote(f);
+        const prepared = await prepareArtPackages(installedFixture(f));
+        const named = { ...publicNote(), namedImages: [] };
+        expect(finalizeArtPackages(prepared, { records: [named] })[0].files.size).toBe(3);
+        const other = decodeIndexAddresses(
+            {
+                package: "sample",
+                type: "being",
+                shortcode: "other",
+                address: { canonical: "sample-sohl-being-other" },
+                name: { full: "Other subject" },
+                tags: [],
+                namedImages: ["sample-none-icon-second"],
+            },
+            { package: "sample" },
+        );
+        expect(() => finalizeArtPackages(prepared, { records: [named, other] })).toThrow(
+            /public note/,
+        );
+    });
     it("refuses a forged or asynchronous authority result", async () => {
         const f = fixture();
         addPublicNote(f);
