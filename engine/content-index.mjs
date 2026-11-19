@@ -1160,6 +1160,7 @@ export function collectContentIndex(
         cache,
         requiredModules = [],
         masterRecords,
+        assetRecords: suppliedAssetRecords,
         warnings,
     },
 ) {
@@ -1226,7 +1227,13 @@ export function collectContentIndex(
     // role, which is the one it would have resolved anyway.
     const assetRecords =
         assetsBase ?
-            collectAssetRecords(assetsBase, { contentPackage, problems, masterRecords, warnings })
+            collectAssetRecords(assetsBase, {
+                contentPackage,
+                problems,
+                masterRecords,
+                warnings,
+                assetRecords: suppliedAssetRecords,
+            })
         :   [];
     const assetIndex = assetAddressIndex(assetRecords, { config: { contentPackage } });
     const resolveRole = (address) => embedRole(assetIndex, address);
@@ -1621,6 +1628,7 @@ function dependencyAddresses(config) {
  *
  * @param {object} [opts]
  * @param {Record<string, any>[]} [opts.masterRecords] - Prepared private-master asset records.
+ * @param {Record<string, any>[]} [opts.assetRecords] - Verified own artwork records, replacing local image and icon collection.
  * @param {string} [opts.contentBase] - The tree, defaulting to the configured one.
  * @param {string} [opts.assetsBase] - The asset roots' parent, defaulting to
  *   the configured one. Stated separately from `contentBase` because the two
@@ -1669,6 +1677,7 @@ export function indexRecordsFor({
     timings,
     cache,
     masterRecords,
+    assetRecords,
     warnings,
     pinnedArt = true,
     pinnedArtFindings,
@@ -1731,6 +1740,7 @@ export function indexRecordsFor({
         cache,
         requiredModules: requiredModulePackages(resolved),
         masterRecords,
+        assetRecords,
         warnings,
     });
     const alternativeFindings = checkArtAlternatives(records, {
