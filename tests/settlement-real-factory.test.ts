@@ -7,6 +7,7 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
         const fs = await import("node:fs");
         const path = await import("node:path");
         const { spawnSync } = await import("node:child_process");
+        const { pathToFileURL } = await import("node:url");
         const { fixture, note, write } = await import("./content-session-fixture.js");
         const { createContentSession } = await import("../engine/content-session.mjs");
         const { prepareSettlementEdit, commitSettlementEdit } =
@@ -14,6 +15,11 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
         const { settlementMapFixture } = await import("./settlement-cli-map-fixture.js");
         const setting = process.env.SETTLEMENT_SETTING_CHECKOUT;
         if (!setting) throw new Error("SETTLEMENT_SETTING_CHECKOUT is required");
+        const { notePath } = await import(
+            pathToFileURL(path.join(setting, "utils/note-index.mjs")).href
+        );
+        const languageFile = path.resolve(setting, notePath("skill-aelwthlng", setting));
+        const guideFile = path.resolve(setting, notePath("doc-prnncthlrn", setting));
         const YAML = await import("yaml");
         const f = fixture(8, "thalorna");
         const configData = YAML.parse(fs.readFileSync(f.configFile, "utf8"));
@@ -23,10 +29,7 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
         const config = configFromData(configData, f.configFile);
         try {
             const content = f.config.paths.content;
-            fs.copyFileSync(
-                path.join(setting, "assets/content/Skills/Languages/Eilwithi_Language.md"),
-                path.join(content, "Note2.md"),
-            );
+            fs.copyFileSync(languageFile, path.join(content, "Note2.md"));
             write(
                 path.join(content, "Note3.md"),
                 note({
@@ -115,7 +118,7 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
                 "--checks-index",
                 "index.jsonl",
                 "--checks-guide",
-                path.join(setting, "assets/content/Lore/Pronouncing_Thalorna.md"),
+                guideFile,
                 "--checks-english-words",
                 path.join(setting, "assets/data/english-words.json"),
                 "--checks-english-sources",
@@ -142,7 +145,7 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
             expect(dryReport.resourceInputs.map((item: any) => path.basename(item.file))).toEqual(
                 expect.arrayContaining([
                     "index.jsonl",
-                    "Pronouncing_Thalorna.md",
+                    path.basename(guideFile),
                     "english-words.json",
                     "english-words.sources.json",
                 ]),
