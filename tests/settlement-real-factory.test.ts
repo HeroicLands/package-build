@@ -238,8 +238,10 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
             fs.writeFileSync(lock, "busy");
             const blocked = run("--write");
             expect(blocked.status).toBe(1);
-            expect(blocked.stderr).toContain(crown);
-            expect(JSON.parse(blocked.stdout).missing[0].file).toBe(crown);
+            expect(blocked.stderr).toContain(`${path.relative(f.root, crown)}:1:1: error:`);
+            const blockedFinding = JSON.parse(blocked.stdout).missing[0];
+            expect(blockedFinding.file).toBe(crown);
+            expect(blockedFinding.message).toContain("cannot acquire settlement write lock");
             expect(fs.readFileSync(crown, "utf8")).toBe(before);
             fs.rmSync(lock);
             const saved = run("--write");
