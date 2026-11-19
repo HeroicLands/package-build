@@ -15,6 +15,29 @@ const assert = require('node:assert/strict');
 const before = JSON.parse(fs.readFileSync(process.argv[2]));
 const after = JSON.parse(fs.readFileSync('package-lock.json'));
 const candidate = 'node_modules/@heroiclands/package-build';
+const path = require('node:path').posix;
+const reachable = new Set();
+function visit(key) {
+    if (reachable.has(key)) return;
+    reachable.add(key);
+    const entry = after.packages[key];
+    assert.ok(entry, `missing lock entry: ${key}`);
+    const dependencies = { ...entry.dependencies, ...entry.optionalDependencies };
+    for (const name of Object.keys(dependencies)) {
+        let dir = key;
+        let resolved;
+        while (true) {
+            const target = dir ? `${dir}/node_modules/${name}` : `node_modules/${name}`;
+            if (after.packages[target]) { resolved = target; break; }
+            if (!dir) break;
+            dir = path.dirname(dir);
+            if (dir === '.') dir = '';
+        }
+        if (resolved) visit(resolved);
+        else assert.ok(entry.optionalDependencies?.[name], `missing dependency: ${name} from ${key}`);
+    }
+}
+visit(candidate);
 for (const key of new Set([...Object.keys(before.packages), ...Object.keys(after.packages)])) {
     if (key === candidate) continue;
     if (key === '') {
@@ -23,7 +46,7 @@ for (const key of new Set([...Object.keys(before.packages), ...Object.keys(after
         delete a.devDependencies['@heroiclands/package-build'];
         delete b.devDependencies['@heroiclands/package-build'];
         assert.deepEqual(b, a, 'consumer root dependencies changed');
-    } else {
+    } else if (!(before.packages[key] === undefined && reachable.has(key))) {
         assert.deepEqual(after.packages[key], before.packages[key], `unrelated lock entry changed: ${key}`);
     }
 }
