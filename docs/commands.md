@@ -4117,25 +4117,25 @@ must match the captured notes.
 
 **OPTIONS**
 
-- `--polity ADDRESS` — required fully qualified local polity Address.
-- `--map FILE` — required pinned saved map.
-- `--json FILE` — required pinned Full JSON export.
-- `--inputs FILE` — required JSON operation inputs.
-- `--checks-module FILE` — trusted local JavaScript module supplying the setting
+- `--polity` `ADDRESS` — required fully qualified local polity Address.
+- `--map` `FILE` — required pinned saved map.
+- `--json` `FILE` — required pinned Full JSON export.
+- `--inputs` `FILE` — required JSON operation inputs.
+- `--checks-module` `FILE` — trusted local JavaScript module supplying the setting
   resource loader and check factory. The module executes with the caller's access.
-- `--checks-root DIR` — root for setting resources; defaults to the current directory.
-- `--checks-guide FILE` — required pronunciation-guide file, relative to the checks root.
-- `--checks-english-words FILE` — required English word-list JSON, relative to the checks root.
-- `--checks-english-sources FILE` — required English word-list source manifest, relative to the checks root.
-- `--checks-index FILE` — required index path, relative to the checks root.
-- `--checks-byte-limit NUMBER` — maximum combined bytes of the index, guide, English resources and word lists;
+- `--checks-root` `DIR` — root for setting resources; defaults to the current directory.
+- `--checks-guide` `FILE` — required pronunciation-guide file, relative to the checks root.
+- `--checks-english-words` `FILE` — required English word-list JSON, relative to the checks root.
+- `--checks-english-sources` `FILE` — required English word-list source manifest, relative to the checks root.
+- `--checks-index` `FILE` — required index path, relative to the checks root.
+- `--checks-byte-limit` `NUMBER` — maximum combined bytes of the index, guide, English resources and word lists;
   defaults to 268435456.
-- `--checks-entry-limit NUMBER` — maximum word-list directory entries; defaults to 100000.
-- `--checks-work-limit NUMBER` — authoring graph and calculation work allowance;
+- `--checks-entry-limit` `NUMBER` — maximum word-list directory entries; defaults to 100000.
+- `--checks-work-limit` `NUMBER` — authoring graph and calculation work allowance;
   defaults to 1000000000000 units.
-- `--wordlist-dir DIR` — model-language word-list directory; repeatable, omitted by default.
-- `--seed TEXT` — deterministic name selection seed, required for generated names.
-- `--name-limit NUMBER` — positive candidate budget per generated name.
+- `--wordlist-dir` `DIR` — model-language word-list directory; repeatable, omitted by default.
+- `--seed` `TEXT` — deterministic name selection seed, required for generated names.
+- `--name-limit` `NUMBER` — positive candidate budget per generated name.
 - `--write` — commit the checked rows. The default is a dry run.
 
 **EXIT STATUS**

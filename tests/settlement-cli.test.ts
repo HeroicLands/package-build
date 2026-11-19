@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import { execFileSync } from "node:child_process";
 import { expect, it, vi } from "vitest";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 
 it("describes on-demand settlement inputs without loading project configuration", () => {
     const env = { ...process.env };
@@ -74,7 +75,7 @@ it("preserves a located configuration file in both error outputs", async () => {
         expect(stderr.mock.calls).toEqual([[failure.message]]);
         expect(stdout).toHaveBeenCalledTimes(1);
         expect(JSON.parse(String(stdout.mock.calls[0][0])).missing).toEqual([
-            { file: configFile, message: failure.message },
+            { file: configFile, line: 1, column: 1, severity: "error", message: "invalid package" },
         ]);
         expect(fs.readFileSync(inputs, "utf8")).toBe("{}");
         expect(fs.readFileSync(configFile, "utf8")).toBe("contentPackage: invalid\n");
@@ -113,8 +114,16 @@ it("reports malformed and missing input as located diagnostics", async () => {
         writeFileSync(file, '{\n  "a": }');
         const malformed = run();
         expect(malformed.status).toBe(1);
-        expect(malformed.stderr).toBe(`${file}:2:8: error: invalid JSON\n`);
-        expect(JSON.parse(malformed.stdout).missing).toHaveLength(1);
+        const finding = JSON.parse(malformed.stdout).missing[0];
+        expect(finding).toMatchObject({ file, severity: "error", message: "invalid JSON" });
+        if (finding.line !== undefined) {
+            expect(finding.line).toBe(2);
+            expect(finding.column).toBe(8);
+            expect(malformed.stderr).toBe(`${file}:2:8: error: invalid JSON\n`);
+        } else {
+            expect(finding.column).toBeUndefined();
+            expect(malformed.stderr).toBe(`${file}: error: invalid JSON\n`);
+        }
         writeFileSync(file, '{"a":');
         const eof = run();
         expect(eof.status).toBe(1);
@@ -159,59 +168,63 @@ it("reports malformed and missing input as located diagnostics", async () => {
     }
 });
 
-it("rejects a FIFO without a writer and identifies oversized map and JSON files", async () => {
-    const { mkdtempSync, writeFileSync, truncateSync, rmSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const { spawnSync } = await import("node:child_process");
-    const dir = mkdtempSync(join(tmpdir(), "settlement-bounds-"));
-    try {
-        const file = join(dir, "inputs.json"),
-            map = join(dir, "map"),
-            json = join(dir, "map.json"),
-            pipe = join(dir, "pipe");
-        writeFileSync(file, JSON.stringify({ pin: {}, mapping: {} }));
-        writeFileSync(map, "map");
-        writeFileSync(json, "{}");
-        const run = (input: string, mapPath = map, jsonPath = json) =>
-            spawnSync(
-                process.execPath,
-                [
-                    "bin/package-build.mjs",
-                    "settlement",
-                    "--polity",
-                    "x-note-affiliation-a",
-                    "--map",
-                    mapPath,
-                    "--json",
-                    jsonPath,
-                    "--inputs",
-                    input,
-                ],
-                { encoding: "utf8", timeout: 10000 },
-            );
-        const made = spawnSync("mkfifo", [pipe]);
-        expect(made.status).toBe(0);
-        const fifo = run(pipe);
-        expect(fifo.signal).toBeNull();
-        expect(fifo.status).toBe(1);
-        expect(fifo.stderr).toContain(`${pipe}: error:`);
-        expect(JSON.parse(fifo.stdout).missing[0].file).toBe(pipe);
-        truncateSync(map, 64 * 1024 * 1024 + 1);
-        const largeMap = run(file);
-        expect(largeMap.status).toBe(1);
-        expect(largeMap.stderr).toContain(`${map}: error:`);
-        expect(JSON.parse(largeMap.stdout).missing[0].file).toBe(map);
-        truncateSync(map, 0);
-        truncateSync(json, 256 * 1024 * 1024 + 1);
-        const largeJson = run(file);
-        expect(largeJson.status).toBe(1);
-        expect(largeJson.stderr).toContain(`${json}: error:`);
-        expect(JSON.parse(largeJson.stdout).missing[0].file).toBe(json);
-    } finally {
-        rmSync(dir, { recursive: true, force: true });
-    }
-});
+it(
+    "rejects a FIFO without a writer and identifies oversized map and JSON files",
+    async () => {
+        const { mkdtempSync, writeFileSync, truncateSync, rmSync } = await import("node:fs");
+        const { tmpdir } = await import("node:os");
+        const { join } = await import("node:path");
+        const { spawnSync } = await import("node:child_process");
+        const dir = mkdtempSync(join(tmpdir(), "settlement-bounds-"));
+        try {
+            const file = join(dir, "inputs.json"),
+                map = join(dir, "map"),
+                json = join(dir, "map.json"),
+                pipe = join(dir, "pipe");
+            writeFileSync(file, JSON.stringify({ pin: {}, mapping: {} }));
+            writeFileSync(map, "map");
+            writeFileSync(json, "{}");
+            const run = (input: string, mapPath = map, jsonPath = json) =>
+                spawnSync(
+                    process.execPath,
+                    [
+                        "bin/package-build.mjs",
+                        "settlement",
+                        "--polity",
+                        "x-note-affiliation-a",
+                        "--map",
+                        mapPath,
+                        "--json",
+                        jsonPath,
+                        "--inputs",
+                        input,
+                    ],
+                    { encoding: "utf8", timeout: SUBPROCESS_TEST_TIMEOUT },
+                );
+            const made = spawnSync("mkfifo", [pipe]);
+            expect(made.status).toBe(0);
+            const fifo = run(pipe);
+            expect(fifo.signal).toBeNull();
+            expect(fifo.status).toBe(1);
+            expect(fifo.stderr).toContain(`${pipe}: error:`);
+            expect(JSON.parse(fifo.stdout).missing[0].file).toBe(pipe);
+            truncateSync(map, 64 * 1024 * 1024 + 1);
+            const largeMap = run(file);
+            expect(largeMap.status).toBe(1);
+            expect(largeMap.stderr).toContain(`${map}: error:`);
+            expect(JSON.parse(largeMap.stdout).missing[0].file).toBe(map);
+            truncateSync(map, 0);
+            truncateSync(json, 256 * 1024 * 1024 + 1);
+            const largeJson = run(file);
+            expect(largeJson.status).toBe(1);
+            expect(largeJson.stderr).toContain(`${json}: error:`);
+            expect(JSON.parse(largeJson.stdout).missing[0].file).toBe(json);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    },
+    subprocessTimeout(5),
+);
 
 it("snapshots a bounded index and word lists independently of later file changes", async () => {
     const { snapshotSettingInputs } = await import("../bin/settlement-command.mjs");
@@ -445,8 +458,10 @@ it("runs a bounded named settlement preview and explicit write with captured inp
         fs.writeFileSync(lock, "busy");
         const blocked = run("--write");
         expect(blocked.status).toBe(1);
-        expect(blocked.stderr).toContain(crown);
-        expect(JSON.parse(blocked.stdout).missing[0].file).toBe(crown);
+        const blockedFinding = JSON.parse(blocked.stdout).missing[0];
+        expect(path.resolve(f.root, blockedFinding.file)).toBe(crown);
+        expect(blockedFinding.message).toContain("cannot acquire settlement write lock");
+        expect(blocked.stderr).toContain(`${path.relative(f.root, crown)}:1:1: error:`);
         expect(fs.readFileSync(crown, "utf8")).toBe(before);
         fs.rmSync(lock);
         const saved = run("--write");

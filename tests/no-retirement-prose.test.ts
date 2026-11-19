@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 const ROOT = join(import.meta.dirname, "..");
 const DIRS = ["engine", "sohl", "hm3", "bin", "site-theme", "docs"];
 const EXTENSIONS = /\.(mjs|js|md|css|yaml|yml|html|json)$/;
-const WORDING = /retired|renamed|no longer|formerly|legacy|\bused to\b|previously/i;
+const WORDING = /retired|\brenamed\b|no longer|formerly|legacy|\bused to\b|previously/i;
 
 /**
  * Lines that carry retirement wording and are allowed to: each names a live
@@ -124,6 +124,11 @@ function hits(): { file: string; n: number; text: string }[] {
 }
 
 describe("shipped prose carries no retirement wording", () => {
+    it("distinguishes a word from the same letters in an identifier", () => {
+        expect(WORDING.test("prepareNamedSettlements")).toBe(false);
+        expect(WORDING.test("The item was renamed.")).toBe(true);
+        expect(WORDING.test("The item was RENAMED.")).toBe(true);
+    });
     const all = hits();
     const allowed = (h: { file: string; text: string }) =>
         ALLOWLIST.some((a) => a.file === h.file && a.line.test(h.text));
