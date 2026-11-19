@@ -3890,3 +3890,19 @@ Compose a full-vehicle picture prompt from explicit note data and resolved items
 | ----------------------- | ---------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `vehiclePromptFromData` | `vehiclePromptFromData(data, items, sources, index)` | Positive and optional negative channels. | Compose a vehicle picture prompt; supply the link index to validate item art.                 |
 | `checkVehiclePortrait`  | `checkVehiclePortrait(note, context)`                | Located findings.                        | Validate a stored picture record and its freshness; supply the link index to resolve artwork. |
+
+### Installed artwork packages
+
+`loadArtPackage(directory, expected)` from `@heroiclands/package-build/engine/art-package`
+reads an explicitly supplied package directory. `expected` contains the npm
+`name`, `version`, and `contentPackage`. It returns decoded public asset records
+and a map from package-relative asset paths to verified absolute file paths.
+
+The package's `artwork.json` has `formatVersion: 1`, `contentPackage`, an
+`index` object and an `assets` array. The index and each asset entry contain
+only `path` and lowercase hexadecimal `sha256`. The index is standard asset-only
+JSONL; its image and icon records refer to entries in `assets` by `asset.path`.
+Assets are SVG or WebP. Every entry is digest checked, stays within the package,
+and has a matching index record. More than one address can refer to one file.
+The index retains the three AI states and complete alternative addresses.
+The caller checks the consumer's dependency declarations and lockfile integrity.
