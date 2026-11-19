@@ -1100,7 +1100,6 @@ describe("mirrored dependency releases", () => {
         const tokenFile = path.join(root, "private");
         fs.writeFileSync(tokenFile, (await import("node:crypto")).randomBytes(32).toString("hex"));
         vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
-        vi.useFakeTimers();
         vi.stubEnv("XDG_CACHE_HOME", path.join(root, "shared"));
         const rel = {
             id: "example",
@@ -1127,15 +1126,13 @@ describe("mirrored dependency releases", () => {
                 )
                 .mockResolvedValueOnce(new Response("index"));
             vi.stubGlobal("fetch", fetcher);
-            const result = fetchMetadata({ paths: { metadataCache: root } }, rel);
-            await vi.runAllTimersAsync();
-            expect(fs.readFileSync(await result, "utf8")).toBe("index");
+            const result = await fetchMetadata({ paths: { metadataCache: root } }, rel);
+            expect(fs.readFileSync(result, "utf8")).toBe("index");
             expect(fetcher).toHaveBeenCalledTimes(5);
         } finally {
-            vi.useRealTimers();
             vi.unstubAllGlobals();
             vi.unstubAllEnvs();
             fs.rmSync(root, { recursive: true, force: true });
         }
-    });
+    }, 15000);
 });

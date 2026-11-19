@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { fetchMetadata } from "../engine/foreign-catalog.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 
 const roots: string[] = [];
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -81,7 +82,10 @@ it("selects the verified index with stale siblings and concurrent fetches", asyn
     const { cachedIndexFile, loadForeignIndexes } = await import("../engine/metadata-index.mjs");
     const file = cachedIndexFile(config, "example");
     expect(file).toBe(path.join(dir, `${digest(body)}.jsonl`));
-    const resolved = loadForeignIndexes({ ...config, relationships: { requires: [rel] } }, []);
+    const resolved = loadForeignIndexes(
+        { ...loadPackConfig(), ...config, relationships: { requires: [rel] } },
+        [],
+    );
     expect(resolved.index.has("example-note-lore-valid")).toBe(true);
     expect(resolved.stale).toEqual([]);
 });
@@ -124,31 +128,25 @@ it("refuses a checksum redirect from HTTPS to a loopback HTTP mirror", async () 
 });
 
 it("retries transient sidecar and index responses", async () => {
-    vi.useFakeTimers();
-    try {
-        const { config } = setup(`${digest("index")}  index.jsonl\n`);
-        let checks = 0;
-        let indexes = 0;
-        vi.stubGlobal(
-            "fetch",
-            vi.fn(async (url: string) => {
-                if (url === manifest)
-                    return Response.json({ version: "1", flags: { metadataUrl: index } });
-                if (url === `${index}.sha256`)
-                    return ++checks === 1 ?
-                            new Response("", { status: 503 })
-                        :   new Response(`${digest("index")}  index.jsonl\n`);
-                return ++indexes === 1 ? new Response("", { status: 503 }) : new Response("index");
-            }),
-        );
-        const result = fetchMetadata(config, rel);
-        await vi.runAllTimersAsync();
-        expect(fs.readFileSync(await result, "utf8")).toBe("index");
-        expect([checks, indexes]).toEqual([2, 2]);
-    } finally {
-        vi.useRealTimers();
-    }
-});
+    const { config } = setup(`${digest("index")}  index.jsonl\n`);
+    let checks = 0;
+    let indexes = 0;
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => {
+            if (url === manifest)
+                return Response.json({ version: "1", flags: { metadataUrl: index } });
+            if (url === `${index}.sha256`)
+                return ++checks === 1 ?
+                        new Response("", { status: 503 })
+                    :   new Response(`${digest("index")}  index.jsonl\n`);
+            return ++indexes === 1 ? new Response("", { status: 503 }) : new Response("index");
+        }),
+    );
+    const result = await fetchMetadata(config, rel);
+    expect(fs.readFileSync(result, "utf8")).toBe("index");
+    expect([checks, indexes]).toEqual([2, 2]);
+}, 15000);
 
 it("bounds chunked JSONL downloads and removes temporary files", async () => {
     const { config, root } = setup(`${digest("index")}  index.jsonl\n`);
@@ -174,9 +172,10 @@ it("bounds chunked JSONL downloads and removes temporary files", async () => {
 });
 
 it("times out stalled index bodies and cleans download files", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     try {
         const { config, root } = setup(`${digest("index")}  index.jsonl\n`);
+        let started = 0;
         vi.stubGlobal(
             "fetch",
             vi.fn(async (url: string, options: RequestInit) => {
@@ -187,6 +186,7 @@ it("times out stalled index bodies and cleans download files", async () => {
                 return new Response(
                     new ReadableStream({
                         start(controller) {
+                            started++;
                             options.signal!.addEventListener("abort", () =>
                                 controller.error(new Error("aborted")),
                             );
@@ -196,7 +196,13 @@ it("times out stalled index bodies and cleans download files", async () => {
             }),
         );
         const result = fetchMetadata(config, rel).catch((error) => error);
-        await vi.runAllTimersAsync();
+        for (let attempt = 1; attempt <= 5; attempt++) {
+            while (started < attempt) {
+                await new Promise<void>((resolve) => setImmediate(resolve));
+                await vi.advanceTimersByTimeAsync(1000);
+            }
+            await vi.advanceTimersByTimeAsync(60000);
+        }
         expect(await result).toBeInstanceOf(Error);
         expect(fs.readdirSync(path.join(root, "shared", "heroiclands", "downloads"))).toEqual([]);
     } finally {

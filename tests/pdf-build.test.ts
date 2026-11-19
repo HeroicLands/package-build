@@ -176,7 +176,7 @@ function cacheDependency(config) {
     );
     fs.writeFileSync(
         path.join(metaDir, ".complete"),
-        JSON.stringify({ file: "otherpkg-metadata.jsonl", sha256: null }),
+        JSON.stringify({ file: "index.jsonl", sha256: null }),
     );
 }
 
