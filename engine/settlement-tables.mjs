@@ -291,6 +291,27 @@ function rowsOf(corpus, owner, recursive) {
 }
 
 /**
+ * Resolve a polity's directly subordinate polities and noted settlements.
+ * @param {object} record - Indexed polity record.
+ * @param {object[]} records - Records from the same content session.
+ * @returns {{polities: object[], settlements: object[]}} Indexed records and canonical addresses.
+ */
+export function settlementMembership(record, records) {
+    const corpus = corpusOf({ notes: records, contentPackage: record.package });
+    const owner = corpus.byRecord.get(record);
+    if (!owner || !polity(record)) throw new Error("An indexed polity is required");
+    const view = (node) => ({ address: node.key, record: node.fm });
+    return {
+        polities: (corpus.children.get(owner.key) ?? []).map(view),
+        settlements: [
+            ...new Map(
+                (corpus.notedByOwner.get(owner.key) ?? []).map((node) => [node.key, node]),
+            ).values(),
+        ].map(view),
+    };
+}
+
+/**
  * Track settlement exceptions against actual findings in local notes.
  * @param {readonly {address?: string, prefix?: string, reason: string, scope?: "all"|"urban-share"}[]} entries - Reasoned selectors.
  * @param {string} contentPackage - The local package.
