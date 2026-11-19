@@ -14,6 +14,8 @@
 /** One invocation's authored sources and context-specific prepared views. */
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
+import crypto from "node:crypto";
 import { DEPLOYED_ASSET_TYPES } from "./asset-types.mjs";
 import { createContentTimings } from "./content-timings.mjs";
 import * as contentIndex from "./content-index.mjs";
@@ -28,7 +30,12 @@ import { runContext } from "./content-scripts.mjs";
 import { resolveReference } from "./wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
-import { loadPinnedArt, readArtLock, privateArtRoots } from "./art-lock.mjs";
+import { privateArtRoots } from "./art-inputs.mjs";
+import { prepareArtPackages, finalizeArtPackages } from "./art-package-resolve.mjs";
+import { readVerifiedBytes } from "./art-package.mjs";
+import { readCanonicalKey, renderAddress } from "./address.mjs";
+import { deployedAssetPath } from "./asset-shipping.mjs";
+import { checkArtAlternatives } from "./art-alternatives.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { formatDiagnostic } from "./diagnostics.mjs";
 import { lintNoteStates } from "./stub-lint.mjs";
@@ -51,8 +58,7 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {object[]} warnings
  * @property {object[]} problems
  * @property {ReturnType<import("./art-masters.mjs").collectArtMasters>["masters"]} masters
- * @property {Map<string,string>} pinnedArt Integrity-verified derivatives; publication requires no pinnedArtFindings.
- * @property {object[]} pinnedArtFindings Live publication disagreements for verified pinned artwork.
+ * @property {Map<string,() => Buffer>} artSources Captured verified artwork bytes by canonical Address.
  * @property {ReturnType<typeof loadForeignIndexes>} foreign
  * @property {ContentSyntax} syntax
  * @property {(options?: ContentSessionContext) => void} assertContext
@@ -102,7 +108,6 @@ export async function createContentSession({
     const inventory = timings.sync("source capture", () =>
         captureContentSources(tree, assets, scope),
     );
-    readArtLock(config);
     const roots = config.art?.masterRoots ?? [];
     const componentRoots = config.art?.componentRoots ?? [];
     const artModule =
@@ -160,6 +165,7 @@ export async function createContentSession({
             });
         return syntaxCache.get(text);
     };
+    const installed = config.art?.packages?.length ? await prepareArtPackages(config) : undefined;
     const baseRecords = timings.sync("index derivation", () =>
         contentIndex.indexRecordsFor({
             config,
@@ -173,14 +179,68 @@ export async function createContentSession({
             foreignIndex: foreign.index,
             syntax,
             timings,
-            pinnedArt: false,
             masterRecords: artModule ? artModule.masterAssetRecords(art.masters) : [],
+            assetRecords: installed?.records,
         }),
     );
-    const pinned = loadPinnedArt(config, baseRecords);
-    const records = pinned.records;
-    problems.push(...pinned.findings);
-    for (const file of pinned.paths) fingerprints?.set(file, fingerprint(file));
+    const records = baseRecords;
+    if (installed) {
+        const findings = checkArtAlternatives(records, {
+            config,
+            foreignIndex: () => foreign.index,
+            assetsBase: assets,
+        });
+        if (findings.length)
+            throw Object.assign(new Error(findings.map(formatDiagnostic).join("\n")), {
+                located: true,
+            });
+    }
+    const artSources = new Map();
+    let snapshotDirectory;
+    if (installed) {
+        try {
+            const packages = finalizeArtPackages(installed, { records });
+            snapshotDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "content-art-snapshot-"));
+            fs.chmodSync(snapshotDirectory, 0o700);
+            const deployed = new Set();
+            for (const pkg of packages) {
+                for (const record of pkg.records) {
+                    const address = renderAddress(readCanonicalKey(record.address.canonical));
+                    const target = deployedAssetPath(record);
+                    if (deployed.has(target))
+                        throw new Error(
+                            `art.packages: error: duplicate artwork deployment path ${target}`,
+                        );
+                    deployed.add(target);
+                    const bytes = readVerifiedBytes(pkg.files.get(record.asset.path));
+                    const digest = crypto.createHash("sha256").update(bytes).digest("hex");
+                    const file = path.join(snapshotDirectory, String(artSources.size));
+                    fs.writeFileSync(file, bytes, { flag: "wx", mode: 0o600 });
+                    artSources.set(address, () => {
+                        active();
+                        const fd = fs.openSync(
+                            file,
+                            fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+                        );
+                        try {
+                            const captured = fs.readFileSync(fd);
+                            if (
+                                crypto.createHash("sha256").update(captured).digest("hex") !==
+                                digest
+                            )
+                                throw new Error("captured artwork changed during the build");
+                            return captured;
+                        } finally {
+                            fs.closeSync(fd);
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            if (snapshotDirectory) fs.rmSync(snapshotDirectory, { recursive: true, force: true });
+            throw error;
+        }
+    }
     const memo = (key, make) => {
         active();
         if (!prepared.has(key))
@@ -205,8 +265,7 @@ export async function createContentSession({
         problems,
         warnings,
         masters: art.masters,
-        pinnedArt: pinned.files,
-        pinnedArtFindings: pinned.findings,
+        artSources,
         foreign,
         syntax,
         /** Refuse a stale capture after any build phase changes an input. */
@@ -304,10 +363,6 @@ export async function createContentSession({
         },
         async compileCorpus() {
             active();
-            if (pinned.findings.length)
-                throw Object.assign(new Error(pinned.findings.map(formatDiagnostic).join("\n")), {
-                    located: true,
-                });
             return memo("compile", async () => {
                 const sqlTables = await session.sqlTables("all");
                 const linkIndex = buildContentLinkIndex(tree, router, {
@@ -356,6 +411,7 @@ export async function createContentSession({
         dispose() {
             if (disposed) return;
             disposed = true;
+            if (snapshotDirectory) fs.rmSync(snapshotDirectory, { recursive: true, force: true });
             // A preparation can still be querying after its database opens.
             // Keep the promises before clearing memoized results, and drain
             // both successful and failed work before closing native resources.

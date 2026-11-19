@@ -290,6 +290,7 @@ export function assetsManifest(staged, stageDir) {
  * @param {readonly string[]} [opts.shippingLicenses] - Licences the package
  *   adds to {@link SHIPPING_LICENSES}.
  * @param {Map<string, string>} [opts.preparedMasters] - Rendered private inputs by address.
+ * @param {Map<string, () => Buffer>} [opts.artSources] - Captured verified artwork by address.
  * @param {object[]} [opts.records] - Asset records for this build.
  * @returns {{staged: object[], excluded: {record: object, reason: string}[],
  *   findings: object[], manifest: AssetSet|null}}
@@ -305,13 +306,14 @@ export function stagePackageAssets({
     transform,
     shippingLicenses = [],
     preparedMasters,
+    artSources,
     records: suppliedRecords,
 }) {
     const findings = [];
     const hasPictures = DEPLOYED_ASSET_TYPES.some(({ root }) =>
         fs.existsSync(path.join(assetsBase, root)),
     );
-    if (!hasPictures && !preparedMasters?.size)
+    if (!hasPictures && !preparedMasters?.size && !artSources?.size)
         return { staged: [], excluded: [], findings, manifest: null };
     const records =
         suppliedRecords ?? collectAssetRecords(assetsBase, { contentPackage, problems: findings });
@@ -320,20 +322,27 @@ export function stagePackageAssets({
     const { staged, excluded } = selectStagedAssets(records, shippingLicenses);
     const planned = staged.map((record) => {
         const prepared = preparedMasters?.get(record.address.canonical);
+        const source = artSources?.get(record.address.canonical);
+        if (artSources && !source)
+            throw new Error(`artwork input is missing for ${record.address.canonical}`);
         const from = prepared ?? path.join(assetsBase, ...record.asset.path.split("/"));
         return {
             record,
             from,
-            transformed: !prepared && transform ? transform(from) : null,
+            source,
+            transformed: !prepared && !source && transform ? transform(from) : null,
             to: path.join(
                 stageDir,
                 .../** @type {string} */ (deployedAssetPath(record)).split("/"),
             ),
         };
     });
-    for (const { record, from, to, transformed } of planned) {
+    for (const { record, from, to, transformed, source } of planned) {
         if (!fs.existsSync(to)) continue;
-        const bytes = transformed != null ? transformed : fs.readFileSync(from);
+        const bytes =
+            source ? source()
+            : transformed != null ? transformed
+            : fs.readFileSync(from);
         if (Buffer.from(fs.readFileSync(to)).equals(Buffer.from(bytes))) continue;
         findings.push({
             file: to,
@@ -345,10 +354,11 @@ export function stagePackageAssets({
         });
     }
     if (findings.length) return { staged: [], excluded: [], findings, manifest: null };
-    for (const { from, to, transformed } of planned) {
+    for (const { from, to, transformed, source } of planned) {
         if (fs.existsSync(to)) continue;
         fs.mkdirSync(path.dirname(to), { recursive: true });
-        if (transformed != null) fs.writeFileSync(to, transformed);
+        if (source) fs.writeFileSync(to, source());
+        else if (transformed != null) fs.writeFileSync(to, transformed);
         else fs.copyFileSync(from, to);
     }
     const manifest = {

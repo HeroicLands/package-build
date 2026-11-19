@@ -71,6 +71,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { readCanonicalKey, renderAddress } from "./address.mjs";
 
 import YAML from "yaml";
 
@@ -537,6 +538,7 @@ function* walkAssetRoot(rootDir, extensions) {
  *   asserts that the address does not exist.
  * @param {Record<string, any>[]} [options.masterRecords] - Records derived from private masters.
  * @param {object[]} [options.warnings] - Receives public assets superseded by masters.
+ * @param {Record<string, any>[]} [options.assetRecords] - Verified own artwork records; when supplied, local image and icon roots are not read.
  * @returns {Array<Record<string, any>>} One record per addressable file, in walk
  *   order; the caller imposes the index's total order.
  * @throws {Error} When any finding is made and no `problems` array was
@@ -545,7 +547,7 @@ function* walkAssetRoot(rootDir, extensions) {
  */
 export function collectAssetRecords(
     assetsBase,
-    { contentPackage, problems, masterRecords = [], warnings },
+    { contentPackage, problems, masterRecords = [], warnings, assetRecords },
 ) {
     const records = [];
     const findings = [];
@@ -558,6 +560,7 @@ export function collectAssetRecords(
     const report = (file, message) => findings.push({ file, severity: "error", message });
 
     for (const { type, root, extensions } of ASSET_TYPES) {
+        if (assetRecords !== undefined && ["image", "icon"].includes(type)) continue;
         const rootDir = path.join(assetsBase, root);
         const cache = new Map();
         /** @type {Map<string, string>} shortcode → the file already claiming it. */
@@ -649,7 +652,32 @@ export function collectAssetRecords(
         }
     }
 
-    records.push(...masterRecords);
+    if (assetRecords !== undefined) {
+        const seen = new Set();
+        for (const record of assetRecords) {
+            const address = readCanonicalKey(record?.address?.canonical);
+            if (
+                !address ||
+                address.package !== contentPackage ||
+                address.system !== "none" ||
+                !["image", "icon"].includes(address.type) ||
+                record.package !== contentPackage ||
+                record.type !== address.type ||
+                record.shortcode !== address.shortcode ||
+                !record.asset ||
+                Object.keys(record).some(
+                    (key) => !["package", "type", "shortcode", "address", "asset"].includes(key),
+                )
+            )
+                throw new Error(
+                    "supplied artwork must contain only this package's image and icon asset records",
+                );
+            const key = renderAddress(address);
+            if (seen.has(key)) throw new Error(`duplicate supplied artwork address: ${key}`);
+            seen.add(key);
+        }
+    }
+    records.push(...masterRecords, ...(assetRecords ?? []));
 
     if (findings.length) {
         if (!problems) {

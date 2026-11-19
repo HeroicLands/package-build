@@ -65,7 +65,7 @@
  * @module
  */
 
-import { privateArtRoots } from "./art-lock.mjs";
+import { privateArtRoots } from "./art-inputs.mjs";
 import { phoneticAssetEntries } from "./phonetic-fonts.mjs";
 import fs from "node:fs";
 import path from "node:path";
@@ -798,6 +798,7 @@ function siteInputFiles(files, { out, site, pages }) {
  * @param {string} options.out - The directory the site is written to, which
  *   is the package's own directory under the deployed root.
  * @param {number} [options.year] - The year the footer states.
+ * @param {import("./content-session.mjs").ContentSession} [options.session] - Shared prepared content session.
  * @param {(message: string) => void} [options.progress] - Build phase summaries.
  * @returns {Promise<{built: object, written: object|null, fonts: object|null,
  *   site?: object, pages?: object[], pageOf?: (entry: object) => object}>}
@@ -812,26 +813,44 @@ function siteInputFiles(files, { out, site, pages }) {
  * @throws {Error} When the site's settings, cached menu or input provider fail,
  *   or a provider artifact is unsafe or collides with builder-owned output.
  */
-export async function buildPackageSite({ config, out, year, progress = () => {} }) {
+export async function buildPackageSite({
+    config,
+    out,
+    year,
+    session: suppliedSession,
+    progress = () => {},
+}) {
     assertPrivateArtRoots(privateArtRoots(config), [out]);
     const settings = siteSettings({ config });
     const { navigation, files } = await readSiteInputs(config);
     progress("indexing content");
-    const sqlTables = await prepareTreeSqlTables(config.paths.content, {
-        skipDirectories: config.skipDirectories,
-        config,
-        audience: "public",
-    });
-    const built = buildSite({ config, sqlTables, progress });
-    if (gatesFailed(built.gates)) return { built, written: null, fonts: null };
-    const { site, pages, pageOf } = packageSite({ config, built, settings, navigation, year });
-    const artifacts = siteInputFiles(files, { out, site, pages });
-    const written = writeSite({ site, pages, out, progress });
-    for (const [file, content] of artifacts) {
-        fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.writeFileSync(file, content, "utf8");
-        written.files.push(file);
+    let session = suppliedSession;
+    try {
+        if (!session && config.art?.packages?.length) {
+            const { createContentSession } = await import("./content-session.mjs");
+            session = await createContentSession({ config });
+            await session.prepare(["index"]);
+        }
+        const sqlTables = await prepareTreeSqlTables(config.paths.content, {
+            skipDirectories: config.skipDirectories,
+            config,
+            audience: "public",
+            records: session?.records,
+            parsed: session?.parsed,
+        });
+        const built = buildSite({ config, sqlTables, records: session?.records, progress });
+        if (gatesFailed(built.gates)) return { built, written: null, fonts: null };
+        const { site, pages, pageOf } = packageSite({ config, built, settings, navigation, year });
+        const artifacts = siteInputFiles(files, { out, site, pages });
+        const written = writeSite({ site, pages, out, progress });
+        for (const [file, content] of artifacts) {
+            fs.mkdirSync(path.dirname(file), { recursive: true });
+            fs.writeFileSync(file, content, "utf8");
+            written.files.push(file);
+        }
+        const fonts = deliverSiteFonts(config, out);
+        return { built, written, fonts, site, pages, pageOf };
+    } finally {
+        if (!suppliedSession) session?.dispose();
     }
-    const fonts = deliverSiteFonts(config, out);
-    return { built, written, fonts, site, pages, pageOf };
 }
