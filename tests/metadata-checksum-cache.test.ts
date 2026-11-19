@@ -526,3 +526,28 @@ it("times out stalled GitHub metadata and refuses after bounded retries", async 
         vi.useRealTimers();
     }
 });
+
+it("reports the GitHub HTTP status without exposing mirror credentials", async () => {
+    const { root, config } = setup(null);
+    const token = "mirror-secret";
+    const tokenFile = path.join(root, "token");
+    fs.writeFileSync(tokenFile, token);
+    vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+    const mirror = "https://mirror.test/system.json";
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, options: RequestInit) => {
+            if (url === mirror)
+                return Response.json({ version: "1", flags: { metadataUrl: index } });
+            if (url === api) {
+                expect(JSON.stringify(options.headers)).not.toContain(token);
+                return new Response("private response text", { status: 403 });
+            }
+            return new Response("unexpected", { status: 500 });
+        }),
+    );
+    const error = await fetchMetadata(config, { ...rel, buildManifest: mirror }).catch((e) => e);
+    expect(error.message).toContain("GitHub HTTP 403");
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(token);
+    expect(error.message).not.toContain("private response text");
+});

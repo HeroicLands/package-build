@@ -926,8 +926,14 @@ async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
     try {
         expected = await githubAssetDigest(url, advertisedIndex, githubCache);
     } catch (cause) {
+        const status =
+            cause instanceof Error ?
+                /^GitHub release metadata request failed \(HTTP ([0-9]{3})\)$/.exec(
+                    cause.message,
+                )?.[1]
+            :   undefined;
         throw new Error(
-            `${rel.id}@${version}: content index GitHub checksum unavailable`,
+            `${rel.id}@${version}: content index GitHub checksum unavailable${status ? ` (GitHub HTTP ${status})` : ""}`,
             token ? undefined : { cause },
         );
     }
