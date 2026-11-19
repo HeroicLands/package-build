@@ -8,6 +8,7 @@ import { settlementMembership } from "../engine/settlement-tables.mjs";
 import { prepareSettlementInputs } from "../engine/settlement-inputs.mjs";
 import { proposeSettlements } from "../engine/settlement-generate.mjs";
 import { proposeUrbanSupply } from "../engine/settlement-urban.mjs";
+import { SETTLEMENT_MODEL_DEFAULTS } from "../engine/settlement-model.mjs";
 import { prepareSettlementEdit } from "../engine/settlement-source.mjs";
 import { metadataFileName } from "../engine/metadata-index.mjs";
 import { fixture, note, write } from "./content-session-fixture.js";
@@ -268,6 +269,105 @@ async function assemblyFixture(
 }
 
 describe("settlement input assembly", () => {
+    it("uses the editable urban share for indexed parent and subordinate totals", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            const { urbanShares: _ignored, ...settings } = f.settings;
+            const result = prepareSettlementInputs({ ...f, settings });
+            expect(result.ruralInput.ruralPopulation).toBeCloseTo(462.5);
+            expect(result.urbanInput.urbanPopulation).toBeCloseTo(37.5);
+            expect(result.subpolities[0]).toMatchObject({
+                ruralPopulation: 46.25,
+                urbanPopulation: 3.75,
+            });
+            expect(proposeSettlements(result.ruralInput).reservedPopulation).toBe(71.25);
+            const custom = prepareSettlementInputs({
+                ...f,
+                settings: { ...settings, model: { ...SETTLEMENT_MODEL_DEFAULTS, urbanShare: 0.2 } },
+            });
+            expect(custom.ruralInput.ruralPopulation).toBe(400);
+            expect(custom.urbanInput.urbanPopulation).toBe(100);
+            expect(custom.subpolities[0]).toMatchObject({
+                ruralPopulation: 40,
+                urbanPopulation: 10,
+            });
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("preserves a stated zero share and reports an invalid or unknown share", async () => {
+        const f = await assemblyFixture();
+        try {
+            const zero = prepareSettlementInputs({
+                ...f,
+                settings: {
+                    ...f.settings,
+                    model: { ...SETTLEMENT_MODEL_DEFAULTS, urbanShare: 0.2 },
+                },
+            });
+            expect(zero.ruralInput.ruralPopulation).toBe(500);
+            expect(zero.urbanInput.urbanPopulation).toBe(0);
+            for (const share of [null, -0.1, 1.1]) {
+                const result = prepareSettlementInputs({
+                    ...f,
+                    settings: { ...f.settings, urbanShares: { [f.polityAddress]: share } },
+                });
+                expect(result.ruralInput).toBeUndefined();
+                expect(result.urbanInput).toBeUndefined();
+                expect(result.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            field: `settings.urbanShares.${f.polityAddress}`,
+                        }),
+                    ]),
+                );
+            }
+            const { urbanShares: _ignored, ...settings } = f.settings;
+            const badModel = prepareSettlementInputs({
+                ...f,
+                settings: {
+                    ...settings,
+                    model: { ...SETTLEMENT_MODEL_DEFAULTS, urbanShare: null },
+                },
+            });
+            expect(badModel.ruralInput).toBeUndefined();
+            expect(badModel.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ field: "settings.model.urbanShare" }),
+                ]),
+            );
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("does not use the default share to replace an unknown territorial population", async () => {
+        const f = await assemblyFixture();
+        try {
+            const initial = prepareSettlementInputs(f);
+            const frontmatter = structuredClone(initial.sourceCapture.get(f.crownFile).frontmatter);
+            frontmatter.data.territorial_population = null;
+            write(f.crownFile, note(frontmatter, "Unrelated text stays intact."));
+            const nextSession = await createContentSession({ config: f.session.config });
+            try {
+                const { urbanShares: _ignored, ...settings } = f.settings;
+                const result = prepareSettlementInputs({ ...f, session: nextSession, settings });
+                expect(result.ruralInput).toBeUndefined();
+                expect(result.urbanInput).toBeUndefined();
+                expect(result.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            file: f.crownFile,
+                            field: "data.territorial_population",
+                        }),
+                    ]),
+                );
+            } finally {
+                nextSession.dispose();
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
     it("joins real source captures and indexed facts before running both calculators", async () => {
         const f = await assemblyFixture();
         try {

@@ -27,6 +27,7 @@ import { isNoteRecord } from "./index-records.mjs";
 import { settlementMembership } from "./settlement-tables.mjs";
 import { proposeSettlements } from "./settlement-generate.mjs";
 import { proposeUrbanSupply } from "./settlement-urban.mjs";
+import { SETTLEMENT_MODEL_DEFAULTS } from "./settlement-model.mjs";
 
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const own = (value, key) => Object.hasOwn(value, key);
@@ -455,6 +456,8 @@ export function prepareSettlementInputs({
             binding.index >= existingRows.length
         )
             inputMissing("bindings.rows", "row binding must name an existing row index");
+    if (settings.urbanShares !== undefined && !object(settings.urbanShares))
+        inputMissing("settings.urbanShares", "provide a mapping of polity Addresses to shares");
     const split = (record, address, file) => {
         const total = record.data?.territorial_population;
         if (!nonnegative(total)) {
@@ -466,12 +469,24 @@ export function prepareSettlementInputs({
             );
             return {};
         }
-        if (total === 0) return { ruralPopulation: 0, urbanPopulation: 0 };
-        const share = settings.urbanShares?.[address];
-        if (!nonnegative(share) || share > 1) {
+        const hasShare = object(settings.urbanShares) && own(settings.urbanShares, address);
+        const declaredShare = hasShare ? settings.urbanShares[address] : undefined;
+        if (hasShare && (!nonnegative(declaredShare) || declaredShare > 1)) {
             inputMissing(
                 `settings.urbanShares.${address}`,
                 "provide an urban share between zero and one",
+            );
+            return {};
+        }
+        if (total === 0) return { ruralPopulation: 0, urbanPopulation: 0 };
+        const share =
+            hasShare ? declaredShare
+            : settings.model === undefined ? SETTLEMENT_MODEL_DEFAULTS.urbanShare
+            : settings.model?.urbanShare;
+        if (!nonnegative(share) || share > 1) {
+            inputMissing(
+                "settings.model.urbanShare",
+                "provide a default urban share between zero and one",
             );
             return {};
         }
