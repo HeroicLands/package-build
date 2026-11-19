@@ -42,14 +42,14 @@ const ruralTypes = new Set(["encampment", "homestead", "hamlet", "village"]);
 const positive = (n) => typeof n === "number" && Number.isFinite(n) && n > 0;
 const nonnegative = (n) => typeof n === "number" && Number.isFinite(n) && n >= 0;
 const count = (n) => Number.isSafeInteger(n) && n >= 0;
-const ACRE_SQUARE_METRES = 4046.8564224;
+const ACRE_SQUARE_METERS = 4046.8564224;
 const DISTANCE_UNITS = Object.freeze({
-    km: { metres: 1000, acresPerSquareUnit: 1000000 / ACRE_SQUARE_METRES },
-    mi: { metres: 1609.344, acresPerSquareUnit: 640 },
-    lg: { metres: 4828.032, acresPerSquareUnit: 5760 },
-    vr: { metres: 1066.8, acresPerSquareUnit: 1066.8 ** 2 / ACRE_SQUARE_METRES },
-    nmi: { metres: 1852, acresPerSquareUnit: 1852 ** 2 / ACRE_SQUARE_METRES },
-    nlg: { metres: 5556, acresPerSquareUnit: 5556 ** 2 / ACRE_SQUARE_METRES },
+    km: { meters: 1000, acresPerSquareUnit: 1000000 / ACRE_SQUARE_METERS },
+    mi: { meters: 1609.344, acresPerSquareUnit: 640 },
+    lg: { meters: 4828.032, acresPerSquareUnit: 5760 },
+    vr: { meters: 1066.8, acresPerSquareUnit: 1066.8 ** 2 / ACRE_SQUARE_METERS },
+    nmi: { meters: 1852, acresPerSquareUnit: 1852 ** 2 / ACRE_SQUARE_METERS },
+    nlg: { meters: 5556, acresPerSquareUnit: 5556 ** 2 / ACRE_SQUARE_METERS },
 });
 function sourceKey(source, mapId) {
     if (
@@ -963,8 +963,8 @@ export function prepareSettlementInputs({
                     areaUnit: units.areaUnit,
                     rawArea: cell.rawArea,
                     scaledArea: cell.area,
-                    metresPerUnit: unit.metres,
-                    acreSquareMetres: ACRE_SQUARE_METRES,
+                    metersPerUnit: unit.meters,
+                    acreSquareMeters: ACRE_SQUARE_METERS,
                     acresPerSquareUnit: unit.acresPerSquareUnit,
                     acres,
                 };
