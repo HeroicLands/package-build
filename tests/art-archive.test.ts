@@ -291,3 +291,17 @@ it("rejects a truncated data descriptor", async () => {
     ).rejects.toThrow(/descriptor/);
     expect((await fs.readdir(dir)).filter((x) => x.startsWith("art-archive-"))).toEqual([]);
 });
+
+it("rejects a signed descriptor that overlaps the central directory", async () => {
+    const { dir, cacheDir } = await setup();
+    const { out, descriptor, central } = withDescriptor(zip({ "image.png": png }), true);
+    // The signature, CRC and compressed length fit; the plain length would
+    // begin at the central-directory boundary.
+    const bytes = Buffer.concat([out.subarray(0, central - 4), out.subarray(central)]);
+    bytes.writeUInt32LE(central - 4, bytes.length - 6);
+    expect(central - 4 - descriptor).toBe(12);
+    await expect(
+        openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) }),
+    ).rejects.toThrow("invalid artwork entry descriptor");
+    expect((await fs.readdir(dir)).filter((entry) => entry.startsWith("art-archive-"))).toEqual([]);
+});
