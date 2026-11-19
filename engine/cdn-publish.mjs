@@ -58,6 +58,7 @@
  */
 
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
 import { execFile } from "node:child_process";
@@ -467,6 +468,8 @@ export function internalStore({
     };
 }
 
+const artworkReaders = new WeakMap();
+
 /**
  * One picture to publish.
  *
@@ -475,8 +478,8 @@ export function internalStore({
  * @property {string} address - Its canonical address.
  * @property {string} target - `<icons|images>/<basename>`.
  * @property {string} key - The object key, `<package>/<target>`.
- * @property {Buffer} body - The bytes, transformed as the stage transforms
- *   them.
+ * @property {Buffer} [body] - The bytes for ordinary file inputs.
+ * @property {number} size - The planned byte length.
  * @property {string} contentType - The media type it is served with.
  * @property {boolean} shipped - Whether the Foundry package ships it.
  */
@@ -488,7 +491,8 @@ export function internalStore({
  * @property {object[]} findings - What stops the publish; nothing is planned
  *   when non-empty.
  * @property {object[]} records - Every asset record the package has.
- * @property {CdnUpload[]} uploads - One per picture, in key order.
+ * @property {CdnUpload[]} uploads - One per picture, in key order. Preserve
+ *   these entries when passing the plan to publication.
  * @property {{key: string, body: Buffer, set: object}|null} set - The set file.
  * @property {string} cdnRoot - `<site.assets>/<package>/`.
  */
@@ -536,7 +540,7 @@ export function planCdnPublish({
         .map((record) => {
             const prepared = preparedMasters?.get(record.address.canonical);
             const source = artSources?.get(record.address.canonical);
-            if (artSources && !source)
+            if (artSources && ["image", "icon"].includes(record.type) && !source)
                 throw new Error(`artwork input is missing for ${record.address.canonical}`);
             const from = prepared ?? path.join(assetsBase, ...record.asset.path.split("/"));
             const transformed = !prepared && !source && transform ? transform(from) : null;
@@ -544,16 +548,32 @@ export function planCdnPublish({
                 source ? source()
                 : transformed != null ? Buffer.from(transformed, "utf8")
                 : fs.readFileSync(from);
+            if (!Buffer.isBuffer(body)) throw new Error("artwork input must return a Buffer");
             const target = /** @type {string} */ (deployedAssetPath(record));
-            return {
+            const upload = {
                 record,
                 address: record.address.canonical,
                 target,
                 key: `${contentPackage}/${target}`,
-                body,
+                size: body.length,
                 contentType: contentTypeOf(target),
                 shipped: shipped.has(record),
+                ...(!source ? { body } : {}),
             };
+            if (source) {
+                const digest = createHash("sha256").update(body).digest("hex");
+                artworkReaders.set(upload, () => {
+                    const bytes = source();
+                    if (
+                        !Buffer.isBuffer(bytes) ||
+                        bytes.length !== upload.size ||
+                        createHash("sha256").update(bytes).digest("hex") !== digest
+                    )
+                        throw new Error(`artwork input changed for ${upload.address}`);
+                    return bytes;
+                });
+            }
+            return upload;
         })
         .sort((a, b) => (a.key < b.key ? -1 : 1));
 
@@ -566,7 +586,7 @@ export function planCdnPublish({
                 address: upload.address,
                 source: `${cdnRoot}${upload.target}`,
                 target: upload.target,
-                size: upload.body.length,
+                size: upload.size,
             }))
             .sort((a, b) => (a.target < b.target ? -1 : 1)),
     };
@@ -635,37 +655,53 @@ export async function publishToCdn(plan, { store, dryRun = false, log = () => {}
     const skipped = [];
     const failed = [];
     const published = new Set();
+    const batched = [];
     await pooled(plan.uploads, CONCURRENCY, async (upload) => {
         try {
+            const reader = artworkReaders.get(upload);
+            const body = reader ? reader() : upload.body;
+            if (!Buffer.isBuffer(body))
+                throw new Error(`CDN upload has no valid byte source for ${upload.address}`);
+            const expectedSize = upload.size ?? body.length;
+            if (body.length !== expectedSize)
+                throw new Error(`CDN upload byte length changed for ${upload.address}`);
             const size = await store.size(upload.key);
-            if (size === upload.body.length) {
+            if (size === expectedSize) {
                 skipped.push(upload);
-            } else {
-                if (!dryRun && !store.writeMany)
-                    await write(upload.key, upload.body, upload.contentType);
+                published.add(upload.address);
+            } else if (dryRun) {
                 uploaded.push(upload);
+                published.add(upload.address);
+            } else if (store.writeMany && !reader) {
+                batched.push(upload);
+            } else {
+                if (store.writeMany) await store.writeMany([{ key: upload.key, body }]);
+                else await write(upload.key, body, upload.contentType);
+                uploaded.push(upload);
+                published.add(upload.address);
             }
-            const confirmed = dryRun || !store.writeMany || size === upload.body.length;
-            if (confirmed) published.add(upload.address);
         } catch (err) {
             failed.push({ upload, message: err instanceof Error ? err.message : String(err) });
         }
     });
-    if (!dryRun && store.writeMany && uploaded.length) {
+    if (batched.length) {
         try {
-            await store.writeMany(uploaded);
-            for (const upload of uploaded) published.add(upload.address);
+            await store.writeMany(batched);
+            for (const upload of batched) {
+                uploaded.push(upload);
+                published.add(upload.address);
+            }
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
-            for (const upload of uploaded) failed.push({ upload, message });
-            uploaded.length = 0;
+            for (const upload of batched) failed.push({ upload, message });
         }
     }
     const byKey = (a, b) => (a.key < b.key ? -1 : 1);
     uploaded.sort(byKey);
     skipped.sort(byKey);
     failed.sort((a, b) => byKey(a.upload, b.upload));
-    for (const upload of uploaded) log(`${verb} ${upload.key} (${upload.body.length} bytes)`);
+    for (const upload of uploaded)
+        log(`${verb} ${upload.key} (${upload.size ?? upload.body.length} bytes)`);
     for (const upload of skipped) log(`skipped ${upload.key}, already present at that size`);
 
     const setPlan = /** @type {NonNullable<CdnPlan["set"]>} */ (plan.set);
