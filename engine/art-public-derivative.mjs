@@ -53,12 +53,12 @@ export function inspectPublicDerivative(
 ) {
     const format = sniffFormat(bytes);
     if (!["webp", "svg"].includes(format) || path.extname(name).toLowerCase() !== `.${format}`)
-        throw failure("public artwork archive accepts only WebP and SVG derivatives");
+        throw failure("public artwork accepts only WebP and SVG derivatives");
     let read;
     try {
         read = format === "svg" ? readSvgProvenance(bytes) : readWebpProvenance(bytes);
     } catch {
-        throw failure("invalid image metadata in public artwork archive");
+        throw failure("invalid public artwork image metadata");
     }
     const r = read.record,
         tuple = readCanonicalKey(r.address);
@@ -90,9 +90,9 @@ export function inspectPublicDerivative(
             notePublic: r.name !== undefined || r.primaryNote !== undefined,
         }).bytes;
     } catch {
-        throw failure("public archive contains unsafe image metadata or markup");
+        throw failure("public artwork contains unsafe image metadata or markup");
     }
     if (!sanitized.equals(bytes))
-        throw failure("public archive contains unsanitized image metadata or markup");
+        throw failure("public artwork contains unsanitized image metadata or markup");
     return { name, bytes, format, metadata: r };
 }

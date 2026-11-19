@@ -24,7 +24,7 @@ import { baseStyleStageEntry } from "./base-styles.mjs";
 import { phoneticAssetEntries } from "./phonetic-fonts.mjs";
 import { checkScriptFonts, copyScriptFonts, STAGED_FONTS_DIR } from "./script-font-delivery.mjs";
 import { createContentSession } from "./content-session.mjs";
-import { readArtLock, privateArtRoots } from "./art-lock.mjs";
+import { privateArtRoots } from "./art-inputs.mjs";
 import { assertPrivateArtRoots, shippingAssetRecords } from "./art-masters.mjs";
 import { renderArtMasters } from "./art-master-render.mjs";
 
@@ -126,102 +126,106 @@ export async function stagePackageBuildAssets({
     const transform = await loadAssetTransform(config);
     let artSession = session;
     let preparedMasters;
-    if (packConfig.art?.masterRoots?.length || readArtLock(packConfig)) {
-        artSession ??= await createContentSession({ config: packConfig });
-        try {
+    let artSources;
+    try {
+        if (packConfig.art?.masterRoots?.length || packConfig.art?.packages?.length) {
+            artSession ??= await createContentSession({ config: packConfig });
             artSession.assertContext({ config: packConfig });
             if (artSession.problems.length) {
                 const error = new Error(artSession.problems.map(formatDiagnostic).join("\n"));
                 error.located = true;
                 throw error;
             }
-            preparedMasters =
-                readArtLock(packConfig) ?
-                    artSession.pinnedArt
-                :   await renderArtMasters(
-                        artSession.masters,
-                        artSession.records,
-                        path.join(config.rootDir, "build", "art"),
-                        path.join(config.rootDir, "build", ".cache", "art"),
-                    );
-        } finally {
-            if (!session) artSession.dispose();
+            if (packConfig.art?.packages?.length) artSources = artSession.artSources;
+            else
+                preparedMasters = await renderArtMasters(
+                    artSession.masters,
+                    artSession.records,
+                    path.join(config.rootDir, "build", "art"),
+                    path.join(config.rootDir, "build", ".cache", "art"),
+                );
         }
-    }
 
-    // `to:` is relative to the staged package root, so a
-    // repository's table reads `lang`, not `build/stage/lang`.
-    const entries = config.assets.map(({ from, to }) => [from, path.join(config.stageDir, to)]);
-    let { entries: count, files } = stageAssets(entries, {
-        cwd: config.rootDir,
-        transform,
-    });
+        // `to:` is relative to the staged package root, so a
+        // repository's table reads `lang`, not `build/stage/lang`.
+        const entries = config.assets.map(({ from, to }) => [from, path.join(config.stageDir, to)]);
+        let { entries: count, files } = stageAssets(entries, {
+            cwd: config.rootDir,
+            transform,
+        });
 
-    // The picture roots, staged by the toolchain rather than by a row:
-    // flat, filtered by each file's provenance, and listed in the
-    // package's asset set.
-    const pictures = stagePackageAssets({
-        assetsBase,
-        contentPackage: packConfig.contentPackage,
-        stageDir: path.resolve(config.rootDir, config.stageDir),
-        // The manifest's title names the set; a package with none is
-        // named by its content package.
-        title:
-            typeof config.manifest?.title === "string" && config.manifest.title.trim() ?
-                config.manifest.title
-            :   packConfig.contentPackage,
-        transform,
-        shippingLicenses: config.shippingLicenses,
-        preparedMasters,
-        records: preparedMasters ? shippingAssetRecords(artSession.records) : undefined,
-    });
-    if (pictures.findings.length) {
-        const error = new Error(pictures.findings.map(formatDiagnostic).join("\n"));
-        error.located = true;
-        throw error;
-    }
-    files += pictures.staged.length;
-    if (pictures.staged.length || pictures.excluded.length) {
-        console.log(
-            `Pictures: ${pictures.staged.length} staged, ` +
-                `${pictures.excluded.length} left out by provenance.`,
+        // The picture roots, staged by the toolchain rather than by a row:
+        // flat, filtered by each file's provenance, and listed in the
+        // package's asset set.
+        const pictures = stagePackageAssets({
+            assetsBase,
+            contentPackage: packConfig.contentPackage,
+            stageDir: path.resolve(config.rootDir, config.stageDir),
+            // The manifest's title names the set; a package with none is
+            // named by its content package.
+            title:
+                typeof config.manifest?.title === "string" && config.manifest.title.trim() ?
+                    config.manifest.title
+                :   packConfig.contentPackage,
+            transform,
+            shippingLicenses: config.shippingLicenses,
+            preparedMasters,
+            artSources,
+            records:
+                preparedMasters || artSources ?
+                    shippingAssetRecords(artSession.records)
+                :   undefined,
+        });
+        if (pictures.findings.length) {
+            const error = new Error(pictures.findings.map(formatDiagnostic).join("\n"));
+            error.located = true;
+            throw error;
+        }
+        files += pictures.staged.length;
+        if (pictures.staged.length || pictures.excluded.length) {
+            console.log(
+                `Pictures: ${pictures.staged.length} staged, ` +
+                    `${pictures.excluded.length} left out by provenance.`,
+            );
+        }
+
+        // Staged in its own pass, without the repository's transform: the
+        // sheet is this toolchain's file rather than one of the
+        // repository's assets, and a `transform` written to retheme a
+        // package's own SVGs has no business being handed it.
+        if (config.baseStyles) {
+            const staged = stageAssets(
+                [baseStyleStageEntry(config.stageDir), ...phoneticAssetEntries(config.stageDir)],
+                {
+                    cwd: config.rootDir,
+                },
+            );
+            count += staged.entries;
+            files += staged.files;
+        }
+
+        // The installed fonts, when the package has installed the fonts
+        // package and a note sets text in one of its faces: the
+        // stylesheet, the WOFF2 files and the licence, which the
+        // manifest's `styles` names.
+        const fontFindings = checkScriptFonts(packConfig, session);
+        if (fontFindings.length) {
+            const error = new Error(fontFindings.map(formatDiagnostic).join("\n"));
+            error.located = true;
+            throw error;
+        }
+        const fonts = copyScriptFonts(
+            packConfig,
+            path.resolve(config.rootDir, config.stageDir, STAGED_FONTS_DIR),
+            ["woff2"],
+            session,
         );
+        if (fonts) {
+            count += 1;
+            files += fonts;
+        }
+        console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
+    } finally {
+        if (!session) artSession?.dispose();
     }
-
-    // Staged in its own pass, without the repository's transform: the
-    // sheet is this toolchain's file rather than one of the
-    // repository's assets, and a `transform` written to retheme a
-    // package's own SVGs has no business being handed it.
-    if (config.baseStyles) {
-        const staged = stageAssets(
-            [baseStyleStageEntry(config.stageDir), ...phoneticAssetEntries(config.stageDir)],
-            {
-                cwd: config.rootDir,
-            },
-        );
-        count += staged.entries;
-        files += staged.files;
-    }
-
-    // The installed fonts, when the package has installed the fonts
-    // package and a note sets text in one of its faces: the
-    // stylesheet, the WOFF2 files and the licence, which the
-    // manifest's `styles` names.
-    const fontFindings = checkScriptFonts(packConfig, session);
-    if (fontFindings.length) {
-        const error = new Error(fontFindings.map(formatDiagnostic).join("\n"));
-        error.located = true;
-        throw error;
-    }
-    const fonts = copyScriptFonts(
-        packConfig,
-        path.resolve(config.rootDir, config.stageDir, STAGED_FONTS_DIR),
-        ["woff2"],
-        session,
-    );
-    if (fonts) {
-        count += 1;
-        files += fonts;
-    }
-    console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
 }

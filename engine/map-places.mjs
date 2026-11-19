@@ -277,16 +277,19 @@ function addForeignPlaces(world, foreignIndex) {
  *   the URL their index resolved to regardless.
  * @param {object[]} [opts.problems] - Collects the notes the index cannot
  *   record, as diagnostics, instead of throwing on the first.
+ * @param {object[]} [opts.records] - Prepared content and asset records.
  * @returns {MapWorld} The world.
  */
-export function loadMapWorld({ config, contentBase, base, problems }) {
+export function loadMapWorld({ config, contentBase, base, problems, records: suppliedRecords }) {
     const tree = contentBase ?? config.paths.content;
-    const records = indexRecordsFor({
-        contentBase: tree,
-        config,
-        skipDirectories: config.skipDirectories,
-        problems,
-    });
+    const records =
+        suppliedRecords ??
+        indexRecordsFor({
+            contentBase: tree,
+            config,
+            skipDirectories: config.skipDirectories,
+            problems,
+        });
     const foreign = loadForeignIndexes(config, [config.contentPackage]);
     const world = mapWorld({
         records,

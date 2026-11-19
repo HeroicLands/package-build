@@ -54,13 +54,8 @@ import {
     siteBuildConfig,
 } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
-import {
-    fetchPublicArt,
-    fetchArtSource,
-    reproducePinnedArt,
-    privateArtRoots,
-    readArtLock,
-} from "../engine/art-lock.mjs";
+import { privateArtRoots } from "../engine/art-inputs.mjs";
+import { indexRecordsWithArtwork } from "../engine/art-index-input.mjs";
 import { assertPrivateArtRoots } from "../engine/art-masters.mjs";
 import { artSource } from "../engine/art-source.mjs";
 import { GENERATED_DRAWING_DIR } from "../engine/generated-sections.mjs";
@@ -333,7 +328,6 @@ export function registerContentCommands(cli) {
         )
         .command(itemsCommand())
         .command(depsCommand())
-        .command(artCommand())
         .command(docsCommand())
         .command(withIndexPreflight(lintCommand()))
         .command(proseCommand())
@@ -517,7 +511,7 @@ function withBodyPreflight(
                     const contentBase = contentRoot(config, argv);
                     if (!fs.existsSync(contentBase)) return handler(argv);
                     const session =
-                        shareCapture ?
+                        shareCapture || config.art?.packages?.length ?
                             (argv[CONTENT_SESSION] ??
                             (owned = await createContentSession({ config, contentBase })))
                         :   undefined;
@@ -1593,7 +1587,7 @@ function contentBuildOutputs(config, packaging) {
         config.paths.content,
         ...DEPLOYED_ASSET_TYPES.map((entry) => path.resolve(config.paths.assets, entry.root)),
         ...(config.art?.masterRoots ?? []),
-        ...(readArtLock(config) ? [path.join(config.rootDir, "build/.cache/pinned-art")] : []),
+        ...(config.art?.packages?.length ? [path.join(config.rootDir, "node_modules")] : []),
     ];
     const stage = path.resolve(packaging.rootDir, packaging.stageDir);
     const outputs = [
@@ -1685,18 +1679,10 @@ function contentBuildCommand() {
                 const marker = path.join(config.paths.contentIndex, ".publication-ready");
                 const packaging = loadPackageBuildConfig();
                 const outputs = contentBuildOutputs(config, packaging);
-                if (readArtLock(config)) {
-                    session = await createContentSession({ config, timings, trackChanges: true });
-                    if (session.pinnedArtFindings.length)
-                        throw Object.assign(
-                            new Error(session.pinnedArtFindings.map(formatDiagnostic).join("\n")),
-                            { located: true },
-                        );
-                }
+                session = await createContentSession({ config, timings, trackChanges: true });
                 fs.rmSync(marker, { force: true });
                 for (const output of outputs) fs.rmSync(output, { recursive: true, force: true });
                 cachedMetadataIndexes(config);
-                session ??= await createContentSession({ config, timings, trackChanges: true });
                 shared[CONTENT_SESSION] = session;
                 for (const warning of session.warnings) emitDiagnostic(warning);
                 let prepared = false;
@@ -2419,6 +2405,7 @@ function siteBuildCommand() {
                 const result = await buildPackageSite({
                     config,
                     out,
+                    session: argv[CONTENT_SESSION],
                     progress: (message) => log.info(message),
                 });
                 // A note in error is written as its page shows it, and the
@@ -2650,12 +2637,17 @@ function mapCommand() {
                     type: "string",
                 });
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
                 const config = loadPackConfig();
                 const outDir = argv.out ?? path.join(config.rootDir, ...MAP_DIR.split("/"));
                 const problems = [];
-                const world = loadMapWorld({ config, base: argv.base, problems });
+                const records = await indexRecordsWithArtwork({
+                    config,
+                    contentBase: config.paths.content,
+                    problems,
+                });
+                const world = loadMapWorld({ config, base: argv.base, problems, records });
                 for (const problem of problems) emitDiagnostic(problem);
                 if (problems.length) process.exitCode = 1;
                 for (const s of world.stale) {
@@ -2711,10 +2703,10 @@ function mapCommand() {
  *   `undefined` when the content tree could not be read whole, which is
  *   reported.
  */
-function encodingContext() {
+async function encodingContext() {
     const config = loadPackConfig();
     const problems = [];
-    const records = indexRecordsFor({
+    const records = await indexRecordsWithArtwork({
         contentBase: config.paths.content,
         config,
         skipDirectories: config.skipDirectories,
@@ -2797,9 +2789,9 @@ function lexiconCommand() {
                     default: false,
                     describe: "Print a JSON array rather than tab-separated lines",
                 }),
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
-                const read = encodingContext();
+                const read = await encodingContext();
                 if (!read) {
                     process.exitCode = 1;
                     return;
@@ -2863,11 +2855,11 @@ function coreCommand() {
                     default: false,
                     describe: "Print the report as JSON",
                 }),
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
                 const config = loadPackConfig();
                 const problems = [];
-                const records = indexRecordsFor({
+                const records = await indexRecordsWithArtwork({
                     contentBase: config.paths.content,
                     config,
                     skipDirectories: config.skipDirectories,
@@ -2950,7 +2942,7 @@ function reachabilityCommand() {
                 const scope = { skipDirectories: config.skipDirectories };
                 const corpusProblems = [];
                 const parsed = new Map();
-                const records = indexRecordsFor({
+                const records = await indexRecordsWithArtwork({
                     contentBase,
                     config,
                     ...scope,
@@ -3201,7 +3193,7 @@ async function diffAddresses(config, argv) {
     // corpus is derived once, here, and handed to both.
     const scope = { skipDirectories: config.skipDirectories };
     const corpusProblems = [];
-    const records = indexRecordsFor({
+    const records = await indexRecordsWithArtwork({
         contentBase: config.paths.content,
         config,
         ...scope,
@@ -3435,7 +3427,7 @@ function noteError(note, keyPath, message) {
  * @param {object} config - The resolved pack configuration.
  * @param {{spec?: string, specfile?: string, seed?: string, out?: string}} argv
  */
-function newNpc(config, argv) {
+async function newNpc(config, argv) {
     const { spec, file: specFile, text: specText } = readNpcSpec(argv);
     const problems = npcSpecProblems(spec);
     if (problems.length) throw new Error(`npc new: ${problems.join("; ")}`);
@@ -3444,7 +3436,7 @@ function newNpc(config, argv) {
 
     const root = config.paths.content;
     const corpusProblems = [];
-    const records = indexRecordsFor({
+    const records = await indexRecordsWithArtwork({
         contentBase: root,
         config,
         skipDirectories: config.skipDirectories,
@@ -3636,9 +3628,9 @@ function newNpc(config, argv) {
 }
 
 /** Write the prompt channels for a being selected through the content index. */
-function promptNpc(config, address) {
+async function promptNpc(config, address) {
     const contentBase = config.paths.content;
-    const records = indexRecordsFor({
+    const records = await indexRecordsWithArtwork({
         contentBase,
         config,
         skipDirectories: config.skipDirectories,
@@ -3765,8 +3757,8 @@ function npcCommand() {
         handler: async (argv) => {
             try {
                 const config = argv[CONTENT_CONFIG] ?? loadPackConfig();
-                if (argv.action === "prompt") promptNpc(config, argv.address);
-                else newNpc(config, argv);
+                if (argv.action === "prompt") await promptNpc(config, argv.address);
+                else await newNpc(config, argv);
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
@@ -3776,9 +3768,9 @@ function npcCommand() {
 }
 
 /** Build a vehicle prompt from indexed facts and explicit or stored settings. */
-function promptVehicle(config, argv) {
+async function promptVehicle(config, argv) {
     const contentBase = config.paths.content;
-    const records = indexRecordsFor({
+    const records = await indexRecordsWithArtwork({
         contentBase,
         config,
         skipDirectories: config.skipDirectories,
@@ -3902,7 +3894,7 @@ function vehicleCommand() {
                 }),
         handler: async (argv) => {
             try {
-                promptVehicle(argv[CONTENT_CONFIG] ?? loadPackConfig(), argv);
+                await promptVehicle(argv[CONTENT_CONFIG] ?? loadPackConfig(), argv);
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
@@ -3933,14 +3925,14 @@ function itemsCommand() {
                     default: false,
                     describe: "Write the report as JSON",
                 }),
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
                 const config = loadPackConfig();
                 if (!declaredSystems(config).includes(argv.system)) {
                     throw new Error(`System ${argv.system} is not supported by this package`);
                 }
                 const problems = [];
-                const records = indexRecordsFor({
+                const records = await indexRecordsWithArtwork({
                     config,
                     contentBase: config.paths.content,
                     skipDirectories: config.skipDirectories,
@@ -3991,86 +3983,5 @@ function itemsCommand() {
                 process.exitCode = 1;
             }
         },
-    };
-}
-
-/** Explicit pinned artwork fetching; ordinary builds use only verified local inputs. */
-function artCommand() {
-    return {
-        command: "art <action>",
-        describe: "Fetch pinned artwork for offline builds",
-        builder: (yargs) =>
-            yargs
-                .command({
-                    command: "fetch",
-                    describe: "Fetch and verify public derivatives from art.lock",
-                    builder: (y) =>
-                        y.option("from", {
-                            type: "string",
-                            describe: "Read the pinned ZIP from a local file",
-                        }),
-                    handler: async (argv) => {
-                        try {
-                            const config = loadPackConfig();
-                            const records = indexRecordsFor({ config, pinnedArt: false });
-                            await fetchPublicArt(config, { records, from: argv.from });
-                            log.info("Pinned public artwork is verified for offline builds.");
-                        } catch (error) {
-                            reportFailure(error);
-                            process.exitCode = 1;
-                        }
-                    },
-                })
-                .command({
-                    command: "reproduce",
-                    describe: "Verify private regeneration against the pinned public artwork",
-                    handler: async () => {
-                        try {
-                            const config = loadPackConfig();
-                            const records = indexRecordsFor({ config });
-                            await reproducePinnedArt(config, { records });
-                            log.info("Private regeneration matches the pinned public artwork.");
-                        } catch (error) {
-                            reportFailure(error);
-                            process.exitCode = 1;
-                        }
-                    },
-                })
-                .command({
-                    command: "source <action>",
-                    describe: "Restore private pinned Git/LFS sources",
-                    builder: (y) =>
-                        y
-                            .command({
-                                command: "fetch",
-                                describe: "Fetch and verify the exact private revision in art.lock",
-                                builder: (z) =>
-                                    z.option("from", {
-                                        type: "string",
-                                        describe:
-                                            "Use a local Git repository at the same pinned revision",
-                                    }),
-                                handler: async (argv) => {
-                                    try {
-                                        const config = loadPackConfig();
-                                        const destination = await fetchArtSource(config, {
-                                            from: argv.from,
-                                        });
-                                        log.info(
-                                            `Verified private artwork at ${path.relative(config.rootDir, destination)}.`,
-                                        );
-                                    } catch (error) {
-                                        reportFailure(error);
-                                        process.exitCode = 1;
-                                    }
-                                },
-                            })
-                            .demandCommand(1)
-                            .strict(),
-                    handler: () => {},
-                })
-                .demandCommand(1)
-                .strict(),
-        handler: () => {},
     };
 }

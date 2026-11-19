@@ -15,7 +15,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { privateArtRoots } from "./art-lock.mjs";
+import { privateArtRoots } from "./art-inputs.mjs";
 import { assertPrivateArtRoots } from "./art-masters.mjs";
 
 import { calendariaEnvelope, compileCalendars } from "./calendar-notes.mjs";

@@ -42,7 +42,7 @@ import fs from "fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import log from "loglevel";
 import path from "path";
-import { privateArtRoots } from "./art-lock.mjs";
+import { privateArtRoots } from "./art-inputs.mjs";
 import { assertPrivateArtRoots } from "./art-masters.mjs";
 import { compilePack, extractPack } from "@foundryvtt/foundryvtt-cli";
 import { generatePacksJson, packJsonDir } from "./generate.mjs";

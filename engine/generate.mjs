@@ -43,7 +43,7 @@ import { GENERATED_DRAWING_DIR } from "./generated-sections.mjs";
 import fs from "fs";
 import path from "path";
 import log from "loglevel";
-import { privateArtRoots } from "./art-lock.mjs";
+import { privateArtRoots } from "./art-inputs.mjs";
 import { assertPrivateArtRoots } from "./art-masters.mjs";
 
 import { foreignItemCatalogDirs } from "./foreign-catalog.mjs";

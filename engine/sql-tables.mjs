@@ -1931,11 +1931,12 @@ export async function prepareTreeSqlTables(
     // compilers through `manifest-emit` → `journals`, so a static import from a
     // module they load would close a cycle and leave `BasePackCompiler`
     // uninitialised for whichever module the runtime happened to load first.
-    const { indexRecordsFor } = await import("./content-index.mjs");
+    const { indexRecordsWithArtwork } = await import("./art-index-input.mjs");
     if (only !== undefined && typeof only !== "string") only = new Set(only);
     const notes = parsed ?? new Map();
     const allRecords =
-        records ?? indexRecordsFor({ contentBase, config, skipDirectories, parsed: notes });
+        records ??
+        (await indexRecordsWithArtwork({ contentBase, config, skipDirectories, parsed: notes }));
     const indexRecords = allRecords.filter((record) => audience !== "public" || !isGmNote(record));
 
     // Which notes carry a directive, discovered over the same corpus every
@@ -2089,10 +2090,11 @@ export async function prepareLinkSqlTables(
     contentBase,
     { config, skipDirectories, records, parsed, foreignIndex, prepareAudience } = {},
 ) {
-    const { indexRecordsFor } = await import("./content-index.mjs");
+    const { indexRecordsWithArtwork } = await import("./art-index-input.mjs");
     const notes = parsed ?? new Map();
     const allRecords =
-        records ?? indexRecordsFor({ contentBase, config, skipDirectories, parsed: notes });
+        records ??
+        (await indexRecordsWithArtwork({ contentBase, config, skipDirectories, parsed: notes }));
     const sources = new Map();
     const lexicalOwners = lexicalSectionsFor(allRecords);
     for (const record of allRecords) {

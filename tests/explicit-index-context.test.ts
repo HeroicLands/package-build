@@ -39,7 +39,7 @@ describe("explicit index configuration", () => {
                     import { indexRecordsFor } from ${JSON.stringify(indexUrl)};
                     const config = readPackConfig(${JSON.stringify(consumer.configFile)});
                     const problems = [];
-                    const records = indexRecordsFor({ config, problems, pinnedArt: false });
+                    const records = indexRecordsFor({ config, problems });
                     const bundle = records.find(record => record.shortcode === 'example');
                     let ambientRead = false;
                     if (process.env.PACKAGE_BUILD_CONFIG) {
