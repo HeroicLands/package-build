@@ -45,6 +45,8 @@ export const LANGUAGE_DATA_KEYS = Object.freeze([
     "negation",
     "naming",
     "grammar",
+    "writing",
+    "samples",
 ]);
 
 /**
@@ -1781,6 +1783,71 @@ const GRAMMAR_FIELDS = Object.freeze([
     }),
 ]);
 
+/** Required string fields in a sample row. */
+const sampleStrings = (descriptions) =>
+    Object.freeze(
+        Object.entries(descriptions).map(([name, describe]) =>
+            Object.freeze({
+                name,
+                kind: "string",
+                required: true,
+                shape: "a string",
+                describe,
+            }),
+        ),
+    );
+
+const PARADIGM_FIELDS = sampleStrings({
+    verb: "The verb named in the paradigm.",
+    I: "The first-person singular form.",
+    thou: "The second-person singular form.",
+    heSheIt: "The third-person singular form.",
+    plural: "The form for plural subjects.",
+});
+const WORKED_FIELDS = sampleStrings({
+    meaning: "The meaning of the example.",
+    text: "The written example.",
+});
+const VERSE_FIELDS = Object.freeze([
+    ...sampleStrings({ work: "The name of the verse work." }),
+    Object.freeze({
+        name: "lines",
+        kind: "list",
+        required: true,
+        shape: "a list of strings",
+        entries: STRINGS,
+        describe: "The lines in order.",
+    }),
+]);
+const WRITING_FIELDS = Object.freeze([
+    listOfMaps("paradigms", PARADIGM_FIELDS, "Verb forms in each row."),
+    Object.freeze({
+        name: "examples",
+        kind: "list",
+        shape: "a list of strings",
+        entries: STRINGS,
+        describe: "Written examples.",
+    }),
+    listOfMaps("worked", WORKED_FIELDS, "Examples with their meanings."),
+    Object.freeze({
+        name: "conversation",
+        kind: "list",
+        shape: "a list of strings",
+        entries: STRINGS,
+        describe: "Conversation lines in order.",
+    }),
+]);
+const SAMPLE_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "prose",
+        kind: "list",
+        shape: "a list of strings",
+        entries: STRINGS,
+        describe: "Prose samples.",
+    }),
+    listOfMaps("verse", VERSE_FIELDS, "Works and their verse lines."),
+]);
+
 /**
  * The `data` fields this module declares, in the order the vocabulary lists
  * them. {@link module:engine/language-data.checkLanguageData} checks what the
@@ -1789,6 +1856,20 @@ const GRAMMAR_FIELDS = Object.freeze([
  * @type {readonly object[]}
  */
 export const LANGUAGE_DATA_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "writing",
+        kind: "map",
+        shape: "a map — `{ paradigms?, examples?, worked?, conversation? }`",
+        fields: WRITING_FIELDS,
+        describe: "Optional writing examples and verb forms. A language skill note only.",
+    }),
+    Object.freeze({
+        name: "samples",
+        kind: "map",
+        shape: "a map — `{ prose?, verse? }`",
+        fields: SAMPLE_FIELDS,
+        describe: "Optional prose and verse samples. A language skill note only.",
+    }),
     Object.freeze({
         name: "roman",
         kind: "string",
