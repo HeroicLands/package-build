@@ -149,9 +149,9 @@ export async function downloadCached(url, sha256, options = {}) {
         if (length !== null && size !== Number(length)) throw new Error("download is incomplete");
         if (hash.digest("hex") !== sha256) throw new Error("download SHA-256 does not match");
         await rename(file, target);
-        if (!(await matches(target, sha256, maxBytes, options.signal)))
-            throw new Error("cached download failed verification");
-        return target;
+        for (let attempt = 0; attempt < 3; attempt++)
+            if (await matches(target, sha256, maxBytes, options.signal)) return target;
+        throw new Error("cached download failed verification");
     } finally {
         if (response?.body && !response.body.locked) await response.body.cancel().catch(() => {});
         await rm(temporary, { recursive: true, force: true });

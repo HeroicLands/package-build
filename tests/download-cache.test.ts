@@ -6,6 +6,20 @@ import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { downloadCached, downloadCacheDirectory } from "../engine/download-cache.mjs";
 
+const hooks = vi.hoisted(() => ({
+    beforeLstat: undefined as undefined | ((file: string) => Promise<void>),
+}));
+vi.mock("node:fs/promises", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("node:fs/promises")>();
+    return {
+        ...actual,
+        lstat: async (file: string) => {
+            await hooks.beforeLstat?.(file);
+            return actual.lstat(file);
+        },
+    };
+});
+
 const roots: string[] = [];
 const content = Buffer.from("A shared verified file\n");
 const sha = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -20,6 +34,7 @@ const response = () =>
     new Response(content, { headers: { "content-length": String(content.length) } });
 afterEach(async () => {
     await Promise.all(roots.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
+    hooks.beforeLstat = undefined;
     vi.unstubAllEnvs();
 });
 
@@ -184,4 +199,22 @@ it("honors cancellation before verifying a cache hit", async () => {
         downloadCached(url, digest, { cacheDir, fetch: fetcher, signal: controller.signal }),
     ).rejects.toThrow();
     expect(fetcher).not.toHaveBeenCalled();
+});
+
+it("rechecks a verified file replaced by another writer during verification", async () => {
+    const cacheDir = await root();
+    const target = path.join(cacheDir, digest);
+    let observations = 0;
+    hooks.beforeLstat = async (file) => {
+        if (file !== target || ++observations !== 3) return;
+        const replacement = path.join(cacheDir, "other-writer");
+        await fs.writeFile(replacement, content);
+        await fs.rename(replacement, target);
+    };
+    const fetcher = vi.fn(async () => response());
+    expect(await downloadCached(url, digest, { cacheDir, fetch: fetcher })).toBe(target);
+    expect(observations).toBe(5);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(await fs.readFile(target)).toEqual(content);
+    expect(await fs.readdir(cacheDir)).toEqual([digest]);
 });
