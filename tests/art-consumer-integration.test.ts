@@ -728,3 +728,53 @@ describe("installed artwork in the content session", () => {
         await expect(createContentSession({ config: f.config })).rejects.toThrow();
     });
 });
+
+it("stages the same verified installed screen asset in a book and refuses npm print", async () => {
+    const f = fixture();
+    const { buildPdf } = await import("../engine/pdf-build.mjs");
+    const manifestPath = path.join(f.root, "package.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    manifest.homepage = "https://example.invalid/sample/";
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    fs.writeFileSync(
+        f.subject,
+        note(
+            {
+                type: "being",
+                shortcode: "subject",
+                name: { full: "Subject" },
+                data: { icon: "image-portrait" },
+            },
+            "![Portrait](images/portrait.svg)",
+        ),
+    );
+    fs.writeFileSync(
+        path.join(f.root, "book.yaml"),
+        "contents:\n  - sectionName: People\n    contents:\n      - filter: \"type = 'being'\"\n",
+    );
+    const configPath = path.join(f.root, "package-build.config.yaml");
+    const data = YAML.parse(fs.readFileSync(configPath, "utf8"));
+    data.pdf = {
+        unprinted: "type = 'homepage'",
+        books: [{ id: "core", title: "People", document: "book.yaml" }],
+    };
+    fs.writeFileSync(configPath, YAML.stringify(data));
+    const config = configFromData(data, configPath);
+    const result = await buildPdf({ config, edition: "screen", compile: false });
+    expect(result.built, JSON.stringify(result.findings)).toBe(true);
+    const outDir = path.join(f.root, "build", "dist");
+    const files: string[] = [];
+    function visit(dir: string) {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const file = path.join(dir, entry.name);
+            if (entry.isDirectory()) visit(file);
+            else if (entry.name === "portrait.svg") files.push(file);
+        }
+    }
+    visit(outDir);
+    expect(files).toHaveLength(1);
+    expect(fs.readFileSync(files[0])).toEqual(fs.readFileSync(f.image));
+    await expect(buildPdf({ config, edition: "print", compile: false })).rejects.toThrow(
+        /print.*artwork/i,
+    );
+});

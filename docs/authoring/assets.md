@@ -110,7 +110,7 @@ A master is a PNG or an SVG, and a derivative is a WebP, SVG or JPEG rendered fr
 
 ## Book images
 
-Books render addressed PNG and SVG masters as JPEGs for their placements. Screen images use 150 DPI and JPEG quality 76; print images use 300 DPI and quality 82. Both use sRGB and flatten transparency onto white. Raster masters are never enlarged; SVG masters render at the placement resolution. Each JPEG carries its image Address, creator, rights, license, declared AI status and the master Address as `hl:derivedFrom`. Its name and primary note appear only when the indexed note is public. Prompts, generation details and foreign metadata are omitted. The provenance check requires the JPEG's derivative marker and master trace and refuses fields outside this public set.
+Books render addressed private PNG and SVG masters as JPEGs for their placements. Screen books using installed artwork packages reuse their validated JPEG, WebP and SVG files. Print books require private masters. Screen images use 150 DPI and JPEG quality 76; print images use 300 DPI and quality 82. Both use sRGB and flatten transparency onto white. Raster masters are never enlarged; SVG masters render at the placement resolution. Each JPEG carries its image Address, creator, rights, license, declared AI status and the master Address as `hl:derivedFrom`. Its name and primary note appear only when the indexed note is public. Prompts, generation details and foreign metadata are omitted. The provenance check requires the JPEG's derivative marker and master trace and refuses fields outside this public set.
 
 ## What the Foundry package ships
 
@@ -157,7 +157,7 @@ private master directories separate from this cache and every other build output
 
 ## Artwork packages
 
-Declare finished SVG and WebP inputs in [`art.packages`](../configuration.md#artpackages).
+Declare finished SVG, JPEG and WebP inputs in [`art.packages`](../configuration.md#artpackages).
 Each package is a required exact-version npm development dependency; `npm ci`
 installs the lockfile-bound inputs in the consumer checkout. Builds use the
 package's validated asset-only index and derivatives without downloading

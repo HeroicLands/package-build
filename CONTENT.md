@@ -10,7 +10,7 @@ for ordering, publication readiness and failure behavior.
 
 Finished artwork inputs can be declared as exact-version required npm
 development dependencies in `art.packages`; `npm ci` supplies their validated
-asset indexes and SVG/WebP files. Package inputs and private roots are separate
+asset indexes and SVG/JPEG/WebP files. Package inputs and private roots are separate
 modes. See [artwork packages](docs/authoring/assets.md#artwork-packages).
 
 Private PNG and SVG art masters can be declared in `art.masterRoots`. Each

@@ -27,7 +27,7 @@ import {
     checkProvenance,
     readProvenance,
     readSvgProvenance,
-    readWebpProvenance,
+    readJpegProvenance,
     writeProvenance,
     writeSvgProvenance,
 } from "../engine/art-provenance.mjs";
@@ -514,7 +514,7 @@ it("renders stable derivatives and preserves targets across a private master mov
     const runs = runContext(config, sessionBefore.records);
     expect(
         renderFoundryMarkdown(
-            "![Example](images/example.webp)\n",
+            "![Example](images/example.jpg)\n",
             undefined,
             undefined,
             undefined,
@@ -527,7 +527,7 @@ it("renders stable derivatives and preserves targets across a private master mov
         masterRecords: masterAssetRecords(master.masters),
     });
     fs.mkdirSync(path.join(assets, "images"), { recursive: true });
-    const stale = path.join(assets, "images", "example.webp");
+    const stale = path.join(assets, "images", "example.jpg");
     fs.writeFileSync(stale, "stale public derivative");
     expect(
         collectAssetRecords(assets, {
@@ -555,7 +555,7 @@ it("renders stable derivatives and preserves targets across a private master mov
         expect(original.includes(Buffer.from(secret))).toBe(true);
         expect(first.includes(Buffer.from(secret))).toBe(false);
     }
-    const metadata = readWebpProvenance(first).record;
+    const metadata = readJpegProvenance(first).record;
     expect(metadata).toMatchObject({
         address,
         creator: ["Author"],
@@ -588,7 +588,7 @@ it("renders stable derivatives and preserves targets across a private master mov
         preparedMasters: prepared,
     });
     expect(plan.uploads[0].body.equals(first)).toBe(true);
-    expect(plan.uploads[0].target).toBe("images/example.webp");
+    expect(plan.uploads[0].target).toBe("images/example.jpg");
     fs.mkdirSync(path.join(secondRoot, "nested"));
     const movedFile = path.join(secondRoot, "nested", "renamed.png");
     fs.renameSync(source, movedFile);
@@ -748,7 +748,7 @@ it.each([
             expect(output.includes(Buffer.from(value))).toBe(false);
         }
         const record =
-            format === "png" ? readWebpProvenance(output).record : readSvgProvenance(output).record;
+            format === "png" ? readJpegProvenance(output).record : readSvgProvenance(output).record;
         expect(record).toMatchObject({
             address: fields.address,
             creator: ["Author"],

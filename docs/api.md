@@ -3900,7 +3900,7 @@ The package's `artwork.json` has `formatVersion: 1`, `contentPackage`, an
 `index` object and an `assets` array. The index and each asset entry contain
 only `path` and lowercase hexadecimal `sha256`. The index is standard asset-only
 JSONL; image and icon records refer to entries in `assets` by `asset.path`.
-Assets are SVG or WebP. Every entry is digest checked, stays within the package,
+Assets are SVG, JPEG or WebP. Every entry is digest checked, stays within the package,
 and has a matching index record with the same embedded address and creator.
 An explicit embedded AI declaration must agree with the index. The index retains
 true, false and unknown status and complete alternative Addresses. Private

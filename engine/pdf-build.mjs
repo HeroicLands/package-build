@@ -276,6 +276,7 @@ export function stageBanners(
             if (screen) fs.writeFileSync(dest, screen());
             else if (!master) fs.copyFileSync(from, dest);
         } catch (err) {
+            if (screen) throw err;
             findings.push({
                 file: treeFile,
                 ...at,
@@ -1263,6 +1264,7 @@ async function buildBook(book, shared) {
                 if (staged.screen) fs.writeFileSync(dest, staged.screen());
                 else if (!staged.master) fs.copyFileSync(staged.from, dest);
             } catch (err) {
+                if (staged.screen) throw err;
                 findings.push({
                     file,
                     ...where(image.locate ?? src, occurrence),
@@ -1795,6 +1797,7 @@ async function buildBook(book, shared) {
                 ],
             });
         } catch (err) {
+            if (screen) throw err;
             cover = "";
             findings.push({
                 file: treeFile,

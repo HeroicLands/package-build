@@ -4,7 +4,7 @@
 
 **Content and notes**
 
-- Build with validated artwork from exact-version npm packages and their asset indexes.
+- Build with validated artwork from exact-version npm packages and their asset indexes. Screen books use the same JPEG, transparent WebP or SVG files as the package.
 
 **Upgrading**
 

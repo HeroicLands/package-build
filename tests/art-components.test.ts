@@ -298,7 +298,7 @@ it("keeps components out of staged and CDN assets", async () => {
     const serialized = JSON.stringify({ stage, cdn });
     expect(serialized).not.toContain(red);
     expect(serialized).not.toContain(blue);
-    expect(fs.readdirSync(path.join(root, "stage", "icons"))).toEqual(["composite.webp"]);
+    expect(fs.readdirSync(path.join(root, "stage", "icons"))).toEqual(["composite.jpg"]);
 });
 it("requires explicit component authorship and rights", async () => {
     await fixture();

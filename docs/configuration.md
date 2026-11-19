@@ -608,7 +608,7 @@ Nonempty `art.packages` cannot be combined with nonempty `art.masterRoots` or
 
 Each package supplies a version 1 `artwork.json` descriptor and standard
 asset-only JSONL index. The descriptor identifies the owning `contentPackage`
-and binds the index and every SVG or WebP derivative by SHA-256. Package paths,
+and binds the index and every SVG, JPEG or WebP derivative by SHA-256. Package paths,
 metadata, image identity and public-note authority are verified before use.
 AI status remains true, false or unknown. Each AI asset names an eligible
 non-AI alternative by address; declared dependencies and Foundry eligibility
@@ -657,7 +657,7 @@ The note-rendering cache includes master fingerprints in its existing input key.
 The fingerprint includes directory membership and each master’s identity, size,
 and modification and change timestamps. Changed inputs invalidate the cached
 tree. Public derivatives are rendered under `build/art`, separately from the
-note cache. Public WebP/SVG renders and screen/print JPEGs reuse a disposable
+note cache. Public JPEG/WebP/SVG renders and screen/print JPEGs reuse a disposable
 content-addressed cache under `build/.cache/art`. Its key includes master bytes,
 renderer and codec identity, settings and selected public metadata. A cache hit
 checks both the input key and the stored-byte digest; missing or corrupt entries

@@ -55,11 +55,17 @@ function sanitizedJpeg(bytes) {
         const data = bytes.subarray(at + 2, at + length);
         if (marker >= 0xe0 && marker <= 0xef) {
             const allowed =
-                (marker === 0xe0 && data.subarray(0, 5).equals(Buffer.from("JFIF\0"))) ||
+                (marker === 0xe0 &&
+                    data.length === 14 &&
+                    data.subarray(0, 5).equals(Buffer.from("JFIF\0")) &&
+                    data[12] === 0 &&
+                    data[13] === 0) ||
                 (marker === 0xe1 &&
                     data.subarray(0, 29).equals(Buffer.from("http://ns.adobe.com/xap/1.0/\0"))) ||
                 (marker === 0xe2 && data.subarray(0, 12).equals(Buffer.from("ICC_PROFILE\0"))) ||
-                (marker === 0xee && data.subarray(0, 5).equals(Buffer.from("Adobe")));
+                (marker === 0xee &&
+                    data.length === 12 &&
+                    data.subarray(0, 5).equals(Buffer.from("Adobe")));
             if (!allowed) return false;
         }
         if (marker === 0xfe) return false;
