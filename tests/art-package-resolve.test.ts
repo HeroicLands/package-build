@@ -3,10 +3,17 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readCanonicalKey } from "../engine/address.mjs";
 
 vi.mock("../engine/art-package.mjs", () => ({
     loadArtPackage: vi.fn(async (_dir, expected) => ({
-        records: [{ address: { canonical: `${expected.contentPackage}-none-image-first` } }],
+        records: [
+            {
+                address: {
+                    canonical: readCanonicalKey(`${expected.contentPackage}-none-image-first`),
+                },
+            },
+        ],
         files: new Map([["images/first.webp", path.join(_dir, "images/first.webp")]]),
     })),
 }));
@@ -56,11 +63,13 @@ describe("resolveArtPackages", () => {
     });
     it("passes the consumer identity to the validator and rejects undeclared names", async () => {
         const f = fixture();
-        await resolveArtPackages(f.config);
+        const validatePublicNote = () => true;
+        await resolveArtPackages(f.config, { validatePublicNote });
         expect(loadArtPackage).toHaveBeenCalledWith(expect.any(String), {
             name: "@heroiclands/art-test",
             version: "1.2.3",
             contentPackage: "sohl",
+            validatePublicNote,
         });
         delete f.manifest.devDependencies["@heroiclands/art-test"];
         f.save();
@@ -68,8 +77,10 @@ describe("resolveArtPackages", () => {
     });
     it("rejects duplicate and unsafe package names before looking outside the consumer", async () => {
         const f = fixture();
-        f.config.art.packages = ["../art"];
-        await expect(resolveArtPackages(f.config)).rejects.toThrow(/invalid package name/);
+        f.config.art.packages = ["https://user:secret@example.com/art"];
+        await expect(resolveArtPackages(f.config)).rejects.toThrow(
+            /^art\.packages: invalid package name$/,
+        );
         f.config.art.packages = ["@heroiclands/art-test", "@heroiclands/art-test"];
         await expect(resolveArtPackages(f.config)).rejects.toThrow(/duplicate package/);
     });

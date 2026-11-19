@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { loadArtPackage } from "./art-package.mjs";
+import { readCanonicalKey, renderAddress } from "./address.mjs";
 
 const exactVersion =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
@@ -36,9 +37,10 @@ function json(file) {
  * Resolve required, locked artwork from this consumer's own installation.
  * Results keep each package's file bindings separate.
  * @param {{rootDir:string, contentPackage:string, art:{packages:readonly string[]}}} config Consumer config.
+ * @param {{validatePublicNote?:(address:string, metadata:Record<string,any>) => boolean}} [options] Public note verifier.
  * @returns {Promise<Array<{name:string, version:string, records:Record<string, any>[], files:Map<string,string>}>>} Validated packages.
  */
-export async function resolveArtPackages(config) {
+export async function resolveArtPackages(config, { validatePublicNote } = {}) {
     const names = config.art.packages;
     if (!names.length) return [];
     const root = path.resolve(config.rootDir);
@@ -55,7 +57,7 @@ export async function resolveArtPackages(config) {
             name.length > 214 ||
             !/^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/.test(name)
         )
-            throw new Error(`art.packages: invalid package name ${name}`);
+            throw new Error("art.packages: invalid package name");
         if (selected.has(name)) throw new Error(`art.packages: duplicate package ${name}`);
         selected.add(name);
         const version = manifest.devDependencies?.[name];
@@ -107,9 +109,12 @@ export async function resolveArtPackages(config) {
             name,
             version,
             contentPackage: config.contentPackage,
+            ...(validatePublicNote ? { validatePublicNote } : {}),
         });
         for (const record of records) {
-            const key = record.address.canonical;
+            const address = readCanonicalKey(record.address.canonical);
+            if (!address) throw new Error("invalid canonical artwork address");
+            const key = renderAddress(address);
             if (seen.has(key)) throw new Error(`duplicate artwork address across packages: ${key}`);
             seen.add(key);
         }
