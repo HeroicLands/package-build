@@ -1,0 +1,48 @@
+name: Consumer proof
+
+on:
+    workflow_dispatch:
+        inputs:
+            candidate_sha:
+                description: Exact package-build commit to verify
+                required: true
+                type: string
+
+permissions:
+    contents: read
+
+jobs:
+    kethira:
+        name: Kethira consumer compile
+        runs-on: ubuntu-vm
+        env:
+            CONSUMER_SHA: fc95936a8a89449e5785835311c85428743f74f4
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  github-server-url: https://git.pupluppy.org
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+              with:
+                  node-version: ${{ vars.CI_NODE_VERSION || '24' }}
+                  cache: npm
+            - name: Pack the candidate
+              env:
+                  CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+              run: |
+                  set -euo pipefail
+                  test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+                  printf 'Candidate commit: %s\n' "$CANDIDATE_SHA"
+                  npm ci
+                  mkdir -p "$RUNNER_TEMP/consumer-proof"
+                  npm pack --pack-destination "$RUNNER_TEMP/consumer-proof"
+                  mv "$RUNNER_TEMP"/consumer-proof/heroiclands-package-build-*.tgz "$RUNNER_TEMP/consumer-proof/candidate.tgz"
+                  sha512sum "$RUNNER_TEMP/consumer-proof/candidate.tgz"
+            - name: Check out Kethira
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  github-server-url: https://git.pupluppy.org
+                  repository: HeroicLands/sohl-kethira-basic
+                  ref: ${{ env.CONSUMER_SHA }}
+                  path: consumer-proof-kethira
+            - name: Compile Kethira with the candidate
+              run: bash ci/consumer-proof.sh

@@ -2761,6 +2761,36 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             APPEARANCE_PROFILE_FIELD,
             {
+                name: "householdSize",
+                ...NUM,
+                describe: "Culture only: a positive average number of people per household.",
+                check: (note) => {
+                    const value = note.fm?.data?.householdSize;
+                    if (value === undefined || value === null) return [];
+                    const scope = String(note.fm?.subType ?? "").toLowerCase() === "culture";
+                    const numeric =
+                        (typeof value === "number" ||
+                            (typeof value === "string" && value.trim() !== "")) &&
+                        Number.isFinite(Number(value));
+                    if (scope && (!numeric || Number(value) > 0)) return [];
+                    return [
+                        {
+                            file: note.file,
+                            ...positionOfFrontmatterPath(
+                                note.raw ?? "",
+                                ["data", "householdSize"],
+                                { key: true },
+                            ),
+                            severity: "error",
+                            message:
+                                scope ?
+                                    "`data.householdSize` must be positive"
+                                :   "`data.householdSize` is for culture notes only",
+                        },
+                    ];
+                },
+            },
+            {
                 name: "vehicleAppearanceProfile",
                 kind: "list",
                 shape: "A list of vehicle appearance profile rows.",
@@ -2881,13 +2911,20 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "Populated settlements require a polity; other populated places without the key receive an advisory.",
             },
             ...SETTLEMENT_ROW_FIELDS.filter((field) =>
-                ["type", "fortification", "stronghold", "holder", "market", "notes"].includes(
-                    field.name,
-                ),
+                [
+                    "type",
+                    "fortification",
+                    "stronghold",
+                    "holder",
+                    "market",
+                    "notes",
+                    "households",
+                    "economicFocus",
+                ].includes(field.name),
             ).map(({ required, ...field }) =>
-                field.name === "market" ?
-                    { ...field, allowed: undefined, check: checkMarket }
-                :   field,
+                field.name === "market" ? { ...field, allowed: undefined, check: checkMarket }
+                : field.name === "households" ? { ...field, kind: "number" }
+                : field,
             ),
             {
                 name: "borders",

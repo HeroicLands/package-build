@@ -208,13 +208,20 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     "lore:culture": {
-        covers: ["appearanceProfile", "vehicleAppearanceProfile", "parents", "items"],
+        covers: [
+            "appearanceProfile",
+            "vehicleAppearanceProfile",
+            "parents",
+            "items",
+            "householdSize",
+        ],
         fm: () => ({
             type: "lore",
             subType: "culture",
             shortcode: "cultureone",
             data: {
                 parents: [],
+                householdSize: 4.5,
                 items: [{ model: "miscgear-rope", chance: 40 }],
                 vehicleAppearanceProfile: [
                     {

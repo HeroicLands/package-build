@@ -24,6 +24,7 @@ import {
 } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
+import { checkDataKeys } from "./data-keys.mjs";
 import {
     isAddressTuple,
     renderAddress,
@@ -34,7 +35,11 @@ import {
 import { addressSuffixes } from "./address-render.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { isGmNote, NOTE_VOCABULARY } from "./note-vocabulary.mjs";
-import { SETTLEMENT_COLUMNS, SETTLEMENT_ROW_FIELDS } from "./settlement-terms.mjs";
+import {
+    SETTLEMENT_COLUMNS,
+    SETTLEMENT_ROW_FIELDS,
+    GENERATOR_SOURCE_FIELD,
+} from "./settlement-terms.mjs";
 export {
     SETTLEMENTS_HEADING,
     SETTLEMENT_COLUMNS,
@@ -382,18 +387,23 @@ export function settlementExemptionTracker(
 /**
  * Check settlement facts and political hierarchy at their authored positions.
  * @param {object} note - The indexed note and its source.
- * @param {{index?: any, settlementExemptions?: any, settlementPopulation?: {mode?: "ceiling"|"complete", urbanShare?: number}}} [options] - The address index and optional exemption tracker.
+ * @param {{index?: any, settlementExemptions?: any, settlementPopulation?: {mode?: "ceiling"|"complete", urbanShare?: number}, publishing?: boolean}} [options] - The address index, optional exemption tracker and publication mode.
  * @returns {object[]} Findings at known positions.
  */
 export function checkSettlementTables(
     note,
-    { index, settlementExemptions, settlementPopulation: authoredPopulation } = {},
+    {
+        index,
+        settlementExemptions,
+        settlementPopulation: authoredPopulation,
+        publishing = false,
+    } = {},
 ) {
     const settlementPopulation = normalizeSettlementPopulation(authoredPopulation, fail);
     if (settlementExemptions)
         return settlementExemptions.filter(
             note,
-            checkSettlementTables(note, { index, settlementPopulation }),
+            checkSettlementTables(note, { index, settlementPopulation, publishing }),
             settlementPopulation,
         );
     if (!index) return [];
@@ -447,7 +457,62 @@ export function checkSettlementTables(
             );
     };
     const checkFacts = (row, at, listed) => {
+        const nonnegativeInteger = (value) =>
+            (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) &&
+            Number.isSafeInteger(Number(value)) &&
+            Number(value) >= 0;
+        if (
+            row.households != null &&
+            !nonnegativeInteger(row.households) &&
+            (publishing ||
+                listed ||
+                typeof row.households === "number" ||
+                (typeof row.households === "string" &&
+                    row.households.trim() !== "" &&
+                    Number.isFinite(Number(row.households))))
+        )
+            report(
+                "settlement field",
+                [...at, "households"],
+                "households is a nonnegative whole number or null",
+            );
+        if (
+            row.economicFocus !== undefined &&
+            (typeof row.economicFocus !== "string" || !row.economicFocus.trim())
+        )
+            report("settlement field", [...at, "economicFocus"], "economicFocus is nonempty text");
+        if (listed && row.generatorSource !== undefined && !map(row.generatorSource))
+            report(
+                "settlement field",
+                [...at, "generatorSource"],
+                "generatorSource is a map identity",
+            );
+        if (listed && map(row.generatorSource)) {
+            const source = row.generatorSource;
+            for (const key of ["id", "slot"])
+                if (
+                    Object.hasOwn(source, key) &&
+                    !(
+                        key === "id" &&
+                        (source[key] === null ||
+                            (typeof source[key] === "string" && !source[key].trim()))
+                    ) &&
+                    !nonnegativeInteger(source[key])
+                )
+                    report(
+                        "settlement field",
+                        [...at, "generatorSource", key],
+                        `generatorSource.${key} is a nonnegative whole number`,
+                    );
+            if (source.kind === "burg" && source.slot !== undefined)
+                report(
+                    "settlement field",
+                    [...at, "generatorSource", "slot"],
+                    "generatorSource for a burg has no slot",
+                );
+        }
         for (const field of SETTLEMENT_ROW_FIELDS) {
+            if (field.table === false) continue;
             const key = field.name;
             const value = row[key];
             if (!listed && ["settlement", "polity", "location"].includes(key)) continue;
@@ -663,9 +728,38 @@ export function assertSettlementRecords(
         index.contentPackage,
         settlementPopulation,
     );
-    const findings = notes.flatMap((note) =>
-        checkSettlementTables(note, { index, settlementExemptions: tracker, settlementPopulation }),
-    );
+    const sourceField = {
+        name: "settlements",
+        kind: "list",
+        entries: { kind: "map", fields: [GENERATOR_SOURCE_FIELD] },
+    };
+    const findings = notes.flatMap((note) => {
+        const settlements = note.fm.data?.settlements;
+        const sourceNote = {
+            ...note,
+            fm: {
+                data: {
+                    settlements:
+                        Array.isArray(settlements) ?
+                            settlements.map((row) =>
+                                map(row) && Object.hasOwn(row, "generatorSource") ?
+                                    { generatorSource: row.generatorSource }
+                                :   {},
+                            )
+                        :   [],
+                },
+            },
+        };
+        return [
+            ...checkSettlementTables(note, {
+                index,
+                settlementExemptions: tracker,
+                settlementPopulation,
+                publishing: true,
+            }),
+            ...checkDataKeys(sourceNote, [sourceField]),
+        ];
+    });
     for (const finding of findings) if (finding.severity === "warning") emitDiagnostic(finding);
     const errors = findings.filter((finding) => finding.severity === "error");
     if (errors.length)

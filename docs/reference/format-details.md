@@ -6207,6 +6207,13 @@ rank names the standing, and the standing says.
 | `settlements[].population`                      | nonnegative integer or null                                               | Residents, to at most two significant digits; null means unknown and zero means abandoned.                                  |
 | `settlements[].market`                          | market class                                                              | The market's reach.                                                                                                         |
 | `settlements[].notes`                           | nonempty short text                                                       | What distinguishes the settlement.                                                                                          |
+| `settlements[].households`                      | nonnegative whole number or null                                          | Exact household count, or null when unknown.                                                                                |
+| `settlements[].economicFocus`                   | text                                                                      | Primary livelihood.                                                                                                         |
+| `settlements[].generatorSource`                 | map                                                                       | Identity of the map cell or burg associated with the row.                                                                   |
+| `settlements[].generatorSource.mapId`           | nonempty string, required                                                 | Stable identity of the map.                                                                                                 |
+| `settlements[].generatorSource.kind`            | `cell` or `burg`, required                                                | The kind of map object.                                                                                                     |
+| `settlements[].generatorSource.id`              | nonnegative `integer`, required                                           | ID in the corresponding map object space.                                                                                   |
+| `settlements[].generatorSource.slot`            | nonnegative `integer`                                                     | Slot distinguishing settlements within a cell; omitted for a burg.                                                          |
 | `economy`                                       | `Address[]`                                                               | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default                                      |
 | `lore`                                          | `Address[]`                                                               | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar                              |
 | `parents`                                       | `Address[]`                                                               | Affiliations that this affiliation is subordinate to                                                                        |
@@ -8050,6 +8057,7 @@ not a different cultural identity. See
 | `vehicleAppearanceProfile[].fields.form`     | A map of words to weights.                                                    | Positive weights for form words.                                                                                                                             |
 | `vehicleAppearanceProfile[].fields.material` | A map of words to weights.                                                    | Positive weights for material words.                                                                                                                         |
 | `appearanceProfile`                          | `{ frame, eye_color, hair_color, skin_color, complexion, height, … }`         | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                     |
+| `householdSize`                              | number                                                                        | Culture only: a positive average number of people per household.                                                                                             |
 | `appearanceProfile.frame`                    | map of `frame` words to positive weights, required                            | How often each frame is drawn                                                                                                                                |
 | `appearanceProfile.eye_color`                | map of `eye_color` words to positive weights, required                        | How often each eye colour is drawn                                                                                                                           |
 | `appearanceProfile.hair_color`               | map of `hair_color` words to positive weights, required                       | How often each hair colour is drawn                                                                                                                          |
@@ -8570,6 +8578,8 @@ in their parent's **Within** section under **Districts** and **Routes**.
 | `parents`                         | `Address[]`                                                                      | Enclosing places within which this place is located                                                       |
 | `culture`                         | `Address`                                                                        | The people this place belongs to, naming a lore note with `subType: culture`                              |
 | `population`                      | `number`                                                                         | Approximate population (precision 2 significant digits)                                                   |
+| `households`                      | nonnegative whole number or null                                                 | Exact household count; null means unknown.                                                                |
+| `economicFocus`                   | text                                                                             | The settlement's primary livelihood.                                                                      |
 | `government`                      | `Address` or `null` (default type: `affiliation`)                                | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
 | `type`                            | settlement kind                                                                  | Encampment, homestead, hamlet, village, town, city or metropolis                                          |
 | `fortification`                   | string or null                                                                   | None, minimal, palisade, walled or fortress                                                               |
@@ -8868,10 +8878,23 @@ languages belong to a polity's `sohl.system.commonSkills`, while the note's
 #### A polity's settlements table
 
 A polity (`affiliation`, `subType: polity`) lists settlements without notes in
-`data.settlements`. Each row names its settlement, polity, location, type,
-fortification, stronghold, holder, population, market and short notes. Polity
+`data.settlements`. Each row names its settlement and polity and states its type, population and
+market. Location, holder and short notes may be omitted when unknown. Polity
 and holder accept an Address with an explicit type or a plain name; location
 is a place Address. Fortification and stronghold may be omitted or null.
+
+A listed row or settlement note may state `households` as the exact household
+count, with `null` for unknown and `0` for none. A culture may state its average
+people per household as `data.householdSize`; the average is not a universal
+constant. A settlement's `economicFocus` names its primary livelihood, such as
+`agrarian`, `fishing`, `hunting`, `trapping`, `mining`, `trading`, or
+`subsistence`. This vocabulary is open. A mining settlement on savannah is
+valid; its livelihood does not assert a mineral deposit.
+
+A listed row's optional `generatorSource` identifies its map origin with a
+nonempty `mapId`, `kind` of `cell` or `burg`, and a nonnegative integer `id`.
+A cell identity may also carry a nonnegative `slot` for a settlement within
+the cell; a burg identity has no slot. The identity records the corresponding map object.
 
 A settlement with a note states its own facts in `data`, with `government`
 naming its polity and `parents` naming its enclosing places. It has no authored
@@ -8887,7 +8910,7 @@ throughout its subordinate chain must not exceed that total. Towns, cities, and 
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
-settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. Each settlement
+settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. Each settlement note
 has short `data.notes`; a populated settlement note also requires `data.type`,
 a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity. A settlement note with a null or omitted population does not require those three fields.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](../configuration.md#settlement-exemptions). A municipality may use `scope: urban-share` to waive only its ceiling-mode urban-share check; total ceilings and its superior polity's check still apply. A list containing only the seat does not itself declare municipal territory.
@@ -8943,7 +8966,7 @@ Semantic findings are located errors except where a warning is stated:
 
 - **`body settlements table`** — Settlement tables are generated from frontmatter and the index.
 - **`settlements shape`** — Only a polity declares a list of settlement rows with the declared fields.
-- **`settlement field`** — Required facts and enumerated values follow the settlement vocabulary.
+- **`settlement field`** — Required facts, enumerated values, household counts and map identities follow the settlement vocabulary.
 - **`unresolved settlement reference`** — A reference does not resolve to its required note type.
 - **`people figure`** — A population is neither null nor a nonnegative whole number with at most two significant digits. An omitted settlement population warns and is treated as unknown.
 - **`duplicate settlement`** — A settlement has more than one listed or noted source.
