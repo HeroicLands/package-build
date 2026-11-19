@@ -21,6 +21,14 @@ data: {}
 ---
 ```
 
+For a field declared as a map, `{}` and `[]` both mean that the note authors no
+entries. The property editor can save a cleared map as `[]`. The content index
+retains the authored value, so consumers may encounter either an empty object or
+an empty array and must read both as an empty map. A scalar-or-map field also
+reads `[]` as an empty map. A data field can require specific entries when it is
+present as a map; the checker accepts `[]` without checking those entries. A
+populated array is not a map; use named entries for a populated map.
+
 `name` is a map with a required, nonempty `full` display name: the English name a page, a compendium entry and an index print. Every other name the subject goes by is listed under the code of its language, a code [`languages:`](../configuration.md#languages) declares, or `en`, which needs no declaration. `full` already counts as an English form, so `en` lists only the other English names and never repeats `full`. The first form in each list is that language's standard form. Any other key under `name` is an error at its line. The note infobox lists every form directly beneath the full name.
 
 `sort` gives the form the name takes in an index, such as `Black Flame, The` or `Hilvan, Doran`. `sort` files the note wherever notes are ordered by name — the book index, page lists, generated lists of related notes, and the `nameSort` column of the `entries` relation — and is the note's entry text in the book index. Every other list still displays the `full` name. A note with no `sort` files and indexes by its `full` name. For `name: {full: The Black Flame, sort: "Black Flame, The"}`, the book index prints _Black Flame, The_ under **B**, and a page list prints _The Black Flame_ at the same place.
