@@ -107,16 +107,36 @@ export function preflightNamedSettlements({ session, selection, maxCandidates, m
     if (proposals.length && (!Number.isSafeInteger(maxCandidates) || maxCandidates < 1))
         throw new RangeError("provide a positive name candidate limit");
     const count = session?.records?.length ?? 0;
-    const allowance = count * count + proposals.length * (count + (maxCandidates ?? 0) + 1);
-    if (!Number.isSafeInteger(allowance) || allowance > maxWork)
+    const foreignCount = session?.foreign?.index instanceof Map ? session.foreign.index.size : 0;
+    const extent =
+        count + foreignCount + proposals.length + (selection.existingRows?.length ?? 0) + 1;
+    const allowance = 2 * extent * extent + proposals.length * (extent + (maxCandidates ?? 0) + 1);
+    if (!Number.isSafeInteger(allowance) || allowance >= maxWork)
         throw new RangeError("authoring inputs exceed the work limit");
-    return (
-        allowance +
-        authoringGraphWork(
-            [session?.records, selection.existingRows, proposals],
-            maxWork - allowance,
-        )
+    const used = authoringGraphWork(
+        [
+            session?.records,
+            session?.sources,
+            session?.foreign?.index,
+            session?.config?.packageBuild,
+            selection.existingRows,
+            proposals,
+        ],
+        maxWork - allowance,
     );
+    for (const record of session.records) {
+        if (!isNoteRecord(record)) continue;
+        if (typeof record.file?.path !== "string")
+            throw new RangeError("a note has no captured source path");
+        const file = path.resolve(session.contentBase, record.file.path);
+        const raw = session.sources?.get(file)?.raw;
+        if (typeof raw !== "string" && !Buffer.isBuffer(raw))
+            throw Object.assign(
+                new RangeError("captured source is required for settlement validation"),
+                { file },
+            );
+    }
+    return allowance + used;
 }
 /**
  * Prepare complete rows and an optimistic source edit without writing.
@@ -158,7 +178,16 @@ export function prepareNamedSettlements({
             throw new RangeError("name preparation exceeds the work limit");
         bands = settlementBands(bands);
     } catch (error) {
-        return fail("naming.budget", error.message);
+        return {
+            missing: [
+                ...missing,
+                {
+                    field: "naming.budget",
+                    message: error.message,
+                    ...(error.file ? { file: error.file } : {}),
+                },
+            ],
+        };
     }
     if (!resources?.index || !Array.isArray(resources.index.records))
         return fail("naming.index", "provide the current setting content index");
@@ -281,7 +310,7 @@ export function prepareNamedSettlements({
     );
     assertSettlementRecords(proposedRecords, {
         fileOf: (record) => path.resolve(session.contentBase, record.file?.path ?? ""),
-        rawOf: (file) => session.sources.get(file)?.raw,
+        rawOf: (file) => session.sources.get(file)?.raw ?? "",
         foreignIndex: session.foreign?.index,
         config: session.config,
     });

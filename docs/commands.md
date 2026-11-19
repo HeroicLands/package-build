@@ -4103,7 +4103,7 @@ Propose named rural settlements and optionally save their rows.
 
 **SYNOPSIS**
 
-`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE --checks-module FILE --seed TEXT --name-limit NUMBER [--checks-root DIR] --checks-index FILE [--wordlist-dir DIR] [--checks-byte-limit NUMBER] [--checks-entry-limit NUMBER] [--checks-work-limit NUMBER] [--write]`
+`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE --checks-module FILE --checks-guide FILE --checks-english-words FILE --checks-english-sources FILE --seed TEXT --name-limit NUMBER [--checks-root DIR] --checks-index FILE [--wordlist-dir DIR] [--checks-byte-limit NUMBER] [--checks-entry-limit NUMBER] [--checks-work-limit NUMBER] [--write]`
 
 **DESCRIPTION**
 
@@ -4124,6 +4124,9 @@ must match the captured notes.
 - `--checks-module FILE` — trusted local JavaScript module supplying the setting
   resource loader and check factory. The module executes with the caller's access.
 - `--checks-root DIR` — root for setting resources; defaults to the current directory.
+- `--checks-guide FILE` — required pronunciation-guide file, relative to the checks root.
+- `--checks-english-words FILE` — required English word-list JSON, relative to the checks root.
+- `--checks-english-sources FILE` — required English word-list source manifest, relative to the checks root.
 - `--checks-index FILE` — required index path, relative to the checks root.
 - `--checks-byte-limit NUMBER` — maximum combined index and word-list bytes;
   defaults to 268435456.
@@ -4143,7 +4146,7 @@ output contains a JSON report; diagnostics go to standard error.
 **EXAMPLES**
 
 ```sh
-package-build settlement --polity example-note-affiliation-crown --map world.map --json world.json --inputs settlement-inputs.json --checks-module ./utils/setting-checks.mjs --checks-index build/content-index/example-metadata.jsonl --seed example --name-limit 100
+package-build settlement --polity example-note-affiliation-crown --map world.map --json world.json --inputs settlement-inputs.json --checks-module ./utils/setting-checks.mjs --checks-index build/content-index/example-metadata.jsonl --checks-guide guide.md --checks-english-words english-words.json --checks-english-sources english-sources.json --seed example --name-limit 100
 ```
 
 The input file supplies `pin`, `mapping`, `bindings`, `settings`, and

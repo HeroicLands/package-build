@@ -64,6 +64,8 @@ function fixture() {
         data: { territorial_population: 1000, settlements: [] },
     };
     const sources = new Map([[file, { raw, frontmatter }]]);
+    sources.set(path.join(root, "Folk.md"), { raw: "", frontmatter: {} });
+    sources.set(path.join(root, "Tongue.md"), { raw: "", frontmatter: {} });
     const session = {
         contentBase: root,
         config: { contentPackage: "example" },
@@ -231,4 +233,58 @@ it("uses editable type and market thresholds while preserving existing rows", ()
     expect(result.missing).toEqual([]);
     expect(result.rows[0]).toMatchObject({ type: "homestead", market: "local", households: 5 });
     expect(f.selection.existingRows).toEqual([]);
+});
+
+it("charges raw source text and foreign records before calling the factory", () => {
+    const f = fixture();
+    let calls = 0;
+    const factory = () => {
+        calls++;
+        throw new Error("factory must not run");
+    };
+    const sources = new Map(f.session.sources);
+    sources.set(path.join(f.session.contentBase, "Folk.md"), {
+        raw: "x".repeat(50000),
+        frontmatter: {},
+    });
+    const largeSource = prepareNamedSettlements({
+        ...f,
+        session: { ...f.session, sources },
+        maxWork: 10000,
+        factory,
+    });
+    expect(largeSource.missing[0].message).toContain("work limit");
+    const guarded = new Proxy(new Array(1000000), {
+        get(target, key, receiver) {
+            if (typeof key === "string" && /^\d+$/.test(key))
+                throw new Error("visited foreign data");
+            return Reflect.get(target, key, receiver);
+        },
+    });
+    const foreign = new Map([["foreign", { records: guarded }]]);
+    const largeForeign = prepareNamedSettlements({
+        ...f,
+        session: { ...f.session, foreign: { index: foreign } },
+        maxWork: 10000,
+        factory,
+    });
+    expect(largeForeign.missing[0].message).toContain("work limit");
+    expect(calls).toBe(0);
+});
+
+it("refuses missing captured note text before building checks", () => {
+    const f = fixture();
+    const sources = new Map(f.session.sources);
+    sources.delete(path.join(f.session.contentBase, "Folk.md"));
+    let calls = 0;
+    const result = prepareNamedSettlements({
+        ...f,
+        session: { ...f.session, sources },
+        factory: () => {
+            calls++;
+            throw new Error("factory called");
+        },
+    });
+    expect(result.missing[0].message).toContain("captured source");
+    expect(calls).toBe(0);
 });

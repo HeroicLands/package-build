@@ -225,9 +225,15 @@ it("snapshots a bounded index and word lists independently of later file changes
         mkdirSync(words);
         writeFileSync(join(dir, "index.jsonl"), "one\n");
         writeFileSync(join(words, "words.txt"), "word\n");
+        writeFileSync(join(dir, "guide.md"), "alphabet");
+        writeFileSync(join(dir, "english.json"), "[]");
+        writeFileSync(join(dir, "sources.json"), "{}");
         const captured = snapshotSettingInputs({
             root: dir,
             indexFile: "index.jsonl",
+            guideFile: "guide.md",
+            englishWordsFile: "english.json",
+            englishSourcesFile: "sources.json",
             wordlistDirs: [words],
             maxBytes: 100,
         });
@@ -235,6 +241,12 @@ it("snapshots a bounded index and word lists independently of later file changes
             writeFileSync(join(dir, "index.jsonl"), "changed\n");
             writeFileSync(join(words, "words.txt"), "changed\n");
             expect(readFileSync(captured.indexFile, "utf8")).toBe("one\n");
+            expect(readFileSync(captured.guideFile, "utf8")).toBe("alphabet");
+            expect(readFileSync(captured.englishWordsFile, "utf8")).toBe("[]");
+            expect(readFileSync(captured.englishSourcesFile, "utf8")).toBe("{}");
+            expect(
+                captured.evidence.find((item: any) => item.file.endsWith("guide.md")).sha256,
+            ).toMatch(/^[a-f0-9]{64}$/);
             expect(readFileSync(join(captured.wordlistDirs[0], "words.txt"), "utf8")).toBe(
                 "word\n",
             );
@@ -245,6 +257,9 @@ it("snapshots a bounded index and word lists independently of later file changes
             snapshotSettingInputs({
                 root: dir,
                 indexFile: "index.jsonl",
+                guideFile: "guide.md",
+                englishWordsFile: "english.json",
+                englishSourcesFile: "sources.json",
                 wordlistDirs: [words],
                 maxBytes: 2,
             }),
@@ -372,6 +387,12 @@ it("runs a bounded named settlement preview and explicit write with captured inp
             }),
         );
         const binary = path.resolve("bin/package-build.mjs");
+        write(path.join(f.root, "guide.md"), "alphabet");
+        write(path.join(f.root, "english.json"), JSON.stringify(["blocked"]));
+        write(
+            path.join(f.root, "sources.json"),
+            JSON.stringify({ baseline: { name: "fixture", version: "1" } }),
+        );
         const provider = path.resolve("tests/settlement-cli-setting-fixture.mjs");
         const args = [
             binary,
@@ -388,6 +409,12 @@ it("runs a bounded named settlement preview and explicit write with captured inp
             provider,
             "--checks-index",
             "index.jsonl",
+            "--checks-guide",
+            "guide.md",
+            "--checks-english-words",
+            "english.json",
+            "--checks-english-sources",
+            "sources.json",
             "--seed",
             "fixture",
             "--name-limit",
@@ -405,7 +432,14 @@ it("runs a bounded named settlement preview and explicit write with captured inp
             });
         const dry = run();
         expect(dry.status, dry.stderr).toBe(0);
-        expect(JSON.parse(dry.stdout).rows).toHaveLength(1);
+        const dryReport = JSON.parse(dry.stdout);
+        expect(dryReport.rows).toHaveLength(1);
+        expect(dryReport.resourceInputs.map((item: any) => path.basename(item.file))).toEqual(
+            expect.arrayContaining(["index.jsonl", "guide.md", "english.json", "sources.json"]),
+        );
+        expect(
+            dryReport.resourceInputs.every((item: any) => /^[a-f0-9]{64}$/.test(item.sha256)),
+        ).toBe(true);
         expect(fs.readFileSync(crown, "utf8")).toBe(before);
         const lock = path.join(content, ".Crown.md.settlement-write.lock");
         fs.writeFileSync(lock, "busy");

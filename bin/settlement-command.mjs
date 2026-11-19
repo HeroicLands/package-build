@@ -13,6 +13,7 @@
 
 /** On-demand settlement placement command. @module */
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
 import { pathToFileURL } from "node:url";
@@ -62,12 +63,18 @@ export function settlementErrorFindings(error, fallback) {
  * @param {string} file - Input path.
  * @param {number} limit - Maximum accepted byte count.
  * @param {object} [io] - File operations.
+ * @param {boolean} [noFollow] - Refuse a symbolic-link input.
  * @returns {Buffer} Captured input.
  */
-export function boundedRead(file, limit, io = fs) {
+export function boundedRead(file, limit, io = fs, noFollow = false) {
     let fd;
     try {
-        fd = io.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
+        fd = io.openSync(
+            file,
+            fs.constants.O_RDONLY |
+                fs.constants.O_NONBLOCK |
+                (noFollow ? (fs.constants.O_NOFOLLOW ?? 0) : 0),
+        );
         const stat = io.fstatSync(fd);
         if (!stat.isFile() || stat.size > limit) throw new Error("input exceeds its file limit");
         const parts = [];
@@ -95,19 +102,25 @@ export function boundedRead(file, limit, io = fs) {
 export function snapshotSettingInputs({
     root,
     indexFile,
+    guideFile,
+    englishWordsFile,
+    englishSourcesFile,
     wordlistDirs = [],
     maxBytes,
     maxEntries = 100000,
 }) {
     if (
-        typeof indexFile !== "string" ||
-        !indexFile ||
+        [indexFile, guideFile, englishWordsFile, englishSourcesFile].some(
+            (file) => typeof file !== "string" || !file,
+        ) ||
         !Number.isSafeInteger(maxBytes) ||
         maxBytes < 1 ||
         !Number.isSafeInteger(maxEntries) ||
         maxEntries < 1
     )
-        throw new Error("provide a setting index and a positive resource byte limit");
+        throw new Error(
+            "provide the setting index, guide, English word list and sources, and positive resource limits",
+        );
     const rootPath = path.resolve(root);
     const exact = (file) => {
         const resolved = path.resolve(file);
@@ -118,16 +131,32 @@ export function snapshotSettingInputs({
     const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "settlement-checks-"));
     let remaining = maxBytes;
     let entries = 0;
+    const evidence = [];
     const capture = (source, target) => {
         const file = exact(source);
-        const bytes = boundedRead(file, remaining);
+        const bytes = boundedRead(file, remaining, fs, true);
         remaining -= bytes.length;
         fs.writeFileSync(target, bytes, { flag: "wx", mode: 0o600 });
+        evidence.push({
+            file,
+            sha256: createHash("sha256").update(bytes).digest("hex"),
+            bytes: bytes.length,
+        });
     };
     try {
         const originalIndex = path.resolve(rootPath, indexFile);
         const capturedIndex = path.join(temporary, "index.jsonl");
         capture(originalIndex, capturedIndex);
+        const originals = {
+            guideFile: path.resolve(rootPath, guideFile),
+            englishWordsFile: path.resolve(rootPath, englishWordsFile),
+            englishSourcesFile: path.resolve(rootPath, englishSourcesFile),
+        };
+        const files = {};
+        for (const [key, original] of Object.entries(originals)) {
+            files[key] = path.join(temporary, key);
+            capture(original, files[key]);
+        }
         const directories = [];
         for (const [i, dir] of wordlistDirs.entries()) {
             const source = exact(path.resolve(dir));
@@ -158,6 +187,9 @@ export function snapshotSettingInputs({
         }
         return {
             indexFile: capturedIndex,
+            ...files,
+            originals,
+            evidence,
             wordlistDirs: directories,
             originalIndex,
             originalDirs: [...wordlistDirs],
@@ -215,6 +247,18 @@ export function settlementCommand() {
                 .option("checks-root", {
                     type: "string",
                     describe: "Root for setting resources (default: current directory)",
+                })
+                .option("checks-guide", {
+                    type: "string",
+                    describe: "Setting pronunciation guide file",
+                })
+                .option("checks-english-words", {
+                    type: "string",
+                    describe: "English word-list JSON file",
+                })
+                .option("checks-english-sources", {
+                    type: "string",
+                    describe: "English word-list source manifest",
                 })
                 .option("checks-index", {
                     type: "string",
@@ -295,7 +339,7 @@ export function settlementCommand() {
                         },
                         inputs.selection,
                     );
-                    let authoring;
+                    let authoring, resourceInputs;
                     if (!argv.checksModule) {
                         authoring = {
                             missing: [
@@ -338,19 +382,31 @@ export function settlementCommand() {
                         const snapshot = snapshotSettingInputs({
                             root: argv.checksRoot ?? process.cwd(),
                             indexFile: argv.checksIndex,
+                            guideFile: argv.checksGuide,
+                            englishWordsFile: argv.checksEnglishWords,
+                            englishSourcesFile: argv.checksEnglishSources,
                             wordlistDirs: argv.wordlistDir ?? [],
                             maxBytes: argv.checksByteLimit,
                             maxEntries: argv.checksEntryLimit,
                         });
                         let loaded;
+                        resourceInputs = snapshot.evidence;
                         try {
                             loaded = await module.loadSettingCheckResources({
                                 root: argv.checksRoot ?? process.cwd(),
                                 indexFile: snapshot.indexFile,
+                                guideFile: snapshot.guideFile,
+                                englishWordsFile: snapshot.englishWordsFile,
+                                englishSourcesFile: snapshot.englishSourcesFile,
                                 ...(argv.wordlistDir ?
                                     { wordlistDirs: snapshot.wordlistDirs }
                                 :   {}),
                             });
+                            if (loaded?.resources?.guide?.id)
+                                loaded.resources.guide.id.source = snapshot.originals.guideFile;
+                            if (loaded?.resources?.englishWords?.id)
+                                loaded.resources.englishWords.id.source =
+                                    snapshot.originals.englishWordsFile;
                             if (loaded?.resources?.index?.id)
                                 loaded.resources.index.id.source = snapshot.originalIndex;
                             if (loaded?.resources?.earthWordLists?.id)
@@ -381,6 +437,7 @@ export function settlementCommand() {
                         JSON.stringify(
                             {
                                 selection: result.selection,
+                                resourceInputs,
                                 rows: authoring.rows,
                                 names: authoring.names,
                                 edit: authoring.edit,

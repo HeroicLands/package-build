@@ -85,15 +85,16 @@ The report includes checked names, complete source rows, edit metadata, missing
 inputs and the land and population calculations. It exits unsuccessfully when
 the operation is incomplete. `--checks-module` explicitly selects a trusted
 local module exporting `loadSettingCheckResources` and `createSettingChecks`.
-The module runs with the caller's permissions. The loader receives `root`, an
-required `indexFile`, and optional `wordlistDirs`; the factory receives its
-resources and the mutable list of selected names. The index and explicit word
+The module runs with the caller's permissions. The loader receives explicit
+`guideFile`, `englishWordsFile`, `englishSourcesFile`, `indexFile`, and optional `wordlistDirs`; the factory receives its
+resources and the mutable list of selected names. The guide, English word list, its source manifest, index and explicit word
 lists are copied into private snapshots, limited together by `--checks-byte-limit`
 (default 268435456) and `--checks-entry-limit` (default 100000 directory entries).
 `--checks-work-limit` (default 1000000000000) bounds traversed values, text
 length, and a conservative allowance for comparisons and name preparation.
-The module is trusted code; its own imports and other fixed-path resource reads
-are outside those snapshot and work limits. The index must match the
+The report identifies each captured input by its original path and SHA-256.
+The module is trusted code; its imports and dependency reads are outside these
+snapshot and work limits. The index must match the
 captured notes. Each selected culture must resolve to one indexed language.
 `--seed` and `--name-limit` bound the deterministic name selection; the number
 of proposed sites times that limit must fit the authoring work limit.
