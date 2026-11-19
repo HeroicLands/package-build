@@ -1263,6 +1263,44 @@ describe("settlement input assembly", () => {
             f.session.dispose();
         }
     });
+    it("refuses duplicate and unrelated subordinate bindings", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            const child = { address: "sessionproof-note-affiliation-child", cellIds: [8] };
+            const duplicate = prepareSettlementInputs({
+                ...f,
+                bindings: { ...f.bindings, subpolities: [child, { ...child }] },
+            });
+            expect(duplicate.ruralInput).toBeUndefined();
+            expect(duplicate.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        field: "bindings.subpolities.sessionproof-note-affiliation-child",
+                        message: "bind the subordinate polity's cells exactly once",
+                    }),
+                ]),
+            );
+            const outside = "sessionproof-note-affiliation-outsider";
+            const unrelated = prepareSettlementInputs({
+                ...f,
+                bindings: {
+                    ...f.bindings,
+                    subpolities: [child, { address: outside, cellIds: [] }],
+                },
+            });
+            expect(unrelated.ruralInput).toBeUndefined();
+            expect(unrelated.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        field: "bindings.subpolities",
+                        message: `binding ${outside} is not a direct subordinate polity`,
+                    }),
+                ]),
+            );
+        } finally {
+            f.session.dispose();
+        }
+    });
     it("locates an unresolved government instead of omitting a possible member", async () => {
         const f = await assemblyFixture(false, false, false, true);
         try {

@@ -393,6 +393,7 @@ it("charges nested dependency and captured arrays before visiting their entries"
 it("reuses one corpus across many subpolities in a captured setting", () => {
     const options = selectionFixture();
     const subpolities: { address: string; cellIds: number[] }[] = [];
+    let bindingReads = 0;
     for (let i = 0; i < 2176; i++) {
         const child = i < 128;
         const type = child ? "affiliation" : "lore";
@@ -412,7 +413,14 @@ it("reuses one corpus across many subpolities in a captured setting", () => {
         options.session.records.push(record);
         options.session.parsed.set(record.file.path, { frontmatter: record });
         options.session.sources.set(record.file.path, { raw: note(record) });
-        if (child) subpolities.push({ address: record.address.canonical, cellIds: [] });
+        if (child)
+            subpolities.push({
+                get address() {
+                    bindingReads++;
+                    return record.address.canonical;
+                },
+                cellIds: [],
+            });
     }
     let scans = 0;
     const records = new Proxy(options.session.records, {
@@ -438,6 +446,9 @@ it("reuses one corpus across many subpolities in a captured setting", () => {
     expect(result.subpolities).toHaveLength(128);
     // Each operation may scan the capture; each subordinate must not rebuild it.
     expect(scans).toBeLessThan(24);
+    // Binding address reads include capture and both assembly passes.
+    expect(bindingReads).toBeGreaterThanOrEqual(subpolities.length);
+    expect(bindingReads).toBeLessThan(subpolities.length * 16);
     expect(
         selectSettlementPlacements(input, { ...selectionLimits(5556), workLimit: 1000 }).missing[0]
             .message,

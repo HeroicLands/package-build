@@ -396,6 +396,18 @@ export function prepareSettlementInputs(
     const rowBindings = readBindings("rows");
     const noteBindings = readBindings("notes");
     const subBindings = readBindings("subpolities");
+    charge(2 * subBindings.length + member.polities.length);
+    const indexedSubBindings = subBindings.map((binding) => ({
+        binding,
+        address: canonical(binding.address),
+    }));
+    const subBindingByAddress = new Map();
+    for (const { binding, address } of indexedSubBindings) {
+        const entry = subBindingByAddress.get(address);
+        if (entry) entry.count++;
+        else subBindingByAddress.set(address, { binding, count: 1 });
+    }
+    const directChildAddresses = new Set(member.polities.map((item) => item.address));
     const tree = new Map();
     const active = new Set();
     const postorder = [];
@@ -658,14 +670,13 @@ export function prepareSettlementInputs(
             charge(1);
             owner = tree.get(owner.parent);
         }
-        const bound = subBindings.filter(
-            (binding) => canonical(binding.address) === owner?.address,
-        );
+        charge(1);
+        const bound = subBindingByAddress.get(owner?.address);
         if (
             owner?.parent !== selected ||
-            bound.length !== 1 ||
-            !Array.isArray(bound[0]?.cellIds) ||
-            !bound[0].cellIds.includes(cell.id)
+            bound?.count !== 1 ||
+            !Array.isArray(bound.binding.cellIds) ||
+            !bound.binding.cellIds.includes(cell.id)
         )
             add(
                 file,
@@ -900,21 +911,22 @@ export function prepareSettlementInputs(
     const root = split(selected);
     if (root) select(root, clamp(root.original, root.minimum, root.maximum));
     const total = computed.get(selected) ?? {};
+    charge(member.polities.length + indexedSubBindings.length);
     const subpolities = member.polities.map((item) => {
-        const found = subBindings.filter((entry) => canonical(entry.address) === item.address);
-        if (found.length !== 1 || !Array.isArray(found[0]?.cellIds))
+        const found = subBindingByAddress.get(item.address);
+        if (found?.count !== 1 || !Array.isArray(found.binding.cellIds))
             inputMissing(
                 `bindings.subpolities.${item.address}`,
                 "bind the subordinate polity's cells exactly once",
             );
         return {
             address: item.address,
-            cellIds: found[0]?.cellIds,
+            cellIds: found?.binding.cellIds,
             ...(computed.get(item.address) ?? {}),
         };
     });
-    for (const binding of subBindings)
-        if (!member.polities.some((item) => item.address === canonical(binding.address)))
+    for (const { binding, address } of indexedSubBindings)
+        if (!directChildAddresses.has(address))
             inputMissing(
                 "bindings.subpolities",
                 `binding ${binding.address} is not a direct subordinate polity`,
