@@ -17,7 +17,11 @@ import { routerFor } from "../engine/pack-router.mjs";
 import { buildPackageSite } from "../engine/site-render.mjs";
 import { noteTree } from "../engine/note-cache.mjs";
 import { renderArtMasters } from "../engine/art-master-render.mjs";
-import { writeProvenance, writeSvgProvenance } from "../engine/art-provenance.mjs";
+import {
+    writeProvenance,
+    writeSvgProvenance,
+    readJpegProvenance,
+} from "../engine/art-provenance.mjs";
 import { assetReferenceLookup, annotateAssetReferences } from "../engine/asset-references.mjs";
 import { encodeAddresses } from "../engine/note-addresses.mjs";
 import { stagePackageAssets } from "../engine/asset-shipping.mjs";
@@ -334,6 +338,15 @@ it.each(["corrupt", "invalid master", "second archive"])(
             f.configData.art.archives = [f.seed(invalid)];
             f.save();
         }
+        if (kind === "second archive") {
+            const { openArtArchive } = await import("../engine/art-archive.mjs");
+            const first = f.configData.art.archives[0];
+            const checked = await openArtArchive(first.url, first.sha256);
+            expect(fs.readFileSync(path.join(checked.root, "images/portrait.png"))).toEqual(
+                f.master,
+            );
+            await checked.dispose();
+        }
         const index = f.config.paths.contentIndex;
         fs.mkdirSync(index, { recursive: true });
         const marker = path.join(index, ".publication-ready"),
@@ -360,7 +373,14 @@ it.each(["corrupt", "invalid master", "second archive"])(
                 },
             },
         );
-        expect(result.status, result.stderr + result.stdout).not.toBe(0);
+        expect(result.error).toBeUndefined();
+        expect(result.signal).toBeNull();
+        expect(result.status, result.stderr + result.stdout).toBe(1);
+        expect(result.stderr + result.stdout).toMatch(
+            kind === "invalid master" ?
+                /master address must name an image or icon in this package/
+            :   /download request failed/,
+        );
         expect(fs.readFileSync(marker, "utf8")).toBe("ready");
         expect(fs.readFileSync(old, "utf8")).toBe("old output");
         expect(captures(f.root)).toEqual([]);
@@ -438,10 +458,11 @@ it("builds a site with archive artwork and closes its source session", async () 
         .map((file: string) => fs.readFileSync(file, "utf8"))
         .join("\n");
     expect(html).toContain("sample/images/portrait.jpg");
-    expect(result.built.site.records.find((row: any) => row.asset)?.asset.attribution).toEqual([
-        "Artist",
-        "Credit",
-    ]);
+    expect(
+        result.built.site.records.find(
+            (row: any) => row.type === "image" && row.shortcode === "portrait",
+        )?.asset.attribution,
+    ).toEqual(["Artist", "Credit"]);
     const records = result.built.site.records;
     const lookup = assetReferenceLookup(
         {
@@ -470,6 +491,8 @@ it("builds a site with archive artwork and closes its source session", async () 
             path.join(f.root, "build/art"),
             path.join(f.root, "build/cache"),
         );
+        const portrait = fs.readFileSync(rendered.get("sample-none-image-portrait")!);
+        expect(readJpegProvenance(portrait).record.creator).toEqual(["Artist", "Credit"]);
         const stage = path.join(f.root, "build/stage");
         const staged = stagePackageAssets({
             assetsBase: config.paths.assets,
