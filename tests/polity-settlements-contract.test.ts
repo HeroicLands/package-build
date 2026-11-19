@@ -321,6 +321,117 @@ describe("settlement population and hierarchy", () => {
             ).toThrow(/economicFocus/);
         },
     );
+    it.each([7, false, null, "", "   "])(
+        "rejects settlement-note livelihood %s in lint and publication",
+        (economicFocus) => {
+            const { index } = corpus([]);
+            const fm = {
+                type: "place",
+                subType: "settlement",
+                shortcode: "village",
+                data: { population: null, notes: "A village.", economicFocus },
+            };
+            const note = { file: "Village.md", fm, raw: `---\n${YAML.stringify(fm)}---\n` };
+            const findings = lintNote(note, {
+                schemas: NOTE_SCHEMAS,
+                vocabulary: NOTE_VOCABULARY,
+                index: { ...index, notes: [...index.notes, note] },
+            });
+            expect(findings.filter((finding) => finding.message.includes("economicFocus"))).toEqual(
+                [
+                    expect.objectContaining({
+                        file: "Village.md",
+                        line: expect.any(Number),
+                        column: expect.any(Number),
+                    }),
+                ],
+            );
+            const records = [{ ...fm, package: "test" }];
+            try {
+                assertSettlementRecords(records, {
+                    fileOf: () => note.file,
+                    rawOf: () => note.raw,
+                });
+                throw new Error("expected publication to reject livelihood");
+            } catch (error: any) {
+                expect(
+                    error.findings?.filter((finding: any) =>
+                        finding.message.includes("economicFocus"),
+                    ),
+                ).toEqual([
+                    expect.objectContaining({
+                        file: "Village.md",
+                        line: expect.any(Number),
+                        column: expect.any(Number),
+                    }),
+                ]);
+            }
+        },
+    );
+    it("accepts open-text settlement-note livelihood in lint and publication", () => {
+        const { index } = corpus([]);
+        const fm = {
+            type: "place",
+            subType: "settlement",
+            shortcode: "village",
+            data: { population: null, notes: "A village.", economicFocus: "custom livelihood" },
+        };
+        const note = { file: "Village.md", fm, raw: `---\n${YAML.stringify(fm)}---\n` };
+        expect(
+            lintNote(note, {
+                schemas: NOTE_SCHEMAS,
+                vocabulary: NOTE_VOCABULARY,
+                index: { ...index, notes: [...index.notes, note] },
+            }).filter((finding) => finding.message.includes("economicFocus")),
+        ).toEqual([]);
+        expect(() =>
+            assertSettlementRecords([{ ...fm, package: "test" }], {
+                fileOf: () => note.file,
+                rawOf: () => note.raw,
+            }),
+        ).not.toThrow();
+    });
+    it.each([null, ""])(
+        "reports one located invalid required map id in lint and publication: %s",
+        (id) => {
+            const { polity, index } = corpus([
+                { ...row, generatorSource: { mapId: "map", kind: "cell", id } },
+            ]);
+            polity.raw = `---\n${YAML.stringify(polity.fm)}---\n`;
+            const ordinary = lintNote(polity, {
+                schemas: NOTE_SCHEMAS,
+                vocabulary: NOTE_VOCABULARY,
+                index,
+            }).filter((finding) => finding.message.includes("generatorSource"));
+            expect(ordinary).toEqual([
+                expect.objectContaining({
+                    file: "Crown.md",
+                    line: expect.any(Number),
+                    column: expect.any(Number),
+                }),
+            ]);
+            const records = index.notes.map((note) => ({ ...note.fm, package: "test" }));
+            try {
+                assertSettlementRecords(records, {
+                    fileOf: (fm: any) => (fm.shortcode === "crown" ? polity.file : "Vale.md"),
+                    rawOf: (file: string) => (file === polity.file ? polity.raw : ""),
+                });
+                throw new Error("expected publication to reject id");
+            } catch (error: any) {
+                expect(
+                    error.findings?.filter((finding: any) =>
+                        finding.message.includes("generatorSource"),
+                    ),
+                ).toEqual([
+                    expect.objectContaining({
+                        file: "Crown.md",
+                        line: expect.any(Number),
+                        column: expect.any(Number),
+                    }),
+                ]);
+            }
+        },
+    );
     it.each([
         ["culture", 0],
         ["culture", -3],

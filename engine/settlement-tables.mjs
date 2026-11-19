@@ -478,8 +478,7 @@ export function checkSettlementTables(
             );
         if (
             row.economicFocus !== undefined &&
-            ((typeof row.economicFocus === "string" && !row.economicFocus.trim()) ||
-                (publishing && typeof row.economicFocus !== "string"))
+            (typeof row.economicFocus !== "string" || !row.economicFocus.trim())
         )
             report("settlement field", [...at, "economicFocus"], "economicFocus is nonempty text");
         if (listed && row.generatorSource !== undefined && !map(row.generatorSource))
@@ -491,7 +490,15 @@ export function checkSettlementTables(
         if (listed && map(row.generatorSource)) {
             const source = row.generatorSource;
             for (const key of ["id", "slot"])
-                if (Object.hasOwn(source, key) && !nonnegativeInteger(source[key]))
+                if (
+                    Object.hasOwn(source, key) &&
+                    !(
+                        key === "id" &&
+                        (source[key] === null ||
+                            (typeof source[key] === "string" && !source[key].trim()))
+                    ) &&
+                    !nonnegativeInteger(source[key])
+                )
                     report(
                         "settlement field",
                         [...at, "generatorSource", key],

@@ -150,7 +150,7 @@ throughout its subordinate chain must not exceed that total. Towns and cities mu
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
-settlement sum. Populations use at most two significant digits. A settlement may state short `data.notes`; a populated settlement note also requires `data.type`,
+settlement sum. Populations use at most two significant digits. A settlement note states short `data.notes`; a populated settlement note also requires `data.type`,
 a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](docs/configuration.md#settlement-exemptions).
 

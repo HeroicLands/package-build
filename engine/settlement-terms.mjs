@@ -51,6 +51,7 @@ export const HOUSEHOLDS_FIELD = Object.freeze({
 export const ECONOMIC_FOCUS_FIELD = Object.freeze({
     name: "economicFocus",
     kind: "string",
+    kindChecked: true,
     shape: "a primary livelihood",
     describe: "The settlement's primary livelihood.",
     table: false,
