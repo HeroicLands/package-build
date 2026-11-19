@@ -58,7 +58,7 @@ const touches = (a, b, c, d) =>
  * @param {number} input.spacingMeters - Minimum spacing in meters, strictly positive.
  * @param {number} input.candidateLimit - Maximum returned sites, a nonnegative safe integer.
  * @param {number} input.workLimit - Maximum geometric operations, a positive safe integer.
- * @returns {{provenance: {mapId: string, mapHash: string, jsonHash: string, units: object, spacingMeters: number}, candidates: Array<{cellId: number, point: number[]}>, missing: Array<{code: string, message: string}>}} Sites or a diagnostic; failures return no partial sites.
+ * @returns {{provenance: {mapId: unknown, mapHash: unknown, jsonHash: unknown, units: object|undefined, spacingMeters: unknown}, candidates: Array<{cellId: number, point: number[]}>, missing: Array<{code: string, message: string}>}} Sites or a diagnostic; failures return no partial sites.
  */
 export function discoverPlacementSites({
     map,

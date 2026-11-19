@@ -48,12 +48,14 @@ describe("geographic placement sites", () => {
         data.map.cells = [
             cell(1, [
                 [0, 0],
-                [6, 0],
-                [0, 6],
+                [9, 0],
+                [0, 9],
             ]),
             box(3, 10, 10, 0.1, 0.1),
         ];
         const result = discoverPlacementSites(data);
+        expect(result.missing).toEqual([]);
+        expect(result.candidates).toContainEqual({ cellId: 1, point: [3, 3] });
         expect(result.candidates.some((p: any) => p.point[0] === 6 && p.point[1] === 6)).toBe(
             false,
         );
@@ -111,6 +113,8 @@ describe("geographic placement sites", () => {
             ]),
         ];
         data.spacingMeters = 18520;
+        expect(discoverPlacementSites(data).missing[0].code).toBe("ambiguous-geometry");
+        data.map.cells[1].boundary.reverse();
         expect(discoverPlacementSites(data).missing[0].code).toBe("ambiguous-geometry");
     });
     it("finishes empty thin grids without traversing their long dimension", () => {
