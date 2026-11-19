@@ -13,6 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { ClassicLevel } from "classic-level";
@@ -705,8 +706,8 @@ describe("dependency download retries", () => {
             .mockResolvedValue(response(503));
         vi.stubGlobal("fetch", fetcher);
         const error = await settle(fetchMetadata({ paths: { metadataCache: root } }, rel));
-        expect(fetcher).toHaveBeenCalledTimes(6);
-        expect(String(error)).toContain("index.jsonl: HTTP 503");
+        expect(fetcher).toHaveBeenCalledTimes(2);
+        expect(String(error)).toContain("checksum unavailable");
         expect(fetcher.mock.calls[1][1].signal).toBeInstanceOf(AbortSignal);
     });
 
@@ -784,6 +785,7 @@ describe("mirrored dependency releases", () => {
         const tokenFile = path.join(root, "token");
         fs.writeFileSync(tokenFile, `${token}\n`, { mode: 0o600 });
         vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+        vi.stubEnv("XDG_CACHE_HOME", path.join(root, "shared"));
         let authorized = true;
         let missing = false;
         const server = http.createServer((req, res) => {
@@ -798,7 +800,9 @@ describe("mirrored dependency releases", () => {
                         flags: { metadataUrl: "https://public.test/release/index.jsonl" },
                     }),
                 );
-            } else if (!missing && req.url === "/mirror/index.jsonl") res.end(bytes);
+            } else if (!missing && req.url === "/mirror/index.jsonl.sha256")
+                res.end(`${createHash("sha256").update(bytes).digest("hex")}  index.jsonl\n`);
+            else if (!missing && req.url === "/mirror/index.jsonl") res.end(bytes);
             else if (!missing && req.url === "/mirror/system.zip") res.end(archive);
             else {
                 res.statusCode = 404;
@@ -818,7 +822,11 @@ describe("mirrored dependency releases", () => {
             const config = { paths: { metadataCache: root } };
             const file = await fetchMetadata(config, rel);
             expect(fs.readFileSync(file)).toEqual(bytes);
-            expect(requests).toEqual(["/mirror/system.json", "/mirror/index.jsonl"]);
+            expect(requests).toEqual([
+                "/mirror/system.json",
+                "/mirror/index.jsonl.sha256",
+                "/mirror/index.jsonl",
+            ]);
             const catalog = await fetchCatalog(
                 { paths: { foreignCache: path.join(root, "catalog") } },
                 rel,
@@ -829,7 +837,7 @@ describe("mirrored dependency releases", () => {
             missing = true;
             await expect(
                 fetchMetadata({ paths: { metadataCache: path.join(root, "cold") } }, rel),
-            ).rejects.toThrow(/index\.jsonl: HTTP 404/);
+            ).rejects.toThrow(/checksum unavailable/);
         } finally {
             await new Promise<void>((resolve, reject) =>
                 server.close((err) => (err ? reject(err) : resolve())),
@@ -1093,6 +1101,7 @@ describe("mirrored dependency releases", () => {
         fs.writeFileSync(tokenFile, (await import("node:crypto")).randomBytes(32).toString("hex"));
         vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
         vi.useFakeTimers();
+        vi.stubEnv("XDG_CACHE_HOME", path.join(root, "shared"));
         const rel = {
             id: "example",
             manifest: "https://public.test/release/system.json",
@@ -1111,12 +1120,17 @@ describe("mirrored dependency releases", () => {
                         flags: { metadataUrl: "https://public.test/release/index.jsonl" },
                     }),
                 )
+                .mockResolvedValueOnce(
+                    new Response(
+                        `${createHash("sha256").update("index").digest("hex")}  index.jsonl\n`,
+                    ),
+                )
                 .mockResolvedValueOnce(new Response("index"));
             vi.stubGlobal("fetch", fetcher);
             const result = fetchMetadata({ paths: { metadataCache: root } }, rel);
             await vi.runAllTimersAsync();
             expect(fs.readFileSync(await result, "utf8")).toBe("index");
-            expect(fetcher).toHaveBeenCalledTimes(4);
+            expect(fetcher).toHaveBeenCalledTimes(5);
         } finally {
             vi.useRealTimers();
             vi.unstubAllGlobals();

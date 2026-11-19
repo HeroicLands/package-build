@@ -37,6 +37,7 @@
  */
 
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import fsp from "node:fs/promises";
 import path from "node:path";
 
@@ -308,6 +309,10 @@ async function publishMetadataIndex({ manifest, stage, out, metadataDir }) {
 
     const dest = path.join(out, name);
     await fsp.copyFile(found, dest);
+    const digest = createHash("sha256")
+        .update(await fsp.readFile(dest))
+        .digest("hex");
+    await fsp.writeFile(`${dest}.sha256`, `${digest}  ${name}\n`);
     return dest;
 }
 

@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -86,6 +87,10 @@ describe("packRelease", () => {
 
         expect(path.basename(result.metadata!)).toBe("sohl-metadata.jsonl");
         expect(fs.readFileSync(result.metadata!, "utf8")).toContain("sohl-none-doc-gear");
+        const hash = createHash("sha256").update(fs.readFileSync(result.metadata!)).digest("hex");
+        expect(fs.readFileSync(`${result.metadata!}.sha256`, "utf8")).toBe(
+            `${hash}  sohl-metadata.jsonl\n`,
+        );
     });
 
     // The asset name is the manifest's own, so the two cannot disagree about

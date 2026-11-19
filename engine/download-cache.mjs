@@ -62,14 +62,23 @@ async function matches(file, expected, maxBytes, signal) {
     }
 }
 
-function safeUrl(value, base) {
+function safeUrl(value, base, allowLoopback = false) {
     let parsed;
     try {
         parsed = new URL(value, base);
     } catch {
         throw new Error("download URL must be HTTPS without user information");
     }
-    if (parsed.protocol !== "https:" || parsed.username || parsed.password)
+    const loopback =
+        parsed.hostname === "localhost" ||
+        parsed.hostname === "[::1]" ||
+        /^127\.\d+\.\d+\.\d+$/.test(parsed.hostname);
+    if (
+        (parsed.protocol !== "https:" &&
+            !(allowLoopback && parsed.protocol === "http:" && loopback)) ||
+        parsed.username ||
+        parsed.password
+    )
         throw new Error("download URL must be HTTPS without user information");
     return parsed;
 }
@@ -78,13 +87,14 @@ function safeUrl(value, base) {
  * Fetch bytes into the shared checksum cache and return their verified path.
  * @param {string} url HTTPS URL without user information.
  * @param {string} sha256 Expected lowercase SHA-256.
- * @param {{cacheDir?: string, maxBytes?: number, signal?: AbortSignal, fetch?: typeof globalThis.fetch}} [options] Download options.
+ * @param {{cacheDir?: string, maxBytes?: number, signal?: AbortSignal, fetch?: typeof globalThis.fetch, token?: string, allowLoopback?: boolean}} [options] Download options.
  * @returns {Promise<string>} Absolute path of the verified cached file.
  */
 export async function downloadCached(url, sha256, options = {}) {
     if (typeof sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(sha256))
         throw new Error("expected a lowercase SHA-256 digest");
-    let parsed = safeUrl(url);
+    let parsed = safeUrl(url, undefined, options.allowLoopback === true);
+    const origin = parsed.origin;
     const cache = options.cacheDir ?? downloadCacheDirectory();
     if (typeof cache !== "string" || !path.isAbsolute(cache))
         throw new Error("download cache directory must be absolute");
@@ -103,7 +113,10 @@ export async function downloadCached(url, sha256, options = {}) {
                 response = await (options.fetch ?? globalThis.fetch)(parsed.href, {
                     signal: options.signal,
                     redirect: "manual",
-                    headers: { "accept-encoding": "identity" },
+                    headers: {
+                        "accept-encoding": "identity",
+                        ...(options.token ? { Authorization: `token ${options.token}` } : {}),
+                    },
                 });
             } catch {
                 throw new Error("download request failed");
@@ -113,11 +126,18 @@ export async function downloadCached(url, sha256, options = {}) {
                 await response.body?.cancel().catch(() => {});
                 if (!location || redirects >= 5)
                     throw new Error("download redirect limit or missing location");
-                parsed = safeUrl(location, parsed);
+                const next = safeUrl(location, parsed, options.allowLoopback === true);
+                if (options.token && next.origin !== origin)
+                    throw new Error("authenticated download redirect refused");
+                parsed = next;
                 continue;
             }
             if (!response.ok || !response.body) throw new Error("download request failed");
-            if (response.url) safeUrl(response.url);
+            if (response.url) {
+                const actual = safeUrl(response.url, undefined, options.allowLoopback === true);
+                if (options.token && actual.origin !== origin)
+                    throw new Error("authenticated download redirect refused");
+            }
             break;
         }
         const encoding = response.headers.get("content-encoding");

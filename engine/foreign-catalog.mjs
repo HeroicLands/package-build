@@ -52,6 +52,7 @@
  */
 
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
@@ -64,11 +65,11 @@ import {
     metadataCacheDir,
     metadataFileName,
     newestVersionDir,
-    isComplete as metadataIsComplete,
     markComplete as markMetadataComplete,
 } from "./metadata-index.mjs";
 import { isPackageRecord } from "./index-records.mjs";
 import { systemPackages } from "./item-entries.mjs";
+import { downloadCached } from "./download-cache.mjs";
 
 /** Written once a fetch completes, so a half-finished cache is never used. */
 const STAMP = ".complete";
@@ -391,6 +392,58 @@ async function fetchBytes(url, context, token, mirror = false) {
     }
 }
 
+/** Read a small checksum over a secure release or build-mirror connection. */
+async function fetchChecksum(url, token, mirror) {
+    const allowed = (value, base) => {
+        const parsed = new URL(value, base);
+        const host = parsed.hostname;
+        const loopback =
+            host === "localhost" || host === "[::1]" || /^127\.\d+\.\d+\.\d+$/.test(host);
+        if (
+            parsed.username ||
+            parsed.password ||
+            (parsed.protocol !== "https:" && !(mirror && parsed.protocol === "http:" && loopback))
+        )
+            throw new Error("checksum URL must use HTTPS or an explicit loopback mirror");
+        return parsed;
+    };
+    let current = allowed(url);
+    const origin = current.origin;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+    let response;
+    try {
+        for (let redirects = 0; ; redirects++) {
+            response = await fetch(current.href, {
+                redirect: "manual",
+                signal: controller.signal,
+                headers: token ? { Authorization: `token ${token}` } : {},
+            });
+            if (![301, 302, 303, 307, 308].includes(response.status)) break;
+            const location = response.headers.get("location");
+            await response.body?.cancel();
+            if (!location || redirects >= MAX_MIRROR_REDIRECTS)
+                throw new Error("checksum redirect refused");
+            const next = allowed(location, current);
+            if (token && next.origin !== origin) throw new Error("checksum redirect refused");
+            current = next;
+        }
+        if (!response.ok || !response.body)
+            throw new Error(`checksum request failed (HTTP ${response.status})`);
+        const chunks = [];
+        let size = 0;
+        for await (const chunk of response.body) {
+            size += chunk.length;
+            if (size > 1024) throw new Error("checksum exceeds size limit");
+            chunks.push(chunk);
+        }
+        return Buffer.concat(chunks);
+    } finally {
+        clearTimeout(timeout);
+        if (response?.body && !response.body.locked) await response.body.cancel().catch(() => {});
+    }
+}
+
 /**
  * Write an unzipped archive's entries under `dest`.
  *
@@ -555,7 +608,7 @@ export function mirroredAssetUrl(asset, manifest, mirror) {
  *   its resolved version.
  */
 async function resolveManifest(rel) {
-    const { url, pinned } = pinnedManifestUrl(rel.manifest, rel.verified);
+    const { url } = pinnedManifestUrl(rel.manifest, rel.verified);
     const manifest = await fetchManifest(rel.buildManifest ?? url, mirrorToken(rel), rel);
     const version = manifest.version;
     if (!version) {
@@ -581,7 +634,7 @@ async function resolveManifest(rel) {
 /**
  * Fetch one dependency and extract its Item packs.
  *
- * Idempotent: a complete cache for the resolved version is left alone.
+ * The release checksum is read first, and the shared cache is verified before use.
  *
  * @param {object} config - The resolved build configuration.
  * @param {{id: string, manifest: string, buildManifest?: string, verified?: string}} rel - The declared relationship.
@@ -729,7 +782,7 @@ export async function fetchCatalogFromPath(config, rel, source) {
  * URL is rewritten to it. A consumer resolving addresses against whatever the
  * dependency published this morning is not reproducible.
  *
- * Idempotent: a complete cache for the resolved version is left alone.
+ * The release checksum is read first, and the shared cache is verified before use.
  *
  * @param {object} config - The resolved build configuration.
  * @param {{id: string, manifest: string, buildManifest?: string, verified?: string}} rel - The declared
@@ -757,7 +810,7 @@ async function fetchMetadataWithManifest(config, rel) {
     if (!version) {
         throw new Error(`${rel.id}: its manifest declares no \`version\``);
     }
-    if ((!pinned || rel.buildManifest) && rel.verified && version !== rel.verified) {
+    if (rel.verified && version !== rel.verified) {
         throw new Error(
             `${rel.id}: declares \`compatibility.verified: ${rel.verified}\` but ` +
                 `${rel.buildManifest ?? url} offers ${version}. Building against a moving target is ` +
@@ -778,26 +831,42 @@ async function fetchMetadataWithManifest(config, rel) {
         );
     }
 
-    if (metadataIsComplete(dir)) {
-        log.info(`${rel.id}@${version}: index already cached`);
-        return { file: path.join(dir, path.basename(new URL(indexUrl).pathname)), manifest };
+    const name = path.basename(new URL(indexUrl).pathname);
+    const sidecarUrl = new URL(indexUrl);
+    sidecarUrl.pathname += ".sha256";
+    const token = mirrorToken(rel);
+    let sidecar;
+    try {
+        sidecar = await fetchChecksum(sidecarUrl.href, token, !!rel.buildManifest);
+    } catch (cause) {
+        throw new Error(
+            `${rel.id}@${version}: content index checksum unavailable; use a release that publishes its checksum`,
+            { cause },
+        );
     }
-
-    // Rebuild from empty: a previous run may have died partway, and a stale
-    // half-written index is worse than none.
-    fs.rmSync(dir, { recursive: true, force: true });
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(sidecar);
+    const match = /^([0-9a-f]{64})  ([^\r\n]+)\n$/.exec(text);
+    if (!match || match[2] !== name)
+        throw new Error(`${rel.id}@${version}: invalid content index checksum for ${name}`);
+    const cached = await downloadCached(indexUrl, match[1], {
+        token,
+        allowLoopback: !!rel.buildManifest,
+    });
     fs.mkdirSync(dir, { recursive: true });
-
-    log.info(`${rel.id}@${version}: downloading ${indexUrl}`);
-    const bytes = await fetchBytes(
-        indexUrl,
-        `${rel.id}@${version}: could not download its content index at ${indexUrl}`,
-        mirrorToken(rel),
-        !!rel.buildManifest,
-    );
-    const file = path.join(dir, path.basename(new URL(indexUrl).pathname));
-    fs.writeFileSync(file, bytes);
-    markMetadataComplete(dir);
+    const marker = path.join(dir, ".complete");
+    fs.rmSync(marker, { force: true });
+    const temporary = fs.mkdtempSync(path.join(dir, ".metadata-"));
+    const file = path.join(dir, name);
+    try {
+        const staged = path.join(temporary, name);
+        fs.copyFileSync(cached, staged);
+        if (createHash("sha256").update(fs.readFileSync(staged)).digest("hex") !== match[1])
+            throw new Error(`${rel.id}@${version}: cached content index failed verification`);
+        fs.renameSync(staged, file);
+        markMetadataComplete(dir);
+    } finally {
+        fs.rmSync(temporary, { recursive: true, force: true });
+    }
     return { file, manifest };
 }
 

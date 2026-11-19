@@ -1208,7 +1208,7 @@ package-build release [--no-pdf]
 The artifact name comes from `packageKind` — a system ships as
 `system.json`'s sibling, a module as `module.json`'s — so no repository
 states it a second time. It also publishes the content index the manifest
-advertises (`flags.metadataUrl`) and, when the stage carries one,
+advertises (`flags.metadataUrl`), its filename-bound SHA-256 sidecar, and, when the stage carries one,
 `schema.json` — a repository that names `build/schema.json` in
 `packageBuild.assets` gets it released beside the archive; one that does not
 gets none. When the stage carries `asset-sets/default.json`, it writes
