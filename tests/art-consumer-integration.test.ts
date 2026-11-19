@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import YAML from "yaml";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { configFromData } from "../engine/pack-config.mjs";
+import { siteBuildConfig } from "../content-config.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
@@ -18,6 +19,9 @@ import {
     emitContentIndex,
 } from "../engine/content-index.mjs";
 import { buildSite } from "../engine/site-build.mjs";
+import { buildPackageSite } from "../engine/site-render.mjs";
+import { assetReferenceLookup, annotateAssetReferences } from "../engine/asset-references.mjs";
+import { encodeAddresses } from "../engine/note-addresses.mjs";
 import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
 import { writeDerivativeProvenance } from "../engine/art-provenance.mjs";
 import { stagePackageAssets } from "../engine/asset-shipping.mjs";
@@ -175,9 +179,55 @@ function addSplit(f: ReturnType<typeof fixture>, assetPath: string, shortcode: s
     return { config: configFromData(data, configPath), bytes };
 }
 
+function addAlternative(f: ReturnType<typeof fixture>) {
+    const original = JSON.parse(fs.readFileSync(path.join(f.dir, "index.jsonl"), "utf8").trim());
+    original.asset.ai = true;
+    original.asset.nonAiAlternative = "sample-none-icon-standin";
+    const replacement = {
+        package: "sample",
+        type: "icon",
+        shortcode: "standin",
+        address: { canonical: "sample-none-icon-standin" },
+        asset: {
+            path: "icons/standin.svg",
+            attribution: "Artist",
+            license: "CC0-1.0",
+            ai: false,
+        },
+    };
+    const alternativeBytes = writeDerivativeProvenance(
+        svg,
+        {
+            address: "sample-none-icon-standin",
+            creator: "Artist",
+            rights: "Terms",
+            derivedFrom: "sample-none-icon-standin",
+            ai: false,
+        },
+        { repeat: ["derivedFrom"] },
+    ).bytes;
+    fs.mkdirSync(path.join(f.dir, "icons"));
+    fs.writeFileSync(path.join(f.dir, "icons/standin.svg"), alternativeBytes);
+    const index = serializeContentIndex([
+        decodeIndexAddresses(original, { package: "sample" }),
+        decodeIndexAddresses(replacement, { package: "sample" }),
+    ]);
+    fs.writeFileSync(path.join(f.dir, "index.jsonl"), index);
+    const descriptorPath = path.join(f.dir, "artwork.json"),
+        descriptor = JSON.parse(fs.readFileSync(descriptorPath, "utf8"));
+    descriptor.index.sha256 = sha(index);
+    descriptor.assets.push({ path: "icons/standin.svg", sha256: sha(alternativeBytes) });
+    fs.writeFileSync(descriptorPath, JSON.stringify(descriptor));
+    return alternativeBytes;
+}
+
 describe("installed artwork in the content session", () => {
     it("keeps standalone compiler body scanning and the configured date after capture closes", async () => {
         const f = fixture();
+        fs.writeFileSync(
+            path.join(f.root, "assets/content/broken.md"),
+            "---\nname: [broken\n---\n\nText.\n",
+        );
         const corpus = await buildCompileCorpus({
             config: f.config,
             contentBase: f.config.paths.content,
@@ -197,6 +247,9 @@ describe("installed artwork in the content session", () => {
         });
         await compiler.prepare();
         expect(compiler.currentDate).toBe("721.1");
+        expect(
+            corpus.problems.some((problem: any) => String(problem.file).endsWith("broken.md")),
+        ).toBe(true);
         expect(compiler.convertBody({}, "A paragraph.")).toBe("A paragraph.");
     });
     it("publishes normal index records and supplies them to the website entry", async () => {
@@ -241,6 +294,91 @@ describe("installed artwork in the content session", () => {
         await expect(createContentSession({ config: collision.config })).rejects.toThrow(
             /deployment path|duplicate/i,
         );
+    });
+    it("renders the original on the website and the declared alternative in Foundry", async () => {
+        const f = fixture();
+        addAlternative(f);
+        const pkgPath = path.join(f.root, "package.json"),
+            pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+        pkg.homepage = "https://www.example.test/sample/";
+        fs.writeFileSync(pkgPath, JSON.stringify(pkg));
+        const configPath = path.join(f.root, "package-build.config.yaml"),
+            data = YAML.parse(fs.readFileSync(configPath, "utf8"));
+        data.site = {
+            title: "Sample",
+            description: "Sample site",
+            assets: "https://cdn.example.test",
+            inputs: "utils/site-inputs.mjs",
+        };
+        fs.mkdirSync(path.join(f.root, "utils"));
+        fs.writeFileSync(
+            path.join(f.root, "utils/site-inputs.mjs"),
+            "export default () => ({navigation: [], files: {}});\n",
+        );
+        fs.writeFileSync(configPath, YAML.stringify(data));
+        fs.writeFileSync(
+            path.join(f.root, "assets/content/home.md"),
+            note(
+                { type: "homepage", shortcode: "root", name: { full: "Home" } },
+                "[Subject](being-subject/).",
+            ),
+        );
+        fs.writeFileSync(
+            f.subject,
+            note(
+                {
+                    type: "being",
+                    shortcode: "subject",
+                    name: { full: "Subject" },
+                    data: { icon: "image-portrait" },
+                },
+                "![Portrait](sample/assets/images/portrait.svg)",
+            ),
+        );
+        const config = siteBuildConfig(configFromData(data, configPath));
+        const originalMkdir = fs.mkdtempSync,
+            captures: string[] = [];
+        const spy = vi.spyOn(fs, "mkdtempSync").mockImplementation(((
+            prefix: any,
+            ...args: any[]
+        ) => {
+            const result = originalMkdir(prefix, ...(args as []));
+            if (String(prefix).includes("content-art-snapshot-")) captures.push(String(result));
+            return result;
+        }) as typeof fs.mkdtempSync);
+        try {
+            const result = await buildPackageSite({ config, out: path.join(f.root, "site-out") });
+            expect(result.written).not.toBeNull();
+            expect(captures.length).toBeGreaterThan(0);
+            for (const capture of captures) expect(fs.existsSync(capture)).toBe(false);
+            const html = result
+                .written!.files.filter((file: string) => file.endsWith(".html"))
+                .map((file: string) => fs.readFileSync(file, "utf8"))
+                .join("\n");
+            expect(html).toContain("sample/images/portrait.svg");
+            const records = result.built.site.records;
+            const lookup = assetReferenceLookup(
+                {
+                    assets: new Map(
+                        records
+                            .filter((row: any) => row.asset)
+                            .map((row: any) => [encodeAddresses(row.address.canonical), row]),
+                    ),
+                },
+                config,
+            );
+            const doc: any = { img: "modules/sample/images/portrait.svg" },
+                findings: string[] = [];
+            annotateAssetReferences(doc, "Item", {
+                lookup,
+                system: "sohl",
+                report: (message: string) => findings.push(message),
+            });
+            expect(findings).toEqual([]);
+            expect(doc.img).toBe("modules/sample/icons/standin.svg");
+        } finally {
+            spy.mockRestore();
+        }
     });
     it("keeps unknown AI visible to the index but excludes it from Foundry", async () => {
         const f = fixture({ ai: null });
@@ -428,46 +566,7 @@ describe("installed artwork in the content session", () => {
     );
     it("retains an eligible non-AI alternative and excludes the AI asset from Foundry", async () => {
         const f = fixture();
-        const original = JSON.parse(
-            fs.readFileSync(path.join(f.dir, "index.jsonl"), "utf8").trim(),
-        );
-        original.asset.ai = true;
-        original.asset.nonAiAlternative = "sample-none-icon-standin";
-        const replacement = {
-            package: "sample",
-            type: "icon",
-            shortcode: "standin",
-            address: { canonical: "sample-none-icon-standin" },
-            asset: {
-                path: "icons/standin.svg",
-                attribution: "Artist",
-                license: "CC0-1.0",
-                ai: false,
-            },
-        };
-        const alternativeBytes = writeDerivativeProvenance(
-            svg,
-            {
-                address: "sample-none-icon-standin",
-                creator: "Artist",
-                rights: "Terms",
-                derivedFrom: "sample-none-icon-standin",
-                ai: false,
-            },
-            { repeat: ["derivedFrom"] },
-        ).bytes;
-        fs.mkdirSync(path.join(f.dir, "icons"));
-        fs.writeFileSync(path.join(f.dir, "icons/standin.svg"), alternativeBytes);
-        const index = serializeContentIndex([
-            decodeIndexAddresses(original, { package: "sample" }),
-            decodeIndexAddresses(replacement, { package: "sample" }),
-        ]);
-        fs.writeFileSync(path.join(f.dir, "index.jsonl"), index);
-        const descriptorPath = path.join(f.dir, "artwork.json"),
-            descriptor = JSON.parse(fs.readFileSync(descriptorPath, "utf8"));
-        descriptor.index.sha256 = sha(index);
-        descriptor.assets.push({ path: "icons/standin.svg", sha256: sha(alternativeBytes) });
-        fs.writeFileSync(descriptorPath, JSON.stringify(descriptor));
+        const alternativeBytes = addAlternative(f);
         const session = await createContentSession({ config: f.config });
         try {
             const result = stagePackageAssets({
@@ -540,6 +639,29 @@ describe("installed artwork in the content session", () => {
         fs.appendFileSync(f.image, "changed");
         await expect(noteTree(f.config, { toolchain: "fixture" })).rejects.toThrow();
     });
+    it.each(["renamed", "gm"])(
+        "revalidates the authoritative claimed note when it becomes %s",
+        async (change) => {
+            const f = fixture({ name: "Subject", primaryNote: "sample-note-being-subject" });
+            await noteTree(f.config, { toolchain: "authority-fixture" });
+            expect((await noteTree(f.config, { toolchain: "authority-fixture" })).cache.tree).toBe(
+                "hit",
+            );
+            fs.writeFileSync(
+                f.subject,
+                note({
+                    type: "being",
+                    shortcode: "subject",
+                    name: { full: change === "renamed" ? "Changed" : "Subject" },
+                    ...(change === "gm" ? { tags: ["gm"] } : {}),
+                    data: { icon: "image-portrait" },
+                }),
+            );
+            await expect(noteTree(f.config, { toolchain: "authority-fixture" })).rejects.toThrow(
+                /note|metadata/i,
+            );
+        },
+    );
     it("invalidates the note cache for metadata-only and local-note edits", async () => {
         const f = fixture();
         await noteTree(f.config, { toolchain: "fixture" });
