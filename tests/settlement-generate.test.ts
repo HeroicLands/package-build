@@ -95,6 +95,83 @@ describe("settlement proposals", () => {
             ruralPopulation: 500,
         });
     });
+    it("treats map totals as estimates when authored households are higher", () => {
+        const input = fixture();
+        delete input.ruralPopulation;
+        input.existing = [
+            { identity: "place-known", urban: false, households: 120, householdSize: 5 },
+        ];
+        expect(proposeSettlements(input)).toMatchObject({
+            populationSource: "map estimate",
+            ruralPopulation: 500,
+            reservedPopulation: 600,
+            estimateShortfall: 100,
+            proposedPopulation: 0,
+            unallocatedPopulation: 0,
+            proposals: [],
+        });
+        input.existing[0].households = 0;
+        expect(proposeSettlements(input)).toMatchObject({
+            reservedPopulation: 0,
+            estimateShortfall: 0,
+            proposedPopulation: 400,
+            unallocatedPopulation: 100,
+        });
+        input.existing[0].households = 20;
+        expect(proposeSettlements(input)).toMatchObject({
+            reservedPopulation: 100,
+            estimateShortfall: 0,
+            proposedPopulation: 400,
+            unallocatedPopulation: 0,
+        });
+    });
+    it("reconciles subordinate facts with their bound map cells", () => {
+        const input = fixture();
+        input.map.cells.push({ ...input.map.cells[0], id: 8, burg: { i: 8 } });
+        input.subpolities = [{ address: "affiliation-child", ruralPopulation: 100, cellIds: [8] }];
+        input.existing = [
+            {
+                identity: "place-child",
+                source: { mapId: "map", kind: "cell", id: 8 },
+                urban: false,
+                population: 100,
+            },
+        ];
+        expect(proposeSettlements(input).reservedPopulation).toBe(100);
+        input.existing[0].source = { mapId: "map", kind: "burg", id: 8 };
+        expect(proposeSettlements(input).reservedPopulation).toBe(100);
+        input.existing[0].source = { mapId: "map", kind: "cell", id: 7 };
+        input.existing[0].subpolity = "affiliation-child";
+        expect(() => proposeSettlements(input)).toThrow(/conflicts with its subpolity/);
+        delete input.existing[0].source;
+        input.placements[0].noteAddress = "place-child";
+        expect(() => proposeSettlements(input)).toThrow(/direct placement.*subordinate/);
+    });
+    it("refuses two placement identities for one authored fact", () => {
+        const input = fixture();
+        input.existing = [
+            {
+                identity: "place-known",
+                source: input.placements[0].source,
+                urban: false,
+                households: 10,
+                householdSize: 5,
+            },
+        ];
+        input.placements[1].noteAddress = "place-known";
+        expect(() => proposeSettlements(input)).toThrow(/conflicts with the existing map identity/);
+        input.placements[1] = {
+            cellId: 7,
+            source: { mapId: "map", kind: "burg", id: 4 },
+            noteAddress: "place-known",
+            areaAcres: 1000,
+            cellAreaAcres: 2000,
+        };
+        expect(() => proposeSettlements(input)).toThrow(/conflicts with the existing map identity/);
+        delete input.existing[0].source;
+        input.placements[0].noteAddress = "place-known";
+        expect(() => proposeSettlements(input)).toThrow(/note bindings must be unique/);
+    });
     it("requires unknown facts instead of replacing them", () => {
         const input = fixture();
         input.existing = [

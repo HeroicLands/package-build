@@ -108,7 +108,9 @@ export function proposeSettlements(input, config) {
         noteBindings = new Set(),
         areas = new Map();
     const existingBySource = new Map();
-    const subordinateCells = new Set();
+    const existingByIdentity = new Map();
+    const subordinateFacts = new Set();
+    const subordinateCells = new Map();
     const reserved = [];
     let reservedPopulation = 0;
     const reserve = (value) => {
@@ -125,7 +127,7 @@ export function proposeSettlements(input, config) {
         for (const id of sub.cellIds) {
             if (!cells.has(id) || subordinateCells.has(id))
                 fail("subpolity cell bindings must exist and be unique");
-            subordinateCells.add(id);
+            subordinateCells.set(id, sub.address);
         }
         if (!nonnegative(sub.ruralPopulation))
             fail(`subpolity ${sub.address} needs a rural population`);
@@ -135,15 +137,29 @@ export function proposeSettlements(input, config) {
         if (!object(fact) || !text(fact.identity) || seen.has(fact.identity))
             fail("existing fact identities must be explicit and unique");
         seen.add(fact.identity);
-        if (fact.subpolity !== undefined) {
-            if (!noteBindings.has(fact.subpolity))
-                fail("existing fact refers to an unbound subpolity");
-            continue;
-        }
+        existingByIdentity.set(fact.identity, fact);
+        let sourceCell;
         if (fact.source !== undefined) {
             const key = identity(fact.source, mapId);
             if (existingBySource.has(key)) fail("duplicate existing map identity");
             existingBySource.set(key, fact);
+            if (fact.source.kind === "cell") sourceCell = cells.get(fact.source.id);
+            else {
+                const hits = input.map.cells.filter((cell) => cell.burg?.i === fact.source.id);
+                if (hits.length !== 1)
+                    fail(`existing fact ${fact.identity} needs an unambiguous burg cell`);
+                sourceCell = hits[0];
+            }
+            if (!sourceCell) fail(`existing fact ${fact.identity} refers to an unmapped cell`);
+        }
+        const cellOwner = sourceCell ? subordinateCells.get(sourceCell.id) : undefined;
+        if (fact.subpolity !== undefined && !noteBindings.has(fact.subpolity))
+            fail("existing fact refers to an unbound subpolity");
+        if (sourceCell && fact.subpolity !== undefined && cellOwner !== fact.subpolity)
+            fail(`existing fact ${fact.identity} conflicts with its subpolity cell binding`);
+        if (cellOwner || fact.subpolity !== undefined) {
+            subordinateFacts.add(fact.identity);
+            continue;
         }
         if (fact.urban === true) continue;
         if (fact.urban !== false)
@@ -161,9 +177,12 @@ export function proposeSettlements(input, config) {
         }
         reserved.push(fact.identity);
     }
-    if (reservedPopulation > ruralPopulation)
+    if (populationSource === "declared" && reservedPopulation > ruralPopulation)
         fail("reserved rural population exceeds the stated rural total");
+    const estimateShortfall =
+        populationSource === "map estimate" ? Math.max(0, reservedPopulation - ruralPopulation) : 0;
     const sources = new Set(),
+        matchedFacts = new Set(),
         placements = [];
     for (const placement of input.placements) {
         if (!object(placement) || !count(placement.cellId) || !cells.has(placement.cellId))
@@ -185,13 +204,25 @@ export function proposeSettlements(input, config) {
             if (!seen.has(placement.noteAddress)) fail("a note binding must name an existing fact");
         }
         const matchedSource = existingBySource.get(key);
+        const matchedNote =
+            placement.noteAddress === undefined ?
+                undefined
+            :   existingByIdentity.get(placement.noteAddress);
         if (
-            placement.noteAddress !== undefined &&
-            seen.has(placement.noteAddress) &&
-            matchedSource &&
-            matchedSource.identity !== placement.noteAddress
+            (matchedSource && subordinateFacts.has(matchedSource.identity)) ||
+            (matchedNote && subordinateFacts.has(matchedNote.identity))
         )
+            fail("a direct placement cannot bind a subordinate settlement");
+        if (matchedSource && matchedNote && matchedSource !== matchedNote)
             fail("map identity and note binding refer to different existing facts");
+        if (matchedNote?.source !== undefined && identity(matchedNote.source, mapId) !== key)
+            fail("note binding conflicts with the existing map identity");
+        const matchedFact = matchedSource ?? matchedNote;
+        if (matchedFact) {
+            if (matchedFacts.has(matchedFact.identity))
+                fail("an existing fact cannot match multiple placements");
+            matchedFacts.add(matchedFact.identity);
+        }
         if (!nonnegative(placement.areaAcres) || !nonnegative(placement.cellAreaAcres))
             fail(`cell ${cell.id} needs explicit acreage`);
         const previous = areas.get(cell.id) ?? { area: 0, total: placement.cellAreaAcres };
@@ -203,11 +234,7 @@ export function proposeSettlements(input, config) {
             fail(`cell ${cell.id} placement acreage exceeds its declared area`);
         previous.area += placement.areaAcres;
         areas.set(cell.id, previous);
-        if (
-            matchedSource ||
-            (placement.noteAddress !== undefined && seen.has(placement.noteAddress))
-        )
-            continue;
+        if (matchedFact) continue;
         const rules = input.landRules.filter((rule) => matches(rule, cell));
         if (rules.length !== 1)
             fail(`cell ${cell.id} needs exactly one matching declared land rule`);
@@ -242,7 +269,7 @@ export function proposeSettlements(input, config) {
                 fail(`cell ${cell.id} needs a placement for its existing burg`);
         }
     }
-    const remaining = ruralPopulation - reservedPopulation;
+    const remaining = Math.max(0, ruralPopulation - reservedPopulation);
     const distribution = distributeRuralPopulation(
         remaining,
         placements.map((p) => ({
@@ -268,6 +295,7 @@ export function proposeSettlements(input, config) {
         ruralPopulation,
         reserved,
         reservedPopulation,
+        estimateShortfall,
         proposedPopulation: distribution.allocatedPopulation,
         unallocatedPopulation: distribution.unallocatedPopulation,
         proposals: inhabited,
