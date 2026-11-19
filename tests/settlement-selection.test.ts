@@ -1,7 +1,216 @@
 /* Copyright (c) 2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
  * SPDX-License-Identifier: GPL-3.0-or-later */
 import { describe, expect, it } from "vitest";
-import { measurePlacementFootprints } from "../engine/settlement-selection.mjs";
+import {
+    measurePlacementFootprints,
+    selectSettlementPlacements,
+} from "../engine/settlement-selection.mjs";
+import { assertSettlementRecords } from "../engine/settlement-tables.mjs";
+import { note } from "./content-session-fixture.js";
+
+function selectionFixture() {
+    const polityAddress = "example-note-affiliation-crown";
+    const cultureAddress = "example-note-lore-folk";
+    const polity = {
+        package: "example",
+        type: "affiliation",
+        subType: "polity",
+        shortcode: "crown",
+        name: { full: "Crown" },
+        address: { canonical: polityAddress },
+        file: { path: "Crown.md" },
+        data: { territorial_population: 320, settlements: [] },
+    };
+    const culture = {
+        package: "example",
+        type: "lore",
+        subType: "culture",
+        shortcode: "folk",
+        name: { full: "Folk" },
+        address: { canonical: cultureAddress },
+        file: { path: "Folk.md" },
+        data: { householdSize: 5.6 },
+    };
+    const records: any[] = [polity, culture];
+    return {
+        polityAddress,
+        session: {
+            config: { contentPackage: "example" },
+            contentBase: "/selection-fixture",
+            records,
+            parsed: new Map(records.map((r) => [r.file.path, { frontmatter: r }])),
+            sources: new Map(records.map((r) => [r.file.path, { raw: note(r) }])),
+            foreign: { index: new Map<string, any>() },
+            problems: [],
+        },
+        map: {
+            mapId: "map",
+            mapHash: "map-hash",
+            jsonHash: "json-hash",
+            units: { distanceUnit: "km", distanceScale: 1, areaUnit: "square km" },
+            cells: [
+                {
+                    id: 7,
+                    boundary: [
+                        [0, 0],
+                        [2, 0],
+                        [2, 2],
+                        [0, 2],
+                    ],
+                    rawArea: 4,
+                    area: 4,
+                    biome: { i: 1 },
+                    cultureAddress,
+                    polityAddress,
+                },
+            ],
+        },
+        settings: {
+            urbanShares: { [polityAddress]: 0 },
+            placements: [],
+            landRules: [
+                {
+                    when: { biome: 1 },
+                    profile: {
+                        land: [5, 5, 5, 5],
+                        development: 1,
+                        holdingAcres: 1,
+                        foodApproach: "agrarian",
+                        economicFocus: "agrarian",
+                        governance: "appointed",
+                        obligation: 0.3,
+                        upwardShare: 0.3,
+                    },
+                },
+            ],
+            urban: { sources: [], routes: [], cities: [] },
+        },
+    };
+}
+
+const selectionLimits = (spacingMeters: number) => ({
+    cellIds: [7],
+    existingSites: [],
+    spacingMeters,
+    candidateLimit: 100,
+    workLimit: 1_000_000_000,
+});
+
+it.each([500, 5556])(
+    "keeps displayed totals and exact households within 320 at spacing %s",
+    (spacing) => {
+        const options = selectionFixture();
+        const result = selectSettlementPlacements(options, selectionLimits(spacing));
+        expect(result.selection, JSON.stringify(result.missing)).toBeDefined();
+        const proposals = result.selection.result.proposals;
+        expect(proposals.length).toBeGreaterThan(0);
+        const households = proposals.reduce(
+            (sum: number, p: any) => sum + p.calculation.households,
+            0,
+        );
+        const population = proposals.reduce(
+            (sum: number, p: any) => sum + p.calculation.estimatedPopulation,
+            0,
+        );
+        expect(population).toBeLessThanOrEqual(320);
+        expect(result.selection.result.unallocatedPopulation).toBe(
+            result.selection.allocation.unallocatedPopulation,
+        );
+        expect(
+            result.selection.result.proposedPopulation +
+                result.selection.result.unallocatedPopulation,
+        ).toBe(320);
+        if (spacing === 5556) {
+            expect(proposals).toHaveLength(1);
+            expect(households).toBe(57);
+            expect(result.selection.result.unallocatedPopulation).toBeCloseTo(0.8);
+        }
+        const rows = proposals.map((p: any, i: number) => ({
+            settlement: `Settlement ${i}`,
+            polity: options.polityAddress,
+            type:
+                p.calculation.estimatedPopulation < 10 ? "homestead"
+                : p.calculation.estimatedPopulation < 100 ? "hamlet"
+                : "village",
+            population: p.calculation.estimatedPopulation,
+            market: p.calculation.estimatedPopulation <= 80 ? "subsistence" : "local",
+            households: p.calculation.households,
+            economicFocus: p.calculation.economicFocus,
+            generatorSource: p.source,
+        }));
+        const records = options.session.records.map((record) =>
+            record === result.polity ?
+                { ...record, data: { ...record.data, settlements: rows } }
+            :   record,
+        );
+        expect(() =>
+            assertSettlementRecords(records, {
+                fileOf: (r: any) => r.file.path,
+                rawOf: (file: string) => options.session.sources.get(file)?.raw ?? "",
+                config: options.session.config,
+                foreignIndex: options.session.foreign.index,
+            }),
+        ).not.toThrow();
+        expect(selectSettlementPlacements(options, selectionLimits(spacing))).toEqual(result);
+    },
+);
+
+it("selects from a captured local and dependency corpus with a finite linear work allowance", () => {
+    const options = selectionFixture();
+    for (let i = 0; i < 20_000; i++) {
+        const pkg = i < 12_000 ? "example" : "dependency";
+        const record = {
+            package: pkg,
+            type: "lore",
+            subType: "history",
+            shortcode: `record${i}`,
+            name: { full: `Record ${i}` },
+            address: { canonical: `${pkg}-note-lore-record${i}` },
+            file: { path: `Record${i}.md` },
+            data: {
+                entries: Array.from({ length: 24 }, (_, n) => ({
+                    value: `Entry ${n}`,
+                    description: "captured text ".repeat(16),
+                })),
+            },
+        };
+        if (pkg === "example") {
+            options.session.records.push(record);
+            options.session.parsed.set(record.file.path, { frontmatter: record });
+            options.session.sources.set(record.file.path, {
+                raw: "Captured source.\n".repeat(128),
+            });
+        } else
+            options.session.foreign.index.set(record.address.canonical, {
+                settlementRecord: record,
+            });
+    }
+    const result = selectSettlementPlacements(options, selectionLimits(5556));
+    expect(result.selection, JSON.stringify(result.missing)).toBeDefined();
+    expect(result.selection.result.proposals).toHaveLength(1);
+    expect(result.selection.result.proposals[0].calculation.households).toBe(57);
+    expect(
+        selectSettlementPlacements(options, { ...selectionLimits(5556), workLimit: 100 }).missing[0]
+            .message,
+    ).toContain("work limit");
+}, 60_000);
+
+it("charges repeated array references and refuses cyclic capture graphs", () => {
+    const shared = Array.from({ length: 200 }, () => "captured text ".repeat(10));
+    const options = selectionFixture();
+    options.session.records.push({ data: { repeated: Array(100).fill(shared) } });
+    expect(
+        selectSettlementPlacements(options, { ...selectionLimits(5556), workLimit: 1_000_000 })
+            .missing[0].message,
+    ).toContain("work limit");
+    const cyclic: any = {};
+    cyclic.self = cyclic;
+    options.session.records.pop();
+    options.session.records.push(cyclic);
+    expect(selectSettlementPlacements(options, selectionLimits(5556)).missing[0].message).toContain(
+        "cycle",
+    );
+});
 
 describe("settlement footprint weights", () => {
     it("clips irregular cells and leaves uncovered area unused", () => {

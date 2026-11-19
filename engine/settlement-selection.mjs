@@ -110,10 +110,8 @@ function assemblyBudget(options, selection) {
     let units = 1,
         text = 0;
     const requireBudget = (additional = 0) => {
-        const extent = units + additional;
-        // Each polity can rebuild membership; each placement can scan rules and cells.
-        // Source locations and copied strings can be visited once per input entry.
-        const work = 4 * (records + placements + additional + 1) * extent ** 2 + text * extent;
+        // Captures are traversed linearly; placements can scan the record collection.
+        const work = 4 * (units + text + records * (placements + additional + 1) + additional);
         if (
             !Number.isSafeInteger(limit) ||
             limit < 1 ||
@@ -122,11 +120,8 @@ function assemblyBudget(options, selection) {
         )
             throw new RangeError("assembly exceeds the work limit");
     };
-    const charged = new WeakSet(),
-        visited = new WeakSet();
     const reserve = (value) => {
-        if (!value || typeof value !== "object" || charged.has(value)) return;
-        charged.add(value);
+        if (!value || typeof value !== "object") return;
         units +=
             Array.isArray(value) ? value.length + 1
             : value instanceof Map ? 2 * value.size + 1
@@ -174,10 +169,14 @@ function assemblyBudget(options, selection) {
             }
         }
     }
-    const pending = [roots.values()];
+    // Repeated references incur repeated traversal; active references are cycles.
+    const active = new WeakSet();
+    const pending = [{ iterator: roots.values(), owner: undefined }];
     while (pending.length) {
-        const next = pending.at(-1).next();
+        const frame = pending.at(-1);
+        const next = frame.iterator.next();
         if (next.done) {
+            if (frame.owner) active.delete(frame.owner);
             pending.pop();
             continue;
         }
@@ -185,10 +184,11 @@ function assemblyBudget(options, selection) {
         if (typeof value === "string" || Buffer.isBuffer(value)) {
             text += value.length;
             requireBudget();
-        } else if (value && typeof value === "object" && !visited.has(value)) {
+        } else if (value && typeof value === "object") {
+            if (active.has(value)) throw new RangeError("assembly input graph contains a cycle");
             reserve(value);
-            visited.add(value);
-            pending.push(entries(value));
+            active.add(value);
+            pending.push({ iterator: entries(value), owner: value });
         }
     }
     return requireBudget;
@@ -294,7 +294,7 @@ export function selectSettlementPlacements(options, selection) {
                     initial.existingFacts.length +
                     1) +
             cells.length +
-            candidateCount * (initial.ruralInput.landRules.length + 1);
+            candidateCount * (initial.ruralInput.landRules.length + 55);
         if (!Number.isSafeInteger(work) || work > selection.workLimit)
             return fail("assembly and land rule matching exceed the work limit");
         const factSources = initial.existingFacts.map((entry) => ({
@@ -398,14 +398,50 @@ export function selectSettlementPlacements(options, selection) {
                 capacity,
             };
         });
+        const remainingPopulation = Math.max(0, base.ruralPopulation - base.reservedPopulation);
         const allocation = distributeRuralPopulation(
-            Math.max(0, base.ruralPopulation - base.reservedPopulation),
+            remainingPopulation,
             modeled.map((entry, id) => ({
                 id,
                 capacity: entry.capacity,
                 householdSize: entry.householdSize,
             })),
         );
+        const displayedExisting = initial.existingFacts.reduce(
+            (sum, entry) =>
+                sum + (Number.isFinite(entry.fact.population) ? entry.fact.population : 0),
+            0,
+        );
+        const displayedLimit = Math.max(
+            0,
+            Math.min(
+                remainingPopulation,
+                initial.polity.data.territorial_population - displayedExisting,
+            ),
+        );
+        let allocatedPopulation = 0,
+            displayedPopulation = 0;
+        // Keep whole households within both the exact and displayed population ceilings.
+        for (let i = 0; i < modeled.length; i++) {
+            const size = modeled[i].householdSize;
+            let low = 0,
+                high = allocation.allocation[i].households;
+            while (low < high) {
+                const middle = low + Math.ceil((high - low) / 2);
+                if (
+                    allocatedPopulation + middle * size <= remainingPopulation &&
+                    displayedPopulation + roundPopulation(middle * size) <= displayedLimit
+                )
+                    low = middle;
+                else high = middle - 1;
+            }
+            allocation.allocation[i].households = low;
+            allocatedPopulation += low * size;
+            displayedPopulation += roundPopulation(low * size);
+        }
+        // Derive the remainder from final integer counts in the proposal's summation order.
+        allocation.allocatedPopulation = allocatedPopulation;
+        allocation.unallocatedPopulation = Math.max(0, remainingPopulation - allocatedPopulation);
         const chosen = [];
         for (let i = 0; i < modeled.length; i++) {
             const entry = modeled[i],
