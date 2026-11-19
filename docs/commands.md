@@ -1899,6 +1899,8 @@ not reproducible and hides a dependency's version change behind a passing
 run. Each cache is stamped complete only once its fetch finishes, so a
 half-finished one reads as cold.
 
+Each remote content index has a sibling `.sha256` file containing its lowercase SHA-256, two spaces, its filename and a newline. The checksum is read before the JSONL; the shared download cache verifies every hit. Both files must be published together. A local `--from` artifact is read directly.
+
 Dependency manifest, archive and content index requests use up to five attempts for server
 errors and network or response-body failures. Each attempt has a 60-second
 timeout covering the response body. Retries wait 1, 2, 4 and 8 seconds, each

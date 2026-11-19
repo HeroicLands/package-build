@@ -183,7 +183,10 @@ describe("a glossary entry's language, linted", () => {
                     foundry: null,
                     documentation: null,
                 }) + "\n",
-            "remote@1.0.0/.complete": "",
+            "remote@1.0.0/.complete": JSON.stringify({
+                file: "remote-metadata.jsonl",
+                sha256: null,
+            }),
         });
         const config = {
             ...loadPackConfig(),

@@ -79,7 +79,7 @@ describe("portrait dependency metadata", () => {
                         path.join(dest, metadataFileName(pkg)),
                         serializeContentIndex(records),
                     );
-                    markComplete(dest);
+                    markComplete(dest, metadataFileName(pkg));
                     return records;
                 };
                 const gear = (name: string) => ({

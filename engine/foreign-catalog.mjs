@@ -393,7 +393,7 @@ async function fetchBytes(url, context, token, mirror = false) {
 }
 
 /** Read a small checksum over a secure release or build-mirror connection. */
-async function fetchChecksum(url, token, mirror) {
+async function fetchChecksum(url, token, mirror, signal) {
     const allowed = (value, base) => {
         const parsed = new URL(value, base);
         const host = parsed.hostname;
@@ -409,39 +409,86 @@ async function fetchChecksum(url, token, mirror) {
     };
     let current = allowed(url);
     const origin = current.origin;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
     let response;
     try {
         for (let redirects = 0; ; redirects++) {
-            response = await fetch(current.href, {
-                redirect: "manual",
-                signal: controller.signal,
-                headers: token ? { Authorization: `token ${token}` } : {},
-            });
+            try {
+                response = await fetch(current.href, {
+                    redirect: "manual",
+                    signal,
+                    headers: token ? { Authorization: `token ${token}` } : {},
+                });
+            } catch {
+                const error = new Error("checksum request failed");
+                error.retryable = true;
+                throw error;
+            }
             if (![301, 302, 303, 307, 308].includes(response.status)) break;
             const location = response.headers.get("location");
             await response.body?.cancel();
             if (!location || redirects >= MAX_MIRROR_REDIRECTS)
                 throw new Error("checksum redirect refused");
             const next = allowed(location, current);
+            if (current.protocol === "https:" && next.protocol !== "https:")
+                throw new Error("checksum redirect refused");
             if (token && next.origin !== origin) throw new Error("checksum redirect refused");
             current = next;
         }
-        if (!response.ok || !response.body)
-            throw new Error(`checksum request failed (HTTP ${response.status})`);
+        if (!response.ok || !response.body) {
+            const error = new Error(`checksum request failed (HTTP ${response.status})`);
+            error.retryable = response.status >= 500 && response.status < 600;
+            throw error;
+        }
         const chunks = [];
         let size = 0;
-        for await (const chunk of response.body) {
-            size += chunk.length;
+        try {
+            for await (const chunk of response.body) {
+                size += chunk.length;
+                if (size > 1024) throw new Error("checksum exceeds size limit");
+                chunks.push(chunk);
+            }
+        } catch {
             if (size > 1024) throw new Error("checksum exceeds size limit");
-            chunks.push(chunk);
+            const error = new Error("checksum response interrupted");
+            error.retryable = true;
+            throw error;
         }
         return Buffer.concat(chunks);
     } finally {
-        clearTimeout(timeout);
         if (response?.body && !response.body.locked) await response.body.cancel().catch(() => {});
     }
+}
+
+/** Retry transient metadata requests with bounded time per attempt. */
+async function retryMetadata(action) {
+    for (let attempt = 0; ; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+        try {
+            return await action(controller.signal);
+        } catch (error) {
+            if (
+                !(error.retryable || controller.signal.aborted) ||
+                attempt === DOWNLOAD_ATTEMPTS - 1
+            )
+                throw error;
+        } finally {
+            clearTimeout(timeout);
+        }
+        await new Promise((resolve) =>
+            setTimeout(
+                resolve,
+                DOWNLOAD_DELAY_MS * 2 ** attempt + Math.floor(Math.random() * DOWNLOAD_JITTER_MS),
+            ),
+        );
+    }
+}
+
+/** Hash an index without buffering it in memory. */
+async function indexDigest(file) {
+    const hash = createHash("sha256");
+    for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+    return hash.digest("hex");
 }
 
 /**
@@ -608,7 +655,7 @@ export function mirroredAssetUrl(asset, manifest, mirror) {
  *   its resolved version.
  */
 async function resolveManifest(rel) {
-    const { url } = pinnedManifestUrl(rel.manifest, rel.verified);
+    const { url, pinned } = pinnedManifestUrl(rel.manifest, rel.verified);
     const manifest = await fetchManifest(rel.buildManifest ?? url, mirrorToken(rel), rel);
     const version = manifest.version;
     if (!version) {
@@ -634,7 +681,7 @@ async function resolveManifest(rel) {
 /**
  * Fetch one dependency and extract its Item packs.
  *
- * The release checksum is read first, and the shared cache is verified before use.
+ * A complete catalogue cache is reused for the resolved version.
  *
  * @param {object} config - The resolved build configuration.
  * @param {{id: string, manifest: string, buildManifest?: string, verified?: string}} rel - The declared relationship.
@@ -804,7 +851,7 @@ export async function fetchMetadata(config, rel) {
  *   and the parsed manifest.
  */
 async function fetchMetadataWithManifest(config, rel) {
-    const { url, pinned } = pinnedManifestUrl(rel.manifest, rel.verified);
+    const { url } = pinnedManifestUrl(rel.manifest, rel.verified);
     const manifest = await fetchManifest(rel.buildManifest ?? url, mirrorToken(rel), rel);
     const version = manifest.version;
     if (!version) {
@@ -837,33 +884,37 @@ async function fetchMetadataWithManifest(config, rel) {
     const token = mirrorToken(rel);
     let sidecar;
     try {
-        sidecar = await fetchChecksum(sidecarUrl.href, token, !!rel.buildManifest);
+        sidecar = await retryMetadata((signal) =>
+            fetchChecksum(sidecarUrl.href, token, !!rel.buildManifest, signal),
+        );
     } catch (cause) {
         throw new Error(
             `${rel.id}@${version}: content index checksum unavailable; use a release that publishes its checksum`,
-            { cause },
+            token ? undefined : { cause },
         );
     }
     const text = new TextDecoder("utf-8", { fatal: true }).decode(sidecar);
     const match = /^([0-9a-f]{64})  ([^\r\n]+)\n$/.exec(text);
     if (!match || match[2] !== name)
         throw new Error(`${rel.id}@${version}: invalid content index checksum for ${name}`);
-    const cached = await downloadCached(indexUrl, match[1], {
-        token,
-        allowLoopback: !!rel.buildManifest,
-    });
+    const cached = await retryMetadata((signal) =>
+        downloadCached(indexUrl, match[1], {
+            token,
+            allowLoopback: !!rel.buildManifest,
+            maxBytes: 256 * 1024 * 1024,
+            signal,
+        }),
+    );
     fs.mkdirSync(dir, { recursive: true });
-    const marker = path.join(dir, ".complete");
-    fs.rmSync(marker, { force: true });
     const temporary = fs.mkdtempSync(path.join(dir, ".metadata-"));
-    const file = path.join(dir, name);
+    const file = path.join(dir, `${match[1]}.jsonl`);
     try {
-        const staged = path.join(temporary, name);
+        const staged = path.join(temporary, "index.jsonl");
         fs.copyFileSync(cached, staged);
-        if (createHash("sha256").update(fs.readFileSync(staged)).digest("hex") !== match[1])
+        if ((await indexDigest(staged)) !== match[1])
             throw new Error(`${rel.id}@${version}: cached content index failed verification`);
         fs.renameSync(staged, file);
-        markMetadataComplete(dir);
+        markMetadataComplete(dir, path.basename(file), match[1]);
     } finally {
         fs.rmSync(temporary, { recursive: true, force: true });
     }
@@ -932,7 +983,7 @@ export async function fetchMetadataFromPath(config, rel, source) {
         fs.mkdirSync(dir, { recursive: true });
         const file = path.join(dir, name);
         fs.copyFileSync(found, file);
-        markMetadataComplete(dir);
+        markMetadataComplete(dir, name);
         log.info(`${rel.id}@${version}: index cached from ${source}`);
         return file;
     } finally {

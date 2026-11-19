@@ -408,7 +408,10 @@ describe("package-build npc new", () => {
                     path.join(cache, "source-metadata.jsonl"),
                     records.map((record) => JSON.stringify(record)).join("\n") + "\n",
                 );
-                fs.writeFileSync(path.join(cache, ".complete"), "");
+                fs.writeFileSync(
+                    path.join(cache, ".complete"),
+                    JSON.stringify({ file: "source-metadata.jsonl", sha256: null }),
+                );
                 fs.writeFileSync(
                     configFile,
                     originalConfig +

@@ -83,7 +83,10 @@ beforeAll(() => {
             collectContentIndex(theirs, { contentPackage: "elder", skipDirectories: [] }),
         ),
     );
-    fs.writeFileSync(path.join(cache, ".complete"), "");
+    fs.writeFileSync(
+        path.join(cache, ".complete"),
+        JSON.stringify({ file: "elder-metadata.jsonl", sha256: null }),
+    );
     const { index: foreignIndex } = loadForeignIndexes(
         {
             docEntryTypes: loadPackConfig().docEntryTypes,

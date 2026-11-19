@@ -3215,7 +3215,7 @@ console.log(normalizeRepoUrl("git@github.com:HeroicLands/sohl.git"));
 
 The release publishes each content index with a sibling `.sha256` file containing the lowercase SHA-256, two spaces, the index filename and a newline. Dependency fetch checks this value before caching and verifies every shared cache hit. A remote release must publish both files; local `deps fetch --from` accepts a local artifact.
 
-The release archive — the two (or three) files a Foundry package's GitHub Release carries: `<artifact>.zip` (the staged tree), `<artifact>.json` (the manifest, re-fetched by an already-installed package to notice updates), and, when the package ships content, a published content index other packages resolve addresses through. Kept apart from `stage.mjs` because this is the only part of assembly that needs a dependency (the zip archiver); a repository that never cuts a release from a local build pays nothing for it.
+A Foundry package release carries: `<artifact>.zip` (the staged tree), `<artifact>.json` (the manifest, re-fetched by an already-installed package to notice updates), and, when the package ships content, a published content index other packages resolve addresses through. Kept apart from `stage.mjs` because this is the only part of assembly that needs a dependency (the zip archiver); a repository that never cuts a release from a local build pays nothing for it.
 
 ```js
 import { packRelease } from "@heroiclands/package-build/release";
@@ -3935,7 +3935,7 @@ notes against local notes, and check artwork eligibility for the intended output
 
 ### Verified download cache
 
-`downloadCached(url, sha256, options)` in `engine/download-cache` returns an absolute path to a file verified against the supplied lowercase SHA-256. HTTPS downloads use a shared per-user cache keyed by the digest, so callers can reuse the same bytes across repositories and file types. Cache hits are checked before use. `downloadCacheDirectory()` returns the default per-user cache path. `cacheDir` selects an absolute cache directory; `maxBytes` limits bytes and defaults to `Number.MAX_SAFE_INTEGER`. `signal` can abort cache verification or download; `fetch` supplies a request implementation. Temporary download files are cleaned up on success and failure. The caller reads and interprets the returned file.
+`downloadCached(url, sha256, options)` in `engine/download-cache` returns an absolute path to a file verified against the supplied lowercase SHA-256. HTTPS downloads use a shared per-user cache keyed by the digest, so callers can reuse the same bytes across repositories and file types. Cache hits are checked before use. `downloadCacheDirectory()` returns the default per-user cache path. `cacheDir` selects an absolute cache directory; `maxBytes` limits bytes and defaults to `Number.MAX_SAFE_INTEGER`. `signal` can abort cache verification or download; `fetch` supplies a request implementation. `token` sends an authorization token only to the initial origin and refuses cross-origin redirects. `allowLoopback` permits an explicitly configured HTTP loopback URL; HTTPS requests never downgrade to HTTP. Temporary download files are cleaned up on success and failure. The caller reads and interprets the returned file.
 
 ### Original artwork archive
 

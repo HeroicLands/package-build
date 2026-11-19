@@ -176,7 +176,10 @@ describe("a dependency's works list on this package's subject pages", () => {
             path.join(dir, "thalorna-metadata.jsonl"),
             records.map((r) => JSON.stringify(r)).join("\n") + "\n",
         );
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: "thalorna-metadata.jsonl", sha256: null }),
+        );
         return {
             cache,
             config: {

@@ -62,3 +62,144 @@ it("rejects a manifest for another version", async () => {
     await expect(fetchMetadata(config, { ...rel, verified: "2" })).rejects.toThrow(/moving target/);
     expect(fetcher.mock.calls.some(([url]) => url === index)).toBe(false);
 });
+
+it("selects the verified index with stale siblings and concurrent fetches", async () => {
+    const body =
+        JSON.stringify({
+            package: "example",
+            type: "lore",
+            shortcode: "valid",
+            name: { full: "Valid" },
+            address: { canonical: "example-note-lore-valid", slug: "lore-valid" },
+            anchors: [],
+        }) + "\n";
+    const { config } = setup(`${digest(body)}  index.jsonl\n`, body);
+    const dir = path.join(config.paths.metadataCache, "example@1");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "a.jsonl"), "stale");
+    await Promise.all([fetchMetadata(config, rel), fetchMetadata(config, rel)]);
+    const { cachedIndexFile, loadForeignIndexes } = await import("../engine/metadata-index.mjs");
+    const file = cachedIndexFile(config, "example");
+    expect(file).toBe(path.join(dir, `${digest(body)}.jsonl`));
+    const resolved = loadForeignIndexes({ ...config, relationships: { requires: [rel] } }, []);
+    expect(resolved.index.has("example-note-lore-valid")).toBe(true);
+    expect(resolved.stale).toEqual([]);
+});
+
+it("never exposes an authenticated redirect location through error causes", async () => {
+    const { root, config } = setup(null);
+    const token = "reflected-secret";
+    const tokenFile = path.join(root, "token");
+    fs.writeFileSync(tokenFile, token);
+    vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+    const mirror = "https://mirror.test/system.json";
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => {
+            if (url === mirror)
+                return Response.json({ version: "1", flags: { metadataUrl: index } });
+            return new Response(null, { status: 302, headers: { location: `http://[${token}` } });
+        }),
+    );
+    const error = await fetchMetadata(config, { ...rel, buildManifest: mirror }).catch((e) => e);
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(token);
+    expect(error.cause).toBeUndefined();
+});
+
+it("refuses a checksum redirect from HTTPS to a loopback HTTP mirror", async () => {
+    const { config } = setup(null);
+    const mirror = "https://mirror.test/system.json";
+    const fetcher = vi.fn(async (url: string) => {
+        if (url === mirror) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        return new Response(null, {
+            status: 302,
+            headers: { location: "http://127.0.0.1/checksum" },
+        });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    await expect(fetchMetadata(config, { ...rel, buildManifest: mirror })).rejects.toThrow(
+        /checksum/,
+    );
+    expect(fetcher.mock.calls.some(([url]) => url.startsWith("http://"))).toBe(false);
+});
+
+it("retries transient sidecar and index responses", async () => {
+    vi.useFakeTimers();
+    try {
+        const { config } = setup(`${digest("index")}  index.jsonl\n`);
+        let checks = 0;
+        let indexes = 0;
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (url: string) => {
+                if (url === manifest)
+                    return Response.json({ version: "1", flags: { metadataUrl: index } });
+                if (url === `${index}.sha256`)
+                    return ++checks === 1 ?
+                            new Response("", { status: 503 })
+                        :   new Response(`${digest("index")}  index.jsonl\n`);
+                return ++indexes === 1 ? new Response("", { status: 503 }) : new Response("index");
+            }),
+        );
+        const result = fetchMetadata(config, rel);
+        await vi.runAllTimersAsync();
+        expect(fs.readFileSync(await result, "utf8")).toBe("index");
+        expect([checks, indexes]).toEqual([2, 2]);
+    } finally {
+        vi.useRealTimers();
+    }
+});
+
+it("bounds chunked JSONL downloads and removes temporary files", async () => {
+    const { config, root } = setup(`${digest("index")}  index.jsonl\n`);
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => {
+            if (url === manifest)
+                return Response.json({ version: "1", flags: { metadataUrl: index } });
+            if (url.endsWith(".sha256")) return new Response(`${digest("index")}  index.jsonl\n`);
+            let count = 0;
+            return new Response(
+                new ReadableStream({
+                    pull(controller) {
+                        if (count++ < 257) controller.enqueue(new Uint8Array(1024 * 1024));
+                        else controller.close();
+                    },
+                }),
+            );
+        }),
+    );
+    await expect(fetchMetadata(config, rel)).rejects.toThrow(/size/);
+    expect(fs.readdirSync(path.join(root, "shared", "heroiclands", "downloads"))).toEqual([]);
+});
+
+it("times out stalled index bodies and cleans download files", async () => {
+    vi.useFakeTimers();
+    try {
+        const { config, root } = setup(`${digest("index")}  index.jsonl\n`);
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (url: string, options: RequestInit) => {
+                if (url === manifest)
+                    return Response.json({ version: "1", flags: { metadataUrl: index } });
+                if (url.endsWith(".sha256"))
+                    return new Response(`${digest("index")}  index.jsonl\n`);
+                return new Response(
+                    new ReadableStream({
+                        start(controller) {
+                            options.signal!.addEventListener("abort", () =>
+                                controller.error(new Error("aborted")),
+                            );
+                        },
+                    }),
+                );
+            }),
+        );
+        const result = fetchMetadata(config, rel).catch((error) => error);
+        await vi.runAllTimersAsync();
+        expect(await result).toBeInstanceOf(Error);
+        expect(fs.readdirSync(path.join(root, "shared", "heroiclands", "downloads"))).toEqual([]);
+    } finally {
+        vi.useRealTimers();
+    }
+});

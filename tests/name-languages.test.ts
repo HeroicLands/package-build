@@ -125,7 +125,7 @@ function fixture(notes: object[], foreignRecord?: object) {
     if (foreignRecord) {
         const foreign = metadataCacheDir(config, "pub", "1.0.0");
         write(path.join(foreign, metadataFileName("pub")), JSON.stringify(foreignRecord) + "\n");
-        markComplete(foreign);
+        markComplete(foreign, metadataFileName("pub"));
     }
     const parsed = new Map();
     const records = indexRecordsFor({ contentBase: config.paths.content, config, parsed });

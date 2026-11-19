@@ -79,7 +79,7 @@ function fixture(size = 8, pkg = "local") {
             anchors: [{ slug: "known", kind: "prose" }],
         }) + "\n",
     );
-    markComplete(dependency);
+    markComplete(dependency, metadataFileName("pub"));
     const guide = [
         "---",
         "type: doc",

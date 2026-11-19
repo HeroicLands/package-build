@@ -589,7 +589,10 @@ describe("one invocation owns the shared content session", () => {
                 documentation: null,
             }) + "\n",
         );
-        write(path.join(dependency, ".complete"), "");
+        write(
+            path.join(dependency, ".complete"),
+            JSON.stringify({ file: "source-metadata.jsonl", sha256: null }),
+        );
         write(
             path.join(config.paths.content, "Note2.md"),
             note({
@@ -660,7 +663,10 @@ describe("one invocation owns the shared content session", () => {
                     documentation: null,
                 }) + "\n",
             );
-            write(path.join(dir, ".complete"), "");
+            write(
+                path.join(dir, ".complete"),
+                JSON.stringify({ file: "source-metadata.jsonl", sha256: null }),
+            );
             return configFromData(
                 {
                     ...YAML.parse(fs.readFileSync(input.configFile, "utf8")),

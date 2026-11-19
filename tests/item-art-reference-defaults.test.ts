@@ -90,7 +90,7 @@ describe("item image reference defaults", () => {
         });
         const cache = metadataCacheDir(config, "foreign", "1.0.0");
         write(path.join(cache, metadataFileName("foreign")), serializeContentIndex(published));
-        markComplete(cache);
+        markComplete(cache, metadataFileName("foreign"));
         const foreign = loadForeignIndexes(config, new Set(["demo"]));
         const content = path.join(root, "content");
         const localAssets = path.join(root, "assets");

@@ -744,7 +744,10 @@ describe("dependency indexes", () => {
             path.join(dir, metadataFileName(id)),
             records.map((r) => JSON.stringify(r)).join("\n") + "\n",
         );
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: metadataFileName(id), sha256: null }),
+        );
     }
 
     const config = (cache: string) => ({

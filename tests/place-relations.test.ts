@@ -743,7 +743,10 @@ describe("the content index carries a place's borders and routes", () => {
             path.join(dir, "thalorna-metadata.jsonl"),
             serializeContentIndex([record]),
         );
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: "thalorna-metadata.jsonl", sha256: null }),
+        );
         const config = {
             docEntryTypes: loadPackConfig().docEntryTypes,
             paths: { metadataCache: cache },
@@ -779,7 +782,10 @@ describe("the content index carries a place's borders and routes", () => {
             documentation: null,
         };
         fs.writeFileSync(path.join(dir, "thalorna-metadata.jsonl"), JSON.stringify(abroad) + "\n");
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: "thalorna-metadata.jsonl", sha256: null }),
+        );
         return {
             docEntryTypes: loadPackConfig().docEntryTypes,
             contentPackage: "mine",

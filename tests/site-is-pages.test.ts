@@ -262,7 +262,10 @@ describe("a foreign package's homepage resolves to its root", () => {
                     .map((r) => JSON.stringify(r))
                     .join("\n") + "\n",
             );
-            fs.writeFileSync(path.join(dir, ".complete"), "");
+            fs.writeFileSync(
+                path.join(dir, ".complete"),
+                JSON.stringify({ file: "thalorna-metadata.jsonl", sha256: null }),
+            );
             const config = {
                 docEntryTypes: loadPackConfig().docEntryTypes,
                 paths: { metadataCache: root },

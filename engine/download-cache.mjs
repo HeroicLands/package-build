@@ -119,7 +119,9 @@ export async function downloadCached(url, sha256, options = {}) {
                     },
                 });
             } catch {
-                throw new Error("download request failed");
+                const error = new Error("download request failed");
+                error.retryable = true;
+                throw error;
             }
             if ([301, 302, 303, 307, 308].includes(response.status)) {
                 const location = response.headers.get("location");
@@ -127,12 +129,18 @@ export async function downloadCached(url, sha256, options = {}) {
                 if (!location || redirects >= 5)
                     throw new Error("download redirect limit or missing location");
                 const next = safeUrl(location, parsed, options.allowLoopback === true);
+                if (parsed.protocol === "https:" && next.protocol !== "https:")
+                    throw new Error("download redirect refused");
                 if (options.token && next.origin !== origin)
                     throw new Error("authenticated download redirect refused");
                 parsed = next;
                 continue;
             }
-            if (!response.ok || !response.body) throw new Error("download request failed");
+            if (!response.ok || !response.body) {
+                const error = new Error("download request failed");
+                error.retryable = response.status >= 500 && response.status < 600;
+                throw error;
+            }
             if (response.url) {
                 const actual = safeUrl(response.url, undefined, options.allowLoopback === true);
                 if (options.token && actual.origin !== origin)
@@ -164,9 +172,16 @@ export async function downloadCached(url, sha256, options = {}) {
                 { signal: options.signal },
             );
         } catch {
-            throw new Error("download stream failed");
+            if (size > maxBytes) throw new Error("download exceeds its size limit");
+            const error = new Error("download stream failed");
+            error.retryable = true;
+            throw error;
         }
-        if (length !== null && size !== Number(length)) throw new Error("download is incomplete");
+        if (length !== null && size !== Number(length)) {
+            const error = new Error("download is incomplete");
+            error.retryable = true;
+            throw error;
+        }
         if (hash.digest("hex") !== sha256) throw new Error("download SHA-256 does not match");
         await rename(file, target);
         for (let attempt = 0; attempt < 3; attempt++)

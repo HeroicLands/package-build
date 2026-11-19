@@ -706,7 +706,7 @@ describe("dependency download retries", () => {
             .mockResolvedValue(response(503));
         vi.stubGlobal("fetch", fetcher);
         const error = await settle(fetchMetadata({ paths: { metadataCache: root } }, rel));
-        expect(fetcher).toHaveBeenCalledTimes(2);
+        expect(fetcher).toHaveBeenCalledTimes(6);
         expect(String(error)).toContain("checksum unavailable");
         expect(fetcher.mock.calls[1][1].signal).toBeInstanceOf(AbortSignal);
     });

@@ -252,3 +252,19 @@ it("keeps mirror credentials on the original origin and restricts HTTP to loopba
     });
     expect(await fs.readFile(loopback)).toEqual(content);
 });
+
+it("refuses an HTTPS downgrade even when initial loopback mirrors are allowed", async () => {
+    const cacheDir = await root();
+    const fetcher = vi.fn(
+        async () =>
+            new Response(null, { status: 302, headers: { location: "http://127.0.0.1/file" } }),
+    );
+    await expect(
+        downloadCached("https://mirror.test/file", digest, {
+            cacheDir,
+            allowLoopback: true,
+            fetch: fetcher,
+        }),
+    ).rejects.toThrow(/redirect refused/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+});
