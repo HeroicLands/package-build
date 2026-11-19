@@ -1,0 +1,10 @@
+---
+type: affiliation
+subType: polity
+shortcode: crown
+name: {full: "Kept"} # unchanged
+data: {settlements: [{"settlement":"Example","households":7,"notes":"A quoted: fact"}]}
+---
+
+Unrelated body.
+  Keep spacing.

@@ -1,0 +1,11 @@
+---
+type: affiliation
+subType: polity
+shortcode: crown
+data:
+  settlements: [] # kept empty-list comment
+  note: "unchanged"
+---
+
+Unrelated body.
+  Keep spacing.

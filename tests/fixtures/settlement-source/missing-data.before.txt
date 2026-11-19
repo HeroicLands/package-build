@@ -1,0 +1,9 @@
+---
+type: affiliation
+subType: polity
+shortcode: crown
+name: {full: "Kept"} # unchanged
+---
+
+Unrelated body.
+  Keep spacing.
