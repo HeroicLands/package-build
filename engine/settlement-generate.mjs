@@ -43,7 +43,12 @@ function identity(source, mapId) {
     ]);
 }
 
-function matches(rule, cell) {
+/** Match one declared land rule against a normalized cell.
+ * @param {object} rule - Declared condition and profile.
+ * @param {object} cell - Normalized map cell.
+ * @returns {boolean} Whether the rule applies.
+ */
+export function matchesLandRule(rule, cell) {
     if (!object(rule) || !object(rule.when) || !object(rule.profile))
         fail("land rules require a condition and profile");
     const when = rule.when;
@@ -245,7 +250,7 @@ export function proposeSettlements(input, config) {
         previous.area += placement.areaAcres;
         areas.set(cell.id, previous);
         if (matchedFact) continue;
-        const rules = input.landRules.filter((rule) => matches(rule, cell));
+        const rules = input.landRules.filter((rule) => matchesLandRule(rule, cell));
         if (rules.length !== 1)
             fail(`cell ${cell.id} needs exactly one matching declared land rule`);
         const cultureAddress =

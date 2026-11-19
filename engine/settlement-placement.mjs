@@ -46,6 +46,15 @@ const touches = (a, b, c, d) =>
     onSegment(c, d, a) ||
     onSegment(c, d, b);
 
+/** Return the grid interval in raw map coordinates, or NaN for invalid units.
+ * @param {object} units - Map distance unit and scale.
+ * @param {number} spacingMeters - Physical grid spacing.
+ * @returns {number} Raw coordinate interval.
+ */
+export function placementGridInterval(units, spacingMeters) {
+    return spacingMeters / (METERS[units?.distanceUnit] * units?.distanceScale);
+}
+
 /**
  * Find candidate coordinates on a globally anchored square grid. Boundary points
  * belong to the lowest numbered cell; overlapping interiors are ambiguous.
@@ -101,7 +110,7 @@ export function discoverPlacementSites({
             "invalid-input",
             "provide map provenance, supported units, positive scale and spacing, sites, and bounded limits",
         );
-    const step = spacingMeters / (factor * scale);
+    const step = placementGridInterval(map.units, spacingMeters);
     if (!finite(step) || step <= 0)
         return fail("invalid-input", "map scale and spacing must produce a finite grid");
     let work = 0;

@@ -1600,3 +1600,87 @@ describe("settlement assembly authority and identities", () => {
         }
     });
 });
+
+describe("automatic rural placement", () => {
+    it("selects whole households and preserves the assembler's identities and remainder", async () => {
+        const f = await assemblyFixture();
+        try {
+            const { selectSettlementPlacements } =
+                await import("../engine/settlement-selection.mjs");
+            const cell = {
+                ...f.map.cells[0],
+                boundary: [
+                    [0, 0],
+                    [6, 0],
+                    [6, 6],
+                    [0, 6],
+                ],
+                rawArea: 36,
+                area: 36,
+            };
+            const map = {
+                ...f.map,
+                mapHash: "map-hash",
+                jsonHash: "json-hash",
+                units: { distanceUnit: "nmi", distanceScale: 1, areaUnit: "square nmi" },
+                cells: [cell],
+            };
+            const settings = {
+                ...f.settings,
+                placements: f.settings.placements
+                    .slice(0, 2)
+                    .map((p: any) => ({ ...p, areaAcres: 0, cellAreaAcres: undefined })),
+            };
+            for (const p of settings.placements) delete p.cellAreaAcres;
+            const before = fs.readFileSync(f.crownFile, "utf8");
+            const baseline = prepareSettlementInputs({ ...f, map, settings });
+            const existingSites = baseline.existingFacts.map((entry: any, i: number) => ({
+                identity: entry.fact.identity,
+                point: [0, i],
+            }));
+            const selection = {
+                cellIds: [7],
+                existingSites,
+                spacingMeters: 5556,
+                candidateLimit: 100,
+                workLimit: 10000,
+            };
+            const result = selectSettlementPlacements({ ...f, map, settings }, selection);
+            expect(result.selection.result.reservedPopulation).toBe(25);
+            expect(result.selection.result.unallocatedPopulation).toBe(
+                result.selection.allocation.unallocatedPopulation,
+            );
+            expect(
+                result.selection.candidates
+                    .filter((c: any) => c.households)
+                    .every(
+                        (c: any) =>
+                            c.areaAcres <= c.ceilingAcres &&
+                            c.areaAcres === c.households * c.holdingAcres,
+                    ),
+            ).toBe(true);
+            expect(selectSettlementPlacements({ ...f, map, settings }, selection)).toEqual(result);
+            expect(fs.readFileSync(f.crownFile, "utf8")).toBe(before);
+            const unknown = selectSettlementPlacements(
+                { ...f, map, settings },
+                { ...selection, existingSites: existingSites.slice(1) },
+            );
+            expect(unknown.missing[0].message).toContain("explicit position");
+            const missingAcres = selectSettlementPlacements(
+                {
+                    ...f,
+                    map,
+                    settings: { ...settings, placements: settings.placements.slice(0, 1) },
+                },
+                selection,
+            );
+            expect(missingAcres.selection).toBeDefined();
+            expect(missingAcres.ruralInput).toBeUndefined();
+            expect(
+                missingAcres.missing.some((item: any) => item.message.includes("placement")),
+            ).toBe(true);
+        } finally {
+            f.session.dispose();
+        }
+    });
+});

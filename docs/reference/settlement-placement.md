@@ -36,3 +36,21 @@ The result has three keys:
 - `missing` is an array of `{ code, message }` diagnostics. A successful result has an empty array; a diagnostic result contains one entry and no candidates.
 
 Diagnostic codes are `invalid-input` for missing or malformed inputs, `invalid-geometry` for malformed cell polygons or IDs, `ambiguous-geometry` for overlapping cell interiors, `unknown-location` for an existing site without a position, `work-limit` when geometry or grid work exceeds the limit, and `candidate-limit` when the result would exceed its limit. The hashes and units describe the caller's normalized input; discovery does not itself read or verify map files. On an `invalid-input` result, provenance records the supplied values before validation: individual fields may be absent or malformed, and `units` may be absent or contain malformed values. On success, `units.distanceUnit` and `units.distanceScale` have the supported, positive values described above; the copy also retains any other unit fields supplied by the map.
+
+## Rural selection
+
+`selectSettlementPlacements` accepts the captured session and assembler inputs,
+plus direct cell IDs, an explicit position for each captured settlement, grid
+spacing, and work and candidate limits. Existing placements provide acreage;
+zero is a known value. Missing positions and acreage stop selection. The result
+contains assembled calculation inputs and a selection report; it writes no notes.
+
+Each grid square is clipped to its owning cell. Its share of the cell polygon
+weights the physical acreage remaining after existing reservations. This is a
+modeling assumption, not a surveyed parcel or a statement of worked land.
+Uncovered edges remain unassigned. The declared land rule and culture determine
+household capacity, bounded below the town population band. The rural population
+allocator assigns whole households, and occupied sites receive modeled acreage
+from their household holdings. The report includes the weights, ceilings, cell
+ledgers, unallocated population and final food calculations. Candidate points
+are operation data rather than settlement note fields.
