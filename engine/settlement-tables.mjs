@@ -111,8 +111,9 @@ function corpusOf(index, charge = () => {}) {
     if (corpusCache.has(index)) return corpusCache.get(index);
     const nodes = new Map();
     const byRecord = new Map();
-    charge((index.notes?.length ?? 0) + (index.foreign?.index?.size ?? 0));
-    const notes = [...(index.notes ?? []), ...(index.foreign?.index?.values() ?? [])];
+    const localNotes = index.notes ?? [];
+    charge(localNotes.length + (index.foreign?.index?.size ?? 0));
+    const notes = [...localNotes, ...(index.foreign?.index?.values() ?? [])];
     const types = new Set([...Object.keys(NOTE_VOCABULARY), ...(index.types ?? [])]);
     const packages = new Set(
         [

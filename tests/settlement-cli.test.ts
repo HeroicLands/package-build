@@ -514,7 +514,34 @@ it(
             expect(incompleteWrite.status).toBe(1);
             expect(incompleteWrite.stderr).toContain("allowed difference is five percent");
             expect(fs.readFileSync(crown, "utf8")).toBe(incomplete);
+            const withinTolerance = before.replace(
+                "territorial_population: 5",
+                "territorial_population: 21",
+            );
+            write(crown, withinTolerance);
+            const cultureFile = path.join(content, "Note3.md");
+            const originalCulture = fs.readFileSync(cultureFile, "utf8");
+            write(cultureFile, originalCulture.replace("householdSize: 5", "householdSize: 20"));
+            const toleranceSession = await createContentSession({ config: f.config });
+            try {
+                write(
+                    path.join(f.root, "index.jsonl"),
+                    serializeContentIndex(toleranceSession.records),
+                );
+            } finally {
+                toleranceSession.dispose();
+            }
+            const toleratedWrite = run("--write");
+            expect(toleratedWrite.status, toleratedWrite.stderr).toBe(0);
+            const toleratedReport = JSON.parse(toleratedWrite.stdout);
+            expect(toleratedReport.selection.result.unallocatedPopulation).toBe(1);
+            expect(
+                toleratedReport.rows.reduce((sum: number, row: any) => sum + row.population, 0),
+            ).toBe(20);
+            expect(toleratedReport.write.written).toBe(true);
+            expect(fs.readFileSync(crown, "utf8")).toContain("ashford");
             write(configFile, originalConfig);
+            write(cultureFile, originalCulture);
             write(crown, before);
             const restoredSession = await createContentSession({ config: f.config });
             try {
@@ -559,5 +586,5 @@ it(
             fs.rmSync(f.root, { recursive: true, force: true });
         }
     },
-    subprocessTimeout(8),
+    subprocessTimeout(9),
 );
