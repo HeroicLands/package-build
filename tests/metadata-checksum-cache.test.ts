@@ -351,3 +351,178 @@ it("rejects an index from another release before requesting GitHub metadata", as
     await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum unavailable/);
     expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+it.each(["release-id", "release-tag", "asset-list", "asset-page-size", "uppercase-digest"])(
+    "rejects invalid GitHub metadata: %s",
+    async (kind) => {
+        const { root, config } = setup(null);
+        const fetcher = vi.fn(async (url: string) => {
+            if (url === manifest)
+                return Response.json({ version: "1", flags: { metadataUrl: index } });
+            if (url === api)
+                return Response.json({
+                    id: kind === "release-id" ? 0 : 123,
+                    tag_name: kind === "release-tag" ? "v2" : "v1",
+                });
+            if (url === assets) {
+                if (kind === "asset-list") return Response.json({ assets: [] });
+                if (kind === "asset-page-size")
+                    return Response.json(Array.from({ length: 101 }, () => ({})));
+                return Response.json([
+                    {
+                        id: 99,
+                        browser_download_url: index,
+                        digest: `sha256:${digest("index").toUpperCase()}`,
+                    },
+                ]);
+            }
+            return new Response("unexpected", { status: 500 });
+        });
+        vi.stubGlobal("fetch", fetcher);
+        await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum unavailable/);
+        expect(fetcher.mock.calls.some(([url]) => url === index)).toBe(false);
+        expect(fs.existsSync(path.join(root, "one", "example@1", ".complete"))).toBe(false);
+    },
+);
+
+it.each(["later duplicate", "page limit"])(
+    "rejects %s without downloading an index",
+    async (kind) => {
+        const { root, config } = setup(null);
+        const entry = { id: 99, browser_download_url: index, digest: `sha256:${digest("index")}` };
+        let pages = 0;
+        const fetcher = vi.fn(async (url: string) => {
+            if (url === manifest)
+                return Response.json({ version: "1", flags: { metadataUrl: index } });
+            if (url === api) return Response.json({ id: 123, tag_name: "v1" });
+            if (url.startsWith("https://api.github.com/repos/example/repo/releases/123/assets?")) {
+                pages++;
+                if (kind === "later duplicate" && pages === 2) return Response.json([entry]);
+                return Response.json([
+                    entry,
+                    ...Array.from({ length: 99 }, (_, i) => ({
+                        ...entry,
+                        id: i + 100,
+                        browser_download_url: `${index}-${i}`,
+                    })),
+                ]);
+            }
+            return new Response("unexpected", { status: 500 });
+        });
+        vi.stubGlobal("fetch", fetcher);
+        await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum unavailable/);
+        expect(pages).toBe(kind === "page limit" ? 100 : 2);
+        expect(fetcher.mock.calls.some(([url]) => url === index)).toBe(false);
+        expect(fs.existsSync(path.join(root, "one", "example@1", ".complete"))).toBe(false);
+    },
+);
+
+it("rejects oversized GitHub metadata without downloading an index", async () => {
+    const { root, config } = setup(null);
+    const fetcher = vi.fn(async (url: string) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        if (url === api) return new Response("x".repeat(2 * 1024 * 1024 + 1));
+        return new Response("unexpected", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum unavailable/);
+    expect(fetcher.mock.calls.some(([url]) => url === index)).toBe(false);
+    expect(fs.existsSync(path.join(root, "one", "example@1", ".complete"))).toBe(false);
+});
+
+it("retries interrupted GitHub metadata and refuses after exhaustion", async () => {
+    const { root, config } = setup(null);
+    const fetcher = vi.fn(async (url: string) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        if (url === api)
+            return new Response(
+                new ReadableStream({
+                    start(controller) {
+                        controller.error(new Error("interrupted"));
+                    },
+                }),
+            );
+        return new Response("unexpected", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    vi.useFakeTimers();
+    try {
+        const result = fetchMetadata(config, rel).then(
+            () => null,
+            (error) => error,
+        );
+        await vi.runAllTimersAsync();
+        const error = await result;
+        expect(error.message).toMatch(/checksum unavailable/);
+        expect(fetcher.mock.calls.filter(([url]) => url === api)).toHaveLength(5);
+        expect(fetcher.mock.calls.some(([url]) => url === index)).toBe(false);
+        expect(fs.existsSync(path.join(root, "one", "example@1", ".complete"))).toBe(false);
+    } finally {
+        vi.useRealTimers();
+    }
+});
+
+it("shares release metadata across relationships in one dependency fetch", async () => {
+    const { root } = setup(null);
+    const fetcher = vi.fn(async (url: string) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        if (url === api || url === assets) return apiResponse(url, digest(""))!;
+        if (url === index) return new Response("");
+        return new Response("unexpected", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const { fetchAllMetadata } = await import("../engine/foreign-catalog.mjs");
+    const config = {
+        paths: { metadataCache: path.join(root, "one") },
+        contentPackage: "consumer",
+        relationships: {
+            systems: [
+                { id: "first", manifest, compatibility: { verified: "1" } },
+                { id: "second", manifest, compatibility: { verified: "1" } },
+            ],
+        },
+    };
+    expect(await fetchAllMetadata(config)).toBe(2);
+    expect(fetcher.mock.calls.filter(([url]) => url === api)).toHaveLength(1);
+    expect(fetcher.mock.calls.filter(([url]) => url === assets)).toHaveLength(1);
+    expect(fetcher.mock.calls.filter(([url]) => url === index)).toHaveLength(1);
+    for (const id of ["first", "second"])
+        expect(fs.existsSync(path.join(root, "one", `${id}@1`, ".complete"))).toBe(true);
+});
+
+it("times out stalled GitHub metadata and refuses after bounded retries", async () => {
+    const { root, config } = setup(null);
+    let attempts = 0;
+    const fetcher = vi.fn(async (url: string, options: RequestInit) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        if (url === api) {
+            attempts++;
+            return new Response(
+                new ReadableStream({
+                    start(controller) {
+                        const signal = options.signal!;
+                        const abort = () => controller.error(new Error("aborted"));
+                        if (signal.aborted) abort();
+                        else signal.addEventListener("abort", abort, { once: true });
+                    },
+                }),
+            );
+        }
+        return new Response("unexpected", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    vi.useFakeTimers();
+    try {
+        const result = fetchMetadata(config, rel).then(
+            () => null,
+            (error) => error,
+        );
+        await vi.runAllTimersAsync();
+        expect((await result).message).toMatch(/checksum unavailable/);
+        expect(attempts).toBe(5);
+        expect(fetcher.mock.calls.some(([url]) => url === index)).toBe(false);
+        expect(fs.existsSync(path.join(root, "one", "example@1", ".complete"))).toBe(false);
+    } finally {
+        vi.useRealTimers();
+    }
+});
