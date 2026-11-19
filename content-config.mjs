@@ -1609,7 +1609,7 @@ function normalizeArt(value, rootDir) {
     if (value !== undefined && !isPlainObject(value)) fail("art", "must be an object");
     const input = /** @type {Record<string, unknown>} */ (value ?? {});
     rejectUnknownKeys(input, ["masterRoots", "componentRoots", "archives"], "art.");
-    const archives = input.archives ?? [];
+    const archives = input.archives === undefined ? [] : input.archives;
     if (!Array.isArray(archives)) fail("art.archives", "must be an array");
     const hashes = new Set();
     const normalizedArchives = archives.map((entry, index) => {

@@ -228,7 +228,15 @@ it("derives the screen formats and stages only the declared non-AI alternative",
             preparedMasters: rendered,
         });
         expect(staged.findings).toEqual([]);
-        expect(staged.staged).toHaveLength(2);
+        expect(staged.staged.map((row: any) => row.shortcode).sort()).toEqual(["alpha", "example"]);
+        expect(staged.excluded.map((entry: any) => entry.record.shortcode)).toContain("generated");
+        for (const [address, relative] of [
+            ["sample-none-image-alpha", "images/alpha.webp"],
+            [f.address, "icons/example.svg"],
+        ])
+            expect(fs.readFileSync(path.join(f.root, "build", "stage", relative))).toEqual(
+                fs.readFileSync(rendered.get(address)!),
+            );
     } finally {
         await session.dispose();
     }

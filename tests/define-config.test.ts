@@ -13,6 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 import path from "node:path";
+import YAML from "yaml";
 // The package's own entry point and configuration contract.
 import { defineConfig } from "../index.mjs";
 import type { ContentBuildConfigInput, PackSpec } from "../content-config.mjs";
@@ -66,6 +67,14 @@ describe("defineConfig", () => {
         expect(config.art.archives).toEqual([archive]);
         expect(Object.isFrozen(config.art.archives)).toBe(true);
         expect(defineConfig(minimal()).art.archives).toEqual([]);
+        expect(defineConfig({ ...minimal(), art: { archives: [] } }).art.archives).toEqual([]);
+        expect(() => defineConfig({ ...minimal(), art: YAML.parse("archives:") })).toThrow(
+            /art\.archives/,
+        );
+        for (const invalid of [null, "", "not an array", {}, false, 12])
+            expect(() => defineConfig({ ...minimal(), art: { archives: invalid } } as any)).toThrow(
+                /art\.archives/,
+            );
         for (const invalid of [
             { ...archive, url: "http://example.test/art.zip" },
             { ...archive, url: "https://user:pass@example.test/art.zip" },
