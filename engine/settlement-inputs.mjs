@@ -64,6 +64,11 @@ function sourceKey(source, mapId) {
  * Prepare calculation inputs from captured notes and explicit physical bindings.
  * Missing inputs identify their source or input field. No content is written.
  * @param {object} options - Session, selected Address, normalized map, bindings and settings.
+ * @param {import("./content-session.mjs").ContentSession} options.session - Captured content session.
+ * @param {string|{package: string, system: string, type: string, shortcode: string}} options.polityAddress - Selected local polity Address.
+ * @param {object} options.map - Normalized map.
+ * @param {object} [options.bindings] - Explicit map and note bindings.
+ * @param {object} [options.settings] - Calculation settings and physical inputs.
  * @returns {object} Selected facts, writer capture, calculator inputs and missing stages.
  */
 export function prepareSettlementInputs({
