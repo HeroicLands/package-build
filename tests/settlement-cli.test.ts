@@ -302,189 +302,222 @@ it("preserves source and structured validation locations in command findings", a
     ).toEqual(actual);
 });
 
-it("runs a bounded named settlement preview and explicit write with captured inputs", async () => {
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const { spawnSync } = await import("node:child_process");
-    const { fixture, note, write } = await import("./content-session-fixture.js");
-    const { createContentSession } = await import("../engine/content-session.mjs");
-    const { settlementMapFixture } = await import("./settlement-cli-map-fixture.js");
-    const f = fixture();
-    try {
-        const content = f.config.paths.content;
-        write(
-            path.join(content, "Note2.md"),
-            note({
-                type: "skill",
-                subType: "language",
-                shortcode: "tongue",
-                name: { full: "Tongue" },
-                data: {
-                    roman: "abcdefghijklmnopqrstuvwxyz",
-                    elements: [
-                        { form: "ash", position: "opening", kind: "place", sense: "a tree" },
-                        { form: "ford", position: "closing", kind: "place", sense: "a crossing" },
-                    ],
-                    naming: { draws: [{ kind: "place", elements: ["place"] }] },
-                },
-            }),
-        );
-        write(
-            path.join(content, "Note3.md"),
-            note({
-                type: "lore",
-                subType: "culture",
-                shortcode: "folk",
-                name: { full: "Folk" },
-                data: { lang: "tongue", householdSize: 5 },
-            }),
-        );
-        const crown = path.join(content, "Crown.md");
-        const before = note(
-            {
-                type: "affiliation",
-                subType: "polity",
-                shortcode: "crown",
-                name: { full: "Crown" },
-                data: { territorial_population: 5, settlements: [] },
-            },
-            "Keep this prose.",
-        );
-        write(crown, before);
-        const session = await createContentSession({ config: f.config });
+it(
+    "runs a bounded named settlement preview and explicit write with captured inputs",
+    async () => {
+        const fs = await import("node:fs");
+        const path = await import("node:path");
+        const { spawnSync } = await import("node:child_process");
+        const { fixture, note, write } = await import("./content-session-fixture.js");
+        const { createContentSession } = await import("../engine/content-session.mjs");
+        const { settlementMapFixture } = await import("./settlement-cli-map-fixture.js");
+        const { serializeContentIndex } = await import("../engine/content-index.mjs");
+        const f = fixture();
         try {
+            const content = f.config.paths.content;
             write(
-                path.join(f.root, "index.jsonl"),
-                session.records.map((r: any) => JSON.stringify(r)).join("\n") + "\n",
+                path.join(content, "Note2.md"),
+                note({
+                    type: "skill",
+                    subType: "language",
+                    shortcode: "tongue",
+                    name: { full: "Tongue" },
+                    data: {
+                        roman: "abcdefghijklmnopqrstuvwxyz",
+                        elements: [
+                            { form: "ash", position: "opening", kind: "place", sense: "a tree" },
+                            {
+                                form: "ford",
+                                position: "closing",
+                                kind: "place",
+                                sense: "a crossing",
+                            },
+                        ],
+                        naming: { draws: [{ kind: "place", elements: ["place"] }] },
+                    },
+                }),
             );
+            write(
+                path.join(content, "Note3.md"),
+                note({
+                    type: "lore",
+                    subType: "culture",
+                    shortcode: "folk",
+                    name: { full: "Folk" },
+                    data: { lang: "tongue", householdSize: 5 },
+                }),
+            );
+            const crown = path.join(content, "Crown.md");
+            const before = note(
+                {
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "crown",
+                    name: { full: "Crown" },
+                    data: { territorial_population: 5, settlements: [] },
+                },
+                "Keep this prose.",
+            );
+            write(crown, before);
+            const session = await createContentSession({ config: f.config });
+            try {
+                write(path.join(f.root, "index.jsonl"), serializeContentIndex(session.records));
+            } finally {
+                session.dispose();
+            }
+            const mapFixture = settlementMapFixture();
+            const input = mapFixture.input();
+            write(path.join(f.root, "world.map"), input.map);
+            write(path.join(f.root, "world.json"), input.json);
+            const polity = "sessionproof-note-affiliation-crown";
+            const profile = {
+                land: [5, 5, 5, 5],
+                development: 1,
+                holdingAcres: 25,
+                foodApproach: "agrarian",
+                economicFocus: "agrarian",
+                governance: "appointed",
+                obligation: 0.3,
+                upwardShare: 0.3,
+            };
+            write(
+                path.join(f.root, "inputs.json"),
+                JSON.stringify({
+                    pin: input.pin,
+                    mapping: {
+                        state: { id: 1, address: polity },
+                        cultures: { "1": "sessionproof-note-lore-folk" },
+                    },
+                    bindings: {},
+                    settings: {
+                        urbanShares: { [polity]: 0 },
+                        placements: [],
+                        landRules: [{ when: { biome: 1 }, profile }],
+                        urban: { sources: [], routes: [], cities: [] },
+                    },
+                    selection: {
+                        cellIds: [0],
+                        existingSites: [],
+                        spacingMeters: 5556,
+                        candidateLimit: 100,
+                        workLimit: 1000000000000,
+                    },
+                }),
+            );
+            const binary = path.resolve("bin/package-build.mjs");
+            write(path.join(f.root, "guide.md"), "alphabet");
+            write(path.join(f.root, "english.json"), JSON.stringify(["blocked"]));
+            write(
+                path.join(f.root, "sources.json"),
+                JSON.stringify({ baseline: { name: "fixture", version: "1" } }),
+            );
+            const provider = path.resolve("tests/settlement-cli-setting-fixture.mjs");
+            const args = [
+                binary,
+                "settlement",
+                "--polity",
+                polity,
+                "--map",
+                "world.map",
+                "--json",
+                "world.json",
+                "--inputs",
+                "inputs.json",
+                "--checks-module",
+                provider,
+                "--checks-index",
+                "index.jsonl",
+                "--checks-guide",
+                "guide.md",
+                "--checks-english-words",
+                "english.json",
+                "--checks-english-sources",
+                "sources.json",
+                "--seed",
+                "fixture",
+                "--name-limit",
+                "10",
+            ];
+            const run = (...extra: string[]) =>
+                spawnSync(process.execPath, [...args, ...extra], {
+                    cwd: f.root,
+                    encoding: "utf8",
+                    env: {
+                        ...process.env,
+                        PACKAGE_BUILD_CONFIG: path.join(f.root, "package-build.config.yaml"),
+                    },
+                    timeout: SUBPROCESS_TEST_TIMEOUT,
+                });
+            const inputsPath = path.join(f.root, "inputs.json");
+            const validInputs = fs.readFileSync(inputsPath, "utf8");
+            const invalidInputs = JSON.parse(validInputs);
+            invalidInputs.selection.cellIds = [999];
+            fs.writeFileSync(inputsPath, JSON.stringify(invalidInputs));
+            const invalid = run("--write");
+            expect(invalid.status).toBe(1);
+            expect(invalid.stderr).toContain(
+                "select mapped direct cells outside subordinate polities",
+            );
+            expect(JSON.parse(invalid.stdout).missing[0].field).toBe("selection");
+            expect(fs.readFileSync(crown, "utf8")).toBe(before);
+            fs.writeFileSync(inputsPath, validInputs);
+            write(path.join(f.root, "guide.md"), "refused");
+            const refused = run("--write");
+            expect(refused.status).toBe(1);
+            const refusedReport = JSON.parse(refused.stdout);
+            expect(refusedReport.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        file: path.join(f.root, "guide.md"),
+                        line: 2,
+                        column: 3,
+                        message: "fixture guide is refused",
+                    }),
+                    expect.objectContaining({
+                        file: path.join(f.root, "sources.json"),
+                        message: `englishWords: ${path.join(f.root, "sources.json")} has an invalid baseline`,
+                    }),
+                ]),
+            );
+            expect(refused.stderr).toContain(
+                `${path.join(f.root, "guide.md")}:2:3: error: fixture guide is refused`,
+            );
+            expect(refused.stdout + refused.stderr).not.toContain("settlement-checks-");
+            expect(fs.readFileSync(crown, "utf8")).toBe(before);
+            write(path.join(f.root, "guide.md"), "alphabet");
+            const dry = run();
+            expect(dry.status, dry.stderr).toBe(0);
+            const dryReport = JSON.parse(dry.stdout);
+            expect(dryReport.rows).toHaveLength(1);
+            expect(dryReport.resourceInputs.map((item: any) => path.basename(item.file))).toEqual(
+                expect.arrayContaining(["index.jsonl", "guide.md", "english.json", "sources.json"]),
+            );
+            expect(
+                dryReport.resourceInputs.every((item: any) => /^[a-f0-9]{64}$/.test(item.sha256)),
+            ).toBe(true);
+            expect(fs.readFileSync(crown, "utf8")).toBe(before);
+            const lock = path.join(content, ".Crown.md.settlement-write.lock");
+            fs.writeFileSync(lock, "busy");
+            const blocked = run("--write");
+            expect(blocked.status).toBe(1);
+            const blockedFinding = JSON.parse(blocked.stdout).missing[0];
+            expect(path.resolve(f.root, blockedFinding.file)).toBe(crown);
+            expect(blockedFinding.message).toContain("cannot acquire settlement write lock");
+            expect(blocked.stderr).toContain(`${path.relative(f.root, crown)}:1:1: error:`);
+            expect(fs.readFileSync(crown, "utf8")).toBe(before);
+            fs.rmSync(lock);
+            const saved = run("--write");
+            expect(saved.status, saved.stderr).toBe(0);
+            expect(JSON.parse(saved.stdout).write.written).toBe(true);
+            const after = fs.readFileSync(crown, "utf8");
+            expect(after).toContain("ashford");
+            expect(after).toContain("Keep this prose.");
+            const repeat = run("--write");
+            expect(repeat.status).toBe(1);
+            expect(fs.readFileSync(crown, "utf8")).toBe(after);
         } finally {
-            session.dispose();
+            fs.rmSync(f.root, { recursive: true, force: true });
         }
-        const mapFixture = settlementMapFixture();
-        const input = mapFixture.input();
-        write(path.join(f.root, "world.map"), input.map);
-        write(path.join(f.root, "world.json"), input.json);
-        const polity = "sessionproof-note-affiliation-crown";
-        const profile = {
-            land: [5, 5, 5, 5],
-            development: 1,
-            holdingAcres: 25,
-            foodApproach: "agrarian",
-            economicFocus: "agrarian",
-            governance: "appointed",
-            obligation: 0.3,
-            upwardShare: 0.3,
-        };
-        write(
-            path.join(f.root, "inputs.json"),
-            JSON.stringify({
-                pin: input.pin,
-                mapping: {
-                    state: { id: 1, address: polity },
-                    cultures: { "1": "sessionproof-note-lore-folk" },
-                },
-                bindings: {},
-                settings: {
-                    urbanShares: { [polity]: 0 },
-                    placements: [],
-                    landRules: [{ when: { biome: 1 }, profile }],
-                    urban: { sources: [], routes: [], cities: [] },
-                },
-                selection: {
-                    cellIds: [0],
-                    existingSites: [],
-                    spacingMeters: 5556,
-                    candidateLimit: 100,
-                    workLimit: 1000000000000,
-                },
-            }),
-        );
-        const binary = path.resolve("bin/package-build.mjs");
-        write(path.join(f.root, "guide.md"), "alphabet");
-        write(path.join(f.root, "english.json"), JSON.stringify(["blocked"]));
-        write(
-            path.join(f.root, "sources.json"),
-            JSON.stringify({ baseline: { name: "fixture", version: "1" } }),
-        );
-        const provider = path.resolve("tests/settlement-cli-setting-fixture.mjs");
-        const args = [
-            binary,
-            "settlement",
-            "--polity",
-            polity,
-            "--map",
-            "world.map",
-            "--json",
-            "world.json",
-            "--inputs",
-            "inputs.json",
-            "--checks-module",
-            provider,
-            "--checks-index",
-            "index.jsonl",
-            "--checks-guide",
-            "guide.md",
-            "--checks-english-words",
-            "english.json",
-            "--checks-english-sources",
-            "sources.json",
-            "--seed",
-            "fixture",
-            "--name-limit",
-            "10",
-        ];
-        const run = (...extra: string[]) =>
-            spawnSync(process.execPath, [...args, ...extra], {
-                cwd: f.root,
-                encoding: "utf8",
-                env: {
-                    ...process.env,
-                    PACKAGE_BUILD_CONFIG: path.join(f.root, "package-build.config.yaml"),
-                },
-                timeout: 30000,
-            });
-        const inputsPath = path.join(f.root, "inputs.json");
-        const validInputs = fs.readFileSync(inputsPath, "utf8");
-        const invalidInputs = JSON.parse(validInputs);
-        invalidInputs.selection.cellIds = [999];
-        fs.writeFileSync(inputsPath, JSON.stringify(invalidInputs));
-        const invalid = run("--write");
-        expect(invalid.status).toBe(1);
-        expect(invalid.stderr).toContain("select mapped direct cells outside subordinate polities");
-        expect(JSON.parse(invalid.stdout).missing[0].field).toBe("selection");
-        expect(fs.readFileSync(crown, "utf8")).toBe(before);
-        fs.writeFileSync(inputsPath, validInputs);
-        const dry = run();
-        expect(dry.status, dry.stderr).toBe(0);
-        const dryReport = JSON.parse(dry.stdout);
-        expect(dryReport.rows).toHaveLength(1);
-        expect(dryReport.resourceInputs.map((item: any) => path.basename(item.file))).toEqual(
-            expect.arrayContaining(["index.jsonl", "guide.md", "english.json", "sources.json"]),
-        );
-        expect(
-            dryReport.resourceInputs.every((item: any) => /^[a-f0-9]{64}$/.test(item.sha256)),
-        ).toBe(true);
-        expect(fs.readFileSync(crown, "utf8")).toBe(before);
-        const lock = path.join(content, ".Crown.md.settlement-write.lock");
-        fs.writeFileSync(lock, "busy");
-        const blocked = run("--write");
-        expect(blocked.status).toBe(1);
-        const blockedFinding = JSON.parse(blocked.stdout).missing[0];
-        expect(path.resolve(f.root, blockedFinding.file)).toBe(crown);
-        expect(blockedFinding.message).toContain("cannot acquire settlement write lock");
-        expect(blocked.stderr).toContain(`${path.relative(f.root, crown)}:1:1: error:`);
-        expect(fs.readFileSync(crown, "utf8")).toBe(before);
-        fs.rmSync(lock);
-        const saved = run("--write");
-        expect(saved.status, saved.stderr).toBe(0);
-        expect(JSON.parse(saved.stdout).write.written).toBe(true);
-        const after = fs.readFileSync(crown, "utf8");
-        expect(after).toContain("ashford");
-        expect(after).toContain("Keep this prose.");
-        const repeat = run("--write");
-        expect(repeat.status).toBe(1);
-        expect(fs.readFileSync(crown, "utf8")).toBe(after);
-    } finally {
-        fs.rmSync(f.root, { recursive: true, force: true });
-    }
-});
+    },
+    subprocessTimeout(6),
+);

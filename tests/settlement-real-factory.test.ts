@@ -10,6 +10,7 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
         const { pathToFileURL } = await import("node:url");
         const { fixture, note, write } = await import("./content-session-fixture.js");
         const { createContentSession } = await import("../engine/content-session.mjs");
+        const { serializeContentIndex } = await import("../engine/content-index.mjs");
         const { prepareSettlementEdit, commitSettlementEdit } =
             await import("../engine/settlement-source.mjs");
         const { settlementMapFixture } = await import("./settlement-cli-map-fixture.js");
@@ -56,10 +57,8 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
             const candidateLimit = 100;
             let selectionWorkLimit: number;
             try {
-                const index = session.records.map((r: any) => JSON.stringify(r)).join("\n") + "\n";
-                // Assembly charges the indexed graph quadratically. Its language runs
-                // and source captures need a corpus-sized allowance in this fixture.
-                // Serialized captures bound their entries and text; the extra 64 KiB
+                const index = serializeContentIndex(session.records);
+                // Serialized captures bound graph entries and text; the extra 64 KiB
                 // covers the small map, settings, paths and the saved settlement row.
                 const captureSize =
                     index.length +
@@ -71,11 +70,18 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
                     65536;
                 expect(session.records.length).toBeLessThanOrEqual(16);
                 expect(captureSize).toBeLessThanOrEqual(2 * 1024 * 1024);
-                const extent = captureSize + candidateLimit;
                 selectionWorkLimit =
-                    4 * (session.records.length + candidateLimit + 2) * extent ** 2 +
-                    captureSize * extent;
+                    16 * captureSize +
+                    4 * (session.records.length * (candidateLimit + 1) + candidateLimit);
                 expect(Number.isSafeInteger(selectionWorkLimit)).toBe(true);
+                const published = index.trim().split("\n").map(JSON.parse);
+                expect(
+                    published.some(
+                        (record: any) =>
+                            record.address?.canonical?.address ===
+                            "thalorna-note-affiliation-crown",
+                    ),
+                ).toBe(true);
                 write(path.join(f.root, "index.jsonl"), index);
             } finally {
                 session.dispose();
@@ -252,10 +258,7 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
             expect(after).toContain("Keep this prose.");
             const refreshed = await createContentSession({ config });
             try {
-                write(
-                    path.join(f.root, "index.jsonl"),
-                    refreshed.records.map((r: any) => JSON.stringify(r)).join("\n") + "\n",
-                );
+                write(path.join(f.root, "index.jsonl"), serializeContentIndex(refreshed.records));
             } finally {
                 refreshed.dispose();
             }

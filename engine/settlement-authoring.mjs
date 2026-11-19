@@ -14,7 +14,8 @@
 /** Prepare named settlement rows from a captured selection. @module */
 import { isDeepStrictEqual } from "node:util";
 import path from "node:path";
-import { isNoteRecord, sortKeysDeep } from "./index-records.mjs";
+import { isNoteRecord } from "./index-records.mjs";
+import { serializeContentIndex } from "./content-index.mjs";
 import { settlementBands } from "./settlement-bands.mjs";
 import { assertSettlementRecords } from "./settlement-tables.mjs";
 import { canonicalKey } from "./address.mjs";
@@ -26,21 +27,23 @@ const key = (r) =>
     r?.package && r?.type && r?.shortcode ?
         canonicalKey(r.package, "note", r.type, r.shortcode)
     :   undefined;
-const snapshot = (r) =>
-    JSON.parse(
-        JSON.stringify({
-            package: r.package,
-            type: r.type,
-            subType: r.subType,
-            shortcode: r.shortcode,
-            address: r.address,
-            name: r.name,
-            names: r.names,
-            lang: r.lang,
-            languageCode: r.languageCode,
-            data: r.data,
-        }),
-    );
+const snapshot = (r) => ({
+    package: r.package,
+    type: r.type,
+    subType: r.subType,
+    shortcode: r.shortcode,
+    address: r.address,
+    name: r.name,
+    names: r.names,
+    lang: r.lang,
+    languageCode: r.languageCode,
+    data: r.data,
+});
+const publishedSnapshots = (records) =>
+    serializeContentIndex(records.map(snapshot)).trimEnd().split("\n").sort();
+
+/** Finite CLI allowance for captured inputs, validation and naming work. */
+export const DEFAULT_AUTHORING_WORK_LIMIT = 10_000_000_000_000;
 
 /** Charge bounded traversal before inspecting captured or loaded data.
  * @param {unknown[]} roots - Data to inspect.
@@ -207,12 +210,8 @@ export function prepareNamedSettlements({
             return fail("naming.index", "the setting index has duplicate note identities");
         byAddress.set(address, record);
     }
-    const allCaptured = session.records
-        .map((record) => JSON.stringify(sortKeysDeep(snapshot(record))))
-        .sort();
-    const allIndexed = resources.index.records
-        .map((record) => JSON.stringify(sortKeysDeep(snapshot(record))))
-        .sort();
+    const allCaptured = publishedSnapshots(session.records);
+    const allIndexed = publishedSnapshots(resources.index.records);
     if (!isDeepStrictEqual(allCaptured, allIndexed))
         return fail("naming.index", "the setting content index does not match the captured notes");
     if (typeof factory !== "function")

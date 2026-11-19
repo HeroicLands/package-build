@@ -3,9 +3,11 @@
 # Settlement source edits
 
 `engine/settlement-source.mjs` provides explicit preview and commit operations for
-an already reviewed settlement proposal. It has no command registration or build,
-indexing, or content-check hook. Naming, map bindings, row validation, population
-calculations, and promotion to settlement notes belong to the caller.
+an already reviewed settlement proposal. The `package-build settlement` command
+uses `prepareSettlementEdit` for its dry run and `commitSettlementEdit` with
+`--write`. `writeSettlementPreview` is API-only. There is no build, indexing or
+content-check hook. Naming, map bindings, row validation, population calculations
+and promotion to settlement notes belong to the caller.
 
 The writer adds rows to one selected polity. The supplied complete row list must
 retain every existing row, with every value unchanged and in the same order, as

@@ -4132,16 +4132,25 @@ must match the captured notes.
   defaults to 268435456.
 - `--checks-entry-limit` `NUMBER` — maximum word-list directory entries; defaults to 100000.
 - `--checks-work-limit` `NUMBER` — authoring graph and calculation work allowance;
-  defaults to 1000000000000 units.
-- `--wordlist-dir` `DIR` — model-language word-list directory; repeatable, omitted by default.
+  defaults to 10000000000000 units; see the [budget example](reference/settlement-placement.md#work-budgets).
+- `--wordlist-dir` `DIR` — model-language word-list directory, relative to the current directory; repeatable, omitted by default.
 - `--seed` `TEXT` — deterministic name selection seed, required for generated names.
 - `--name-limit` `NUMBER` — positive candidate budget per generated name.
 - `--write` — commit the checked rows. The default is a dry run.
 
+Relative `--map`, `--json`, `--inputs`, `--checks-module`, `--checks-root` and
+`--wordlist-dir` paths start at the current directory. Guide, English resource
+and index paths start at `--checks-root`. Absolute paths keep their meaning.
+`selection.workLimit` is a separate required positive safe-integer budget in the
+inputs file; it has no default. Both limits refuse an incomplete result rather
+than truncate it. See [work budgets](reference/settlement-placement.md#work-budgets)
+for formulas and worked figures.
+
 **EXIT STATUS**
 
 0 when no inputs are missing, 1 for an error or incomplete operation. Standard
-output contains a JSON report; diagnostics go to standard error.
+output contains a JSON report; diagnostics go to standard error. Resource-loader
+problems retain their reasons and original source paths in both outputs.
 
 **EXAMPLES**
 

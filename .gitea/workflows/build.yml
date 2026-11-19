@@ -1,7 +1,7 @@
 name: Build and Test
 
-# Build and test, on pull requests and on `main`. It is the check `package-build
-# ci` and the `pre-push` hook replay.
+# Build and test on pull requests, on `main`, and by manual dispatch.
+# It is the check `package-build ci` and the `pre-push` hook replay.
 on:
     pull_request:
         branches: [main]
