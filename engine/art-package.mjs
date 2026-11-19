@@ -88,8 +88,8 @@ export async function prepareArtPackage(directory, expected) {
     const index = check(descriptor.index, "artwork index");
     const files = new Map();
     for (const entry of descriptor.assets) {
-        if (typeof entry?.path !== "string" || !/\.(?:svg|webp)$/.test(entry.path))
-            throw new Error("artwork assets must be SVG or WebP files");
+        if (typeof entry?.path !== "string" || !/\.(?:svg|webp|jpg|jpeg)$/.test(entry.path))
+            throw new Error("artwork assets must be SVG, JPEG or WebP files");
         if (files.has(entry.path)) throw new Error(`duplicate artwork binding: ${entry.path}`);
         const asset = check(entry, "artwork asset");
         const publicImage = inspectPublicDerivative(

@@ -9,6 +9,7 @@ import { readCanonicalKey } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 import {
     readSvgProvenance,
+    readJpegProvenance,
     readWebpProvenance,
     sniffFormat,
     hasForeignXmp,
@@ -38,6 +39,50 @@ const PUBLIC_PROPERTIES = [
     "hl:primarynote",
 ];
 
+/** Refuse non-public JPEG application segments and trailing bytes. */
+function sanitizedJpeg(bytes) {
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return false;
+    let at = 2;
+    while (at < bytes.length) {
+        if (bytes[at++] !== 0xff) return false;
+        while (bytes[at] === 0xff) at++;
+        const marker = bytes[at++];
+        if (marker === 0xd9) return at === bytes.length;
+        if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+        if (at + 2 > bytes.length) return false;
+        const length = bytes.readUInt16BE(at);
+        if (length < 2 || at + length > bytes.length) return false;
+        const data = bytes.subarray(at + 2, at + length);
+        if (marker >= 0xe0 && marker <= 0xef) {
+            const allowed =
+                (marker === 0xe0 && data.subarray(0, 5).equals(Buffer.from("JFIF\0"))) ||
+                (marker === 0xe1 &&
+                    data.subarray(0, 29).equals(Buffer.from("http://ns.adobe.com/xap/1.0/\0"))) ||
+                (marker === 0xe2 && data.subarray(0, 12).equals(Buffer.from("ICC_PROFILE\0"))) ||
+                (marker === 0xee && data.subarray(0, 5).equals(Buffer.from("Adobe")));
+            if (!allowed) return false;
+        }
+        if (marker === 0xfe) return false;
+        at += length;
+        if (marker === 0xda) {
+            while (at < bytes.length) {
+                if (bytes[at] !== 0xff) {
+                    at++;
+                    continue;
+                }
+                let next = at + 1;
+                while (bytes[next] === 0xff) next++;
+                if (bytes[next] === 0 || (bytes[next] >= 0xd0 && bytes[next] <= 0xd7)) {
+                    at = next + 1;
+                    continue;
+                }
+                break;
+            }
+        }
+    }
+    return false;
+}
+
 /** Validate public provenance, identity and sanitized derivative bytes.
  * @param {string} name - Public file name.
  * @param {Buffer} bytes - Public bytes.
@@ -52,11 +97,21 @@ export function inspectPublicDerivative(
     failure = (message) => new Error(message),
 ) {
     const format = sniffFormat(bytes);
-    if (!["webp", "svg"].includes(format) || path.extname(name).toLowerCase() !== `.${format}`)
-        throw failure("public artwork accepts only WebP and SVG derivatives");
+    if (
+        !["webp", "svg", "jpeg"].includes(format) ||
+        !(format === "jpeg" ? [".jpg", ".jpeg"] : [`.${format}`]).includes(
+            path.extname(name).toLowerCase(),
+        )
+    )
+        throw failure("public artwork accepts only JPEG, WebP and SVG derivatives");
     let read;
     try {
-        read = format === "svg" ? readSvgProvenance(bytes) : readWebpProvenance(bytes);
+        read =
+            format === "svg" ? readSvgProvenance(bytes)
+            : format === "jpeg" ? readJpegProvenance(bytes)
+            : readWebpProvenance(bytes);
+        if (format === "jpeg" && (read.foreignMetadata || !sanitizedJpeg(bytes)))
+            throw new Error("invalid JPEG metadata");
     } catch {
         throw failure("invalid public artwork image metadata");
     }
@@ -81,6 +136,7 @@ export function inspectPublicDerivative(
         throw failure("public image metadata exceeds the publication allowlist");
     let sanitized;
     try {
+        if (format === "jpeg") return { name, bytes, format, metadata: r };
         sanitized = writeDerivativeProvenance(bytes, r, {
             repeat: [
                 "derivedFrom",

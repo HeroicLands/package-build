@@ -179,6 +179,7 @@ export async function resamplePdfImages(candidates, outDir, edition, cacheDir) {
         [outDir, cacheDir],
     );
     for (const candidate of candidates.values()) {
+        if (candidate.screen) continue;
         if (candidate.master) {
             const source = await fs.readFile(candidate.master.file);
             const output = await cachedArtRender(
