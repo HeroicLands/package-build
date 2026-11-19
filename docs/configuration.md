@@ -1763,6 +1763,10 @@ compatibility: { minimum: "14.359", verified: "14.364" }
 
 > ``package-build config: `compatibility.<key>` is not a recognized option (expected one of: minimum, verified).``
 
+The optional Foundry-core `compatibility.verified` above is separate from a
+dependency's `relationships.<kind>[].compatibility.verified`, which pins a
+floating dependency release for `deps fetch`.
+
 `compatibility` belongs to every `systems` or `modules` package, including a
 module that ships only assets. A `documentation` package declares none because
 it installs no Foundry package and stamps no documents.
@@ -1822,6 +1826,43 @@ package that owns it — `harnensemble/assets/images/map.webp` — and the Found
 Omit it where the two are the same word, which they are for every system:
 
 > ``package-build config: `relationships.<kind>[<index>].contentPackage` must be a non-empty string.``
+
+Remote content-index fetching requires a credential-free HTTPS GitHub release
+manifest and an index advertised in that same release. Set the relationship's
+`compatibility.verified` when its manifest uses `releases/latest/download/`:
+
+```yaml
+relationships:
+  requires:
+    - id: example
+      manifest: https://github.com/example/content/releases/latest/download/module.json
+      compatibility: { verified: "1.2.3" }
+```
+
+An exact `releases/download/<tag>/` manifest URL needs no separate `verified`
+value; when supplied, it must match the manifest's version. This requirement
+also applies to dependencies reached transitively. Other public hosting
+providers are unsupported for remote content indexes. Use a GitHub release or
+`package-build deps fetch --from <path>` with a locally built artifact. A
+`contentIndex: false` relationship with no item catalogue requires no index
+fetch.
+
+The expected SHA-256 comes from GitHub's metadata for the exact release asset.
+A saved checksum is reused only when its dependency, version, public manifest,
+index URL and mirror match and the materialized index's bytes verify. A missing
+or invalid receipt requires GitHub API access. The shared downloaded bytes are
+also verified before use; a corrupt shared entry requires another download.
+`deps fetch` still reads the dependency manifest on each invocation. Compilation
+reads the prepared cache without network access.
+
+For authenticated GitHub API access, optionally set
+`PACKAGE_BUILD_GITHUB_API_TOKEN` to a GitHub-issued read-only token with access
+to the dependency release. It is sent only to `https://api.github.com`; API
+redirects are refused, and release downloads and mirrors receive no copy.
+Ambient `GITHUB_TOKEN`, `GH_TOKEN` and `GITEA_TOKEN` values are not used for this
+purpose. A GitHub API rate-limit error calls for retrying after the quota resets
+or supplying this explicit GitHub token. Keep tokens outside configuration and
+source control.
 
 `buildManifest` names a mirrored copy of the pinned manifest for dependency
 fetches. Set `manifest` to the public install URL and `compatibility.verified`

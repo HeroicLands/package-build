@@ -28,6 +28,7 @@ function setup(sidecar: string | null, content = "index") {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "metadata-checksum-"));
     roots.push(root);
     vi.stubEnv("XDG_CACHE_HOME", path.join(root, "shared"));
+    vi.stubEnv("PACKAGE_BUILD_GITHUB_API_TOKEN", "");
     const fetcher = vi.fn(async (url: string) => {
         if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
         if (url === api || url === assets)
@@ -58,6 +59,203 @@ it("verifies shared hits and restores damaged materialized and shared files", as
     await fetchMetadata(config, rel);
     expect(fetcher.mock.calls.filter(([url]) => url === index)).toHaveLength(2);
 });
+it("reuses a verified receipt without GitHub API access", async () => {
+    const { config, fetcher } = setup(`${digest("index")}  index.jsonl\n`);
+    const file = await fetchMetadata(config, rel);
+    fetcher.mockClear();
+    fetcher.mockImplementation(async (url: string) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        throw new Error("network unavailable");
+    });
+    expect(await fetchMetadata(config, rel)).toBe(file);
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([manifest]);
+});
+
+it.each([
+    "id",
+    "version",
+    "manifest",
+    "index",
+    "mirror",
+    "sha256",
+    "file",
+    "missing-source",
+    "invalid-json",
+    "index-bytes",
+    "index-symlink",
+    "stamp-symlink",
+])("refetches the checksum when the receipt has invalid %s", async (kind) => {
+    const { config, fetcher, root } = setup(`${digest("index")}  index.jsonl\n`);
+    const file = await fetchMetadata(config, rel);
+    const stamp = path.join(path.dirname(file), ".complete");
+    const receipt = JSON.parse(fs.readFileSync(stamp, "utf8"));
+    if (["id", "version", "manifest", "index", "mirror"].includes(kind))
+        receipt.source[kind] = "other";
+    else if (kind === "sha256") receipt.sha256 = digest("other");
+    else if (kind === "file") receipt.file = "../../other.jsonl";
+    else if (kind === "missing-source") delete receipt.source;
+    fs.writeFileSync(stamp, kind === "invalid-json" ? "{" : JSON.stringify(receipt));
+    if (kind === "index-bytes") fs.writeFileSync(file, "corrupt");
+    if (kind.endsWith("-symlink")) {
+        const target = kind === "index-symlink" ? file : stamp;
+        const outside = path.join(root, "outside");
+        fs.renameSync(target, outside);
+        fs.symlinkSync(outside, target);
+    }
+    fetcher.mockClear();
+    expect(fs.readFileSync(await fetchMetadata(config, rel), "utf8")).toBe("index");
+    expect(fetcher.mock.calls.filter(([url]) => url === api)).toHaveLength(1);
+});
+
+it("does not trust a corrupt receipt when GitHub refuses checksum access", async () => {
+    const { config, fetcher } = setup(`${digest("index")}  index.jsonl\n`);
+    const file = await fetchMetadata(config, rel);
+    fs.writeFileSync(file, "corrupt");
+    fetcher.mockImplementation(async (url: string) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        return new Response(null, { status: 403 });
+    });
+    await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum unavailable/);
+    expect(fs.readFileSync(file, "utf8")).toBe("corrupt");
+});
+
+it("rejects a mismatching replacement of corrupt shared bytes with a valid receipt", async () => {
+    const { config, fetcher, root } = setup(`${digest("index")}  index.jsonl\n`);
+    const file = await fetchMetadata(config, rel);
+    fs.writeFileSync(
+        path.join(root, "shared", "heroiclands", "downloads", digest("index")),
+        "corrupt",
+    );
+    fetcher.mockClear();
+    fetcher.mockImplementation(async (url: string) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        if (url === index) return new Response("replacement");
+        throw new Error("unexpected API request");
+    });
+    await expect(fetchMetadata(config, rel)).rejects.toThrow(/SHA-256/);
+    expect(fs.readFileSync(file, "utf8")).toBe("index");
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([manifest, index]);
+});
+
+it("does not reuse a receipt for a different exact index URL", async () => {
+    const { config, fetcher } = setup(`${digest("index")}  index.jsonl\n`);
+    await fetchMetadata(config, rel);
+    fetcher.mockClear();
+    fetcher.mockImplementation(async (url: string) => {
+        if (url === manifest)
+            return Response.json({ version: "1", flags: { metadataUrl: `${index}.other` } });
+        return new Response(null, { status: 403 });
+    });
+    await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum unavailable/);
+    expect(fetcher.mock.calls.filter(([url]) => url === api)).toHaveLength(1);
+});
+
+it("requires verified for floating GitHub releases before requesting them", async () => {
+    const { config, fetcher } = setup(null);
+    await expect(
+        fetchMetadata(config, {
+            id: rel.id,
+            manifest: manifest.replace("/download/v1/", "/latest/download/"),
+        }),
+    ).rejects.toThrow(/compatibility\.verified.*pinned/);
+    expect(fetcher).not.toHaveBeenCalled();
+});
+
+it("accepts an exact release URL without a separate verified version", async () => {
+    const { config } = setup(`${digest("index")}  index.jsonl\n`);
+    expect(fs.readFileSync(await fetchMetadata(config, { id: rel.id, manifest }), "utf8")).toBe(
+        "index",
+    );
+});
+
+it("explains unsupported public sources without claiming a GitHub outage", async () => {
+    const { config, fetcher } = setup(null);
+    fetcher.mockResolvedValue(
+        Response.json({ version: "1", flags: { metadataUrl: "https://other.test/index.jsonl" } }),
+    );
+    await expect(
+        fetchMetadata(config, { ...rel, manifest: "https://other.test/system.json" }),
+    ).rejects.toThrow(/pinned GitHub release.*--from/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+it("uses only the explicitly supplied GitHub API token and keeps it off asset requests", async () => {
+    const { config, fetcher } = setup(`${digest("index")}  index.jsonl\n`);
+    vi.stubEnv("GITHUB_TOKEN", "ambient-forge-secret");
+    vi.stubEnv("GH_TOKEN", "ambient-cli-secret");
+    vi.stubEnv("GITEA_TOKEN", "ambient-gitea-secret");
+    vi.stubEnv("PACKAGE_BUILD_GITHUB_API_TOKEN", "github-only-secret");
+    await fetchMetadata(config, rel);
+    for (const [url, options] of fetcher.mock.calls as unknown as [string, RequestInit][]) {
+        const headers = new Headers(options.headers);
+        expect(headers.get("Authorization")).toBe(
+            url.startsWith("https://api.github.com/") ? "Bearer github-only-secret" : null,
+        );
+        expect(JSON.stringify(options)).not.toMatch(/ambient-/);
+        if (url.startsWith("https://api.github.com/")) expect(options.redirect).toBe("manual");
+    }
+});
+
+it("ignores ambient forge and CLI credentials", async () => {
+    const { config, fetcher } = setup(`${digest("index")}  index.jsonl\n`);
+    vi.stubEnv("GITHUB_TOKEN", "ambient-forge-secret");
+    vi.stubEnv("GH_TOKEN", "ambient-cli-secret");
+    vi.stubEnv("GITEA_TOKEN", "ambient-gitea-secret");
+    await fetchMetadata(config, rel);
+    for (const [, options] of fetcher.mock.calls as unknown as [string, RequestInit][])
+        expect(new Headers(options.headers).has("Authorization")).toBe(false);
+});
+
+it.each([
+    "https://api.github.com/other",
+    "https://github.com/other",
+    "https://release-assets.githubusercontent.com/other",
+    "https://attacker.test/other",
+])("does not forward the GitHub token through a redirect to %s", async (destination) => {
+    const { config, fetcher } = setup(null);
+    const token = "github-only-secret";
+    vi.stubEnv("PACKAGE_BUILD_GITHUB_API_TOKEN", token);
+    fetcher.mockImplementation(async (url: string) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        return new Response(null, {
+            status: 302,
+            headers: { location: `${destination}?secret=${token}` },
+        });
+    });
+    const error = await fetchMetadata(config, rel).catch((e) => e);
+    expect(error.message).toMatch(/checksum unavailable/);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(token);
+});
+
+it("does not expose a GitHub credential reflected in malformed JSON", async () => {
+    const { config, fetcher } = setup(null);
+    const token = "github-only-secret";
+    vi.stubEnv("PACKAGE_BUILD_GITHUB_API_TOKEN", token);
+    fetcher.mockImplementation(async (url: string) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        return new Response(`not JSON ${token}`);
+    });
+    const error = await fetchMetadata(config, rel).catch((e) => e);
+    expect(error.message).toMatch(/checksum unavailable/);
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(token);
+});
+
+it.each([403, 429])("reports GitHub rate limits plainly for HTTP %s", async (status) => {
+    const { config, fetcher } = setup(null);
+    fetcher.mockImplementation(async (url: string) => {
+        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        return new Response("private text", {
+            status,
+            headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1900000000" },
+        });
+    });
+    await expect(fetchMetadata(config, rel)).rejects.toThrow(
+        /GitHub API rate limit.*retry.*PACKAGE_BUILD_GITHUB_API_TOKEN/,
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
 it.each([null, "bad\n"])("rejects missing or invalid checksum %s", async (sidecar) => {
     const { config, fetcher } = setup(sidecar);
     await expect(fetchMetadata(config, rel)).rejects.toThrow(/checksum/);
@@ -305,11 +503,18 @@ it("selects the exact asset across pages and never sends mirror credentials to G
     const tokenFile = path.join(root, "token");
     fs.writeFileSync(tokenFile, "mirror-secret");
     vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+    vi.stubEnv("PACKAGE_BUILD_GITHUB_API_TOKEN", "github-only-secret");
     const mirror = "https://mirror.test/releases/download/v1/system.json";
     const mirroredIndex = "https://mirror.test/releases/download/v1/index.jsonl";
     const fetcher = vi.fn(async (url: string, options: RequestInit) => {
-        if (url === mirror) return Response.json({ version: "1", flags: { metadataUrl: index } });
+        if (url === mirror) {
+            expect(new Headers(options.headers).get("Authorization")).toBe("token mirror-secret");
+            return Response.json({ version: "1", flags: { metadataUrl: index } });
+        }
         if (url.startsWith("https://api.github.com/")) {
+            expect(new Headers(options.headers).get("Authorization")).toBe(
+                "Bearer github-only-secret",
+            );
             expect(JSON.stringify(options.headers)).not.toContain("mirror-secret");
             if (url === api) return Response.json({ id: 123, tag_name: "v1" });
             if (url === assets)
@@ -325,7 +530,8 @@ it("selects the exact asset across pages and never sends mirror credentials to G
             ]);
         }
         if (url === mirroredIndex) {
-            expect(JSON.stringify(options.headers)).toContain("mirror-secret");
+            expect(new Headers(options.headers).get("Authorization")).toBe("token mirror-secret");
+            expect(JSON.stringify(options.headers)).not.toContain("github-only-secret");
             return new Response("index");
         }
         return new Response("unexpected", { status: 404 });

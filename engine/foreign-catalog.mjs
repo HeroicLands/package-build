@@ -308,6 +308,7 @@ const DOWNLOAD_DELAY_MS = 1000;
 const DOWNLOAD_JITTER_MS = 250;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 const MAX_MIRROR_REDIRECTS = 10;
+const MAX_INDEX_BYTES = 256 * 1024 * 1024;
 
 class MirrorRedirectError extends Error {}
 
@@ -392,15 +393,31 @@ async function fetchBytes(url, context, token, mirror = false) {
     }
 }
 
+/** Read an explicit GitHub-issued credential without using ambient forge tokens. */
+function githubApiToken() {
+    const token = process.env.PACKAGE_BUILD_GITHUB_API_TOKEN;
+    if (!token) return undefined;
+    if (/[^\x21-\x7e]/.test(token))
+        throw new Error("PACKAGE_BUILD_GITHUB_API_TOKEN must contain one non-empty GitHub token");
+    return token;
+}
+
 /** Read bounded GitHub API JSON without passing mirror credentials. */
 async function githubJson(url, signal) {
+    const target = new URL(url);
+    if (target.origin !== "https://api.github.com" || target.username || target.password)
+        throw new Error("GitHub metadata requires the HTTPS api.github.com origin");
+    const token = githubApiToken();
     let response;
     try {
         try {
             response = await fetch(url, {
                 redirect: "manual",
                 signal,
-                headers: { Accept: "application/vnd.github+json" },
+                headers: {
+                    Accept: "application/vnd.github+json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
             });
         } catch {
             const error = new Error("GitHub release metadata request failed");
@@ -408,9 +425,17 @@ async function githubJson(url, signal) {
             throw error;
         }
         if (!response.ok || !response.body) {
+            const rateLimited =
+                response.status === 429 ||
+                (response.status === 403 &&
+                    (response.headers.get("x-ratelimit-remaining") === "0" ||
+                        response.headers.has("retry-after")));
             const error = new Error(
-                `GitHub release metadata request failed (HTTP ${response.status})`,
+                rateLimited ?
+                    `GitHub API rate limit reached (HTTP ${response.status}); retry after the quota resets or set PACKAGE_BUILD_GITHUB_API_TOKEN to a GitHub-issued token`
+                :   `GitHub release metadata request failed (HTTP ${response.status})`,
             );
+            error.rateLimited = rateLimited;
             error.retryable = response.status >= 500 && response.status < 600;
             throw error;
         }
@@ -429,44 +454,67 @@ async function githubJson(url, signal) {
             error.retryable = true;
             throw error;
         }
-        return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
+        try {
+            return JSON.parse(
+                new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
+            );
+        } catch {
+            throw new Error("GitHub release metadata is not valid UTF-8 JSON");
+        }
     } finally {
         if (response?.body && !response.body.locked) await response.body.cancel().catch(() => {});
     }
 }
 
-/** Resolve a pinned GitHub release asset's digest from its exact advertised URL. */
-async function githubAssetDigest(manifestUrl, assetUrl, cache) {
-    const parse = (value) => {
-        const url = new URL(value);
-        if (
-            url.protocol !== "https:" ||
-            url.hostname !== "github.com" ||
-            url.port ||
-            url.username ||
-            url.password ||
-            url.search ||
-            url.hash
-        )
-            throw new Error("not a pinned GitHub release asset URL");
-        const parts = url.pathname.split("/");
-        if (
-            parts.length !== 7 ||
-            parts[0] !== "" ||
-            parts[3] !== "releases" ||
-            parts[4] !== "download" ||
-            !parts[1] ||
-            !parts[2] ||
-            !parts[5] ||
-            !parts[6]
-        )
-            throw new Error("not a pinned GitHub release asset URL");
-        return parts;
-    };
-    const manifest = parse(manifestUrl);
-    const asset = parse(assetUrl);
+class MetadataSourceError extends Error {}
+
+/** Require an exact public GitHub release asset as the checksum source. */
+function githubReleaseAsset(value) {
+    const message =
+        "content index fetching requires a pinned GitHub release asset URL; use a GitHub release or package-build deps fetch --from <path> for a local artifact";
+    let url;
+    try {
+        url = new URL(value);
+    } catch {
+        throw new MetadataSourceError(message);
+    }
+    if (
+        url.protocol !== "https:" ||
+        url.hostname !== "github.com" ||
+        url.port ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash
+    )
+        throw new MetadataSourceError(message);
+    const parts = url.pathname.split("/");
+    if (
+        parts.length !== 7 ||
+        parts[0] !== "" ||
+        parts[3] !== "releases" ||
+        parts[4] !== "download" ||
+        !parts[1] ||
+        !parts[2] ||
+        !parts[5] ||
+        !parts[6]
+    )
+        throw new MetadataSourceError(message);
+    return parts;
+}
+
+/** Bind the manifest and index to the same exact public release. */
+function githubReleaseIdentity(manifestUrl, assetUrl) {
+    const manifest = githubReleaseAsset(manifestUrl);
+    const asset = githubReleaseAsset(assetUrl);
     if (manifest.slice(1, 6).join("/") !== asset.slice(1, 6).join("/"))
         throw new Error("content index is not in the pinned GitHub release");
+    return manifest;
+}
+
+/** Resolve a pinned GitHub release asset's digest from its exact advertised URL. */
+async function githubAssetDigest(manifestUrl, assetUrl, cache) {
+    const manifest = githubReleaseIdentity(manifestUrl, assetUrl);
     const api = `https://api.github.com/repos/${manifest[1]}/${manifest[2]}/releases/tags/${manifest[5]}`;
     let pending = cache.get(api);
     if (!pending) {
@@ -529,9 +577,58 @@ async function retryMetadata(action) {
 
 /** Hash an index without buffering it in memory. */
 async function indexDigest(file) {
-    const hash = createHash("sha256");
-    for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
-    return hash.digest("hex");
+    const handle = await fs.promises.open(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const stat = await handle.stat();
+        if (!stat.isFile() || stat.size > MAX_INDEX_BYTES)
+            throw new Error("content index is not a regular file within the size limit");
+        const hash = createHash("sha256");
+        let size = 0;
+        for await (const chunk of handle.createReadStream({ autoClose: false })) {
+            size += chunk.length;
+            if (size > MAX_INDEX_BYTES) throw new Error("content index exceeds size limit");
+            hash.update(chunk);
+        }
+        return hash.digest("hex");
+    } finally {
+        await handle.close();
+    }
+}
+
+/** Reuse a checksum only when its source identity and materialized bytes verify. */
+async function verifiedMetadataDigest(dir, source) {
+    let fd;
+    try {
+        fd = fs.openSync(path.join(dir, STAMP), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+        const stat = fs.fstatSync(fd);
+        if (!stat.isFile() || stat.size > 16 * 1024) return undefined;
+        const marker = JSON.parse(fs.readFileSync(fd, "utf8"));
+        if (
+            !/^[0-9a-f]{64}$/.test(marker.sha256 ?? "") ||
+            marker.file !== `${marker.sha256}.jsonl` ||
+            !marker.source ||
+            Object.keys(source).some((key) => marker.source[key] !== source[key])
+        )
+            return undefined;
+        return (await indexDigest(path.join(dir, marker.file))) === marker.sha256 ?
+                marker.sha256
+            :   undefined;
+    } catch {
+        return undefined;
+    } finally {
+        if (fd !== undefined) fs.closeSync(fd);
+    }
+}
+
+/** Atomically publish a verified index and its exact checksum source identity. */
+function markVerifiedMetadataComplete(dir, file, sha256, source) {
+    const temporary = fs.mkdtempSync(path.join(dir, ".marker-"));
+    try {
+        fs.writeFileSync(path.join(temporary, STAMP), JSON.stringify({ file, sha256, source }));
+        fs.renameSync(path.join(temporary, STAMP), path.join(dir, STAMP));
+    } finally {
+        fs.rmSync(temporary, { recursive: true, force: true });
+    }
 }
 
 /**
@@ -872,7 +969,8 @@ export async function fetchCatalogFromPath(config, rel, source) {
  * URL is rewritten to it. A consumer resolving addresses against whatever the
  * dependency published this morning is not reproducible.
  *
- * The release checksum is read first, and the shared cache is verified before use.
+ * A matching verified cache receipt supplies the checksum; a miss reads it from GitHub.
+ * The shared cache is verified before use.
  *
  * @param {object} config - The resolved build configuration.
  * @param {{id: string, manifest: string, buildManifest?: string, verified?: string}} rel - The declared
@@ -894,6 +992,10 @@ export async function fetchMetadata(config, rel) {
  *   and the parsed manifest.
  */
 async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
+    if (!rel.verified && rel.manifest?.includes("/releases/latest/download/"))
+        throw new Error(
+            `${rel.id}: set compatibility.verified to the dependency version or use a pinned release manifest URL before package-build deps fetch`,
+        );
     const { url } = pinnedManifestUrl(rel.manifest, rel.verified);
     const manifest = await fetchManifest(rel.buildManifest ?? url, mirrorToken(rel), rel);
     const version = manifest.version;
@@ -922,10 +1024,22 @@ async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
     }
 
     const token = mirrorToken(rel);
+    const source = {
+        id: rel.id,
+        version,
+        manifest: url,
+        index: advertisedIndex,
+        mirror: rel.buildManifest ?? null,
+    };
     let expected;
     try {
-        expected = await githubAssetDigest(url, advertisedIndex, githubCache);
+        githubReleaseIdentity(url, advertisedIndex);
+        expected =
+            (await verifiedMetadataDigest(dir, source)) ??
+            (await githubAssetDigest(url, advertisedIndex, githubCache));
     } catch (cause) {
+        if (cause instanceof MetadataSourceError || cause.rateLimited)
+            throw new Error(`${rel.id}@${version}: ${cause.message}`);
         const status =
             cause instanceof Error ?
                 /^GitHub release metadata request failed \(HTTP ([0-9]{3})\)$/.exec(
@@ -941,7 +1055,7 @@ async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
         downloadCached(indexUrl, expected, {
             token,
             allowLoopback: !!rel.buildManifest,
-            maxBytes: 256 * 1024 * 1024,
+            maxBytes: MAX_INDEX_BYTES,
             signal,
         }),
     );
@@ -954,7 +1068,7 @@ async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
         if ((await indexDigest(staged)) !== expected)
             throw new Error(`${rel.id}@${version}: cached content index failed verification`);
         fs.renameSync(staged, file);
-        markMetadataComplete(dir, path.basename(file), expected);
+        markVerifiedMetadataComplete(dir, path.basename(file), expected, source);
     } finally {
         fs.rmSync(temporary, { recursive: true, force: true });
     }
