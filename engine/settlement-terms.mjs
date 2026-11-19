@@ -41,6 +41,7 @@ const enumeration = (name, allowed, nullable = false) => ({
 export const HOUSEHOLDS_FIELD = Object.freeze({
     name: "households",
     kind: "integer",
+    kindChecked: true,
     nullable: true,
     shape: "a nonnegative household count or null",
     describe: "Exact households; null means unknown.",
@@ -81,6 +82,7 @@ export const GENERATOR_SOURCE_FIELD = Object.freeze({
             {
                 name: "id",
                 kind: "integer",
+                kindChecked: true,
                 required: true,
                 shape: "a nonnegative integer",
                 describe: "The map object ID.",
@@ -88,6 +90,7 @@ export const GENERATOR_SOURCE_FIELD = Object.freeze({
             {
                 name: "slot",
                 kind: "integer",
+                kindChecked: true,
                 shape: "a nonnegative integer",
                 describe: "A settlement's slot within a cell.",
             },
@@ -181,7 +184,7 @@ export const SETTLEMENT_TABLE_RULES = Object.freeze(
         ],
         [
             "settlement field",
-            "Required settlement facts are present and enumerated facts take declared values.",
+            "Required settlement facts, enumerated values, household counts and map identities have the declared shapes.",
         ],
         [
             "unresolved settlement reference",

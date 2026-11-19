@@ -2763,7 +2763,32 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "householdSize",
                 ...NUM,
-                describe: "Culture: average people per household, used as an authoring default.",
+                describe: "Culture only: a positive average number of people per household.",
+                check: (note) => {
+                    const value = note.fm?.data?.householdSize;
+                    if (value === undefined || value === null) return [];
+                    const scope = String(note.fm?.subType ?? "").toLowerCase() === "culture";
+                    const numeric =
+                        (typeof value === "number" ||
+                            (typeof value === "string" && value.trim() !== "")) &&
+                        Number.isFinite(Number(value));
+                    if (scope && (!numeric || Number(value) > 0)) return [];
+                    return [
+                        {
+                            file: note.file,
+                            ...positionOfFrontmatterPath(
+                                note.raw ?? "",
+                                ["data", "householdSize"],
+                                { key: true },
+                            ),
+                            severity: "error",
+                            message:
+                                scope ?
+                                    "`data.householdSize` must be positive"
+                                :   "`data.householdSize` is for culture notes only",
+                        },
+                    ];
+                },
             },
             {
                 name: "vehicleAppearanceProfile",

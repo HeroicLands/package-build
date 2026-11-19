@@ -156,6 +156,7 @@ describe("settlement population and hierarchy", () => {
             vocabulary: NOTE_VOCABULARY,
             index,
         });
+        expect(result.filter((finding) => finding.message.includes("households"))).toHaveLength(1);
         expect(result.find((finding) => finding.message.includes("households"))).toMatchObject({
             line: expect.any(Number),
             column: expect.any(Number),
@@ -224,9 +225,14 @@ describe("settlement population and hierarchy", () => {
             vocabulary: NOTE_VOCABULARY,
             index,
         });
-        expect(
-            findings.find((finding) => finding.message.includes("generatorSource")),
-        ).toMatchObject({ line: expect.any(Number), column: expect.any(Number) });
+        const sourceFindings = findings.filter((finding) =>
+            finding.message.includes("generatorSource"),
+        );
+        if (generatorSource.id === -1) expect(sourceFindings).toHaveLength(1);
+        expect(sourceFindings[0]).toMatchObject({
+            line: expect.any(Number),
+            column: expect.any(Number),
+        });
     });
     it.each([
         { mapId: "map", kind: "cell", id: 0, slot: 0 },
@@ -246,6 +252,7 @@ describe("settlement population and hierarchy", () => {
     it.each([
         {},
         { mapId: "map", kind: "wrong", id: 0 },
+        { mapId: "map", kind: "cell", id: -1 },
         { mapId: "map", kind: "cell", id: 0, extra: 1 },
         { mapId: "map", kind: "cell", id: 0, slot: null },
     ])("rejects an invalid source identity during publication %#", (generatorSource) => {
@@ -270,6 +277,61 @@ describe("settlement population and hierarchy", () => {
                 rawOf: () => "",
             }),
         ).not.toThrow();
+    });
+    it.each([-1, 1.5, "bad"])("locates invalid households during publication: %s", (households) => {
+        const { polity, index } = corpus([{ ...row, households }]);
+        polity.raw = `---\n${YAML.stringify(polity.fm)}---\n`;
+        const records = index.notes.map((note) => ({ ...note.fm, package: "test" }));
+        try {
+            assertSettlementRecords(records, {
+                fileOf: (fm: any) => (fm.shortcode === "crown" ? polity.file : "Vale.md"),
+                rawOf: (file: string) => (file === polity.file ? polity.raw : ""),
+            });
+            throw new Error("expected publication to reject households");
+        } catch (error: any) {
+            const findings = error.findings?.filter((finding: any) =>
+                finding.message.includes("households"),
+            );
+            expect(findings).toHaveLength(1);
+            expect(findings[0]).toMatchObject({
+                file: "Crown.md",
+                line: expect.any(Number),
+                column: expect.any(Number),
+            });
+        }
+    });
+    it.each(["", "   "])(
+        "rejects an empty livelihood during lint and publication",
+        (economicFocus) => {
+            const { polity, index } = corpus([{ ...row, economicFocus }]);
+            polity.raw = `---\n${YAML.stringify(polity.fm)}---\n`;
+            expect(
+                lintNote(polity, {
+                    schemas: NOTE_SCHEMAS,
+                    vocabulary: NOTE_VOCABULARY,
+                    index,
+                }).filter((finding) => finding.message.includes("economicFocus")),
+            ).toHaveLength(1);
+            const records = index.notes.map((note) => ({ ...note.fm, package: "test" }));
+            expect(() =>
+                assertSettlementRecords(records, {
+                    fileOf: (fm: any) => (fm.shortcode === "crown" ? polity.file : "Vale.md"),
+                    rawOf: (file: string) => (file === polity.file ? polity.raw : ""),
+                }),
+            ).toThrow(/economicFocus/);
+        },
+    );
+    it.each([
+        ["culture", 0],
+        ["culture", -3],
+        ["legend", 4],
+    ])("rejects invalid household size for %s", (subType, householdSize) => {
+        const fm = { type: "lore", subType, shortcode: "example", data: { householdSize } };
+        const note = { file: "Culture.md", fm, raw: `---\n${YAML.stringify(fm)}---\n` };
+        const findings = lintNote(note, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });
+        expect(findings.filter((finding) => finding.message.includes("householdSize"))).toEqual([
+            expect.objectContaining({ line: expect.any(Number), column: expect.any(Number) }),
+        ]);
     });
     it("locates a finding at the authored field", () => {
         const { polity, index } = corpus([{ ...row, market: "weekly" }]);

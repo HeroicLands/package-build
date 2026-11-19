@@ -392,13 +392,18 @@ export function settlementExemptionTracker(
  */
 export function checkSettlementTables(
     note,
-    { index, settlementExemptions, settlementPopulation: authoredPopulation } = {},
+    {
+        index,
+        settlementExemptions,
+        settlementPopulation: authoredPopulation,
+        publishing = false,
+    } = {},
 ) {
     const settlementPopulation = normalizeSettlementPopulation(authoredPopulation, fail);
     if (settlementExemptions)
         return settlementExemptions.filter(
             note,
-            checkSettlementTables(note, { index, settlementPopulation }),
+            checkSettlementTables(note, { index, settlementPopulation, publishing }),
             settlementPopulation,
         );
     if (!index) return [];
@@ -456,12 +461,27 @@ export function checkSettlementTables(
             (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) &&
             Number.isSafeInteger(Number(value)) &&
             Number(value) >= 0;
-        if (row.households != null && !nonnegativeInteger(row.households))
+        if (
+            row.households != null &&
+            !nonnegativeInteger(row.households) &&
+            (publishing ||
+                listed ||
+                typeof row.households === "number" ||
+                (typeof row.households === "string" &&
+                    row.households.trim() !== "" &&
+                    Number.isFinite(Number(row.households))))
+        )
             report(
                 "settlement field",
                 [...at, "households"],
                 "households is a nonnegative whole number or null",
             );
+        if (
+            row.economicFocus !== undefined &&
+            ((typeof row.economicFocus === "string" && !row.economicFocus.trim()) ||
+                (publishing && typeof row.economicFocus !== "string"))
+        )
+            report("settlement field", [...at, "economicFocus"], "economicFocus is nonempty text");
         if (listed && row.generatorSource !== undefined && !map(row.generatorSource))
             report(
                 "settlement field",
@@ -728,6 +748,7 @@ export function assertSettlementRecords(
                 index,
                 settlementExemptions: tracker,
                 settlementPopulation,
+                publishing: true,
             }),
             ...checkDataKeys(sourceNote, [sourceField]),
         ];

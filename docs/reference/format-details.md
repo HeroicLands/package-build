@@ -8057,7 +8057,7 @@ not a different cultural identity. See
 | `vehicleAppearanceProfile[].fields.form`     | A map of words to weights.                                                    | Positive weights for form words.                                                                                                                             |
 | `vehicleAppearanceProfile[].fields.material` | A map of words to weights.                                                    | Positive weights for material words.                                                                                                                         |
 | `appearanceProfile`                          | `{ frame, eye_color, hair_color, skin_color, complexion, height, … }`         | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                     |
-| `householdSize`                              | number                                                                        | Culture: average people per household, used as an authoring default.                                                                                         |
+| `householdSize`                              | number                                                                        | Culture only: a positive average number of people per household.                                                                                             |
 | `appearanceProfile.frame`                    | map of `frame` words to positive weights, required                            | How often each frame is drawn                                                                                                                                |
 | `appearanceProfile.eye_color`                | map of `eye_color` words to positive weights, required                        | How often each eye colour is drawn                                                                                                                           |
 | `appearanceProfile.hair_color`               | map of `hair_color` words to positive weights, required                       | How often each hair colour is drawn                                                                                                                          |
@@ -8894,9 +8894,7 @@ valid; its livelihood does not assert a mineral deposit.
 A listed row's optional `generatorSource` identifies its map origin with a
 nonempty `mapId`, `kind` of `cell` or `burg`, and a nonnegative integer `id`.
 A cell identity may also carry a nonnegative `slot` for a settlement within
-the cell; a burg identity has no slot. This identity is separate from the map
-snapshot hash. Specific settlement notes and authored household counts take
-precedence over generator defaults, including zero and unknown counts.
+the cell; a burg identity has no slot. The identity records the corresponding map object.
 
 A settlement with a note states its own facts in `data`, with `government`
 naming its polity and `parents` naming its enclosing places. It has no authored
@@ -8968,7 +8966,7 @@ Semantic findings are located errors except where a warning is stated:
 
 - **`body settlements table`** — Settlement tables are generated from frontmatter and the index.
 - **`settlements shape`** — Only a polity declares a list of settlement rows with the declared fields.
-- **`settlement field`** — Required facts and enumerated values follow the settlement vocabulary.
+- **`settlement field`** — Required facts, enumerated values, household counts and map identities follow the settlement vocabulary.
 - **`unresolved settlement reference`** — A reference does not resolve to its required note type.
 - **`people figure`** — A population is neither null nor a nonnegative whole number with at most two significant digits. An omitted settlement population warns and is treated as unknown.
 - **`duplicate settlement`** — A settlement has more than one listed or noted source.

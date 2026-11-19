@@ -164,7 +164,7 @@ nonempty name or a resolving Address. Supplied notes must be nonempty. The [sett
 A settlement row or note can state an exact `households` count and its primary
 livelihood in `economicFocus`. A culture can state its average people per
 household as `data.householdSize`. A row can record a map identity in
-`generatorSource`; authored facts take precedence over defaults. The
+`generatorSource` using a map identity. The
 [settlement table reference](../reference/format-details.md#a-politys-settlements-table)
 describes the identity fields and unknown household counts.
 
