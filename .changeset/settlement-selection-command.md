@@ -4,4 +4,4 @@
 
 **Builds and commands**
 
-- Preview modeled rural settlement placements from a pinned map and captured polity facts.
+- Preview modeled rural settlements from a pinned map and save checked rows to a polity.

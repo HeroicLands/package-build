@@ -76,6 +76,19 @@ with these keys:
   `identity` and coordinate pair `point`), `spacingMeters`, `candidateLimit`
   and `workLimit`.
 
-The report includes missing inputs and exits unsuccessfully when the operation
-is incomplete. The default is a dry run. `--write` reports the required
-setting name checks and does not write rows while those checks are unavailable.
+The report includes checked names, complete source rows, edit metadata, missing
+inputs and the land and population calculations. It exits unsuccessfully when
+the operation is incomplete. `--checks-module` explicitly selects a trusted
+local module exporting `loadSettingCheckResources` and `createSettingChecks`.
+The module runs with the caller's permissions. The loader receives `root`, an
+optional `indexFile`, and optional `wordlistDirs`; the factory receives its
+resources and the mutable list of selected names. The index must match the
+captured notes. Each selected culture must resolve to one indexed language.
+`--seed` and `--name-limit` bound the deterministic name selection; the number
+of proposed sites times that limit must fit the operation work limit.
+
+The default is a dry run. `--write` commits the prepared append-only edit only
+when the selected names pass all checks and no inputs are missing. The writer
+checks the source capture and preserves existing rows, comments and prose. The
+source must remain exclusively edited during commit, as described in
+[settlement source edits](settlement-source.md).

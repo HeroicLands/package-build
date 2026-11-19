@@ -13,10 +13,14 @@
 
 /** On-demand settlement placement command. @module */
 import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { AZGAAR_LIMITS, readAzgaarMap } from "../engine/azgaar-map.mjs";
 import { selectSettlementPlacements } from "../engine/settlement-selection.mjs";
+import { prepareNamedSettlements } from "../engine/settlement-authoring.mjs";
+import { commitSettlementEdit } from "../engine/settlement-source.mjs";
 
 function locatedError(file, message, line, column) {
     const position =
@@ -96,10 +100,32 @@ export function settlementCommand() {
                     demandOption: true,
                     describe: "JSON file containing map pin, bindings and placement inputs",
                 })
+                .option("checks-module", {
+                    type: "string",
+                    describe: "Trusted local setting-check module",
+                })
+                .option("checks-root", {
+                    type: "string",
+                    describe: "Root for setting resources (default: current directory)",
+                })
+                .option("checks-index", {
+                    type: "string",
+                    describe: "Setting content index path relative to the checks root",
+                })
+                .option("wordlist-dir", {
+                    type: "array",
+                    string: true,
+                    describe: "Model-language word-list directory; repeatable",
+                })
+                .option("seed", { type: "string", describe: "Deterministic name selection seed" })
+                .option("name-limit", {
+                    type: "number",
+                    describe: "Maximum candidate names examined per settlement",
+                })
                 .option("write", {
                     type: "boolean",
                     default: false,
-                    describe: "Request source writing (unavailable without setting name checks)",
+                    describe: "Write the checked rows to the selected polity",
                 }),
         handler: async (argv) => {
             try {
@@ -126,7 +152,7 @@ export function settlementCommand() {
                     mapping: inputs.mapping,
                 });
                 const config = loadPackConfig();
-                const session = await createContentSession({ config });
+                const session = await createContentSession({ config, trackChanges: true });
                 try {
                     const result = selectSettlementPlacements(
                         {
@@ -138,14 +164,72 @@ export function settlementCommand() {
                         },
                         inputs.selection,
                     );
-                    const missing = [...result.missing];
-                    if (argv.write)
-                        missing.push({
-                            field: "naming.validators",
-                            message:
-                                "setting name checks are required before writing settlement rows",
+                    let authoring;
+                    if (!argv.checksModule) {
+                        authoring = {
+                            missing: [
+                                ...result.missing.filter((item) => item.field !== "naming"),
+                                {
+                                    field: "naming.validators",
+                                    message: "provide a trusted local setting-check module",
+                                },
+                            ],
+                        };
+                    } else {
+                        const modulePath = path.resolve(argv.checksModule);
+                        let module;
+                        try {
+                            module = await import(pathToFileURL(modulePath).href);
+                        } catch (error) {
+                            throw locatedError(
+                                modulePath,
+                                `cannot load setting checks: ${error.message}`,
+                            );
+                        }
+                        if (
+                            typeof module.loadSettingCheckResources !== "function" ||
+                            typeof module.createSettingChecks !== "function"
+                        )
+                            throw locatedError(
+                                modulePath,
+                                "setting module must export loadSettingCheckResources and createSettingChecks",
+                            );
+                        const loaded = await module.loadSettingCheckResources({
+                            root: argv.checksRoot ?? process.cwd(),
+                            ...(argv.checksIndex ? { indexFile: argv.checksIndex } : {}),
+                            ...(argv.wordlistDir ? { wordlistDirs: argv.wordlistDir } : {}),
                         });
-                    console.log(JSON.stringify({ selection: result.selection, missing }, null, 2));
+                        authoring = prepareNamedSettlements({
+                            session,
+                            polityAddress: argv.polity,
+                            selection: result,
+                            factory: module.createSettingChecks,
+                            resources: loaded?.resources,
+                            seed: argv.seed,
+                            maxCandidates: argv.nameLimit,
+                            maxWork: inputs.selection?.workLimit,
+                        });
+                    }
+                    const missing = authoring.missing;
+                    let write;
+                    if (argv.write && !missing.length) {
+                        session.assertUnchanged();
+                        write = commitSettlementEdit(authoring.edit);
+                    }
+                    console.log(
+                        JSON.stringify(
+                            {
+                                selection: result.selection,
+                                rows: authoring.rows,
+                                names: authoring.names,
+                                edit: authoring.edit,
+                                write,
+                                missing,
+                            },
+                            null,
+                            2,
+                        ),
+                    );
                     for (const item of missing) {
                         const file =
                             item.file && item.file !== "settlement-inputs" ?
@@ -159,6 +243,11 @@ export function settlementCommand() {
                                 item.column,
                             ).message,
                         );
+                    }
+                    if (write?.cleanupErrors?.length) {
+                        for (const message of write.cleanupErrors)
+                            console.error(locatedError(authoring.edit.sourcePath, message).message);
+                        process.exitCode = 1;
                     }
                     if (missing.length) process.exitCode = 1;
                 } finally {

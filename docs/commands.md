@@ -4099,20 +4099,21 @@ package-build vehicle prompt vehicle-cart --model sdxl --seed example
 
 **NAME**
 
-Preview modeled rural settlement placements.
+Propose named rural settlements and optionally save their rows.
 
 **SYNOPSIS**
 
-`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE [--write]`
+`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE --checks-module FILE --seed TEXT --name-limit NUMBER [--checks-root DIR] [--checks-index FILE] [--wordlist-dir DIR] [--write]`
 
 **DESCRIPTION**
 
 Reads a captured polity and a pinned Azgaar map and Full JSON export. The JSON
 inputs file supplies the map pin and mapping, existing bindings and acreage,
 land rules, and bounded selection settings. The command reports modeled
-footprints, household allocations, land ledgers and missing inputs. It does not
-write settlement rows; `--write` refuses because the setting name checks are
-unavailable.
+footprints, household allocations, land ledgers, checked names and missing
+inputs. It prepares an append-only edit of the selected polity; `--write`
+commits that edit only when all inputs and checks succeed. The setting index
+must match the captured notes.
 
 **OPTIONS**
 
@@ -4120,8 +4121,15 @@ unavailable.
 - `--map FILE` — required pinned saved map.
 - `--json FILE` — required pinned Full JSON export.
 - `--inputs FILE` — required JSON operation inputs.
-- `--write` — request writing; the command reports the missing name checks and
-  exits without writing. The default is a preview.
+- `--checks-module FILE` — trusted local JavaScript module supplying the setting
+  resource loader and check factory. The module executes with the caller's access.
+- `--checks-root DIR` — root for setting resources; defaults to the current directory.
+- `--checks-index FILE` — index path passed to the setting resource loader; the
+  loader chooses its default when omitted.
+- `--wordlist-dir DIR` — model-language word-list directory; repeatable, omitted by default.
+- `--seed TEXT` — deterministic name selection seed, required for generated names.
+- `--name-limit NUMBER` — positive candidate budget per generated name.
+- `--write` — commit the checked rows. The default is a dry run.
 
 **EXIT STATUS**
 
@@ -4131,7 +4139,7 @@ output contains a JSON report; diagnostics go to standard error.
 **EXAMPLES**
 
 ```sh
-package-build settlement --polity example-note-affiliation-crown --map world.map --json world.json --inputs settlement-inputs.json
+package-build settlement --polity example-note-affiliation-crown --map world.map --json world.json --inputs settlement-inputs.json --checks-module ./utils/setting-checks.mjs --seed example --name-limit 100
 ```
 
 The input file supplies `pin`, `mapping`, `bindings`, `settings`, and
