@@ -226,4 +226,4 @@ await session.prepare(["watch"]);
 parseMarkdownFile("note.md", { raw: 42 });
 // @ts-expect-error Additional name kinds must be an iterable of type strings.
 indexRecordsFor({ nameTypes: 42 });
-session.dispose();
+await session.dispose();

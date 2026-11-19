@@ -66,9 +66,8 @@ frontmatter directly; a plain checkout builds without an export step. The
 tree is arranged for readers and authors, while `type:` determines how each
 note compiles.
 
-A package using [`art.packages`](configuration.md#artpackages) declares each
-artwork package as an exact required development dependency. `npm ci` installs
-the locked inputs in the package checkout.
+A package using [`art.archives`](configuration.md#artarchives) declares each
+original artwork archive by HTTPS URL and SHA-256 digest.
 
 ## `package.json`
 

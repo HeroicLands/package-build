@@ -735,7 +735,7 @@ function manifestCommand() {
             }
 
             const artworkRecords =
-                config.converterData && shared.art?.packages?.length ?
+                config.converterData && shared.art?.archives?.length ?
                     await (
                         await import("../engine/art-index-input.mjs")
                     ).indexRecordsWithArtwork({ config: shared })
@@ -1526,10 +1526,9 @@ function cdnPublishCommand() {
             ]);
             let artRecords;
             let preparedMasters;
-            let artSources;
             let artSession;
             try {
-                if (packConfig.art?.masterRoots?.length || packConfig.art?.packages?.length) {
+                if (packConfig.art?.masterRoots?.length || packConfig.art?.archives?.length) {
                     const session = (artSession = await createContentSession({
                         config: packConfig,
                     }));
@@ -1538,14 +1537,12 @@ function cdnPublishCommand() {
                         process.exitCode = 1;
                         return;
                     }
-                    if (packConfig.art?.packages?.length) artSources = session.artSources;
-                    else
-                        preparedMasters = await renderArtMasters(
-                            session.masters,
-                            session.records,
-                            path.join(config.rootDir, "build", "art"),
-                            path.join(config.rootDir, "build", ".cache", "art"),
-                        );
+                    preparedMasters = await renderArtMasters(
+                        session.masters,
+                        session.records,
+                        path.join(config.rootDir, "build", "art"),
+                        path.join(config.rootDir, "build", ".cache", "art"),
+                    );
                     artRecords = shippingAssetRecords(session.records);
                 }
                 const plan = planCdnPublish({
@@ -1558,7 +1555,6 @@ function cdnPublishCommand() {
                     shippingLicenses: config.shippingLicenses,
                     records: artRecords,
                     preparedMasters,
-                    artSources,
                 });
                 if (plan.findings.length) {
                     const located = plan.findings.map((finding) => ({
@@ -1631,7 +1627,7 @@ function cdnPublishCommand() {
                         `${set.set.assets.length} left-out pictures (${setState}).`,
                 );
             } finally {
-                artSession?.dispose();
+                await artSession?.dispose();
             }
         }),
     };

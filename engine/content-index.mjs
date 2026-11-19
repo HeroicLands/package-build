@@ -1678,9 +1678,10 @@ export function indexRecordsFor({
     warnings,
 } = {}) {
     const resolved = config ?? loadPackConfig();
-    if (resolved.art?.packages?.length && assetRecords === undefined)
-        throw new Error(
-            "art.packages: error: installed artwork records must be resolved before building the index",
+    if (resolved.art?.archives?.length && masterRecords === undefined && assetRecords === undefined)
+        throw Object.assign(
+            new Error("art.archives: error: artwork archives require a prepared content session"),
+            { located: true },
         );
     assertPrivateArtRoots(privateArtRoots(resolved), [assetsBase ?? resolved.paths.assets], {
         role: "input",
@@ -1845,7 +1846,7 @@ function publicationExpressions(expanded, context) {
 export async function prepareContentIndex({ contentBase, config, session } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = path.resolve(contentBase ?? resolved.paths.content);
-    if (!session && resolved.art?.packages?.length) {
+    if (!session && resolved.art?.archives?.length) {
         const { createContentSession } = await import("./content-session.mjs");
         const capture = await createContentSession({ config: resolved, contentBase: tree });
         try {
@@ -1855,7 +1856,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
                 session: capture,
             });
         } finally {
-            capture.dispose();
+            await capture.dispose();
         }
     }
     session?.assertContext({ config: resolved, contentBase: tree });

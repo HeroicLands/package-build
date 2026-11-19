@@ -60,25 +60,29 @@ describe("defineConfig", () => {
             defineConfig({ ...minimal(), art: { masterRoots: ["one", "one/sub"] } }),
         ).toThrow(/overlaps/);
     });
-    it("normalizes artwork packages and keeps consumer and private inputs exclusive", () => {
-        const config = defineConfig({ ...minimal(), art: { packages: ["@heroiclands/art-sohl"] } });
-        expect(config.art.packages).toEqual(["@heroiclands/art-sohl"]);
-        expect(Object.isFrozen(config.art.packages)).toBe(true);
-        expect(defineConfig(minimal()).art.packages).toEqual([]);
-        expect(
-            defineConfig({ ...minimal(), art: { packages: [], masterRoots: ["art"] } }).art
-                .masterRoots,
-        ).toHaveLength(1);
-        for (const packages of [["../escape"], ["A"], ["@scope/"], ["art", "art"]])
-            expect(() => defineConfig({ ...minimal(), art: { packages } })).toThrow(
-                /art\.packages/,
+    it("requires pinned HTTPS archives and keeps inputs exclusive", () => {
+        const archive = { url: "https://example.test/art.zip", sha256: "a".repeat(64) };
+        const config = defineConfig({ ...minimal(), art: { archives: [archive] } });
+        expect(config.art.archives).toEqual([archive]);
+        expect(Object.isFrozen(config.art.archives)).toBe(true);
+        expect(defineConfig(minimal()).art.archives).toEqual([]);
+        for (const invalid of [
+            { ...archive, url: "http://example.test/art.zip" },
+            { ...archive, url: "https://user:pass@example.test/art.zip" },
+            { ...archive, sha256: "A".repeat(64) },
+        ])
+            expect(() => defineConfig({ ...minimal(), art: { archives: [invalid] } })).toThrow(
+                /art\.archives/,
             );
+        expect(() => defineConfig({ ...minimal(), art: { archives: [archive, archive] } })).toThrow(
+            /duplicates/,
+        );
         expect(() =>
-            defineConfig({ ...minimal(), art: { packages: ["art"], masterRoots: ["art"] } }),
-        ).toThrow(/art\.packages/);
-        expect(() =>
-            defineConfig({ ...minimal(), art: { packages: ["art"], componentRoots: ["art"] } }),
-        ).toThrow(/art\.packages/);
+            defineConfig({ ...minimal(), art: { archives: [archive], masterRoots: ["art"] } }),
+        ).toThrow(/art\.archives/);
+        expect(() => defineConfig({ ...minimal(), art: { packages: ["art"] } } as any)).toThrow(
+            /art\.packages/,
+        );
     });
     it("returns a config carrying every field it was given", () => {
         const config = defineConfig({

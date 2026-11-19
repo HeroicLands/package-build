@@ -4,13 +4,13 @@ import { loadPackConfig } from "./pack-config.mjs";
 import { formatDiagnostic } from "./diagnostics.mjs";
 
 /**
- * Derive an index with installed artwork resolved for this invocation.
+ * Derive an index with artwork originals resolved for this invocation.
  * @param {Parameters<typeof indexRecordsFor>[0]} options Index context.
  * @returns {Promise<object[]>} Validated content and asset records.
  */
 export async function indexRecordsWithArtwork(options = {}) {
     const config = options.config ?? loadPackConfig();
-    if (!config.art?.packages?.length) return indexRecordsFor({ ...options, config });
+    if (!config.art?.archives?.length) return indexRecordsFor({ ...options, config });
     const { createContentSession } = await import("./content-session.mjs");
     const session = await createContentSession({
         config,
@@ -28,6 +28,6 @@ export async function indexRecordsWithArtwork(options = {}) {
             for (const [key, value] of session.parsed) options.parsed.set(key, value);
         return session.records;
     } finally {
-        session.dispose();
+        await session.dispose();
     }
 }

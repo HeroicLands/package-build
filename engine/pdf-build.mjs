@@ -804,7 +804,7 @@ export async function buildPdf({
             });
         }
     } finally {
-        world.session?.dispose();
+        await world.session?.dispose();
         await world.db.close?.();
         fs.rmSync(world.dir, { recursive: true, force: true });
     }
@@ -849,15 +849,13 @@ async function prepareWorld(resolved, { contentBase, findings, edition }) {
     // The corpus, once — the same records the index, the site and the SQL
     // tables read, so the book cannot select a note the other surfaces do not
     // have.
-    if (resolved.art?.packages?.length && edition === "print")
-        throw new Error("print PDF editions require approved print artwork inputs");
     const session =
-        resolved.art?.masterRoots?.length || resolved.art?.packages?.length ?
+        resolved.art?.masterRoots?.length || resolved.art?.archives?.length ?
             await createContentSession({ config: resolved, contentBase })
         :   null;
     if (session?.problems.length) {
         findings.push(...session.problems);
-        session.dispose();
+        await session.dispose();
         return null;
     }
     let dir;
@@ -896,9 +894,7 @@ async function prepareWorld(resolved, { contentBase, findings, edition }) {
         for (const record of records) {
             const address = addressText(record);
             const rendered = renderedScreens.get(address);
-            const screen =
-                session?.artSources?.get(address) ??
-                (rendered ? () => fs.readFileSync(rendered) : undefined);
+            const screen = rendered ? () => fs.readFileSync(rendered) : undefined;
             if (screen && record.asset?.path)
                 screenByPath.set(`${record.package}/assets/${record.asset.path}`, screen);
         }
@@ -982,7 +978,7 @@ async function prepareWorld(resolved, { contentBase, findings, edition }) {
             }
             await db.close?.();
             fs.rmSync(dir, { recursive: true, force: true });
-            session?.dispose();
+            await session?.dispose();
             return null;
         }
 
@@ -1013,7 +1009,7 @@ async function prepareWorld(resolved, { contentBase, findings, edition }) {
             session,
         };
     } catch (error) {
-        session?.dispose();
+        await session?.dispose();
         await db?.close?.();
         if (dir) fs.rmSync(dir, { recursive: true, force: true });
         throw error;

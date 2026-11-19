@@ -14,8 +14,6 @@
 /** One invocation's authored sources and context-specific prepared views. */
 import path from "node:path";
 import fs from "node:fs";
-import os from "node:os";
-import crypto from "node:crypto";
 import { DEPLOYED_ASSET_TYPES } from "./asset-types.mjs";
 import { createContentTimings } from "./content-timings.mjs";
 import * as contentIndex from "./content-index.mjs";
@@ -31,13 +29,7 @@ import { resolveReference } from "./wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { privateArtRoots } from "./art-inputs.mjs";
-import { prepareArtPackages, finalizeArtPackages } from "./art-package-resolve.mjs";
-import { readVerifiedBytes } from "./art-package.mjs";
-import { readCanonicalKey, renderAddress } from "./address.mjs";
-import { deployedAssetPath } from "./asset-shipping.mjs";
-import { checkArtAlternatives } from "./art-alternatives.mjs";
 import { routerFor } from "./pack-router.mjs";
-import { formatDiagnostic } from "./diagnostics.mjs";
 import { lintNoteStates } from "./stub-lint.mjs";
 
 /**
@@ -58,7 +50,6 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {object[]} warnings
  * @property {object[]} problems
  * @property {ReturnType<import("./art-masters.mjs").collectArtMasters>["masters"]} masters
- * @property {Map<string,() => Buffer>} artSources Captured verified artwork bytes by canonical Address.
  * @property {ReturnType<typeof loadForeignIndexes>} foreign
  * @property {ContentSyntax} syntax
  * @property {(options?: ContentSessionContext) => void} assertContext
@@ -70,7 +61,7 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {(targets: readonly ContentTarget[]) => Promise<ContentSession>} prepare
  * @property {ReturnType<typeof createContentTimings>} timings
  * @property {() => void} assertUnchanged
- * @property {() => void} dispose
+ * @property {() => Promise<void>} dispose
  */
 
 /**
@@ -91,24 +82,62 @@ export const CONTENT_TARGETS = Object.freeze(["index", "lint", "links", "compile
  * @param {ReturnType<typeof routerFor>} [options.router] - One router shared by this session's compile.
  * @param {boolean} [options.trackChanges] - Snapshot physical input metadata for build phase guards.
  * @param {ReturnType<typeof createContentTimings>} [options.timings] - Invocation stage accounting.
+ * @param {string[]} [archiveRoots] Verified session-owned archive roots.
  * @returns {Promise<ContentSession>} Captured sources and lazy prepared views; dispose after use.
  */
-export async function createContentSession({
-    config = loadPackConfig(),
-    contentBase = config.paths.content,
-    assetsBase = config.paths.assets,
-    skipDirectories = config.skipDirectories,
-    router = routerFor(config),
-    timings = createContentTimings(),
-    trackChanges = false,
-} = {}) {
+async function createContentSessionInternal(
+    {
+        config = loadPackConfig(),
+        contentBase = config.paths.content,
+        assetsBase = config.paths.assets,
+        skipDirectories = config.skipDirectories,
+        router = routerFor(config),
+        timings = createContentTimings(),
+        trackChanges = false,
+    } = {},
+    archiveRoots,
+) {
+    if (config.art?.archives?.length && !archiveRoots) {
+        const { openArtArchive } = await import("./art-archive.mjs");
+        const opened = [];
+        try {
+            for (const archive of config.art.archives)
+                opened.push(await openArtArchive(archive.url, archive.sha256));
+            const session = await createContentSessionInternal(
+                {
+                    config,
+                    contentBase,
+                    assetsBase,
+                    skipDirectories,
+                    router,
+                    timings,
+                    trackChanges,
+                },
+                opened.map((entry) => entry.root),
+            );
+            const dispose = session.dispose.bind(session);
+            let closing;
+            session.dispose = () =>
+                (closing ??= (async () => {
+                    try {
+                        await dispose();
+                    } finally {
+                        await Promise.all(opened.map((entry) => entry.dispose()));
+                    }
+                })());
+            return session;
+        } catch (error) {
+            await Promise.all(opened.map((entry) => entry.dispose()));
+            throw error;
+        }
+    }
     const tree = path.resolve(contentBase);
     const assets = path.resolve(assetsBase);
     const scope = [...skipDirectories];
     const inventory = timings.sync("source capture", () =>
         captureContentSources(tree, assets, scope),
     );
-    const roots = config.art?.masterRoots ?? [];
+    const roots = archiveRoots ?? config.art?.masterRoots ?? [];
     const componentRoots = config.art?.componentRoots ?? [];
     const artModule =
         roots.length || componentRoots.length ? await import("./art-masters.mjs") : undefined;
@@ -146,6 +175,7 @@ export async function createContentSession({
     const prepared = new Map();
     const settledSqlAudiences = new Set();
     let disposed = false;
+    let disposal;
     let sqlScope;
     const releaseSqlScope = () => {
         sqlScope?.dispose();
@@ -165,8 +195,7 @@ export async function createContentSession({
             });
         return syntaxCache.get(text);
     };
-    const installed = config.art?.packages?.length ? await prepareArtPackages(config) : undefined;
-    const baseRecords = timings.sync("index derivation", () =>
+    const records = timings.sync("index derivation", () =>
         contentIndex.indexRecordsFor({
             config,
             contentBase: tree,
@@ -180,67 +209,8 @@ export async function createContentSession({
             syntax,
             timings,
             masterRecords: artModule ? artModule.masterAssetRecords(art.masters) : [],
-            assetRecords: installed?.records,
         }),
     );
-    const records = baseRecords;
-    if (installed) {
-        const findings = checkArtAlternatives(records, {
-            config,
-            foreignIndex: () => foreign.index,
-            assetsBase: assets,
-        });
-        if (findings.length)
-            throw Object.assign(new Error(findings.map(formatDiagnostic).join("\n")), {
-                located: true,
-            });
-    }
-    const artSources = new Map();
-    let snapshotDirectory;
-    if (installed) {
-        try {
-            const packages = finalizeArtPackages(installed, { records });
-            snapshotDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "content-art-snapshot-"));
-            fs.chmodSync(snapshotDirectory, 0o700);
-            const deployed = new Set();
-            for (const pkg of packages) {
-                for (const record of pkg.records) {
-                    const address = renderAddress(readCanonicalKey(record.address.canonical));
-                    const target = deployedAssetPath(record);
-                    if (deployed.has(target))
-                        throw new Error(
-                            `art.packages: error: duplicate artwork deployment path ${target}`,
-                        );
-                    deployed.add(target);
-                    const bytes = readVerifiedBytes(pkg.files.get(record.asset.path));
-                    const digest = crypto.createHash("sha256").update(bytes).digest("hex");
-                    const file = path.join(snapshotDirectory, String(artSources.size));
-                    fs.writeFileSync(file, bytes, { flag: "wx", mode: 0o600 });
-                    artSources.set(address, () => {
-                        active();
-                        const fd = fs.openSync(
-                            file,
-                            fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
-                        );
-                        try {
-                            const captured = fs.readFileSync(fd);
-                            if (
-                                crypto.createHash("sha256").update(captured).digest("hex") !==
-                                digest
-                            )
-                                throw new Error("captured artwork changed during the build");
-                            return captured;
-                        } finally {
-                            fs.closeSync(fd);
-                        }
-                    });
-                }
-            }
-        } catch (error) {
-            if (snapshotDirectory) fs.rmSync(snapshotDirectory, { recursive: true, force: true });
-            throw error;
-        }
-    }
     const memo = (key, make) => {
         active();
         if (!prepared.has(key))
@@ -265,7 +235,6 @@ export async function createContentSession({
         problems,
         warnings,
         masters: art.masters,
-        artSources,
         foreign,
         syntax,
         /** Refuse a stale capture after any build phase changes an input. */
@@ -410,19 +379,28 @@ export async function createContentSession({
         },
         /** Release this invocation's derived views; captured inputs stay unchanged. */
         dispose() {
-            if (disposed) return;
+            if (disposed) return disposal;
             disposed = true;
-            if (snapshotDirectory) fs.rmSync(snapshotDirectory, { recursive: true, force: true });
             // A preparation can still be querying after its database opens.
             // Keep the promises before clearing memoized results, and drain
             // both successful and failed work before closing native resources.
             const pending = [...prepared.values()];
-            void Promise.allSettled(pending).then(() => {
+            disposal = Promise.allSettled(pending).then(() => {
                 releaseSqlScope();
                 syntaxCache.clear();
             });
             prepared.clear();
+            return disposal;
         },
     };
     return session;
+}
+
+/**
+ * Capture one invocation's sources and artwork. Dispose after use.
+ * @param {Parameters<typeof createContentSessionInternal>[0]} [options] Session context.
+ * @returns {Promise<ContentSession>} Captured session.
+ */
+export async function createContentSession(options = {}) {
+    return createContentSessionInternal(options);
 }

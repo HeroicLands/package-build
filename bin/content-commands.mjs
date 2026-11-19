@@ -511,7 +511,7 @@ function withBodyPreflight(
                     const contentBase = contentRoot(config, argv);
                     if (!fs.existsSync(contentBase)) return handler(argv);
                     const session =
-                        shareCapture || config.art?.packages?.length ?
+                        shareCapture || config.art?.archives?.length ?
                             (argv[CONTENT_SESSION] ??
                             (owned = await createContentSession({ config, contentBase })))
                         :   undefined;
@@ -540,7 +540,7 @@ function withBodyPreflight(
                 process.exitCode = 1;
                 return;
             } finally {
-                owned?.dispose();
+                await owned?.dispose();
             }
         },
     };
@@ -1407,7 +1407,7 @@ function lintCommand() {
                 reportContentFailure(err, argv);
                 process.exitCode = 1;
             } finally {
-                if (!argv[CONTENT_SESSION]) session?.dispose();
+                if (!argv[CONTENT_SESSION]) await session?.dispose();
             }
         },
     };
@@ -1587,7 +1587,6 @@ function contentBuildOutputs(config, packaging) {
         config.paths.content,
         ...DEPLOYED_ASSET_TYPES.map((entry) => path.resolve(config.paths.assets, entry.root)),
         ...(config.art?.masterRoots ?? []),
-        ...(config.art?.packages?.length ? [path.join(config.rootDir, "node_modules")] : []),
     ];
     const stage = path.resolve(packaging.rootDir, packaging.stageDir);
     const outputs = [
@@ -1680,6 +1679,10 @@ function contentBuildCommand() {
                 const packaging = loadPackageBuildConfig();
                 const outputs = contentBuildOutputs(config, packaging);
                 session = await createContentSession({ config, timings, trackChanges: true });
+                if (config.art?.archives?.length && session.problems.length)
+                    throw Object.assign(new Error("Content preparation failed"), {
+                        findings: session.problems,
+                    });
                 fs.rmSync(marker, { force: true });
                 for (const output of outputs) fs.rmSync(output, { recursive: true, force: true });
                 cachedMetadataIndexes(config);
@@ -1760,7 +1763,7 @@ function contentBuildCommand() {
                 log.info(
                     `Content work: ${session?.sources.size ?? 0} sources; ${session?.parsed.size ?? 0} parsed notes; ${session?.records.length ?? 0} records; reuse ${JSON.stringify(summary.hits)}; peak RSS ${(process.resourceUsage().maxRSS / 1024).toFixed(1)} MiB.`,
                 );
-                session?.dispose();
+                await session?.dispose();
             }
         },
     };
@@ -1826,7 +1829,7 @@ function contentRunCommand() {
                 reportContentFailure(error, shared);
                 process.exitCode = 1;
             } finally {
-                session?.dispose();
+                await session?.dispose();
             }
         },
     };
@@ -1989,7 +1992,7 @@ function linksCommand() {
                 reportContentFailure(err, argv);
                 process.exitCode = 1;
             } finally {
-                if (!argv[CONTENT_SESSION]) session?.dispose();
+                if (!argv[CONTENT_SESSION]) await session?.dispose();
             }
         },
     };
@@ -2103,7 +2106,7 @@ function contentIndexCommand() {
                 process.exitCode = 1;
                 return false;
             } finally {
-                if (!argv[CONTENT_SESSION]) session?.dispose();
+                if (!argv[CONTENT_SESSION]) await session?.dispose();
             }
         },
     };

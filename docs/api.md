@@ -994,7 +994,7 @@ try {
   contentIndex.emitContentIndex({ config, publication: await session.publication() });
   await compendiums.compilePacks({ config, session });
 } finally {
-  session.dispose();
+  await session.dispose();
 }
 ```
 
@@ -3853,71 +3853,13 @@ Compose a full-vehicle picture prompt from explicit note data and resolved items
 | `vehiclePromptFromData` | `vehiclePromptFromData(data, items, sources, index)` | Positive and optional negative channels. | Compose a vehicle picture prompt; supply the link index to validate item art.                 |
 | `checkVehiclePortrait`  | `checkVehiclePortrait(note, context)`                | Located findings.                        | Validate a stored picture record and its freshness; supply the link index to resolve artwork. |
 
-### Installed artwork packages
+### Original artwork inputs
 
-`prepareArtPackages(config)` from
-`@heroiclands/package-build/engine/art-package-resolve` resolves exact required
-artwork devDependencies from the consumer's own installation and verifies their
-lock identities, descriptors, indexes and public image bytes. It returns a
-prepared object with frozen `records` and `packages`; each package exposes
-`name`, `version` and `records`. No file source is exposed at this stage.
-The records may be used to build the local content index, but must not be
-published or staged before finalization and normal content validation.
-
-Call `finalizeArtPackages(prepared, {records})` with that authoritative local
-index. It checks embedded public-note names and primary-note Addresses against
-the package's own notes and their visibility. Imported asset rows cannot provide
-note authority. An explicit primary-note Address may name a public own-package
-note when the index derives no unique primary note; it must not contradict a
-unique being or affiliation association derived from `namedImages`. An embedded
-name must match the selected note exactly. It returns packages with `name`, `version`, `records` and
-`files`, a map from package-relative asset paths to opaque verified sources.
-Duplicate asset Addresses and deployment paths across package splits are errors.
-Required alternative resolution and output eligibility checks still run against
-the complete index before publication. If the authoritative index already exists,
-`await resolveArtPackages(config, {records})` performs both phases.
-
-`readVerifiedBytes(source)`, exported from both `engine/art-package` and
-`engine/art-package-resolve`, rechecks containment and the prepared SHA-256 and
-returns a fresh Buffer. Write or transform that Buffer directly; do not reopen
-an installed pathname afterward. Build sessions capture required inputs
-sequentially into private temporary files before clearing previous output.
-Snapshot read closures verify their retained digests; output writers receive
-those bytes, never the installed pathname. Capture failures occur before cleanup,
-and later installed-package edits cannot change captured inputs. Sessions keep
-the private snapshots alive through staging and remove them on disposal or
-failure. This bounds retained memory to the files currently being processed;
-snapshot storage still requires enough disk space.
-
-For a single explicitly supplied directory, `prepareArtPackage(directory,
-expected)` and `finalizeArtPackage(prepared, {validatePublicNote})` from
-`engine/art-package` provide the corresponding package-level operations.
-`expected` contains npm `name`, `version` and `contentPackage`. The synchronous
-verifier must return exactly `true` for every claimed public note, based on
-authoritative local notes. Missing, false or asynchronous verification refuses
-the claim. `await loadArtPackage(directory, expected)` performs both operations
-with `expected.validatePublicNote`. Package-level callers also verify dependency
-declarations and lock integrity; the resolver does that for a consumer.
-
-The package's `artwork.json` has `formatVersion: 1`, `contentPackage`, an
-`index` object and an `assets` array. The index and each asset entry contain
-only `path` and lowercase hexadecimal `sha256`. The index is standard asset-only
-JSONL; image and icon records refer to entries in `assets` by `asset.path`.
-Assets are SVG, JPEG or WebP. Every entry is digest checked, stays within the package,
-and has a matching index record with the same embedded address and creator.
-An explicit embedded AI declaration must agree with the index. The index retains
-true, false and unknown status and complete alternative Addresses. Private
-metadata, unsanitized drawing markup and invalid image payloads are refused.
-
-`indexRecordsFor` and `collectContentIndex` accept `assetRecords` for verified
-own-package image and icon records. This input replaces local image and icon
-collection while other asset roots remain available. `await
-indexRecordsWithArtwork(options)` from `engine/art-index-input` resolves installed
-artwork through an invocation-local session and returns records only. It adds
-findings to a supplied `problems` collection, or throws when none is supplied;
-it also fills a supplied `parsed` collection. For staging, use the session's
-`artSources`, whose canonical Address keys map to verified snapshot readers;
-disposing the session removes its snapshots.
+`createContentSession` acquires configured artwork archives before deriving its
+index. Its master map is available to renderers until `await session.dispose()`.
+`indexRecordsFor` requires prepared artwork records when archives are configured;
+`indexRecordsWithArtwork` prepares and disposes a session for asynchronous callers.
+Local master roots remain available to synchronous callers.
 
 ### Public artwork derivative inspection
 

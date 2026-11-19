@@ -717,7 +717,7 @@ export function publishesContentPages(config) {
  * @property {Record<string, any> & {inputs?: string}} [site] Site settings;
  *                                          inputs names the optional local input provider.
  * @property {PathsInput} [paths]           Layout overrides. See {@link DEFAULT_PATHS}.
- * @property {{masterRoots?: string[], componentRoots?: string[], packages?: string[]}} [art] Private roots or installed artwork packages.
+ * @property {{masterRoots?: string[], componentRoots?: string[], archives?: {url:string, sha256:string}[]}} [art] Private roots or pinned original artwork archives.
  * @property {string[]} [skipDirectories]   Directory names the content walk ignores
  *                                          wherever they appear (e.g. Obsidian's
  *                                          `Templates`). Default `[]`.
@@ -775,7 +775,7 @@ export function publishesContentPages(config) {
  * @property {Readonly<Record<string, any> & {inputs: string}>} site Frozen site settings;
  *                                     inputs is the local provider path or an empty string.
  * @property {Readonly<ResolvedPaths>} paths
- * @property {Readonly<{masterRoots: readonly string[], componentRoots: readonly string[], packages: readonly string[]}>} art Artwork inputs.
+ * @property {Readonly<{masterRoots: readonly string[], componentRoots: readonly string[], archives: readonly {url:string, sha256:string}[]}>} art Artwork inputs.
  * @property {Readonly<StatsSpec>|null} stats  `null` for a `documentation`
  *                                     package, which stamps no `_stats`.
  * @property {Readonly<Record<string, Function>>} itemBuilders  Derived: the
@@ -1608,20 +1608,30 @@ function normalizePaths(value, rootDir) {
 function normalizeArt(value, rootDir) {
     if (value !== undefined && !isPlainObject(value)) fail("art", "must be an object");
     const input = /** @type {Record<string, unknown>} */ (value ?? {});
-    rejectUnknownKeys(input, ["masterRoots", "componentRoots", "packages"], "art.");
-    const packages = input.packages === undefined ? [] : input.packages;
-    if (!Array.isArray(packages)) fail("art.packages", "must be an array of npm package names");
-    const names = new Set();
-    for (const [index, name] of packages.entries()) {
-        if (
-            typeof name !== "string" ||
-            !/^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/.test(name) ||
-            name.length > 214
-        )
-            fail(`art.packages[${index}]`, "must be an npm package name");
-        if (names.has(name)) fail(`art.packages[${index}]`, "duplicates an artwork package name");
-        names.add(name);
-    }
+    rejectUnknownKeys(input, ["masterRoots", "componentRoots", "archives"], "art.");
+    const archives = input.archives ?? [];
+    if (!Array.isArray(archives)) fail("art.archives", "must be an array");
+    const hashes = new Set();
+    const normalizedArchives = archives.map((entry, index) => {
+        const label = `art.archives[${index}]`;
+        if (!isPlainObject(entry)) fail(label, "must be an object");
+        rejectUnknownKeys(entry, ["url", "sha256"], `${label}.`);
+        if (typeof entry.url !== "string" || !entry.url)
+            fail(`${label}.url`, "must be an HTTPS URL");
+        let parsed;
+        try {
+            parsed = new URL(entry.url);
+        } catch {
+            fail(`${label}.url`, "must be an HTTPS URL");
+        }
+        if (parsed.protocol !== "https:" || parsed.username || parsed.password)
+            fail(`${label}.url`, "must be an HTTPS URL without user information");
+        if (typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.sha256))
+            fail(`${label}.sha256`, "must be a lowercase SHA-256 digest");
+        if (hashes.has(entry.sha256)) fail(label, "duplicates an artwork archive");
+        hashes.add(entry.sha256);
+        return Object.freeze({ url: entry.url, sha256: entry.sha256 });
+    });
     const entries = [];
     const groups = {};
     for (const key of ["masterRoots", "componentRoots"]) {
@@ -1662,10 +1672,10 @@ function normalizeArt(value, rootDir) {
                 fail(entries[i].label, `overlaps \`${entries[j].label}\` (${left} and ${right})`);
         }
     }
-    if (packages.length && (groups.masterRoots.length || groups.componentRoots.length))
-        fail("art.packages", "cannot be combined with private artwork roots");
+    if (normalizedArchives.length && (groups.masterRoots.length || groups.componentRoots.length))
+        fail("art.archives", "cannot be combined with private artwork roots");
     return Object.freeze({
-        packages: Object.freeze([...packages]),
+        archives: Object.freeze(normalizedArchives),
         masterRoots: Object.freeze(groups.masterRoots),
         componentRoots: Object.freeze(groups.componentRoots),
     });

@@ -60,33 +60,33 @@ alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
 authoring.
 
-| Key                                         | Type                                                                       | Required                                                                                           | Default                                 |
-| ------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| [`currentDate`](#currentdate)               | quoted neutral date string                                                 | no                                                                                                 | `"720.1"`                               |
-| [`defaultCalendar`](#defaultcalendar)       | calendar note shortcode                                                    | no                                                                                                 | —                                       |
-| [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                                       |
-| [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                                       |
-| [`homepage`](#homepage)                     | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                                  |
-| [`authors`](#authors)                       | list of `{name, email?, url?, discord?, role?}`                            | no                                                                                                 | `[]`                                    |
-| [`packageKind`](#packagekind)               | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                                       |
-| [`stats`](#stats)                           | object                                                                     | yes; refused in a `documentation` package                                                          | —                                       |
-| [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                                    |
-| [`art`](#artmasterroots)                    | object with `masterRoots: string[]`, `componentRoots: string[]`            | no                                                                                                 | `{masterRoots: [], componentRoots: []}` |
-| [`paths`](#paths)                           | object                                                                     | no                                                                                                 | see [`paths`](#paths)                   |
-| [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                                                                                 | `[]`                                    |
-| [`forbidGeneratedArt`](#forbidgeneratedart) | boolean                                                                    | no                                                                                                 | `false`                                 |
-| [`icons`](#icons)                           | object, or a path to a file holding one                                    | no                                                                                                 | empty registry                          |
-| [`languages`](#languages)                   | object (name → `{tag, note?}`)                                             | no                                                                                                 | `{}`                                    |
-| [`packs`](#packs)                           | array                                                                      | yes, at least one entry, in a `systems` or `modules` package; refused in a `documentation` package | —                                       |
-| [`docs`](#docs)                             | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                    |
-| [`site`](#site)                             | object                                                                     | no                                                                                                 | see [`site`](#site)                     |
-| [`pdf`](#pdf)                               | object                                                                     | no                                                                                                 | `null`                                  |
-| [`compatibility`](#compatibility)           | object                                                                     | no; refused in a `documentation` package                                                           | `null`                                  |
-| [`relationships`](#relationships)           | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                    |
-| [`systems`](#systems)                       | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                    |
-| [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                  |
-| [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                                    |
-| [`publish`](#publish)                       | object                                                                     | no                                                                                                 | `{address: {prefix: ""}}`               |
+| Key                                         | Type                                                                       | Required                                                                                           | Default                                               |
+| ------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [`currentDate`](#currentdate)               | quoted neutral date string                                                 | no                                                                                                 | `"720.1"`                                             |
+| [`defaultCalendar`](#defaultcalendar)       | calendar note shortcode                                                    | no                                                                                                 | —                                                     |
+| [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                                                     |
+| [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                                                     |
+| [`homepage`](#homepage)                     | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                                                |
+| [`authors`](#authors)                       | list of `{name, email?, url?, discord?, role?}`                            | no                                                                                                 | `[]`                                                  |
+| [`packageKind`](#packagekind)               | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                                                     |
+| [`stats`](#stats)                           | object                                                                     | yes; refused in a `documentation` package                                                          | —                                                     |
+| [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                                                  |
+| [`art`](#artmasterroots)                    | object with `masterRoots`, `componentRoots` and `archives`                 | no                                                                                                 | `{masterRoots: [], componentRoots: [], archives: []}` |
+| [`paths`](#paths)                           | object                                                                     | no                                                                                                 | see [`paths`](#paths)                                 |
+| [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                                                                                 | `[]`                                                  |
+| [`forbidGeneratedArt`](#forbidgeneratedart) | boolean                                                                    | no                                                                                                 | `false`                                               |
+| [`icons`](#icons)                           | object, or a path to a file holding one                                    | no                                                                                                 | empty registry                                        |
+| [`languages`](#languages)                   | object (name → `{tag, note?}`)                                             | no                                                                                                 | `{}`                                                  |
+| [`packs`](#packs)                           | array                                                                      | yes, at least one entry, in a `systems` or `modules` package; refused in a `documentation` package | —                                                     |
+| [`docs`](#docs)                             | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                                  |
+| [`site`](#site)                             | object                                                                     | no                                                                                                 | see [`site`](#site)                                   |
+| [`pdf`](#pdf)                               | object                                                                     | no                                                                                                 | `null`                                                |
+| [`compatibility`](#compatibility)           | object                                                                     | no; refused in a `documentation` package                                                           | `null`                                                |
+| [`relationships`](#relationships)           | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                                  |
+| [`systems`](#systems)                       | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                                  |
+| [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                                |
+| [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                                                  |
+| [`publish`](#publish)                       | object                                                                     | no                                                                                                 | `{address: {prefix: ""}}`                             |
 
 Any key outside this list is refused:
 
@@ -593,27 +593,18 @@ Any other key on one list entry is refused:
 See [`itemBuilders`](#itembuilders) under Derived values for how the YAML
 name form resolves before reaching here.
 
-### `art.packages`
+### `art.archives`
 
-**Type:** array of npm package names · **Optional** · default `[]`.
+**Type:** array of objects · **Optional** · default `[]`.
 
-List finished artwork packages for this content package. Each name must be an
-exact-version required `devDependency` in the consumer's `package.json`, with a
-matching version and integrity in its version 3 `package-lock.json`. Run `npm ci`
-to install them in this consumer. Package resolution does not search parent
-installations, fetch artwork or use workspace, file or Git dependencies.
-Duplicate names and missing, mismatched or invalid installations are errors.
-Nonempty `art.packages` cannot be combined with nonempty `art.masterRoots` or
-`art.componentRoots`; an empty list permits private roots.
-
-Each package supplies a version 1 `artwork.json` descriptor and standard
-asset-only JSONL index. The descriptor identifies the owning `contentPackage`
-and binds the index and every SVG, JPEG or WebP derivative by SHA-256. Package paths,
-metadata, image identity and public-note authority are verified before use.
-AI status remains true, false or unknown. Each AI asset names an eligible
-non-AI alternative by address; declared dependencies and Foundry eligibility
-rules apply. Local notes are authoritative. See [artwork packages](authoring/assets.md#artwork-packages)
-and [the installed package API](api.md#installed-artwork-packages).
+Each entry declares an HTTPS `url` and lowercase `sha256` for a ZIP of original
+PNG and SVG artwork. Builds verify the archive through a shared user download
+cache, extract its originals into private session storage and derive public
+images under `build/`. Archives cannot be combined with `art.masterRoots` or
+`art.componentRoots`. Every original carries its own Address and attribution;
+local notes remain authoritative. AI images require eligible non-AI alternatives.
+Each ZIP is limited to 2,000,000,000 bytes; the [archive API](api.md#original-artwork-archive)
+documents the entry and extraction limits.
 
 ### `art.componentRoots`
 
@@ -671,7 +662,7 @@ art:
     - ../private-art
 ```
 
-`art` accepts only `masterRoots` and `componentRoots`. Invalid shapes and unknown keys are refused:
+`art` accepts `masterRoots`, `componentRoots` and `archives`. Invalid shapes and unknown keys are refused:
 
 > ``package-build config: `art` must be an object.``
 
@@ -679,7 +670,7 @@ art:
 
 > ``package-build config: `art.masterRoots[<index>]` must be a non-empty string.``
 
-> ``package-build config: `art.<key>` is not a recognized option (expected one of: masterRoots, componentRoots).``
+> ``package-build config: `art.<key>` is not a recognized option (expected one of: masterRoots, componentRoots, archives).``
 
 Overlapping configured entries name both indexes and resolved paths:
 

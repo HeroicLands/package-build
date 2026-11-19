@@ -1,21 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-import { createHash } from "node:crypto";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import sharp from "sharp";
-import { afterEach, expect, it } from "vitest";
+import { expect, it } from "vitest";
 import { deriveRecord, provenancePacket } from "../engine/art-provenance-core.mjs";
 import { inspectPublicDerivative } from "../engine/art-public-derivative.mjs";
-import { prepareArtPackage } from "../engine/art-package.mjs";
-import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
-import { serializeContentIndex } from "../engine/content-index.mjs";
 
-const roots: string[] = [];
-afterEach(() => {
-    for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
-});
-const sha = (input: string | Buffer) => createHash("sha256").update(input).digest("hex");
 const address = "sample-none-image-one";
 const master = {
     address,
@@ -30,40 +18,6 @@ async function jpeg(xmp: string, progressive = false) {
         .withXmp(xmp)
         .toBuffer();
 }
-function installed(bytes: Buffer) {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jpeg-public-"));
-    roots.push(root);
-    fs.mkdirSync(path.join(root, "images"));
-    fs.writeFileSync(path.join(root, "images/one.jpg"), bytes);
-    fs.writeFileSync(
-        path.join(root, "package.json"),
-        JSON.stringify({ name: "art-test", version: "1.0.0" }),
-    );
-    const row = {
-        package: "sample",
-        type: "image",
-        shortcode: "one",
-        address: { canonical: address },
-        asset: {
-            path: "images/one.jpg",
-            attribution: master.creator,
-            license: "CC0-1.0",
-            ai: null,
-        },
-    };
-    const index = serializeContentIndex([decodeIndexAddresses(row, { package: "sample" })]);
-    fs.writeFileSync(path.join(root, "index.jsonl"), index);
-    fs.writeFileSync(
-        path.join(root, "artwork.json"),
-        JSON.stringify({
-            formatVersion: 1,
-            contentPackage: "sample",
-            index: { path: "index.jsonl", sha256: sha(index) },
-            assets: [{ path: "images/one.jpg", sha256: sha(bytes) }],
-        }),
-    );
-    return root;
-}
 it.each([false, true])(
     "accepts canonical multi-credit JPEG metadata with progressive=%s",
     async (progressive) => {
@@ -71,14 +25,6 @@ it.each([false, true])(
         expect(inspectPublicDerivative("one.jpg", bytes, "sample").metadata.creator).toEqual(
             master.creator,
         );
-        const root = installed(bytes);
-        await expect(
-            prepareArtPackage(root, {
-                name: "art-test",
-                version: "1.0.0",
-                contentPackage: "sample",
-            }),
-        ).resolves.toBeDefined();
     },
 );
 it.each([
@@ -114,16 +60,9 @@ it.each([
                 '<secret:extra xmlns:secret="urn:private">private</secret:extra></x:xmpmeta>',
             ),
     ],
-])("refuses %s even with matching descriptor hashes", async (_label, alter) => {
+])("refuses %s in a JPEG", async (_label, alter) => {
     const bytes = await jpeg(alter(packet));
     expect(() => inspectPublicDerivative("one.jpg", bytes, "sample")).toThrow();
-    await expect(
-        prepareArtPackage(installed(bytes), {
-            name: "art-test",
-            version: "1.0.0",
-            contentPackage: "sample",
-        }),
-    ).rejects.toThrow();
 });
 it("rejects a second XMP packet after progressive scans", async () => {
     const bytes = await jpeg(packet, true),
@@ -135,13 +74,6 @@ it("rejects a second XMP packet after progressive scans", async () => {
     header.writeUInt16BE(data.length + 2, 2);
     const mixed = Buffer.concat([bytes.subarray(0, -2), header, data, bytes.subarray(-2)]);
     expect(() => inspectPublicDerivative("one.jpg", mixed, "sample")).toThrow();
-    await expect(
-        prepareArtPackage(installed(mixed), {
-            name: "art-test",
-            version: "1.0.0",
-            contentPackage: "sample",
-        }),
-    ).rejects.toThrow();
 });
 
 it.each([true, false])("accepts canonical public JPEGs with explicit AI status %s", async (ai) => {

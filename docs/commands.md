@@ -1664,8 +1664,8 @@ Public and complete SQL preparations remain separate and each is reused by
 operations needing that audience. No resolved index or source cache survives
 into another invocation. Standalone commands and `content run` remain available.
 
-Artwork packages are validated against their lockfile, index and local public
-notes before their assets are used.
+Artwork archives are verified by digest and their originals are collected before
+their assets are used.
 
 The command clears its index directory, generated calendar directory, pack JSON
 and configured compiled pack directories before preparing publication. Other

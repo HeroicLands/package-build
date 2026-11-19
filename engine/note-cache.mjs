@@ -948,7 +948,7 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
         prepareTables ?? (await import("./sql-tables.mjs")).prepareTreeSqlTables;
     let installedRecords;
     let artworkFingerprint = "";
-    if (config.art?.packages?.length) {
+    if (config.art?.archives?.length) {
         const { createContentSession } = await import("./content-session.mjs");
         const session = await createContentSession({ config });
         try {
@@ -957,15 +957,9 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
             installedRecords = session.records.filter(
                 (record) => record.asset && ["image", "icon"].includes(record.type),
             );
-            const signatures = [];
-            for (const [address, read] of session.artSources)
-                signatures.push([
-                    address,
-                    crypto.createHash("sha256").update(read()).digest("hex"),
-                ]);
-            artworkFingerprint = JSON.stringify(signatures.sort(([a], [b]) => a.localeCompare(b)));
+            artworkFingerprint = JSON.stringify(config.art.archives.map((entry) => entry.sha256));
         } finally {
-            session.dispose();
+            await session.dispose();
         }
     }
     const contentBase = path.resolve(config.paths.content);

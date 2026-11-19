@@ -90,7 +90,7 @@ export async function buildCompileCorpus({
         if (problems && problems !== session.problems) problems.push(...session.problems);
         return session.compileCorpus();
     }
-    if (resolved.art?.packages?.length) {
+    if (resolved.art?.archives?.length) {
         const { createContentSession } = await import("./content-session.mjs");
         const capture = await createContentSession({
             config: resolved,
@@ -117,7 +117,7 @@ export async function buildCompileCorpus({
             };
             return { ...corpus, syntax };
         } finally {
-            capture.dispose();
+            await capture.dispose();
         }
     }
     const collected = problems ?? [];

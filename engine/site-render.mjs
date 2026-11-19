@@ -826,7 +826,7 @@ export async function buildPackageSite({
     progress("indexing content");
     let session = suppliedSession;
     try {
-        if (!session && config.art?.packages?.length) {
+        if (!session && config.art?.archives?.length) {
             const { createContentSession } = await import("./content-session.mjs");
             session = await createContentSession({ config });
             await session.prepare(["index"]);
@@ -851,6 +851,6 @@ export async function buildPackageSite({
         const fonts = deliverSiteFonts(config, out);
         return { built, written, fonts, site, pages, pageOf };
     } finally {
-        if (!suppliedSession) session?.dispose();
+        if (!suppliedSession) await session?.dispose();
     }
 }

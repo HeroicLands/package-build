@@ -126,9 +126,8 @@ export async function stagePackageBuildAssets({
     const transform = await loadAssetTransform(config);
     let artSession = session;
     let preparedMasters;
-    let artSources;
     try {
-        if (packConfig.art?.masterRoots?.length || packConfig.art?.packages?.length) {
+        if (packConfig.art?.masterRoots?.length || packConfig.art?.archives?.length) {
             artSession ??= await createContentSession({ config: packConfig });
             artSession.assertContext({ config: packConfig });
             if (artSession.problems.length) {
@@ -136,14 +135,12 @@ export async function stagePackageBuildAssets({
                 error.located = true;
                 throw error;
             }
-            if (packConfig.art?.packages?.length) artSources = artSession.artSources;
-            else
-                preparedMasters = await renderArtMasters(
-                    artSession.masters,
-                    artSession.records,
-                    path.join(config.rootDir, "build", "art"),
-                    path.join(config.rootDir, "build", ".cache", "art"),
-                );
+            preparedMasters = await renderArtMasters(
+                artSession.masters,
+                artSession.records,
+                path.join(config.rootDir, "build", "art"),
+                path.join(config.rootDir, "build", ".cache", "art"),
+            );
         }
 
         // `to:` is relative to the staged package root, so a
@@ -170,11 +167,7 @@ export async function stagePackageBuildAssets({
             transform,
             shippingLicenses: config.shippingLicenses,
             preparedMasters,
-            artSources,
-            records:
-                preparedMasters || artSources ?
-                    shippingAssetRecords(artSession.records)
-                :   undefined,
+            records: preparedMasters ? shippingAssetRecords(artSession.records) : undefined,
         });
         if (pictures.findings.length) {
             const error = new Error(pictures.findings.map(formatDiagnostic).join("\n"));
@@ -226,6 +219,6 @@ export async function stagePackageBuildAssets({
         }
         console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
     } finally {
-        if (!session) artSession?.dispose();
+        if (!session) await artSession?.dispose();
     }
 }

@@ -384,17 +384,20 @@ it.each(["empty", "duplicate", "nested", "attribute"])(
         );
     },
 );
-it("refuses private component roots with installed artwork packages", () => {
+it("refuses private component roots with artwork archives", () => {
     const config = {
         contentPackage: "sample",
         packageKind: "modules",
         stats: { lastModifiedBy: "samplebuilder000" },
         compatibility: { minimum: "14", verified: "14" },
         packs: [],
-        art: { componentRoots: ["private"], packages: ["@sample/art"] },
+        art: {
+            componentRoots: ["private"],
+            archives: [{ url: "https://example.test/art.zip", sha256: "a".repeat(64) }],
+        },
     };
     expect(() => configFromData(config, path.join(root, "package-build.config.yaml"))).toThrow(
-        /art\.packages/,
+        /art\.archives/,
     );
 });
 it("rejects unsupported creator membership in a public derivative", async () => {
