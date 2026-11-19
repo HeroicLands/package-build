@@ -269,6 +269,294 @@ async function assemblyFixture(
 }
 
 describe("settlement input assembly", () => {
+    it("raises only the default urban target to reserve an authored city", async () => {
+        const f = await assemblyFixture(false, true);
+        try {
+            const capital = structuredClone(f.session.parsed.get(f.capitalFile).frontmatter);
+            capital.data.households = 20;
+            write(f.capitalFile, note(capital));
+            const session = await createContentSession({ config: f.session.config });
+            try {
+                const { urbanShares: _ignored, ...base } = f.settings;
+                const settings = {
+                    ...base,
+                    urban: {
+                        sources: [],
+                        routes: [],
+                        cities: [{ identity: f.noteAddress, localFood: 130 }],
+                    },
+                };
+                const result = prepareSettlementInputs({ ...f, session, settings });
+                expect(result.urbanTargets[f.polityAddress]).toMatchObject({
+                    original: 37.5,
+                    effective: 100,
+                    adjustment: 62.5,
+                });
+                expect(result.urbanInput.urbanPopulation).toBe(100);
+                expect(result.ruralInput.ruralPopulation).toBe(400);
+                expect(result.urbanInput.cities[0].fact.households).toBe(20);
+                const explicit = prepareSettlementInputs({
+                    ...f,
+                    session,
+                    settings: { ...settings, urbanShares: { [f.polityAddress]: 0 } },
+                });
+                expect(explicit.urbanInput).toBeUndefined();
+                expect(explicit.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            field: `settings.urbanShares.${f.polityAddress}`,
+                        }),
+                    ]),
+                );
+            } finally {
+                session.dispose();
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("reserves nested cities once when a parent and child share a seat", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            const childAddress = "sessionproof-note-affiliation-child";
+            const grandAddress = "sessionproof-note-affiliation-grand";
+            write(
+                path.join(f.session.contentBase, "Child.md"),
+                note({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "child",
+                    name: { full: "Child" },
+                    data: {
+                        parents: ["affiliation-crown"],
+                        seat: "place-sharedcity",
+                        territorial_population: 200,
+                    },
+                }),
+            );
+            write(
+                path.join(f.session.contentBase, "Grand.md"),
+                note({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "grand",
+                    name: { full: "Grand" },
+                    data: {
+                        parents: ["affiliation-child"],
+                        seat: "place-sharedcity",
+                        territorial_population: 100,
+                    },
+                }),
+            );
+            write(
+                path.join(f.session.contentBase, "ChildCity.md"),
+                note({
+                    type: "place",
+                    subType: "settlement",
+                    shortcode: "childcity",
+                    name: { full: "Child City" },
+                    data: { government: "affiliation-child", type: "town", population: 80 },
+                }),
+            );
+            write(
+                path.join(f.session.contentBase, "SharedCity.md"),
+                note({
+                    type: "place",
+                    subType: "settlement",
+                    shortcode: "sharedcity",
+                    name: { full: "Shared City" },
+                    data: { government: "affiliation-grand", type: "city", population: 30 },
+                }),
+            );
+            const session = await createContentSession({ config: f.session.config });
+            try {
+                const { urbanShares: _ignored, ...settings } = f.settings;
+                const result = prepareSettlementInputs({ ...f, session, settings });
+                expect(result.urbanTargets[grandAddress]).toMatchObject({
+                    original: 7.5,
+                    effective: 30,
+                });
+                expect(result.urbanTargets[childAddress]).toMatchObject({
+                    original: 15,
+                    effective: 110,
+                });
+                expect(result.urbanTargets[f.polityAddress]).toMatchObject({
+                    original: 37.5,
+                    effective: 110,
+                });
+                expect(result.subpolities[0]).toMatchObject({
+                    urbanPopulation: 110,
+                    ruralPopulation: 90,
+                });
+                expect(result.urbanInput.urbanPopulation).toBe(110);
+                expect(fs.readFileSync(f.crownFile, "utf8")).toBe(f.original);
+                const explicit = prepareSettlementInputs({
+                    ...f,
+                    session,
+                    settings: { ...settings, urbanShares: { [childAddress]: 0 } },
+                });
+                expect(explicit.urbanInput).toBeUndefined();
+                expect(explicit.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({ field: `settings.urbanShares.${childAddress}` }),
+                    ]),
+                );
+            } finally {
+                session.dispose();
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("reports unknown child households, missing cultures and over-allocation", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            const cityFile = path.join(f.session.contentBase, "ChildCity.md");
+            for (const data of [
+                { households: null, population: 10 },
+                { households: 2, population: 10 },
+                { population: null },
+                { population: 1000 },
+            ]) {
+                write(
+                    cityFile,
+                    note({
+                        type: "place",
+                        subType: "settlement",
+                        shortcode: "childcity",
+                        name: { full: "Child City" },
+                        data: { government: "affiliation-child", type: "town", ...data },
+                    }),
+                );
+                const session = await createContentSession({ config: f.session.config });
+                try {
+                    const { urbanShares: _ignored, ...settings } = f.settings;
+                    const result = prepareSettlementInputs({ ...f, session, settings });
+                    expect(result.ruralInput).toBeUndefined();
+                    expect(result.urbanInput).toBeUndefined();
+                    const field =
+                        data.households === null ? "households"
+                        : data.households === 2 ? "householdSize"
+                        : data.population === null ? "population"
+                        : "data.territorial_population";
+                    expect(result.missing).toEqual(
+                        expect.arrayContaining([expect.objectContaining({ field })]),
+                    );
+                } finally {
+                    session.dispose();
+                }
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("reports ambiguous superiors and cycles in the indexed polity tree", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            const childFile = path.join(f.session.contentBase, "Child.md");
+            write(
+                path.join(f.session.contentBase, "Other.md"),
+                note({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "other",
+                    name: { full: "Other" },
+                    data: { parents: ["affiliation-crown"], territorial_population: 50 },
+                }),
+            );
+            write(
+                childFile,
+                note({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "child",
+                    name: { full: "Child" },
+                    data: {
+                        parents: ["affiliation-crown", "affiliation-other"],
+                        territorial_population: 50,
+                    },
+                }),
+            );
+            let session = await createContentSession({ config: f.session.config });
+            try {
+                const result = prepareSettlementInputs({ ...f, session });
+                expect(result.urbanInput).toBeUndefined();
+                expect(result.missing).toEqual(
+                    expect.arrayContaining([expect.objectContaining({ field: "data.parents" })]),
+                );
+            } finally {
+                session.dispose();
+            }
+            const crown = structuredClone(f.session.parsed.get(f.crownFile).frontmatter);
+            crown.data.parents = ["affiliation-child"];
+            write(f.crownFile, note(crown));
+            write(
+                childFile,
+                note({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "child",
+                    name: { full: "Child" },
+                    data: { parents: ["affiliation-crown"], territorial_population: 50 },
+                }),
+            );
+            session = await createContentSession({ config: f.session.config });
+            try {
+                const result = prepareSettlementInputs({ ...f, session });
+                expect(result.urbanInput).toBeUndefined();
+                expect(result.missing).toEqual(
+                    expect.arrayContaining([expect.objectContaining({ field: "data.parents" })]),
+                );
+            } finally {
+                session.dispose();
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("reports a shared source between a selected row and subordinate row", async () => {
+        const f = await assemblyFixture(false, false, true);
+        try {
+            write(
+                path.join(f.session.contentBase, "Child.md"),
+                note({
+                    type: "affiliation",
+                    subType: "polity",
+                    shortcode: "child",
+                    name: { full: "Child" },
+                    data: {
+                        parents: ["affiliation-crown"],
+                        territorial_population: 50,
+                        settlements: [
+                            {
+                                settlement: "Other Farm",
+                                type: "village",
+                                population: 10,
+                                generatorSource: f.source(0),
+                            },
+                        ],
+                    },
+                }),
+            );
+            const session = await createContentSession({ config: f.session.config });
+            try {
+                const result = prepareSettlementInputs({ ...f, session });
+                expect(result.ruralInput).toBeUndefined();
+                expect(result.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            field: "generatorSource",
+                            message: expect.stringContaining("also bound"),
+                        }),
+                    ]),
+                );
+            } finally {
+                session.dispose();
+            }
+        } finally {
+            f.session.dispose();
+        }
+    });
     it("uses the editable urban share for indexed parent and subordinate totals", async () => {
         const f = await assemblyFixture(false, false, true);
         try {

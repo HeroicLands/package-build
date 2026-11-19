@@ -350,6 +350,78 @@ export function prepareSettlementInputs({
     const rowBindings = readBindings("rows");
     const noteBindings = readBindings("notes");
     const subBindings = readBindings("subpolities");
+    const tree = new Map();
+    const active = new Set();
+    const noteClaims = new Map();
+    const locationOf = (record) =>
+        (sourcesByAddress.get(sourceAddress(record, record.package)) ?? [
+            cachedIndexPath(session.config, record.package),
+        ])[0];
+    const walk = (record, address, parent) => {
+        const file = locationOf(record);
+        if (active.has(address)) {
+            add(file, "data.parents", "the subordinate polity chain contains a cycle", [
+                "data",
+                "parents",
+            ]);
+            return;
+        }
+        if (tree.has(address)) {
+            add(file, "data.parents", "a subordinate polity has ambiguous membership", [
+                "data",
+                "parents",
+            ]);
+            return;
+        }
+        if (Array.isArray(record.data?.parents) && record.data.parents.length > 1)
+            add(file, "data.parents", "a polity declares at most one superior", [
+                "data",
+                "parents",
+            ]);
+        const membership = settlementMembership(record, records, foreignIndex);
+        const node = { address, record, parent, membership, children: [] };
+        tree.set(address, node);
+        active.add(address);
+        for (const settlement of membership.settlements) {
+            if (!noteClaims.has(settlement.address)) noteClaims.set(settlement.address, []);
+            noteClaims.get(settlement.address).push(node);
+        }
+        for (const child of membership.polities) {
+            node.children.push(child.address);
+            walk(child.record, child.address, address);
+        }
+        active.delete(address);
+    };
+    walk(polity, selected, undefined);
+    const ancestor = (a, b) => {
+        for (let node = tree.get(b); node?.parent; node = tree.get(node.parent))
+            if (node.parent === a) return true;
+        return false;
+    };
+    const noteOwner = new Map();
+    for (const [address, claims] of noteClaims) {
+        let owner = claims[0];
+        if (claims.length > 1) {
+            const record = recordByAddress.get(address);
+            const government = canonical(record?.data?.government);
+            const governmentNote = government && readCanonicalKey(government);
+            const key = governmentNote && renderAddress({ ...governmentNote, system: "note" });
+            const selectedOwner = claims.find((claim) => claim.address === key);
+            if (
+                !selectedOwner ||
+                claims.some(
+                    (claim) =>
+                        claim !== selectedOwner &&
+                        !ancestor(claim.address, selectedOwner.address) &&
+                        !ancestor(selectedOwner.address, claim.address),
+                )
+            ) {
+                inputMissing(`membership.${address}`, "resolve the settlement's polity membership");
+                owner = undefined;
+            } else owner = selectedOwner;
+        }
+        if (owner) noteOwner.set(address, owner.address);
+    }
     const facts = [];
     const sourcesSeen = new Map();
     const makeFact = (identity, data, source, file, keyPath, noted = false) => {
@@ -435,7 +507,9 @@ export function prepareSettlementInputs({
             index,
         ]);
     }
-    for (const item of member.settlements) {
+    for (const item of member.settlements.filter(
+        (entry) => noteOwner.get(entry.address) === selected,
+    )) {
         const found = noteBindings.filter((entry) => canonical(entry.address) === item.address);
         const file = (sourcesByAddress.get(item.address) ?? [
             cachedIndexPath(session.config, item.record.package),
@@ -444,7 +518,7 @@ export function prepareSettlementInputs({
         makeFact(item.address, item.record.data ?? {}, found[0]?.source, file, ["data"], true);
     }
     for (const binding of noteBindings)
-        if (!member.settlements.some((item) => item.address === canonical(binding.address)))
+        if (!noteClaims.has(canonical(binding.address)))
             inputMissing(
                 "bindings.notes",
                 `note binding ${binding.address} is not a direct settlement of the selected polity`,
@@ -458,7 +532,155 @@ export function prepareSettlementInputs({
             inputMissing("bindings.rows", "row binding must name an existing row index");
     if (settings.urbanShares !== undefined && !object(settings.urbanShares))
         inputMissing("settings.urbanShares", "provide a mapping of polity Addresses to shares");
-    const split = (record, address, file) => {
+    const urbanTargets = {};
+    const computed = new Map();
+    const computing = new Set();
+    const reserveFact = (data, identity, file, keyPath, source, noted) => {
+        if (!object(data) || (!urbanTypes.has(data.type) && !ruralTypes.has(data.type))) {
+            add(file, "type", `state the settlement type for ${identity}`, keyPath);
+            return undefined;
+        }
+        let population;
+        if (own(data, "households")) {
+            if (!count(data.households)) {
+                add(file, "households", `supply the household count for ${identity}`, keyPath);
+                return undefined;
+            }
+            if (data.households === 0) population = 0;
+            else {
+                const cell = cellFor(source);
+                const mapped =
+                    source?.kind === "burg" ? cell?.burgCultureAddress : cell?.cultureAddress;
+                const culture = noted && own(data, "culture") ? data.culture : mapped;
+                const cultureAddress = canonical(culture);
+                const size =
+                    cultureAddress &&
+                    (cultureSizes[cultureAddress] ??
+                        (readCultureSize(culture, file) && cultureSizes[cultureAddress]));
+                if (!positive(size)) {
+                    add(
+                        file,
+                        "householdSize",
+                        `resolve the culture household size for ${identity}`,
+                        keyPath,
+                    );
+                    return undefined;
+                }
+                population = data.households * size;
+            }
+        } else if (nonnegative(data.population)) population = data.population;
+        else {
+            add(file, "population", `supply the population for ${identity}`, keyPath);
+            return undefined;
+        }
+        if (!nonnegative(population)) {
+            add(file, "population", `the population for ${identity} is not representable`, keyPath);
+            return undefined;
+        }
+        return { urban: urbanTypes.has(data.type), population };
+    };
+    const rememberSource = (source, identity, file, keyPath) => {
+        if (source === undefined) return;
+        const key = sourceKey(source, map?.mapId);
+        if (!key || !cellFor(source)) {
+            add(file, "generatorSource", `bind ${identity} to a mapped source`, keyPath);
+            return;
+        }
+        if (sourcesSeen.has(key))
+            add(
+                file,
+                "generatorSource",
+                `map identity for ${identity} is also bound to ${sourcesSeen.get(key)}`,
+                keyPath,
+            );
+        else sourcesSeen.set(key, identity);
+    };
+    const split = (address) => {
+        if (computed.has(address)) return computed.get(address);
+        if (computing.has(address) || !tree.has(address)) return undefined;
+        computing.add(address);
+        const node = tree.get(address);
+        const { record } = node;
+        const file = locationOf(record);
+        let urbanFloor = 0,
+            ruralFloor = 0,
+            complete = true;
+        const reserve = (fact) => {
+            if (!fact) {
+                complete = false;
+                return;
+            }
+            if (fact.urban) urbanFloor += fact.population;
+            else ruralFloor += fact.population;
+        };
+        if (address === selected) {
+            for (const entry of facts)
+                reserve(
+                    reserveFact(
+                        entry.data,
+                        entry.fact.identity,
+                        entry.file,
+                        ["data"],
+                        entry.source,
+                        !entry.fact.identity.startsWith("row:"),
+                    ),
+                );
+        } else {
+            const rows = record.data?.settlements;
+            if (rows !== undefined && !Array.isArray(rows)) {
+                add(file, "data.settlements", "settlements must be a list", [
+                    "data",
+                    "settlements",
+                ]);
+                complete = false;
+            }
+            for (const [index, row] of (Array.isArray(rows) ? rows : []).entries()) {
+                const identity = `${address}#row:${index}`;
+                const source = row?.generatorSource;
+                rememberSource(source, identity, file, [
+                    "data",
+                    "settlements",
+                    index,
+                    "generatorSource",
+                ]);
+                reserve(
+                    reserveFact(row, identity, file, ["data", "settlements", index], source, false),
+                );
+            }
+            for (const item of node.membership.settlements.filter(
+                (entry) => noteOwner.get(entry.address) === address,
+            )) {
+                const noteFile = locationOf(item.record);
+                const bound = noteBindings.filter(
+                    (binding) => canonical(binding.address) === item.address,
+                );
+                if (bound.length > 1) {
+                    add(noteFile, "binding", `bind ${item.address} at most once`, ["data"]);
+                    complete = false;
+                }
+                const source = bound[0]?.source;
+                rememberSource(source, item.address, noteFile, ["data"]);
+                reserve(
+                    reserveFact(
+                        item.record.data ?? {},
+                        item.address,
+                        noteFile,
+                        ["data"],
+                        source,
+                        true,
+                    ),
+                );
+            }
+        }
+        for (const child of node.children) {
+            const value = split(child);
+            if (!value) {
+                complete = false;
+                continue;
+            }
+            urbanFloor += value.urbanPopulation;
+            ruralFloor += value.ruralPopulation;
+        }
         const total = record.data?.territorial_population;
         if (!nonnegative(total)) {
             add(
@@ -467,37 +689,69 @@ export function prepareSettlementInputs({
                 `state the territorial population for ${address}`,
                 ["data", "territorial_population"],
             );
-            return {};
+            complete = false;
         }
         const hasShare = object(settings.urbanShares) && own(settings.urbanShares, address);
-        const declaredShare = hasShare ? settings.urbanShares[address] : undefined;
-        if (hasShare && (!nonnegative(declaredShare) || declaredShare > 1)) {
-            inputMissing(
-                `settings.urbanShares.${address}`,
-                "provide an urban share between zero and one",
-            );
-            return {};
-        }
-        if (total === 0) return { ruralPopulation: 0, urbanPopulation: 0 };
         const share =
-            hasShare ? declaredShare
+            hasShare ? settings.urbanShares[address]
+            : total === 0 ? 0
             : settings.model === undefined ? SETTLEMENT_MODEL_DEFAULTS.urbanShare
             : settings.model?.urbanShare;
         if (!nonnegative(share) || share > 1) {
             inputMissing(
-                "settings.model.urbanShare",
-                "provide a default urban share between zero and one",
+                hasShare ? `settings.urbanShares.${address}` : "settings.model.urbanShare",
+                "provide an urban share between zero and one",
             );
-            return {};
+            complete = false;
         }
-        return { ruralPopulation: total * (1 - share), urbanPopulation: total * share };
+        if (!nonnegative(urbanFloor) || !nonnegative(ruralFloor)) {
+            add(
+                file,
+                "data.territorial_population",
+                `reservations for ${address} are not representable`,
+                ["data", "territorial_population"],
+            );
+            complete = false;
+        }
+        if (complete && urbanFloor + ruralFloor > total) {
+            add(
+                file,
+                "data.territorial_population",
+                `known reservations exceed the territorial population for ${address}`,
+                ["data", "territorial_population"],
+            );
+            complete = false;
+        }
+        let result;
+        if (complete) {
+            const original = total * share;
+            const upper = total - ruralFloor;
+            if (hasShare && (original < urbanFloor || original > upper)) {
+                inputMissing(
+                    `settings.urbanShares.${address}`,
+                    "the stated urban share conflicts with authored population reservations",
+                );
+            } else {
+                const effective =
+                    hasShare ? original : Math.min(upper, Math.max(original, urbanFloor));
+                urbanTargets[address] = {
+                    original,
+                    effective,
+                    adjustment: effective - original,
+                    urbanFloor,
+                    ruralFloor,
+                    source: hasShare ? "explicit" : "default",
+                };
+                result = { ruralPopulation: total - effective, urbanPopulation: effective };
+            }
+        }
+        computing.delete(address);
+        computed.set(address, result);
+        return result;
     };
-    const total = split(polity, selected, sourceFile);
+    const total = split(selected) ?? {};
     const subpolities = member.polities.map((item) => {
         const found = subBindings.filter((entry) => canonical(entry.address) === item.address);
-        const file = (sourcesByAddress.get(item.address) ?? [
-            cachedIndexPath(session.config, item.record.package),
-        ])[0];
         if (found.length !== 1 || !Array.isArray(found[0]?.cellIds))
             inputMissing(
                 `bindings.subpolities.${item.address}`,
@@ -506,7 +760,7 @@ export function prepareSettlementInputs({
         return {
             address: item.address,
             cellIds: found[0]?.cellIds,
-            ...split(item.record, item.address, file),
+            ...(computed.get(item.address) ?? {}),
         };
     });
     for (const binding of subBindings)
@@ -701,6 +955,7 @@ export function prepareSettlementInputs({
         existingFacts: facts,
         cultureSizes,
         subpolities,
+        urbanTargets,
         resolvedPlacements,
         ruralInput,
         urbanInput,
