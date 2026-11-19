@@ -9,6 +9,8 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
         const { spawnSync } = await import("node:child_process");
         const { fixture, note, write } = await import("./content-session-fixture.js");
         const { createContentSession } = await import("../engine/content-session.mjs");
+        const { prepareSettlementEdit, commitSettlementEdit } =
+            await import("../engine/settlement-source.mjs");
         const { settlementMapFixture } = await import("./settlement-cli-map-fixture.js");
         const setting = process.env.SETTLEMENT_SETTING_CHECKOUT;
         if (!setting) throw new Error("SETTLEMENT_SETTING_CHECKOUT is required");
@@ -162,6 +164,41 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
             });
             expect(unavailable.status).toBe(1);
             expect(fs.readFileSync(crown, "utf8")).toBe(before);
+            // The dry-run rows come from the actual setting factory. Capture their source
+            // edit, then change the fixture before the source editor attempts the write.
+            const captured = await createContentSession({ config });
+            try {
+                const edit = prepareSettlementEdit({
+                    contentRoot: captured.contentBase,
+                    contentPackage: captured.config.contentPackage,
+                    polityAddress: polity,
+                    records: captured.records,
+                    sources: captured.sources,
+                    rows: dryReport.rows,
+                });
+                expect(edit.changed).toBe(true);
+                const otherFiles = [
+                    f.configFile,
+                    ...fs
+                        .readdirSync(content, { recursive: true, withFileTypes: true })
+                        .filter((entry) => entry.isFile())
+                        .map((entry) => path.join(entry.parentPath, entry.name))
+                        .filter((file) => file !== crown),
+                    ...["index.jsonl", "world.map", "world.json", "inputs.json"].map((name) =>
+                        path.join(f.root, name),
+                    ),
+                ];
+                const otherBytes = otherFiles.map((file) => fs.readFileSync(file));
+                const intervening = before + "Another author edited this note.\n";
+                fs.writeFileSync(crown, intervening);
+                expect(() => commitSettlementEdit(edit)).toThrow(/stale source.*changed/i);
+                expect(fs.readFileSync(crown, "utf8")).toBe(intervening);
+                for (const [i, file] of otherFiles.entries())
+                    expect(fs.readFileSync(file)).toEqual(otherBytes[i]);
+            } finally {
+                captured.dispose();
+                fs.writeFileSync(crown, before);
+            }
             const lock = path.join(content, ".Crown.md.settlement-write.lock");
             fs.writeFileSync(lock, "busy");
             const blocked = run("--write");
