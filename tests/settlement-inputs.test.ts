@@ -269,6 +269,182 @@ async function assemblyFixture(
 }
 
 describe("settlement input assembly", () => {
+    it("derives missing cell acreage from the already-scaled map area", async () => {
+        const f = await assemblyFixture();
+        try {
+            const map = {
+                ...f.map,
+                units: { distanceUnit: "mi", distanceScale: 2, areaUnit: "square" },
+                cells: [{ ...f.map.cells[0], rawArea: 1, area: 4 }],
+            };
+            const settings = {
+                ...f.settings,
+                placements: f.settings.placements.map(
+                    ({ cellAreaAcres: _ignored, ...placement }) => ({
+                        ...placement,
+                        areaAcres: 500,
+                    }),
+                ),
+            };
+            const result = prepareSettlementInputs({ ...f, map, settings });
+            expect(
+                result.resolvedPlacements.map((placement: any) => placement.cellAreaAcres),
+            ).toEqual([2560, 2560, 2560]);
+            expect(result.ruralInput.placements).toEqual(result.resolvedPlacements);
+            expect(result.cellAreaConversions[7]).toMatchObject({
+                distanceUnit: "mi",
+                distanceScale: 2,
+                rawArea: 1,
+                scaledArea: 4,
+                acres: 2560,
+            });
+            expect(settings.placements[0]).not.toHaveProperty("cellAreaAcres");
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it.each([
+        ["km", 1000000 / 4046.8564224],
+        ["mi", 640],
+        ["nmi", 1852 ** 2 / 4046.8564224],
+        ["lg", 5760],
+        ["nlg", 5556 ** 2 / 4046.8564224],
+        ["vr", 1066.8 ** 2 / 4046.8564224],
+    ])("uses standard square-%s conversion", async (distanceUnit, expected) => {
+        const f = await assemblyFixture();
+        try {
+            const map = {
+                ...f.map,
+                units: { distanceUnit, distanceScale: 1, areaUnit: "square" },
+                cells: [{ ...f.map.cells[0], rawArea: 1, area: 1 }],
+            };
+            const settings = {
+                ...f.settings,
+                placements: f.settings.placements.map(
+                    ({ cellAreaAcres: _ignored, ...placement }) => ({ ...placement, areaAcres: 0 }),
+                ),
+            };
+            const result = prepareSettlementInputs({ ...f, map, settings });
+            expect(result.resolvedPlacements[0].cellAreaAcres).toBeCloseTo(expected, 9);
+            expect(result.cellAreaConversions[7].acres).toBeCloseTo(expected, 9);
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("retains explicit zero and null acreage instead of replacing them", async () => {
+        const f = await assemblyFixture();
+        try {
+            const map = {
+                ...f.map,
+                units: { distanceUnit: "mi", distanceScale: 1, areaUnit: "square" },
+                cells: [{ ...f.map.cells[0], rawArea: 1, area: 1 }],
+            };
+            for (const value of [0, null]) {
+                const settings = {
+                    ...f.settings,
+                    placements: f.settings.placements.map((placement) => ({
+                        ...placement,
+                        cellAreaAcres: value,
+                    })),
+                };
+                const result = prepareSettlementInputs({ ...f, map, settings });
+                expect(result.resolvedPlacements[0].cellAreaAcres).toBe(value);
+                expect(result.cellAreaConversions[7]).toBeUndefined();
+                expect(result.ruralInput).toBeUndefined();
+            }
+            const supplied = prepareSettlementInputs({
+                ...f,
+                map: { ...f.map, units: { distanceUnit: "custom" } },
+            });
+            expect(supplied.ruralInput.placements[0].cellAreaAcres).toBe(3000);
+            expect(supplied.cellAreaConversions[7]).toBeUndefined();
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("reports unsupported units, unverified area and mismatched source cells", async () => {
+        const f = await assemblyFixture();
+        try {
+            const settings = {
+                ...f.settings,
+                placements: f.settings.placements.map(
+                    ({ cellAreaAcres: _ignored, ...placement }) => placement,
+                ),
+            };
+            for (const map of [
+                {
+                    ...f.map,
+                    units: { distanceUnit: "custom", distanceScale: 1, areaUnit: "square" },
+                    cells: [{ ...f.map.cells[0], rawArea: 1, area: 1 }],
+                },
+                {
+                    ...f.map,
+                    units: { distanceUnit: "mi", areaUnit: "square" },
+                    cells: [{ ...f.map.cells[0], rawArea: 1, area: 1 }],
+                },
+                {
+                    ...f.map,
+                    units: { distanceUnit: "mi", distanceScale: 0, areaUnit: "square" },
+                    cells: [{ ...f.map.cells[0], rawArea: 1, area: 0 }],
+                },
+                {
+                    ...f.map,
+                    units: { distanceUnit: "mi", distanceScale: 2, areaUnit: "square" },
+                    cells: [{ ...f.map.cells[0], rawArea: 1, area: 1 }],
+                },
+            ]) {
+                const result = prepareSettlementInputs({ ...f, map, settings });
+                expect(result.ruralInput).toBeUndefined();
+                expect(result.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({ field: "settings.placements.0.cellAreaAcres" }),
+                    ]),
+                );
+            }
+            const map = {
+                ...f.map,
+                units: { distanceUnit: "mi", distanceScale: 1, areaUnit: "square" },
+                cells: [{ ...f.map.cells[0], rawArea: 1, area: 1 }],
+            };
+            const wrong = {
+                ...settings,
+                placements: [
+                    { ...settings.placements[0], source: { mapId: "map", kind: "cell", id: 8 } },
+                ],
+            };
+            const result = prepareSettlementInputs({ ...f, map, settings: wrong });
+            expect(result.ruralInput).toBeUndefined();
+            expect(result.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ field: "settings.placements.0.source" }),
+                ]),
+            );
+            expect(result.cellAreaConversions[7]).toBeUndefined();
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("retains a verified zero cell area", async () => {
+        const f = await assemblyFixture();
+        try {
+            const map = {
+                ...f.map,
+                units: { distanceUnit: "mi", distanceScale: 1, areaUnit: "square" },
+                cells: [{ ...f.map.cells[0], rawArea: 0, area: 0 }],
+            };
+            const settings = {
+                ...f.settings,
+                placements: f.settings.placements.map(
+                    ({ cellAreaAcres: _ignored, ...placement }) => ({ ...placement, areaAcres: 0 }),
+                ),
+            };
+            const result = prepareSettlementInputs({ ...f, map, settings });
+            expect(result.resolvedPlacements[0].cellAreaAcres).toBe(0);
+            expect(result.cellAreaConversions[7].acres).toBe(0);
+        } finally {
+            f.session.dispose();
+        }
+    });
     it("adjusts a child's soft default to fit a zero parent share", async () => {
         const f = await assemblyFixture(false, false, true);
         try {

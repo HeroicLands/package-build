@@ -42,6 +42,15 @@ const ruralTypes = new Set(["encampment", "homestead", "hamlet", "village"]);
 const positive = (n) => typeof n === "number" && Number.isFinite(n) && n > 0;
 const nonnegative = (n) => typeof n === "number" && Number.isFinite(n) && n >= 0;
 const count = (n) => Number.isSafeInteger(n) && n >= 0;
+const ACRE_SQUARE_METRES = 4046.8564224;
+const DISTANCE_UNITS = Object.freeze({
+    km: { metres: 1000, acresPerSquareUnit: 1000000 / ACRE_SQUARE_METRES },
+    mi: { metres: 1609.344, acresPerSquareUnit: 640 },
+    lg: { metres: 4828.032, acresPerSquareUnit: 5760 },
+    vr: { metres: 1066.8, acresPerSquareUnit: 1066.8 ** 2 / ACRE_SQUARE_METRES },
+    nmi: { metres: 1852, acresPerSquareUnit: 1852 ** 2 / ACRE_SQUARE_METRES },
+    nlg: { metres: 5556, acresPerSquareUnit: 5556 ** 2 / ACRE_SQUARE_METRES },
+});
 function sourceKey(source, mapId) {
     if (
         !object(source) ||
@@ -842,6 +851,7 @@ export function prepareSettlementInputs({
                 `binding ${binding.address} is not a direct subordinate polity`,
             );
     let resolvedPlacements;
+    const cellAreaConversions = {};
     if (Array.isArray(settings.placements) && object(map) && typeof map.mapId === "string") {
         const reserved = new Set(sourcesSeen.keys());
         const explicit = new Set();
@@ -850,7 +860,7 @@ export function prepareSettlementInputs({
             if (
                 !object(placement) ||
                 !count(placement.cellId) ||
-                !cells.some((cell) => cell.id === placement.cellId)
+                cells.filter((cell) => cell.id === placement.cellId).length !== 1
             ) {
                 inputMissing(
                     `settings.placements.${index}`,
@@ -912,6 +922,52 @@ export function prepareSettlementInputs({
                 }
                 placement.source = source;
                 reserved.add(sourceKey(source, map.mapId));
+            }
+            for (const [index, placement] of placements.entries()) {
+                if (own(placement, "cellAreaAcres")) continue;
+                const cell = cells.find((entry) => entry.id === placement.cellId);
+                const units = map.units;
+                const unit =
+                    (
+                        object(units) &&
+                        typeof units.distanceUnit === "string" &&
+                        own(DISTANCE_UNITS, units.distanceUnit)
+                    ) ?
+                        DISTANCE_UNITS[units.distanceUnit]
+                    :   undefined;
+                const basisValid =
+                    unit &&
+                    positive(units?.distanceScale) &&
+                    typeof units?.areaUnit === "string" &&
+                    units.areaUnit.length > 0 &&
+                    nonnegative(cell?.rawArea) &&
+                    nonnegative(cell?.area);
+                const expected = basisValid ? cell.rawArea * units.distanceScale ** 2 : undefined;
+                const acres = basisValid ? cell.area * unit.acresPerSquareUnit : undefined;
+                if (
+                    !basisValid ||
+                    !nonnegative(expected) ||
+                    cell.area !== expected ||
+                    !nonnegative(acres)
+                ) {
+                    inputMissing(
+                        `settings.placements.${index}.cellAreaAcres`,
+                        "provide a mapped cell with verified area and a supported pinned distance unit",
+                    );
+                    continue;
+                }
+                placement.cellAreaAcres = acres;
+                cellAreaConversions[cell.id] = {
+                    distanceUnit: units.distanceUnit,
+                    distanceScale: units.distanceScale,
+                    areaUnit: units.areaUnit,
+                    rawArea: cell.rawArea,
+                    scaledArea: cell.area,
+                    metresPerUnit: unit.metres,
+                    acreSquareMetres: ACRE_SQUARE_METRES,
+                    acresPerSquareUnit: unit.acresPerSquareUnit,
+                    acres,
+                };
             }
             resolvedPlacements = placements;
         }
@@ -1032,6 +1088,7 @@ export function prepareSettlementInputs({
         cultureSizes,
         subpolities,
         urbanTargets,
+        cellAreaConversions,
         resolvedPlacements,
         ruralInput,
         urbanInput,
