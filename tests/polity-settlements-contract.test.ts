@@ -8,7 +8,11 @@ import {
     SETTLEMENT_ROW_FIELDS,
     SETTLEMENTS_FIELD,
 } from "../engine/settlement-terms.mjs";
-import { checkSettlementTables, settlementMarkdown } from "../engine/settlement-tables.mjs";
+import {
+    assertSettlementRecords,
+    checkSettlementTables,
+    settlementMarkdown,
+} from "../engine/settlement-tables.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkDataKeys } from "../engine/data-keys.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
@@ -238,6 +242,34 @@ describe("settlement population and hierarchy", () => {
         expect(
             findings.filter((finding) => /generatorSource|households/.test(finding.message)),
         ).toEqual([]);
+    });
+    it.each([
+        {},
+        { mapId: "map", kind: "wrong", id: 0 },
+        { mapId: "map", kind: "cell", id: 0, extra: 1 },
+        { mapId: "map", kind: "cell", id: 0, slot: null },
+    ])("rejects an invalid source identity during publication %#", (generatorSource) => {
+        const { index } = corpus([{ ...row, generatorSource }]);
+        const records = index.notes.map((note) => note.fm);
+        expect(() =>
+            assertSettlementRecords(records, {
+                fileOf: (fm: any) => `${fm.shortcode}.md`,
+                rawOf: () => "",
+            }),
+        ).toThrow(/generatorSource/);
+    });
+    it.each([
+        { mapId: "map", kind: "cell", id: 0 },
+        { mapId: "map", kind: "cell", id: 0, slot: 0 },
+    ])("accepts a valid source identity during publication %#", (generatorSource) => {
+        const { index } = corpus([{ ...row, generatorSource }]);
+        const records = index.notes.map((note) => note.fm);
+        expect(() =>
+            assertSettlementRecords(records, {
+                fileOf: (fm: any) => `${fm.shortcode}.md`,
+                rawOf: () => "",
+            }),
+        ).not.toThrow();
     });
     it("locates a finding at the authored field", () => {
         const { polity, index } = corpus([{ ...row, market: "weekly" }]);

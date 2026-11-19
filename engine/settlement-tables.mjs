@@ -24,6 +24,7 @@ import {
 } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
+import { checkDataKeys } from "./data-keys.mjs";
 import {
     isAddressTuple,
     renderAddress,
@@ -34,7 +35,11 @@ import {
 import { addressSuffixes } from "./address-render.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { isGmNote, NOTE_VOCABULARY } from "./note-vocabulary.mjs";
-import { SETTLEMENT_COLUMNS, SETTLEMENT_ROW_FIELDS } from "./settlement-terms.mjs";
+import {
+    SETTLEMENT_COLUMNS,
+    SETTLEMENT_ROW_FIELDS,
+    GENERATOR_SOURCE_FIELD,
+} from "./settlement-terms.mjs";
 export {
     SETTLEMENTS_HEADING,
     SETTLEMENT_COLUMNS,
@@ -696,9 +701,37 @@ export function assertSettlementRecords(
         index.contentPackage,
         settlementPopulation,
     );
-    const findings = notes.flatMap((note) =>
-        checkSettlementTables(note, { index, settlementExemptions: tracker, settlementPopulation }),
-    );
+    const sourceField = {
+        name: "settlements",
+        kind: "list",
+        entries: { kind: "map", fields: [GENERATOR_SOURCE_FIELD] },
+    };
+    const findings = notes.flatMap((note) => {
+        const settlements = note.fm.data?.settlements;
+        const sourceNote = {
+            ...note,
+            fm: {
+                data: {
+                    settlements:
+                        Array.isArray(settlements) ?
+                            settlements.map((row) =>
+                                map(row) && Object.hasOwn(row, "generatorSource") ?
+                                    { generatorSource: row.generatorSource }
+                                :   {},
+                            )
+                        :   [],
+                },
+            },
+        };
+        return [
+            ...checkSettlementTables(note, {
+                index,
+                settlementExemptions: tracker,
+                settlementPopulation,
+            }),
+            ...checkDataKeys(sourceNote, [sourceField]),
+        ];
+    });
     for (const finding of findings) if (finding.severity === "warning") emitDiagnostic(finding);
     const errors = findings.filter((finding) => finding.severity === "error");
     if (errors.length)
