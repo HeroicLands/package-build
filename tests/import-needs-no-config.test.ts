@@ -283,6 +283,36 @@ describe("the shipped package needs no configuration to be imported", () => {
         SUBPROCESS_TEST_TIMEOUT,
     );
 
+    it(
+        "reports the installed version without command modules",
+        () => {
+            const minimal = path.join(sandbox, "version-only");
+            fs.mkdirSync(path.join(minimal, "bin"), { recursive: true });
+            fs.copyFileSync(
+                path.join(installed, "bin", "package-build.mjs"),
+                path.join(minimal, "bin", "package-build.mjs"),
+            );
+            fs.copyFileSync(
+                path.join(installed, "package.json"),
+                path.join(minimal, "package.json"),
+            );
+            const executable = path.join(minimal, "bin", "package-build.mjs");
+            const version = run([executable, "--version"]);
+            expect(version.status, version.stderr).toBe(0);
+            expect(version.stdout.trim()).toBe(manifest.version);
+            expect(version.stderr).toBe("");
+
+            for (const args of [["clean"], ["--", "--version"], ["--version", "--help"]]) {
+                const command = run([executable, ...args]);
+                expect(command.status).not.toBe(0);
+                expect(command.stderr).toContain("ERR_MODULE_NOT_FOUND");
+                expect(command.stderr).toContain("package-build-commands.mjs");
+                expect(command.stdout).toBe("");
+            }
+        },
+        subprocessTimeout(4),
+    );
+
     it("publishes exactly the build and preview executables", () => {
         expect(manifest.bin).toEqual({
             "package-build": "./bin/package-build.mjs",

@@ -283,6 +283,8 @@ types:
             - other
     skill:
         data:
+            - writing
+            - samples
             - roman
             - grammar
             - templatePriority

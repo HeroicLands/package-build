@@ -6854,6 +6854,23 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `family`                                   | `Address`                                                                                                           | `language` only: the parent language, naming a skill note with `subType: language`; this language reads the parent's words as its own — see [a language's words](#a-languages-words)           |
 | `abbreviation`                             | `string`                                                                                                            | `language` only: the tag a dictionary prints for it, as `Prov.`; its full name where unstated — see [dictionaries and glossaries](#dictionaries-and-glossaries)                                |
 | `core`                                     | `boolean`                                                                                                           | `language` only: `true` where the language must cover the [core vocabulary](#the-core-vocabulary)                                                                                              |
+| `writing`                                  | `{ paradigms?, examples?, worked?, conversation? }`                                                                 | `language` only: writing examples and verb forms                                                                                                                                               |
+| `writing.paradigms`                        | `{ verb, I, thou, heSheIt, plural }[]`                                                                              | Verb forms in each row                                                                                                                                                                         |
+| `writing.paradigms[].verb`                 | `string`, required                                                                                                  | The verb                                                                                                                                                                                       |
+| `writing.paradigms[].I`                    | `string`, required                                                                                                  | The I form                                                                                                                                                                                     |
+| `writing.paradigms[].thou`                 | `string`, required                                                                                                  | The thou form                                                                                                                                                                                  |
+| `writing.paradigms[].heSheIt`              | `string`, required                                                                                                  | The he, she or it form                                                                                                                                                                         |
+| `writing.paradigms[].plural`               | `string`, required                                                                                                  | The plural form                                                                                                                                                                                |
+| `writing.examples`                         | `string[]`                                                                                                          | Written examples                                                                                                                                                                               |
+| `writing.worked`                           | `{ meaning, text }[]`                                                                                               | Examples with their meanings                                                                                                                                                                   |
+| `writing.worked[].meaning`                 | `string`, required                                                                                                  | The meaning                                                                                                                                                                                    |
+| `writing.worked[].text`                    | `string`, required                                                                                                  | The text                                                                                                                                                                                       |
+| `writing.conversation`                     | `string[]`                                                                                                          | Conversation lines in order                                                                                                                                                                    |
+| `samples`                                  | `{ prose?, verse? }`                                                                                                | `language` only: prose and verse samples                                                                                                                                                       |
+| `samples.prose`                            | `string[]`                                                                                                          | Prose samples                                                                                                                                                                                  |
+| `samples.verse`                            | `{ work, lines }[]`                                                                                                 | Works and their verse lines                                                                                                                                                                    |
+| `samples.verse[].work`                     | `string`, required                                                                                                  | The work                                                                                                                                                                                       |
+| `samples.verse[].lines`                    | `string[]`, required                                                                                                | The lines in order                                                                                                                                                                             |
 | `roman`                                    | literal NFC string, may be empty                                                                                    | Additions: letters in accepted cases, accents, catch signs and digits. Listing shared punctuation or whitespace is an error. Required per configured language note; no inheritance or ranges.  |
 | `grammar`                                  | `{ plural?, verbs?, agreement?, participles? }`                                                                     | Optional noun plurals, one verb pattern, agreement and participles; supplied shapes only are checked                                                                                           |
 | `grammar.plural`                           | `{ ending, becomes }[]`                                                                                             | Literal suffix replacements in authored order; the first match wins                                                                                                                            |
@@ -9454,3 +9471,23 @@ is inferred from the selected encoding and uses that language's lexical inputs.
 The pure `encodeText` and `decodeText` functions and the CLI commands provide
 bare encoding without lexical overrides. No font or encoding files are fetched
 separately by the browser.
+
+## Language writing and samples
+
+A language skill may declare either map and any of its members. Each paradigm row states all five strings shown, each worked row states its meaning and text, and each verse row states its work and a list of lines. Lists keep their authored order in the content index. These fields do not enter the compiled item or render as sections on a site page or in a book.
+
+```yaml
+data:
+  writing:
+    paradigms:
+      - { verb: speak, I: speak, thou: speak, heSheIt: speaks, plural: speak }
+    examples: [first example, second example]
+    worked:
+      - { meaning: greeting, text: hello }
+    conversation: [hello, goodbye]
+  samples:
+    prose: [first passage, second passage]
+    verse:
+      - work: song
+        lines: [first line, second line]
+```

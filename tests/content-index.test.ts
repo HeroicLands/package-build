@@ -36,6 +36,8 @@ import { systemOf } from "../engine/document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/note-claims.mjs";
 import { splitPages } from "../engine/journals.mjs";
 import { collectFolderNotes, folderDocument } from "../engine/folder-notes.mjs";
+import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
+import { isNoteRecord } from "../engine/index-records.mjs";
 import { itemDocEntryId } from "../engine/item-docs.mjs";
 
 let tmp: string;
@@ -601,6 +603,57 @@ describe("emitContentIndex", () => {
         contentPackage: "sohl",
         skipDirectories: [],
         packs: [{ name: "items", type: "Item" }],
+    });
+
+    it("preserves language writing and samples through the published index", () => {
+        note(
+            "Language.md",
+            `type: skill
+shortcode: language
+name: {full: Language}
+subType: language
+data:
+  writing:
+    paradigms: [{verb: speak, I: speak, thou: speak, heSheIt: speaks, plural: speak}]
+    examples: [first, second]
+    worked: [{meaning: greeting, text: hello}]
+    conversation: [hello, goodbye]
+  samples:
+    prose: [one, two]
+    verse: [{work: song, lines: [line one, line two]}]`,
+        );
+        const file = emitContentIndex({ config: config(tmp) as any }).file;
+        const published = fs
+            .readFileSync(file, "utf8")
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        const language = published.find(
+            (record) =>
+                isNoteRecord(record) && record.type === "skill" && record.shortcode === "language",
+        );
+        expect(language).toBeDefined();
+        const decoded = decodeIndexAddresses(language, { package: "sohl" });
+        expect({ writing: decoded.data.writing, samples: decoded.data.samples }).toEqual({
+            writing: {
+                paradigms: [
+                    {
+                        verb: "speak",
+                        I: "speak",
+                        thou: "speak",
+                        heSheIt: "speaks",
+                        plural: "speak",
+                    },
+                ],
+                examples: ["first", "second"],
+                worked: [{ meaning: "greeting", text: "hello" }],
+                conversation: ["hello", "goodbye"],
+            },
+            samples: {
+                prose: ["one", "two"],
+                verse: [{ work: "song", lines: ["line one", "line two"] }],
+            },
+        });
     });
 
     it("writes <package>-metadata.jsonl and reports what it holds", () => {
