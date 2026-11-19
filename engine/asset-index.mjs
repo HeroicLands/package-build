@@ -166,7 +166,7 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
         name: "attribution",
         from: "provenance",
         required: true,
-        describe: "The person holding the rights, to whom attribution is legally due.",
+        describe: "Ordered public credit strings for the rights holders.",
     }),
     Object.freeze({
         name: "source",
@@ -456,7 +456,7 @@ function inheritedProvenance(dir, root, cache, findings) {
  * @param {Record<string, string|boolean>|null} provenance - The resolved record.
  * @param {string} type - The asset type this file was walked as, so a field
  *   declaring `onlyType` can be dropped for every other type.
- * @returns {Record<string, string|boolean|number|null>} The block, every field
+ * @returns {Record<string, string|string[]|boolean|number|null>} The block, every field
  *   present — blank (`""`) for a string or integer field nothing states,
  *   `false` for `ai`.
  */
@@ -472,7 +472,9 @@ function assetBlock(walkValues, provenance, type) {
             continue;
         }
         const value = field.from === "walk" ? walkValues[field.name] : provenance?.[field.name];
-        if (field.type === "boolean") {
+        if (field.name === "attribution") {
+            block[field.name] = typeof value === "string" && value ? [value] : [];
+        } else if (field.type === "boolean") {
             block[field.name] = typeof value === "boolean" ? value : false;
         } else if (field.type === "integer") {
             block[field.name] = typeof value === "number" ? value : "";

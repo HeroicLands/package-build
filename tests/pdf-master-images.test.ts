@@ -18,7 +18,7 @@ it("renders master-derived editions with public trace and a white matte", async 
         .toBuffer();
     const record = {
         address: "sample-note-image-portrait",
-        creator: "Artist",
+        creator: ["Artist"],
         rights: "Rights",
         prompt: "private prompt",
         nonAiAlternative: "sample-none-icon-placeholder",
@@ -43,7 +43,7 @@ it("renders master-derived editions with public trace and a white matte", async 
         address: record.address,
         derived: "true",
         derivedFrom: record.address,
-        creator: "Artist",
+        creator: ["Artist"],
         rights: "Rights",
     });
     expect(metadata).not.toHaveProperty("nonAiAlternative");
@@ -130,7 +130,7 @@ it("checks metadata after baseline and progressive JPEG scans", async () => {
 });
 
 it("rejects private XMP fields in additional descriptions", async () => {
-    const record = { address: "sample-none-image-mark", creator: "Artist", rights: "Rights" };
+    const record = { address: "sample-none-image-mark", creator: ["Artist"], rights: "Rights" };
     const png = writeProvenance(
         await sharp({ create: { width: 10, height: 10, channels: 3, background: "white" } })
             .png()

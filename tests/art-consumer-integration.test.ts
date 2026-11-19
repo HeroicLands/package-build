@@ -69,7 +69,7 @@ function fixture(options: { name?: string; primaryNote?: string; ai?: boolean | 
         address: { canonical: address },
         asset: {
             path: "images/portrait.svg",
-            attribution: "Artist",
+            attribution: ["Artist"],
             license: "CC0-1.0",
             ai: options.ai === undefined ? false : options.ai,
         },
@@ -78,7 +78,7 @@ function fixture(options: { name?: string; primaryNote?: string; ai?: boolean | 
     fs.writeFileSync(path.join(dir, "index.jsonl"), index);
     const metadata = {
         address,
-        creator: "Artist",
+        creator: ["Artist"],
         rights: "Terms",
         derivedFrom: address,
         ...(options.name ? { name: options.name } : {}),
@@ -141,11 +141,11 @@ function addSplit(f: ReturnType<typeof fixture>, assetPath: string, shortcode: s
         type: "image",
         shortcode,
         address: { canonical: address },
-        asset: { path: assetPath, attribution: "Artist", license: "CC0-1.0", ai: false },
+        asset: { path: assetPath, attribution: ["Artist"], license: "CC0-1.0", ai: false },
     };
     const bytes = writeDerivativeProvenance(
         svg,
-        { address, creator: "Artist", rights: "Terms", derivedFrom: address },
+        { address, creator: ["Artist"], rights: "Terms", derivedFrom: address },
         { repeat: ["derivedFrom"] },
     ).bytes;
     fs.writeFileSync(path.join(dir, assetPath), bytes);
@@ -190,7 +190,7 @@ function addAlternative(f: ReturnType<typeof fixture>) {
         address: { canonical: "sample-none-icon-standin" },
         asset: {
             path: "icons/standin.svg",
-            attribution: "Artist",
+            attribution: ["Artist"],
             license: "CC0-1.0",
             ai: false,
         },
@@ -199,7 +199,7 @@ function addAlternative(f: ReturnType<typeof fixture>) {
         svg,
         {
             address: "sample-none-icon-standin",
-            creator: "Artist",
+            creator: ["Artist"],
             rights: "Terms",
             derivedFrom: "sample-none-icon-standin",
             ai: false,

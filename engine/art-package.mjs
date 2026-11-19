@@ -135,7 +135,7 @@ export async function prepareArtPackage(directory, expected) {
         addresses.add(key);
         if (![true, false, null].includes(record.asset.ai))
             throw new Error("invalid asset AI status");
-        for (const key of ["attribution", "source", "license", "notes", "role"]) {
+        for (const key of ["source", "license", "notes", "role"]) {
             if (key in record.asset && typeof record.asset[key] !== "string")
                 throw new Error(`invalid asset ${key}`);
         }
@@ -144,6 +144,11 @@ export async function prepareArtPackage(directory, expected) {
             if (value !== undefined && value !== "" && (!Number.isInteger(value) || value <= 0))
                 throw new Error(`invalid asset ${key}`);
         }
+        if (
+            !Array.isArray(record.asset.attribution) ||
+            record.asset.attribution.some((entry) => typeof entry !== "string" || !entry.length)
+        )
+            throw new Error("invalid asset attribution");
         if (record.asset.ai === true && !record.asset.nonAiAlternative)
             throw new Error("AI asset lacks a non-AI alternative");
         if (typeof record.asset.path !== "string" || !files.has(record.asset.path))
@@ -151,7 +156,8 @@ export async function prepareArtPackage(directory, expected) {
         const image = files.get(record.asset.path);
         if (
             image.metadata.address !== key ||
-            image.metadata.creator !== (record.asset.attribution || undefined)
+            JSON.stringify(image.metadata.creator ?? []) !==
+                JSON.stringify(record.asset.attribution)
         )
             throw new Error("asset image identity or creator does not match its index record");
         if (image.metadata.ai !== undefined && provenanceAi(image.metadata) !== record.asset.ai)

@@ -20,6 +20,7 @@ import { renderAddress } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 import {
     provenanceAi,
+    assertPublicCreators,
     MISSING_ALTERNATIVE,
     readProvenance,
     readSvgProvenance,
@@ -129,8 +130,9 @@ export function collectArtMasters(roots, contentPackage, { componentRoots = [] }
                 const expected = path.extname(entry.name).slice(1).toLowerCase();
                 if (format !== expected)
                     throw new Error(`expected ${expected.toUpperCase()} input`);
-                const { record, xmp, standard } =
+                const { record, xmp, standard, packet } =
                     format === "png" ? readProvenance(bytes) : readSvgProvenance(bytes);
+                assertPublicCreators(packet);
                 if (xmp.derived !== undefined)
                     throw new Error("a master must not carry hl:derived");
                 if (xmp.address && xmp.identifier && xmp.address !== xmp.identifier)
@@ -147,9 +149,14 @@ export function collectArtMasters(roots, contentPackage, { componentRoots = [] }
                 )
                     throw new Error("master address must name an image or icon in this package");
                 if (publication === "component") {
-                    for (const field of ["creator", "rights"])
-                        if (typeof record[field] !== "string" || !record[field].trim())
-                            throw new Error(`private component ${field} is missing`);
+                    if (
+                        !Array.isArray(record.creator) ||
+                        !record.creator.length ||
+                        record.creator.some((entry) => typeof entry !== "string" || !entry.length)
+                    )
+                        throw new Error("private component creator is missing");
+                    if (typeof record.rights !== "string" || !record.rights.trim())
+                        throw new Error("private component rights is missing");
                     if (record.composition !== undefined)
                         throw new Error(
                             "private component must be a source image without a recipe",
@@ -210,7 +217,7 @@ export function masterAssetRecords(masters) {
                     address: { canonical: address },
                     asset: {
                         path: `${root}/${tuple.shortcode}${extension === ".svg" ? ".svg" : ".webp"}`,
-                        attribution: master.record.creator ?? "",
+                        attribution: master.record.creator ?? [],
                         source: "",
                         ai: provenanceAi(master.record),
                         nonAiAlternative: master.record.nonAiAlternative ?? null,

@@ -1318,6 +1318,15 @@ When foreign XMP cannot be retained, one plain creator entry or one plain
 `x-default` rights entry can be rewritten from its exact scalar value. Extra
 entries, attributes, language tags or structure require the original credit XML;
 if that XML cannot be retained safely, the write fails before producing output.
+`assertPublicCreators(packet)` in `engine/art-provenance-core` refuses ambiguous
+creator properties before public projection. It does not edit the packet.
+
+`creator` and public `asset.attribution` are ordered lists of opaque credit strings.
+An authored sidecar attribution remains one list entry. The PNG Author text
+presents those entries joined by `, `; XMP retains the individual entries.
+Unrelated metadata edits preserve existing creator XML. Explicit `creator` values
+replace the whole list, and `null` removes it.
+
 Multiple creator or rights properties are ambiguous, including
 attribute and element forms across separate RDF descriptions. An unrelated edit
 refuses them; explicitly replace or remove the affected field to edit that packet.
@@ -1532,7 +1541,7 @@ const master = writeSvgProvenance(
   drawing,
   {
     address,
-    creator: "Example artist",
+    creator: ["Example artist"],
     rights: "Example artist, licensed under CC BY-SA 4.0",
     license: "CC-BY-SA-4.0",
     digitalSourceType: "digitalCreation",
@@ -1576,7 +1585,7 @@ import {
 
 const master = writeProvenance(await readFile("input.png"), {
   address: "example-none-image-sample",
-  creator: "Example artist",
+  creator: ["Example artist"],
   rights: "Example artist, licensed under CC BY-SA 4.0",
   license: "CC-BY-SA-4.0",
   digitalSourceType: "digitalCreation",

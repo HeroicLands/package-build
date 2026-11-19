@@ -45,7 +45,7 @@ function fixture() {
                 path: "images/first.webp",
                 ai: true,
                 nonAiAlternative: "other-none-icon-replacement",
-                attribution: "Artist",
+                attribution: ["Artist"],
                 license: "CC0-1.0",
             },
         },
@@ -57,7 +57,7 @@ function fixture() {
             asset: {
                 path: "icons/second.svg",
                 ai: false,
-                attribution: "Artist",
+                attribution: ["Artist"],
                 license: "CC0-1.0",
             },
         },
@@ -69,7 +69,7 @@ function fixture() {
             asset: {
                 path: "images/third.svg",
                 ai: null,
-                attribution: "Artist",
+                attribution: ["Artist"],
                 license: "CC0-1.0",
             },
         },
@@ -86,7 +86,7 @@ function fixture() {
             row.type === "icon" || row.shortcode === "third" ? svg : webp,
             {
                 address,
-                creator: "Artist",
+                creator: ["Artist"],
                 rights: "Terms",
                 derivedFrom: address,
                 ...(row.asset.ai !== null ? { ai: row.asset.ai } : {}),
@@ -149,7 +149,7 @@ function addPublicNote(f: ReturnType<typeof fixture>) {
             svg,
             {
                 address,
-                creator: "Artist",
+                creator: ["Artist"],
                 rights: "Terms",
                 derivedFrom: address,
                 ai: false,
@@ -376,7 +376,7 @@ describe("installed artwork packages", () => {
         [
             "wrong creator",
             (f: any) => {
-                f.rows[0].asset.attribution = "Wrong";
+                f.rows[0].asset.attribution = ["Wrong"];
             },
         ],
         [
@@ -410,7 +410,7 @@ describe("installed artwork packages", () => {
         const address = row.address.canonical;
         const bytes = writeDerivativeProvenance(
             webp,
-            { address, creator: "Artist", rights: "Terms", derivedFrom: address, ai: embedded },
+            { address, creator: ["Artist"], rights: "Terms", derivedFrom: address, ai: embedded },
             { repeat: ["derivedFrom"] },
         ).bytes;
         f.replace(row.asset.path, bytes);
@@ -425,7 +425,7 @@ describe("installed artwork packages", () => {
         const address = row.address.canonical;
         const bytes = writeDerivativeProvenance(
             webp,
-            { address, creator: "Artist", rights: "Terms", derivedFrom: address },
+            { address, creator: ["Artist"], rights: "Terms", derivedFrom: address },
             { repeat: ["derivedFrom"] },
         ).bytes;
         f.replace(row.asset.path, bytes);
@@ -440,7 +440,7 @@ describe("installed artwork packages", () => {
             svg,
             {
                 address,
-                creator: "Artist",
+                creator: ["Artist"],
                 rights: "Terms",
                 derivedFrom: address,
                 name: "Public subject",
@@ -505,7 +505,7 @@ describe("installed artwork packages", () => {
         const corrupt = Buffer.from("524946461000000057454250565038200400000000000000", "hex");
         const bytes = writeDerivativeProvenance(
             corrupt,
-            { address, creator: "Artist", rights: "Terms", derivedFrom: address },
+            { address, creator: ["Artist"], rights: "Terms", derivedFrom: address },
             { repeat: ["derivedFrom"] },
         ).bytes;
         f.replace("images/first.webp", bytes);
@@ -546,7 +546,7 @@ describe("installed artwork packages", () => {
         const address = "sample-none-image-first";
         const restored = writeDerivativeProvenance(
             webp,
-            { address, creator: "Artist", rights: "Terms", derivedFrom: address },
+            { address, creator: ["Artist"], rights: "Terms", derivedFrom: address },
             { repeat: ["derivedFrom"] },
         ).bytes;
         fs.writeFileSync(path.join(f.root, "images/first.webp"), restored);

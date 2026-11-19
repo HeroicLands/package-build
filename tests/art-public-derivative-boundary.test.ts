@@ -11,7 +11,7 @@ function derivative() {
         svg,
         {
             address,
-            creator: "Artist",
+            creator: ["Artist"],
             rights: "Terms",
             derivedFrom: address,
         },
