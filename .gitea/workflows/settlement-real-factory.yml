@@ -1,0 +1,34 @@
+name: Settlement setting integration
+
+on:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    actual-setting:
+        runs-on: ubuntu-vm
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  repository: HeroicLands/thalorna
+                  ref: 6eae39a65c8370dd7a3a7944081a7a2aefd2c13a
+                  path: .setting-candidate
+                  github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+              with:
+                  node-version: ${{ vars.CI_NODE_VERSION || '24' }}
+            - run: npm ci
+            - run: npm ci
+              working-directory: .setting-candidate
+            - name: Exercise the candidate setting checks
+              env:
+                  SETTLEMENT_SETTING_CHECKOUT: ${{ github.workspace }}/.setting-candidate
+              run: npm test -- tests/settlement-real-factory.test.ts

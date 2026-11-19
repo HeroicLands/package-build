@@ -145,3 +145,17 @@ that commit. The job packs that commit for a compatibility compile of the pinned
 checking the installed package and its compiled outputs. It fails if installing
 the candidate changes unrelated locked dependencies. The workflow requires
 registry and consumer dependency access; it does not publish a package or site.
+
+### Settlement setting integration
+
+The manually dispatched [Settlement setting integration workflow](.gitea/workflows/settlement-real-factory.yml)
+checks the settlement command against the pinned setting-check candidate. It
+checks out that setting tree and installs both repositories' locked dependencies. The test runs only when
+`SETTLEMENT_SETTING_CHECKOUT` names the setting checkout; its map, notes and
+writes are isolated fixture data.
+
+The test covers a dry run with the actual factory, a missing resource, a locked
+write, a source edit rejected after an intervening change, a successful write,
+and a repeat with a refreshed index. A passing run establishes interoperability
+on that fixture. It does not establish production naming readiness or calibrate
+a real map. The candidate supports a limited language and composition scope.
