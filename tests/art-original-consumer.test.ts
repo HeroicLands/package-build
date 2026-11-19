@@ -25,6 +25,14 @@ afterEach(() => {
 function setup() {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "archive-consumer-"));
     roots.push(root);
+    fs.writeFileSync(
+        path.join(root, "package.json"),
+        JSON.stringify({
+            name: "sample",
+            version: "1.0.0",
+            homepage: "https://example.invalid/sample/",
+        }),
+    );
     const address = "sample-none-icon-example";
     const bytes = writeSvgProvenance(
         '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1"/></svg>',

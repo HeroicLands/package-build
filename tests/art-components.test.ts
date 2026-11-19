@@ -385,6 +385,15 @@ it.each(["empty", "duplicate", "nested", "attribute"])(
     },
 );
 it("refuses private component roots with artwork archives", () => {
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(
+        path.join(root, "package.json"),
+        JSON.stringify({
+            name: "sample",
+            version: "1.0.0",
+            homepage: "https://example.invalid/sample/",
+        }),
+    );
     const config = {
         contentPackage: "sample",
         packageKind: "modules",
