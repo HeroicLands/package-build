@@ -593,44 +593,27 @@ Any other key on one list entry is refused:
 See [`itemBuilders`](#itembuilders) under Derived values for how the YAML
 name form resolves before reaching here.
 
-### `art.lock`
+### `art.packages`
 
-A package may put a JSON `art.lock` beside its package configuration to consume
-verified public derivatives offline. This file accepts exactly these fields:
+**Type:** array of npm package names · **Optional** · default `[]`.
 
-```json
-{
-  "version": 1,
-  "package": "sample",
-  "source": {
-    "repository": "https://forge.example/art.git",
-    "revision": "0123456789abcdef0123456789abcdef01234567"
-  },
-  "rendered": {
-    "url": "https://public.example/art.zip",
-    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-  }
-}
-```
+List finished artwork packages for this content package. Each name must be an
+exact-version required `devDependency` in the consumer's `package.json`, with a
+matching version and integrity in its version 3 `package-lock.json`. Run `npm ci`
+to install them in this consumer. Package resolution does not search parent
+installations, fetch artwork or use workspace, file or Git dependencies.
+Duplicate names and missing, mismatched or invalid installations are errors.
+Nonempty `art.packages` cannot be combined with nonempty `art.masterRoots` or
+`art.componentRoots`; an empty list permits private roots.
 
-`package` equals `contentPackage`. `revision` is the complete lowercase hexadecimal
-Git commit (40 or 64 characters); `sha256` is the lowercase 64-character archive
-digest. Both URLs use HTTPS without credentials or fragments; authored token, API-key,
-authorization, password and secret query parameters are refused. Public fetch
-allows at most five HTTPS redirects, including temporary object-storage URLs,
-without forwarding authentication. Unknown fields and malformed pins are errors.
-The lock contains no image identities or credentials. Its cache lives beneath
-`build/`; ordinary builds never use the network to fill it.
-
-Use either `art.lock` or nonempty `art.masterRoots`/`art.componentRoots` for ordinary builds. The
-explicit `art source fetch` and `art reproduce` actions restore and check private
-sources using the same lock, without configuring private roots. The standard
-content index still supplies publication and shipping authority; only indexed
-Addresses are accepted for publication from the public ZIP. A valid cache that
-disagrees with the current index remains readable and produces publication
-findings. Resolve them with a new archive and lock pin. See
-[`package-build art`](commands.md#package-build-art) for archive rules, source
-verification and the standard-index supply contract.
+Each package supplies a version 1 `artwork.json` descriptor and standard
+asset-only JSONL index. The descriptor identifies the owning `contentPackage`
+and binds the index and every SVG or WebP derivative by SHA-256. Package paths,
+metadata, image identity and public-note authority are verified before use.
+AI status remains true, false or unknown. Each AI asset names an eligible
+non-AI alternative by address; declared dependencies and Foundry eligibility
+rules apply. Local notes are authoritative. See [artwork packages](authoring/assets.md#artwork-packages)
+and [the installed package API](api.md#installed-artwork-packages).
 
 ### `art.componentRoots`
 

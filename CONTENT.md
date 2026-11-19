@@ -8,6 +8,11 @@ publishes fresh indexes, emits calendars, stages assets, checks content and link
 and compiles packs in one invocation. See the [command reference](docs/commands.md#package-build-content-build)
 for ordering, publication readiness and failure behavior.
 
+Finished artwork inputs can be declared as exact-version required npm
+development dependencies in `art.packages`; `npm ci` supplies their validated
+asset indexes and SVG/WebP files. Package inputs and private roots are separate
+modes. See [artwork packages](docs/authoring/assets.md#artwork-packages).
+
 Private PNG and SVG art masters can be declared in `art.masterRoots`. Each
 master carries its image Address and can state creator, rights, an exact
 `hl:license` ID, optional `hl:ai` status and IPTC digital source type. Public
