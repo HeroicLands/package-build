@@ -294,10 +294,15 @@ function rowsOf(corpus, owner, recursive) {
  * Resolve a polity's directly subordinate polities and noted settlements.
  * @param {object} record - Indexed polity record.
  * @param {object[]} records - Records from the same content session.
+ * @param {Map<string, object>} [foreignIndex] - Dependency index from that session.
  * @returns {{polities: object[], settlements: object[]}} Indexed records and canonical addresses.
  */
-export function settlementMembership(record, records) {
-    const corpus = corpusOf({ notes: records, contentPackage: record.package });
+export function settlementMembership(record, records, foreignIndex = new Map()) {
+    const corpus = corpusOf({
+        notes: records,
+        contentPackage: record.package,
+        foreign: { index: foreignIndex },
+    });
     const owner = corpus.byRecord.get(record);
     if (!owner || !polity(record)) throw new Error("An indexed polity is required");
     const view = (node) => ({ address: node.key, record: node.fm });

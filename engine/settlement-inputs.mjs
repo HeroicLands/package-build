@@ -21,7 +21,8 @@ import {
     isAddressTuple,
 } from "./address.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
-import { isDeepStrictEqual } from "node:util";
+import { cachedIndexPath } from "./metadata-index.mjs";
+import { AddressLink } from "./address-values.mjs";
 import { settlementMembership } from "./settlement-tables.mjs";
 import { proposeSettlements } from "./settlement-generate.mjs";
 import { proposeUrbanSupply } from "./settlement-urban.mjs";
@@ -29,7 +30,7 @@ import { proposeUrbanSupply } from "./settlement-urban.mjs";
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const own = (value, key) => Object.hasOwn(value, key);
 const canonical = (value) => {
-    const tuple = readCanonicalKey(value);
+    const tuple = readCanonicalKey(value instanceof AddressLink ? value.target : value);
     return tuple ? renderAddress(tuple) : undefined;
 };
 const sourceAddress = (fm, pkg) =>
@@ -40,6 +41,25 @@ const urbanTypes = new Set(["town", "city", "metropolis"]);
 const ruralTypes = new Set(["encampment", "homestead", "hamlet", "village"]);
 const positive = (n) => typeof n === "number" && Number.isFinite(n) && n > 0;
 const nonnegative = (n) => typeof n === "number" && Number.isFinite(n) && n >= 0;
+const count = (n) => Number.isSafeInteger(n) && n >= 0;
+function sourceKey(source, mapId) {
+    if (
+        !object(source) ||
+        source.mapId !== mapId ||
+        !["cell", "burg"].includes(source.kind) ||
+        !count(source.id) ||
+        Object.keys(source).some((key) => !["mapId", "kind", "id", "slot"].includes(key)) ||
+        (source.kind === "burg" && own(source, "slot")) ||
+        (source.kind === "cell" && own(source, "slot") && !count(source.slot))
+    )
+        return undefined;
+    return JSON.stringify([
+        source.mapId,
+        source.kind,
+        source.id,
+        source.kind === "cell" ? (source.slot ?? 0) : null,
+    ]);
+}
 
 /**
  * Prepare calculation inputs from captured notes and explicit physical bindings.
@@ -123,7 +143,8 @@ export function prepareSettlementInputs({
     for (const key of Object.keys(bindings))
         if (!["rows", "notes", "subpolities"].includes(key))
             inputMissing(`bindings.${key}`, "this binding is not a settlement input");
-    const member = settlementMembership(polity, records);
+    const foreignIndex = session.foreign?.index ?? new Map();
+    const member = settlementMembership(polity, records, foreignIndex);
     const recordByAddress = new Map();
     for (const record of records) {
         const address = canonical(record.address?.canonical);
@@ -132,10 +153,24 @@ export function prepareSettlementInputs({
             inputMissing("session.records", `resolve the duplicate indexed Address ${address}`);
         else recordByAddress.set(address, record);
     }
+    for (const [address, entry] of foreignIndex) {
+        const record = entry.settlementRecord ?? entry;
+        if (!recordByAddress.has(address)) recordByAddress.set(address, record);
+    }
     const typeSet = new Set(records.map((record) => record.type).filter(Boolean));
-    const packageSet = new Set(records.map((record) => record.package).filter(Boolean));
+    const packageSet = new Set(
+        [
+            ...records.map((record) => record.package),
+            ...[...foreignIndex.keys()].map((key) => readCanonicalKey(key)?.package),
+        ].filter(Boolean),
+    );
     // An unresolved parent or government can hide membership. Report it in this operation.
-    for (const record of records) {
+    for (const record of [
+        ...records,
+        ...new Set(
+            [...foreignIndex.values()].map((entry) => entry.settlementRecord).filter(Boolean),
+        ),
+    ]) {
         if (!(
             (record.type === "affiliation" && record.subType === "polity") ||
             (record.type === "place" && record.subType === "settlement")
@@ -151,7 +186,9 @@ export function prepareSettlementInputs({
             : [record.data.government];
         for (const [i, value] of values.entries()) {
             const written =
-                object(value) && typeof value.address === "string" ? value.address : value;
+                value instanceof AddressLink ? value.target
+                : object(value) && typeof value.address === "string" ? value.address
+                : value;
             const parsed =
                 isAddressTuple(written) ? written : (
                     parseAddress(
@@ -172,7 +209,9 @@ export function prepareSettlementInputs({
                 (!recordByAddress.has(address) && !session.foreign?.index?.has(address))
             ) {
                 const key = canonical(record.address?.canonical);
-                const file = (sourcesByAddress.get(key) ?? [session.contentBase])[0];
+                const file = (sourcesByAddress.get(key) ?? [
+                    cachedIndexPath(session.config, record.package),
+                ])[0];
                 add(
                     file,
                     `data.${field}`,
@@ -184,7 +223,9 @@ export function prepareSettlementInputs({
         if (record.type === "affiliation" && record.data?.seat != null) {
             const value = record.data.seat;
             const written =
-                object(value) && typeof value.address === "string" ? value.address : value;
+                value instanceof AddressLink ? value.target
+                : object(value) && typeof value.address === "string" ? value.address
+                : value;
             const parsed =
                 isAddressTuple(written) ? written : (
                     parseAddress(
@@ -205,7 +246,7 @@ export function prepareSettlementInputs({
                 (!recordByAddress.has(address) && !session.foreign?.index?.has(address))
             ) {
                 const file = (sourcesByAddress.get(canonical(record.address?.canonical)) ?? [
-                    session.contentBase,
+                    cachedIndexPath(session.config, record.package),
                 ])[0];
                 add(
                     file,
@@ -228,7 +269,7 @@ export function prepareSettlementInputs({
         );
     const cells = Array.isArray(map?.cells) ? map.cells.filter(object) : [];
     const cellFor = (source) => {
-        if (!object(source) || source.mapId !== map?.mapId) return undefined;
+        if (!sourceKey(source, map?.mapId)) return undefined;
         const hits = cells.filter((cell) =>
             source.kind === "cell" ?
                 cell.id === source.id
@@ -237,9 +278,7 @@ export function prepareSettlementInputs({
         return hits.length === 1 ? hits[0] : undefined;
     };
     const cultureSizes = {};
-    for (const address of new Set(
-        cells.flatMap((cell) => [cell.cultureAddress, cell.burgCultureAddress]).filter(Boolean),
-    )) {
+    const readCultureSize = (address, file = "settlement-inputs") => {
         const key = canonical(address);
         const culture = key && recordByAddress.get(key);
         if (
@@ -248,12 +287,20 @@ export function prepareSettlementInputs({
             culture.subType !== "culture" ||
             !positive(culture.data?.householdSize)
         ) {
-            inputMissing(
-                `culture ${address}`,
+            add(
+                file,
+                `culture ${key ?? String(address)}`,
                 "bind an indexed culture with a declared household size",
             );
-        } else cultureSizes[key] = culture.data.householdSize;
-    }
+            return undefined;
+        }
+        cultureSizes[key] = culture.data.householdSize;
+        return key;
+    };
+    for (const address of new Set(
+        cells.flatMap((cell) => [cell.cultureAddress, cell.burgCultureAddress]).filter(Boolean),
+    ))
+        readCultureSize(address);
     const readBindings = (key) => {
         const value = bindings[key];
         if (value === undefined) return [];
@@ -267,7 +314,8 @@ export function prepareSettlementInputs({
     const noteBindings = readBindings("notes");
     const subBindings = readBindings("subpolities");
     const facts = [];
-    const makeFact = (identity, data, source, file, keyPath) => {
+    const sourcesSeen = new Map();
+    const makeFact = (identity, data, source, file, keyPath, noted = false) => {
         const urban =
             urbanTypes.has(data?.type) ? true
             : ruralTypes.has(data?.type) ? false
@@ -277,8 +325,28 @@ export function prepareSettlementInputs({
         const cell = cellFor(source);
         if (!cell)
             add(file, "generatorSource", `bind ${identity} to one mapped cell or burg`, keyPath);
-        const culture = source?.kind === "burg" ? cell?.burgCultureAddress : cell?.cultureAddress;
-        const size = cultureSizes[canonical(culture)];
+        const sourceIdentity = sourceKey(source, map?.mapId);
+        if (sourceIdentity) {
+            const prior = sourcesSeen.get(sourceIdentity);
+            if (prior)
+                add(
+                    file,
+                    "generatorSource",
+                    `map identity for ${identity} is also bound to ${prior}`,
+                    keyPath,
+                );
+            else sourcesSeen.set(sourceIdentity, identity);
+        }
+        const mapped = source?.kind === "burg" ? cell?.burgCultureAddress : cell?.cultureAddress;
+        const culture = noted && own(data, "culture") ? data.culture : mapped;
+        const cultureAddress = canonical(culture);
+        if (noted && own(data, "culture") && !cultureAddress)
+            add(file, "data.culture", `resolve the declared culture for ${identity}`, [
+                "data",
+                "culture",
+            ]);
+        if (cultureAddress && !own(cultureSizes, cultureAddress)) readCultureSize(culture, file);
+        const size = cultureSizes[cultureAddress];
         const fact = {
             identity,
             urban,
@@ -293,7 +361,7 @@ export function prepareSettlementInputs({
             add(file, "population", `supply the unknown population for ${identity}`, keyPath);
         else if (own(data, "households") && size === undefined)
             add(file, "householdSize", `bind the culture household size for ${identity}`, keyPath);
-        facts.push({ fact, data, cell, source, cultureAddress: canonical(culture), file });
+        facts.push({ fact, data, cell, source, cultureAddress, file });
     };
     for (const [index, row] of existingRows.entries()) {
         if (!object(row)) {
@@ -315,7 +383,8 @@ export function prepareSettlementInputs({
         if (
             row.generatorSource !== undefined &&
             explicit !== undefined &&
-            !isDeepStrictEqual(row.generatorSource, explicit)
+            (!sourceKey(row.generatorSource, map?.mapId) ||
+                sourceKey(row.generatorSource, map?.mapId) !== sourceKey(explicit, map?.mapId))
         )
             add(
                 sourceFile,
@@ -331,9 +400,11 @@ export function prepareSettlementInputs({
     }
     for (const item of member.settlements) {
         const found = noteBindings.filter((entry) => canonical(entry.address) === item.address);
-        const file = (sourcesByAddress.get(item.address) ?? [session.contentBase])[0];
+        const file = (sourcesByAddress.get(item.address) ?? [
+            cachedIndexPath(session.config, item.record.package),
+        ])[0];
         if (found.length !== 1) add(file, "binding", `bind ${item.address} exactly once`, ["data"]);
-        makeFact(item.address, item.record.data ?? {}, found[0]?.source, file, ["data"]);
+        makeFact(item.address, item.record.data ?? {}, found[0]?.source, file, ["data"], true);
     }
     for (const binding of noteBindings)
         if (!member.settlements.some((item) => item.address === canonical(binding.address)))
@@ -373,7 +444,9 @@ export function prepareSettlementInputs({
     const total = split(polity, selected, sourceFile);
     const subpolities = member.polities.map((item) => {
         const found = subBindings.filter((entry) => canonical(entry.address) === item.address);
-        const file = (sourcesByAddress.get(item.address) ?? [session.contentBase])[0];
+        const file = (sourcesByAddress.get(item.address) ?? [
+            cachedIndexPath(session.config, item.record.package),
+        ])[0];
         if (found.length !== 1 || !Array.isArray(found[0]?.cellIds))
             inputMissing(
                 `bindings.subpolities.${item.address}`,
@@ -468,6 +541,7 @@ export function prepareSettlementInputs({
                     cellId: entry.cell?.id,
                     source: entry.source,
                     fact: { ...entry.data, identity: entry.fact.identity },
+                    cultureAddress: entry.cultureAddress,
                     localFood: options[0]?.localFood,
                 };
             });

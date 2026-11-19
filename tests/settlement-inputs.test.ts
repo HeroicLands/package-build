@@ -8,6 +8,7 @@ import { settlementMembership } from "../engine/settlement-tables.mjs";
 import { prepareSettlementInputs } from "../engine/settlement-inputs.mjs";
 import { proposeSettlements } from "../engine/settlement-generate.mjs";
 import { proposeUrbanSupply } from "../engine/settlement-urban.mjs";
+import { metadataFileName } from "../engine/metadata-index.mjs";
 import { fixture, note, write } from "./content-session-fixture.js";
 
 const roots: string[] = [];
@@ -64,6 +65,9 @@ async function assemblyFixture(
     urban = false,
     subordinate = false,
     badGovernment = false,
+    otherCulture = false,
+    dependency = false,
+    missingCulture = false,
 ) {
     const input = fixture();
     roots.push(input.root);
@@ -82,6 +86,7 @@ async function assemblyFixture(
             name: { full: "Crown" },
             data: {
                 territorial_population: 500,
+                ...(dependency ? { seat: "other-note-place-port" } : {}),
                 settlements: [
                     {
                         settlement: "Farm",
@@ -108,6 +113,7 @@ async function assemblyFixture(
             type: urban ? "city" : "village",
             households: 5,
             population: 300,
+            ...(otherCulture ? { culture: "lore-otherfolk" } : {}),
         },
     });
     write(capitalFile, capitalRaw);
@@ -132,7 +138,62 @@ async function assemblyFixture(
             data: { householdSize: 5 },
         }),
     );
-    const session = await createContentSession({ config: input.config });
+    if (otherCulture)
+        write(
+            path.join(content, "OtherCulture.md"),
+            note({
+                type: "lore",
+                subType: "culture",
+                shortcode: "otherfolk",
+                name: { full: "Other Folk" },
+                data: missingCulture ? {} : { householdSize: 10 },
+            }),
+        );
+    const cache = path.join(input.root, "dependency-cache");
+    const config =
+        dependency ?
+            {
+                ...input.config,
+                paths: { ...input.config.paths, metadataCache: cache },
+                relationships: {
+                    ...input.config.relationships,
+                    requires: [{ id: "other", manifest: "https://example.invalid/other.json" }],
+                },
+            }
+        :   input.config;
+    if (dependency) {
+        const dir = path.join(cache, "other@1.0.0");
+        const reference = (address: string) => ({ address, anchor: null, anchorKind: null });
+        const record = (type: string, subType: string, shortcode: string, data: object) => ({
+            package: "other",
+            type,
+            subType,
+            shortcode,
+            name: { full: shortcode },
+            address: { slug: `${type}-${shortcode}`, canonical: `other-note-${type}-${shortcode}` },
+            anchors: [],
+            foundry: null,
+            documentation: null,
+            data,
+        });
+        const entries = [
+            record("place", "settlement", "port", {
+                government: reference(polityAddress),
+                type: "village",
+                population: 20,
+            }),
+            record("affiliation", "polity", "child", {
+                parents: [reference(polityAddress)],
+                territorial_population: 50,
+            }),
+        ];
+        write(
+            path.join(dir, metadataFileName("other")),
+            entries.map((item) => JSON.stringify(item)).join("\n") + "\n",
+        );
+        write(path.join(dir, ".complete"), "");
+    }
+    const session = await createContentSession({ config });
     const cell = {
         id: 7,
         biome: { i: 3 },
@@ -143,7 +204,10 @@ async function assemblyFixture(
         polityAddress,
         ruralPopulation: 500,
     };
-    const map = { mapId: "map", cells: subordinate ? [cell, { ...cell, id: 8 }] : [cell] };
+    const map = {
+        mapId: "map",
+        cells: subordinate || dependency ? [cell, { ...cell, id: 8 }] : [cell],
+    };
     const profile = {
         land: [5, 5, 5, 5],
         development: 1,
@@ -158,6 +222,7 @@ async function assemblyFixture(
         urbanShares: {
             [polityAddress]: 0,
             ...(subordinate ? { "sessionproof-note-affiliation-child": 0 } : {}),
+            ...(dependency ? { "other-note-affiliation-child": 0 } : {}),
         },
         placements: [0, 1, 2].map((slot) => ({
             cellId: 7,
@@ -169,9 +234,15 @@ async function assemblyFixture(
         urban: { sources: [], routes: [], cities: [] },
     };
     const bindings = {
-        notes: [{ address: noteAddress, source: source(1) }],
+        notes: [
+            { address: noteAddress, source: source(1) },
+            ...(dependency ? [{ address: "other-note-place-port", source: source(2) }] : []),
+        ],
         ...(subordinate ?
             { subpolities: [{ address: "sessionproof-note-affiliation-child", cellIds: [8] }] }
+        :   {}),
+        ...(dependency ?
+            { subpolities: [{ address: "other-note-affiliation-child", cellIds: [8] }] }
         :   {}),
     };
     return {
@@ -372,6 +443,173 @@ describe("settlement input assembly", () => {
                         line: expect.any(Number),
                     }),
                 ]),
+            );
+        } finally {
+            f.session.dispose();
+        }
+    });
+});
+
+describe("settlement assembly authority and identities", () => {
+    it("uses an indexed settlement culture for rural reservations ahead of the map", async () => {
+        const f = await assemblyFixture(false, false, false, false, true);
+        try {
+            const result = prepareSettlementInputs(f);
+            const culture = "sessionproof-note-lore-otherfolk";
+            expect(result.cultureSizes[culture]).toBe(10);
+            expect(result.ruralInput.existing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        identity: f.noteAddress,
+                        households: 5,
+                        householdSize: 10,
+                    }),
+                ]),
+            );
+            expect(proposeSettlements(result.ruralInput)).toMatchObject({ reservedPopulation: 50 });
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("uses the indexed culture for urban food need rather than the mapped culture", async () => {
+        const f = await assemblyFixture(false, true, false, false, true);
+        try {
+            const settings = {
+                ...f.settings,
+                urbanShares: { [f.polityAddress]: 0.2 },
+                urban: {
+                    cities: [{ identity: f.noteAddress, localFood: 0 }],
+                    sources: [{ id: "farm", foodSurplus: 20 }],
+                    routes: [
+                        {
+                            id: "route",
+                            city: f.noteAddress,
+                            source: "farm",
+                            mode: "river",
+                            leagues: 0,
+                            maxCargo: 20,
+                            access: true,
+                        },
+                    ],
+                },
+            };
+            const result = prepareSettlementInputs({ ...f, settings });
+            expect(result.urbanInput.cities[0].cultureAddress).toBe(
+                "sessionproof-note-lore-otherfolk",
+            );
+            expect(proposeUrbanSupply(result.urbanInput)).toMatchObject({
+                cities: [{ populationExact: 50, need: 65, unmet: 45 }],
+            });
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("reports an undeclared authored culture size instead of substituting the map size", async () => {
+        const f = await assemblyFixture(false, false, false, false, true, false, true);
+        try {
+            const result = prepareSettlementInputs(f);
+            expect(result.ruralInput).toBeUndefined();
+            expect(result.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        file: f.capitalFile,
+                        field: "culture sessionproof-note-lore-otherfolk",
+                    }),
+                ]),
+            );
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("includes a dependency seat and direct subordinate in the same session", async () => {
+        const f = await assemblyFixture(false, false, false, false, false, true);
+        try {
+            expect(f.session.foreign.index.has("other-note-place-port")).toBe(true);
+            const result = prepareSettlementInputs(f);
+            expect(result.existingFacts).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        fact: expect.objectContaining({
+                            identity: "other-note-place-port",
+                            population: 20,
+                        }),
+                    }),
+                ]),
+            );
+            expect(result.subpolities).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        address: "other-note-affiliation-child",
+                        ruralPopulation: 50,
+                        cellIds: [8],
+                    }),
+                ]),
+            );
+            expect(proposeSettlements(result.ruralInput)).toMatchObject({ reservedPopulation: 95 });
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("reports shared rural and urban sources before either calculation, even without placements", async () => {
+        const f = await assemblyFixture(false, true);
+        try {
+            const bindings = {
+                notes: [{ address: f.noteAddress, source: { mapId: "map", kind: "cell", id: 7 } }],
+            };
+            const settings = {
+                ...f.settings,
+                urbanShares: { [f.polityAddress]: 0.2 },
+                urban: {
+                    cities: [{ identity: f.noteAddress, localFood: 0 }],
+                    sources: [],
+                    routes: [],
+                },
+            };
+            for (const current of [
+                settings,
+                { ...settings, placements: undefined, landRules: undefined },
+            ]) {
+                const result = prepareSettlementInputs({ ...f, bindings, settings: current });
+                expect(result.ruralInput).toBeUndefined();
+                expect(result.urbanInput).toBeUndefined();
+                expect(result.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            field: "generatorSource",
+                            message: expect.stringContaining("also bound"),
+                        }),
+                    ]),
+                );
+            }
+            const distinct = prepareSettlementInputs({ ...f, settings });
+            expect(distinct.missing.some((item: any) => item.message.includes("also bound"))).toBe(
+                false,
+            );
+            const invalidBurg = prepareSettlementInputs({
+                ...f,
+                map: {
+                    ...f.map,
+                    cells: [
+                        {
+                            ...f.map.cells[0],
+                            burg: { i: 11 },
+                            burgCultureAddress: f.cultureAddress,
+                        },
+                    ],
+                },
+                bindings: {
+                    notes: [
+                        {
+                            address: f.noteAddress,
+                            source: { mapId: "map", kind: "burg", id: 11, slot: 0 },
+                        },
+                    ],
+                },
+                settings,
+            });
+            expect(invalidBurg.urbanInput).toBeUndefined();
+            expect(invalidBurg.missing).toEqual(
+                expect.arrayContaining([expect.objectContaining({ field: "generatorSource" })]),
             );
         } finally {
             f.session.dispose();
