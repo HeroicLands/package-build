@@ -139,7 +139,7 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
                     timeout: 30000,
                 });
             const dry = run();
-            expect(dry.status, dry.stderr).toBe(0);
+            expect(dry.status, `${dry.stderr}\n${dry.stdout}`).toBe(0);
             const dryReport = JSON.parse(dry.stdout);
             expect(dryReport.rows).toHaveLength(1);
             expect(dryReport.resourceInputs.map((item: any) => path.basename(item.file))).toEqual(

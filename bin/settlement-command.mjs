@@ -341,7 +341,12 @@ export function settlementCommand() {
                         inputs.selection,
                     );
                     let authoring, resourceInputs;
-                    if (!argv.checksModule) {
+                    const selectionMissing = result.missing.filter(
+                        (item) => item.field !== "naming",
+                    );
+                    if (selectionMissing.length) {
+                        authoring = { missing: selectionMissing };
+                    } else if (!argv.checksModule) {
                         authoring = {
                             missing: [
                                 ...result.missing.filter((item) => item.field !== "naming"),

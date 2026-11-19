@@ -443,6 +443,17 @@ it("runs a bounded named settlement preview and explicit write with captured inp
                 },
                 timeout: 30000,
             });
+        const inputsPath = path.join(f.root, "inputs.json");
+        const validInputs = fs.readFileSync(inputsPath, "utf8");
+        const invalidInputs = JSON.parse(validInputs);
+        invalidInputs.selection.cellIds = [999];
+        fs.writeFileSync(inputsPath, JSON.stringify(invalidInputs));
+        const invalid = run("--write");
+        expect(invalid.status).toBe(1);
+        expect(invalid.stderr).toContain("select mapped direct cells outside subordinate polities");
+        expect(JSON.parse(invalid.stdout).missing[0].field).toBe("selection");
+        expect(fs.readFileSync(crown, "utf8")).toBe(before);
+        fs.writeFileSync(inputsPath, validInputs);
         const dry = run();
         expect(dry.status, dry.stderr).toBe(0);
         const dryReport = JSON.parse(dry.stdout);
