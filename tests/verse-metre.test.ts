@@ -197,19 +197,26 @@ describe("the beats of a line", () => {
         };
         const inherited = metreBooksFromRecords([child, language()], inheritedConfig).get("child");
         expect(lineBeats("pra ir", inherited)).toEqual({ min: 0, max: 0 });
-        expect(lineBeats("ul", inherited)).toEqual({ min: 1, max: 1 });
+        expect([...(inherited?.classes.get("ul") ?? [])]).toEqual(["n", "part"]);
+        expect(lineBeats("ul", inherited)).toEqual({ min: 0, max: 1 });
+        expect([...(inherited?.classes.get("ulen") ?? [])]).toEqual(["n"]);
         expect([...(inherited?.classes.get("zaren") ?? [])]).toEqual(["n"]);
         expect(inherited?.classes.has("zars")).toBe(false);
     });
 
-    it.each(["sa", "ol"])(
-        "keeps every nearest-generation class of the local or inherited homograph %s",
-        (homograph) => {
+    it.each([
+        { homograph: "sa", classes: ["n", "part", "v", "adj"] },
+        { homograph: "ol", classes: ["n", "part", "v"] },
+    ])(
+        "inherits each class independently for $homograph and replaces only matching entries",
+        ({ homograph, classes }) => {
             const ancestor = {
                 ...language({
                     words: [
                         { form: "sa", class: "adj" },
+                        { form: "sa", class: " n ", variants: ["pra"] },
                         { form: "ol", class: "v" },
+                        { form: "ol", class: " n ", variants: ["lon"] },
                         { form: "ir", class: "conj" },
                     ],
                 }),
@@ -243,7 +250,9 @@ describe("the beats of a line", () => {
             const inherited = metreBooksFromRecords([ancestor, child, parent], familyConfig).get(
                 "child",
             );
-            expect([...inherited.classes.get(homograph)]).toEqual(["n", "part"]);
+            expect([...inherited.classes.get(homograph)]).toEqual(classes);
+            expect(inherited.classes.has("pra")).toBe(false);
+            expect(inherited.classes.has("lon")).toBe(false);
             expect(lineBeats(homograph, inherited)).toEqual({ min: 0, max: 1 });
             expect([...inherited.classes.get("ir")]).toEqual(["conj"]);
             expect(lineBeats("ir", inherited)).toEqual({ min: 0, max: 0 });

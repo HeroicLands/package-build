@@ -7343,6 +7343,15 @@ note, and a blank value is an error.
 Following it from note to note never returns to where it started: a chain
 that does is a cycle, and an error on every note in it.
 
+Each NFC form and normalized class uses the nearest whole entry in that chain.
+Its variants, explicit plural and native writings come only from that entry;
+omitted fields do not come from a more distant definition of the same entry.
+A different class of the same spelling inherits independently, with its own
+meanings and forms. Word recognition, native writing and verse scanning use
+these same entries. A one-syllable spelling with both a content class and a
+function class can contribute zero or one beat, including when one class is
+inherited.
+
 Each finding is located at the key at fault:
 
 | Finding                                                                | Severity |
