@@ -3927,3 +3927,7 @@ input throws; the optional failure callback constructs contextual errors. This
 inspection does not decode image pixels or establish the authority of public
 note metadata. The caller must validate image payloads, verify referenced public
 notes against local notes, and check artwork eligibility for the intended output.
+
+### Verified download cache
+
+`downloadCached(url, sha256, options)` in `engine/download-cache` returns an absolute path to a file verified against the supplied lowercase SHA-256. HTTPS downloads use a shared per-user cache keyed by the digest, so callers can reuse the same bytes across repositories and file types. Cache hits are checked before use. `cacheDir` selects an absolute cache directory; `maxBytes`, `signal`, and `fetch` bound or control the request. The caller reads and interprets the returned file.
