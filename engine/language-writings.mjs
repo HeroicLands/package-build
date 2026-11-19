@@ -14,7 +14,7 @@
 /**
  * Native word spellings under any encoding: authored entries first, then all
  * stated parts, affixes and grammatical endings. Ambiguous spellings remain
- * findings, with every matching gloss. Exact lexical forms precede folded
+ * findings, with every matching gloss. NFC-exact lexical forms precede folded
  * lookup, preserving explicitly distinct capitalized spellings.
  */
 
@@ -29,6 +29,9 @@ const isMap = (value) => value !== null && typeof value === "object" && !Array.i
 
 /** A list value, or an empty one. */
 const listOf = (value) => (Array.isArray(value) ? value : []);
+
+/** Canonically equivalent spellings share an exact match; case and separators remain. */
+const nfc = (form) => form.normalize("NFC");
 
 /** A form with its joining hyphens taken off. */
 const bare = (form) => form.replace(/^[-–]+|[-–]+$/gu, "");
@@ -181,13 +184,19 @@ function findWritings(data, enc, font) {
      * @returns {Writing}
      */
     const part = (piece, visiting) => {
+        const normalized = nfc(piece);
         const affixForms = (affix) =>
-            [affix.form, affix.front].filter((form) => typeof form === "string");
+            [affix.form, affix.front].filter((form) => typeof form === "string").map(nfc);
         const stages = [
-            [indexed.filter(({ word }) => word.form === piece), []],
-            [[], affixes.filter((affix) => affixForms(affix).includes(piece))],
-            [indexed.filter(({ word }) => bare(word.form) === bare(piece)), []],
-            [[], affixes.filter((affix) => affixForms(affix).some((f) => bare(f) === bare(piece)))],
+            [indexed.filter(({ word }) => nfc(word.form) === normalized), []],
+            [[], affixes.filter((affix) => affixForms(affix).includes(normalized))],
+            [indexed.filter(({ word }) => bare(nfc(word.form)) === bare(normalized)), []],
+            [
+                [],
+                affixes.filter((affix) =>
+                    affixForms(affix).some((f) => bare(f) === bare(normalized)),
+                ),
+            ],
         ];
         for (const [matchedWords, matchedAffixes] of stages) {
             const candidates = candidatesOf(matchedWords, matchedAffixes, visiting);
@@ -217,11 +226,16 @@ function findWritings(data, enc, font) {
      * @returns {Writing}
      */
     const word = (written) => {
+        const normalized = nfc(written);
         const folded = foldWord(written);
         const none = new Set();
         const stages = [
-            indexed.filter(({ word: one }) => one.form === written),
-            indexed.filter(({ word: one }) => listOf(one.variants).includes(written)),
+            indexed.filter(({ word: one }) => nfc(one.form) === normalized),
+            indexed.filter(({ word: one }) =>
+                listOf(one.variants).some(
+                    (form) => typeof form === "string" && nfc(form) === normalized,
+                ),
+            ),
             indexed.filter(({ word: one }) => foldWord(one.form) === folded),
             indexed.filter(({ word: one }) =>
                 listOf(one.variants).some(

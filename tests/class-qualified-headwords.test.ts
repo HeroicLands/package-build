@@ -8,6 +8,8 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { coreReport } from "../engine/core-report.mjs";
+import { anchorsOf } from "../engine/foundry-entries.mjs";
+import { buildPages, journalPageId, splitPages } from "../engine/journals.mjs";
 import { collectAnchors } from "../engine/anchors.mjs";
 import {
     DICTIONARY_COLUMNS,
@@ -132,6 +134,48 @@ describe("class-qualified headwords", () => {
         expect(terms.find((row) => row.name === "unique")?.word).toBe(`${key("child")}#${unique}`);
     });
 
+    it("links an empty daughter's inherited homographs to one complete ancestor group", () => {
+        const root = language("root", {
+            words: [
+                word("read", "v", "understand writing"),
+                word("unique", "adj", "one of a kind"),
+            ],
+        });
+        const middle = language("middle", {
+            family: key("root"),
+            words: [word("read", "n", "a reading")],
+        });
+        const empty = language("child", { family: key("middle"), words: [] });
+        const all = [root, middle, empty, culture];
+        const { dictionary, terms } = dictionaryAndTermRows(all);
+        const group = dictionaryEntryAnchor(key("middle"), "read");
+        expect(terms.filter((row) => row.name === "read").map((row) => row.word)).toEqual([
+            `${key("middle")}#${group}`,
+            `${key("middle")}#${group}`,
+        ]);
+        expect(terms.find((row) => row.name === "unique")?.word).toBe(
+            `${key("root")}#${dictionaryEntryAnchor(key("root"), "unique")}`,
+        );
+        const body = `# Words {#dictionary}\n\n${renderDictionary({ columns: [...DICTIONARY_COLUMNS], rows: dictionary.filter((row) => row.language === key("middle")) })}`;
+        expect(body).toContain("A reading.");
+        expect(body).toContain("Understand writing.");
+        const id = "abcdefghijklmnop";
+        const uuid = `Compendium.demo.journals.JournalEntry.${id}`;
+        const pages = splitPages(body, "Middle");
+        const targets = anchorsOf(uuid, id, body, "Middle");
+        const containing = `${uuid}.JournalEntryPage.${journalPageId(id, pages[0])}`;
+        const html = buildPages(pages, id, "Middle")[0].text?.content ?? "";
+        for (const wordClass of [undefined, "n", "v"]) {
+            const anchor = dictionaryEntryAnchor(key("middle"), "read", wordClass);
+            expect(targets[anchor]).toBe(`${containing}#${anchor}`);
+            expect(html).toContain(`id="${anchor}"`);
+        }
+        const hidden = dictionaryAndTermRows([root, empty, culture], all).terms;
+        expect(
+            hidden.filter((row) => row.name === "read").map((row) => [row.class, row.word]),
+        ).toEqual([["v", `${key("root")}#${dictionaryEntryAnchor(key("root"), "read")}`]]);
+    });
+
     it("applies spelling citations to every matching class", () => {
         const source = { ...parent, citations: [{ form: "read", notes: ["demo-note-lore-book"] }] };
         const { dictionary } = dictionaryAndTermRows([source]);
@@ -164,6 +208,65 @@ describe("class-qualified headwords", () => {
         expect(result.languages[0].missing[0].concepts.map((entry) => entry.id)).toEqual([
             "read-noun",
         ]);
+    });
+
+    it.each(["é", "e\u0301"])("compares every NFC-equivalent native candidate for %s", (form) => {
+        for (const agree of [false, true]) {
+            const ancestor = language("parent", {
+                words: [word("é", "v", "verb meaning", agree ? "α" : "β")],
+            });
+            const daughter = language("child", {
+                family: key("parent"),
+                words: [
+                    word("e\u0301", "n", "noun meaning"),
+                    word("É", "n", "capital meaning", "γ"),
+                    { form: "built", class: "n", gloss: "built meaning", built: [form] },
+                    { form: "joined", class: "n", gloss: "joined meaning", built: [`-${form}-`] },
+                ],
+            });
+            const lexicon = lexiconsFromRecords([ancestor, daughter], config).get("child");
+            const writing = writingsOf(lexicon.data, "demo-note-doc-letters", undefined);
+            const ambiguous = (written) => ({
+                ambiguous: { form: written, glosses: ["noun meaning", "verb meaning"] },
+            });
+            expect(writing.word(form)).toEqual(
+                agree ? { text: "α", source: "own" } : ambiguous(form),
+            );
+            expect(writing.word("built")).toEqual(
+                agree ? { text: "α", source: "parts" } : ambiguous(form),
+            );
+            expect(writing.word("joined")).toEqual(
+                agree ? { text: "α", source: "parts" } : ambiguous(`-${form}-`),
+            );
+            expect(writing.word("É")).toEqual({ text: "γ", source: "own" });
+        }
+    });
+
+    it("compares variants and affix pieces in NFC with their existing precedence", () => {
+        const words = [
+            { ...word("first", "n", "first meaning"), variants: ["e\u0301"] },
+            { ...word("second", "v", "second meaning", "β"), variants: ["é"] },
+            { form: "built", class: "n", gloss: "built meaning", built: ["é-"] },
+        ];
+        const affixes = [
+            {
+                form: "e\u0301-",
+                gloss: "affix meaning",
+                native: [{ enc: "demo-note-doc-letters", text: "γ" }],
+            },
+        ];
+        const writing = writingsOf({ words, affixes }, "demo-note-doc-letters", undefined);
+        for (const form of ["é", "e\u0301"])
+            expect(writing.word(form)).toEqual({
+                ambiguous: { form, glosses: ["first meaning", "second meaning"] },
+            });
+        expect(writing.word("built")).toEqual({ text: "γ", source: "parts" });
+        const exact = writingsOf(
+            { words: [...words, word("é", "n", "exact meaning", "δ")], affixes },
+            "demo-note-doc-letters",
+            undefined,
+        );
+        expect(exact.word("e\u0301")).toEqual({ text: "δ", source: "own" });
     });
 
     it("keeps native-writing ambiguity explicit across inherited classes", () => {

@@ -554,6 +554,33 @@ export function dictionaryAndTermRows(records, all = records) {
             });
         }
 
+    const dictionaryTargets = new Map();
+    const hasDictionary = (language) =>
+        visible.has(language) &&
+        Array.isArray(languages.get(language)?.data?.words) &&
+        languages.get(language).data.words.length > 0;
+    /** One real dictionary target for every class of a spelling-only reference. */
+    const dictionaryTarget = (language, name, found) => {
+        if (!found) return undefined;
+        if (hasDictionary(language)) return language;
+        const key = wordKey(language, name);
+        if (!dictionaryTargets.has(key)) {
+            const matches = wordRows.get(key)?.found ?? [];
+            const target =
+                matches.length > 1 ?
+                    lineage(language).find((ancestor) => {
+                        if (!hasDictionary(ancestor)) return false;
+                        const shown = wordRows.get(wordKey(ancestor, name))?.found ?? [];
+                        return matches.every((match) =>
+                            shown.some((entry) => entry.word === match.word),
+                        );
+                    })
+                :   found.statedIn;
+            dictionaryTargets.set(key, target);
+        }
+        return dictionaryTargets.get(key);
+    };
+
     const terms = [];
     const termRow = (
         { owner, ownerKind, language, name, cultures, found },
@@ -563,13 +590,7 @@ export function dictionaryAndTermRows(records, all = records) {
         origins,
     ) => {
         const word = found?.word;
-        const wordLanguage =
-            (
-                Array.isArray(languages.get(language)?.data?.words) &&
-                languages.get(language).data.words.length
-            ) ?
-                language
-            :   found?.statedIn;
+        const wordLanguage = dictionaryTarget(language, name, found);
         const nameSort =
             marked(marks, "name_sort") ??
             (typeof word?.name_sort === "string" && word.name_sort ? word.name_sort : name);

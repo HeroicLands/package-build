@@ -8302,12 +8302,18 @@ or an affiliation's `data.glossary`, or an affiliation's rank or office.
 | `letter`        | The heading letter, as for a word.                                                                                                                                               |
 | `pronunciation` | The glossary entry's respelling, else the dictionary word's; `NULL` where neither states one.                                                                                    |
 | `class`         | The matching dictionary word's class, as written; `NULL` where no word matches.                                                                                                  |
-| `word`          | The matching spelling's dictionary group: the resolved language's when it has own words, else the visible defining language's; `NULL` where no word matches.                     |
+| `word`          | The matching spelling's dictionary target; see the inheritance rule below. `NULL` where no word matches.                                                                         |
 | `senses`        | A list of `{ text, bodies }`: a dictionary word's gloss senses with no bodies, or the entry's definition with its owner, or a rank's or office's descriptions with their bodies. |
 | `usage`         | Citation Addresses: governance usage, inherited dictionary usage or the defining owner; a copied reached title also cites its selecting owner.                                   |
 | `common`        | Whether this owner's glossary entry marks the term part of its core vocabulary.                                                                                                  |
 | `origins`       | Which sources gave it: `rank`, `office`, `glossary`.                                                                                                                             |
 | `cultures`      | The cultures associated through the owner and its parents, as a list of Addresses for selecting reached ranks and offices.                                                       |
+
+A word link targets the resolved language's dictionary when that language
+states words. Otherwise, a shared spelling targets the nearest visible ancestor
+whose dictionary contains all its matching entries. Every class links to that
+same group. A unique entry targets its visible defining language. Empty
+language dictionaries are not generated.
 
 A standalone word entry without a definition uses the dictionary's
 citations; an explicit term cites its owner. A rank or office keeps its
