@@ -99,6 +99,27 @@ describe("geographic placement sites", () => {
         data.map.cells = [box(1, -1, -1, 5, 5), box(2, -2, -2, 6, 6)];
         expect(discoverPlacementSites(data).missing[0].code).toBe("ambiguous-geometry");
     });
+    it("detects overlapping interiors between grid points", () => {
+        const data = input();
+        data.map.cells = [
+            box(1, 0, 0, 6, 6),
+            cell(2, [
+                [3, 0],
+                [6, 3],
+                [3, 6],
+                [0, 3],
+            ]),
+        ];
+        data.spacingMeters = 18520;
+        expect(discoverPlacementSites(data).missing[0].code).toBe("ambiguous-geometry");
+    });
+    it("finishes empty thin grids without traversing their long dimension", () => {
+        const data = input();
+        data.map.cells = [box(1, 1, 0, 1, 3e12)];
+        expect(discoverPlacementSites(data)).toMatchObject({ candidates: [], missing: [] });
+        data.map.cells = [box(1, 0, 1, 3e12, 1)];
+        expect(discoverPlacementSites(data)).toMatchObject({ candidates: [], missing: [] });
+    });
     it("bounds work and output without returning partial results", () => {
         const data = input();
         data.workLimit = 0;

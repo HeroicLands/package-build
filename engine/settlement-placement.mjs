@@ -58,7 +58,7 @@ const touches = (a, b, c, d) =>
  * @param {number} input.spacingMeters - Minimum spacing in meters, strictly positive.
  * @param {number} input.candidateLimit - Maximum returned sites, a nonnegative safe integer.
  * @param {number} input.workLimit - Maximum geometric operations, a positive safe integer.
- * @returns {{provenance: object, candidates: Array<{cellId: number, point: number[]}>, missing: Array<{code: string, message: string}>}} Sites or a diagnostic; failures return no partial sites.
+ * @returns {{provenance: {mapId: string, mapHash: string, jsonHash: string, units: object, spacingMeters: number}, candidates: Array<{cellId: number, point: number[]}>, missing: Array<{code: string, message: string}>}} Sites or a diagnostic; failures return no partial sites.
  */
 export function discoverPlacementSites({
     map,
@@ -171,6 +171,32 @@ export function discoverPlacementSites({
             orientations.set(cell.id, Math.sign(area));
         }
         cells.sort((a, b) => a.id - b.id);
+        const edgeEnters = (polygon, other) => {
+            for (let i = 0; i < polygon.length; i++) {
+                const start = polygon[i],
+                    end = polygon[(i + 1) % polygon.length];
+                const axis = start[0] !== end[0] ? 0 : 1;
+                const cuts = [start, end];
+                for (const p of other) {
+                    charge();
+                    if (onSegment(start, end, p)) cuts.push(p);
+                }
+                cuts.sort((a, b) => {
+                    charge();
+                    return a[axis] - b[axis];
+                });
+                for (let k = 1; k < cuts.length; k++) {
+                    charge();
+                    if (cuts[k - 1][axis] === cuts[k][axis]) continue;
+                    const midpoint = [
+                        cuts[k - 1][0] / 2 + cuts[k][0] / 2,
+                        cuts[k - 1][1] / 2 + cuts[k][1] / 2,
+                    ];
+                    if (locate(midpoint, other) === 2) return true;
+                }
+            }
+            return false;
+        };
         for (let i = 0; i < cells.length; i++)
             for (let j = i + 1; j < cells.length; j++) {
                 const a = cells[i].boundary,
@@ -218,7 +244,9 @@ export function discoverPlacementSites({
                 if (
                     sameBoundary ||
                     a.some((p) => locate(p, b) === 2) ||
-                    b.some((p) => locate(p, a) === 2)
+                    b.some((p) => locate(p, a) === 2) ||
+                    edgeEnters(a, b) ||
+                    edgeEnters(b, a)
                 )
                     return fail("ambiguous-geometry", "cell interiors overlap");
             }
@@ -246,6 +274,7 @@ export function discoverPlacementSites({
         const [left, right, top, bottom] = bounds,
             columns = Math.max(0, right - left + 1),
             rows = Math.max(0, bottom - top + 1);
+        if (columns === 0 || rows === 0) return { provenance, candidates: [], missing: [] };
         if (!Number.isSafeInteger(columns * rows) || columns * rows > workLimit - work)
             return fail("work-limit", "grid traversal exceeds the work limit");
         const candidates = [];

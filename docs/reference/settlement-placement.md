@@ -24,3 +24,15 @@ if (result.missing.length) {
 `selectedMap` retains the map ID, both source hashes, pinned units and selected normalized cell polygons. Results include those provenance values and the spacing. Coordinates at least the requested distance from every supplied existing position are eligible. Supply `{ point: null }` for an existing site whose location is unknown; discovery reports `unknown-location` and returns no candidates. Do not substitute its cell center for a known position. The caller is responsible for supplying all relevant existing locations, including those outside the selected cells that may lie within the spacing distance.
 
 `missing` distinguishes invalid inputs and geometry, ambiguous overlapping cells, unknown locations, and work or candidate limits. A failure returns no partial candidate list. The work limit covers polygon validation, cell comparisons, grid traversal and position checks, including a preflight bound on grid traversal. Increase limits deliberately for a larger selected area; discovery does not treat a limit as a request to truncate results. Candidate sites are geometric possibilities, not a population, acreage or completed settlement proposal.
+
+## Input and result
+
+`map` supplies nonempty string `mapId`, `mapHash` and `jsonHash`, `units.distanceUnit` and positive finite `units.distanceScale`, and a `cells` array. Each cell supplies a distinct nonnegative safe integer `id` and a `boundary` array of at least three finite `[x, y]` coordinate pairs. `existingSites` is an array of objects with `point`, either a finite `[x, y]` pair or `null`. Limits are safe integers: `candidateLimit` may be zero; `workLimit` must be positive. `spacingMeters` is a positive finite number. An empty cells array yields no candidates.
+
+The result has three keys:
+
+- `provenance` contains the supplied `mapId`, `mapHash`, `jsonHash`, a copy of `units`, and `spacingMeters`.
+- `candidates` is an array of `{ cellId, point }` objects. `cellId` is the packed cell ID; `point` is an `[x, y]` pair in map coordinates.
+- `missing` is an array of `{ code, message }` diagnostics. A successful result has an empty array; a diagnostic result contains one entry and no candidates.
+
+Diagnostic codes are `invalid-input` for missing or malformed inputs, `invalid-geometry` for malformed cell polygons or IDs, `ambiguous-geometry` for overlapping cell interiors, `unknown-location` for an existing site without a position, `work-limit` when geometry or grid work exceeds the limit, and `candidate-limit` when the result would exceed its limit. The hashes and units describe the caller's normalized input; discovery does not itself read or verify map files.
