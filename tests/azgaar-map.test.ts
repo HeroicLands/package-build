@@ -143,8 +143,9 @@ describe("Azgaar Full JSON", () => {
                 {
                     id: 0,
                     gridId: 1,
-                    temperature: 22,
-                    precipitation: 3,
+                    elevationScale: 30,
+                    temperatureCelsius: 22,
+                    precipitation100mm: 3,
                     area: 40,
                     ruralPopulation: 200,
                     urbanPopulation: 600,
@@ -171,7 +172,76 @@ describe("Azgaar Full JSON", () => {
             { mapId: "999" },
             { units: { ...units, distanceScale: 3 } },
         ])
-            expect(() => readAzgaarMap(f.input(f.data, pin))).toThrow(/:1:1: error:/);
+            expect(() => readAzgaarMap(f.input(f.data, pin))).toThrow(
+                /(?:world\.map|world\.json): error:/,
+            );
+    });
+    it("maps a burg culture independently of its cell", () => {
+        const f = fixture();
+        const burg = f.data.pack.burgs[1] as any;
+        burg.culture = 2;
+        f.data.pack.cultures.push({ i: 2, name: "Other" });
+        const mapping = { ...f.mapping, cultures: { ...f.mapping.cultures, "2": "lore-other" } };
+        const cell = readAzgaarMap({ ...f.input(), mapping }).cells[0];
+        expect(cell).toMatchObject({
+            cultureAddress: "lore-culture",
+            burgCulture: { i: 2 },
+            burgCultureAddress: "lore-other",
+        });
+        expect(() => readAzgaarMap(f.input())).toThrow(/burg.*culture mapping/);
+        burg.culture = 3;
+        expect(() => readAzgaarMap({ ...f.input(), mapping })).toThrow(/burg culture.*missing/);
+        (f.data.pack.cultures[2] as any).removed = true;
+        burg.culture = 2;
+        expect(() => readAzgaarMap({ ...f.input(), mapping })).toThrow(/burg culture.*removed/);
+        delete burg.culture;
+        expect(readAzgaarMap(f.input()).cells[0].burgCultureId).toBeNull();
+        burg.culture = 0;
+        expect(readAzgaarMap(f.input()).cells[0]).toMatchObject({
+            burgCultureId: 0,
+            burgCultureAddress: null,
+        });
+    });
+    it("locates malformed JSON when possible and reports hash errors at file scope", () => {
+        const f = fixture();
+        const bad = '{\n"x": }';
+        expect(() =>
+            readAzgaarMap({
+                ...f.input(),
+                json: bad,
+                pin: { ...f.input().pin, jsonHash: digest(bad) },
+            }),
+        ).toThrow(/world\.json:2:\d+: error: invalid JSON/);
+        expect(() => readAzgaarMap(f.input(f.data, { mapHash: "0".repeat(64) }))).toThrow(
+            /^world\.map: error:/,
+        );
+    });
+    it("rejects empty or degenerate polygons and malformed route geometry", () => {
+        const f = fixture();
+        const empty = structuredClone(f.data);
+        empty.pack.cells[0].v = [];
+        expect(() => readAzgaarMap(f.input(empty))).toThrow(/vertices/);
+        const flat = structuredClone(f.data);
+        flat.pack.vertices[2].p = [5, 0];
+        expect(() => readAzgaarMap(f.input(flat))).toThrow(/degenerate polygon/);
+        const missing = structuredClone(f.data);
+        (missing.pack.routes[0] as any).points = [];
+        expect(() => readAzgaarMap(f.input(missing))).toThrow(/route 0.*geometry/);
+        const wrong = structuredClone(f.data);
+        wrong.pack.routes[0].points[0][2] = 999;
+        expect(() => readAzgaarMap(f.input(wrong))).toThrow(/route 0.*cell IDs/);
+    });
+    it("bounds input bytes and collections before indexing", () => {
+        const f = fixture();
+        expect(() => readAzgaarMap({ ...f.input(), limits: { mapBytes: 10 } })).toThrow(
+            /^world\.map: error:.*byte limit/,
+        );
+        expect(() => readAzgaarMap({ ...f.input(), limits: { jsonBytes: 10 } })).toThrow(
+            /^world\.json: error:.*byte limit/,
+        );
+        expect(() => readAzgaarMap({ ...f.input(), limits: { records: 1 } })).toThrow(
+            /record limit/,
+        );
     });
     it("rejects removed states, missing cultures, bad grid links and broken routes", () => {
         const f = fixture();
