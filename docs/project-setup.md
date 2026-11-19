@@ -66,9 +66,9 @@ frontmatter directly; a plain checkout builds without an export step. The
 tree is arranged for readers and authors, while `type:` determines how each
 note compiles.
 
-A package with an [`art.lock`](configuration.md#artlock) requires an explicit
-`package-build art fetch` before its first build and after its cache is cleaned.
-Ordinary builds read the verified cache offline.
+A package using [`art.packages`](configuration.md#artpackages) declares each
+artwork package as an exact required development dependency. `npm ci` installs
+the locked inputs in the package checkout.
 
 ## `package.json`
 
