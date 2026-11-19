@@ -292,7 +292,7 @@ describe("installed artwork in the content session", () => {
         const other = fixture();
         const collision = addSplit(other, "images/sub/portrait.svg", "other");
         await expect(createContentSession({ config: collision.config })).rejects.toThrow(
-            /deployment path|duplicate/i,
+            /duplicate artwork deployment path/i,
         );
     });
     it("renders the original on the website and the declared alternative in Foundry", async () => {
