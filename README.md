@@ -165,6 +165,13 @@ three disposable replacements and checks the resulting dictionary classes,
 meanings and rendered anchors. The canonical consumer notes
 stay in their own repository.
 
+For `consumer: thalorna-facial-hair`, supply the exact Thalorna commit as
+`consumer_sha`. The workflow archives that source, checks its culture profiles,
+compiles it with the candidate and checks the indexed profiles and generated
+characters. The `facial-hair-consumer-proof` artifact records the two commits,
+archive hashes, source profiles, indexed lists and generation counts. The source
+commit must contain the author's applicability declarations.
+
 The workflow requires registry and consumer dependency access; it does not
 publish a package or site.
 
