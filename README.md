@@ -148,6 +148,18 @@ headword proof.
 Set `art_archives: true` with `consumer: kethira` to add an isolated artwork
 archive compile. The Thalorna proofs ignore this option.
 
+Select `consumer: authoring-reference` to generate the controlled reference
+documents from the selected commit in an isolated snapshot. The
+`authoring-reference` artifact contains the documents and a receipt with the
+source commit and SHA-256 hashes; review them before committing the output.
+
+For a population consumer check, `ci/consumer-proof-populations.mjs` accepts
+source JSONL, published index JSONL, a JSON list of canonical subject Addresses,
+and a receipt path, in that order. Set `CANDIDATE_SHA` and `CONSUMER_SHA` to the
+full source commits. The receipt records hashes and verified counts without
+copying the private source records. This check covers index projections; public
+site and Foundry output and private entries require their own checks.
+
 All choices pack that commit, verify the archive integrity and installed bytes,
 and refuse changes to unrelated locked dependencies before the normal consumer
 compile. Kethira checks its content index and compiled packs. The encoding proof
