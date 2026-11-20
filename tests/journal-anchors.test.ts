@@ -285,6 +285,53 @@ describe("private source page identities", () => {
         expect(JSON.stringify(doc)).not.toContain("sourceIdentity");
     });
 
+    it("preserves static page and continuation IDs when paragraphs move headings", () => {
+        const source =
+            "# Account\n\nBefore.\n\n: Example {#Example}\n\n```text\nSample\n```\n\nAfter.\n\n## Details {#explicit}\n\nAn anchored section.\n\n# Details\n\nDetails.";
+        const expected = splitPages(source).map((page) => journalPageId(entryId, page));
+        const privateIds = (body) =>
+            splitPages(body, undefined, undefined, undefined, { source: body })
+                .filter((page) => page.name !== "Introduction")
+                .map((page) => journalPageId(entryId, page));
+        expect(privateIds(source)).toEqual(expected);
+        expect(privateIds(`A paragraph.\n\n${source}`)).toEqual(expected);
+    });
+
+    it("keys dynamic headings on unexpanded names across paragraph insertions and actual values", () => {
+        const heading = "Population {{data.population.actual}}";
+        const ids = (actual, prefix) => {
+            const source = `${prefix}# ${heading}\n\nAn account.\n\n# Static\n\nDetails.`;
+            const body = source.replace("{{data.population.actual}}", String(actual));
+            return splitPages(body, undefined, undefined, undefined, {
+                source,
+                lineMap: source.split("\n").map((_, line) => ({ line, generated: false })),
+            })
+                .filter((page) => page.name !== "Introduction")
+                .map((page) => journalPageId(entryId, page));
+        };
+        expect(ids(4700, "")).toEqual(ids(6800, "A paragraph.\n\n"));
+        expect(ids(4700, "")).toEqual([
+            makeId("journal-page", `${entryId}:${heading}`),
+            makeId("journal-page", `${entryId}:Static`),
+        ]);
+        expect(ids(4700, "")[0]).not.toBe(makeId("journal-page", `${entryId}:Population 4700`));
+    });
+
+    it("uses literal generated anchors across ordering changes and withholds concealed slugs from seeds", () => {
+        const source = "```sql\nSELECT 'Known {#known}', secret_heading\n```";
+        const pages = (body) =>
+            splitPages(body, undefined, undefined, undefined, {
+                source,
+                lineMap: body.split("\n").map(() => ({ line: 0, generated: true })),
+            });
+        const first = pages("# Known {#known}\n\nOne.\n\n# Hidden {#count4700}\n\nTwo.");
+        const second = pages("# Hidden {#count6800}\n\nTwo.\n\n# Known {#known}\n\nOne.");
+        expect(journalPageId(entryId, first[0])).toBe(anchorPageId(entryId, "known"));
+        expect(journalPageId(entryId, second[1])).toBe(journalPageId(entryId, first[0]));
+        expect(journalPageId(entryId, first[1])).toBe(journalPageId(entryId, second[0]));
+        expect(journalPageId(entryId, first[1])).not.toBe(anchorPageId(entryId, "count4700"));
+    });
+
     it("associates generated openings with their directive and structural ordinal", () => {
         const source = "```sql\nSELECT a_heading\n```";
         const render = (actual) => `# First ${actual}\n\nOne.\n\n# Second ${actual}\n\nTwo.`;
@@ -301,6 +348,12 @@ describe("private source page identities", () => {
 
     it("refuses an unassociated private opening and duplicate source identities", () => {
         expect(() =>
+            splitPages("# Rendered", undefined, undefined, undefined, {
+                file: "source.md",
+                bodyLine: 8,
+            } as any),
+        ).toThrow("source.md:8:1: error: private journal has no captured source");
+        expect(() =>
             splitPages("# Rendered\n\nBody.", undefined, undefined, undefined, {
                 source: "# Source\n\nBody.",
                 lineMap: [],
@@ -314,12 +367,12 @@ describe("private source page identities", () => {
                     {
                         name: "First",
                         anchorSlug: null,
-                        sourceIdentity: { key: "line:0:heading:0" },
+                        sourceIdentity: { name: "Source" },
                     },
                     {
                         name: "Second",
                         anchorSlug: null,
-                        sourceIdentity: { key: "line:0:heading:0" },
+                        sourceIdentity: { name: "Source" },
                     },
                 ],
                 "Account",

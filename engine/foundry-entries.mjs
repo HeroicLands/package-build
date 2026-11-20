@@ -157,17 +157,24 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
  * documentation journal's is {@link itemDocEntryId} of that. Stating it here is
  * what lets the content index publish an identity it did not re-derive.
  *
- * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], syntax?: import("./content-session.mjs").ContentSyntax, pageSource?: {source:string,lineMap?:object[],generatedFrom?:number,file?:string,bodyLine?:number}}} ctx - Resolved identities, optional session scanner projections, and captured source required for private journal routing.
+ * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], file?: string, bodyLine?: number, syntax?: import("./content-session.mjs").ContentSyntax, pageSource?: {source:string,lineMap?:object[],generatedFrom?:number,file?:string,bodyLine?:number}}} ctx - Resolved identities, optional session scanner projections, and captured source required for private journal routing.
  * @returns {Array<object>} One or two entries, in {@link buildManifest}'s shape.
  */
 export function entriesForNote(fm, name, address, body, ctx) {
     const { contentPackage, foundryPackageId, packRouter } = ctx;
     const journalPack = packRouter.resolveOrNull(fm, "JournalEntry");
-    const pageSource = packRouter.privateOf?.(journalPack) ? ctx.pageSource : undefined;
+    const pageSource =
+        packRouter.privateOf?.(journalPack) && ctx.pageSource ?
+            {
+                file: ctx.file,
+                bodyLine: ctx.bodyLine,
+                ...ctx.pageSource,
+            }
+        :   undefined;
     if (packRouter.privateOf?.(journalPack) && typeof pageSource?.source !== "string") {
         throw Object.assign(
             new Error(
-                `${pageSource?.file || "<journal>"}:${pageSource?.bodyLine ?? 1}:1: error: private journal has no captured source`,
+                `${pageSource?.file || ctx.file || "<journal>"}:${pageSource?.bodyLine ?? ctx.bodyLine ?? 1}:1: error: private journal has no captured source`,
             ),
             { located: true },
         );
@@ -353,7 +360,7 @@ export function collectFoundryEntries(contentBase, ctx) {
     // note yields two entries, so reporting one as the other overstates how
     // much of the tree is published.
     let notes = 0;
-    for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase, {
+    for (const { frontmatter: fm, body, absPath, bodyLine } of walkMarkdownTree(contentBase, {
         skipDirectories: ctx.skipDirectories,
         addressContext: ctx.addressContext ?? { package: ctx.contentPackage },
     })) {
@@ -391,7 +398,7 @@ export function collectFoundryEntries(contentBase, ctx) {
         entries.push(
             ...entriesForNote(fm, name, address, body ?? "", {
                 ...ctx,
-                pageSource: { source: body ?? "", file: absPath },
+                pageSource: { source: body ?? "", file: absPath, bodyLine },
             }),
         );
     }

@@ -2228,7 +2228,12 @@ function projectPublicationBody(
         frontmatter: fm,
         address,
         body: foundryBody,
-        manifest: { ...manifest, pageSource },
+        manifest: {
+            ...manifest,
+            pageSource,
+            file: record.file?.path,
+            bodyLine: pageSource?.bodyLine,
+        },
     });
     const declared = new Set(
         (record.anchors ?? [])
@@ -2382,16 +2387,22 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
         const lexical = (isGmNote(record) ? allLexical : publicLexical)?.get(
             canonicalKey(contentPackage, "note", record.type, record.shortcode),
         );
-        const body =
-            publication?.expandedBodies.get(file)?.markdown ??
-            insertLexicalSections(parsed.get(file).body, lexical, { syntax: publication?.syntax })
-                .markdown;
-        projectPublicationBody(records, record, body, {
+        const authored = parsed.get(file);
+        const expanded =
+            publication?.expandedBodies.get(file) ??
+            insertLexicalSections(authored.body, lexical, { syntax: publication?.syntax });
+        const pageSource = publication?.foundryBodies.get(file) ?? {
+            ...expanded,
+            source: authored.body,
+            file,
+            bodyLine: authored.bodyLine,
+        };
+        projectPublicationBody(records, record, expanded.markdown, {
             contentPackage,
             manifest: { ...foundryIdentities(resolved), syntax: publication?.syntax },
             resolveRole: (address) => embedRole(art, address),
-            foundryBody: publication?.foundryBodies.get(file).markdown,
-            pageSource: publication?.foundryBodies.get(file),
+            foundryBody: pageSource.markdown,
+            pageSource,
             syntax: publication?.syntax,
         });
     }

@@ -217,7 +217,7 @@ export function buildCompileAudiences(
                 fm.name?.full ?? record.file.name,
                 record.address.slug,
                 nativeBody,
-                { ...identities, pageSource: bodies.foundryBodies.get(file) },
+                { ...identities, pageSource: bodies.foundryBodies.get(file), file },
             );
             const nativeAnchors = collectAnchors(nativeBody, 1, undefined, syntax);
             const publicAnchors = collectAnchors(publicBody ?? "", 1, undefined, syntax).filter(

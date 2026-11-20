@@ -1813,7 +1813,7 @@ async function attachPreparedAnchors(prepared, records, contentBase, parsed, con
         const results = prepared.get(file);
         if (!results) continue;
         if (syntax) results.syntax = syntax;
-        const { body } = parsed.get(file) ?? parseMarkdownFile(file);
+        const { body, bodyLine } = parsed.get(file) ?? parseMarkdownFile(file);
         const expanded = expandContentTables(body, {
             source: file,
             sqlTables: results,
@@ -1827,7 +1827,7 @@ async function attachPreparedAnchors(prepared, records, contentBase, parsed, con
             frontmatter.name?.full ?? record.file.name,
             record.address.slug,
             expanded.markdown,
-            { ...identities, pageSource: { ...expanded, source: body, file } },
+            { ...identities, pageSource: { ...expanded, source: body, file, bodyLine } },
         );
         results.anchorUuids = entries[0]?.anchors;
         results.docAnchorUuids = entries[1]?.anchors;
