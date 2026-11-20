@@ -6,7 +6,8 @@
 
 import { formatDiagnostic } from "./diagnostics.mjs";
 import { makeId } from "./ids.mjs";
-import { encodeAddresses, renderAddress } from "./address.mjs";
+import { renderAddress } from "./address.mjs";
+import { encodeAddresses } from "./address-values.mjs";
 import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { journalHasContent } from "./note-state.mjs";
 import { configSourcePath } from "./pack-config.mjs";
