@@ -168,7 +168,7 @@ function sourcePageName(markdown, referenceName) {
 /**
  * Associate private page openings with authored names and literal anchor declarations.
  * @param {string} body - Expanded body.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} context - Captured source provenance.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined, publicAnchors?: Map<string, number>}} context - Captured source provenance.
  * @param {(address: string) => string|undefined} [resolveRole] - Figure roles.
  * @returns {(line: number, kind: string, anchor?: string|null) => object} Internal identity of an opening.
  */
@@ -229,17 +229,19 @@ function sourcePageIdentity(body, context, resolveRole) {
             appended ? "generated sections" : (
                 (directives.get(location.line) ?? lines[location.line])
             );
-        // Only a complete literal declaration can put a generated slug in an ID seed.
+        // Public expansion or a literal declaration authorizes a generated slug as an ID seed.
         if (
             anchor &&
-            !appended &&
-            [...directive.matchAll(/\{[^{}\n]*\}/g)].some(
-                ([attributes]) => splitHeadingAttributes(`Page ${attributes}`).id === anchor,
-            )
+            (context.publicAnchors?.has(anchor) ||
+                (!appended &&
+                    [...directive.matchAll(/\{[^{}\n]*\}/g)].some(
+                        ([attributes]) =>
+                            splitHeadingAttributes(`Page ${attributes}`).id === anchor,
+                    )))
         )
             return { anchor };
         const key = `${kind}:${directive}`;
-        return { key: `${key}:${ordinal(key)}` };
+        return { key: `${key}:${ordinal(key)}`, privateOnly: true };
     };
 }
 
@@ -275,10 +277,10 @@ function sourcePageIdentity(body, context, resolveRole) {
  *   name reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
  * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Session scanner projections.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} [pageSource] - Private page source provenance; omitted for public pages.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined, publicAnchors?: Map<string, number>}} [pageSource] - Private page source provenance; omitted for public pages.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
  *   classes: string[], figure: object|null, continues?: string,
- *   sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string}, markdown: string}>} Pages in document order.
+ *   sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string, privateOnly?: boolean}, markdown: string}>} Pages in document order.
  */
 export function splitPages(body, leadName = "Introduction", resolveRole, syntax, pageSource) {
     const identityAt = pageSource ? sourcePageIdentity(body, pageSource, resolveRole) : undefined;
@@ -384,6 +386,12 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
                                 }
                             :   {
                                     key: `continuation:${JSON.stringify(section.sourceIdentity)}:${JSON.stringify(itemIdentity)}`,
+                                    ...((
+                                        section.sourceIdentity?.privateOnly ||
+                                        itemIdentity?.privateOnly
+                                    ) ?
+                                        { privateOnly: true }
+                                    :   {}),
                                 }),
                         },
                     }
@@ -535,7 +543,7 @@ export function assertUniqueAnchors(rawPages, noteName) {
  * Public pages use their anchor or displayed section and continuation names.
  * @param {string} entryId - The owning JournalEntry's id.
  * @param {{anchorSlug: string|null, name: string, continues?: string,
- *   sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string}}} page - A split page.
+ *   sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string, privateOnly?: boolean}}} page - A split page.
  * @returns {string} A deterministic Foundry id.
  */
 export function journalPageId(entryId, page) {

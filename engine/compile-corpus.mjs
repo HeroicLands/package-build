@@ -44,7 +44,7 @@ import { routerFor } from "./pack-router.mjs";
 import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { projectPopulationFrontmatter } from "./population-values.mjs";
 import { collectAnchors } from "./anchors.mjs";
-import { entriesForNote, foundryIdentities, LEAD_ANCHOR } from "./foundry-entries.mjs";
+import { entriesForNote, foundryIdentities } from "./foundry-entries.mjs";
 import { indexRecordsFor, preparePublicationBodies } from "./content-index.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
@@ -73,7 +73,7 @@ import { prepareTreeSqlTables } from "./sql-tables.mjs";
  *   the index refuses is a note the compile must still *report*, exactly as the
  *   compile loop reported it when the loop was the first to see it.
  * @param {import("./content-session.mjs").ContentSession} [opts.session] - Captured context shared with other operations.
- * @returns {Promise<{config: object, audiences: Record<"public"|"all", {linkIndex: object, sqlTables: Map<string, object[]>|undefined}>, currentDate: string, runs: import("./content-scripts.mjs").RunContext, records: object[], parsed: Map<string, object>, linkIndex: object, sqlTables: Map<string, object[]>|undefined, problems: object[], syntax?: import("./content-session.mjs").ContentSyntax}>} The corpus,
+ * @returns {Promise<{config: object, audiences: Record<"public"|"all", {linkIndex: object, sqlTables: Map<string, object[]>|undefined}>, currentDate: string, runs: import("./content-scripts.mjs").RunContext, records: object[], parsed: Map<string, object>, pageSources: Map<string, object>, linkIndex: object, sqlTables: Map<string, object[]>|undefined, problems: object[], syntax?: import("./content-session.mjs").ContentSyntax}>} The corpus,
  *   its indexes, and the notes it could not record.
  */
 export async function buildCompileCorpus({
@@ -174,6 +174,7 @@ export async function buildCompileCorpus({
         }),
         records,
         parsed,
+        pageSources: bodies.foundryBodies,
         problems: collected,
         linkIndex,
         sqlTables,
@@ -223,24 +224,35 @@ export function buildCompileAudiences(
             const publicAnchors = collectAnchors(publicBody ?? "", 1, undefined, syntax).filter(
                 (anchor) => anchor.kind === "prose",
             );
-            const allowed = new Set(publicAnchors.map((anchor) => anchor.slug));
-            const visible = (slug) =>
-                audience === "all" || slug === LEAD_ANCHOR || allowed.has(slug);
+            const allowed = bodies.foundryBodies.get(file).publicAnchors;
+            const visible = (slug) => audience === "all" || allowed.has(slug);
             const filterIdentities = (values) =>
                 values &&
                 Object.fromEntries(Object.entries(values).filter(([slug]) => visible(slug)));
             const entry = [];
-            const nativeSlugs = new Set(nativeAnchors.map((anchor) => anchor.slug));
-            entry.anchors =
-                audience === "all" ? nativeAnchors : (
-                    publicAnchors.filter((anchor) => nativeSlugs.has(anchor.slug))
-                );
+            entry.anchors = audience === "all" ? nativeAnchors : publicAnchors;
             entry.anchorUuids = filterIdentities(entries[0]?.anchors);
             entry.docAnchorUuids = filterIdentities(entries[1]?.anchors);
             links.set(file, entry);
         }
+        const prepared = tables[audience];
+        const sqlTables = prepared && Object.assign(new Map(prepared), prepared);
+        if (sqlTables)
+            for (const [file, result] of prepared) {
+                const targets = links.get(file);
+                if (targets)
+                    sqlTables.set(
+                        file,
+                        Object.assign([...result], result, {
+                            anchors: targets.anchors,
+                            anchorUuids: targets.anchorUuids,
+                            docAnchorUuids: targets.docAnchorUuids,
+                            privatePageSourcePending: undefined,
+                        }),
+                    );
+            }
         audiences[audience] = {
-            sqlTables: tables[audience],
+            sqlTables,
             linkIndex: buildContentLinkIndex(contentBase, router, {
                 config,
                 records: records.map((record) => {

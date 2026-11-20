@@ -8,9 +8,9 @@ import { configFromData } from "../engine/pack-config.mjs";
 import { createPackRouter } from "../engine/pack-router.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
-import { Journals } from "../engine/journals.mjs";
+import { Journals, splitPages, journalPageId } from "../engine/journals.mjs";
 import { collectFoundryEntries, foundryIdentities } from "../engine/foundry-entries.mjs";
-import { parseMarkdownFile } from "../engine/helpers.mjs";
+import { parseMarkdownFile, buildContentLinkIndex } from "../engine/helpers.mjs";
 import { itemDescription } from "../engine/item-compiler.mjs";
 import { Items } from "../sohl/items.mjs";
 import { Scenes } from "../engine/scenes.mjs";
@@ -460,7 +460,7 @@ it.each(["session", "standalone"])(
                 body,
                 "",
                 "```sql",
-                "SELECT CASE WHEN data.population.actual IS NULL THEN 'Public estimate {#generated}' ELSE 'Generated ' || data.population.actual || ' {#generated}' END AS \"_section\", 'An account.' AS Entry FROM notes WHERE type = 'map' AND shortcode = 'map' AND documents IS NULL",
+                "SELECT (CASE WHEN data.population.actual IS NULL THEN 'Public estimate' ELSE 'Generated ' || data.population.actual END) || ' {#' || 'generated' || '}' AS \"_section\", 'An account.' AS Entry FROM notes WHERE type = 'map' AND shortcode = 'map' AND documents IS NULL",
                 "```",
             ].join("\n"),
             { type: "map", subType: "battlemap" },
@@ -683,6 +683,251 @@ it("locates a private item description's missing provenance at its authored body
         tree.close();
     }
 });
+
+it.each(["session", "standalone"])(
+    "keeps public data-assembled page targets stable across private rows in %s mode",
+    async (mode) => {
+        let previous;
+        for (const actual of [700, 1700]) {
+            const tree = input();
+            const query = [
+                "WITH subject AS (SELECT data.population.actual AS actual FROM notes WHERE type = 'place' AND shortcode = 'assembled')",
+                "SELECT (CASE WHEN actual IS NULL THEN 'Public ' ELSE 'Residents ' || actual || ' ' END) || code || ' {#' || code || '}' AS \"_section\", 'An account.' AS Entry FROM (",
+                "SELECT actual, 'alpha' AS code, CASE WHEN actual = 700 THEN 2 ELSE 0 END AS sort_order FROM subject",
+                "UNION ALL SELECT actual, 'beta', CASE WHEN actual = 700 THEN 0 ELSE 2 END FROM subject",
+                "UNION ALL SELECT actual, 'extra', 1 FROM subject WHERE actual = 1700",
+                "UNION ALL SELECT actual, 'end', 3 FROM subject) ORDER BY sort_order",
+            ].join("\n");
+            tree.add(
+                "assembled",
+                { pack: "private", population: { actual, apparent: 900 } },
+                `# Account {#account}\n\nAn account.\n\n\`\`\`sql\n${query}\n\`\`\`\n\n[Safe account]{#safe}.`,
+            );
+            tree.add(
+                "reader",
+                {},
+                "[[place-assembled#alpha|Alpha]] and [[place-assembled#safe|Safe]].",
+            );
+            const session = await createContentSession({ config: tree.config });
+            try {
+                const before = structuredClone({
+                    records: session.records,
+                    parsed: [...session.parsed],
+                });
+                const corpus =
+                    mode === "session" ?
+                        await session.compileCorpus()
+                    :   await buildCompileCorpus({
+                            config: tree.config,
+                            contentBase: tree.config.paths.content,
+                            skipDirectories: tree.config.skipDirectories,
+                            router: createPackRouter(tree.config.packs),
+                        });
+                const [document] = await compile(tree, corpus, "private");
+                const targets =
+                    corpus.audiences.public.linkIndex.byShortcode.get(
+                        "place/assembled",
+                    ).anchorUuids;
+                for (const slug of ["alpha", "beta", "end"]) {
+                    const page = document.pages.find(
+                        (page) => page.name === `Residents ${actual} ${slug}`,
+                    );
+                    expect(page._id).toBe(anchorPageId(document._id, slug));
+                    expect(targets[slug]).toBe(
+                        `Compendium.populationproof.private.JournalEntry.${document._id}.JournalEntryPage.${page._id}`,
+                    );
+                }
+                expect(targets.safe).toBe(targets.end);
+                expect(targets.extra).toBeUndefined();
+                expect(
+                    document.pages.some((page) => page.name === `Residents ${actual} extra`),
+                ).toBe(actual === 1700);
+                if (previous) expect(targets).toEqual(previous);
+                previous = targets;
+                const rawTables = await session.sqlTables("all");
+                const linkOptions = {
+                    config: tree.config,
+                    records: session.records,
+                    foreign: session.foreign,
+                };
+                expect(() =>
+                    buildContentLinkIndex(
+                        tree.config.paths.content,
+                        createPackRouter(tree.config.packs),
+                        {
+                            ...linkOptions,
+                            sqlTables: rawTables,
+                        },
+                    ),
+                ).toThrow("private generated journal targets require paired public preparation");
+                const complete = buildContentLinkIndex(
+                    tree.config.paths.content,
+                    createPackRouter(tree.config.packs),
+                    {
+                        ...linkOptions,
+                        sqlTables: corpus.audiences.all.sqlTables,
+                    },
+                );
+                expect(complete.byShortcode.get("place/assembled").anchorUuids.end).toBe(
+                    targets.end,
+                );
+                const publicDocs = await compile(tree, corpus, "journals");
+                expect(JSON.stringify(publicDocs)).toContain(targets.safe);
+                const publication = await session.publication();
+                const output = emitContentIndex({ config: tree.config, publication });
+                const metadata =
+                    fs.readFileSync(output.file, "utf8") +
+                    JSON.stringify([...corpus.audiences.public.linkIndex.byShortcode.values()]);
+                for (const hidden of [
+                    String(actual),
+                    "SELECT",
+                    "Residents",
+                    "publicAnchors",
+                    "privateOnly",
+                    "privatePageSourcePending",
+                ])
+                    expect(metadata).not.toContain(hidden);
+                expect({ records: session.records, parsed: [...session.parsed] }).toEqual(before);
+                for (const [file, text] of tree.sources)
+                    expect(fs.readFileSync(file, "utf8")).toBe(text);
+            } finally {
+                await session.dispose();
+                tree.close();
+            }
+        }
+    },
+);
+
+it.each(["session", "standalone"])(
+    "refuses a missing private target without changing public anchor presence in %s mode",
+    async (mode) => {
+        let projected;
+        for (const actual of [700, 1700]) {
+            const tree = input();
+            const query = [
+                "SELECT 'Baseline {#baseline}' AS \"_section\", 'An account.' AS Entry",
+                "UNION ALL SELECT 'Conditional {#' || shortcode || '}', 'An account.' FROM notes",
+                "WHERE type = 'place' AND shortcode = 'threshold' AND (data.population.actual IS NULL OR data.population.actual < 1000)",
+            ].join("\n");
+            tree.add(
+                "threshold",
+                { pack: "private", population: { actual, apparent: 900 } },
+                `# Account {#account}\n\nAn account.\n\n\`\`\`sql\n${query}\n\`\`\``,
+                { tags: ["gm"] },
+            );
+            const session = await createContentSession({ config: tree.config });
+            try {
+                const file = path.join(tree.config.paths.content, "threshold.md");
+                const publication = await session.publication();
+                const current = publication.expandedBodies.get(file).markdown;
+                expect(current).toContain("Conditional {#threshold}");
+                if (projected) expect(current).toBe(projected);
+                projected = current;
+                const build = () =>
+                    mode === "session" ?
+                        session.compileCorpus()
+                    :   buildCompileCorpus({
+                            config: tree.config,
+                            contentBase: tree.config.paths.content,
+                            skipDirectories: tree.config.skipDirectories,
+                            router: createPackRouter(tree.config.packs),
+                        });
+                if (actual === 1700) {
+                    await expect(build()).rejects.toThrow(
+                        /threshold\.md:\d+:1: error: public anchor "threshold" has no private journal target/,
+                    );
+                    expect(() => emitContentIndex({ config: tree.config, publication })).toThrow(
+                        /public anchor "threshold" has no private journal target/,
+                    );
+                    expect(documents(path.join(tree.config.paths.packJson, "private"))).toEqual([]);
+                } else {
+                    const corpus = await build();
+                    const [document] = await compile(tree, corpus, "private");
+                    const target =
+                        corpus.audiences.public.linkIndex.byShortcode.get("place/threshold")
+                            .anchorUuids.threshold;
+                    expect(target).toBe(
+                        `Compendium.populationproof.private.JournalEntry.${document._id}.JournalEntryPage.${anchorPageId(document._id, "threshold")}`,
+                    );
+                    expect(
+                        document.pages.some(
+                            (page) => page._id === anchorPageId(document._id, "threshold"),
+                        ),
+                    ).toBe(true);
+                    const output = emitContentIndex({ config: tree.config, publication });
+                    expect(fs.readFileSync(output.file, "utf8")).toContain(target);
+                }
+                for (const [source, text] of tree.sources)
+                    expect(fs.readFileSync(source, "utf8")).toBe(text);
+            } finally {
+                await session.dispose();
+                tree.close();
+            }
+        }
+    },
+);
+
+it.each(["session", "standalone"])(
+    "refuses a public span on a private positional generated page in %s mode",
+    async (mode) => {
+        let privateTarget;
+        for (const actual of [700, 1700]) {
+            const tree = input();
+            const query = [
+                "WITH subject AS (SELECT data.population.actual AS actual FROM notes WHERE type = 'place' AND shortcode = 'trailing')",
+                "SELECT title AS \"_section\", 'An account.' AS Entry FROM (",
+                "SELECT 'Baseline {#baseline}' AS title, 0 AS sort_order",
+                "UNION ALL SELECT 'Private earlier', 1 FROM subject WHERE actual = 1700",
+                "UNION ALL SELECT 'Private final', 2 FROM subject WHERE actual IS NOT NULL) ORDER BY sort_order",
+            ].join("\n");
+            tree.add(
+                "trailing",
+                { pack: "private", population: { actual, apparent: 900 } },
+                `# Account {#account}\n\nAn account.\n\n\`\`\`sql section-level=1\n${query}\n\`\`\`\n\n[Safe account]{#safe}.`,
+            );
+            const session = await createContentSession({ config: tree.config });
+            try {
+                const publication = await session.publication();
+                const native = publication.foundryBodies.get(
+                    path.join(tree.config.paths.content, "trailing.md"),
+                );
+                const page = splitPages(
+                    native.markdown,
+                    undefined,
+                    undefined,
+                    undefined,
+                    native,
+                ).find((page) => page.name === "Private final");
+                expect(page.sourceIdentity.privateOnly).toBe(true);
+                const id = journalPageId(
+                    session.records.find((record) => record.shortcode === "trailing").id,
+                    page,
+                );
+                if (privateTarget) expect(id).not.toBe(privateTarget);
+                privateTarget = id;
+                const build = () =>
+                    mode === "session" ?
+                        session.compileCorpus()
+                    :   buildCompileCorpus({
+                            config: tree.config,
+                            contentBase: tree.config.paths.content,
+                            skipDirectories: tree.config.skipDirectories,
+                            router: createPackRouter(tree.config.packs),
+                        });
+                await expect(build()).rejects.toThrow(
+                    /trailing\.md:\d+:1: error: public anchor "safe" has no stable private journal page/,
+                );
+                expect(() => emitContentIndex({ config: tree.config, publication })).toThrow(
+                    /public anchor "safe" has no stable private journal page/,
+                );
+                expect(documents(path.join(tree.config.paths.packJson, "private"))).toEqual([]);
+            } finally {
+                await session.dispose();
+                tree.close();
+            }
+        }
+    },
+);
 
 it.each(["session", "standalone"])(
     "keeps declared generated targets stable through private SQL ordering and filtering in %s mode",

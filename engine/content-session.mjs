@@ -382,6 +382,7 @@ async function createContentSessionInternal(
                     }),
                     records,
                     parsed,
+                    pageSources: bodies.foundryBodies,
                     problems,
                     sqlTables,
                     syntax,
