@@ -147,17 +147,17 @@ describe("inherited words in mapped language runs", () => {
         });
     }
 
-    it("uses only the nearest whole definition, discarding obsolete variants and natives", () => {
+    it("uses the nearest whole definition of the same form and normalized class", () => {
         const child = language("daughter", {
             ...daughter.data,
-            words: [{ form: "mathira", class: "v", gloss: "a new sense", variants: ["ma"] }],
+            words: [{ form: "mathira", class: " n ", gloss: "a new sense", variants: ["ma"] }],
         });
         const ctx = context(child);
         const book = ctx.wordBooks.get("child");
         expect(book.accepts("ma")).toBe(true);
         expect(book.accepts("mater")).toBe(false);
         expect(book.accepts("materae")).toBe(false);
-        expect(book.accepts("mathiraen")).toBe(false);
+        expect(book.accepts("mathiraen")).toBe(true);
         expect(book.accepts("fota")).toBe(true);
         const lookup = writingFor(ctx.lexicons.get("child"), "demo-note-doc-m", "semaron-kuriale");
         expect(lookup("mathira")).toBeUndefined();
@@ -183,6 +183,33 @@ describe("inherited words in mapped language runs", () => {
         expect(
             writingFor(ctx.lexicons.get("child"), "unmatched", "semaron-kuriale")("fótamir"),
         ).toBeUndefined();
+    });
+
+    it("retains another class's inherited variants, plural and native writing", () => {
+        const child = language("daughter", {
+            ...daughter.data,
+            words: [{ form: "mathira", class: "v", gloss: "a new sense", variants: ["ma"] }],
+        });
+        const ctx = context(child);
+        const book = ctx.wordBooks.get("child");
+        for (const form of ["ma", "mater", "materae", "materen"])
+            expect(book.accepts(form)).toBe(true);
+        expect(book.accepts("mathiraen")).toBe(false);
+        expect(scanRuns("[mater materae]{lang=child}", ctx).errors).toEqual([]);
+        const lexicon = ctx.lexicons.get("child");
+        expect(
+            lexicon.words
+                .filter((word) => word.form === "mathira")
+                .map((word) => [word.class, word.gloss]),
+        ).toEqual([
+            ["v", "a new sense"],
+            ["n", "mother"],
+        ]);
+        const writings = writingsOf(lexicon.data, "demo-note-doc-m", "semaron-kuriale");
+        expect(writings.word("mater")).toEqual({ text: MOTHER, source: "own" });
+        expect(writings.word("mathira")).toEqual({
+            ambiguous: { form: "mathira", glosses: ["a new sense", "mother"] },
+        });
     });
 
     it("keeps the daughter's grammar and register without selecting an encoding", () => {

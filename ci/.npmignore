@@ -1,1 +1,6 @@
 consumer-proof.sh
+consumer-proof-memory.sh
+content-memory-diagnostics.mjs
+encoding-consumer-overlay.mjs
+consumer-proof-pack.sh
+headwords-consumer-overlay.mjs

@@ -7150,6 +7150,20 @@ so a language's words, however many, add nothing to it.
 class I, feminine. A language declares the modifiers it uses in
 `data.classModifiers`, and a word may carry only those.
 
+A word's identity is its NFC spelling and complete class. Class whitespace and
+modifier order do not distinguish entries. The spelling keeps its case and
+word separators. A noun and a verb with the same spelling occupy separate
+`data.words` entries, each with its own `gloss`; repeating the same spelling
+and class is an error. Multiple meanings within one class belong in that
+entry's `gloss` list. No sense identifier is required.
+
+A daughter inherits each class separately. Its noun overrides the ancestor's
+noun of that spelling while the ancestor's verb remains available. A
+spelling-only lookup or glossary entry includes every matching class with
+its meanings. A spelling citation applies to every matching entry. Native
+writing is shared only when all candidates agree; different writings produce
+an explicit ambiguity with the candidate meanings.
+
 ##### Optional noun and verb forms
 
 A noun may carry gender through its existing class: `n m`, `n f` or `n n`,
@@ -7329,6 +7343,15 @@ note, and a blank value is an error.
 Following it from note to note never returns to where it started: a chain
 that does is a cycle, and an error on every note in it.
 
+Each NFC form and normalized class uses the nearest whole entry in that chain.
+Its variants, explicit plural and native writings come only from that entry;
+omitted fields do not come from a more distant definition of the same entry.
+A different class of the same spelling inherits independently, with its own
+meanings and forms. Word recognition, native writing and verse scanning use
+these same entries. A one-syllable spelling with both a content class and a
+function class can contribute zero or one beat, including when one class is
+inherited.
+
 Each finding is located at the key at fault:
 
 | Finding                                                                | Severity |
@@ -7342,7 +7365,7 @@ Each finding is located at the key at fault:
 | A declared modifier no word uses, at the modifier                      | warning  |
 | A `field` not among `data.fields`                                      | error    |
 | A `borrowed` source with no `language`                                 | error    |
-| A form standing twice in one language, at the second                   | error    |
+| An NFC form and normalized class standing twice, at the second         | error    |
 | A `gloss` list with no sense                                           | error    |
 | A language Address that does not resolve                               | error    |
 | A language Address naming something other than a language skill        | error    |
@@ -7413,9 +7436,9 @@ The lint holds each to what it means, each finding located at the key at fault:
   says so.
 
 A language reads the words of its `data.family` chain as its own. The nearest
-definition of a form wins, using the dictionary's matching: Unicode NFC, with
-case and word separators kept. If the daughter defines the same form, only
-that definition's `concept` ids count; an untagged definition covers none of
+definition of each form and normalized class wins, using the dictionary's
+matching: Unicode NFC, with case and word separators kept. If the daughter
+defines the same form and class, only that definition's `concept` ids count; an untagged definition covers none of
 the ancestor's concepts. A different inherited expression can still cover
 them. `data.core` is not inherited: each language that must cover the list
 states it.
@@ -8218,6 +8241,14 @@ terms of art with their own glosses. A note with absent or empty `data.words` or
 `data.glossary`, respectively, receives no such section. The site, Foundry
 journals and the book show the same sections.
 
+Each class of a shared spelling has its own dictionary entry and class-qualified
+anchor. The spelling's bare anchor targets the whole group; glossary links
+use that group. A spelling with one entry keeps its unqualified anchor.
+`dictionaryEntryAnchor(language, name)` returns the spelling target;
+`dictionaryEntryAnchor(language, name, wordClass)` returns the entry target
+within a homograph group. Classes retain their separate meanings in both
+the `dictionary` and `terms` relations.
+
 An authored heading with `{#dictionary}` or `{#lexicon}` receives the
 Dictionary list after its authored text; `{#glossary}` does the same for a
 Glossary list. The heading and its introduction stay in place, with a single
@@ -8236,7 +8267,8 @@ the layouts and custom queries.
 language lists its own words at `depth` 0 and the words it inherits through
 `data.family` above that, nearest first, so `WHERE language = '<Address>'` is
 that language's full dictionary. Where a daughter and a parent state the same
-form, the daughter's own word is the one listed. Words of class `name`, `stem`
+NFC form and normalized class, the daughter's own entry is listed for that
+class. Other classes of the same spelling inherit independently. Words of class `name`, `stem`
 and `pref` are no entry. Nonempty `data.words` containing only these classes
 still supplies the Dictionary heading, with no entries or key; a stated verb
 pattern still supplies its head table. A word's sort
@@ -8265,7 +8297,7 @@ A glossary word in that resolved language links to its visible defining
 ancestor's dictionary entry. The glossary's `language` remains the resolved
 daughter language.
 
-**`terms`** is one row per term per note that owns it: an entry of a culture's
+**`terms`** is one row per term and matching class per owning note: an entry of a culture's
 or an affiliation's `data.glossary`, or an affiliation's rank or office.
 
 | Column          | What it holds                                                                                                                                                                    |
@@ -8279,12 +8311,18 @@ or an affiliation's `data.glossary`, or an affiliation's rank or office.
 | `letter`        | The heading letter, as for a word.                                                                                                                                               |
 | `pronunciation` | The glossary entry's respelling, else the dictionary word's; `NULL` where neither states one.                                                                                    |
 | `class`         | The matching dictionary word's class, as written; `NULL` where no word matches.                                                                                                  |
-| `word`          | The matching word's anchored dictionary entry: the resolved language's when it has own words, else the visible defining language's; `NULL` where no word matches.                |
+| `word`          | The matching spelling's dictionary target; see the inheritance rule below. `NULL` where no word matches.                                                                         |
 | `senses`        | A list of `{ text, bodies }`: a dictionary word's gloss senses with no bodies, or the entry's definition with its owner, or a rank's or office's descriptions with their bodies. |
 | `usage`         | Citation Addresses: governance usage, inherited dictionary usage or the defining owner; a copied reached title also cites its selecting owner.                                   |
 | `common`        | Whether this owner's glossary entry marks the term part of its core vocabulary.                                                                                                  |
 | `origins`       | Which sources gave it: `rank`, `office`, `glossary`.                                                                                                                             |
 | `cultures`      | The cultures associated through the owner and its parents, as a list of Addresses for selecting reached ranks and offices.                                                       |
+
+A word link targets the resolved language's dictionary when that language
+states words. Otherwise, a shared spelling targets the nearest visible ancestor
+whose dictionary contains all its matching entries. Every class links to that
+same group. A unique entry targets its visible defining language. Empty
+language dictionaries are not generated.
 
 A standalone word entry without a definition uses the dictionary's
 citations; an explicit term cites its owner. A rank or office keeps its

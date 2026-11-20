@@ -2148,13 +2148,18 @@ in brackets:
 
 A glossary entry naming a dictionary word uses the word's senses when
 `definition` is absent; a list of dictionary glosses supplies every sense.
-Those senses carry no body label. An entry with a `definition` uses that
-meaning and labels it with the owner, retaining its word link and class
-where it names a dictionary word. On the owner's own page, a sense attributed
-only to that owner omits the repeated label; other bodies and shared senses
-keep their labels. A glossary sets the rows sharing a headword
-and a language as one entry, numbering their senses in query order and
-printing a sense several bodies give once, with all of them:
+Each matching class supplies its own entry and meanings. A spelling-only
+link reaches the group of entries in the language dictionary; each homograph
+also has a class-qualified anchor. A unique spelling has one unqualified
+anchor. Those senses carry no body label. An entry with a `definition` uses that
+meaning and labels it with the owner, retaining its word link. When the spelling
+matches several classes, the definition appears once without a class; a single
+matching class is shown. Rank and office descriptions follow the same rule. On
+the owner's own page, a sense attributed only to that owner omits the repeated
+label; other bodies and shared senses keep their labels. A glossary sets
+the rows sharing a headword, normalized class and language as one entry,
+numbering their senses in query order and printing a sense several bodies
+give once, with all of them:
 
 ```markdown
 **Sworn Knight** **1** (_Duchy of Aubrac_) Holds land of the duke. **2** (_Kingdom of Provenzia_) Holds land of the crown. **3** A knight bound by oath to a lord. — [[thalorna-note-affiliation-duchy|Duchy of Aubrac]], [[thalorna-note-affiliation-kingdom|Kingdom of Provenzia]], [[thalorna-note-lore-provenzianclt|Provenzia]]
@@ -2174,6 +2179,8 @@ A built piece can name a language element by its `form` or one of its
 its `front` form. Words and affixes take precedence over elements in the same
 language, and the language is searched before its ancestors. Exact spellings
 are checked before ignoring joining hyphens; case and accents are preserved.
+A piece matching several word classes shows their glosses together, with each
+class inherited from its nearest declaration.
 
 A glossary entry may give its own sort key or respelling. A reference to a
 rank or office inherits its descriptions and admits a title of one word; its

@@ -350,16 +350,30 @@ describe("a language note's words, checked", () => {
         );
     });
 
-    it("refuses a form standing twice in one language, at the second", () => {
+    it("refuses the same form and class twice, at the second", () => {
         const text = OSKET.replace(
             "    - {form: ghaukwugh,",
-            "    - {form: ghauk, class: n, field: The road, gloss: again}\n    - {form: ghaukwugh,",
+            "    - {form: ghauk, class: n f, field: The road, gloss: again}\n    - {form: ghaukwugh,",
         );
         const { findings } = osket(text);
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toMatch(/`ghauk` stands twice/);
         expect(findings[0].line).toBe(16);
         expect(at(text, findings[0]).startsWith("ghauk")).toBe(true);
+    });
+
+    it("keeps a spelling's classes separate and normalizes class whitespace and Unicode", () => {
+        const different = OSKET.replace(
+            "    - {form: ghaukwugh,",
+            "    - {form: ghauk, class: v, field: The road, gloss: travel}\n    - {form: ghaukwugh,",
+        );
+        expect(osket(different).findings).toEqual([]);
+        const duplicate = OSKET.replace(
+            "    - {form: ghaukwugh,",
+            '    - {form: go\u0308ich, class: " n   m ", field: The hearth, gloss: again}\n    - {form: ghaukwugh,',
+        );
+        expect(osket(duplicate).findings).toHaveLength(1);
+        expect(osket(duplicate).findings[0].message).toMatch(/stands twice/);
     });
 
     it("keeps one form in two languages apart", () => {

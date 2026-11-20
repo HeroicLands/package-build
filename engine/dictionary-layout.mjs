@@ -30,13 +30,13 @@
  *   italics, a dictionary word's field tag and etymology in brackets, the senses, and the
  *   citations as links.
  *
- * A glossary sets the rows that share a headword and a language as one entry:
+ * A glossary sets rows sharing a headword, normalized class and language as one entry:
  * their senses numbered in the order the rows arrive, each tagged with the
  * bodies it comes from, except a sole owner's label on its own page. A sense
  * several rows give is printed once with all its bodies. A dictionary word's
  * senses carry no bodies; a glossary's contextual
  * and governance senses name their owners. A glossary headword naming a
- * dictionary word links to that word's anchored entry on its language page.
+ * dictionary word links to its spelling group on the language page.
  *
  * The entries are ordered here rather than by the query: by letter, then by
  * `name_sort` with its accents taken off and its case folded, then as written.
@@ -53,6 +53,8 @@ import {
     WORD_CLASS_BASES,
     WORD_CLASS_MODIFIERS,
     abbreviateWordClass,
+    normalizedWordClass,
+    wordIdentity,
     parseWordClass,
 } from "./word-classes.mjs";
 
@@ -250,7 +252,7 @@ export function renderGlossary(result, opts = {}) {
     requireColumns(result, "glossary");
     const entries = new Map();
     for (const row of result.rows) {
-        const key = `${row.language ?? ""}\0${row.name}`;
+        const key = `${row.language ?? ""}\0${wordIdentity(row.name, row.class)}`;
         if (!entries.has(key)) entries.set(key, { ...row, rows: [] });
         entries.get(key).rows.push(row);
     }
@@ -361,9 +363,28 @@ function render(
             compare(String(a.row.language_tag ?? ""), String(b.row.language_tag ?? "")),
     );
 
+    const spelling = (row) => JSON.stringify([row.language, String(row.name).normalize("NFC")]);
+    const groups = new Map();
+    for (const item of sorted) {
+        const key = spelling(item.row);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+    }
+    const ordered =
+        words ?
+            [...groups.values()].flatMap((group) => {
+                const letter = group[0].letter;
+                return group
+                    .sort((a, b) =>
+                        compare(normalizedWordClass(a.row.class), normalizedWordClass(b.row.class)),
+                    )
+                    .map((item) => ({ ...item, letter }));
+            })
+        :   sorted;
+    const emitted = new Set();
     const paragraphs = [];
     let letter;
-    for (const { row, letter: current } of sorted) {
+    for (const { row, letter: current } of ordered) {
         if (current !== letter) {
             letter = current;
             paragraphs.push(`${"#".repeat(sectionLevel)} ${letter}`);
@@ -374,9 +395,21 @@ function render(
             parts.push(COMMON_MARK);
         }
         let headword = `**${row.name}**`;
-        if (words && entryAnchors && typeof row.language === "string")
-            headword = `[${headword}]{#${dictionaryEntryAnchor(row.language, row.name)} .${DICTIONARY_ENTRY_CLASS}}`;
-        else if (!words && typeof row.word === "string") {
+        if (words && entryAnchors && typeof row.language === "string") {
+            const key = spelling(row);
+            const homograph = groups.get(key).length > 1;
+            const anchor = dictionaryEntryAnchor(
+                row.language,
+                row.name,
+                homograph ? row.class : undefined,
+            );
+            headword = `[${headword}]{#${anchor} .${DICTIONARY_ENTRY_CLASS}}`;
+            if (homograph && !emitted.has(key))
+                paragraphs.push(
+                    `[**${row.name}**]{#${dictionaryEntryAnchor(row.language, row.name)} .${DICTIONARY_ENTRY_CLASS}}`,
+                );
+            emitted.add(key);
+        } else if (!words && typeof row.word === "string") {
             const { address, anchor } = splitAnchor(row.word);
             const ref = readCanonicalKey(address);
             if (ref && anchor && linkable(ref))

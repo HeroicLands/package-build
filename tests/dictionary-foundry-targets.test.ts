@@ -68,6 +68,32 @@ describe("a dictionary word's native Foundry target", () => {
         expect(html).not.toMatch(/<p\b[^>]*>(?:(?!<\/p>)[\s\S])*<h[1-6]\b/);
     });
 
+    it("targets a homograph group and each class on the containing page", () => {
+        const dictionary = renderDictionary({
+            columns: [...DICTIONARY_COLUMNS],
+            rows: ["n", "v"].map((wordClass) => ({
+                language,
+                name,
+                class: wordClass,
+                senses: [{ text: wordClass, bodies: [] }],
+                usage: [],
+            })),
+        });
+        const body = `# Words {#dictionary}\n\n${dictionary}`;
+        const targets = anchorsOf(uuid, id, body, "Tongue");
+        const raw = splitPages(body, "Tongue");
+        const [page] = buildPages(raw, id, "Tongue");
+        const containing = `${uuid}.JournalEntryPage.${journalPageId(id, raw[0])}`;
+        for (const wordClass of [undefined, "n", "v"]) {
+            const target = dictionaryEntryAnchor(language, name, wordClass);
+            expect(targets[target]).toBe(`${containing}#${target}`);
+            expect(page.text?.content).toMatch(
+                new RegExp(`<h6\\b[^>]*id="${target}"[^>]*><strong>${name}</strong></h6>`),
+            );
+        }
+        expect(page.text?.content).not.toMatch(/<h6\b[^>]*>\s*<\/h6>/);
+    });
+
     it("keeps web and book word spans and ordinary authored Foundry spans as spans", () => {
         const web = renderSpans(dictionary).markdown;
         expect(web).toContain(`<span id="${anchor}"`);

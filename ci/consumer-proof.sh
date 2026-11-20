@@ -3,9 +3,13 @@
 set -euo pipefail
 
 proof="$RUNNER_TEMP/consumer-proof"
-cd consumer-proof-kethira
+case "$CONSUMER_PROOF" in
+    kethira|thalorna-encoding|thalorna-headwords) ;;
+    *) printf 'Unknown consumer proof: %s\n' "$CONSUMER_PROOF" >&2; exit 1 ;;
+esac
+cd consumer-proof-consumer
 test "$(git rev-parse HEAD)" = "$CONSUMER_SHA"
-printf 'Kethira commit: %s\n' "$(git rev-parse HEAD)"
+printf 'Consumer commit: %s\n' "$(git rev-parse HEAD)"
 cp package-lock.json "$proof/original-lock.json"
 npm pkg set "devDependencies.@heroiclands/package-build=file:$proof/candidate.tgz"
 npm update @heroiclands/package-build --package-lock-only --ignore-scripts
@@ -52,7 +56,22 @@ function compare(source, installed) {
 compare(process.argv[2], process.argv[3]);
 console.log('Installed package matches every archived file.');
 NODE
-npm run build:db
+if [ "$CONSUMER_PROOF" != kethira ]; then
+    overlay="${CONSUMER_PROOF#thalorna-}-consumer-overlay.mjs"
+    cp "../ci/$overlay" ".$overlay"
+    node ".$overlay" prepare
+fi
+if [ "$CONSUMER_PROOF" != kethira ]; then
+    CONSUMER_PROOF_MEMORY_DIR="$RUNNER_TEMP/consumer-proof-memory" \
+        NODE_OPTIONS="$NODE_OPTIONS --import=\"$PWD/../ci/content-memory-diagnostics.mjs\"" \
+        npm run build:db
+else
+    npm run build:db
+fi
+if [ "$CONSUMER_PROOF" != kethira ]; then
+    node ".$overlay" verify
+    exit 0
+fi
 node -e '
   const fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict");
   const index = "build/content-index/kethira-metadata.jsonl";

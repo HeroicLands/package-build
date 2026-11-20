@@ -177,7 +177,7 @@ describe("authored native entry validation", () => {
         };
         expect(languageNoteFindings(config, [record])[0].message).toMatch(/data.roman/);
     });
-    it("preserves nearest-generation homographs while the first keeps its native spelling", () => {
+    it("inherits each class separately and retains every native candidate", () => {
         const record = (shortcode: string, data: object) => ({
             type: "skill",
             subType: "language",
@@ -218,12 +218,15 @@ describe("authored native entry validation", () => {
             ["sa", "n"],
             ["e\u0301", "n"],
             ["sa", "part"],
+            ["sa", "v"],
+            ["é", "part"],
             ["Sa", "v"],
             ["ol", "n"],
             ["ol", "part"],
+            ["ol", "adj"],
             ["ir", "conj"],
         ]);
-        expect(lexicon.byForm.get("sa")[0].text).toBe("α");
+        expect(lexicon.byForm.get("sa").map((native) => native.text)).toEqual(["α", "β", "χ"]);
         expect(lexicon.byForm.get("ol")[0].text).toBe("Α");
         expect(lexicon.byForm.get("é")[0].text).toBe("χ");
     });

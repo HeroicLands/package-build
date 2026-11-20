@@ -12,6 +12,7 @@
  */
 
 /** Encoding-aware language records, validation and plain JSON conversion inputs. */
+import { wordIdentity } from "./word-classes.mjs";
 import fs from "node:fs";
 import { encodingAddress } from "./encoding-notes.mjs";
 import { parseAddress, renderAddress } from "./address.mjs";
@@ -72,7 +73,7 @@ function said(names) {
  * @property {string} language - The language's configured name.
  * @property {readonly LexiconWord[]} words - Its words, in `data.words` order.
  * @property {ReadonlyMap<string, readonly NativeForm[]>} byForm - The native
- *   forms by the word's form, NFC; the first word of a form keeps it.
+ *   forms of every matching word, keyed by NFC spelling in entry order.
  * @property {ReadonlyArray<{form: string, from: LexiconWord}>} derived - The
  *   forms the language's rules derive from its words, folded, as the mapped-run
  *   word check accepts them (see {@link module:engine/word-forms.derivedForms}).
@@ -122,7 +123,8 @@ function lexiconOf(language, data) {
         words.push(read);
         bySource.set(word, read);
         const key = word.form.normalize("NFC");
-        if (!byForm.has(key)) byForm.set(key, natives);
+        if (!byForm.has(key)) byForm.set(key, []);
+        byForm.get(key).push(...natives);
     }
     const derived = derivedForms(data).map(({ form, word }) =>
         Object.freeze({ form, from: bySource.get(word) }),
@@ -229,8 +231,8 @@ function languageNotes(languages, contentPackage, records) {
 
 /**
  * Each configured language's lexicon, read from the language note its `note`
- * names and its family chain. All entries for an exact NFC form come from
- * the nearest lexicon declaring it; grammar, registers and other settings
+ * names and its family chain. Each NFC form and normalized class comes from
+ * the nearest lexicon declaring that entry; grammar, registers and other settings
  * remain the daughter's own.
  * A language with no `note`, or one naming no language note, has none.
  *
@@ -271,9 +273,8 @@ export function lexiconsFromRecords(records, config = {}) {
                     )?.words,
                 )) {
                     if (!isMap(word) || typeof word.form !== "string") continue;
-                    const form = word.form.normalize("NFC");
-                    // Retain every sense in the nearest generation, in authored
-                    // order, before hiding that form in more distant ancestors.
+                    const form = wordIdentity(word.form, word.class);
+                    // A nearer entry shadows only its own class.
                     if (!inherited.has(form)) words.push(word);
                     forms.add(form);
                 }

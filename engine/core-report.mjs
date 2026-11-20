@@ -18,13 +18,14 @@
  * The list is the `data.concepts` of the package's `doc` notes. A language
  * must cover it where it states `data.core: true`. A word covers every
  * concept its `concept` names, and a language reads the words of its
- * `data.family` chain as its own, with the nearest definition of each form
+ * `data.family` chain as its own, with the nearest definition of each form and class
  * winning. A missing concept is a fact to work through,
  * never a finding.
  *
  * @module
  */
 
+import { wordIdentity } from "./word-classes.mjs";
 import { encodeAddresses } from "./address-values.mjs";
 import { isLanguageRecord, languageLineages, noteAddressOf } from "./word-rows.mjs";
 
@@ -126,8 +127,7 @@ export function coreReport(records, { language } = {}) {
             for (const key of chain(noteAddressOf(record) ?? ""))
                 for (const word of byKey.get(key)?.data?.words ?? []) {
                     if (!isMap(word) || typeof word.form !== "string") continue;
-                    // Match dictionary headwords: NFC, retaining case and word separators.
-                    const form = word.form.normalize("NFC");
+                    const form = wordIdentity(word.form, word.class);
                     if (forms.has(form)) continue;
                     forms.add(form);
                     for (const id of idsOf(word)) have.add(id);
