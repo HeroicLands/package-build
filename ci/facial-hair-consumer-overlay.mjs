@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import YAML from "yaml";
+import { flattenPublishedAddresses } from "@heroiclands/package-build/engine/address-values";
 import { profileProblems } from "@heroiclands/package-build/engine/appearance-profile";
 import { BEING_LOOK_VOCABULARY } from "@heroiclands/package-build/engine/note-vocabulary";
 import { generateNpc } from "@heroiclands/package-build/engine/npc-generate";
@@ -59,7 +60,9 @@ const source = () => {
 export function verifyIndexedProfiles(profiles, rows) {
     const indexed = {};
     for (const address of Object.keys(profiles)) {
-        const matches = rows.filter((row) => row.address?.canonical === address);
+        const matches = rows.filter(
+            (row) => flattenPublishedAddresses(row.address?.canonical) === address,
+        );
         assert.equal(matches.length, 1, address);
         const profile = matches[0].data?.appearanceProfile;
         assert.deepEqual(profile, profiles[address], `${address}: indexed profile`);
@@ -136,14 +139,19 @@ if (process.argv[2] === "prepare") {
     const profile = profiles[selected[0]];
     const spec = { data: { culture: selected[0], gender: "male" } };
     const context = { profile, names, seed: "stable" };
-    const a = generateNpc(spec, context).frontmatter.data.appearance;
-    const b = generateNpc(spec, { ...context, profile: { ...profile, facial_hair_genders: [] } })
-        .frontmatter.data.appearance;
-    const { facial_hair: ignored, ...other } = a;
-    assert.deepEqual(other, b);
+    const eligible = generateNpc(spec, context).frontmatter;
+    const excluded = generateNpc(spec, {
+        ...context,
+        profile: { ...profile, facial_hair_genders: [] },
+    }).frontmatter;
+    assert.ok(Object.hasOwn(eligible.data.appearance, "facial_hair"));
+    assert.ok(!Object.hasOwn(excluded.data.appearance, "facial_hair"));
+    const comparable = structuredClone(eligible);
+    delete comparable.data.appearance.facial_hair;
+    assert.deepEqual(comparable, excluded);
     fs.writeFileSync(
         path.join(evidence, "results.json"),
-        JSON.stringify({ indexed, counts }, null, 2) + "\n",
+        JSON.stringify({ indexed, counts, seededFrontmatterStable: true }, null, 2) + "\n",
     );
 } else if (
     process.argv[2] !== undefined &&
