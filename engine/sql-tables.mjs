@@ -1616,16 +1616,16 @@ export async function prepareInlineSqlExpressions(db, sources) {
                     if (result.columnNames.length !== 1 || result.rows.length !== 1)
                         throw new RangeError("scalar SQL needs exactly one column and one row");
                     const value = result.rows[0][result.columnNames[0]];
-                    if (value === null || value === undefined || value === "")
-                        throw new RangeError("scalar SQL result is empty");
-                    if (
-                        value !== null &&
-                        !["string", "number", "boolean", "bigint"].includes(typeof value)
-                    )
-                        throw new TypeError(
-                            "scalar SQL result must be a number, string, Boolean, or null",
-                        );
-                    cache.set(query, { value });
+                    if (value === null || value === undefined || value === "") {
+                        // Private metadata can distinguish unavailable values from query faults.
+                        cache.set(query, { error: "scalar SQL result is empty", empty: true });
+                    } else {
+                        if (!["string", "number", "boolean", "bigint"].includes(typeof value))
+                            throw new TypeError(
+                                "scalar SQL result must be a number, string, Boolean, or null",
+                            );
+                        cache.set(query, { value });
+                    }
                 } catch (error) {
                     cache.set(query, { error: String(error?.message ?? error).split("\n")[0] });
                 }

@@ -97,10 +97,14 @@ it.each(["session", "standalone"])(
             "# Population {{data.population.actual}}\n\n[Account]{#safe}.",
             { tags: ["gm"] },
         );
+        const privateCountQuery =
+            "SELECT data.population.actual FROM notes WHERE shortcode = 'privateinline'";
+        const privateTextQuery =
+            "SELECT 'Hidden residents ' || data.population.actual FROM notes WHERE shortcode = 'privateinline'";
         tree.add(
             "privateinline",
             { pack: "private", population: { actual: 4700, apparent: 900 } },
-            "# Population {{sql \"SELECT data.population.actual FROM notes WHERE shortcode = 'privateinline'\"}}\n\n[Account]{#safe}.",
+            `# Population {{sql "${privateCountQuery}"}}\n\n[Account]{#safe}.\n\nResidents: {{sql "${privateCountQuery}"}}.\n\n[Account {{sql "${privateTextQuery}"}}]{#paragraph}.\n\n- Grouped residents: {{digits (sql "${privateCountQuery}")}}.\n\n| Detail | Residents |\n| --- | --- |\n| Account | {{sql "${privateCountQuery}"}} |`,
             { tags: ["gm"] },
         );
         tree.add(
@@ -112,7 +116,7 @@ it.each(["session", "standalone"])(
         tree.add(
             "reader",
             {},
-            "[[place-privateplain#safe|Plain]] and [[place-privateinline#safe|Inline]] and [[place-privateanchor#safe|Anchored]].",
+            "[[place-privateplain#safe|Plain]] and [[place-privateinline#safe|Inline]], [[place-privateinline#paragraph|Paragraph]] and [[place-privateanchor#safe|Anchored]].",
         );
         const session = await createContentSession({ config: tree.config });
         try {
@@ -153,6 +157,33 @@ it.each(["session", "standalone"])(
                     (entry) => entry.type === "place" && entry.shortcode === name,
                 );
                 expect(published.foundry.note.anchors.safe).toBe(target);
+                if (name === "privateinline") {
+                    expect(page.text.content).toContain("Residents: 4700.");
+                    expect(page.text.content).toContain("Hidden residents 4700");
+                    expect(page.text.content).toContain("Grouped residents: 4,700.");
+                    expect(page.text.content).toContain("<td>4700</td>");
+                    expect(published.foundry.note.anchors.paragraph).toBe(target);
+                    expect(published.anchors).toEqual(
+                        expect.arrayContaining([
+                            expect.objectContaining({ slug: "paragraph", name: "Account " }),
+                        ]),
+                    );
+                    expect(jsonl).not.toContain("Hidden residents");
+                    expect(jsonl).not.toContain("SELECT 'Hidden residents '");
+                    const projected = publication.expandedBodies.get(
+                        path.join(tree.config.paths.content, "privateinline.md"),
+                    ).markdown;
+                    expect(projected).not.toContain("4700");
+                    expect(projected).not.toContain("Hidden residents");
+                    expect(projected).not.toContain("{{");
+                    expect(projected).not.toContain("SELECT");
+                    const publicLinks = JSON.stringify([
+                        ...corpus.audiences.public.linkIndex.byShortcode.values(),
+                    ]);
+                    expect(publicLinks).not.toContain("4700");
+                    expect(publicLinks).not.toContain("Hidden residents");
+                    expect(publicLinks).not.toContain("SELECT");
+                }
                 if (name === "privateanchor") {
                     expect(published.foundry.note.anchors.count).toBe(target);
                     expect(published.anchors).toEqual(
@@ -180,38 +211,45 @@ it.each(["session", "standalone"])(
     },
 );
 
-it.each(["session", "standalone"])(
-    "refuses empty and invalid scalar SQL in public and private headings in the %s compiler",
-    async (mode) => {
-        for (const privateNote of [false, true]) {
-            for (const [query, message] of [
-                ["SELECT NULL", "scalar SQL result is empty"],
-                ["SELECT missing_population FROM notes", "missing_population"],
-            ]) {
-                const tree = input();
-                tree.add(
-                    "invalid",
-                    privateNote ? { pack: "private" } : {},
-                    `# Population {{sql "${query}"}}`,
-                    privateNote ? { tags: ["gm"] } : {},
-                );
-                const session = await createContentSession({ config: tree.config });
-                try {
-                    const preparation =
-                        mode === "session" ?
-                            session.compileCorpus()
-                        :   buildCompileCorpus({
-                                config: tree.config,
-                                contentBase: tree.config.paths.content,
-                                skipDirectories: tree.config.skipDirectories,
-                                router: createPackRouter(tree.config.packs),
-                            });
-                    await expect(preparation).rejects.toThrow(message);
-                } finally {
-                    await session.dispose();
-                    tree.close();
-                }
-            }
+it.each(
+    ["session", "standalone"].flatMap((mode) =>
+        [false, true].flatMap((privateNote) =>
+            ["# Population", "Residents:"].flatMap((prefix) =>
+                [
+                    ["SELECT NULL", "scalar SQL result is empty"],
+                    ["SELECT ''", "scalar SQL result is empty"],
+                    ["SELECT missing_population FROM notes", "missing_population"],
+                    ["SELECT 1, 2", "scalar SQL needs exactly one column and one row"],
+                    ["SELECT 1 WHERE false", "scalar SQL needs exactly one column and one row"],
+                ].map(([query, message]) => ({ mode, privateNote, prefix, query, message })),
+            ),
+        ),
+    ),
+)(
+    "refuses $query in $prefix prose (compiler: $mode, private: $privateNote)",
+    async ({ mode, privateNote, prefix, query, message }) => {
+        const tree = input();
+        tree.add(
+            "invalid",
+            privateNote ? { pack: "private" } : {},
+            `${prefix} {{sql "${query}"}}`,
+            privateNote ? { tags: ["gm"] } : {},
+        );
+        const session = await createContentSession({ config: tree.config });
+        try {
+            const preparation =
+                mode === "session" ?
+                    session.compileCorpus()
+                :   buildCompileCorpus({
+                        config: tree.config,
+                        contentBase: tree.config.paths.content,
+                        skipDirectories: tree.config.skipDirectories,
+                        router: createPackRouter(tree.config.packs),
+                    });
+            await expect(preparation).rejects.toThrow(message);
+        } finally {
+            await session.dispose();
+            tree.close();
         }
     },
 );
@@ -237,7 +275,7 @@ it("emits a mixed corpus with exact private facts and one supplement only where 
         population: { actual, apparent },
         fortification: null,
         stronghold: null,
-        holder: null,
+        holder: polity,
         market: "subsistence",
         notes: "A farm.",
     });

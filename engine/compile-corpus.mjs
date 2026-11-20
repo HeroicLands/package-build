@@ -243,7 +243,26 @@ export function buildCompileAudiences(
             sqlTables: tables[audience],
             linkIndex: buildContentLinkIndex(contentBase, router, {
                 config,
-                records: records.map((record) => projectPopulationFrontmatter(record, audience)),
+                records: records.map((record) => {
+                    const projected = projectPopulationFrontmatter(record, audience);
+                    if (audience !== "public" || !isNoteRecord(record)) return projected;
+                    const file = noteFile(contentBase, record);
+                    const anchors =
+                        links.get(file)?.anchors ??
+                        collectAnchors(
+                            bodies.expandedBodies.get(file)?.markdown ?? "",
+                            1,
+                            undefined,
+                            syntax,
+                        );
+                    return {
+                        ...projected,
+                        anchors: [
+                            ...anchors.filter((anchor) => anchor.kind === "prose"),
+                            ...(record.anchors ?? []).filter((anchor) => anchor.kind === "event"),
+                        ],
+                    };
+                }),
                 sqlTables: links,
                 foreign,
             }),
