@@ -567,7 +567,15 @@ export function buildIndexRecord({
     // is its Item. The one document it has none of is the one that would be
     // empty, and `entriesForNote` withholds that UUID, so this block names
     // nothing that was not made.
-    const entries = foundryEntries({ frontmatter, address, body, manifest });
+    const entries = foundryEntries({
+        frontmatter,
+        address,
+        body,
+        manifest: manifest && {
+            ...manifest,
+            pageSource: { source: body ?? "", file: absPath ?? relPath, bodyLine },
+        },
+    });
     // A stub — an empty body on a type an empty body suppresses — publishes no
     // page, so it holds no address and offers no anchor to link to. **The
     // absent address is the signal**, and it is the column the table renderer
@@ -766,7 +774,15 @@ export function indexRecordsForNote({
     });
     const records = [decodeIndexAddresses(record, addressContext ?? { package: contentPackage })];
     const address = noteAddress(frontmatter, contentPackage);
-    const doc = foundryEntries({ frontmatter, address, body, manifest })?.doc;
+    const doc = foundryEntries({
+        frontmatter,
+        address,
+        body,
+        manifest: manifest && {
+            ...manifest,
+            pageSource: { source: body ?? "", file: absPath ?? relPath, bodyLine },
+        },
+    })?.doc;
     if (doc?.key && address) {
         records.push(
             buildDocRecord({

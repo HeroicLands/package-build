@@ -395,10 +395,19 @@ it.each(["session", "standalone"])(
                     levels: [
                         { _id: "defaultLevel0000", background: { src: "maps/parchment.webp" } },
                     ],
-                    notes: [{ _id: "NNNNNNNNNNNNNNNN", text: "#details", x: 256, y: 256 }],
+                    notes: [
+                        { _id: "NNNNNNNNNNNNNNNN", text: "#details", x: 256, y: 256 },
+                        { _id: "GGGGGGGGGGGGGGGG", text: "#generated", x: 128, y: 128 },
+                    ],
                 },
             },
-            body,
+            [
+                body,
+                "",
+                "```sql",
+                "SELECT CASE WHEN data.population.actual IS NULL THEN 'Public estimate {#generated}' ELSE 'Generated ' || data.population.actual || ' {#generated}' END AS \"_section\", 'An account.' AS Entry FROM notes WHERE shortcode = 'map'",
+                "```",
+            ].join("\n"),
             { type: "map", subType: "battlemap" },
         );
         const session = await createContentSession({ config: tree.config });
@@ -456,6 +465,15 @@ it.each(["session", "standalone"])(
             expect(scene.notes[0].pageId).toBe(mapPage._id);
             const adventure = documents(directories.adventures)[0];
             const bundled = adventure.journal[0];
+            const generatedPage = mapDoc.pages.find((page) => page.name === "Generated 4700");
+            const generatedCompanion = bundled.pages.find(
+                (page) => page.name === "Public estimate",
+            );
+            expect(scene.notes[1].entryId).toBe(mapDoc._id);
+            expect(scene.notes[1].pageId).toBe(generatedPage._id);
+            expect(scene.notes[1].pageId).toBe(generatedCompanion._id);
+            expect(scene.notes[1].pageId).not.toBe(anchorPageId(mapDoc._id, "generated"));
+            expect(scene.notes[1].text).toBe("Public estimate");
             expect(mapDoc.pages.some((page) => page.name === "Population 4700")).toBe(true);
             expect(
                 bundled.pages.every((page) =>
@@ -464,7 +482,14 @@ it.each(["session", "standalone"])(
             ).toBe(true);
             const publicPayload = JSON.stringify({ item, scene, adventure });
             expect(publicPayload).not.toMatch(/\b4700\b/);
-            for (const secret of ["4,700", "Population 4700", "Details 4700", "sourceIdentity"])
+            for (const secret of [
+                "4,700",
+                "Population 4700",
+                "Details 4700",
+                "Generated 4700",
+                "SELECT CASE",
+                "sourceIdentity",
+            ])
                 expect(publicPayload).not.toContain(secret);
             expect({ records: session.records, parsed: [...session.parsed] }).toEqual(before);
         } finally {

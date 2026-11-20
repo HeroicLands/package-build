@@ -157,16 +157,21 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
  * documentation journal's is {@link itemDocEntryId} of that. Stating it here is
  * what lets the content index publish an identity it did not re-derive.
  *
- * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], syntax?: import("./content-session.mjs").ContentSyntax, pageSource?: {source:string,lineMap?:object[],generatedFrom?:number,file?:string,bodyLine?:number}}} ctx - Resolved identities and optional session scanner projections.
+ * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], syntax?: import("./content-session.mjs").ContentSyntax, pageSource?: {source:string,lineMap?:object[],generatedFrom?:number,file?:string,bodyLine?:number}}} ctx - Resolved identities, optional session scanner projections, and captured source required for private journal routing.
  * @returns {Array<object>} One or two entries, in {@link buildManifest}'s shape.
  */
 export function entriesForNote(fm, name, address, body, ctx) {
     const { contentPackage, foundryPackageId, packRouter } = ctx;
     const journalPack = packRouter.resolveOrNull(fm, "JournalEntry");
-    const pageSource =
-        packRouter.privateOf?.(journalPack) ?
-            (ctx.pageSource ?? { source: body ?? "" })
-        :   undefined;
+    const pageSource = packRouter.privateOf?.(journalPack) ? ctx.pageSource : undefined;
+    if (packRouter.privateOf?.(journalPack) && typeof pageSource?.source !== "string") {
+        throw Object.assign(
+            new Error(
+                `${pageSource?.file || "<journal>"}:${pageSource?.bodyLine ?? 1}:1: error: private journal has no captured source`,
+            ),
+            { located: true },
+        );
+    }
     const key = canonicalKey(contentPackage, ownDocumentSystem(fm.type), fm.type, fm.shortcode);
     // `buildManifest` records `packageRelative(url, base)`, so the pair it is
     // given has to round-trip. The address is already package-relative, so the
