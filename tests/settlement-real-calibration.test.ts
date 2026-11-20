@@ -33,7 +33,7 @@ it("captures indexed settlement facts, reports missing bindings and detects sour
             subType: "polity",
             shortcode: "kngdmmrdd",
             name: { full: "Crown" },
-            data: { territorial_population: 1000 },
+            data: { territorial_population: { actual: 1000 } },
         }),
     );
     write(
@@ -43,7 +43,11 @@ it("captures indexed settlement facts, reports missing bindings and detects sour
             subType: "settlement",
             shortcode: "town",
             name: { full: "Town" },
-            data: { government: "affiliation-kngdmmrdd", type: "village", population: 100 },
+            data: {
+                government: "affiliation-kngdmmrdd",
+                type: "village",
+                population: { actual: 100 },
+            },
         }),
     );
     const session = await createContentSession({ config: f.config, trackChanges: true });
@@ -122,13 +126,13 @@ it("reports synthetic numerical budgets, household capacity and reserved acreage
             shortcode: "kngdmmrdd",
             name: { full: "Synthetic polity" },
             data: {
-                territorial_population: 500,
+                territorial_population: { actual: 500 },
                 settlements: [
                     {
                         settlement: "Synthetic row",
                         polity,
                         type: "village",
-                        population: 0,
+                        population: { actual: 0 },
                         households: 0,
                         market: "subsistence",
                         generatorSource: source(0),
@@ -148,7 +152,7 @@ it("reports synthetic numerical budgets, household capacity and reserved acreage
                 government: "affiliation-kngdmmrdd",
                 type: "village",
                 households: 5,
-                population: 300,
+                population: { actual: 300 },
             },
         }),
     );

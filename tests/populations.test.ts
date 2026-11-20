@@ -43,7 +43,7 @@ describe("fetched population figures", () => {
             foreignNode("thalorna-note-place-haven", {
                 type: "place",
                 name: "Haven",
-                population: 1200,
+                population: { actual: 1200 },
             })?.population,
         ).toBe(1200);
         expect(
@@ -81,7 +81,7 @@ function place(
         `    full: ${name}`,
         "data:",
         `    parents: [${parents.join(", ")}]`,
-        ...(population === undefined ? [] : [`    population: ${population}`]),
+        ...(population === undefined ? [] : [`    population: {actual: ${population}}`]),
         ...(government === undefined ? [] : [`    government: ${government}`]),
         "---",
         "",
@@ -106,7 +106,7 @@ function affiliation(
         `    full: ${name}`,
         "data:",
         `    parents: [${parents.join(", ")}]`,
-        ...(population === undefined ? [] : [`    population: ${population}`]),
+        ...(population === undefined ? [] : [`    population: {actual: ${population}}`]),
         "---",
         "",
         "Prose.",
@@ -312,7 +312,7 @@ describe("the rules read the corpus the way the notes are authored", () => {
                 type: "place",
                 subType: "region",
                 shortcode: "rgn",
-                data: { population: 1000, government: "affiliation-crown" },
+                data: { population: { actual: 1000 }, government: "affiliation-crown" },
             },
         };
         const index = {
@@ -324,7 +324,7 @@ describe("the rules read the corpus the way the notes are authored", () => {
                         {
                             type: "affiliation",
                             subType: "polity",
-                            population: 9000,
+                            population: { actual: 9000 },
                             domains: ["rgn"],
                         },
                     ],
@@ -525,7 +525,7 @@ describe("foreignNode", () => {
         const node = foreignNode("kethira-sohl-affiliation-Empire", {
             type: "affiliation",
             subType: "polity",
-            population: 8000,
+            population: { actual: 8000 },
             domains: ["north", "south"],
         });
         expect(node).toMatchObject({ shortcode: "empire", type: "affiliation", population: 8000 });

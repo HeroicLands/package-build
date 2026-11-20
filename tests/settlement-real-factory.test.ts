@@ -48,7 +48,7 @@ it.skipIf(!process.env.SETTLEMENT_SETTING_CHECKOUT)(
                     subType: "polity",
                     shortcode: "crown",
                     name: { full: "Crown" },
-                    data: { territorial_population: 5, settlements: [] },
+                    data: { territorial_population: { actual: 5 }, settlements: [] },
                 },
                 "Keep this prose.",
             );

@@ -151,7 +151,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                 calendar: "calendarone",
                 purpose: "market",
                 culture: "cultureone",
-                population: 1200,
+                population: { actual: 1200 },
                 market: "local",
                 borders: [{ to: "korrath", bearing: "N" }],
                 routes: [{ to: "tolvern", bearing: "N", mode: "land", days: 5 }],

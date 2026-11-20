@@ -706,7 +706,7 @@ describe("a key the schema does not declare", () => {
             name: { full: "Town" },
             data: {
                 notes: "A settlement.",
-                population: null,
+                population: { actual: null },
                 events: [fullEvent({ precision: "year" })],
             },
         });

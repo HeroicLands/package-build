@@ -159,7 +159,7 @@ describe("a district without its own government falls under its parent's", () =>
         "Vale.md": place("vale", "region"),
         "City.md": place("city", "settlement", {
             parents: ["vale"],
-            population: 12000,
+            population: { actual: 12000 },
             type: "city",
             market: "local",
             government: "council",
@@ -176,7 +176,11 @@ describe("a district without its own government falls under its parent's", () =>
             shortcode: "guild",
             name: { full: "Wardens' Guild" },
         }),
-        "Ward.md": place("ward", "district", { parents: ["city"], population: 3000, ...ward }),
+        "Ward.md": place("ward", "district", {
+            parents: ["city"],
+            population: { actual: 3000 },
+            ...ward,
+        }),
     });
 
     function collected(files: Record<string, string>) {
@@ -239,7 +243,10 @@ describe("a district without its own government falls under its parent's", () =>
 
     it("still advises a populated place that is not a district and names no government", () => {
         const files = tree({});
-        files["Ward.md"] = place("ward", "region", { parents: ["city"], population: 3000 });
+        files["Ward.md"] = place("ward", "region", {
+            parents: ["city"],
+            population: { actual: 3000 },
+        });
         expect(collected(files).wardFindings).toEqual([
             expect.stringMatching(/^missing government/),
         ]);
