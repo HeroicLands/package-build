@@ -22,6 +22,7 @@ import { createNotesDatabaseScope, prepareTreeSqlTables } from "../engine/sql-ta
 import { createContentSession } from "../engine/content-session.mjs";
 import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
 import { splitPages, journalPageId, Journals } from "../engine/journals.mjs";
+import { anchorPageId } from "../engine/wikilinks.mjs";
 import { renderFoundryMarkdown, convertNoteWikilinks } from "../engine/helpers.mjs";
 import { buildSiteIndex } from "../engine/site-index.mjs";
 import { createPackRouter } from "../engine/pack-router.mjs";
@@ -297,7 +298,16 @@ it("prepares destination-specific compile bodies while public index metadata kee
     }
 });
 
-it("publishes safe anchors at actual private page IDs without publishing the private heading", async () => {
+it.each([
+    {
+        name: "publishes shared safe anchors without publishing private headings",
+        splitTargets: false,
+    },
+    {
+        name: "refuses public anchors with different private generated destinations",
+        splitTargets: true,
+    },
+])("$name", async ({ splitTargets }) => {
     const input = fixture(0);
     const config = configFromData(
         {
@@ -314,8 +324,8 @@ it("publishes safe anchors at actual private page IDs without publishing the pri
         input.configFile,
     );
     const file = path.join(config.paths.content, "hidden.md");
-    const query =
-        "SELECT CASE WHEN data.population.actual IS NULL THEN 'Public estimate {#estimate}' ELSE 'Actual 2300 residents {#hidden-count}' END AS \"_section\", 'An account.' AS Entry FROM notes WHERE shortcode = 'hidden'";
+    const privateAnchor = splitTargets ? "hidden-count" : "estimate";
+    const query = `SELECT CASE WHEN data.population.actual IS NULL THEN 'Public estimate {#estimate}' ELSE 'Actual 2300 residents {#${privateAnchor}}' END AS "_section", 'An account.' AS Entry FROM notes WHERE shortcode = 'hidden'`;
     const body = `# Introduction {#intro}\n\n\`\`\`sql\n${query}\n\`\`\`\n\nRead [the shared account]{#safe}.`;
     write(file, note({ ...fm, tags: ["gm"], data: { ...fm.data, pack: "private" } }, body));
     const session = await createContentSession({ config });
@@ -326,6 +336,25 @@ it("publishes safe anchors at actual private page IDs without publishing the pri
         expect(safe).toContain("Public estimate");
         expect(safe).not.toContain("2300");
         expect(privateBody).toContain("Actual 2300 residents");
+        if (splitTargets) {
+            const refusal =
+                /hidden\.md:\d+:1: error: public anchor "safe" resolves to different public and private generated pages/;
+            expect(() => emitContentIndex({ config, publication })).toThrow(refusal);
+            await expect(session.compileCorpus()).rejects.toThrow(refusal);
+            await expect(
+                buildCompileCorpus({
+                    config,
+                    contentBase: config.paths.content,
+                    skipDirectories: [],
+                    router: createPackRouter(config.packs),
+                }),
+            ).rejects.toThrow(refusal);
+            expect(fs.existsSync(config.paths.contentIndex)).toBe(false);
+            expect(fs.readFileSync(file, "utf8")).toBe(
+                note({ ...fm, tags: ["gm"], data: { ...fm.data, pack: "private" } }, body),
+            );
+            return;
+        }
         const result = emitContentIndex({ config, publication });
         const bytes = fs.readFileSync(result.file, "utf8");
         const published = bytes
@@ -349,9 +378,10 @@ it("publishes safe anchors at actual private page IDs without publishing the pri
         const publicContaining = splitPages(safe).find((page) =>
             renderFoundryMarkdown(page.markdown).includes('id="safe"'),
         );
-        expect(expected).not.toBe(journalPageId(native.uuid.split(".").at(-1), publicContaining));
+        expect(expected).toBe(anchorPageId(native.uuid.split(".").at(-1), "estimate"));
+        expect(expected).toBe(journalPageId(native.uuid.split(".").at(-1), publicContaining));
         expect(native.anchors.safe).toBe(`${native.uuid}.JournalEntryPage.${expected}`);
-        expect(native.anchors.estimate).toBeUndefined();
+        expect(native.anchors.estimate).toBe(`${native.uuid}.JournalEntryPage.${expected}`);
         const corpus = await session.compileCorpus();
         const linkIndex = corpus.audiences.public.linkIndex;
         const converted = convertNoteWikilinks("[[demo-note-place-hidden#safe|Account]]", {

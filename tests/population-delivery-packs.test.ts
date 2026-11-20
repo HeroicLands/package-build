@@ -883,7 +883,7 @@ it.each(["session", "standalone"])(
             tree.add(
                 "trailing",
                 { pack: "private", population: { actual, apparent: 900 } },
-                `# Account {#account}\n\nAn account.\n\n\`\`\`sql section-level=1\n${query}\n\`\`\`\n\n[Safe account]{#safe}.`,
+                `# Account {#account}\n\nAn account.\n\n\`\`\`sql {section-level=1}\n${query}\n\`\`\`\n\n[Safe account]{#safe}.`,
             );
             const session = await createContentSession({ config: tree.config });
             try {
