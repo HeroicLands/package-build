@@ -17,6 +17,7 @@ import {
     prepareContentIndex,
     emitContentIndex,
 } from "../engine/content-index.mjs";
+import { isNoteRecord } from "../engine/index-records.mjs";
 import { createNotesDatabaseScope, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
@@ -192,6 +193,7 @@ it("prepares destination-specific compile bodies while public index metadata kee
             packageKind: "modules",
             skipDirectories: [],
             compatibility: { minimum: "14", verified: "14.367" },
+            stats: { lastModifiedBy: "sessionproof0000" },
             packs: [
                 { name: "journals", type: "JournalEntry", default: true },
                 { name: "private", type: "JournalEntry", private: true },
@@ -303,6 +305,7 @@ it("publishes safe anchors at actual private page IDs without publishing the pri
             packageKind: "modules",
             skipDirectories: [],
             compatibility: { minimum: "14", verified: "14.367" },
+            stats: { lastModifiedBy: "sessionproof0000" },
             packs: [
                 { name: "journals", type: "JournalEntry", default: true },
                 { name: "private", type: "JournalEntry", private: true },
@@ -404,8 +407,8 @@ it("derives public and private settlement rows from the same complete validation
         expect(publicText).not.toContain("230");
         expect(privateText).toContain("230");
         expect(
-            session.records.find((entry) => entry.shortcode === "crown").data.territorial_population
-                .actual,
+            session.records.find((entry) => isNoteRecord(entry) && entry.shortcode === "crown").data
+                .territorial_population.actual,
         ).toBe(470);
     } finally {
         session.dispose();
@@ -442,7 +445,8 @@ it("rejects malformed membership maps at raw compile and index boundaries before
         ).rejects.toMatchObject({ located: true });
         expect(() => emitContentIndex({ config: input.config })).toThrow(/population/);
         expect(
-            session.records.find((entry) => entry.shortcode === "guild").data.population.hidden,
+            session.records.find((entry) => isNoteRecord(entry) && entry.shortcode === "guild").data
+                .population.hidden,
         ).toBe(12);
     } finally {
         session.dispose();

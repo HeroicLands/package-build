@@ -17,6 +17,7 @@ import {
     SETTLEMENT_ROW_FIELDS,
 } from "../engine/settlement-tables.mjs";
 import { indexRecordsFor, serializeContentIndex } from "../engine/content-index.mjs";
+import { isNoteRecord } from "../engine/index-records.mjs";
 import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
 import { renderAddress } from "../engine/address.mjs";
 import { prepareTreeSqlTables, openNotesDatabase, runSqlQuery } from "../engine/sql-tables.mjs";
@@ -140,7 +141,9 @@ describe("settlement population declarations", () => {
             },
             (f) => {
                 const records = f.records();
-                const crown = records.find((record) => record.shortcode === "crown");
+                const crown = records.find(
+                    (record) => isNoteRecord(record) && record.shortcode === "crown",
+                );
                 const publicTable = settlementMarkdown(crown, records, {
                     recursive: true,
                     audience: "all",
@@ -1577,7 +1580,7 @@ describe("public settlement policy validation", () => {
                 });
             expect(check()).toHaveLength(0);
             expect(publish).not.toThrow();
-            town.data.population++;
+            town.data.population.actual++;
             expect(check()).toHaveLength(1);
             expect(check()[0].message).toContain(`allowed share of ${percent} percent`);
             expect(publish).toThrow(/exceed the allowed share/);
