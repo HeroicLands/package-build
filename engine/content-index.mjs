@@ -148,6 +148,7 @@ import {
 import { PAGE_LIST_LANGUAGE } from "./page-lists.mjs";
 import { EXPRESSION, renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { scanFigures } from "./content-figures.mjs";
+import { scanHeadingAttributes } from "./heading-attributes.mjs";
 import { eventNoteIndex } from "./event-fields.mjs";
 import { derivedSections } from "./derived-sections.mjs";
 import { officeBodyKey, officeHolders } from "./office-holders.mjs";
@@ -1799,6 +1800,26 @@ function publicationProblems(problems) {
     throw Object.assign(new Error(problems.map(formatDiagnostic).join("\n")), { located: true });
 }
 
+/** Private dynamic headings publish literal anchor declarations without their expression text. */
+function publicHeadingDeclarations(expanded) {
+    const source = expanded.markdown;
+    const dynamicLines = new Set();
+    const masked = replaceOutsideCode(source, EXPRESSION, (_expression, _inside, offset) => {
+        dynamicLines.add(source.slice(0, offset).split("\n").length);
+        return "value";
+    });
+    const lines = source.split("\n");
+    for (const heading of scanHeadingAttributes(masked).headings) {
+        if (!dynamicLines.has(heading.line)) continue;
+        const attributes = [`#${heading.id}`, ...heading.classes.map((name) => `.${name}`)];
+        lines[heading.line - 1] =
+            heading.id ?
+                `${"#".repeat(heading.level)} ${heading.id} {${attributes.join(" ")}}`
+            :   "";
+    }
+    return { ...expanded, markdown: lines.join("\n") };
+}
+
 /** Render the shared expression language and carry inserted scalar lines back to their source. */
 function publicationExpressions(expanded, context) {
     const source = expanded.markdown;
@@ -2041,7 +2062,12 @@ export async function preparePublicationBodies({
             const file = noteFile(tree, record);
             const authored = parsed.get(file);
             const figures = figuresByFile.get(file);
-            const expanded = publicationExpressions(bodies.get(file), {
+            const body = bodies.get(file);
+            const declarations =
+                audience === "all" && populationAudience === "public" && isGmNote(record) ?
+                    publicHeadingDeclarations(body)
+                :   body;
+            const expanded = publicationExpressions(declarations, {
                 fm: projectPopulationFrontmatter(authoredFrontmatter(record), populationAudience),
                 dates,
                 audience: populationAudience,
@@ -2096,7 +2122,7 @@ export async function preparePublicationBodies({
  * @property {string} contentBase - The absolute captured source root.
  * @property {object[]} records - Complete index records, including hidden providers.
  * @property {Map<string, {frontmatter: object|null, body: string, raw: string, bodyLine?: number, bodyColumn?: number}>} parsed - Authored sources by absolute file.
- * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} expandedBodies - Complete rendered bodies in each note's audience.
+ * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} expandedBodies - Public-population bodies with static declarations for private expression headings.
  * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} foundryBodies - Native bodies in the destination audience, used only for target identity.
  * @property {import("./content-session.mjs").ContentSyntax} [syntax] - Session-local exact-text scanner projections.
  */
@@ -2125,6 +2151,12 @@ function projectPublicationBody(
                     const { line: _, ...generated } = anchor;
                     return {
                         ...(original.get(anchor.slug) ?? generated),
+                        ...((
+                            isGmNote(record) &&
+                            dynamicPublicationBody(original.get(anchor.slug)?.name)
+                        ) ?
+                            generated
+                        :   {}),
                         link: new AddressLink(
                             readCanonicalKey(address.canonical),
                             anchor.slug,
