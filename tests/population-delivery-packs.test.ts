@@ -104,9 +104,15 @@ it.each(["session", "standalone"])(
             { tags: ["gm"] },
         );
         tree.add(
+            "privateanchor",
+            { pack: "private", population: { actual: 6500, apparent: 1000 } },
+            "# Population {{data.population.actual}} {#count}\n\n[Account]{#safe}.",
+            { tags: ["gm"] },
+        );
+        tree.add(
             "reader",
             {},
-            "[[place-privateplain#safe|Plain]] and [[place-privateinline#safe|Inline]].",
+            "[[place-privateplain#safe|Plain]] and [[place-privateinline#safe|Inline]] and [[place-privateanchor#safe|Anchored]].",
         );
         const session = await createContentSession({ config: tree.config });
         try {
@@ -136,6 +142,7 @@ it.each(["session", "standalone"])(
             for (const [name, actual] of [
                 ["privateplain", 2300],
                 ["privateinline", 4700],
+                ["privateanchor", 6500],
             ] as const) {
                 const document = privateDocs.find((entry) => entry.name === name);
                 const page = document.pages.find((one) => one.text?.content?.includes('id="safe"'));
@@ -146,6 +153,15 @@ it.each(["session", "standalone"])(
                     (entry) => entry.type === "place" && entry.shortcode === name,
                 );
                 expect(published.foundry.note.anchors.safe).toBe(target);
+                if (name === "privateanchor") {
+                    expect(published.foundry.note.anchors.count).toBe(target);
+                    expect(published.anchors).toEqual(
+                        expect.arrayContaining([
+                            expect.objectContaining({ slug: "count", name: "count" }),
+                        ]),
+                    );
+                }
+                expect(jsonl).not.toContain("SELECT data.population.actual");
                 expect(published.data.population.actual).toBeNull();
                 expect(jsonl).not.toContain(`Population ${actual}`);
                 expect(jsonl).not.toMatch(new RegExp(`\\b${actual}\\b`));
@@ -160,6 +176,42 @@ it.each(["session", "standalone"])(
         } finally {
             await session.dispose();
             tree.close();
+        }
+    },
+);
+
+it.each(["session", "standalone"])(
+    "refuses empty and invalid scalar SQL in public and private headings in the %s compiler",
+    async (mode) => {
+        for (const privateNote of [false, true]) {
+            for (const [query, message] of [
+                ["SELECT NULL", "scalar SQL result is empty"],
+                ["SELECT missing_population FROM notes", "missing_population"],
+            ]) {
+                const tree = input();
+                tree.add(
+                    "invalid",
+                    privateNote ? { pack: "private" } : {},
+                    `# Population {{sql "${query}"}}`,
+                    privateNote ? { tags: ["gm"] } : {},
+                );
+                const session = await createContentSession({ config: tree.config });
+                try {
+                    const preparation =
+                        mode === "session" ?
+                            session.compileCorpus()
+                        :   buildCompileCorpus({
+                                config: tree.config,
+                                contentBase: tree.config.paths.content,
+                                skipDirectories: tree.config.skipDirectories,
+                                router: createPackRouter(tree.config.packs),
+                            });
+                    await expect(preparation).rejects.toThrow(message);
+                } finally {
+                    await session.dispose();
+                    tree.close();
+                }
+            }
         }
     },
 );
