@@ -937,7 +937,7 @@ export class Journals extends BasePackCompiler {
      * @returns {boolean} True for a journal-only note or a doc-carrying one.
      */
     selects(fm) {
-        return JOURNAL_TYPES.has(String(fm.type)) || hasDocEntry(fm.type);
+        return JOURNAL_TYPES.has(String(fm.type)) || hasDocEntry(fm.type, this.corpus?.config);
     }
 
     /**
@@ -983,7 +983,7 @@ export class Journals extends BasePackCompiler {
      */
     buildEntry(fm, markdown) {
         const name = resolveName(fm);
-        const ownsDoc = hasDocEntry(fm.type);
+        const ownsDoc = hasDocEntry(fm.type, this.corpus?.config);
         const id = ownsDoc ? itemDocEntryId(fm.id) : fm.id;
 
         // A documentation entry is filed exactly where the document it
@@ -1104,7 +1104,7 @@ export class Journals extends BasePackCompiler {
 
     /** @inheritdoc */
     onCompiled(fm) {
-        if (hasDocEntry(fm.type)) this.docEntries++;
+        if (hasDocEntry(fm.type, this.corpus?.config)) this.docEntries++;
     }
 
     /** @inheritdoc */

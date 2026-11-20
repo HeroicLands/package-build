@@ -56,10 +56,11 @@ import { resolveImg } from "./helpers.mjs";
  * An accessor rather than a hoisted constant, so that importing this module
  * needs no configuration.
  *
+ * @param {object} [config] - The captured build configuration; defaults to the loaded configuration.
  * @returns {ReadonlySet<string>} The configured item types.
  */
-export function itemTypes() {
-    return loadPackConfig().itemTypes;
+export function itemTypes(config = loadPackConfig()) {
+    return config.itemTypes;
 }
 
 /**
@@ -75,12 +76,12 @@ export function itemTypes() {
  * @param {string} what - What is being looked up, for the message.
  * @param {"itemBuilders"|"itemArt"|"itemFields"} table - Which table.
  * @param {string} type - The item type.
- * @param {string} [system] - The system asking, where a build has more than one.
+ * @param {string|undefined} system - The system asking, where a build has more than one.
+ * @param {object} config - The captured build configuration.
  * @returns {any} The entry, or `undefined`.
  * @throws {Error} When several systems declare the type and none is named.
  */
-function lookup(what, table, type, system) {
-    const config = loadPackConfig();
+function lookup(what, table, type, system, config) {
     if (system !== undefined) {
         const perSystem = /** @type {Record<string, Record<string, unknown>>} */ (
             config[`${table}BySystem`]
@@ -110,12 +111,13 @@ function lookup(what, table, type, system) {
  * @param {string} [system] - The system compiling it, where a build declares
  *   more than one registry. Omitted, a type only one registry declares still
  *   resolves; a contested one throws rather than picking a side.
+ * @param {object} [config] - The captured build configuration; defaults to the loaded configuration.
  * @returns {(fm: object) => object} The builder for that type.
  * @throws {Error} When the configuration registers no builder for `type`.
  */
-export function itemBuilder(type, system) {
+export function itemBuilder(type, system, config = loadPackConfig()) {
     const builder = /** @type {Function|undefined} */ (
-        lookup("builder", "itemBuilders", type, system)
+        lookup("builder", "itemBuilders", type, system, config)
     );
     if (typeof builder !== "function") {
         throw new Error(
@@ -138,11 +140,12 @@ export function itemBuilder(type, system) {
  * @param {string} type - The item type.
  * @param {string} [system] - The system compiling it, where a build declares
  *   more than one registry.
+ * @param {object} [config] - The captured build configuration; defaults to the loaded configuration.
  * @returns {readonly object[]|undefined} The declaration, or `undefined`.
  */
-export function itemFields(type, system) {
+export function itemFields(type, system, config = loadPackConfig()) {
     return /** @type {readonly object[]|undefined} */ (
-        lookup("field declaration", "itemFields", type, system)
+        lookup("field declaration", "itemFields", type, system, config)
     );
 }
 
@@ -171,11 +174,14 @@ export function itemFields(type, system) {
  * @param {string} type - the item type.
  * @param {string} [system] - The system compiling it, where a build declares
  *   more than one registry.
+ * @param {object} [config] - The captured build configuration; defaults to the loaded configuration.
  * @returns {string} The default image path for that type.
  * @throws {Error} When the type's registry entry pairs no `img`.
  */
-export function itemArt(type, system) {
-    const art = /** @type {string|undefined} */ (lookup("default art", "itemArt", type, system));
+export function itemArt(type, system, config = loadPackConfig()) {
+    const art = /** @type {string|undefined} */ (
+        lookup("default art", "itemArt", type, system, config)
+    );
     if (!art) {
         throw new Error(
             `No default art for item type "${type}" — the note carries no ` +
@@ -189,5 +195,5 @@ export function itemArt(type, system) {
     // `art` is non-empty by the guard above, so the translation never returns
     // the `null` a note's unset `img:` would; the coalesce states that
     // rather than leaving the declared `string` return a half-truth.
-    return resolveImg(art) ?? "";
+    return resolveImg(art, config) ?? "";
 }

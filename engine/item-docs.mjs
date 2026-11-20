@@ -105,16 +105,17 @@ export function itemDocEntryId(itemId) {
  * @param {string} pageId - The id of the selected entry page, from
  *   {@link journalPageId}.
  * @param {object} [fm] - The source note, which routes GM-only prose.
+ * @param {ReturnType<typeof packRouter>} [router] - The captured build's destination router.
  * @returns {string} The pointer to store in `system.docHtml`.
  */
-export function itemDocPointer(packageId, itemId, name, pageId, fm) {
+export function itemDocPointer(packageId, itemId, name, pageId, fm, router = packRouter()) {
     // An item doc is a *derived* document: it lands in the default
     // JournalEntry pack whatever Item pack the item itself was routed to.
     const entryUuid = compendiumUuid(
         packageId,
         "doc",
         itemDocEntryId(itemId),
-        fm ? packRouter().resolve(fm, "JournalEntry") : packRouter().defaultOf("JournalEntry"),
+        fm ? router.resolve(fm, "JournalEntry") : router.defaultOf("JournalEntry"),
     );
     return `@UUID[${pageUuid(entryUuid, pageId)}]{${name}}`;
 }

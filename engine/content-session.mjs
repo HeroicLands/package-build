@@ -351,7 +351,20 @@ async function createContentSessionInternal(
                 const tables = {};
                 for (const audience of ["public", "all"])
                     tables[audience] = await session.sqlTables(audience);
-                const bodies = await session.publication();
+                // Compilation retains captured source findings; publication refuses them.
+                const bodies =
+                    problems.length ?
+                        await contentIndex.preparePublicationBodies({
+                            contentBase: tree,
+                            config,
+                            records,
+                            parsed,
+                            foreign,
+                            router,
+                            syntax,
+                            prepareAudience: (audience) => session.sqlTables(audience),
+                        })
+                    :   await session.publication();
                 const audiences = buildCompileAudiences(tree, router, {
                     config,
                     records,
