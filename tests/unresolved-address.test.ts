@@ -111,7 +111,10 @@ function cachedIndexes(byPackage: Record<string, unknown[]>) {
             path.join(dir, `${pkg}-metadata.jsonl`),
             records.map((r) => JSON.stringify(r)).join("\n") + "\n",
         );
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: `${pkg}-metadata.jsonl`, sha256: null }),
+        );
     }
     return {
         ...loadPackConfig(),

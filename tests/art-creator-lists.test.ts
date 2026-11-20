@@ -7,7 +7,6 @@ import { afterEach, expect, it } from "vitest";
 import {
     writeProvenance,
     readProvenance,
-    readWebpProvenance,
     readJpegProvenance,
     writeSvgProvenance,
     readSvgProvenance,
@@ -69,7 +68,7 @@ it("keeps all ordered credits through masters, index, public pictures and JPEG",
         path.join(root, "build/cache"),
     );
     expect(
-        readWebpProvenance(fs.readFileSync(rendered.get(fields.address)!)).record.creator,
+        readJpegProvenance(fs.readFileSync(rendered.get(fields.address)!)).record.creator,
     ).toEqual(credits);
     expect(
         readSvgProvenance(fs.readFileSync(rendered.get(vectorFields.address)!)).record.creator,
@@ -91,7 +90,7 @@ it("keeps all ordered credits through masters, index, public pictures and JPEG",
     );
     const updatedBytes = fs.readFileSync(updated.get(fields.address)!);
     expect(updatedBytes).not.toEqual(firstRendered);
-    expect(readWebpProvenance(updatedBytes).record.creator).toEqual(changed);
+    expect(readJpegProvenance(updatedBytes).record.creator).toEqual(changed);
 });
 it.each([
     '<dc:creator rdf:resource="urn:person"/>',

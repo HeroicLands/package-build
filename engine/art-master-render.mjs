@@ -20,7 +20,7 @@ import { writeDerivativeProvenance } from "./art-provenance.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { assertPrivateArtRoots, masterAssetRecords } from "./art-masters.mjs";
-import { deriveRecord } from "./art-provenance-core.mjs";
+import { deriveRecord, provenancePacket } from "./art-provenance-core.mjs";
 import { artRendererIdentity, cachedArtRender } from "./art-render-cache.mjs";
 
 /**
@@ -56,24 +56,29 @@ export async function renderArtMasters(masters, records, outDir, cacheDir) {
         }
         const repeat = ["derivedFrom", ...(note ? ["name", "primaryNote"] : [])];
         const options = { repeat, notePublic: Boolean(note) };
+        const target = masterAssetRecords(new Map([[address, master]]))[0].asset.path;
+        const format = path.extname(target) === ".jpg" ? "jpeg" : path.extname(target).slice(1);
         const rendered = await cachedArtRender(
             bytes,
             {
                 renderer: artRendererIdentity(import.meta.url),
                 codec: sharp.versions,
-                format: path.extname(master.file).toLowerCase() === ".png" ? "webp" : "svg",
+                format,
                 metadata: deriveRecord(publicMaster, options),
             },
             cacheDir,
             async () => {
-                const input =
-                    path.extname(master.file).toLowerCase() === ".png" ?
-                        await sharp(bytes).webp().toBuffer()
-                    :   bytes;
+                if (format === "jpeg") {
+                    return sharp(bytes)
+                        .jpeg()
+                        .keepIccProfile()
+                        .withXmp(provenancePacket(deriveRecord(publicMaster, options)))
+                        .toBuffer();
+                }
+                const input = format === "webp" ? await sharp(bytes).webp().toBuffer() : bytes;
                 return writeDerivativeProvenance(input, publicMaster, options).bytes;
             },
         );
-        const target = masterAssetRecords(new Map([[address, master]]))[0].asset.path;
         const file = path.join(outDir, ...target.split("/"));
         fs.mkdirSync(path.dirname(file), { recursive: true });
         fs.writeFileSync(file, rendered);

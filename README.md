@@ -145,6 +145,8 @@ branch containing that commit. Select `consumer: kethira` (the default) for the
 pinned Kethira compile, or `consumer: thalorna-encoding` for the pinned Thalorna
 encoding proof, or `consumer: thalorna-headwords` for the pinned Thalorna
 headword proof.
+Set `art_archives: true` with `consumer: kethira` to add an isolated artwork
+archive compile. The Thalorna proofs ignore this option.
 
 All choices pack that commit, verify the archive integrity and installed bytes,
 and refuse changes to unrelated locked dependencies before the normal consumer

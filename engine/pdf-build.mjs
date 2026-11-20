@@ -87,7 +87,8 @@ import { routerFor } from "./pack-router.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 import { createContentSession } from "./content-session.mjs";
-import { privateArtRoots, readArtLock } from "./art-lock.mjs";
+import { privateArtRoots } from "./art-inputs.mjs";
+import { renderArtMasters } from "./art-master-render.mjs";
 import { assertPrivateArtRoots } from "./art-masters.mjs";
 import { readCanonicalKey, renderAddress } from "./address.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
@@ -239,6 +240,7 @@ export function stageBanners(
     treeFile,
     treeText = "",
     masterByPath = new Map(),
+    screenByPath = new Map(),
 ) {
     const staged = new Map();
     const seen = new Set();
@@ -266,13 +268,16 @@ export function stageBanners(
             continue;
         }
         const master = masterByPath.get(bookAssetKey(from, config));
+        const screen = screenByPath.get(bookAssetKey(from, config));
         const relative = within.split(path.sep).join("/");
         const to = `${STAGED_PLATES}/${master ? `${relative.replace(/\.[^.]+$/, "")}.jpg` : relative}`;
         const dest = path.join(outDir, to);
         try {
             fs.mkdirSync(path.dirname(dest), { recursive: true });
-            if (!master) fs.copyFileSync(from, dest);
+            if (screen) fs.writeFileSync(dest, screen());
+            else if (!master) fs.copyFileSync(from, dest);
         } catch (err) {
+            if (screen) throw err;
             findings.push({
                 file: treeFile,
                 ...at,
@@ -525,7 +530,7 @@ export async function buildPdf({
         path.resolve(resolved.rootDir, "build", ".cache", "art"),
     ]);
 
-    const world = await prepareWorld(resolved, { contentBase, findings });
+    const world = await prepareWorld(resolved, { contentBase, findings, edition });
     if (!world) return none(null);
 
     const books = [];
@@ -560,7 +565,8 @@ export async function buildPdf({
                     !fs.existsSync(file) &&
                     !(
                         field.endsWith(".coverImage") &&
-                        world.masterByPath.has(bookAssetKey(file, resolved))
+                        (world.masterByPath.has(bookAssetKey(file, resolved)) ||
+                            world.screenByPath.has(bookAssetKey(file, resolved)))
                     ),
             );
             for (const [field, file, what] of missing) {
@@ -798,6 +804,7 @@ export async function buildPdf({
             });
         }
     } finally {
+        await world.session?.dispose();
         await world.db.close?.();
         fs.rmSync(world.dir, { recursive: true, force: true });
     }
@@ -838,152 +845,175 @@ function locateType(contentBase, record) {
  * @returns {Promise<object|null>} The world, or null when a site gate fired
  *   and the findings say why.
  */
-async function prepareWorld(resolved, { contentBase, findings }) {
+async function prepareWorld(resolved, { contentBase, findings, edition }) {
     // The corpus, once — the same records the index, the site and the SQL
     // tables read, so the book cannot select a note the other surfaces do not
     // have.
     const session =
-        resolved.art?.masterRoots?.length ?
+        resolved.art?.masterRoots?.length || resolved.art?.archives?.length ?
             await createContentSession({ config: resolved, contentBase })
         :   null;
     if (session?.problems.length) {
         findings.push(...session.problems);
-        session.dispose();
+        await session.dispose();
         return null;
     }
-    const pinnedArtFindings = [];
-    const parsed = session?.parsed ?? new Map();
-    const records =
-        session?.records ??
-        indexRecordsFor({
+    let dir;
+    let db;
+    try {
+        const parsed = session?.parsed ?? new Map();
+        const records =
+            session?.records ??
+            indexRecordsFor({
+                contentBase,
+                config: resolved,
+                skipDirectories: resolved.skipDirectories,
+                parsed,
+            });
+        const masters = session?.masters ?? new Map();
+        const addressText = (record) => {
+            const tuple = readCanonicalKey(record.address?.canonical);
+            return tuple ? renderAddress(tuple) : undefined;
+        };
+        const publicNotes = new Map(
+            records
+                .filter((record) => isNoteRecord(record) && !isGmNote(record))
+                .map((record) => [addressText(record), record]),
+        );
+        const masterByPath = new Map();
+        const screenByPath = new Map();
+        const renderedScreens =
+            edition === "screen" && masters.size ?
+                await renderArtMasters(
+                    masters,
+                    records,
+                    path.join(resolved.rootDir, "build", "art"),
+                    path.join(resolved.rootDir, "build", ".cache", "art"),
+                )
+            :   new Map();
+        for (const record of records) {
+            const address = addressText(record);
+            const rendered = renderedScreens.get(address);
+            const screen = rendered ? () => fs.readFileSync(rendered) : undefined;
+            if (screen && record.asset?.path)
+                screenByPath.set(`${record.package}/assets/${record.asset.path}`, screen);
+        }
+        for (const record of records) {
+            const master = masters.get(addressText(record));
+            if (!master || !record.asset?.path || edition === "screen") continue;
+            const key = `${record.package}/assets/${record.asset.path}`;
+            const note = publicNotes.get(master.record.primaryNote);
+            const provenance = { ...master.record };
+            if (note) provenance.name = note.name?.full;
+            masterByPath.set(key, { ...master, record: provenance, notePublic: Boolean(note) });
+        }
+
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), "content-pdf-"));
+        // The one database over the corpus: the books' filters, the generated
+        // sections and every authored query read it.
+        db = await openNotesDatabase(records, {
+            dir,
+            dependencies: await cachedDependencies(resolved),
+            audience: "public",
             contentBase,
+        });
+
+        // Pages, indexed and gated exactly as the site does. A book of a tree whose
+        // addresses collide would print the wrong entry under the right name.
+        const scheme = resolved.publish.address;
+        const base = resolved.site.base || `/${resolved.contentPackage}/`;
+        // Where the pages this book cites are served. A page's address is written
+        // from the root of a site, which is right everywhere on the web and nowhere
+        // in a PDF, so the book resolves each one against this — see
+        // {@link module:engine/pdf-render.absolutePageUrl}. `package.json`'s
+        // `homepage` is the one absolute address a build holds, and the site reads
+        // its own `baseURL` from it, so the book and the website cannot disagree
+        // about where a page is.
+        const site = typeof resolved.homepage === "string" ? resolved.homepage : "";
+        if (!site) {
+            findings.push({
+                file: "package.json",
+                severity: "error",
+                message:
+                    "`homepage` is not declared, so a page the book cites is set as a path " +
+                    `rather than an address a reader can follow — add \`https://www.heroiclands.org/${resolved.contentPackage}/\``,
+            });
+        }
+        const ctx = {
+            packages: new Set(
+                resolved.site.packages.length ? resolved.site.packages : [resolved.contentPackage],
+            ),
+            contentPackage: resolved.contentPackage,
+            skipDirectories: resolved.skipDirectories,
+            config: resolved,
+            records,
+            base,
+            mount: `${base}${scheme.prefix}`,
+            scheme,
+        };
+        const collected = collectContentPages(contentBase, ctx);
+        const sqlTables = await prepareTreeSqlTables(contentBase, {
             config: resolved,
             skipDirectories: resolved.skipDirectories,
+            records,
             parsed,
-            pinnedArtFindings,
+            database: db,
+            audience: "public",
         });
-    if (pinnedArtFindings.length) {
-        findings.push(...pinnedArtFindings);
-        session?.dispose();
-        return null;
-    }
-    if (readArtLock(resolved))
-        throw new Error(
-            "art.lock: error: PDF editions require private master inputs; public pinned artwork is not a master",
-        );
-    const masters = session?.masters ?? new Map();
-    session?.dispose();
-    const addressText = (record) => {
-        const tuple = readCanonicalKey(record.address?.canonical);
-        return tuple ? renderAddress(tuple) : undefined;
-    };
-    const publicNotes = new Map(
-        records
-            .filter((record) => isNoteRecord(record) && !isGmNote(record))
-            .map((record) => [addressText(record), record]),
-    );
-    const masterByPath = new Map();
-    for (const record of records) {
-        const master = masters.get(addressText(record));
-        if (!master || !record.asset?.path) continue;
-        const key = `${record.package}/assets/${record.asset.path}`;
-        const note = publicNotes.get(master.record.primaryNote);
-        const provenance = { ...master.record };
-        if (note) provenance.name = note.name?.full;
-        masterByPath.set(key, { ...master, record: provenance, notePublic: Boolean(note) });
-    }
-
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "content-pdf-"));
-    // The one database over the corpus: the books' filters, the generated
-    // sections and every authored query read it.
-    const db = await openNotesDatabase(records, {
-        dir,
-        dependencies: await cachedDependencies(resolved),
-        audience: "public",
-        contentBase,
-    });
-
-    // Pages, indexed and gated exactly as the site does. A book of a tree whose
-    // addresses collide would print the wrong entry under the right name.
-    const scheme = resolved.publish.address;
-    const base = resolved.site.base || `/${resolved.contentPackage}/`;
-    // Where the pages this book cites are served. A page's address is written
-    // from the root of a site, which is right everywhere on the web and nowhere
-    // in a PDF, so the book resolves each one against this — see
-    // {@link module:engine/pdf-render.absolutePageUrl}. `package.json`'s
-    // `homepage` is the one absolute address a build holds, and the site reads
-    // its own `baseURL` from it, so the book and the website cannot disagree
-    // about where a page is.
-    const site = typeof resolved.homepage === "string" ? resolved.homepage : "";
-    if (!site) {
-        findings.push({
-            file: "package.json",
-            severity: "error",
-            message:
-                "`homepage` is not declared, so a page the book cites is set as a path " +
-                `rather than an address a reader can follow — add \`https://www.heroiclands.org/${resolved.contentPackage}/\``,
+        const gates = siteGates(collected.pages, collected, {
+            config: resolved,
+            records,
+            sqlTables,
         });
-    }
-    const ctx = {
-        packages: new Set(
-            resolved.site.packages.length ? resolved.site.packages : [resolved.contentPackage],
-        ),
-        contentPackage: resolved.contentPackage,
-        skipDirectories: resolved.skipDirectories,
-        config: resolved,
-        records,
-        base,
-        mount: `${base}${scheme.prefix}`,
-        scheme,
-    };
-    const collected = collectContentPages(contentBase, ctx);
-    const sqlTables = await prepareTreeSqlTables(contentBase, {
-        config: resolved,
-        skipDirectories: resolved.skipDirectories,
-        records,
-        parsed,
-        database: db,
-        audience: "public",
-    });
-    const gates = siteGates(collected.pages, collected, { config: resolved, records, sqlTables });
-    if (gatesFailed(gates)) {
-        for (const [name, list] of Object.entries(gates)) {
-            if (!Array.isArray(list)) continue;
-            for (const f of list) {
-                findings.push({
-                    file: f.file ?? contentBase,
-                    severity: "error",
-                    message: f.message ?? `${name}: ${JSON.stringify(f)}`,
-                });
+        if (gatesFailed(gates)) {
+            for (const [name, list] of Object.entries(gates)) {
+                if (!Array.isArray(list)) continue;
+                for (const f of list) {
+                    findings.push({
+                        file: f.file ?? contentBase,
+                        severity: "error",
+                        message: f.message ?? `${name}: ${JSON.stringify(f)}`,
+                    });
+                }
             }
+            await db.close?.();
+            fs.rmSync(dir, { recursive: true, force: true });
+            await session?.dispose();
+            return null;
         }
-        return null;
+
+        const byFile = new Map(collected.pages.map((page) => [page.file, page]));
+        // The address space an `![[…]]` embed resolves against — the same one the
+        // site builds, so one authored picture reaches both surfaces or neither.
+        const assets = assetAddressIndex(records, {
+            config: resolved,
+            foreign: gates.foreign,
+            types: gates.index?.contentTypes ?? [],
+        });
+        const md = createParser(resolved.icons);
+        const glyphs = resolveIconGlyphs(resolved.icons, resolved.pdf.iconFonts, findings);
+
+        return {
+            records,
+            db,
+            dir,
+            site,
+            gates,
+            byFile,
+            sqlTables,
+            assets,
+            md,
+            glyphs,
+            masterByPath,
+            screenByPath,
+            session,
+        };
+    } catch (error) {
+        await session?.dispose();
+        await db?.close?.();
+        if (dir) fs.rmSync(dir, { recursive: true, force: true });
+        throw error;
     }
-
-    const byFile = new Map(collected.pages.map((page) => [page.file, page]));
-    // The address space an `![[…]]` embed resolves against — the same one the
-    // site builds, so one authored picture reaches both surfaces or neither.
-    const assets = assetAddressIndex(records, {
-        config: resolved,
-        foreign: gates.foreign,
-        types: gates.index?.contentTypes ?? [],
-    });
-    const md = createParser(resolved.icons);
-    const glyphs = resolveIconGlyphs(resolved.icons, resolved.pdf.iconFonts, findings);
-
-    return {
-        records,
-        db,
-        dir,
-        site,
-        gates,
-        byFile,
-        sqlTables,
-        assets,
-        md,
-        glyphs,
-        masterByPath,
-    };
 }
 
 /**
@@ -1102,9 +1132,11 @@ async function buildBook(book, shared) {
         const staged = stagedImagePath(src, resolved);
         if (!staged) return null;
         const master = world.masterByPath.get(assetPathnameKey(src, resolved));
+        const screen = world.screenByPath.get(assetPathnameKey(src, resolved));
         return {
             ...staged,
             ...(master ? { master } : {}),
+            ...(screen ? { screen } : {}),
             to: inBook(master ? `${staged.to.replace(/\.[^.]+$/, "")}.jpg` : staged.to),
         };
     };
@@ -1238,8 +1270,10 @@ async function buildBook(book, shared) {
             const dest = path.join(outDir, staged.to);
             try {
                 fs.mkdirSync(path.dirname(dest), { recursive: true });
-                if (!staged.master) fs.copyFileSync(staged.from, dest);
+                if (staged.screen) fs.writeFileSync(dest, staged.screen());
+                else if (!staged.master) fs.copyFileSync(staged.from, dest);
             } catch (err) {
+                if (staged.screen) throw err;
                 findings.push({
                     file,
                     ...where(image.locate ?? src, occurrence),
@@ -1633,15 +1667,18 @@ async function buildBook(book, shared) {
                 treeFile,
                 treeText,
                 world.masterByPath,
+                world.screenByPath,
             ),
         ].map(([declared, to]) => [declared, inBook(to)]),
     );
     for (const [declared, to] of banners) {
         const from = path.resolve(resolved.rootDir, declared);
         const master = world.masterByPath.get(bookAssetKey(from, resolved));
+        const screen = world.screenByPath.get(bookAssetKey(from, resolved));
         imageCandidates.set(`banner:${declared}`, {
             from,
             ...(master ? { master } : {}),
+            ...(screen ? { screen } : {}),
             to,
             relative: path.relative(resolved.rootDir, from),
             file: treeFile,
@@ -1676,7 +1713,7 @@ async function buildBook(book, shared) {
             findings.push({ file, ...where(), severity: "error", message: err.message });
             return;
         }
-        if (!staged || (!staged.master && !fs.existsSync(staged.from))) {
+        if (!staged || (!staged.master && !staged.screen && !fs.existsSync(staged.from))) {
             findings.push({
                 file,
                 ...where(),
@@ -1687,7 +1724,8 @@ async function buildBook(book, shared) {
         }
         const target = path.join(outDir, staged.to);
         fs.mkdirSync(path.dirname(target), { recursive: true });
-        if (!staged.master) fs.copyFileSync(staged.from, target);
+        if (staged.screen) fs.writeFileSync(target, staged.screen());
+        else if (!staged.master) fs.copyFileSync(staged.from, target);
         addMapPage(entry.anchor, { path: staged.to, title });
         const candidate = imageCandidates.get(staged.to);
         const use = {
@@ -1748,14 +1786,17 @@ async function buildBook(book, shared) {
     let cover = "";
     if (book.coverImage) {
         const master = world.masterByPath.get(bookAssetKey(book.coverImage, resolved));
+        const screen = world.screenByPath.get(bookAssetKey(book.coverImage, resolved));
         const basename = path.basename(book.coverImage);
         cover = inBook(`cover/${master ? `${basename.replace(/\.[^.]+$/, "")}.jpg` : basename}`);
         try {
             fs.mkdirSync(path.dirname(path.join(outDir, cover)), { recursive: true });
-            if (!master) fs.copyFileSync(book.coverImage, path.join(outDir, cover));
+            if (screen) fs.writeFileSync(path.join(outDir, cover), screen());
+            else if (!master) fs.copyFileSync(book.coverImage, path.join(outDir, cover));
             imageCandidates.set(`cover:${book.coverImage}`, {
                 from: book.coverImage,
                 ...(master ? { master } : {}),
+                ...(screen ? { screen } : {}),
                 to: cover,
                 relative: path.relative(resolved.rootDir, book.coverImage),
                 file: treeFile,
@@ -1765,6 +1806,7 @@ async function buildBook(book, shared) {
                 ],
             });
         } catch (err) {
+            if (screen) throw err;
             cover = "";
             findings.push({
                 file: treeFile,

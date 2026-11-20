@@ -97,7 +97,10 @@ publish: {}
                 documentation: null,
             }) + "\n",
         );
-        fs.writeFileSync(path.join(cache, ".complete"), "");
+        fs.writeFileSync(
+            path.join(cache, ".complete"),
+            JSON.stringify({ file: "sohl-metadata.jsonl", sha256: null }),
+        );
     }
     return root;
 }

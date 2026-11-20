@@ -11,7 +11,7 @@ import { proposeSettlements } from "../engine/settlement-generate.mjs";
 import { proposeUrbanSupply } from "../engine/settlement-urban.mjs";
 import { SETTLEMENT_MODEL_DEFAULTS } from "../engine/settlement-model.mjs";
 import { prepareSettlementEdit } from "../engine/settlement-source.mjs";
-import { metadataFileName } from "../engine/metadata-index.mjs";
+import { markComplete, metadataFileName } from "../engine/metadata-index.mjs";
 import { fixture, note, write } from "./content-session-fixture.js";
 
 const roots: string[] = [];
@@ -199,7 +199,7 @@ async function assemblyFixture(
             path.join(dir, metadataFileName("other")),
             entries.map((item) => JSON.stringify(item)).join("\n") + "\n",
         );
-        write(path.join(dir, ".complete"), "");
+        markComplete(dir, metadataFileName("other"));
     }
     const session = await createContentSession({ config });
     const cell = {

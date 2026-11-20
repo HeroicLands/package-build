@@ -3,6 +3,7 @@
 set -euo pipefail
 
 proof="$RUNNER_TEMP/consumer-proof"
+guard="$PWD/ci/consumer-lock-guard.mjs"
 case "$CONSUMER_PROOF" in
     kethira|thalorna-encoding|thalorna-headwords) ;;
     *) printf 'Unknown consumer proof: %s\n' "$CONSUMER_PROOF" >&2; exit 1 ;;
@@ -13,25 +14,16 @@ printf 'Consumer commit: %s\n' "$(git rev-parse HEAD)"
 cp package-lock.json "$proof/original-lock.json"
 npm pkg set "devDependencies.@heroiclands/package-build=file:$proof/candidate.tgz"
 npm update @heroiclands/package-build --package-lock-only --ignore-scripts
-node - "$proof/original-lock.json" <<'NODE'
-const fs = require('node:fs');
-const assert = require('node:assert/strict');
+node --input-type=module - "$proof/original-lock.json" "$guard" <<'NODE'
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { pathToFileURL } from 'node:url';
+import crypto from 'node:crypto';
+const { checkConsumerLock } = await import(pathToFileURL(process.argv[3]));
 const before = JSON.parse(fs.readFileSync(process.argv[2]));
 const after = JSON.parse(fs.readFileSync('package-lock.json'));
 const candidate = 'node_modules/@heroiclands/package-build';
-for (const key of new Set([...Object.keys(before.packages), ...Object.keys(after.packages)])) {
-    if (key === candidate) continue;
-    if (key === '') {
-        const a = structuredClone(before.packages[key]);
-        const b = structuredClone(after.packages[key]);
-        delete a.devDependencies['@heroiclands/package-build'];
-        delete b.devDependencies['@heroiclands/package-build'];
-        assert.deepEqual(b, a, 'consumer root dependencies changed');
-    } else {
-        assert.deepEqual(after.packages[key], before.packages[key], `unrelated lock entry changed: ${key}`);
-    }
-}
-const crypto = require('node:crypto');
+checkConsumerLock(before, after);
 const archive = fs.readFileSync(process.env.RUNNER_TEMP + '/consumer-proof/candidate.tgz');
 const integrity = 'sha512-' + crypto.createHash('sha512').update(archive).digest('base64');
 assert.equal(after.packages[candidate].integrity, integrity);

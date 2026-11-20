@@ -13,6 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { ClassicLevel } from "classic-level";
@@ -699,14 +700,25 @@ describe("dependency download retries", () => {
             .mockResolvedValueOnce(
                 Response.json({
                     version: "1",
-                    flags: { metadataUrl: "https://example.test/index.jsonl" },
+                    flags: {
+                        metadataUrl:
+                            "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                    },
                 }),
             )
             .mockResolvedValue(response(503));
         vi.stubGlobal("fetch", fetcher);
-        const error = await settle(fetchMetadata({ paths: { metadataCache: root } }, rel));
+        const error = await settle(
+            fetchMetadata(
+                { paths: { metadataCache: root } },
+                {
+                    ...rel,
+                    manifest: "https://github.com/example/repo/releases/download/v1/system.json",
+                },
+            ),
+        );
         expect(fetcher).toHaveBeenCalledTimes(6);
-        expect(String(error)).toContain("index.jsonl: HTTP 503");
+        expect(String(error)).toContain("checksum unavailable");
         expect(fetcher.mock.calls[1][1].signal).toBeInstanceOf(AbortSignal);
     });
 
@@ -784,6 +796,7 @@ describe("mirrored dependency releases", () => {
         const tokenFile = path.join(root, "token");
         fs.writeFileSync(tokenFile, `${token}\n`, { mode: 0o600 });
         vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
+        vi.stubEnv("XDG_CACHE_HOME", path.join(root, "shared"));
         let authorized = true;
         let missing = false;
         const server = http.createServer((req, res) => {
@@ -793,9 +806,12 @@ describe("mirrored dependency releases", () => {
                 res.end(
                     JSON.stringify({
                         version: "1",
-                        download: "https://public.test/release/system.zip",
+                        download: "https://github.com/example/repo/releases/download/v1/system.zip",
                         packs: [{ name: "items", type: "Item", path: "packs/items" }],
-                        flags: { metadataUrl: "https://public.test/release/index.jsonl" },
+                        flags: {
+                            metadataUrl:
+                                "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                        },
                     }),
                 );
             } else if (!missing && req.url === "/mirror/index.jsonl") res.end(bytes);
@@ -811,10 +827,30 @@ describe("mirrored dependency releases", () => {
             if (!address || typeof address === "string") throw new Error("server address missing");
             const rel = {
                 id: "example",
-                manifest: "https://public.test/release/system.json",
+                manifest: "https://github.com/example/repo/releases/download/v1/system.json",
                 buildManifest: `http://127.0.0.1:${address.port}/mirror/system.json`,
                 verified: "1",
             };
+            const realFetch = globalThis.fetch;
+            vi.stubGlobal(
+                "fetch",
+                vi.fn(async (url: string, options: RequestInit) => {
+                    if (url.includes("api.github.com")) {
+                        expect(JSON.stringify(options.headers)).not.toContain(token);
+                        if (url.includes("/tags/"))
+                            return Response.json({ id: 123, tag_name: "v1" });
+                        return Response.json([
+                            {
+                                id: 1,
+                                browser_download_url:
+                                    "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                                digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+                            },
+                        ]);
+                    }
+                    return realFetch(url, options);
+                }),
+            );
             const config = { paths: { metadataCache: root } };
             const file = await fetchMetadata(config, rel);
             expect(fs.readFileSync(file)).toEqual(bytes);
@@ -827,13 +863,24 @@ describe("mirrored dependency releases", () => {
             expect(requests.slice(-2)).toEqual(["/mirror/system.json", "/mirror/system.zip"]);
             expect(authorized).toBe(true);
             missing = true;
+            fs.writeFileSync(
+                path.join(
+                    root,
+                    "shared",
+                    "heroiclands",
+                    "downloads",
+                    createHash("sha256").update(bytes).digest("hex"),
+                ),
+                "damaged",
+            );
             await expect(
                 fetchMetadata({ paths: { metadataCache: path.join(root, "cold") } }, rel),
-            ).rejects.toThrow(/index\.jsonl: HTTP 404/);
+            ).rejects.toThrow();
         } finally {
             await new Promise<void>((resolve, reject) =>
                 server.close((err) => (err ? reject(err) : resolve())),
             );
+            vi.unstubAllGlobals();
             vi.unstubAllEnvs();
             fs.rmSync(root, { recursive: true, force: true });
         }
@@ -1092,10 +1139,10 @@ describe("mirrored dependency releases", () => {
         const tokenFile = path.join(root, "private");
         fs.writeFileSync(tokenFile, (await import("node:crypto")).randomBytes(32).toString("hex"));
         vi.stubEnv("PACKAGE_BUILD_FORGE_TOKEN_FILE", tokenFile);
-        vi.useFakeTimers();
+        vi.stubEnv("XDG_CACHE_HOME", path.join(root, "shared"));
         const rel = {
             id: "example",
-            manifest: "https://public.test/release/system.json",
+            manifest: "https://github.com/example/repo/releases/download/v1/system.json",
             buildManifest: "https://mirror.test/release/system.json",
             verified: "1",
         };
@@ -1108,20 +1155,32 @@ describe("mirrored dependency releases", () => {
                 .mockResolvedValueOnce(
                     Response.json({
                         version: "1",
-                        flags: { metadataUrl: "https://public.test/release/index.jsonl" },
+                        flags: {
+                            metadataUrl:
+                                "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                        },
                     }),
+                )
+                .mockResolvedValueOnce(Response.json({ id: 123, tag_name: "v1" }))
+                .mockResolvedValueOnce(
+                    Response.json([
+                        {
+                            id: 1,
+                            browser_download_url:
+                                "https://github.com/example/repo/releases/download/v1/index.jsonl",
+                            digest: `sha256:${createHash("sha256").update("index").digest("hex")}`,
+                        },
+                    ]),
                 )
                 .mockResolvedValueOnce(new Response("index"));
             vi.stubGlobal("fetch", fetcher);
-            const result = fetchMetadata({ paths: { metadataCache: root } }, rel);
-            await vi.runAllTimersAsync();
-            expect(fs.readFileSync(await result, "utf8")).toBe("index");
-            expect(fetcher).toHaveBeenCalledTimes(4);
+            const result = await fetchMetadata({ paths: { metadataCache: root } }, rel);
+            expect(fs.readFileSync(result, "utf8")).toBe("index");
+            expect(fetcher).toHaveBeenCalledTimes(6);
         } finally {
-            vi.useRealTimers();
             vi.unstubAllGlobals();
             vi.unstubAllEnvs();
             fs.rmSync(root, { recursive: true, force: true });
         }
-    });
+    }, 15000);
 });

@@ -850,18 +850,19 @@ $ npx package-build release
 ✅ Packaged 0.1.0 for release: build/dist/module.zip (0.0 MB)
 ```
 
-`build/dist/` then holds the three files a GitHub release needs, and the archive
+`build/dist/` then holds the release files, and the archive
 is named from `packageKind` — a module ships `module.zip`, a system
 `system.zip` — so no repository states it a second time:
 
 ```console
 $ ls build/dist
 bestiary-metadata.jsonl
+bestiary-metadata.jsonl.sha256
 module.json
 module.zip
 ```
 
-The manifest and the content index sit beside the archive rather than only
+Publish the content index as a GitHub release asset so dependency fetch can verify it against GitHub’s asset digest. The manifest and the content index sit beside the archive rather than only
 inside it, because that is where the addresses in the manifest point: a
 consumer reads `module.json` from the release without downloading the zip, and
 then fetches the index it names.

@@ -67,13 +67,7 @@ import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { nameFormLists } from "./name-forms.mjs";
 
-/**
- * Written once a fetch completes, so a half-finished cache is never used.
- *
- * The same sentinel the item catalogue uses, and deliberately the same value:
- * the two caches sit side by side under `build/cache`, and one convention read
- * by both is one thing to know.
- */
+/** Selects the completed index inside a dependency cache. */
 const STAMP = ".complete";
 
 /**
@@ -199,16 +193,31 @@ export function metadataCacheDir(config, id, version) {
  * @param {string} dir - The dependency's cache directory.
  * @returns {boolean} True when it was fetched to completion.
  */
-export const isComplete = (dir) => fs.existsSync(path.join(dir, STAMP));
+export const isComplete = (dir) => {
+    try {
+        const marker = JSON.parse(fs.readFileSync(path.join(dir, STAMP), "utf8"));
+        return (
+            typeof marker.file === "string" &&
+            /^[a-zA-Z0-9._-]+\.jsonl$/.test(marker.file) &&
+            (marker.sha256 === null ||
+                (/^[0-9a-f]{64}$/.test(marker.sha256) &&
+                    marker.file === `${marker.sha256}.jsonl`)) &&
+            fs.statSync(path.join(dir, marker.file)).isFile()
+        );
+    } catch {
+        return false;
+    }
+};
 
-/**
- * Mark a dependency's cache complete.
- *
- * @param {string} dir - The dependency's cache directory.
- * @returns {void}
- */
-export function markComplete(dir) {
-    fs.writeFileSync(path.join(dir, STAMP), "");
+/** Atomically bind a complete cache to one materialized index. */
+export function markComplete(dir, file, sha256 = null) {
+    const temporary = fs.mkdtempSync(path.join(dir, ".marker-"));
+    try {
+        fs.writeFileSync(path.join(temporary, STAMP), JSON.stringify({ file, sha256 }));
+        fs.renameSync(path.join(temporary, STAMP), path.join(dir, STAMP));
+    } finally {
+        fs.rmSync(temporary, { recursive: true, force: true });
+    }
 }
 
 /**
@@ -337,11 +346,8 @@ export function newestVersionDir(dirs) {
  */
 function newestIndex(dirs) {
     const dir = newestVersionDir(dirs);
-    const entries = fs.readdirSync(dir).filter((name) => name.endsWith(".jsonl"));
-    if (!entries.length) {
-        throw new Error(`${dir} was fetched but holds no index file`);
-    }
-    return path.join(dir, entries[0]);
+    const marker = JSON.parse(fs.readFileSync(path.join(dir, STAMP), "utf8"));
+    return path.join(dir, marker.file);
 }
 
 /**
@@ -740,9 +746,7 @@ export function cachedIndexPath(config, pkg) {
             .map((name) => path.join(root, name))
             .filter(isComplete);
         if (dirs.length) {
-            const dir = dirs.sort()[dirs.length - 1];
-            const file = fs.readdirSync(dir).find((n) => n.endsWith(".jsonl"));
-            if (file) return path.join(dir, file);
+            return newestIndex(dirs);
         }
     } catch {
         // The cache is missing or unreadable, which is often the very thing

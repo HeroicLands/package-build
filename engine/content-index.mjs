@@ -119,7 +119,7 @@ export { asciiName };
 import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
 import { requiredModulePackages, resolveItemDefaults } from "./item-entries.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
-import { readArtLock, loadPinnedArt, privateArtRoots } from "./art-lock.mjs";
+import { privateArtRoots } from "./art-inputs.mjs";
 import { checkArtAlternatives } from "./art-alternatives.mjs";
 import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
 import { copyArtSource } from "./art-source.mjs";
@@ -1160,6 +1160,7 @@ export function collectContentIndex(
         cache,
         requiredModules = [],
         masterRecords,
+        assetRecords: suppliedAssetRecords,
         warnings,
     },
 ) {
@@ -1226,7 +1227,13 @@ export function collectContentIndex(
     // role, which is the one it would have resolved anyway.
     const assetRecords =
         assetsBase ?
-            collectAssetRecords(assetsBase, { contentPackage, problems, masterRecords, warnings })
+            collectAssetRecords(assetsBase, {
+                contentPackage,
+                problems,
+                masterRecords,
+                warnings,
+                assetRecords: suppliedAssetRecords,
+            })
         :   [];
     const assetIndex = assetAddressIndex(assetRecords, { config: { contentPackage } });
     const resolveRole = (address) => embedRole(assetIndex, address);
@@ -1621,6 +1628,7 @@ function dependencyAddresses(config) {
  *
  * @param {object} [opts]
  * @param {Record<string, any>[]} [opts.masterRecords] - Prepared private-master asset records.
+ * @param {Record<string, any>[]} [opts.assetRecords] - Verified own artwork records, replacing local image and icon collection.
  * @param {string} [opts.contentBase] - The tree, defaulting to the configured one.
  * @param {string} [opts.assetsBase] - The asset roots' parent, defaulting to
  *   the configured one. Stated separately from `contentBase` because the two
@@ -1636,8 +1644,7 @@ function dependencyAddresses(config) {
  *   cannot be recorded is pushed here as a diagnostic and skipped, instead of
  *   aborting the derivation. Omitted, the note throws — which is the contract
  *   the emitter needs, since an index missing a note asserts that it does not
- *   exist. Live pinned-art mismatches are appended when supplied and never
- *   throw from this ordinary reader; missing or corrupt cache bytes still throw.
+ *   exist.
  * @param {Map<string, {body: string, frontmatter: object|null, raw: string, bodyLine?: number, bodyColumn?: number}>} [opts.parsed] -
  *   Filled with each note's body and authored frontmatter, keyed by the note's
  *   file. Handed to {@link module:engine/sql-tables.prepareTreeSqlTables}, it
@@ -1651,8 +1658,6 @@ function dependencyAddresses(config) {
  * @param {object[]} [opts.warnings] - Receives nonfatal asset findings.
  * @param {NoteDerivationCache} [opts.cache] - Earlier parses and per-note
  *   records to answer from; see {@link collectContentIndex}.
- * @param {object[]} [opts.pinnedArtFindings] - Receives only live pinned-art publication findings.
- * @param {boolean} [opts.pinnedArt=true] Read verified local public artwork; explicit fetch supplies false.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
 export function indexRecordsFor({
@@ -1669,12 +1674,15 @@ export function indexRecordsFor({
     timings,
     cache,
     masterRecords,
+    assetRecords,
     warnings,
-    pinnedArt = true,
-    pinnedArtFindings,
 } = {}) {
     const resolved = config ?? loadPackConfig();
-    readArtLock(resolved);
+    if (resolved.art?.archives?.length && masterRecords === undefined && assetRecords === undefined)
+        throw Object.assign(
+            new Error("art.archives: error: artwork archives require a prepared content session"),
+            { located: true },
+        );
     assertPrivateArtRoots(privateArtRoots(resolved), [assetsBase ?? resolved.paths.assets], {
         role: "input",
     });
@@ -1731,6 +1739,7 @@ export function indexRecordsFor({
         cache,
         requiredModules: requiredModulePackages(resolved),
         masterRecords,
+        assetRecords,
         warnings,
     });
     const alternativeFindings = checkArtAlternatives(records, {
@@ -1750,11 +1759,7 @@ export function indexRecordsFor({
             seen.add(identity);
         }
     } else publicationProblems(alternativeFindings);
-    if (!pinnedArt) return records;
-    const pinned = loadPinnedArt(resolved, records);
-    problems?.push(...pinned.findings);
-    if (pinnedArtFindings !== problems) pinnedArtFindings?.push(...pinned.findings);
-    return pinned.records;
+    return records;
 }
 
 /**
@@ -1841,6 +1846,19 @@ function publicationExpressions(expanded, context) {
 export async function prepareContentIndex({ contentBase, config, session } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = path.resolve(contentBase ?? resolved.paths.content);
+    if (!session && resolved.art?.archives?.length) {
+        const { createContentSession } = await import("./content-session.mjs");
+        const capture = await createContentSession({ config: resolved, contentBase: tree });
+        try {
+            return await prepareContentIndex({
+                config: resolved,
+                contentBase: tree,
+                session: capture,
+            });
+        } finally {
+            await capture.dispose();
+        }
+    }
     session?.assertContext({ config: resolved, contentBase: tree });
     const parsed = session?.parsed ?? new Map();
     const records =

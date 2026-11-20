@@ -175,7 +175,11 @@ describe("reading the metadata cache", () => {
         const dir = path.join(root, `${id}@${version}`);
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, metadataFileName(id)), body);
-        if (complete) fs.writeFileSync(path.join(dir, ".complete"), "");
+        if (complete)
+            fs.writeFileSync(
+                path.join(dir, ".complete"),
+                JSON.stringify({ file: metadataFileName(id), sha256: null }),
+            );
         return dir;
     }
 
@@ -273,7 +277,10 @@ describe("resolving foreign addresses from cached indexes", () => {
             path.join(dir, metadataFileName(id)),
             records.map((r) => JSON.stringify(r)).join("\n") + "\n",
         );
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: metadataFileName(id), sha256: null }),
+        );
     }
 
     const config = () =>
@@ -628,7 +635,10 @@ describe("resolving foreign addresses from cached indexes", () => {
         const dir = path.join(root, "thalorna@0.1.0");
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, metadataFileName("thalorna")), "{ not json\n");
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: metadataFileName("thalorna"), sha256: null }),
+        );
         const { index, stale } = loadForeignIndexes(config(), ["sohl"]);
         expect(fetched(index)).toEqual([]);
         expect(stale[0].package).toBe("thalorna");
@@ -683,7 +693,10 @@ describe("resolving foreign addresses from cached indexes", () => {
         const dir = path.join(root, "remote@1.0.0");
         fs.mkdirSync(dir);
         fs.writeFileSync(path.join(dir, metadataFileName("remote")), serialized);
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: metadataFileName("remote"), sha256: null }),
+        );
         const resolved = {
             ...loadPackConfig(),
             contentPackage: "local",

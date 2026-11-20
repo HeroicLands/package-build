@@ -9,7 +9,6 @@ import { renderArtMasters } from "../engine/art-master-render.mjs";
 import { resamplePdfImages } from "../engine/pdf-images.mjs";
 import { collectArtMasters } from "../engine/art-masters.mjs";
 import {
-    readWebpProvenance,
     readSvgProvenance,
     readJpegProvenance,
     writeProvenance,
@@ -195,7 +194,7 @@ it.each(["png", "svg"])(
             fs.readFileSync(
                 (await renderArtMasters(masters, notes, out, cache)).get(record.address)!,
             );
-        const read = format === "png" ? readWebpProvenance : readSvgProvenance;
+        const read = format === "png" ? readJpegProvenance : readSvgProvenance;
         const publicBytes = await run();
         expect(read(publicBytes).record.name).toBe("Public identity");
         expect(await run()).toEqual(publicBytes);

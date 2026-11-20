@@ -27,10 +27,9 @@ import { buildContentLinkIndex } from "./helpers.mjs";
 import { runContext } from "./content-scripts.mjs";
 import { resolveReference } from "./wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
-import { loadPackConfig } from "./pack-config.mjs";
-import { loadPinnedArt, readArtLock, privateArtRoots } from "./art-lock.mjs";
+import { loadPackConfig, configSourcePath, locateConfigError } from "./pack-config.mjs";
+import { privateArtRoots } from "./art-inputs.mjs";
 import { routerFor } from "./pack-router.mjs";
-import { formatDiagnostic } from "./diagnostics.mjs";
 import { lintNoteStates } from "./stub-lint.mjs";
 
 /**
@@ -51,8 +50,6 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {object[]} warnings
  * @property {object[]} problems
  * @property {ReturnType<import("./art-masters.mjs").collectArtMasters>["masters"]} masters
- * @property {Map<string,string>} pinnedArt Integrity-verified derivatives; publication requires no pinnedArtFindings.
- * @property {object[]} pinnedArtFindings Live publication disagreements for verified pinned artwork.
  * @property {ReturnType<typeof loadForeignIndexes>} foreign
  * @property {ContentSyntax} syntax
  * @property {(options?: ContentSessionContext) => void} assertContext
@@ -64,7 +61,7 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {(targets: readonly ContentTarget[]) => Promise<ContentSession>} prepare
  * @property {ReturnType<typeof createContentTimings>} timings
  * @property {() => void} assertUnchanged
- * @property {() => void} dispose
+ * @property {() => Promise<void>} dispose
  */
 
 /**
@@ -85,25 +82,69 @@ export const CONTENT_TARGETS = Object.freeze(["index", "lint", "links", "compile
  * @param {ReturnType<typeof routerFor>} [options.router] - One router shared by this session's compile.
  * @param {boolean} [options.trackChanges] - Snapshot physical input metadata for build phase guards.
  * @param {ReturnType<typeof createContentTimings>} [options.timings] - Invocation stage accounting.
+ * @param {string[]} [archiveRoots] Verified session-owned archive roots.
  * @returns {Promise<ContentSession>} Captured sources and lazy prepared views; dispose after use.
  */
-export async function createContentSession({
-    config = loadPackConfig(),
-    contentBase = config.paths.content,
-    assetsBase = config.paths.assets,
-    skipDirectories = config.skipDirectories,
-    router = routerFor(config),
-    timings = createContentTimings(),
-    trackChanges = false,
-} = {}) {
+async function createContentSessionInternal(
+    {
+        config = loadPackConfig(),
+        contentBase = config.paths.content,
+        assetsBase = config.paths.assets,
+        skipDirectories = config.skipDirectories,
+        router = routerFor(config),
+        timings = createContentTimings(),
+        trackChanges = false,
+    } = {},
+    archiveRoots,
+) {
+    if (config.art?.archives?.length && !archiveRoots) {
+        const { openArtArchive } = await import("./art-archive.mjs");
+        const opened = [];
+        try {
+            for (const [index, archive] of config.art.archives.entries()) {
+                try {
+                    opened.push(await openArtArchive(archive.url, archive.sha256));
+                } catch (cause) {
+                    const field = `art.archives[${index}]`;
+                    const error = Object.assign(new Error(`${field}: ${cause.message}`), { field });
+                    throw locateConfigError(error, configSourcePath(config));
+                }
+            }
+            const session = await createContentSessionInternal(
+                {
+                    config,
+                    contentBase,
+                    assetsBase,
+                    skipDirectories,
+                    router,
+                    timings,
+                    trackChanges,
+                },
+                opened.map((entry) => entry.root),
+            );
+            const dispose = session.dispose.bind(session);
+            let closing;
+            session.dispose = () =>
+                (closing ??= (async () => {
+                    try {
+                        await dispose();
+                    } finally {
+                        await Promise.all(opened.map((entry) => entry.dispose()));
+                    }
+                })());
+            return session;
+        } catch (error) {
+            await Promise.all(opened.map((entry) => entry.dispose()));
+            throw error;
+        }
+    }
     const tree = path.resolve(contentBase);
     const assets = path.resolve(assetsBase);
     const scope = [...skipDirectories];
     const inventory = timings.sync("source capture", () =>
         captureContentSources(tree, assets, scope),
     );
-    readArtLock(config);
-    const roots = config.art?.masterRoots ?? [];
+    const roots = archiveRoots ?? config.art?.masterRoots ?? [];
     const componentRoots = config.art?.componentRoots ?? [];
     const artModule =
         roots.length || componentRoots.length ? await import("./art-masters.mjs") : undefined;
@@ -141,6 +182,7 @@ export async function createContentSession({
     const prepared = new Map();
     const settledSqlAudiences = new Set();
     let disposed = false;
+    let disposal;
     let sqlScope;
     const releaseSqlScope = () => {
         sqlScope?.dispose();
@@ -160,7 +202,7 @@ export async function createContentSession({
             });
         return syntaxCache.get(text);
     };
-    const baseRecords = timings.sync("index derivation", () =>
+    const records = timings.sync("index derivation", () =>
         contentIndex.indexRecordsFor({
             config,
             contentBase: tree,
@@ -173,14 +215,9 @@ export async function createContentSession({
             foreignIndex: foreign.index,
             syntax,
             timings,
-            pinnedArt: false,
             masterRecords: artModule ? artModule.masterAssetRecords(art.masters) : [],
         }),
     );
-    const pinned = loadPinnedArt(config, baseRecords);
-    const records = pinned.records;
-    problems.push(...pinned.findings);
-    for (const file of pinned.paths) fingerprints?.set(file, fingerprint(file));
     const memo = (key, make) => {
         active();
         if (!prepared.has(key))
@@ -205,8 +242,6 @@ export async function createContentSession({
         problems,
         warnings,
         masters: art.masters,
-        pinnedArt: pinned.files,
-        pinnedArtFindings: pinned.findings,
         foreign,
         syntax,
         /** Refuse a stale capture after any build phase changes an input. */
@@ -304,10 +339,6 @@ export async function createContentSession({
         },
         async compileCorpus() {
             active();
-            if (pinned.findings.length)
-                throw Object.assign(new Error(pinned.findings.map(formatDiagnostic).join("\n")), {
-                    located: true,
-                });
             return memo("compile", async () => {
                 const sqlTables = await session.sqlTables("all");
                 const linkIndex = buildContentLinkIndex(tree, router, {
@@ -317,6 +348,7 @@ export async function createContentSession({
                     foreign,
                 });
                 return {
+                    currentDate: config.currentDate,
                     runs: runContext(config, records, {
                         referenceName: (target) => resolveReference(linkIndex, target)?.name,
                     }),
@@ -354,18 +386,28 @@ export async function createContentSession({
         },
         /** Release this invocation's derived views; captured inputs stay unchanged. */
         dispose() {
-            if (disposed) return;
+            if (disposed) return disposal;
             disposed = true;
             // A preparation can still be querying after its database opens.
             // Keep the promises before clearing memoized results, and drain
             // both successful and failed work before closing native resources.
             const pending = [...prepared.values()];
-            void Promise.allSettled(pending).then(() => {
+            disposal = Promise.allSettled(pending).then(() => {
                 releaseSqlScope();
                 syntaxCache.clear();
             });
             prepared.clear();
+            return disposal;
         },
     };
     return session;
+}
+
+/**
+ * Capture one invocation's sources and artwork. Dispose after use.
+ * @param {Parameters<typeof createContentSessionInternal>[0]} [options] Session context.
+ * @returns {Promise<ContentSession>} Captured session.
+ */
+export async function createContentSession(options = {}) {
+    return createContentSessionInternal(options);
 }

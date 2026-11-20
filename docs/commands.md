@@ -1208,7 +1208,7 @@ package-build release [--no-pdf]
 The artifact name comes from `packageKind` — a system ships as
 `system.json`'s sibling, a module as `module.json`'s — so no repository
 states it a second time. It also publishes the content index the manifest
-advertises (`flags.metadataUrl`) and, when the stage carries one,
+advertises (`flags.metadataUrl`), its filename-bound SHA-256 sidecar, and, when the stage carries one,
 `schema.json` — a repository that names `build/schema.json` in
 `packageBuild.assets` gets it released beside the archive; one that does not
 gets none. When the stage carries `asset-sets/default.json`, it writes
@@ -1664,10 +1664,8 @@ Public and complete SQL preparations remain separate and each is reused by
 operations needing that audience. No resolved index or source cache survives
 into another invocation. Standalone commands and `content run` remain available.
 
-For `art.lock` builds, the command verifies pinned artwork and its agreement with
-the current index before clearing output. A missing, damaged or stale pin leaves
-the published output intact and fails the command. The same verified capture
-serves the build; no second archive verification is needed.
+Artwork archives are verified by digest and their originals are collected before
+their assets are used.
 
 The command clears its index directory, generated calendar directory, pack JSON
 and configured compiled pack directories before preparing publication. Other
@@ -1681,12 +1679,11 @@ source generation belongs before this command.
 After all three index files are published successfully, the command writes
 `<paths.contentIndex>/.publication-ready` (normally
 `build/content-index/.publication-ready`). It removes that marker during output
-cleanup, after any pinned-art preflight succeeds. The marker records a complete
+cleanup. The marker records a complete
 published index, even when calendar emission, asset staging, lint, link checks or
 compilation later fails.
 A subsequent index consumer can check it to report independent findings after a
-build failure. It does not replace checking the build's exit status; a pin
-preflight failure retains the prior publication and its marker. Clear the marker
+build failure. It does not replace checking the build's exit status. Clear the marker
 before a surrounding workflow starts as well,
 so failures before the command starts cannot expose an earlier run's index.
 Never restore the marker or resolved indexes from a cache.
@@ -1872,106 +1869,6 @@ Wrote welcome.json
 `package-build site build`, `package-build pdf`, `package-build addresses diff`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
-### `package-build art`
-
-**NAME**
-
-`package-build art` — verify pinned public images and restore private sources.
-
-**SYNOPSIS**
-
-```sh
-package-build art fetch [--from <zip>]
-package-build art source fetch [--from <repository>]
-package-build art reproduce
-```
-
-**DESCRIPTION**
-
-The root [`art.lock`](configuration.md#artlock) pins the package, private Git
-revision and public ZIP digest. Ordinary builds only read its complete local
-cache. They never fetch artwork or read the private checkout. Missing or changed
-public cache files fail with an instruction to run `package-build art fetch`.
-
-Valid cached bytes can disagree with the current index's attribution, asset
-Address or included public note metadata. Ordinary readers return the current
-records, and lint reports the disagreement at the image alongside other checks.
-Publishing, explicit fetch and reproduction refuse the disagreement: publish a
-new archive against the current index, update its URL and SHA-256 in `art.lock`,
-then fetch it. Fetching the same pin cannot repair this finding. The diagnostic
-does not repeat stale names or private primary-note identities.
-
-`art fetch` reads the current standard content index, downloads the pinned public
-ZIP, verifies its SHA-256, then validates every entry before exposing the cache
-under `build/.cache/pinned-art/`. The cache key includes the complete lock, so the
-public artifact is bound to its package and source revision. HTTPS URLs carry no credentials or fragments. Public downloads follow at most
-five HTTPS redirects without forwarding authentication; signed object-storage
-redirect URLs are used only for that request and are not written into the lock. Local
-`--from` archives pass the same verification. Unsafe paths, duplicate paths or
-embedded Addresses, symlinks, unsupported entries and invalid metadata fail the
-fetch. ZIP64, encrypted entries and compression methods other than stored or
-deflated are refused. Each entry is at most 256 MiB; the archive and total
-uncompressed entries are at most 2 GiB. Each WebP or SVG must carry its public
-derivative identity and match an existing indexed asset. Archive filenames do not establish identity.
-
-The standard content index supplies the existing shipping and publication facts,
-including attribution, license and generated-image classification. Public note
-names require matching public indexed notes. The command obtains these records
-through `indexRecordsFor({config, pinnedArt: false})`; API callers may supply the
-same generated records directly. An authored `provenance.yaml` is not an archive
-format or a requirement of this API. A complete source cutover requires the
-master-derived standard index to be supplied through the package's normal index
-pipeline. The ZIP and lock do not distribute or authenticate that separate index.
-
-`art source fetch` uses Git's credential configuration only for explicit acquisition
-of the exact pinned commit under `build/.cache/art-sources/`. A valid existing
-checkout is verified and reused without cloning, fetching or reading credentials.
-Verification checks all pinned Git and LFS objects, every tracked file's
-bytes, and every embedded master identity. Every master must be tracked in LFS.
-Extra files, missing files, modified bytes, symbolic links, Git object alternates
-and a root `.lfsconfig` are refused. LFS uses the Git remote's endpoint.
-
-Offline verification uses fresh Git control metadata and ignores cached config,
-refs, index flags, hooks and filters. The command does not print remote credentials
-or execute source-controlled hooks and filters. An invalid existing source cache
-is retained and fails with a remedy: run `package-build clean`, then
-`package-build art source fetch`. Cleaning removes the regenerable fetched cache
-along with other build artifacts. Configured `art.masterRoots` and
-`art.componentRoots` remain protected, including roots beneath a clean target.
-
-`art reproduce` checks that fetched source revision and its master bytes, renders
-only the Addresses present in the public archive to `build/art-reproduced/`, and
-compares every output byte with the pinned public image. Extra private images
-remain unpublished. Public fetch, private restore and reproduction use the same
-unchanged lock, with no `art.masterRoots` configuration or authored-file rename.
-Public WebP and SVG inputs are derivatives, never canonical masters or sources
-for lossy re-rendering. PDF editions require a private-master configuration.
-
-**OPTIONS**
-
-`--from <zip>` supplies a local public archive to `art fetch`. `--from <repository>`
-supplies a local Git repository to `art source fetch`; the revision and integrity
-checks still apply. `art reproduce` has no options. Every action supports `--help`.
-
-**EXIT STATUS**
-
-0 means the requested fetch or byte comparison succeeds. 1 means the lock,
-standard index, archive, cache, Git/LFS source or reproduced bytes fail validation.
-
-**EXAMPLES**
-
-```sh
-package-build art fetch --from build/downloads/art.zip
-package-build content build --calendaria-version 1.4.2
-package-build art source fetch
-package-build art reproduce
-```
-
-**SEE ALSO**
-
-[Asset authoring](authoring/assets.md#pinned-public-artwork),
-[Configuration](configuration.md#artlock), [API](api.md#engineart-lock).
-
 ### `package-build deps fetch`
 
 **NAME**
@@ -2001,6 +1898,8 @@ Its own command rather than a step of `package compile` or
 not reproducible and hides a dependency's version change behind a passing
 run. Each cache is stamped complete only once its fetch finishes, so a
 half-finished one reads as cold.
+
+For a pinned GitHub release, dependency fetch reuses a saved checksum when its receipt matches the dependency, version, manifest, index URL and mirror, and the cached index bytes pass SHA-256 verification. Otherwise it reads the SHA-256 of the exact content-index asset from GitHub release metadata. The shared download cache verifies every hit. GitHub API availability and rate limits affect that lookup; a missing or invalid asset digest stops the fetch. The optional `PACKAGE_BUILD_GITHUB_API_TOKEN` supplies a GitHub-issued read-only token sent only to `https://api.github.com`; see [dependency configuration](configuration.md#relationships). A local `--from` artifact is read directly.
 
 Dependency manifest, archive and content index requests use up to five attempts for server
 errors and network or response-body failures. Each attempt has a 60-second
@@ -3211,14 +3110,14 @@ exactly these files and lists them in the release notes.
 
 **OPTIONS**
 
-| Option           | Type    | Default                  | Description                                                             |
-| ---------------- | ------- | ------------------------ | ----------------------------------------------------------------------- |
-| `--book`         | string  | every declared book      | Build only the book with this `id`.                                     |
-| `--edition`      | string  | `screen`                 | Select `screen` or `print` images and output names.                     |
-| `--out`          | string  | the configured `pdf.out` | Write the books here instead.                                           |
-| `--book-version` | string  | —                        | Stamp this version on the title page and in each file name.             |
-| `--compile`      | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops.      |
-| `--list-assets`  | boolean | `false`                  | Print each book's `id`, `title` and output path as JSON; build nothing. |
+| Option           | Type    | Default                  | Description                                                                                                                     |
+| ---------------- | ------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `--book`         | string  | every declared book      | Build only the book with this `id`.                                                                                             |
+| `--edition`      | string  | `screen`                 | Select `screen` or `print` images and output names. Print uses original artwork from configured archives or local master roots. |
+| `--out`          | string  | the configured `pdf.out` | Write the books here instead.                                                                                                   |
+| `--book-version` | string  | —                        | Stamp this version on the title page and in each file name.                                                                     |
+| `--compile`      | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops.                                                              |
+| `--list-assets`  | boolean | `false`                  | Print each book's `id`, `title` and output path as JSON; build nothing.                                                         |
 
 **EXIT STATUS**
 

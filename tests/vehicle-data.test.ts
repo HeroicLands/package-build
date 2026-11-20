@@ -192,7 +192,10 @@ it("resolves vehicle references through local and dependency indexes", async () 
                 collectContentIndex(dep, { contentPackage: "remote", skipDirectories: [] }),
             ),
         );
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: metadataFileName("remote"), sha256: null }),
+        );
         const config = {
             ...loadPackConfig(),
             contentPackage: "local",

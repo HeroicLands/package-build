@@ -252,7 +252,10 @@ name:
         const dir = path.join(cache, "elsewhere@0.1.0");
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, "elsewhere-metadata.jsonl"), "{ not json\n");
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: "elsewhere-metadata.jsonl", sha256: null }),
+        );
         const got = base();
         const gates = siteGates(got.pages, got, { config: cacheConfig(cache, ["elsewhere"]) });
         expect(gates.staleManifests.length).toBe(1);

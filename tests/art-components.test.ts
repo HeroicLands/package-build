@@ -298,7 +298,7 @@ it("keeps components out of staged and CDN assets", async () => {
     const serialized = JSON.stringify({ stage, cdn });
     expect(serialized).not.toContain(red);
     expect(serialized).not.toContain(blue);
-    expect(fs.readdirSync(path.join(root, "stage", "icons"))).toEqual(["composite.webp"]);
+    expect(fs.readdirSync(path.join(root, "stage", "icons"))).toEqual(["composite.jpg"]);
 });
 it("requires explicit component authorship and rights", async () => {
     await fixture();
@@ -384,88 +384,64 @@ it.each(["empty", "duplicate", "nested", "attribute"])(
         );
     },
 );
-it("refuses private component roots in pinned offline mode", async () => {
+it("refuses private component roots with artwork archives", () => {
     fs.mkdirSync(root, { recursive: true });
     fs.writeFileSync(
-        path.join(root, "art.lock"),
+        path.join(root, "package.json"),
         JSON.stringify({
-            version: 1,
-            package: "sample",
-            source: { repository: "https://example.test/art.git", revision: "a".repeat(40) },
-            rendered: { url: "https://example.test/art.zip", sha256: "b".repeat(64) },
+            name: "sample",
+            version: "1.0.0",
+            homepage: "https://example.invalid/sample/",
         }),
     );
-    const { readArtLock } = await import("../engine/art-lock.mjs");
-    expect(() =>
-        readArtLock({
-            rootDir: root,
-            contentPackage: "sample",
-            art: { componentRoots: [path.join(root, "private")] },
-        }),
-    ).toThrow(/separate input modes/);
-});
-it("rejects private source addresses and composition metadata from pinned public ZIPs", async () => {
-    await fixture();
-    const { createHash } = await import("node:crypto");
-    const { zipSync } = await import("fflate");
-    const { fetchPublicArt } = await import("../engine/art-lock.mjs");
-    const { writeDerivativeProvenance } = await import("../engine/art-provenance.mjs");
     const config = {
-        rootDir: root,
         contentPackage: "sample",
-        paths: { assets: path.join(root, "assets") },
-    };
-    const records = [
-        {
-            type: "icon",
-            address: { canonical: address },
-            asset: {
-                path: "icons/composite.svg",
-                attribution: ["Example Artist"],
-                license: "CC-BY-SA-4.0",
-                ai: false,
-            },
+        packageKind: "modules",
+        stats: { lastModifiedBy: "samplebuilder000" },
+        compatibility: { minimum: "14", verified: "14" },
+        packs: [],
+        art: {
+            componentRoots: ["private"],
+            archives: [{ url: "https://example.test/art.zip", sha256: "a".repeat(64) }],
         },
-    ];
+    };
+    expect(() => configFromData(config, path.join(root, "package-build.config.yaml"))).toThrow(
+        /art\.archives/,
+    );
+});
+it("rejects unsupported creator membership in a public derivative", async () => {
+    const { inspectPublicDerivative } = await import("../engine/art-public-derivative.mjs");
+    const { writeDerivativeProvenance } = await import("../engine/art-provenance.mjs");
+    const clean = writeDerivativeProvenance(
+        svg,
+        { ...fields(address), creator: ["Artist"], derivedFrom: address },
+        { repeat: ["derivedFrom"] },
+    ).bytes.toString("utf8");
+    expect(clean).toContain("<rdf:li>Artist</rdf:li>");
+    const invalid = clean.replace(
+        "<rdf:li>Artist</rdf:li>",
+        '<rdf:li>Artist</rdf:li><rdf:_2 rdf:resource="urn:credit:second"/>',
+    );
+    expect(() => inspectPublicDerivative("composite.svg", Buffer.from(invalid), "sample")).toThrow(
+        /invalid public artwork image metadata/,
+    );
+});
+it("rejects private composition metadata in a public derivative", async () => {
+    const { inspectPublicDerivative } = await import("../engine/art-public-derivative.mjs");
+    const { writeDerivativeProvenance } = await import("../engine/art-provenance.mjs");
     const clean = writeDerivativeProvenance(
         svg,
         { ...fields(address), derivedFrom: address },
         { repeat: ["derivedFrom"] },
     ).text;
-    const source = writeDerivativeProvenance(
-        svg,
-        { ...fields(red), derivedFrom: red },
-        { repeat: ["derivedFrom"] },
-    ).bytes;
     const metadata = writeSvgProvenance(svg, {
         ...fields(address),
         composition: { layers: [{ address: red }] },
     } as any).text.match(/<hl:composition>[\s\S]*?<\/hl:composition>/)![0];
-    for (const entries of [
-        { "composite.svg": Buffer.from(clean), "private.svg": source },
-        {
-            "composite.svg": Buffer.from(
-                clean.replace("</rdf:Description>", metadata + "</rdf:Description>"),
-            ),
-        },
-    ]) {
-        const zip = Buffer.from(zipSync(entries));
-        fs.writeFileSync(
-            path.join(root, "art.lock"),
-            JSON.stringify({
-                version: 1,
-                package: "sample",
-                source: { repository: "https://example.test/art.git", revision: "a".repeat(40) },
-                rendered: {
-                    url: "https://example.test/art.zip",
-                    sha256: createHash("sha256").update(zip).digest("hex"),
-                },
-            }),
-        );
-        const from = path.join(root, "candidate.zip");
-        fs.writeFileSync(from, zip);
-        await expect(fetchPublicArt(config, { from, records })).rejects.toThrow(
-            /standard index|private|metadata/,
-        );
-    }
+    const unsafe = Buffer.from(
+        clean.replace("</rdf:Description>", metadata + "</rdf:Description>"),
+    );
+    expect(() => inspectPublicDerivative("composite.svg", unsafe, "sample")).toThrow(
+        /metadata|unsafe/,
+    );
 });

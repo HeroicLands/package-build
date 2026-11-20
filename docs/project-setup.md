@@ -66,9 +66,8 @@ frontmatter directly; a plain checkout builds without an export step. The
 tree is arranged for readers and authors, while `type:` determines how each
 note compiles.
 
-A package with an [`art.lock`](configuration.md#artlock) requires an explicit
-`package-build art fetch` before its first build and after its cache is cleaned.
-Ordinary builds read the verified cache offline.
+A package using [`art.archives`](configuration.md#artarchives) declares each
+original artwork archive by HTTPS URL and SHA-256 digest.
 
 ## `package.json`
 

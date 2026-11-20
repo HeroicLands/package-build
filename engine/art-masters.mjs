@@ -13,6 +13,7 @@
 
 /** Private image inputs keyed by their embedded address. */
 import fs from "node:fs";
+import { PNG } from "pngjs";
 import { checkCompositionSources } from "./art-composition.mjs";
 import path from "node:path";
 import { readCanonicalKey } from "./address.mjs";
@@ -79,6 +80,19 @@ export function assertPrivateArtRoots(
             for (const name of fs.readdirSync(source)) check(path.join(source, name));
     };
     for (const source of sources) check(source);
+}
+
+/**
+ * Select the screen codec from the actual PNG alpha samples.
+ * @param {Buffer|Uint8Array} bytes - PNG master bytes.
+ * @returns {"jpeg"|"webp"} Screen codec.
+ */
+export function screenRasterFormat(bytes) {
+    const image = PNG.sync.read(bytes, { skipRescale: true });
+    const opaque = image.colorType === 3 ? 255 : 2 ** image.depth - 1;
+    for (let offset = 3; offset < image.data.length; offset += 4)
+        if (image.data[offset] !== opaque) return "webp";
+    return "jpeg";
 }
 
 /**
@@ -168,7 +182,12 @@ export function collectArtMasters(roots, contentPackage, { componentRoots = [] }
                     record.nonAiAlternative === undefined
                 )
                     add(file, MISSING_ALTERNATIVE);
+                const screenFormat =
+                    format === "png" && publication === "master" ?
+                        screenRasterFormat(bytes)
+                    :   "svg";
                 const master = {
+                    screenFormat,
                     file,
                     record,
                     publication,
@@ -216,7 +235,15 @@ export function masterAssetRecords(masters) {
                     shortcode: tuple.shortcode,
                     address: { canonical: address },
                     asset: {
-                        path: `${root}/${tuple.shortcode}${extension === ".svg" ? ".svg" : ".webp"}`,
+                        path: `${root}/${tuple.shortcode}${
+                            extension === ".svg" ? ".svg"
+                            : (
+                                (master.screenFormat ??
+                                    screenRasterFormat(fs.readFileSync(master.file))) === "jpeg"
+                            ) ?
+                                ".jpg"
+                            :   ".webp"
+                        }`,
                         attribution: master.record.creator ?? [],
                         source: "",
                         ai: provenanceAi(master.record),

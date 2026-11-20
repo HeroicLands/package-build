@@ -88,7 +88,7 @@ function fixture(extra: object[] = []) {
             },
         }) + "\n",
     );
-    markComplete(foreign);
+    markComplete(foreign, metadataFileName("pub"));
     const parsed = new Map();
     const records = indexRecordsFor({ contentBase: config.paths.content, config, parsed });
     const index = buildLinkIndex(config.paths.content, { config, records, parsed });

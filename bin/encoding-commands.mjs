@@ -34,14 +34,15 @@ async function execute(direction, argv) {
     try {
         let encoding;
         if (argv.enc !== "default") {
-            const [{ loadPackConfig }, { indexRecordsFor }, { runContext }] = await Promise.all([
-                import("../engine/pack-config.mjs"),
-                import("../engine/content-index.mjs"),
-                import("../engine/content-scripts.mjs"),
-            ]);
+            const [{ loadPackConfig }, { indexRecordsWithArtwork }, { runContext }] =
+                await Promise.all([
+                    import("../engine/pack-config.mjs"),
+                    import("../engine/art-index-input.mjs"),
+                    import("../engine/content-scripts.mjs"),
+                ]);
             const config = loadPackConfig(),
                 problems = [];
-            const records = indexRecordsFor({ config, problems });
+            const records = await indexRecordsWithArtwork({ config, problems });
             if (problems.length) throw new Error(problems.map((one) => one.message).join("\n"));
             const context = runContext(config, records);
             if (context.encodingFindings?.length)

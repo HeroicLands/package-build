@@ -94,7 +94,10 @@ describe("dependency index preflight", () => {
                 const cache = path.join(root, "build/cache/metadata/sohl@1.0.0");
                 fs.mkdirSync(cache, { recursive: true });
                 fs.writeFileSync(path.join(cache, "sohl-metadata.jsonl"), "");
-                fs.writeFileSync(path.join(cache, ".complete"), "");
+                fs.writeFileSync(
+                    path.join(cache, ".complete"),
+                    JSON.stringify({ file: "sohl-metadata.jsonl", sha256: null }),
+                );
                 const result = run(root, ["lint"]);
                 expect(result.output).not.toContain("content index has not been fetched");
             } finally {

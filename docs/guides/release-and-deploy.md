@@ -45,7 +45,7 @@ package-build release
 The command writes a Foundry ZIP and its `system.json` or `module.json`
 manifest under `build/dist/`. The ZIP contains the staged tree at its root,
 which is the shape Foundry installs. When the manifest advertises a content
-index, the corresponding metadata JSONL is also placed beside the ZIP. A
+index, the corresponding metadata JSONL and its filename-bound `.sha256` checksum are also placed beside the ZIP. Publish the JSONL as a GitHub release asset; its GitHub asset digest verifies dependency downloads. A
 manifest that advertises an index the build has not produced fails the
 release. An opted-in staged `schema.json` is published beside it too. A
 package whose stage holds pictures also gets `icons.zip` and `images.zip`:

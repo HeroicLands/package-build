@@ -237,9 +237,9 @@ const nodes = allNodes();
 const doc = fs.readFileSync(DOC_PATH, "utf8");
 
 describe("the command's real surface, extracted from source", () => {
-    it("has 47 top-level commands", () => {
+    it("has 46 top-level commands", () => {
         const topLevel = nodes.filter((n) => n.path.length === 1);
-        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(47);
+        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(46);
     });
 
     it("includes `package-build site-root`", () => {
@@ -292,22 +292,23 @@ describe("the command's real surface, extracted from source", () => {
     );
 
     it(
-        "shows explicit artwork operations in command help",
+        "shows content build and dependency fetch options in command help",
         () => {
-            expect(commandHelp("art")).toContain("reproduce");
-            for (const action of [
-                ["art", "fetch"],
-                ["art", "source", "fetch"],
-                ["art", "reproduce"],
-            ]) {
-                const help = execFileSync(
-                    process.execPath,
-                    [path.join(ROOT, "bin/package-build.mjs"), ...action, "--help"],
-                    { encoding: "utf8" },
-                );
-                expect(help).toContain("--help");
-                if (action.at(-1) === "fetch") expect(help).toContain("--from");
-            }
+            expect(
+                nodes.some((entry) => entry.binary === "package-build" && entry.path[0] === "art"),
+            ).toBe(false);
+            const buildHelp = execFileSync(
+                process.execPath,
+                [path.join(ROOT, "bin/package-build.mjs"), "content", "build", "--help"],
+                { encoding: "utf8" },
+            );
+            expect(buildHelp).toContain("package-build content build");
+            expect(buildHelp).toContain("--calendaria-version");
+            const depsHelp = commandHelp("deps");
+            expect(depsHelp).toContain("package-build deps <action>");
+            expect(depsHelp).toContain("fetch");
+            expect(depsHelp).toContain("--from");
+            expect(depsHelp).toContain("--id");
         },
         subprocessTimeout(4),
     );

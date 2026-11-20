@@ -8,6 +8,12 @@ on:
                 required: true
                 type: string
 
+            art_archives:
+                description: Also compile with isolated artwork archive fixtures
+                required: false
+                default: false
+                type: boolean
+
             consumer:
                 description: Pinned consumer and assertions to run
                 required: true
@@ -42,6 +48,8 @@ jobs:
               with:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
                   cache: npm
+            - name: Check the consumer lock guard
+              run: node --test ci/consumer-lock-guard.test.mjs
             - name: Pack the candidate
               env:
                   CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
@@ -56,6 +64,11 @@ jobs:
                   path: consumer-proof-consumer
             - name: Compile the consumer with the candidate
               run: bash ci/consumer-proof.sh
+            - name: Prove cold and cached artwork in Kethira
+              if: ${{ github.event.inputs.art_archives == 'true' }}
+              env:
+                  CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+              run: node ci/consumer-art-proof.mjs
 
     thalorna:
         name: Thalorna consumer compile

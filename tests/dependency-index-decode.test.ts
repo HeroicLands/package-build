@@ -100,7 +100,10 @@ describe("loading a cached dependency index in that shape", () => {
             path.join(dir, metadataFileName("sohl")),
             [good, bad].map((r) => JSON.stringify(r)).join("\n") + "\n",
         );
-        fs.writeFileSync(path.join(dir, ".complete"), "");
+        fs.writeFileSync(
+            path.join(dir, ".complete"),
+            JSON.stringify({ file: metadataFileName("sohl"), sha256: null }),
+        );
         const config = {
             paths: { metadataCache: root },
             relationships: { systems: [{ id: "sohl", manifest: "https://example.org/s.json" }] },

@@ -13,6 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 import path from "node:path";
+import YAML from "yaml";
 // The package's own entry point and configuration contract.
 import { defineConfig } from "../index.mjs";
 import type { ContentBuildConfigInput, PackSpec } from "../content-config.mjs";
@@ -59,6 +60,38 @@ describe("defineConfig", () => {
         expect(() =>
             defineConfig({ ...minimal(), art: { masterRoots: ["one", "one/sub"] } }),
         ).toThrow(/overlaps/);
+    });
+    it("requires pinned HTTPS archives and keeps inputs exclusive", () => {
+        const archive = { url: "https://example.test/art.zip", sha256: "a".repeat(64) };
+        const config = defineConfig({ ...minimal(), art: { archives: [archive] } });
+        expect(config.art.archives).toEqual([archive]);
+        expect(Object.isFrozen(config.art.archives)).toBe(true);
+        expect(defineConfig(minimal()).art.archives).toEqual([]);
+        expect(defineConfig({ ...minimal(), art: { archives: [] } }).art.archives).toEqual([]);
+        expect(() => defineConfig({ ...minimal(), art: YAML.parse("archives:") })).toThrow(
+            /art\.archives/,
+        );
+        for (const invalid of [null, "", "not an array", {}, false, 12])
+            expect(() => defineConfig({ ...minimal(), art: { archives: invalid } } as any)).toThrow(
+                /art\.archives/,
+            );
+        for (const invalid of [
+            { ...archive, url: "http://example.test/art.zip" },
+            { ...archive, url: "https://user:pass@example.test/art.zip" },
+            { ...archive, sha256: "A".repeat(64) },
+        ])
+            expect(() => defineConfig({ ...minimal(), art: { archives: [invalid] } })).toThrow(
+                /art\.archives/,
+            );
+        expect(() => defineConfig({ ...minimal(), art: { archives: [archive, archive] } })).toThrow(
+            /duplicates/,
+        );
+        expect(() =>
+            defineConfig({ ...minimal(), art: { archives: [archive], masterRoots: ["art"] } }),
+        ).toThrow(/art\.archives/);
+        expect(() => defineConfig({ ...minimal(), art: { packages: ["art"] } } as any)).toThrow(
+            /art\.packages/,
+        );
     });
     it("returns a config carrying every field it was given", () => {
         const config = defineConfig({

@@ -88,7 +88,7 @@ import { hideBin } from "yargs/helpers";
 import { loadPackageBuildConfig } from "../config.mjs";
 import { loadAssetTransform, stagePackageBuildAssets } from "../engine/build-assets.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
-import { readArtLock, privateArtRoots } from "../engine/art-lock.mjs";
+import { privateArtRoots } from "../engine/art-inputs.mjs";
 import { assertPrivateArtRoots, shippingAssetRecords } from "../engine/art-masters.mjs";
 import { artSource } from "../engine/art-source.mjs";
 import { renderArtMasters } from "../engine/art-master-render.mjs";
@@ -733,6 +733,12 @@ function manifestCommand() {
                 flags = await module.flags(shared);
             }
 
+            const artworkRecords =
+                config.converterData && shared.art?.archives?.length ?
+                    await (
+                        await import("../engine/art-index-input.mjs")
+                    ).indexRecordsWithArtwork({ config: shared })
+                :   undefined;
             const { path: written, manifest } = await writeManifest({
                 config: shared,
                 packageJson,
@@ -744,7 +750,11 @@ function manifestCommand() {
             });
             if (config.converterData) {
                 const { writeConverterData } = await import("../engine/converter-data.mjs");
-                writeConverterData({ config: shared, packageBuild: config });
+                writeConverterData({
+                    config: shared,
+                    packageBuild: config,
+                    records: artworkRecords,
+                });
             }
             console.log(
                 `✅ Wrote ${path.relative(config.rootDir, written)} ` +
@@ -1515,109 +1525,109 @@ function cdnPublishCommand() {
             ]);
             let artRecords;
             let preparedMasters;
-            if (packConfig.art?.masterRoots?.length || readArtLock(packConfig)) {
-                const session = await createContentSession({ config: packConfig });
-                try {
+            let artSession;
+            try {
+                if (packConfig.art?.masterRoots?.length || packConfig.art?.archives?.length) {
+                    const session = (artSession = await createContentSession({
+                        config: packConfig,
+                    }));
                     if (session.problems.length) {
                         reportFindings(session.problems, {});
                         process.exitCode = 1;
                         return;
                     }
-                    preparedMasters =
-                        readArtLock(packConfig) ?
-                            session.pinnedArt
-                        :   await renderArtMasters(
-                                session.masters,
-                                session.records,
-                                path.join(config.rootDir, "build", "art"),
-                                path.join(config.rootDir, "build", ".cache", "art"),
-                            );
+                    preparedMasters = await renderArtMasters(
+                        session.masters,
+                        session.records,
+                        path.join(config.rootDir, "build", "art"),
+                        path.join(config.rootDir, "build", ".cache", "art"),
+                    );
                     artRecords = shippingAssetRecords(session.records);
-                } finally {
-                    session.dispose();
                 }
-            }
-            const plan = planCdnPublish({
-                assetsBase: packConfig.paths.assets,
-                contentPackage: packConfig.contentPackage,
-                host,
-                setFile: args.set,
-                setName: name,
-                transform: await loadAssetTransform(config),
-                shippingLicenses: config.shippingLicenses,
-                records: artRecords,
-                preparedMasters,
-            });
-            if (plan.findings.length) {
-                const located = plan.findings.map((finding) => ({
-                    ...finding,
-                    file:
-                        path.isAbsolute(finding.file) ?
-                            path.relative(process.cwd(), finding.file)
-                        :   finding.file,
-                }));
-                reportFindings(located, {});
-                process.exitCode = 1;
-                return;
-            }
-            const excluded = new Set(
-                plan.uploads.filter((upload) => !upload.shipped).map((upload) => upload.record),
-            );
-            const references = noteArtReferences({
-                contentBase: packConfig.paths.content,
-                skipDirectories: packConfig.skipDirectories,
-                contentPackage: packConfig.contentPackage,
-                records: plan.records,
-            });
+                const plan = planCdnPublish({
+                    assetsBase: packConfig.paths.assets,
+                    contentPackage: packConfig.contentPackage,
+                    host,
+                    setFile: args.set,
+                    setName: name,
+                    transform: await loadAssetTransform(config),
+                    shippingLicenses: config.shippingLicenses,
+                    records: artRecords,
+                    preparedMasters,
+                });
+                if (plan.findings.length) {
+                    const located = plan.findings.map((finding) => ({
+                        ...finding,
+                        file:
+                            path.isAbsolute(finding.file) ?
+                                path.relative(process.cwd(), finding.file)
+                            :   finding.file,
+                    }));
+                    reportFindings(located, {});
+                    process.exitCode = 1;
+                    return;
+                }
+                const excluded = new Set(
+                    plan.uploads.filter((upload) => !upload.shipped).map((upload) => upload.record),
+                );
+                const references = noteArtReferences({
+                    contentBase: packConfig.paths.content,
+                    skipDirectories: packConfig.skipDirectories,
+                    contentPackage: packConfig.contentPackage,
+                    records: plan.records,
+                });
 
-            const store =
-                args.dest === "internal" ?
-                    args.dryRun ?
-                        publicStore(host)
-                    :   internalStore({ destination: process.env.CDN_INTERNAL_DESTINATION })
-                : credentials ? s3Store(credentials)
-                : publicStore(host);
-            console.log(
-                `${args.dryRun ? "Dry run: comparing" : "Publishing"} ${plan.uploads.length} ` +
-                    `pictures against ${store.describe}.`,
-            );
-            const result = await publishToCdn(plan, {
-                store,
-                dryRun: args.dryRun,
-                log: (line) => console.log(`  ${line}`),
-            });
-            const failures = result.failed.map(({ upload, message }) => ({
-                file: path.relative(
-                    process.cwd(),
-                    artSource(upload.record, packConfig.paths.assets),
-                ),
-                severity: "error",
-                message: `${upload.key} did not upload: ${message}`,
-            }));
-            const failedCount = reportFindings(
-                [
-                    ...failures,
-                    ...noteArtFindings(references, {
-                        contentPackage: packConfig.contentPackage,
-                        published: result.published,
-                        excluded,
-                    }),
-                ],
-                {},
-            );
-            if (failedCount > 0) process.exitCode = 1;
-            const set = /** @type {NonNullable<typeof plan.set>} */ (plan.set);
-            const setState =
-                result.set === "skipped" ? "unchanged"
-                : result.set === "withheld" ? "withheld"
-                : args.dryRun ? "would change"
-                : "written";
-            console.log(
-                `${args.dryRun ? "Would upload" : "Uploaded"} ${result.uploaded.length}, ` +
-                    `skipped ${result.skipped.length}, failed ${result.failed.length}; ` +
-                    `${plan.cdnRoot}${args.set} lists ` +
-                    `${set.set.assets.length} left-out pictures (${setState}).`,
-            );
+                const store =
+                    args.dest === "internal" ?
+                        args.dryRun ?
+                            publicStore(host)
+                        :   internalStore({ destination: process.env.CDN_INTERNAL_DESTINATION })
+                    : credentials ? s3Store(credentials)
+                    : publicStore(host);
+                console.log(
+                    `${args.dryRun ? "Dry run: comparing" : "Publishing"} ${plan.uploads.length} ` +
+                        `pictures against ${store.describe}.`,
+                );
+                const result = await publishToCdn(plan, {
+                    store,
+                    dryRun: args.dryRun,
+                    log: (line) => console.log(`  ${line}`),
+                });
+                const failures = result.failed.map(({ upload, message }) => ({
+                    file: path.relative(
+                        process.cwd(),
+                        artSource(upload.record, packConfig.paths.assets),
+                    ),
+                    severity: "error",
+                    message: `${upload.key} did not upload: ${message}`,
+                }));
+                const failedCount = reportFindings(
+                    [
+                        ...failures,
+                        ...noteArtFindings(references, {
+                            contentPackage: packConfig.contentPackage,
+                            published: result.published,
+                            excluded,
+                        }),
+                    ],
+                    {},
+                );
+                if (failedCount > 0) process.exitCode = 1;
+                const set = /** @type {NonNullable<typeof plan.set>} */ (plan.set);
+                const setState =
+                    result.set === "skipped" ? "unchanged"
+                    : result.set === "withheld" ? "withheld"
+                    : args.dryRun ? "would change"
+                    : "written";
+                console.log(
+                    `${args.dryRun ? "Would upload" : "Uploaded"} ${result.uploaded.length}, ` +
+                        `skipped ${result.skipped.length}, failed ${result.failed.length}; ` +
+                        `${plan.cdnRoot}${args.set} lists ` +
+                        `${set.set.assets.length} left-out pictures (${setState}).`,
+                );
+            } finally {
+                await artSession?.dispose();
+            }
         }),
     };
 }

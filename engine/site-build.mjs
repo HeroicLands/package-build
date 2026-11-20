@@ -733,6 +733,7 @@ export function renderPages(pages, options) {
  * @param {object} [options.config] - A resolved configuration; loaded when
  *   omitted.
  * @param {(message: string) => void} [options.progress] - Build phase summaries.
+ * @param {object[]} [options.records] - Prepared, publication-checked content and asset records.
  * @param {Map<string, object[]>} [options.sqlTables] - Prepared `sql` results,
  *   keyed by the note's absolute file, from
  *   {@link module:engine/sql-tables.prepareSqlTables}. A page authoring an
@@ -749,7 +750,7 @@ export function renderPages(pages, options) {
  *   against the rest of the build, or returns `null` when its address, name
  *   or type changed and the whole site must be built again.
  */
-export function buildSite({ config, sqlTables, progress = () => {} } = {}) {
+export function buildSite({ config, sqlTables, records, progress = () => {} } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
@@ -776,11 +777,13 @@ export function buildSite({ config, sqlTables, progress = () => {} } = {}) {
         // The corpus, derived once for this build and handed to both
         // collectors — the homepage pass and the content pass read one answer
         // about which files the content is, rather than walking twice.
-        records: publicationIndexRecordsFor({
-            contentBase: resolved.paths.content,
-            config: resolved,
-            skipDirectories: resolved.skipDirectories,
-        }),
+        records:
+            records ??
+            publicationIndexRecordsFor({
+                contentBase: resolved.paths.content,
+                config: resolved,
+                skipDirectories: resolved.skipDirectories,
+            }),
         // Where the package is served, which is where an addressed page
         // publishes: an address is `(type, shortcode)`, a package-wide
         // identity that takes no content mount.

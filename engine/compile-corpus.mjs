@@ -38,8 +38,10 @@
  * @module
  */
 
-import { formatDiagnostic } from "./diagnostics.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
+import { scanBlocks } from "./content-blocks.mjs";
+import { scanAlerts } from "./content-alerts.mjs";
+import { scanSpans } from "./content-spans.mjs";
 import { buildContentLinkIndex } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { runContext } from "./content-scripts.mjs";
@@ -88,8 +90,37 @@ export async function buildCompileCorpus({
         if (problems && problems !== session.problems) problems.push(...session.problems);
         return session.compileCorpus();
     }
+    if (resolved.art?.archives?.length) {
+        const { createContentSession } = await import("./content-session.mjs");
+        const capture = await createContentSession({
+            config: resolved,
+            contentBase,
+            assetsBase,
+            skipDirectories,
+            router,
+        });
+        try {
+            if (problems && problems !== capture.problems) problems.push(...capture.problems);
+            const corpus = await capture.compileCorpus();
+            /** @type {Map<string, ReturnType<import("./content-session.mjs").ContentSyntax>>} */
+            const scanned = new Map();
+            /** @type {import("./content-session.mjs").ContentSyntax} */
+            const syntax = (source) => {
+                const text = String(source ?? "");
+                if (!scanned.has(text))
+                    scanned.set(text, {
+                        blocks: scanBlocks(text),
+                        alerts: scanAlerts(text),
+                        spans: scanSpans(text),
+                    });
+                return scanned.get(text);
+            };
+            return { ...corpus, syntax };
+        } finally {
+            await capture.dispose();
+        }
+    }
     const collected = problems ?? [];
-    const pinnedArtFindings = [];
     const parsed = new Map();
     const records = indexRecordsFor({
         contentBase,
@@ -97,13 +128,8 @@ export async function buildCompileCorpus({
         config: resolved,
         skipDirectories,
         problems: collected,
-        pinnedArtFindings,
         parsed,
     });
-    if (pinnedArtFindings.length)
-        throw Object.assign(new Error(pinnedArtFindings.map(formatDiagnostic).join("\n")), {
-            located: true,
-        });
     const corpusOptions = { config: resolved, records };
     const sqlOptions = { ...corpusOptions, skipDirectories, parsed };
     const sqlTables = await prepareTreeSqlTables(contentBase, sqlOptions);
