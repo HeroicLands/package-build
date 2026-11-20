@@ -68,13 +68,14 @@ export function projectPopulationFrontmatter(fm, audience = "public") {
     populationForAudience(undefined, audience);
     if (!fm || typeof fm !== "object") return fm;
     const data = fm.data;
+    if (data === undefined) return { ...fm };
     if (
         !data ||
         typeof data !== "object" ||
         Array.isArray(data) ||
         ![Object.prototype, null].includes(Object.getPrototypeOf(data))
     )
-        return { ...fm };
+        throw new TypeError("Frontmatter data must be a plain map");
     const projected = { ...data };
     for (const key of ["population", "territorial_population"]) {
         if (Object.hasOwn(data, key)) projected[key] = projectPopulation(data[key], audience);

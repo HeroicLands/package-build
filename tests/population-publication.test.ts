@@ -116,7 +116,12 @@ it.each([true, false])(
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "population-sql-"));
         const dependency = path.join(root, "dependency.jsonl");
         fs.writeFileSync(dependency, JSON.stringify(record()));
-        const records = [record()];
+        const ordinary = record({
+            ...fm,
+            shortcode: "ordinary",
+            data: { population: { actual: 1200 } },
+        });
+        const records = [record(), ordinary];
         const before = structuredClone(records);
         const scope = createNotesDatabaseScope(records, {
             dependencies: [{ id: "source", file: dependency }],
@@ -128,13 +133,19 @@ it.each([true, false])(
                 const db = await scope.database(audience);
                 for (const relation of ["notes", "entries", "source.notes", "source.entries"]) {
                     const { rows } = await db.query(
-                        `SELECT data.population.actual AS actual, data.population.apparent AS apparent FROM ${relation}`,
+                        `SELECT data.population.actual AS actual, data.population.apparent AS apparent FROM ${relation} WHERE shortcode = 'hidden'`,
                     );
                     expect(rows[0].actual === null ? null : String(rows[0].actual)).toBe(
                         audience === "all" ? "2300" : null,
                     );
                     expect(String(rows[0].apparent)).toBe("800");
                 }
+                const ordinaryRows = await db.query(
+                    "SELECT data.population.actual AS actual, data.population.apparent AS apparent, data.population.actual + 1 AS total FROM entries WHERE shortcode = 'ordinary'",
+                );
+                expect(String(ordinaryRows.rows[0].actual)).toBe("1200");
+                expect(String(ordinaryRows.rows[0].apparent)).toBe("1200");
+                expect(String(ordinaryRows.rows[0].total)).toBe("1201");
                 const backing = await db.query(
                     "SELECT record.data.population.actual AS actual FROM memory.__sql_base.source0",
                 );

@@ -105,6 +105,18 @@ describe("population declarations", () => {
             }),
         );
     });
+    it("reports inline null once at the population value", () => {
+        const raw =
+            "---\ntype: affiliation\nsubType: polity\nshortcode: example\ndata:\n  settlements:\n    - population: null\n---\n";
+        const note = { file: "example.md", raw, fm: YAML.parse(raw.split("---\n")[1]) };
+        const findings = lintNote(note, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });
+        const population = findings.filter((finding) => finding.message.includes("population"));
+        expect(population).toHaveLength(1);
+        expect(population[0]).toMatchObject({
+            line: 7,
+            message: expect.stringContaining("must be a population map"),
+        });
+    });
     it("requires a closed actual and apparent map", () => {
         const fields = NOTE_VOCABULARY.affiliation.data;
         const note = (population: unknown) => ({

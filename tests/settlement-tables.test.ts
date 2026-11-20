@@ -132,6 +132,28 @@ function checked(
     }
 }
 describe("settlement population declarations", () => {
+    it("selects GM rows by polity visibility and figures by audience", () =>
+        checked(
+            (notes) => {
+                notes[4].tags = ["gm"];
+                notes[4].data.population = { actual: 400, apparent: 40 };
+            },
+            (f) => {
+                const records = f.records();
+                const crown = records.find((record) => record.shortcode === "crown");
+                const publicTable = settlementMarkdown(crown, records, {
+                    recursive: true,
+                    audience: "all",
+                });
+                expect(publicTable).not.toContain("Town");
+                const gmCrown = { ...crown, tags: ["gm"] };
+                const gmRecords = records.map((record) => (record === crown ? gmCrown : record));
+                expect(settlementMarkdown(gmCrown, gmRecords, { recursive: true })).toContain("40");
+                expect(
+                    settlementMarkdown(gmCrown, gmRecords, { recursive: true, audience: "all" }),
+                ).toContain("400");
+            },
+        ));
     it.each([null, 0])("accepts %s in notes and listed rows", (value) =>
         checked(
             (n) => {
