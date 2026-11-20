@@ -12,6 +12,7 @@
  */
 
 /** Geometric accounting for candidate settlement sites. @module */
+import { populationActual } from "./population-values.mjs";
 import { discoverPlacementSites, placementGridInterval } from "./settlement-placement.mjs";
 import { prepareSettlementInputs, settlementCellAreaConversion } from "./settlement-inputs.mjs";
 import { matchesLandRule, proposeSettlements } from "./settlement-generate.mjs";
@@ -440,7 +441,7 @@ export function selectSettlementPlacements(options, selection) {
             0,
             Math.min(
                 remainingPopulation,
-                initial.polity.data.territorial_population - displayedExisting,
+                populationActual(initial.polity.data.territorial_population) - displayedExisting,
             ),
         );
         let allocatedPopulation = 0,

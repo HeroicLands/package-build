@@ -98,6 +98,30 @@ export const GENERATOR_SOURCE_FIELD = Object.freeze({
         ].map(Object.freeze),
     ),
 });
+/**
+ * A population's actual and apparent figures.
+ * @param {string} name - The field name.
+ * @returns {object} The field declaration.
+ */
+export function populationField(name) {
+    return {
+        name,
+        kind: "map",
+        populationMap: true,
+        shape: "a population with actual and optional apparent figures",
+        fields: [
+            {
+                name: "actual",
+                kind: "number",
+                nullable: true,
+                required: true,
+                shape: "a number or null",
+            },
+            { name: "apparent", kind: "number", nullable: true, shape: "a number or null" },
+        ],
+    };
+}
+
 /** Fields declared by each settlement row. */
 export const SETTLEMENT_ROW_FIELDS = Object.freeze(
     [
@@ -133,11 +157,10 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
             describe: "Who holds the land.",
         },
         {
-            name: "population",
-            kind: "number",
+            ...populationField("population"),
             required: true,
-            shape: "zero, null, or a positive integer with at most two significant digits",
-            describe: "People living here; null means unknown and zero means abandoned.",
+            describe:
+                "People living here; actual and apparent figures take null, zero, or a positive integer with at most two significant digits.",
         },
         {
             ...enumeration(

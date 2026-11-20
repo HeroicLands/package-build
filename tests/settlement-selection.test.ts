@@ -22,7 +22,7 @@ function selectionFixture() {
         name: { full: "Crown" },
         address: { canonical: polityAddress },
         file: { path: "Crown.md" },
-        data: { territorial_population: 320, settlements: [] },
+        data: { territorial_population: { actual: 320 }, settlements: [] },
     };
     const culture = {
         package: "example",
@@ -407,7 +407,11 @@ it("reuses one corpus across many subpolities in a captured setting", () => {
             file: { path: `Record${i}.md` },
             data:
                 child ?
-                    { parents: [options.polityAddress], territorial_population: 0, settlements: [] }
+                    {
+                        parents: [options.polityAddress],
+                        territorial_population: { actual: 0 },
+                        settlements: [],
+                    }
                 :   {},
         };
         options.session.records.push(record);

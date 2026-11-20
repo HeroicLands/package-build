@@ -12,6 +12,8 @@
  */
 
 /** Assemble on-demand settlement calculations from one captured content session. @module */
+import { fitsKind } from "./data-keys.mjs";
+import { populationActual } from "./population-values.mjs";
 import {
     canonicalKey,
     ownDocumentSystem,
@@ -31,6 +33,10 @@ import { SETTLEMENT_MODEL_DEFAULTS } from "./settlement-model.mjs";
 
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const own = (value, key) => Object.hasOwn(value, key);
+const actualOf = (value) =>
+    object(value) && (value.actual === null || fitsKind(value.actual, "number")) ?
+        populationActual(value)
+    :   undefined;
 const canonical = (value) => {
     const tuple = readCanonicalKey(value instanceof AddressLink ? value.target : value);
     return tuple ? renderAddress(tuple) : undefined;
@@ -538,12 +544,15 @@ export function prepareSettlementInputs(
             urban,
             ...(source === undefined ? {} : { source }),
             ...(own(data, "households") ? { households: data.households } : {}),
-            ...(own(data, "population") ? { population: data.population } : {}),
+            ...(own(data, "population") ? { population: actualOf(data.population) } : {}),
             ...(size === undefined ? {} : { householdSize: size }),
         };
         if (own(data, "households") && data.households === null)
             add(file, "households", `supply the unknown household count for ${identity}`, keyPath);
-        else if (!own(data, "households") && (!own(data, "population") || data.population === null))
+        else if (
+            !own(data, "households") &&
+            (!own(data, "population") || actualOf(data.population) === null)
+        )
             add(file, "population", `supply the unknown population for ${identity}`, keyPath);
         else if (own(data, "households") && size === undefined)
             add(file, "householdSize", `bind the culture household size for ${identity}`, keyPath);
@@ -645,7 +654,7 @@ export function prepareSettlementInputs(
                 }
                 population = data.households * size;
             }
-        } else if (nonnegative(data.population)) population = data.population;
+        } else if (nonnegative(actualOf(data.population))) population = actualOf(data.population);
         else {
             add(file, "population", `supply the population for ${identity}`, keyPath);
             return undefined;
@@ -782,7 +791,7 @@ export function prepareSettlementInputs(
             }
             children.push(value);
         }
-        const total = record.data?.territorial_population;
+        const total = actualOf(record.data?.territorial_population);
         if (!nonnegative(total)) {
             add(
                 file,

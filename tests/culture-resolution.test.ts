@@ -459,7 +459,7 @@ describe("a place three levels below a cultured root", () => {
         cultures();
         place("realm", "{culture: lore-vedyari, parents: []}");
         place("shire", "{parents: [realm]}");
-        place("vale", "{parents: [shire], population: null}");
+        place("vale", "{parents: [shire], population: {actual: null}}");
         place("hamlet", "{parents: [vale]}");
     }
 
@@ -512,7 +512,7 @@ describe("parents that disagree", () => {
         cultures();
         place("north", "{culture: lore-vedyari}");
         place("south", "{culture: lore-osket}");
-        const pass = place("pass", "{population: null, parents: [north, south]}");
+        const pass = place("pass", "{population: {actual: null}, parents: [north, south]}");
         place("inn", "{parents: [pass]}");
         place("fort", "{parents: [pass, north]}");
         return pass;
@@ -586,7 +586,7 @@ describe("a polity's seat and governed places", () => {
         cultures();
         place("city", "{culture: lore-vedyari}");
         place("vale", "{culture: lore-osket, government: affiliation-duchy}");
-        const duchy = affiliation("duchy", "polity", "{population: null, seat: city}");
+        const duchy = affiliation("duchy", "polity", "{population: {actual: null}, seat: city}");
         const problems: any[] = [];
         const records = collect(problems);
         expect(problems).toHaveLength(1);
@@ -615,7 +615,7 @@ describe("a polity's seat and governed places", () => {
         cultures();
         place("vale", "{culture: lore-osket, government: affiliation-duchy}");
         place("moor", "{culture: lore-vedyari, government: affiliation-duchy}");
-        const duchy = affiliation("duchy", "polity", "{population: null}");
+        const duchy = affiliation("duchy", "polity", "{population: {actual: null}}");
         const problems: any[] = [];
         collect(problems);
         expect(problems).toHaveLength(1);

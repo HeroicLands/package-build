@@ -172,7 +172,7 @@ import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkSettlementTables } from "./settlement-tables.mjs";
 import { checkMarket } from "./market-class.mjs";
-import { SETTLEMENTS_FIELD, SETTLEMENT_ROW_FIELDS } from "./settlement-terms.mjs";
+import { SETTLEMENTS_FIELD, SETTLEMENT_ROW_FIELDS, populationField } from "./settlement-terms.mjs";
 import { checkConceptList, checkCoreFlag } from "./core-vocabulary.mjs";
 import { METRE_KINDS, checkMetresField } from "./metre-declaration.mjs";
 import { checkLanguageEmphasis, checkScriptField } from "./script-emphasis.mjs";
@@ -2150,10 +2150,9 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe:
                     "Places the affiliation is active in; optional and permitted only when `data.seat` is empty. It states neither a seat nor political subordination.",
             },
-            { name: "population", ...NUM, describe: "How many members it counts." },
+            { ...populationField("population"), describe: "How many members it counts." },
             {
-                name: "territorial_population",
-                ...NUM,
+                ...populationField("territorial_population"),
                 describe:
                     "A polity's territorial population, separate from its membership; required with settlements, a seat, or subordinate polities. Listed settlements must not exceed it, and towns, cities, and metropolises must meet the configured urban-share limit. Complete mode instead requires the listed total within five percent.",
             },
@@ -2892,11 +2891,10 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe: "The people this place belongs to, as a culture lore note.",
             },
             {
-                name: "population",
-                ...NUM,
+                ...populationField("population"),
                 check: checkPopulation,
                 describe:
-                    "Approximate population, to two significant digits. Settlements state null when unknown and zero when abandoned.",
+                    "Approximate population, to two significant digits. Settlements state actual: null when unknown and actual: 0 when abandoned.",
             },
             {
                 name: "government",

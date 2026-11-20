@@ -303,7 +303,7 @@ describe("a document that would be empty is not created, and nothing names one",
         "name:",
         "  full: Ekunda",
         "data:",
-        "  population: 400",
+        "  population: {actual: 400}",
         "---",
         "",
     ].join("\n");

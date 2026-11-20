@@ -354,7 +354,7 @@ it(
                     subType: "polity",
                     shortcode: "crown",
                     name: { full: "Crown" },
-                    data: { territorial_population: 5, settlements: [] },
+                    data: { territorial_population: { actual: 5 }, settlements: [] },
                 },
                 "Keep this prose.",
             );
@@ -486,8 +486,8 @@ it(
             expect(fs.readFileSync(crown, "utf8")).toBe(before);
             write(path.join(f.root, "guide.md"), "alphabet");
             const incomplete = before.replace(
-                "territorial_population: 5",
-                "territorial_population: 9",
+                "territorial_population:\n    actual: 5",
+                "territorial_population:\n    actual: 9",
             );
             write(crown, incomplete);
             const incompleteSession = await createContentSession({ config: f.config });
@@ -515,8 +515,8 @@ it(
             expect(incompleteWrite.stderr).toContain("allowed difference is five percent");
             expect(fs.readFileSync(crown, "utf8")).toBe(incomplete);
             const withinTolerance = before.replace(
-                "territorial_population: 5",
-                "territorial_population: 21",
+                "territorial_population:\n    actual: 5",
+                "territorial_population:\n    actual: 21",
             );
             write(crown, withinTolerance);
             const cultureFile = path.join(content, "Note3.md");

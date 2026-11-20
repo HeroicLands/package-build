@@ -115,14 +115,14 @@ const FIXTURE: Record<string, string> = {
     }),
     "Houses/Crown.md": affiliation("crown", "The Crown", "polity", {
         extra: [
-            "    territorial_population: 100",
+            "    territorial_population: {actual: 100}",
             "    settlements:",
             "        - settlement: Outlying Farm",
             "          polity: affiliation-crown",
             "          location: place-outlying",
             "          type: homestead",
             "          holder: The Crown",
-            "          population: 100",
+            "          population: {actual: 100}",
             "          market: subsistence",
             "          notes: A farm.",
         ].join("\n"),
@@ -628,11 +628,11 @@ describe("a dependency's places and affiliations take part", () => {
                 ...FIXTURE,
                 "Regions/Mill.md": place("mill", "Mill", "region", {
                     parents: ["rgn"],
-                    extra: "    population: 120\n    government: thalorna-sohl-affiliation-empire",
+                    extra: "    population: {actual: 120}\n    government: thalorna-sohl-affiliation-empire",
                 }),
                 "Regions/Ham.md": place("ham", "Ham", "region", {
                     parents: ["rgn"],
-                    extra: "    population: 120\n    government: house",
+                    extra: "    population: {actual: 120}\n    government: house",
                 }),
             });
             const index = buildLinkIndex(base, { skipDirectories: [], config });
@@ -714,7 +714,7 @@ describe("government advisories do not depend on holdings", () => {
                 ...FIXTURE,
                 "Regions/Mill.md": place("mill", "Mill", "region", {
                     parents: ["rgn"],
-                    extra: "    population: 120",
+                    extra: "    population: {actual: 120}",
                 }),
             });
             const index = buildLinkIndex(base, { skipDirectories: [], config });

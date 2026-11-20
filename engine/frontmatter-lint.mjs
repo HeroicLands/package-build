@@ -57,7 +57,7 @@ import { fail } from "../config.mjs";
 import { normalizeSettlementPopulation } from "./settlement-population.mjs";
 import { settlementExemptionTracker } from "./settlement-tables.mjs";
 import { listed, nearest } from "./near-miss.mjs";
-import { checkDataKeys, fitsKind } from "./data-keys.mjs";
+import { checkDataKeys, fitsKind, pathLabel } from "./data-keys.mjs";
 import { FALLBACK_LANGUAGE, normalizeName } from "./name-forms.mjs";
 import {
     authoredNoteKeys,
@@ -425,6 +425,30 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
                     (guess ? `. Did you mean "${guess}"?` : ""),
         });
     }
+
+    // Population declarations distinguish an absent field from an explicit null.
+    const checkPopulationMap = (value, segments) => {
+        const finding = (path, message) =>
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw, ["data", ...path]),
+                severity: "error",
+                message,
+            });
+        const name = pathLabel(["data", ...segments]);
+        if (value === null || (Array.isArray(value) && value.length === 0)) {
+            finding(segments, `\`${name}\` must be a population map with an actual figure`);
+        }
+    };
+    for (const field of fields) {
+        if (field.populationMap && Object.hasOwn(entries, field.name))
+            checkPopulationMap(entries[field.name], [field.name]);
+    }
+    if (Array.isArray(entries.settlements))
+        entries.settlements.forEach((row, index) => {
+            if (row && typeof row === "object" && Object.hasOwn(row, "population"))
+                checkPopulationMap(row.population, ["settlements", index, "population"]);
+        });
 
     for (const field of fields) {
         if (note.inheritedCultureFields?.has(field.name)) continue;

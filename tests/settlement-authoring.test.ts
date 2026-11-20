@@ -24,7 +24,7 @@ function fixture() {
     roots.push(root);
     const file = path.join(root, "Crown.md");
     const raw =
-        "---\ntype: affiliation\nsubType: polity\nshortcode: crown\nname: {full: Crown}\ndata:\n  territorial_population: 1000\n  settlements: [] # retain\n---\n\nKeep this prose.\n";
+        "---\ntype: affiliation\nsubType: polity\nshortcode: crown\nname: {full: Crown}\ndata:\n  territorial_population: { actual: 1000 }\n  settlements: [] # retain\n---\n\nKeep this prose.\n";
     fs.writeFileSync(file, raw);
     const polity = {
         package: "example",
@@ -34,7 +34,7 @@ function fixture() {
         name: { full: "Crown" },
         address: { canonical: "example-note-affiliation-crown" },
         file: { path: "Crown.md" },
-        data: { territorial_population: 1000, settlements: [] },
+        data: { territorial_population: { actual: 1000 }, settlements: [] },
     };
     const culture = {
         package: "example",
@@ -68,7 +68,7 @@ function fixture() {
         subType: "polity",
         shortcode: "crown",
         name: { full: "Crown" },
-        data: { territorial_population: 1000, settlements: [] },
+        data: { territorial_population: { actual: 1000 }, settlements: [] },
     };
     const sources = new Map([[file, { raw, frontmatter }]]);
     sources.set(path.join(root, "Folk.md"), { raw: "", frontmatter: {} });
@@ -156,7 +156,7 @@ it("prepares checked rows without writing and commits through the source editor"
     expect(result.rows[0]).toMatchObject({
         settlement: "lakeford",
         type: "hamlet",
-        population: 25,
+        population: { actual: 25 },
         households: 5,
         generatorSource: { id: 7, slot: 0 },
     });
@@ -284,7 +284,7 @@ it("reserves repeated descendant row validation before constructing checks", () 
     const rows = Array.from({ length: 1000 }, (_, i) => ({
         settlement: `Settlement ${i}`,
         type: "hamlet",
-        population: 25,
+        population: { actual: 25 },
     }));
     const sources = new Map(f.session.sources);
     const chain = Array.from({ length: 24 }, (_, i) => {
@@ -298,7 +298,7 @@ it("reserves repeated descendant row validation before constructing checks", () 
             name: { full: `Chain ${i}` },
             file: { path: file },
             data: {
-                territorial_population: 100000,
+                territorial_population: { actual: 100000 },
                 parents: i ? [`example-note-affiliation-chain${i - 1}`] : [],
                 settlements: i === 23 ? rows : [],
             },
