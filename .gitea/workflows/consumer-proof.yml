@@ -150,8 +150,22 @@ jobs:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
             - name: Pack the exact candidate
               run: bash ci/consumer-proof-pack.sh
-            - name: Verify the population proof interface
-              run: npm test -- tests/consumer-proof-populations.test.ts tests/convert-population-actual.test.ts
+            - name: Verify the population contract
+              run: >-
+                  npm test --
+                  tests/population-values.test.ts
+                  tests/polity-settlements-contract.test.ts
+                  tests/populations.test.ts
+                  tests/settlement-tables.test.ts
+                  tests/settlement-inputs.test.ts
+                  tests/settlement-selection.test.ts
+                  tests/settlement-authoring.test.ts
+                  tests/metadata-index.test.ts
+                  tests/population-publication.test.ts
+                  tests/population-journals.test.ts
+                  tests/population-delivery-packs.test.ts
+                  tests/consumer-proof-populations.test.ts
+                  tests/convert-population-actual.test.ts
             - name: Check out the exact Thalorna source
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
