@@ -53,7 +53,7 @@ import { resolveName } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { assertUniquePages, journalPageId, splitPages } from "./journals.mjs";
 import { foundryPackageId } from "./content-package.mjs";
-import { packRouter } from "./pack-router.mjs";
+import { packRouter, routerFor } from "./pack-router.mjs";
 import { itemDocEntryId, itemDocPointer } from "./item-docs.mjs";
 // The whitelist and the per-type `system` builders both come from the resolved
 // configuration, so the types this pass claims and the builders it compiles
@@ -95,12 +95,12 @@ import { assertNoRuntimeOnlyFields } from "./runtime-only-fields.mjs";
  * @param {object} fm - The note's frontmatter.
  * @param {string} name - The item's name.
  * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} [pageSource] - Captured private documentation provenance.
- * @param {{file?: string, bodyLine?: number}} [location] - Authored note location for missing-source diagnostics.
+ * @param {{file?: string, bodyLine?: number, config?: object, router?: object}} [location] - Authored note location and captured build configuration/router.
  * @returns {string} The pointer, or "" for a note with no body.
  */
 export function itemDescription(markdown, fm, name, pageSource, location = {}) {
     if (!String(markdown).trim()) return "";
-    const router = packRouter();
+    const router = location.router ?? (location.config ? routerFor(location.config) : packRouter());
     if (router.privateOf(router.resolveOrNull(fm, "JournalEntry")) && !pageSource)
         throw Object.assign(
             new Error(
@@ -113,12 +113,21 @@ export function itemDescription(markdown, fm, name, pageSource, location = {}) {
         name,
         undefined,
         undefined,
-        pageSource ? { ...location, ...pageSource } : undefined,
+        pageSource ?
+            { file: location.file, bodyLine: location.bodyLine, ...pageSource }
+        :   undefined,
     );
     assertUniquePages(pages, name);
     const page = pages.find((entry) => entry.anchorSlug === "description") ?? pages[0];
     const pageId = journalPageId(itemDocEntryId(fm.id), page);
-    return itemDocPointer(foundryPackageId(), fm.id, name, pageId, fm);
+    return itemDocPointer(
+        location.config?.foundryPackage ?? foundryPackageId(),
+        fm.id,
+        name,
+        pageId,
+        fm,
+        router,
+    );
 }
 
 /**
@@ -199,7 +208,7 @@ export class SystemItemCompiler extends BasePackCompiler {
      *
      * @type {Record<string, number>}
      */
-    counts = Object.fromEntries([...itemTypes()].map((t) => [t, 0]));
+    counts = Object.fromEntries([...itemTypes(this.corpus?.config)].map((t) => [t, 0]));
 
     /**
      * Every content type that compiles into an item **for this system**.
@@ -215,7 +224,7 @@ export class SystemItemCompiler extends BasePackCompiler {
      * @returns {boolean} True for a whitelisted item type.
      */
     selects(fm) {
-        if (!fm.type || !itemTypes().has(fm.type)) return false;
+        if (!fm.type || !itemTypes(this.corpus?.config).has(fm.type)) return false;
         const map = /** @type {typeof SystemItemCompiler} */ (this.constructor).documentSubtypes;
         const row = subtypeRow(/** @type {never} */ (map), fm.type);
         return !row || row.document === "Item";
@@ -258,7 +267,7 @@ export class SystemItemCompiler extends BasePackCompiler {
      * @throws {Error} When the note authors one.
      */
     assertAuthorable(fm) {
-        assertNoRuntimeOnlyFields(fm, itemFields(fm.type, this.system), {
+        assertNoRuntimeOnlyFields(fm, itemFields(fm.type, this.system, this.corpus?.config), {
             block: this.system,
             absPath: this.currentNote?.absPath,
         });
@@ -357,13 +366,18 @@ export class SystemItemCompiler extends BasePackCompiler {
             fm,
             name,
             this.journalPageSource(fm),
-            { file: this.currentNote?.absPath, bodyLine: this.currentNote?.bodyLine },
+            {
+                file: this.currentNote?.absPath,
+                bodyLine: this.currentNote?.bodyLine,
+                config: this.corpus?.config,
+                router: this.journalRouter ?? this.router,
+            },
         );
         const id = fm.id;
         const subType = this.itemSubtype(fm);
         const built = {
             ...this.commonSystem(fm, { description, markdown, label: `item "${name}"` }),
-            ...itemBuilder(type, system)(fm),
+            ...itemBuilder(type, system, this.corpus?.config)(fm),
         };
         // Whatever the note authors under `<system>.system`, at the DataModel's
         // own paths. A path a declared field already writes is left to that
@@ -371,13 +385,13 @@ export class SystemItemCompiler extends BasePackCompiler {
         // the field's own coercion.
         mergeSystemData(built, fm, {
             block: system,
-            claimed: claimedPaths(itemFields(type, system)),
+            claimed: claimedPaths(itemFields(type, system, this.corpus?.config)),
         });
         // Every field whose authored value is an Address and whose emitted value
         // is a Shortcode, reduced once the block is whole — so a value the field
         // read and one authored straight at the destination go through the same
         // step.
-        this.reduceEmittedAddresses(built, itemFields(type, system));
+        this.reduceEmittedAddresses(built, itemFields(type, system, this.corpus?.config));
         this.reportUndeclaredSystemData(fm, system, "Item", subType);
         // And what *this* pass wrote on its own initiative, which no field
         // declaration states and so no other check can see. Read off the
@@ -389,7 +403,7 @@ export class SystemItemCompiler extends BasePackCompiler {
             documentType: "Item",
             subType,
             type,
-            fields: itemFields(type, system),
+            fields: itemFields(type, system, this.corpus?.config),
         });
 
         const effects = blockProperty(fm, system, "effects");
@@ -408,7 +422,7 @@ export class SystemItemCompiler extends BasePackCompiler {
             // Nullish, not `||`: an art address resolves to `null` for a note
             // that names none and `""` for one that wants none, and only the
             // first may be replaced by the type's default.
-            img: this.artPath(fm, "icon") ?? itemArt(type, system),
+            img: this.artPath(fm, "icon") ?? itemArt(type, system, this.corpus?.config),
             _id: id,
             system: built,
             effects: Array.isArray(effects) ? [...effects] : [],

@@ -407,20 +407,12 @@ describe("a {{ref}} resolves in a compiled journal entry", () => {
                     type: "doc",
                 }),
             );
-            const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-            try {
-                const out = dest("ref-journal-broken");
-                const pack = new Journals({ skipDirectories: [], contentBase: broken, dest: out });
-                await pack.compile();
-                expect(pack.errorCount).toBe(1);
-                expect(read(out)["Ref Broken"]).toBeUndefined();
-                const messages = spy.mock.calls.map((call) => String(call[0]));
-                expect(
-                    messages.some((m) => m.includes('names no figure for anchor "#nosuch"')),
-                ).toBe(true);
-            } finally {
-                spy.mockRestore();
-            }
+            const out = dest("ref-journal-broken");
+            const pack = new Journals({ skipDirectories: [], contentBase: broken, dest: out });
+            await expect(pack.compile()).rejects.toThrow(
+                /Broken\.md:\d+:\d+: error: .*names no figure for anchor "#nosuch"/,
+            );
+            expect(read(out)).toEqual({});
         } finally {
             fs.rmSync(broken, { recursive: true, force: true });
         }

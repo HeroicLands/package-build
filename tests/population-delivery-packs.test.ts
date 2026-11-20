@@ -17,7 +17,7 @@ import { Scenes } from "../engine/scenes.mjs";
 import { makeId } from "../engine/ids.mjs";
 import { anchorPageId } from "../engine/wikilinks.mjs";
 import { generatePacksJson } from "../engine/generate.mjs";
-import { emitContentIndex } from "../engine/content-index.mjs";
+import { emitContentIndex, prepareContentIndex } from "../engine/content-index.mjs";
 import { populationJournalPlan } from "../engine/population-journals.mjs";
 import { fixture, note, write } from "./content-session-fixture.js";
 
@@ -94,6 +94,58 @@ async function compile(tree, corpus, name: string) {
     expect(pass.errorCount).toBe(0);
     return documents(dest);
 }
+
+it.each(["session", "standalone"])(
+    "prepares GM metadata without a private journal destination in %s mode",
+    async (mode) => {
+        const tree = input([{ name: "journals", type: "JournalEntry", default: true }]);
+        tree.add(
+            "hidden",
+            { population: { actual: 2300, apparent: 800 } },
+            "# Account {#account}\n\nPopulation {{data.population.apparent}}.",
+            { tags: ["gm"] },
+        );
+        const session = await createContentSession({ config: tree.config });
+        try {
+            const before = structuredClone({
+                records: session.records,
+                parsed: [...session.parsed],
+            });
+            const publication =
+                mode === "session" ?
+                    await session.publication()
+                :   await prepareContentIndex({ config: tree.config });
+            const file = path.join(tree.config.paths.content, "hidden.md");
+            expect(publication.foundryBodies.get(file).markdown).toContain("Population 800.");
+            expect(publication.foundryBodies.get(file).markdown).not.toContain("2300");
+            const result = emitContentIndex({ config: tree.config, publication });
+            const bytes = fs.readFileSync(result.file, "utf8");
+            const hidden = bytes
+                .trim()
+                .split("\n")
+                .map((line) => JSON.parse(line))
+                .find((record) => record.shortcode === "hidden" && record.type === "place");
+            expect(hidden.data.population).toEqual({ actual: null, apparent: 800 });
+            expect(hidden.anchors).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ slug: "account", name: "Account" }),
+                ]),
+            );
+            expect(hidden.foundry).toBeNull();
+            expect(bytes).not.toContain("2300");
+            await expect(compile(tree, await session.compileCorpus(), "journals")).rejects.toThrow(
+                "Differing actual and apparent populations require one private JournalEntry destination",
+            );
+            expect(documents(path.join(tree.config.paths.packJson, "journals"))).toEqual([]);
+            expect({ records: session.records, parsed: [...session.parsed] }).toEqual(before);
+            for (const [source, text] of tree.sources)
+                expect(fs.readFileSync(source, "utf8")).toBe(text);
+        } finally {
+            await session.dispose();
+            tree.close();
+        }
+    },
+);
 
 it.each(["session", "standalone"])(
     "emits expression-dependent private IDs consistently in the %s compiler",
@@ -622,7 +674,7 @@ it("locates a private item description's missing provenance at its authored body
                 { type: "skill", shortcode: "account" },
                 "Account",
                 undefined,
-                { file, bodyLine },
+                { file, bodyLine, config: tree.config },
             ),
         ).toThrow(
             `${file}:${bodyLine}:1: error: private item documentation has no captured source provenance`,

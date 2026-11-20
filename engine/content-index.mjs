@@ -1509,11 +1509,19 @@ export function collectContentIndex(
         const key = canonicalKey(contentPackage, "note", record.type, record.shortcode);
         const sections = (isGmNote(record) ? allSections : publicSections).get(key);
         if (!sections) continue;
-        const expanded = insertLexicalSections(body, sections, { syntax }).markdown;
-        projectPublicationBody(records, record, expanded, {
+        const expanded = insertLexicalSections(body, sections, { syntax });
+        const file = noteFile(contentBase, record);
+        projectPublicationBody(records, record, expanded.markdown, {
             contentPackage,
             manifest,
             resolveRole,
+            pageSource: {
+                ...expanded,
+                source: body,
+                file,
+                bodyLine: parsed.get(file)?.bodyLine,
+                referenceName: (target) => (target ? referenceName(target) : record.name?.full),
+            },
             syntax,
         });
     }
@@ -2161,7 +2169,11 @@ export async function preparePublicationBodies({
                 },
                 { privateMetadata, privateHeadings },
             );
-            if (audience === populationAudience && nativeAudience(record) === audience)
+            if (
+                nativeAudience(record) === populationAudience &&
+                (audience === populationAudience ||
+                    (isGmNote(record) && audience === "all" && populationAudience === "public"))
+            )
                 foundryBodies.set(file, {
                     ...expanded,
                     source: authored.body,
@@ -2215,6 +2227,10 @@ function projectPublicationBody(
     const fm = authoredFrontmatter(record);
     const address = noteAddress(fm, contentPackage);
     if (!address) return;
+    const privateDestination =
+        manifest ?
+            manifest.packRouter.privateOf(manifest.packRouter.resolveOrNull(fm, "JournalEntry"))
+        :   false;
     const original = new Map(
         (record.anchors ?? [])
             .filter((anchor) => anchor.kind === "prose")
@@ -2230,10 +2246,7 @@ function projectPublicationBody(
                     return {
                         ...(original.get(anchor.slug) ?? generated),
                         ...((
-                            (isGmNote(record) ||
-                                manifest.packRouter.privateOf(
-                                    manifest.packRouter.resolveOrNull(fm, "JournalEntry"),
-                                )) &&
+                            (isGmNote(record) || privateDestination) &&
                             dynamicPublicationBody(original.get(anchor.slug)?.name)
                         ) ?
                             generated
@@ -2252,7 +2265,7 @@ function projectPublicationBody(
         frontmatter: fm,
         address,
         body: foundryBody,
-        manifest: {
+        manifest: manifest && {
             ...manifest,
             pageSource,
             file: record.file?.path,
