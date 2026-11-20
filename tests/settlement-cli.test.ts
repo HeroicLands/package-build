@@ -536,7 +536,10 @@ it(
             const toleratedReport = JSON.parse(toleratedWrite.stdout);
             expect(toleratedReport.selection.result.unallocatedPopulation).toBe(1);
             expect(
-                toleratedReport.rows.reduce((sum: number, row: any) => sum + row.population, 0),
+                toleratedReport.rows.reduce(
+                    (sum: number, row: any) => sum + row.population.actual,
+                    0,
+                ),
             ).toBe(20);
             expect(toleratedReport.write.written).toBe(true);
             expect(fs.readFileSync(crown, "utf8")).toContain("ashford");

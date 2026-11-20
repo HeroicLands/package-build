@@ -693,6 +693,7 @@ it("collects private manifest targets from the same captured source as generated
         const manifest = collectFoundryEntries(content, {
             contentPackage: "sourceproof",
             foundryPackageId: "sourceproof",
+            skipDirectories: [],
             packRouter,
         });
         const target = manifest.entries[0];

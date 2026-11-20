@@ -99,7 +99,13 @@ describe("explicit place government", () => {
     it("preserves anarchy and omitted government in compiled Foundry journal properties", () => {
         for (const data of [{ government: null }, {}]) {
             const compiled = Journals.prototype.buildEntry.call(
-                { folderResolver: () => null, linkIndex: undefined, router: undefined, stats: {} },
+                {
+                    folderResolver: () => null,
+                    journalPageSource: () => undefined,
+                    linkIndex: undefined,
+                    router: undefined,
+                    stats: {},
+                },
                 { ...note(data).fm, id: "0123456789abcdef" },
                 "Authored prose.",
             );

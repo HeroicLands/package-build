@@ -184,7 +184,13 @@ function sampleOf(spec: any, key: string): unknown {
 function emptyOf(spec: any): unknown {
     if (spec.fields)
         return Object.fromEntries(
-            spec.fields.map((inner: any) => [inner.name, inner.kind === "list" ? [] : null]),
+            spec.fields.map((inner: any) => [
+                inner.name,
+                inner.name === "population" || inner.name === "territorial_population" ?
+                    { actual: null }
+                : inner.kind === "list" ? []
+                : null,
+            ]),
         );
     if (spec.kind === "list" || spec.kind === "string-or-list")
         return spec.entries?.fields ? [emptyOf(spec.entries)] : [];

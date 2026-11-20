@@ -25,14 +25,10 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { Actors } from "../sohl/actors.mjs";
 import { DEFAULT_ITEM_ART } from "../sohl/default-item-art.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
-
-/** This package's own root — where its test fixtures live. */
-const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /** The default a `miscgear` takes, in the form a compiled document carries. */
 const MISCGEAR_ART = "systems/sohl/icons/questionmark.svg";
@@ -110,9 +106,10 @@ async function withPass(catalogue: object[], run: (pass: any) => void) {
     const absPath = path.join(dir, "Ancient_Warrior.md");
     fs.writeFileSync(absPath, "---\ntype: being\n---\n\nA warrior.\n", "utf8");
     try {
+        fs.mkdirSync(path.join(dir, "content"));
         const pass = new Actors({
             skipDirectories: [],
-            contentBase: path.join(PKG_ROOT, "tests/fixtures"),
+            contentBase: path.join(dir, "content"),
             dest: loadPackConfig().paths.packJson,
             itemsSourceDirs: [itemsDir],
         });

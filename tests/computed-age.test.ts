@@ -32,6 +32,7 @@ import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
 import { collectContentIndex } from "../engine/content-index.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { reckoningContext } from "../engine/reckoning-markers.mjs";
 import { collectContentPages } from "../engine/site-build.mjs";
@@ -416,6 +417,7 @@ describe("the content index, end to end against a real fixture tree", () => {
             contentBase: tmp,
             skipDirectories: [],
             corpus: {
+                config: loadPackConfig(),
                 records,
                 currentDate: "721.1",
                 parsed: new Map(),
