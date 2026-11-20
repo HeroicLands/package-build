@@ -1,0 +1,130 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Settlement real calibration preflight
+on:
+    workflow_dispatch:
+        inputs:
+            candidate_sha:
+                description: Exact checked-out package-build commit
+                required: true
+                type: string
+            map_url:
+                description: Pinned saved-map attachment URL
+                required: true
+                type: string
+            json_url:
+                description: Pinned Full JSON attachment URL
+                required: true
+                type: string
+            manifest_url:
+                description: Pinned export manifest attachment URL
+                required: true
+                type: string
+            records_url:
+                description: Pinned source-record comparison attachment URL
+                required: true
+                type: string
+            verification_url:
+                description: Pinned export verification attachment URL
+                required: true
+                type: string
+            boundaries_url:
+                description: Pinned boundary observations attachment URL
+                required: true
+                type: string
+            diagnosis_url:
+                description: Pinned loader diagnosis attachment URL
+                required: true
+                type: string
+            trial_json:
+                description: Explicit trial inputs as JSON (optional)
+                required: false
+                type: string
+permissions:
+    contents: read
+jobs:
+    preflight:
+        runs-on: ubuntu-vm
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  repository: HeroicLands/thalorna
+                  ref: d1a435b9821008a1f080d0462fe8b88d2dc82204
+                  path: .setting-checkout
+                  github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+              with:
+                  node-version: ${{ vars.CI_NODE_VERSION || '24' }}
+            - name: Prepare evidence directory
+              run: mkdir -p "$RUNNER_TEMP/settlement-real-calibration"
+            - run: npm ci
+            - run: npm ci
+              working-directory: .setting-checkout
+            - name: Fetch consumer dependencies
+              working-directory: .setting-checkout
+              run: |
+                  artifact="$RUNNER_TEMP/sohl-0.8.8"
+                  mkdir -p "$artifact/package"
+                  base=https://github.com/HeroicLands/Song-of-Heroic-Lands-FoundryVTT/releases/download/v0.8.8
+                  curl --fail --location --silent --show-error "$base/system.json" -o "$artifact/system.json"
+                  curl --fail --location --silent --show-error "$base/system.zip" -o "$artifact/system.zip"
+                  curl --fail --location --silent --show-error "$base/sohl-metadata.jsonl" -o "$artifact/sohl-metadata.jsonl"
+                  cd "$artifact"
+                  cat > SHA256SUMS <<'EOF'
+                  504e189e880b518b78b9c78c6ee3fe3ccb54d3147ebf186148fd02f54049e0d5  system.json
+                  92f3ef19ede38bb8a2ca39dae0bb4b16169f15ce5b34027d6dc1f08ab31f35d5  system.zip
+                  35b502ceac160a109625b835590f087c6cef9cc3503774e80d820cfec177ad78  sohl-metadata.jsonl
+                  EOF
+                  sha256sum --check SHA256SUMS
+                  cp SHA256SUMS "$RUNNER_TEMP/settlement-real-calibration/sohl-SHA256SUMS"
+                  unzip -q system.zip -d package
+                  cp system.json sohl-metadata.jsonl package/
+                  cd "$GITHUB_WORKSPACE/.setting-checkout"
+                  node ../bin/package-build.mjs deps fetch --from "$artifact/package" --id sohl
+            - name: Capture settlement preflight
+              env:
+                  CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+                  SETTLEMENT_CONSUMER: ${{ github.workspace }}/.setting-checkout
+                  SETTLEMENT_TRIAL_JSON: ${{ github.event.inputs.trial_json }}
+                  PROBE_FORGE_TOKEN: ${{ github.token }}
+                  PROBE_MAP_URL: ${{ github.event.inputs.map_url }}
+                  PROBE_JSON_URL: ${{ github.event.inputs.json_url }}
+                  PROBE_MANIFEST_URL: ${{ github.event.inputs.manifest_url }}
+                  PROBE_RECORDS_URL: ${{ github.event.inputs.records_url }}
+                  PROBE_VERIFICATION_URL: ${{ github.event.inputs.verification_url }}
+                  PROBE_BOUNDARIES_URL: ${{ github.event.inputs.boundaries_url }}
+                  PROBE_DIAGNOSIS_URL: ${{ github.event.inputs.diagnosis_url }}
+              run: node ci/settlement-real-calibration.mjs
+            - name: Capture early refusal
+              if: ${{ failure() }}
+              env:
+                  CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+              run: |
+                  node --input-type=module <<'NODE'
+                  import { access, mkdir, writeFile } from "node:fs/promises";
+                  import path from "node:path";
+                  const consumerSha = "d1a435b9821008a1f080d0462fe8b88d2dc82204";
+                  const output = path.join(process.env.RUNNER_TEMP, "settlement-real-calibration");
+                  try { await access(path.join(output, "receipt.json")); }
+                  catch {
+                      const finding = "ci/settlement-real-calibration.mjs:1:1: error: preflight setup failed; see job log";
+                      console.error(finding);
+                      await mkdir(output, { recursive: true });
+                      const report = { status: "refused", candidate: process.env.CANDIDATE_SHA, consumer: consumerSha, findings: [finding] };
+                      await writeFile(path.join(output, "receipt.json"), JSON.stringify(report, null, 2) + "\n");
+                      await writeFile(path.join(output, "receipt.md"), `# Settlement preflight: refused\n\n${finding}\n`);
+                  }
+                  NODE
+            - name: Retain preflight evidence
+              if: ${{ always() }}
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+              with:
+                  name: settlement-real-calibration
+                  path: ${{ runner.temp }}/settlement-real-calibration/
+                  if-no-files-found: error
+                  retention-days: 30

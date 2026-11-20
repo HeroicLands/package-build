@@ -8,3 +8,4 @@ consumer-art-proof.mjs
 consumer-lock-guard.mjs
 consumer-lock-guard.test.mjs
 real-map-adapter-probe.mjs
+settlement-real-calibration.mjs

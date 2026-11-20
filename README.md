@@ -199,3 +199,7 @@ The output artifact holds the adapter report and the original evidence files,
 including loader repairs, integrity notices and boundary observations. A refusal
 fails the job and retains its report. The probe does not generate settlements or
 write setting notes; successful ingestion is not a map calibration.
+
+### Settlement preflight
+
+Dispatch **Settlement real calibration preflight** on the candidate branch, supplying its exact package-build commit and the seven attachment URLs. The workflow captures the Thalorna source session at `d1a435b9821008a1f080d0462fe8b88d2dc82204` and the approved map attachments. The workflow downloads the pinned SoHL release artifacts directly, verifies their SHA-256 hashes, and records those hashes with the receipt. Optional trial JSON may contain `bindings`, `settings`, `selection` and `bands`; values describe explicit trial assumptions, not authored facts. The [settlement assembly inputs](docs/reference/settlement-inputs.md) describe bindings and settings, and the [placement guide](docs/reference/settlement-placement.md) describes selection fields and work budgets. The retained JSON and Markdown receipts identify the source and input hashes, map identities, declared facts, missing fields and available numerical results. Receipt status is `incomplete` for a captured preflight and `refused` when setup or inspection fails. Neither status establishes calibration or a completed settlement operation.
