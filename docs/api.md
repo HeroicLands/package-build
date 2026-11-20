@@ -941,7 +941,7 @@ Emitting this package's cross-package link manifest. `engine/content-address.mjs
 | `foundryIdentities`     | `function foundryIdentities(config`                               | `{{contentPackage: string, foundryPackageId: string, packRouter: object, web: boolean, skipDirectories: readonly string[]}}` | The identities an emission runs against, from configuration.        |
 | `entryContext`          | `function entryContext(config`                                    | `{{contentPackage: string, foundryPackageId: string, packRouter: object, web: boolean, skipDirectories: readonly string[]}}` | The identities an emission runs against, from configuration.        |
 
-`ctx.pageSource` supplies captured source provenance for a private journal; `anchorsOf` accepts the same optional provenance as its final argument. A private journal route requires captured source.
+`ctx.pageSource` supplies captured source provenance for a private journal; `ctx.file` and `ctx.bodyLine` locate diagnostics. `anchorsOf` accepts the same optional provenance as its final argument. A private journal route requires captured source.
 
 A generated dictionary headword maps to its containing page's UUID followed
 by its word fragment. Other authored spans keep their containing-page
@@ -2495,9 +2495,9 @@ Journals pack compiler — produces JSON pack files for the "journals" Foundry c
 | `buildJournalEntry`   | `buildJournalEntry({ id, name, markdown, leadName, folder, stats, resolveRole, syntax, runs, pageSource })` | {object} The JournalEntry document, keyed for the pack.                                                                                                                          | Assemble one JournalEntry document from a note's converted markdown.                                                             |
 | `Journals`            | `class Journals extends BasePackCompiler`                                                                   | —                                                                                                                                                                                | not called directly — imported and driven by `engine/generate.mjs` as the "journals" pack compiler                               |
 
-`pageSource` carries captured source and optional line mapping for a private destination. `journalPageId` uses a literal anchor for an explicitly anchored page; unanchored authored private dynamic pages use their source heading or caption before expression expansion. Static pages and public pages retain their ordinary page identities. Generated pages with explicit anchors use those anchors as stable public targets.
+`pageSource` carries captured source and optional line mapping for a private destination. `journalPageId` uses a literal anchor for an explicitly anchored authored page; unanchored authored private dynamic pages use their source heading or caption before expression expansion. Static pages, continuation pages and public pages retain their ordinary page identities. A generated page uses its anchor for identity when the complete literal slug is declared in the captured generating directive. Other generated slugs use an identity derived from the unrendered directive, without actual values.
 
-`itemDescription(markdown, fm, name, pageSource?)` returns the item documentation pointer, or an empty string for an empty body. A private documentation route requires captured source provenance.
+`itemDescription(markdown, fm, name, pageSource?, location = {})` returns the item documentation pointer, or an empty string for an empty body. A private documentation route requires captured source provenance; `location.file` and `location.bodyLine` locate diagnostics.
 
 ### `engine.macros`
 
