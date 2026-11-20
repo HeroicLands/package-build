@@ -6,88 +6,191 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { makeId } from "../engine/ids.mjs";
+import { infoboxesToHtml } from "../engine/infobox-render.mjs";
+import { createRenderer } from "../engine/content-render.mjs";
+import { createPackRouter } from "../engine/pack-router.mjs";
+import { indexRecordsForNote, serializeContentIndex } from "../engine/content-index.mjs";
+import { flattenPublishedAddresses } from "../engine/address-values.mjs";
+import { projectPopulationFrontmatter } from "../engine/population-values.mjs";
 import {
+    resolvePopulationSubject,
+    selectSiteFile,
     verifyPopulationIndex,
     verifyPopulationSurfaces,
 } from "../ci/consumer-proof-populations.mjs";
 
-describe("consumer population index proof", () => {
-    const raw = [
-        {
-            address: { canonical: "demo-note-place-harbor" },
-            data: { population: { actual: 1200, apparent: 800 } },
-        },
-        {
-            address: { canonical: "demo-note-affiliation-council" },
-            data: {
-                population: { actual: "50" },
-                territorial_population: { actual: 4000, apparent: null },
-                settlements: [{ population: { actual: 100, apparent: 0 } }],
-            },
-        },
-    ];
-    const projected = [
-        {
-            address: { canonical: "demo-note-place-harbor" },
-            data: { population: { actual: null, apparent: 800 } },
-        },
-        {
-            address: { canonical: "demo-note-affiliation-council" },
-            data: {
-                population: { actual: 50, apparent: 50 },
-                territorial_population: { actual: null, apparent: null },
-                settlements: [{ population: { actual: null, apparent: 0 } }],
-            },
-        },
-    ];
-    const addresses = ["demo-note-place-harbor", "demo-note-affiliation-council"];
-    it("checks every requested note, including inline and territorial counts", () => {
-        expect(verifyPopulationIndex(raw, projected, addresses)).toEqual({
-            subjects: 2,
-            figures: 4,
+const address = "thalorna-sohl-affiliation-council";
+const placeAddress = "thalorna-note-place-harbor";
+const polity = {
+    type: "affiliation",
+    subType: "polity",
+    shortcode: "council",
+    name: { full: "Council" },
+    sohl: {},
+    data: {
+        population: { actual: 160, apparent: 0 },
+        territorial_population: { actual: 160, apparent: null },
+        settlements: [{ settlement: "Farm", population: { actual: 160, apparent: 20 } }],
+    },
+};
+const place = {
+    type: "place",
+    subType: "settlement",
+    shortcode: "harbor",
+    name: { full: "Harbor" },
+    data: { population: { actual: 1200, apparent: 800 } },
+};
+const packs = [
+    { name: "items", type: "Item", system: "sohl", default: true },
+    { name: "journals", type: "JournalEntry", default: true },
+    { name: "private", type: "JournalEntry", private: true },
+];
+function produced(fm: any) {
+    const manifest = {
+        contentPackage: "thalorna",
+        foundryPackageId: "thalorna",
+        packRouter: createPackRouter(packs),
+        docEntryTypes: new Set(["affiliation"]),
+    };
+    const records = indexRecordsForNote({
+        frontmatter: projectPopulationFrontmatter(fm),
+        body: "Visible prose.",
+        relPath: `${fm.shortcode}.md`,
+        contentPackage: "thalorna",
+        manifest,
+    });
+    return serializeContentIndex(records)
+        .trim()
+        .split("\n")
+        .map((line: string) => flattenPublishedAddresses(JSON.parse(line)));
+}
+const raw = [
+    { ...polity, address: { canonical: address } },
+    { ...place, address: { canonical: placeAddress } },
+];
+const publicPolity =
+    '<dl class="infobox-rows"><dt>Population</dt><dd>0</dd></dl><table><tr><th>Settlement</th><th>Population</th></tr><tr><td>Farm</td><td>20</td></tr></table><style>.x { width: 160px }</style><p id=\"a160b\">There are 160 miles of road. Population records are at <a href=\"/160\">160</a>.</p>';
+const privatePolity =
+    "<table><tr><th>Population</th><th>Actual</th><th>Apparent</th></tr><tr><td>Membership</td><td>160</td><td>0</td></tr><tr><td>Territorial population</td><td>160</td><td>Unknown</td></tr><tr><td>Farm</td><td>160</td><td>20</td></tr></table>";
+const publicPlace = '<dl class="infobox-rows"><dt>Population</dt><dd>800</dd></dl>';
+const privatePlace =
+    "<table><tr><th>Population</th><th>Actual</th><th>Apparent</th></tr><tr><td>Population</td><td>1,200</td><td>800</td></tr></table>";
+const surfaces = () => ({
+    sites: [
+        { address, text: publicPolity },
+        { address: placeAddress, text: publicPlace },
+    ],
+    publicDocuments: [
+        { address, text: publicPolity },
+        { address: placeAddress, text: publicPlace },
+    ],
+    privateDocuments: [
+        { address, text: privatePolity },
+        { address: placeAddress, text: privatePlace },
+    ],
+});
+
+describe("consumer population proof", () => {
+    it("uses the producer's SoHL record and lean documentation relation", () => {
+        const records = produced(polity);
+        const resolved = resolvePopulationSubject(records, address);
+        expect(resolved.subjectAddress).toBe(address);
+        expect(resolved.subject.data.population).toEqual({ actual: null, apparent: 0 });
+        expect(resolved.journal.data).toBeUndefined();
+        expect(resolved.uuid).toMatch(/^Compendium\\.thalorna\\.journals\\.JournalEntry\\./);
+        expect(verifyPopulationIndex(raw.slice(0, 1), records, [address])).toEqual({
+            subjects: 1,
+            figures: 3,
             differing: 3,
         });
     });
-    it("checks selected public pages and Foundry documents against private entries", () => {
-        const source = [raw[0]];
-        const address = addresses[0];
-        const surfaces = {
-            indexDocuments: [{ address, text: "Harbor population 800" }],
-            sites: [{ address, text: "Harbor population 800" }],
-            publicDocuments: [{ address, text: "Harbor population 800" }],
-            privateDocuments: [{ address, text: "Harbor actual 1,200 apparent 800" }],
+    it("checks an unknown actual and a stated apparent figure", () => {
+        const hidden = {
+            type: "place",
+            address: { canonical: placeAddress },
+            data: { population: { actual: null, apparent: 10 } },
         };
-        expect(verifyPopulationSurfaces(source, [address], surfaces)).toEqual({
+        const output = {
+            sites: [
+                {
+                    address: placeAddress,
+                    text: '<dl class="infobox-rows"><dt>Population</dt><dd>10</dd></dl>',
+                },
+            ],
+            publicDocuments: [
+                {
+                    address: placeAddress,
+                    text: '<dl class="infobox-rows"><dt>Population</dt><dd>10</dd></dl>',
+                },
+            ],
+            privateDocuments: [
+                {
+                    address: placeAddress,
+                    text: "<table><tr><th>Population</th><th>Actual</th><th>Apparent</th></tr><tr><td>Population</td><td>Unknown</td><td>10</td></tr></table>",
+                },
+            ],
+        };
+        expect(verifyPopulationSurfaces([hidden], [placeAddress], output)).toEqual({
             subjects: 1,
             hiddenFigures: 1,
         });
-        expect(() =>
-            verifyPopulationSurfaces(source, [address], {
-                ...surfaces,
-                sites: [{ address, text: "Harbor has 1,200 people" }],
-            }),
-        ).toThrow(/public/);
-        expect(() =>
-            verifyPopulationSurfaces(source, [address], {
-                ...surfaces,
-                privateDocuments: [{ address, text: "Harbor unknown" }],
-            }),
-        ).toThrow(/private/);
+        output.privateDocuments[0].text = output.privateDocuments[0].text.replace(
+            "<td>Unknown</td>",
+            "",
+        );
+        expect(() => verifyPopulationSurfaces([hidden], [placeAddress], output)).toThrow();
     });
-    it("refuses hidden actual figures and missing or ambiguous records", () => {
-        const leaked = structuredClone(projected);
-        leaked[0].data.population.actual = 1200;
-        expect(() => verifyPopulationIndex(raw, leaked, addresses)).toThrow(/projection/);
-        expect(() => verifyPopulationIndex(raw, projected.slice(1), addresses)).toThrow(
-            /exactly one/,
+    it("uses the published site URL before the ordinary slug", () => {
+        const selected = selectSiteFile(
+            [
+                "build/site/thalorna/section/index.html",
+                "build/site/thalorna/place-harbor/index.html",
+            ],
+            { siteURL: "/thalorna/section/", address: { slug: "place-harbor" } },
+            {},
+            placeAddress,
         );
-        expect(() => verifyPopulationIndex([...raw, raw[0]], projected, addresses)).toThrow(
-            /exactly one/,
+        expect(selected).toBe("build/site/thalorna/section/index.html");
+    });
+    it("checks each field and inline row, including repeated actual and zero or unknown apparent", () => {
+        expect(verifyPopulationSurfaces(raw, [address, placeAddress], surfaces())).toEqual({
+            subjects: 2,
+            hiddenFigures: 4,
+        });
+        const missing = surfaces();
+        missing.privateDocuments[0].text = privatePolity.replace(
+            "<tr><td>Territorial population</td><td>160</td><td>Unknown</td></tr>",
+            "",
         );
+        expect(() => verifyPopulationSurfaces(raw, [address], missing)).toThrow(/missing/);
+        const swapped = surfaces();
+        swapped.privateDocuments[0].text = privatePolity.replace(
+            "<td>160</td><td>0</td>",
+            "<td>0</td><td>160</td>",
+        );
+        expect(() => verifyPopulationSurfaces(raw, [address], swapped)).toThrow();
+        const swappedRows = surfaces();
+        swappedRows.privateDocuments[0].text = privatePolity
+            .replace("<td>Membership</td>", "<td>Temporary</td>")
+            .replace("<td>Territorial population</td>", "<td>Membership</td>")
+            .replace("<td>Temporary</td>", "<td>Territorial population</td>");
+        expect(() => verifyPopulationSurfaces(raw, [address], swappedRows)).toThrow();
+        const missingApparent = surfaces();
+        missingApparent.privateDocuments[0].text = privatePolity.replace("<td>Unknown</td>", "");
+        expect(() => verifyPopulationSurfaces(raw, [address], missingApparent)).toThrow();
+        const wrong = surfaces();
+        wrong.sites[0].text = publicPolity.replace("<td>20</td>", "<td>0</td>");
+        expect(() => verifyPopulationSurfaces(raw, [address], wrong)).toThrow();
+        const absent = surfaces();
+        absent.publicDocuments[0].text = publicPolity.replace("<dt>Population</dt><dd>0</dd>", "");
+        expect(() => verifyPopulationSurfaces(raw, [address], absent)).toThrow();
+        const prose = surfaces();
+        prose.sites[0].text += "<p>The population is 160 people.</p>";
+        expect(() => verifyPopulationSurfaces(raw, [address], prose)).toThrow(/prose/);
     });
 });
 
-it("prepares and verifies an isolated mixed proof tree", () => {
+it("prepares a converted snapshot and verifies exact producer UUIDs", () => {
     const scratch = process.env.TMPDIR || process.env.RUNNER_TEMP;
     if (!scratch) throw new Error("Population proof tests require TMPDIR or RUNNER_TEMP");
     const root = fs.mkdtempSync(path.join(scratch, "population-proof-"));
@@ -99,10 +202,13 @@ it("prepares and verifies an isolated mixed proof tree", () => {
     };
     try {
         fs.mkdirSync(path.join(proof, "population-evidence"), { recursive: true });
-        const address = "thalorna-note-place-harbor";
+        put(
+            "assets/content/Council.md",
+            "---\ntype: affiliation\nsubType: polity\nshortcode: council\nname: {full: Council}\nsohl: {}\ndata: {population: {actual: 160, apparent: 0}, territorial_population: {actual: 160, apparent: null}, settlements: [{settlement: Farm, population: {actual: 160, apparent: 20}}]}\n---\nBody.\n",
+        );
         put(
             "assets/content/Harbor.md",
-            "---\ntype: place\nshortcode: harbor\nname: {full: Harbor}\ndata: {population: {actual: 1200, apparent: 800}}\n---\nBody.\n",
+            "---\ntype: place\nsubType: settlement\nshortcode: harbor\nname: {full: Harbor}\ndata: {population: {actual: 1200, apparent: 800}}\n---\nBody.\n",
         );
         put(
             "assets/content/Other.md",
@@ -124,7 +230,7 @@ it("prepares and verifies an isolated mixed proof tree", () => {
             ...process.env,
             CANDIDATE_SHA: "a".repeat(40),
             CONSUMER_SHA: "b".repeat(40),
-            POPULATION_PROOF_ADDRESSES: JSON.stringify([address]),
+            POPULATION_PROOF_ADDRESSES: JSON.stringify([address, placeAddress]),
         };
         const script = fileURLToPath(
             new URL("../ci/consumer-proof-populations.mjs", import.meta.url),
@@ -140,24 +246,72 @@ it("prepares and verifies an isolated mixed proof tree", () => {
         expect(fs.readFileSync(path.join(root, "assets/content/Other.md"), "utf8")).toContain(
             "{actual: 40}",
         );
+        const index = [...produced(polity), ...produced(place)];
         put(
             "build/content-index/thalorna-metadata.jsonl",
-            JSON.stringify({
-                address: { canonical: address },
-                data: { population: { actual: null, apparent: 800 } },
-            }) + "\n",
+            index.map((record: any) => JSON.stringify(record)).join("\n") + "\n",
         );
-        put("build/site/thalorna/place-harbor/index.html", "Harbor population 800");
+        const renderBox = (value: string) =>
+            infoboxesToHtml([
+                {
+                    id: "note",
+                    title: "Details",
+                    sections: [
+                        { layout: "rows", rows: [{ label: "Population", kind: "number", value }] },
+                    ],
+                },
+            ]);
+        const renderer = createRenderer("foundry");
+        const generatedPolity =
+            renderBox("0") +
+            renderer.render("| Settlement | Population |\n| --- | ---: |\n| Farm | 20 |\n");
+        const generatedPlace = renderBox("800");
+        const generatedPrivatePolity = renderer.render(
+            "| Population | Actual | Apparent |\n| --- | ---: | ---: |\n| Membership | 160 | 0 |\n| Territorial population | 160 | Unknown |\n| Farm | 160 | 20 |\n",
+        );
+        const generatedPrivatePlace = renderer.render(
+            "| Population | Actual | Apparent |\n| --- | ---: | ---: |\n| Population | 1,200 | 800 |\n",
+        );
+        for (const [fm, key, publicHtml, privateHtml] of [
+            [polity, address, generatedPolity, generatedPrivatePolity],
+            [place, placeAddress, generatedPlace, generatedPrivatePlace],
+        ] as const) {
+            const resolved = resolvePopulationSubject(index, key);
+            const id = resolved.uuid.split(".").at(-1);
+            put(`build/site/thalorna/${resolved.journal.address.slug}/index.html`, publicHtml);
+            put(
+                `build/packs-json/journals/${fm.shortcode}.json`,
+                JSON.stringify({
+                    _id: id,
+                    name: fm.name.full,
+                    pages: [{ text: { content: publicHtml } }],
+                }),
+            );
+            put(
+                `build/packs-json/private/${fm.shortcode}.json`,
+                JSON.stringify({
+                    _id: makeId("population-supplement", key),
+                    name: fm.name.full,
+                    ownership: { default: 0 },
+                    pages: [{ text: { content: privateHtml } }],
+                }),
+            );
+        }
         put(
-            "build/packs-json/journals/harbor.json",
-            JSON.stringify({ name: "Harbor", pages: ["population 800"] }),
+            "build/packs-json/private/decoy.json",
+            JSON.stringify({
+                _id: "wrong-private",
+                name: "Council",
+                ownership: { default: 0 },
+                pages: [{ text: { content: privatePolity } }],
+            }),
         );
         put(
-            "build/packs-json/private/harbor.json",
+            "build/packs-json/journals/decoy.json",
             JSON.stringify({
-                _id: makeId("population-supplement", address),
-                name: "Population: Harbor",
-                pages: ["actual 1,200 apparent 800"],
+                _id: "wrong",
+                name: "Council",
+                pages: [{ text: { content: "decoy" } }],
             }),
         );
         const verified = run("verify");
@@ -165,8 +319,16 @@ it("prepares and verifies an isolated mixed proof tree", () => {
         const receipt = JSON.parse(
             fs.readFileSync(path.join(proof, "population-evidence/receipt.json"), "utf8"),
         );
-        expect(receipt).toMatchObject({ subjects: 1, figures: 1, differing: 1, hiddenFigures: 1 });
-        put("build/site/thalorna/place-harbor/index.html", "Harbor population 1200");
+        expect(receipt).toMatchObject({ subjects: 2, figures: 4, differing: 4, hiddenFigures: 4 });
+        const privateFile = path.join(root, "build/packs-json/private/council.json");
+        const privateEntry = JSON.parse(fs.readFileSync(privateFile, "utf8"));
+        privateEntry.ownership.default = 1;
+        fs.writeFileSync(privateFile, JSON.stringify(privateEntry));
+        expect(run("verify").status).not.toBe(0);
+        privateEntry.ownership.default = 0;
+        fs.writeFileSync(privateFile, JSON.stringify(privateEntry));
+        const publicFile = path.join(root, "build/packs-json/journals/council.json");
+        fs.unlinkSync(publicFile);
         expect(run("verify").status).not.toBe(0);
     } finally {
         fs.rmSync(root, { recursive: true, force: true });

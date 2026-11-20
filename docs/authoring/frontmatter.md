@@ -173,10 +173,14 @@ published index materializes `apparent`; when the figures differ, it sets
 `actual` to `null`, so a dependent package cannot recover the private actual
 figure from that index. Public expressions and SQL use
 `data.population.apparent`; calculations that require the real count use
-`data.population.actual` in a private context. A compile with differing figures
-uses a configured private JournalEntry pack for a small GM population entry.
-The entry contains the actual and apparent figures; an existing private entry
-that already provides them needs no duplicate.
+`data.population.actual` in a private context. A Foundry compile with differing
+figures needs a compiled, system-neutral private JournalEntry pack for a small
+GM population entry. A private default is selected when available; otherwise
+exactly one eligible private pack is required. An absent or ambiguous destination
+stops the compile before writing: configure one eligible pack or select a private
+default. Site-only and index-only operations need no private pack. The private
+entry contains the actual and apparent figures; an existing private entry that
+already provides them needs no duplicate.
 
 Keep private counts out of public prose and other independently published facts.
 A secret-styled passage is presentation, and household figures or published

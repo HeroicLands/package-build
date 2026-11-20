@@ -19,9 +19,76 @@ import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import YAML from "yaml";
-import { canonicalKey } from "../engine/address.mjs";
+import { DOMParser } from "@xmldom/xmldom";
+import {
+    canonicalKey,
+    ownDocumentSystem,
+    renderAddress,
+    parseAddress,
+} from "../engine/address.mjs";
+import { flattenPublishedAddresses } from "../engine/address-values.mjs";
 import { makeId } from "../engine/ids.mjs";
+import { formatQuantity } from "../engine/infobox.mjs";
 import { convertFiles } from "../scripts/convert-population-actual.mjs";
+
+/** Normalize an in-memory tuple or a published Address link. */
+function addressOf(value) {
+    if (typeof value === "string") return value;
+    if (value?.address) return addressOf(value.address);
+    if (value?.package && value?.system && value?.type && value?.shortcode)
+        return renderAddress(value);
+    return undefined;
+}
+
+/** Find the fact-owning record and its separately addressed journal. */
+export function resolvePopulationSubject(records, address) {
+    const find = (key) => {
+        const hits = records.filter((record) => addressOf(record.address?.canonical) === key);
+        assert.equal(hits.length, 1, `${key}: expected exactly one index record`);
+        return hits[0];
+    };
+    const selected = find(address);
+    const subject = selected.documents ? find(addressOf(selected.documents)) : selected;
+    const subjectAddress = addressOf(subject.address?.canonical);
+    assert.ok(subjectAddress && !subject.documents, `${address}: missing fact-owning record`);
+    const journal = subject.documentation ? find(addressOf(subject.documentation)) : subject;
+    if (journal !== subject)
+        assert.equal(
+            addressOf(journal.documents),
+            subjectAddress,
+            `${address}: documentation relation`,
+        );
+    const uuid = journal.foundry?.note?.uuid;
+    assert.match(
+        uuid ?? "",
+        /^Compendium\.[^.]+\.[^.]+\.JournalEntry\.[^.]+$/,
+        `${address}: public journal UUID`,
+    );
+    assert.equal(journal.id, uuid.split(".").at(-1), `${address}: journal ID and UUID`);
+    return { subject, subjectAddress, journal, uuid };
+}
+
+/** Select the site output by the published URL or the declared address slug. */
+export function selectSiteFile(siteFiles, subject, journal, address) {
+    const url =
+        journal.siteURL ??
+        subject.siteURL ??
+        journal.site?.url ??
+        subject.site?.url ??
+        journal.url ??
+        subject.url;
+    const slug = journal.address?.slug ?? subject.address?.slug;
+    assert.ok(url || slug, `${address}: published site URL or slug is required`);
+    const suffix =
+        url ?
+            `${new URL(url, "https://example.invalid").pathname.replace(/\/$/, "")}/index.html`
+        :   `/${slug}/index.html`;
+    const candidates = siteFiles.filter((file) =>
+        `/${file.replaceAll(path.sep, "/")}`.endsWith(suffix),
+    );
+    assert.equal(candidates.length, 1, `${address}: expected one published site page`);
+    return candidates[0];
+}
 
 /**
  * Compare authored and published population-bearing fields for explicit Addresses.
@@ -36,7 +103,9 @@ export function verifyPopulationIndex(source, published, addresses) {
     let figures = 0;
     let differing = 0;
     const one = (records, address) => {
-        const matches = records.filter((record) => record.address?.canonical === address);
+        const matches = records.filter(
+            (record) => addressOf(record.address?.canonical) === address,
+        );
         assert.equal(matches.length, 1, `${address}: expected exactly one record`);
         return matches[0];
     };
@@ -72,76 +141,231 @@ export function verifyPopulationIndex(source, published, addresses) {
         const rows = sourceData.settlements ?? [];
         const publicRows = publicData.settlements ?? [];
         assert.equal(publicRows.length, rows.length, `${address}: settlement rows`);
-        rows.forEach((row, index) =>
-            check(row.population, publicRows[index]?.population, `${address}: settlement ${index}`),
-        );
+        rows.forEach((row, index) => {
+            assert.equal(
+                publicRows[index]?.settlement,
+                row.settlement,
+                `${address}: settlement ${index} identity`,
+            );
+            if (row.location !== undefined && row.location !== null) {
+                const expected = renderAddress(
+                    parseAddress(row.location, {
+                        package: "thalorna",
+                        system: "note",
+                        type: "place",
+                    }),
+                );
+                assert.equal(
+                    addressOf(publicRows[index]?.location),
+                    expected,
+                    `${address}: settlement ${index} location`,
+                );
+            }
+            check(row.population, publicRows[index]?.population, `${address}: settlement ${index}`);
+        });
     }
     assert.ok(figures > 0, "The selected subjects have no population figures");
     assert.ok(differing > 0, "The selected subjects have no private population figures");
     return { subjects: addresses.length, figures, differing };
 }
 
-/** Verify public page and document text and the corresponding private entry. */
+/** Read visible population fields and settlement/private table cells from rendered HTML. */
+function populationCells(html) {
+    const document = new DOMParser({ onError: () => {} }).parseFromString(
+        /<html(?:\s|>)/i.test(html) ? html : `<html><body>${html}</body></html>`,
+        "text/html",
+    );
+    const text = (node) =>
+        String(node?.textContent ?? "")
+            .replace(/\s+/g, " ")
+            .trim();
+    const elements = (node, name) => Array.from(node.getElementsByTagName(name));
+    const fields = [];
+    for (const list of elements(document, "dl")) {
+        if (!/\b(?:info-profile-grid|infobox-rows)\b/.test(list.getAttribute("class") ?? ""))
+            continue;
+        const children = Array.from(list.childNodes).filter((node) => node.nodeType === 1);
+        for (let i = 0; i + 1 < children.length; i++) {
+            if (
+                children[i].nodeName.toLowerCase() === "dt" &&
+                children[i + 1].nodeName.toLowerCase() === "dd"
+            )
+                fields.push([text(children[i]), text(children[i + 1])]);
+        }
+    }
+    const tables = [];
+    for (const table of elements(document, "table")) {
+        const rows = elements(table, "tr")
+            .map((row) =>
+                Array.from(row.childNodes)
+                    .filter(
+                        (node) =>
+                            node.nodeType === 1 &&
+                            ["th", "td"].includes(node.nodeName.toLowerCase()),
+                    )
+                    .map(text),
+            )
+            .filter((row) => row.length);
+        if (rows.length) tables.push(rows);
+    }
+    const visibleText = (node) => {
+        if (node.nodeType === 3) return node.nodeValue ?? "";
+        if (["a", "script", "style"].includes(String(node.nodeName ?? "").toLowerCase())) return "";
+        return Array.from(node.childNodes ?? [])
+            .map(visibleText)
+            .join("");
+    };
+    const prose = elements(document, "p")
+        .filter((node) => {
+            for (let parent = node.parentNode; parent; parent = parent.parentNode) {
+                const tag = String(parent.nodeName ?? "").toLowerCase();
+                if (
+                    ["table", "dl", "nav", "header", "footer", "script", "style", "aside"].includes(
+                        tag,
+                    )
+                )
+                    return false;
+                if (/infobox|sidebar|info-box/.test(parent.getAttribute?.("class") ?? ""))
+                    return false;
+            }
+            return true;
+        })
+        .map((node) => visibleText(node).replace(/\s+/g, " ").trim());
+    return { fields, tables, prose };
+}
+
+const normalized = (value) =>
+    value === null || value === undefined ? "unknown" : Number(value).toLocaleString("en-US");
+const readNumber = (text) => {
+    const cleaned = String(text ?? "")
+        .trim()
+        .replace(/,/g, "");
+    if (!cleaned || /^unknown$/i.test(cleaned)) return "unknown";
+    assert.match(cleaned, /^-?\d+(?:\.\d+)?$/, "population cell must contain a number or Unknown");
+    return Number(cleaned).toLocaleString("en-US");
+};
+
+/** Verify each selected population field and inline row in rendered outputs. */
 export function verifyPopulationSurfaces(source, addresses, surfaces) {
     let hiddenFigures = 0;
-    const token = (text, value) => {
-        const forms = [...new Set([String(value), value.toLocaleString("en-US")])];
-        return forms.some((form) => {
-            const escaped = form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            return new RegExp(`(?<![0-9])${escaped}(?![0-9])`).test(text);
-        });
-    };
     const one = (items, address, label) => {
         const found = items.filter((item) => item.address === address);
         assert.equal(found.length, 1, `${address}: expected exactly one ${label}`);
-        return found[0].text;
+        return populationCells(found[0].text);
+    };
+    const field = (surface, label, expected, context) => {
+        const hits = surface.fields.filter(([name]) => name.toLowerCase() === label.toLowerCase());
+        if (expected === "unknown" && hits.length === 0) return;
+        assert.equal(hits.length, 1, `${context}: expected one ${label} field`);
+        const actual = hits[0][1].trim();
+        if (expected === "unknown")
+            assert.ok(actual === "" || /^unknown$/i.test(actual), `${context}: ${label} field`);
+        else assert.equal(actual, expected, `${context}: ${label} field`);
+    };
+    const tableRow = (surface, header, label, context) => {
+        const matches = [];
+        for (const rows of surface.tables) {
+            const columns = rows[0].map((cell) => cell.toLowerCase());
+            if (!header.every((name) => columns.includes(name))) continue;
+            for (const row of rows.slice(1)) if (row[0] === label) matches.push({ row, columns });
+        }
+        assert.ok(matches.length > 0, `${context}: missing ${label} row`);
+        return matches;
     };
     for (const address of addresses) {
-        const record = source.find((item) => item.address?.canonical === address);
+        const record = source.find((item) => addressOf(item.address?.canonical) === address);
         assert.ok(record, `${address}: missing source record`);
         const data = record.data ?? {};
-        const values = [
-            data.population,
-            data.territorial_population,
-            ...(data.settlements ?? []).map((row) => row.population),
-        ].filter(Boolean);
-        const hidden = values.filter((value) => {
-            const actual = value.actual === null ? null : Number(value.actual);
-            const apparent =
-                Object.hasOwn(value, "apparent") ?
-                    value.apparent === null ?
-                        null
-                    :   Number(value.apparent)
-                :   actual;
-            return actual !== apparent;
-        });
-        assert.ok(hidden.length, `${address}: no differing figures`);
-        const index = one(surfaces.indexDocuments, address, "public index record");
         const site = one(surfaces.sites, address, "public site page");
         const publicDoc = one(surfaces.publicDocuments, address, "public Foundry document");
         const privateDoc = one(surfaces.privateDocuments, address, "private Foundry entry");
-        for (const value of hidden) {
-            if (value.actual === null) {
-                assert.match(privateDoc, /unknown/i, `${address}: private unknown actual`);
-            } else {
-                const actual = Number(value.actual);
-                assert.ok(
-                    !token(index, actual),
-                    `${address}: actual figure appears in public index`,
-                );
-                assert.ok(!token(site, actual), `${address}: actual figure appears in public site`);
-                assert.ok(
-                    !token(publicDoc, actual),
-                    `${address}: actual figure appears in public Foundry document`,
-                );
-                assert.ok(
-                    token(privateDoc, actual),
-                    `${address}: actual figure missing from private Foundry entry`,
-                );
-            }
+        for (const surface of [site, publicDoc])
+            assert.ok(
+                !surface.fields.some(([label]) =>
+                    /^(?:actual|apparent) (?:territorial )?population$/i.test(label),
+                ),
+                `${address}: private population field appears in public output`,
+            );
+        const hidden = [];
+        const effective = (value) =>
+            Object.hasOwn(value, "apparent") ? value.apparent : value.actual;
+        const checkPrivate = (value, label) => {
+            const actual = normalized(value.actual),
+                apparent = normalized(effective(value));
+            if (actual === apparent) return;
+            const rows = tableRow(privateDoc, ["population", "actual", "apparent"], label, address);
+            assert.equal(rows.length, 1, `${address}: duplicate private ${label} row`);
+            const { row, columns } = rows[0];
+            assert.equal(
+                readNumber(row[columns.indexOf("actual")]),
+                actual,
+                `${address}: ${label} actual`,
+            );
+            assert.equal(
+                readNumber(row[columns.indexOf("apparent")]),
+                apparent,
+                `${address}: ${label} apparent`,
+            );
+            if (value.actual !== null) hidden.push(Number(value.actual));
             hiddenFigures++;
+        };
+        for (const [key, publicLabel, privateLabel] of [
+            [
+                "population",
+                "Population",
+                record.type === "affiliation" ? "Membership" : "Population",
+            ],
+            ["territorial_population", "Territorial Population", "Territorial population"],
+        ]) {
+            const value = data[key];
+            if (value === undefined) continue;
+            const display =
+                effective(value) === null ? "unknown" : formatQuantity(Number(effective(value)));
+            field(site, publicLabel, display, `${address}: site`);
+            field(publicDoc, publicLabel, display, `${address}: public journal`);
+            checkPrivate(value, privateLabel);
+        }
+        for (const row of data.settlements ?? []) {
+            if (row.population === undefined) continue;
+            const expected = normalized(effective(row.population));
+            for (const [surface, label] of [
+                [site, "site"],
+                [publicDoc, "public journal"],
+            ]) {
+                const matches = tableRow(
+                    surface,
+                    ["settlement", "population"],
+                    row.settlement,
+                    `${address}: ${label}`,
+                );
+                for (const match of matches)
+                    assert.equal(
+                        readNumber(match.row[match.columns.indexOf("population")]),
+                        expected,
+                        `${address}: ${row.settlement} apparent`,
+                    );
+            }
+            const location = row.location ? ` (${addressOf(row.location) ?? row.location})` : "";
+            checkPrivate(row.population, `${row.settlement}${location}`);
+        }
+        // Visible prose is checked separately from structured fields and metadata.
+        for (const text of [...site.prose, ...publicDoc.prose].flatMap((paragraph) =>
+            paragraph.split(/(?<=[.!?])\s+/),
+        )) {
+            if (!/\b(?:population|people|residents|inhabitants)\b/i.test(text)) continue;
+            for (const value of hidden) {
+                const forms = [String(value), value.toLocaleString("en-US")];
+                for (const form of forms) {
+                    const escaped = form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                    assert.ok(
+                        !new RegExp(`(?<![0-9])${escaped}(?![0-9])`).test(text),
+                        `${address}: actual figure appears in public population prose`,
+                    );
+                }
+            }
         }
     }
+    assert.ok(hiddenFigures > 0, "The selected subjects have no private population figures");
     return { subjects: addresses.length, hiddenFigures };
 }
 
@@ -174,7 +398,7 @@ function main(mode, proof) {
             addresses.every(
                 (address) =>
                     typeof address === "string" &&
-                    /^thalorna-note-(?:place|affiliation)-[a-z0-9]+$/.test(address),
+                    /^thalorna-(?:note-place|sohl-affiliation)-[a-z0-9]+$/.test(address),
             ),
         "population addresses must be a JSON list of canonical place or affiliation Addresses",
     );
@@ -199,7 +423,12 @@ function main(mode, proof) {
             if (!match) continue;
             const fm = YAML.parse(match[1]);
             if (!fm || typeof fm.type !== "string" || typeof fm.shortcode !== "string") continue;
-            const address = canonicalKey("thalorna", "note", fm.type, fm.shortcode);
+            const address = canonicalKey(
+                "thalorna",
+                ownDocumentSystem(fm.type),
+                fm.type,
+                fm.shortcode,
+            );
             if (addresses.includes(address))
                 selected.push({ ...fm, address: { canonical: address } });
         }
@@ -224,50 +453,78 @@ function main(mode, proof) {
     );
     const source = rows(sourceFile);
     const indexFile = "build/content-index/thalorna-metadata.jsonl";
-    const published = rows(indexFile);
+    const published = rows(indexFile).map((record) => flattenPublishedAddresses(record));
     const counts = verifyPopulationIndex(source, published, addresses);
-    const indexDocuments = published
-        .filter((record) => addresses.includes(record.address?.canonical))
-        .map((record) => ({ address: record.address.canonical, text: JSON.stringify(record) }));
     const config = YAML.parse(fs.readFileSync("package-build.config.yaml", "utf8"));
-    const packNames = (config.packs ?? []).filter((pack) => pack.type === "JournalEntry");
-    const privateNames = packNames.filter((pack) => pack.private === true).map((pack) => pack.name);
-    assert.ok(privateNames.length, "a configured private JournalEntry pack is required");
-    const privateDocs = [];
-    const publicDocs = [];
-    for (const pack of packNames) {
-        const root = path.join("build/packs-json", pack.name);
-        if (!fs.existsSync(root)) continue;
-        for (const file of files(root).filter((name) => name.endsWith(".json"))) {
-            const text = fs.readFileSync(file, "utf8");
-            const document = JSON.parse(text);
-            const target = pack.private === true ? privateDocs : publicDocs;
-            for (const record of source) {
-                const address = record.address.canonical;
-                const title = typeof record.name === "string" ? record.name : record.name?.full;
-                if (
-                    (pack.private === true &&
-                        document._id === makeId("population-supplement", address)) ||
-                    document.name === title
-                )
-                    target.push({ address, text, file });
-            }
-        }
+    const packs = (config.packs ?? []).filter(
+        (pack) => pack.type === "JournalEntry" && !pack.prebuilt,
+    );
+    const privatePacks = packs.filter((pack) => pack.private === true && !pack.system);
+    const preferred = privatePacks.filter((pack) => pack.default === true);
+    assert.ok(preferred.length <= 1, "private JournalEntry defaults must be unambiguous");
+    const destination = preferred[0] ?? (privatePacks.length === 1 ? privatePacks[0] : undefined);
+    assert.ok(destination, "one eligible private JournalEntry destination is required");
+    const readDocument = (pack, id, address) => {
+        const dir = path.join("build/packs-json", pack.name);
+        assert.ok(fs.existsSync(dir), `${address}: missing ${pack.name} pack`);
+        const matches = files(dir)
+            .filter((name) => name.endsWith(".json"))
+            .flatMap((file) => {
+                const document = JSON.parse(fs.readFileSync(file, "utf8"));
+                return document._id === id ? [{ document, file }] : [];
+            });
+        assert.equal(matches.length, 1, `${address}: expected one document for the published ID`);
+        return matches[0];
+    };
+    const documentText = (document) =>
+        (document.pages ?? []).map((page) => page.text?.content ?? "").join("\n");
+    const sites = [],
+        publicDocs = [],
+        privateDocs = [];
+    const siteFiles = files("build/site").filter((name) => name.endsWith("index.html"));
+    const surfaceSource = [];
+    for (const sourceRecord of source) {
+        const requested = addressOf(sourceRecord.address.canonical);
+        const { subject, subjectAddress, journal, uuid } = resolvePopulationSubject(
+            published,
+            requested,
+        );
+        assert.equal(subjectAddress, requested, `${requested}: fact-owning identity`);
+        const parts = uuid.split(".");
+        assert.equal(parts[1], "thalorna", `${requested}: journal package`);
+        const publicPack = packs.find((pack) => pack.name === parts[2] && pack.private !== true);
+        assert.ok(publicPack, `${requested}: journal must be in a public JournalEntry pack`);
+        const publicDoc = readDocument(publicPack, parts[4], requested);
+        const privateDoc = readDocument(
+            destination,
+            makeId("population-supplement", subjectAddress),
+            requested,
+        );
+        assert.equal(privateDoc.document.ownership?.default, 0, `${requested}: private ownership`);
+        publicDocs.push({
+            address: requested,
+            text: documentText(publicDoc.document),
+            file: publicDoc.file,
+        });
+        privateDocs.push({
+            address: requested,
+            text: documentText(privateDoc.document),
+            file: privateDoc.file,
+        });
+        const siteFile = selectSiteFile(siteFiles, subject, journal, requested);
+        sites.push({ address: requested, text: fs.readFileSync(siteFile, "utf8"), file: siteFile });
+        const data = { ...sourceRecord.data };
+        if (Array.isArray(data.settlements))
+            data.settlements = data.settlements.map((row, index) => ({
+                ...row,
+                ...(subject.data?.settlements?.[index]?.location === undefined ?
+                    {}
+                :   { location: subject.data.settlements[index].location }),
+            }));
+        surfaceSource.push({ ...sourceRecord, data });
     }
-    const sites = [];
-    for (const file of files("build/site").filter((name) => name.endsWith("index.html"))) {
-        for (const record of source) {
-            if (path.basename(path.dirname(file)) === `${record.type}-${record.shortcode}`)
-                sites.push({
-                    address: record.address.canonical,
-                    text: fs.readFileSync(file, "utf8"),
-                    file,
-                });
-        }
-    }
-    const surfaces = verifyPopulationSurfaces(source, addresses, {
+    const surfaces = verifyPopulationSurfaces(surfaceSource, addresses, {
         sites,
-        indexDocuments,
         publicDocuments: publicDocs,
         privateDocuments: privateDocs,
     });
