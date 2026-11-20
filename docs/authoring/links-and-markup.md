@@ -211,7 +211,7 @@ The harbor faces west.
 Travelers present their papers here. See [[#harbor|the harbor]].
 ```
 
-In a GM note, give a heading containing an expression a literal `{#id}` when it needs a public link target. Public metadata uses that id as both the target and its name, without exposing the expression or query text. Without an explicit id, the dynamic heading has no public heading target. Other safely declared anchors on its private page still resolve, and private rendering retains complete values.
+In a note whose journal goes to a private pack, give a heading containing an expression a literal `{#id}` when it needs a public link target. Public metadata uses that id as both the target and its name, without exposing the expression or query text. Without an explicit id, the dynamic heading has no public heading target. Other safely declared anchors on its private page still resolve, and private rendering retains complete values. An explicit id gives the page a fixed target, including for generated headings. An authored private dynamic page without an explicit id derives its identity from its source heading or caption before expressions expand, so adding a paragraph above it does not rename it.
 
 A leading caption gives its item a JournalEntryPage of its own in Foundry, and the body after the item resumes on a continuation of the surrounding section. A solitary image with a plain caption can be an image page; other captioned items become text pages. Websites and books keep captioned items in the surrounding flow.
 
