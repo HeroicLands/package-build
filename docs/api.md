@@ -1149,6 +1149,8 @@ at the earliest reported actual use, and returns no warning for an empty report.
 
 Collecting and publishing this package's content index. Records describe note frontmatter, assets, prose and event anchors, and the document targets those notes produce. Dynamic publication prepares generated Markdown and scalar expressions for the selected audience. The published index materializes the effective apparent population in every record, including GM records, and sets actual to null when it differs from apparent; local complete records retain actual figures.
 
+For a GM note, public metadata represents a heading containing an expression by its literal `{#id}`: the id is both the target and its published name. A dynamic heading without an explicit id has no public heading target. Other safely declared anchors on the private page remain resolvable. Public metadata does not expose the concealed expression or query text; private rendering retains complete values.
+
 Own-note records carry derived `names` entries in source order as
 `{name, type, subType, ref, line, column}`. Missing classifications and an
 absent `ref` are explicit `null`; no occurrences gives `[]`. Positions refer to original authored span

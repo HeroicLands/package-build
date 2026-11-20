@@ -8,4 +8,4 @@
 
 **Upgrading**
 
-- Replace plain population numbers with maps containing `actual` and, optionally, `apparent`. Public queries read `.apparent`.
+- Plain population numbers are refused; replace them with maps containing `actual` and optional `apparent`, and use `.apparent` in public queries.
