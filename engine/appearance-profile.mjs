@@ -244,6 +244,7 @@ export function profileProblems(profile, lookVocabulary) {
             );
         } else {
             const genders = wordsFor(lookVocabulary, "gender");
+            const seen = new Set();
             applicability.forEach((gender, index) => {
                 if (gender === null) {
                     meaning(
@@ -260,6 +261,13 @@ export function profileProblems(profile, lookVocabulary) {
                         ["facial_hair_genders", index],
                         `\`data.appearanceProfile.facial_hair_genders\` takes ${genders.join(", ")}, not ${JSON.stringify(gender)}`,
                     );
+                } else if (seen.has(gender)) {
+                    meaning(
+                        ["facial_hair_genders", index],
+                        `\`data.appearanceProfile.facial_hair_genders\` repeats gender ${JSON.stringify(gender)}`,
+                    );
+                } else {
+                    seen.add(gender);
                 }
             });
         }

@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import YAML from "yaml";
 import { flattenPublishedAddresses } from "@heroiclands/package-build/engine/address-values";
 import { profileProblems } from "@heroiclands/package-build/engine/appearance-profile";
@@ -149,9 +150,42 @@ if (process.argv[2] === "prepare") {
     const comparable = structuredClone(eligible);
     delete comparable.data.appearance.facial_hair;
     assert.deepEqual(comparable, excluded);
+    const cli = {};
+    for (const gender of ["female", "male"]) {
+        const output = path.join(evidence, `khelathi-${gender}.md`);
+        const spec = JSON.stringify({ data: { culture: selected[0], gender } });
+        const result = spawnSync(
+            process.execPath,
+            [
+                "node_modules/@heroiclands/package-build/bin/package-build.mjs",
+                "npc",
+                "new",
+                "--spec",
+                spec,
+                "--seed",
+                "consumer-proof",
+                "--out",
+                output,
+            ],
+            { encoding: "utf8" },
+        );
+        assert.equal(result.status, 0, `npc new ${gender}: ${result.error ?? result.stderr}`);
+        const text = fs.readFileSync(output, "utf8");
+        const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
+        assert.ok(match, `npc new ${gender}: missing frontmatter`);
+        const data = YAML.parse(match[1]).data;
+        assert.equal(data.gender, gender);
+        const appearance = data.appearance;
+        if (gender === "female") assert.ok(!Object.hasOwn(appearance, "facial_hair"));
+        else assert.ok(Object.hasOwn(profiles[selected[0]].facial_hair, appearance.facial_hair));
+        cli[gender] = {
+            facialHair: appearance.facial_hair ?? null,
+            omitted: !Object.hasOwn(appearance, "facial_hair"),
+        };
+    }
     fs.writeFileSync(
         path.join(evidence, "results.json"),
-        JSON.stringify({ indexed, counts, seededFrontmatterStable: true }, null, 2) + "\n",
+        JSON.stringify({ indexed, counts, seededFrontmatterStable: true, cli }, null, 2) + "\n",
     );
 } else if (
     process.argv[2] !== undefined &&

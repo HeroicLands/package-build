@@ -137,14 +137,6 @@ start those checks. Main, release and manual runs keep their existing checks.
 
 Check the workflow gating locally with `node --test ci/wip-workflows.test.mjs`.
 
-### Authoring reference generation
-
-Dispatch the **Authoring reference** workflow on the candidate branch with its
-full commit SHA as `candidate_sha`. The `authoring-reference` artifact contains
-the three controlled reference documents and a receipt recording the source
-SHA and each document's SHA-256 hash. Review the generated documents before
-committing them; the workflow generates them in an isolated source snapshot.
-
 ### Consumer compile proof
 
 The **Consumer proof** workflow (`consumer-proof.yml`) runs on explicit dispatch.

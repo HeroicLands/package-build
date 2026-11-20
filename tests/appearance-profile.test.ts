@@ -207,6 +207,23 @@ describe("a culture's appearance profile", () => {
         ]);
     });
 
+    it("locates a repeated facial-hair gender at the repeated entry", () => {
+        const note = culture(
+            profileLines({
+                facial_hair: "        facial_hair: { full_beard: 1 }",
+                facial_hair_genders: "        facial_hair_genders: [male, male]",
+            }),
+        );
+        expect(lint(note)).toEqual([
+            expect.objectContaining({
+                file,
+                ...at(note.raw, "male]"),
+                severity: "error",
+                message: '`data.appearanceProfile.facial_hair_genders` repeats gender "male"',
+            }),
+        ]);
+    });
+
     it("refuses a head or face word outside its list, at the word", () => {
         const note = culture(profileLines({ nose: "        nose: { aquiline: 1, pointy: 2 }" }));
         const findings = lint(note);

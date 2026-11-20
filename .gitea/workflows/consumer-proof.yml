@@ -141,6 +141,8 @@ jobs:
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
               with:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
+            - name: Check the consumer lock guard
+              run: node --test ci/consumer-lock-guard.test.mjs
             - name: Pack the exact candidate
               run: bash ci/consumer-proof-pack.sh
             - name: Verify the facial-hair contract

@@ -477,6 +477,10 @@ export function generateNpc(spec, context) {
     const problems = npcSpecProblems(spec);
     if (problems.length) throw new Error(problems.join("; "));
     const { profile, names, currentDate, dateContext = {}, defaults = {} } = context;
+    if (profile?.facial_hair != null && !Array.isArray(profile.facial_hair_genders))
+        throw new Error(
+            "`data.appearanceProfile` must state `facial_hair_genders` with `facial_hair`",
+        );
     const present = normalizeCurrentDate(currentDate);
     if (!isPlainMap(names)) throw new Error("`npc new` needs the language's `data.names`");
     const taken = context.taken ?? new Set();

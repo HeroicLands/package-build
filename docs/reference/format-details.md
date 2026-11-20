@@ -5300,8 +5300,19 @@ data:
         max: 6' 3"
 ```
 
-An all-character profile uses the same declaration, for example a Khazari
-profile with `facial_hair_genders: [female, male, nonbinary, none, other]`.
+These profile excerpts show a weighted draw for every gender and a draw for
+no gender:
+
+```yaml
+facial_hair: { full_beard: 5, long_beard: 4, short_beard: 1 }
+facial_hair_genders: [female, male, nonbinary, none, other]
+```
+
+```yaml
+facial_hair: { none: 1 }
+facial_hair_genders: []
+```
+
 A child culture inherits the whole profile from its parent; a child that states
 its own profile replaces the whole object, including the list.
 
@@ -5316,8 +5327,9 @@ culture.md:7:3: error: `data.appearanceProfile` must state `facial_hair_genders`
 key at fault: a word outside its field's vocabulary or from another field's
 list, a weight that is not a positive number, a word map with no words, a
 missing key, a missing `female` or `male` range, a height that does not read,
-a range whose `min` is above its `max`, and a `height` key that is not a
-gender.
+a range whose `min` is above its `max`, a `height` key that is not a
+gender, missing or malformed facial-hair gender lists, repeated or unknown
+gender entries, and a list stated without facial-hair weights.
 
 `package-build npc new` refuses a culture with no resolved profile, naming the
 culture note. A culture may obtain the complete profile from its
