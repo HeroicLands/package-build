@@ -138,7 +138,44 @@ describe("a culture's appearance profile", () => {
                 ),
             ).toEqual([]);
         }
-        for (const list of [undefined, "null", "male", "{}", "[male, 3]", "[null]", "[unknown]"]) {
+        const cases = [
+            [
+                undefined,
+                "appearanceProfile:",
+                "`data.appearanceProfile` must state `facial_hair_genders` with `facial_hair`",
+            ],
+            [
+                "null",
+                "appearanceProfile:",
+                "`data.appearanceProfile` must state `facial_hair_genders` with `facial_hair`",
+            ],
+            [
+                "male",
+                "male\n",
+                '`data.appearanceProfile.facial_hair_genders` should be a list of genders, but reads "male"',
+            ],
+            [
+                "{}",
+                "{}",
+                "`data.appearanceProfile.facial_hair_genders` should be a list of genders, but reads {}",
+            ],
+            [
+                "[male, 3]",
+                "3]",
+                "`data.appearanceProfile.facial_hair_genders[1]` should be a gender word, but reads 3",
+            ],
+            [
+                "[null]",
+                "null]",
+                "`data.appearanceProfile.facial_hair_genders` entries must be gender words",
+            ],
+            [
+                "[unknown]",
+                "unknown",
+                '`data.appearanceProfile.facial_hair_genders[0]` should be `female` or `male` or `nonbinary` or `none` or `other`, but reads "unknown"',
+            ],
+        ] as const;
+        for (const [list, literal, message] of cases) {
             const note = culture(
                 profileLines({
                     facial_hair: weights,
@@ -147,14 +184,27 @@ describe("a culture's appearance profile", () => {
                     :   { facial_hair_genders: `        facial_hair_genders: ${list}` }),
                 }),
             );
-            const findings = lint(note);
-            expect(findings.length).toBeGreaterThan(0);
-            expect(findings[0].line).toBeGreaterThan(0);
+            expect(lint(note)).toEqual([
+                expect.objectContaining({
+                    file,
+                    ...at(note.raw, literal),
+                    severity: "error",
+                    message,
+                }),
+            ]);
         }
         const note = culture(
             profileLines({ facial_hair_genders: "        facial_hair_genders: [male]" }),
         );
-        expect(lint(note).some((f: any) => f.message.includes("facial_hair_genders"))).toBe(true);
+        expect(lint(note)).toEqual([
+            expect.objectContaining({
+                file,
+                ...at(note.raw, "facial_hair_genders:"),
+                severity: "error",
+                message:
+                    "`data.appearanceProfile.facial_hair_genders` requires `facial_hair` weights",
+            }),
+        ]);
     });
 
     it("refuses a head or face word outside its list, at the word", () => {

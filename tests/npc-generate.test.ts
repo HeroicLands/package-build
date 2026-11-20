@@ -698,6 +698,18 @@ describe("a generated npc's head and face", () => {
         }
     });
 
+    it("draws facial hair for every gender in an all-character profile", () => {
+        const genders = ["female", "male", "nonbinary", "none", "other"];
+        const context = {
+            ...CONTEXT,
+            profile: { ...PROFILE, ...FACE, facial_hair_genders: genders },
+        };
+        for (const gender of genders) {
+            const { fm } = split(generateNpc(spec("Person Zekar", { gender }), context).text);
+            expect(fm.data.appearance.facial_hair).toBe("full_beard");
+        }
+    });
+
     it("draws the same features for the same seed", () => {
         const context = { ...CONTEXT, profile: { ...PROFILE, ...FACE } };
         expect(generateNpc(spec("Ahmetega Zekar"), context).text).toBe(
