@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
  * SPDX-License-Identifier: GPL-3.0-or-later */
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { convertPopulation, convertFiles } from "../scripts/convert-population-actual.mjs";
@@ -83,6 +85,52 @@ describe("population source conversion", () => {
         expect(() => convertPopulation(`---\ndata:\n${line}\n---\nbody\n`, "note.md")).toThrow(
             new RegExp(`^note\\.md:${expectedLine}:\\d+: error:`),
         );
+    });
+    it("reports help and converts a mixed directory without changing frontmatter-free files", () => {
+        const script = fileURLToPath(
+            new URL("../scripts/convert-population-actual.mjs", import.meta.url),
+        );
+        const run = (...args: string[]) =>
+            spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+        const help = run("--help");
+        expect(help.status).toBe(0);
+        expect(help.stdout).toContain("--preview");
+        expect(help.stdout).toContain("--write");
+        expect(help.stdout).toContain("Exit status");
+        const root = fs.mkdtempSync(path.join(scratchRoot, "population-directory-"));
+        roots.push(root);
+        const note = path.join(root, "note.md");
+        const prose = path.join(root, "prose.md");
+        const proseText = "# No frontmatter\n\nUnchanged.\n";
+        fs.writeFileSync(note, "---\ndata: {population: 12}\n---\nbody\n");
+        fs.writeFileSync(prose, proseText);
+        expect(run("--write", root).status).toBe(0);
+        const converted = fs.readFileSync(note, "utf8");
+        expect(converted).toContain("population: {actual: 12}");
+        expect(fs.readFileSync(prose, "utf8")).toBe(proseText);
+        expect(run("--write", root).stdout).toContain("0 changed");
+        expect(fs.readFileSync(note, "utf8")).toBe(converted);
+        const explicit = run("--write", prose);
+        expect(explicit.status).toBe(1);
+        expect(explicit.stderr).toContain("opening delimiter is required");
+        const secondExplicit = run("--write", note, prose);
+        expect(secondExplicit.status).toBe(1);
+        expect(secondExplicit.stderr).toContain("opening delimiter is required");
+        expect(fs.readFileSync(note, "utf8")).toBe(converted);
+    });
+    it("refuses malformed frontmatter in a directory before writing any file", () => {
+        const script = fileURLToPath(
+            new URL("../scripts/convert-population-actual.mjs", import.meta.url),
+        );
+        const root = fs.mkdtempSync(path.join(scratchRoot, "population-malformed-"));
+        roots.push(root);
+        const note = path.join(root, "first.md");
+        const source = "---\ndata: {population: 12}\n---\nbody\n";
+        fs.writeFileSync(note, source);
+        fs.writeFileSync(path.join(root, "bad.md"), "---\ndata: [broken\n---\nbody\n");
+        const result = spawnSync(process.execPath, [script, "--write", root], { encoding: "utf8" });
+        expect(result.status).toBe(1);
+        expect(fs.readFileSync(note, "utf8")).toBe(source);
     });
     it("previews without writes and refuses a batch before any partial write", () => {
         const root = fs.mkdtempSync(path.join(scratchRoot, "population-convert-"));

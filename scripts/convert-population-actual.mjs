@@ -167,32 +167,54 @@ export function convertFiles(files, { write = false } = {}) {
     };
 }
 
-function collect(input) {
+function collect(input, fromDirectory = false) {
     const stat = io(input, () => fs.lstatSync(input));
     if (stat.isSymbolicLink()) throw new Error(`${input}: error: symbolic links are not supported`);
     if (stat.isDirectory())
         return io(input, () => fs.readdirSync(input))
             .sort()
-            .flatMap((name) => collect(path.join(input, name)));
-    return stat.isFile() && input.endsWith(".md") ? [input] : [];
+            .flatMap((name) => collect(path.join(input, name), true));
+    if (!stat.isFile() || !input.endsWith(".md")) return [];
+    if (fromDirectory) {
+        const bytes = io(input, () => fs.readFileSync(input));
+        const raw = bytes.toString("utf8");
+        if (!Buffer.from(raw).equals(bytes)) throw new Error(`${input}: error: invalid UTF-8`);
+        if (!/^(?:\uFEFF)?---(?:\r?\n|$)/.test(raw)) return [];
+    }
+    return [input];
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
     try {
         const [mode, ...inputs] = process.argv.slice(2);
-        if (!["--preview", "--write"].includes(mode) || !inputs.length)
-            throw new Error(
-                "usage: node scripts/convert-population-actual.mjs --preview|--write <note-or-directory>...",
+        if (mode === "--help" && inputs.length === 0) {
+            console.log(`Usage: node scripts/convert-population-actual.mjs --preview|--write <note-or-directory>...
+       node scripts/convert-population-actual.mjs --help
+
+--preview  Check and report changes without writing (no default mode).
+--write    Check every selected file, then write verified changes.
+--help     Show this help.
+
+Directories are searched recursively for Markdown files; files without frontmatter
+are skipped. Explicit Markdown files require frontmatter. Each source may be
+selected only once. Unsupported YAML or population values stop the batch before
+writing; a filesystem error can interrupt the write pass.
+Exit status: 0 on success or help, 1 on an error.`);
+        } else {
+            if (!["--preview", "--write"].includes(mode) || !inputs.length)
+                throw new Error(
+                    "usage: node scripts/convert-population-actual.mjs --preview|--write <note-or-directory>...",
+                );
+            const files = inputs.flatMap((input) => collect(input));
+            if (new Set(files.map((file) => path.resolve(file))).size !== files.length)
+                throw new Error("each source must be selected only once");
+            const result = convertFiles(files, { write: mode === "--write" });
+            for (const change of result.changes)
+                console.log(`${change.file}: ${change.wrapped} values`);
+            console.log(
+                `${mode.slice(2)}: ${result.files} files checked, ${result.changed} changed, ${result.wrapped} values verified`,
             );
-        const files = inputs.flatMap(collect);
-        if (new Set(files.map((file) => path.resolve(file))).size !== files.length)
-            throw new Error("each source must be selected only once");
-        const result = convertFiles(files, { write: mode === "--write" });
-        for (const change of result.changes)
-            console.log(`${change.file}: ${change.wrapped} values`);
-        console.log(
-            `${mode.slice(2)}: ${result.files} files checked, ${result.changed} changed, ${result.wrapped} values verified`,
-        );
+        }
     } catch (error) {
         console.error(error.message);
         process.exitCode = 1;
