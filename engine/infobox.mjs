@@ -112,6 +112,11 @@
  * @module
  */
 
+import {
+    populationForAudience,
+    populationApparent,
+    populationDiffers,
+} from "./population-values.mjs";
 import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { getFrontmatter } from "./frontmatter.mjs";
 import { BEING_LOOK_VOCABULARY, NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
@@ -1028,6 +1033,7 @@ export function linkValue(ref, resolve, hint) {
  * @param {string} [options.contentPackage] - This build's content package,
  *   the default a relation row's short-form Address resolves against.
  * @param {object} [options.vocabulary] - The note vocabulary to read.
+ * @param {"public"|"all"} [options.audience="public"] - Population visibility at this output.
  * @param {object} [options.presentation] - The overlay to read.
  * @returns {object} The box.
  */
@@ -1058,6 +1064,7 @@ function noteBox(
         contentPackage,
         vocabulary = NOTE_VOCABULARY,
         presentation = NOTE_FIELD_PRESENTATION,
+        audience = "public",
     } = {},
 ) {
     const rows = [];
@@ -1101,6 +1108,25 @@ function noteBox(
             }
             printable ??= formatNoteDate(parsed, era, dates.daysPerYear);
             if (printable) raw = printable.prose ?? printable.text;
+        }
+        if (["population", "territorial_population"].includes(field.name) && raw !== undefined) {
+            const label = overlay.label ?? humanizeFieldName(field.name);
+            const value = populationForAudience(raw, audience);
+            if (value !== null && value !== undefined) {
+                rows.push({ label, kind: "number", value: formatQuantity(value) });
+                shown.add(field.name);
+            }
+            if (audience === "all" && populationDiffers(raw)) {
+                if (value === null) rows.push({ label, kind: "text", value: "Unknown" });
+                const apparent = populationApparent(raw);
+                rows.push({
+                    label: `Apparent ${label}`,
+                    kind: apparent === null ? "text" : "number",
+                    value: apparent === null ? "Unknown" : formatQuantity(apparent),
+                });
+                shown.add(field.name);
+            }
+            continue;
         }
         if (field.standings) {
             const entries = membershipEntries(field, raw, resolve);
@@ -1350,6 +1376,7 @@ export function systemRowsSection(
  * @param {string} [options.contentPackage] - This build's content package,
  *   the default a note box's short-form Address resolves against.
  * @param {object} [options.vocabulary] - The note vocabulary to read.
+ * @param {"public"|"all"} [options.audience="public"] - Population visibility at this output.
  * @returns {object[]} The boxes.
  */
 export function buildInfoboxes(fm, options) {
@@ -1364,7 +1391,13 @@ export function buildInfoboxes(fm, options) {
         dates,
     } = options;
 
-    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary, dates, contentPackage });
+    const { box: note, shown: taken } = noteBox(fm, {
+        resolve,
+        vocabulary,
+        dates,
+        contentPackage,
+        audience: options.audience ?? "public",
+    });
     const boxes = [note];
 
     for (const map of maps ?? []) {

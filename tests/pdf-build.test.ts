@@ -190,6 +190,42 @@ describe("buildPdf image findings", () => {
         else process.env.PACKAGE_BUILD_CONFIG = savedConfigEnv;
     });
 
+    it("writes public population estimates into book source without hidden actual counts", async () => {
+        const dir = makeFixture();
+        dirs.push(dir);
+        process.env.PACKAGE_BUILD_CONFIG = path.join(dir, "package-build.config.yaml");
+        const config = resolveFixtureConfig(dir);
+        cacheDependency(config);
+        fs.writeFileSync(
+            path.join(dir, "assets", "content", "Places", "vale.md"),
+            [
+                "---",
+                "type: place",
+                "subType: region",
+                "shortcode: vale",
+                "name: {full: The Vale}",
+                "data:",
+                "  population: {actual: 2300, apparent: 800}",
+                "---",
+                "",
+                "Actual: {{data.population.actual}}. Apparent: {{data.population.apparent}}.",
+                "",
+                "```sql",
+                "SELECT data.population.actual AS Actual, data.population.apparent AS Apparent FROM notes WHERE shortcode = 'vale'",
+                "```",
+                "",
+            ].join("\n"),
+        );
+        fs.writeFileSync(path.join(dir, "book.yaml"), `contents:\n  - filter: "type = 'place'"\n`);
+        const result = await buildPdf({ config, compile: false });
+        expect(result.built).toBe(true);
+        expect(result.books).toHaveLength(1);
+        expect(result.books[0].pdf).toBeNull();
+        const source = fs.readFileSync(result.books[0].typ, "utf8");
+        expect(source).toContain("800");
+        expect(source).not.toMatch(/2300|2,300/);
+    });
+
     it("declines a foreign address, in a body image and a map background", async () => {
         const dir = makeFixture();
         dirs.push(dir);

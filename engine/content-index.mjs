@@ -85,6 +85,9 @@
  * @module
  */
 
+import { assertSettlementRecords } from "./settlement-tables.mjs";
+import { routerFor } from "./pack-router.mjs";
+import { projectPopulationFrontmatter } from "./population-values.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 import { configFileIn, resolveNoteCalendars } from "./note-calendars.mjs";
 import { resolveNoteLanguages } from "./note-language.mjs";
@@ -1532,7 +1535,7 @@ export function collectContentIndex(
  * Serialize records as JSON Lines. Asset alternatives use canonical Address
  * strings; other Address positions use the standard published encoding.
  *
- * @param {Array<Record<string, any>>} records - From {@link collectContentIndex}.
+ * @param {Array<Record<string, any>>} records - Validated records from {@link collectContentIndex}.
  * @returns {string} One compact JSON object per line, newline-terminated. An
  *   empty set serializes to the empty string rather than to a lone newline, so
  *   the file is exactly the lines it holds.
@@ -1540,7 +1543,7 @@ export function collectContentIndex(
 export function serializeContentIndex(records) {
     if (records.length === 0) return "";
     const lines = records.map((record) => {
-        const published = publishAddresses(record);
+        const published = publishAddresses(projectPopulationFrontmatter(record));
         if (record.asset?.nonAiAlternative != null)
             published.asset.nonAiAlternative = encodeAddresses(record.asset.nonAiAlternative);
         return JSON.stringify(sortKeysDeep(published));
@@ -1836,8 +1839,8 @@ function publicationExpressions(expanded, context) {
 
 /**
  * Prepare the complete bodies a content-index publication describes.
- * Prose declarations use each source's audience. Native SQL uses the complete
- * corpus, with target maps limited to that source's declared prose slugs.
+ * Published declarations use public population values. Native target identities
+ * use their destination audience and only the publicly declared prose slugs.
  * No output files are written, and the returned inputs are read-only to the emitter.
  *
  * @param {{contentBase?: string, config?: object, session?: import("./content-session.mjs").ContentSession}} [options]
@@ -1875,25 +1878,40 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
             message: `unusable ${entry.package} content index: ${entry.reason}`,
         })),
     );
+    assertSettlementRecords(records, {
+        fileOf: (record) => noteFile(tree, record),
+        rawOf: (file) => parsed.get(file)?.raw,
+        foreignIndex: foreign.index,
+        config: resolved,
+    });
     // Dynamic import keeps SQL preparation out of the synchronous reader's import cycle.
     const { prepareTreeSqlTables } = await import("./sql-tables.mjs");
     const { buildSiteIndex, figureIndexKeys, resolveCrossNoteFigures } =
         await import("./site-index.mjs");
     const notes = records.filter(isNoteRecord);
-    for (const audience of new Set([
-        ...notes.map((record) => (isGmNote(record) ? "all" : "public")),
-        "all",
-    ])) {
-        const visible = records.filter((record) => audience === "all" || !isGmNote(record));
+    const nativeRouter = session?.router ?? routerFor(resolved);
+    const nativeAudience = (record) =>
+        nativeRouter.privateOf(nativeRouter.resolveOrNull(record, "JournalEntry")) ? "all" : (
+            "public"
+        );
+    for (const [audience, populationAudience] of [
+        ["public", "public"],
+        ["all", "public"],
+        ["all", "all"],
+    ]) {
+        const visible = records
+            .filter((record) => audience === "all" || !isGmNote(record))
+            .map((record) => projectPopulationFrontmatter(record, populationAudience));
         const sources = audience === "all" ? notes : notes.filter((record) => !isGmNote(record));
         const prepared =
-            session ?
+            session && audience === populationAudience ?
                 await session.sqlTables(audience)
             :   await prepareTreeSqlTables(tree, {
                     config: resolved,
                     records,
                     parsed,
                     audience,
+                    populationAudience,
                     foreignIndex: foreign.index,
                 });
         const bodies = new Map();
@@ -1945,7 +1963,10 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
                 {
                     kind: "content",
                     file,
-                    fm: authoredFrontmatter(record),
+                    fm: projectPopulationFrontmatter(
+                        authoredFrontmatter(record),
+                        populationAudience,
+                    ),
                     body: authored.body,
                     pkg: resolved.contentPackage,
                     slug,
@@ -1974,8 +1995,9 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
             const authored = parsed.get(file);
             const figures = figuresByFile.get(file);
             const expanded = publicationExpressions(bodies.get(file), {
-                fm: authoredFrontmatter(record),
+                fm: projectPopulationFrontmatter(authoredFrontmatter(record), populationAudience),
                 dates,
+                audience: populationAudience,
                 events,
                 file,
                 bodyLine: authored.bodyLine,
@@ -1994,8 +2016,12 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
                         }),
                 },
             });
-            if (audience === "all") foundryBodies.set(file, expanded);
-            if ((isGmNote(record) ? "all" : "public") === audience)
+            if (audience === populationAudience && nativeAudience(record) === audience)
+                foundryBodies.set(file, expanded);
+            if (
+                populationAudience === "public" &&
+                (isGmNote(record) ? "all" : "public") === audience
+            )
                 expandedBodies.set(file, expanded);
         }
     }
@@ -2034,7 +2060,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
  * @property {object[]} records - Complete index records, including hidden providers.
  * @property {Map<string, {frontmatter: object|null, body: string, raw: string, bodyLine?: number, bodyColumn?: number}>} parsed - Authored sources by absolute file.
  * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} expandedBodies - Complete rendered bodies in each note's audience.
- * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} foundryBodies - Complete native bodies with explicit SQL using the ALL corpus.
+ * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} foundryBodies - Native bodies in the destination audience, used only for target identity.
  * @property {import("./content-session.mjs").ContentSyntax} [syntax] - Session-local exact-text scanner projections.
  */
 
@@ -2078,7 +2104,7 @@ function projectPublicationBody(
             .filter((anchor) => anchor.kind === "prose")
             .map((anchor) => anchor.slug),
     );
-    // Native SQL keeps its complete corpus; only a declared prose target is public.
+    // Only a declared public-safe prose target publishes its native identity.
     for (const entry of [entries?.own, entries?.doc])
         if (entry?.anchors)
             entry.anchors = Object.fromEntries(
@@ -2169,6 +2195,12 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
         publication?.records ??
             publicationIndexRecordsFor({ contentBase: tree, config: resolved, parsed }),
     );
+    assertSettlementRecords(records, {
+        fileOf: (record) => noteFile(tree, record),
+        rawOf: (file) => parsed.get(file)?.raw,
+        foreignIndex: loadForeignIndexes(resolved, [contentPackage]).index,
+        config: resolved,
+    });
     const notes = records.filter(isNoteRecord);
     const needsPreparation =
         !publication &&

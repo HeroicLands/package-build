@@ -11,6 +11,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { projectPopulationFrontmatter } from "./population-values.mjs";
 import Handlebars from "handlebars";
 
 import { isAddressTuple, renderAddress } from "./address.mjs";
@@ -616,7 +617,7 @@ function positionAt(body, offset, bodyLine) {
  *   {url: string|null, figures: Map<string, object>}|undefined,
  *   link?: Function}, events?: {note: (written: string) => object|undefined,
  *   own?: (fm: object) => object|undefined},
- *   file?: string, bodyLine?: number}} [options] -
+ *   file?: string, bodyLine?: number, audience?: "public"|"all"}} [options] -
  *   `figures` is the `ref` helper's own view of the corpus: `get` reads this
  *   note's captioned items by id, and `note` resolves another note's the
  *   way a wikilink would — omitted, a cross-note address is refused rather
@@ -625,11 +626,13 @@ function positionAt(body, offset, bodyLine) {
  *   event reference reads: every note's events by Address, from
  *   {@link module:engine/event-fields.eventNoteIndex}; omitted, an event
  *   reference is refused.
+ * @param {"public"|"all"} [options.audience="public"] - Population visibility at this output.
  */
 export function renderMarkdownExpressions(
     body,
-    { fm, dates, sqlResults, figures, events, file, bodyLine = 1 } = {},
+    { fm, dates, sqlResults, figures, events, file, bodyLine = 1, audience = "public" } = {},
 ) {
+    fm = projectPopulationFrontmatter(fm, audience);
     const findings = [];
     const engine = Handlebars.create();
     for (const helper of HELPERS)

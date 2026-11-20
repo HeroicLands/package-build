@@ -22,6 +22,7 @@
  * @module
  */
 
+import { projectPopulationFrontmatter } from "./population-values.mjs";
 import { createRequire } from "node:module";
 
 import { readMatter } from "./note-matter.mjs";
@@ -233,7 +234,8 @@ export function inlineDrawingFigure(svg, alt) {
  * @returns {object} The frontmatter.
  */
 export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
-    const { fm, slug } = page;
+    const { slug } = page;
+    const fm = projectPopulationFrontmatter(page.fm);
     const data = {
         ...fm,
         ...(isPlainObject(fm.data) ? { data: { ...fm.data } } : {}),
@@ -246,7 +248,7 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
         title: pageTitle(page),
         kbfolder: page.folder,
     };
-    if (decorate) decorate(data, page);
+    if (decorate) decorate(data, { ...page, fm });
     delete data.related;
     if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;
@@ -344,6 +346,7 @@ export function renderSitePage(
         }),
     },
 ) {
+    page = { ...page, fm: projectPopulationFrontmatter(page.fm) };
     const secretErrors = [];
     const captionErrors = [];
     const headingErrors = [];

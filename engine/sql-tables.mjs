@@ -26,6 +26,7 @@
  * @module
  */
 
+import { projectPopulationFrontmatter } from "./population-values.mjs";
 import { parseAddress, readCanonicalKey, renderAddress, isAddressTuple } from "./address.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { keyCaseCollisionDiagnostics } from "./key-case-collisions.mjs";
@@ -342,6 +343,7 @@ function sqlRecord(record) {
  * @param {object} [opts.addressContext] - Address resolution context.
  * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes from
  *   local and dependency relations.
+ * @param {"all"|"public"} [opts.populationAudience=opts.audience] - Population visibility.
  * @param {boolean} [opts.testMemoryLimit] - Test-only fixed 256 MB budget;
  *   production always uses 2 GB. This is not authored configuration.
  * @param {string} [opts.contentBase] - The directory the records' paths are
@@ -365,13 +367,16 @@ async function openDatabase(
         dependencies = [],
         addressContext,
         audience = "all",
+        populationAudience = audience,
         contentBase,
         testMemoryLimit = false,
     } = {},
     shared,
 ) {
     const { DuckDBInstance } = await import("@duckdb/node-api");
-    const encoded = records.map((record) => sqlRecord(encodeAddresses(record)));
+    const encoded = records.map((record) =>
+        sqlRecord(encodeAddresses(projectPopulationFrontmatter(record, populationAudience))),
+    );
     const base = path.resolve(
         shared?.base ?? dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-")),
     );
@@ -412,7 +417,7 @@ async function openDatabase(
         await connection.run("SET threads=1");
         if (shared) {
             // Each connection resolves main.* and dependency schemas inside its
-            // own catalog. Only the raw wrapped records live in the base catalog.
+            // own catalog. Its base catalog holds only that audience's projected records.
             const catalog = `"__sql_${audience}"`;
             await connection.run(`ATTACH ':memory:' AS ${catalog}`);
             await connection.run(`USE ${catalog}`);
@@ -468,7 +473,14 @@ async function openDatabase(
                 .readFileSync(dep.file, "utf8")
                 .split("\n")
                 .filter((line) => line.trim())
-                .map((line) => sqlRecord(flattenPublishedAddresses(JSON.parse(line))));
+                .map((line) =>
+                    sqlRecord(
+                        projectPopulationFrontmatter(
+                            flattenPublishedAddresses(JSON.parse(line)),
+                            populationAudience,
+                        ),
+                    ),
+                );
             await createRelations(connection, flat, depRecords, `${schema}.`, audience, shared);
             await createEventRelation(
                 connection,
@@ -646,20 +658,24 @@ async function openDatabase(
 }
 
 /**
- * Own the SQL resources of one content session. Raw local and dependency JSON
- * tables are loaded once; each audience derives its relations unchanged in a
- * separate catalog/connection. Openings are serialized, queries are not.
+ * Own one isolated SQL instance per audience. Public backing records contain
+ * only public population values. Openings are serialized, queries are not.
  * @param {object[]} records - The session's captured index.
- * @param {Omit<NonNullable<Parameters<typeof openNotesDatabase>[1]>, "audience"|"dir">} [options] - Shared load options.
+ * @param {Omit<NonNullable<Parameters<typeof openNotesDatabase>[1]>, "audience"|"populationAudience"|"dir">} [options] - Shared load options.
  * @returns {{database: (audience: "all"|"public") => Promise<Awaited<ReturnType<typeof openNotesDatabase>>>, dispose: () => void}}
  */
 export function createNotesDatabaseScope(records, options = {}) {
-    const shared = {
-        base: fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-session-")),
-        instance: undefined,
-        spillDir: undefined,
-        connections: new Set(),
-        tables: new Map(),
+    const resources = new Map();
+    const resourceFor = (audience) => {
+        if (!resources.has(audience))
+            resources.set(audience, {
+                base: fs.mkdtempSync(path.join(os.tmpdir(), `content-sql-${audience}-`)),
+                instance: undefined,
+                spillDir: undefined,
+                connections: new Set(),
+                tables: new Map(),
+            });
+        return resources.get(audience);
     };
     const databases = new Map();
     let queue = Promise.resolve();
@@ -669,29 +685,38 @@ export function createNotesDatabaseScope(records, options = {}) {
     const release = () => {
         if (released) return;
         released = true;
-        try {
-            for (const connection of shared.connections) connection.closeSync();
-        } finally {
-            shared.connections.clear();
-            shared.instance?.closeSync();
-            shared.instance = undefined;
-            fs.rmSync(shared.base, { recursive: true, force: true });
+        for (const shared of resources.values()) {
+            try {
+                for (const connection of shared.connections) connection.closeSync();
+            } finally {
+                shared.connections.clear();
+                shared.instance?.closeSync();
+                shared.instance = undefined;
+                fs.rmSync(shared.base, { recursive: true, force: true });
+            }
         }
     };
     return {
         database(audience) {
+            if (!["public", "all"].includes(audience))
+                return Promise.reject(new Error(`Unknown SQL audience: ${audience}`));
             if (disposed || failed) return Promise.reject(new Error("SQL scope has been disposed"));
             if (!databases.has(audience)) {
                 const pending = queue.then(async () => {
                     if (disposed || failed) throw new Error("SQL scope has been disposed");
                     try {
-                        return await openDatabase(records, { ...options, audience }, shared);
+                        return await openDatabase(
+                            records,
+                            { ...options, audience, populationAudience: audience },
+                            resourceFor(audience),
+                        );
                     } catch (error) {
                         failed = true;
                         // The failed opening closed its own connection. An
                         // earlier audience can still be preparing results;
                         // its owner drains those preparations before dispose.
-                        if (!shared.connections.size) release();
+                        if ([...resources.values()].every((resource) => !resource.connections.size))
+                            release();
                         throw error;
                     }
                 });
@@ -1630,6 +1655,7 @@ export async function prepareInlineSqlExpressions(db, sources) {
  *   lists, from an earlier call over the same records, which are not derived
  *   again.
  * @param {Map<string,{raw?:string}>} [opts.parsed] - Captured source locators.
+ * @param {"public"|"all"} [opts.audience="public"] - Population visibility.
  * @param {object[]} [opts.all=records] - Complete records for lexical lineage
  *   traversal through providers outside the surface's audience.
  * @returns {Promise<{sections: Map<string, string>, views: Set<string>,
@@ -1643,7 +1669,7 @@ export async function generatedSectionsFor(
     db,
     records,
     contentBase,
-    { only, foreignIndex, config, derived: given, all = records, parsed } = {},
+    { only, foreignIndex, config, derived: given, all = records, parsed, audience = "public" } = {},
 ) {
     const notes = records.filter((record) => isNoteRecord(record));
     const fileOf = (record) => noteFile(contentBase, record);
@@ -1658,6 +1684,7 @@ export async function generatedSectionsFor(
             only,
             all,
             rawOf: (file) => parsed?.get(file)?.raw,
+            audience,
         });
     const views = db ? await eventViewSections(db, notes, fileOf, only) : new Map();
     const sections = new Map();
@@ -1902,6 +1929,7 @@ export async function cachedDependencies(config) {
  *   absent, one is opened and closed here. A lazy async factory is also
  *   accepted and called only when this preparation needs SQL.
  * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes.
+ * @param {"all"|"public"} [opts.populationAudience=opts.audience] - Population values available to this preparation.
  * @param {Map<string, object>} [opts.foreignIndex] - The fetched indexes the
  *   generated sections take in, where the caller holds them already; absent,
  *   they are read from the cache.
@@ -1922,6 +1950,7 @@ export async function prepareTreeSqlTables(
         parsed,
         database,
         audience = "all",
+        populationAudience = audience,
         foreignIndex,
         syntax,
         only,
@@ -1960,7 +1989,11 @@ export async function prepareTreeSqlTables(
                 findPageListBlocks(body).length ||
                 sqlQueriesInMarkdown(body, frontmatter).length)
         )
-            sources.push({ source: absPath, markdown: body, frontmatter });
+            sources.push({
+                source: absPath,
+                markdown: body,
+                frontmatter,
+            });
     }
     // A note's event views are fences too, so a tree whose notes carry events
     // asks a query even where no author wrote one.
@@ -1987,6 +2020,7 @@ export async function prepareTreeSqlTables(
         foreignIndex: foreign,
         config,
         all: allRecords,
+        audience: populationAudience,
         only,
     });
     if (
@@ -2002,6 +2036,8 @@ export async function prepareTreeSqlTables(
     // whose only corpus-reading directive is one therefore opens none — which
     // is the same bargain the early return above makes for a tree with no
     // directive at all.
+    for (const source of sources)
+        source.frontmatter = projectPopulationFrontmatter(source.frontmatter, populationAudience);
     const needsDatabase =
         hasEvents ||
         sources.some(
@@ -2012,8 +2048,16 @@ export async function prepareTreeSqlTables(
     if (!needsDatabase) {
         const pageOnly = new Map();
         joinGeneratedSections(derivedOnly, sources, notes);
+        for (const source of sources)
+            source.frontmatter = projectPopulationFrontmatter(
+                source.frontmatter,
+                populationAudience,
+            );
         pageOnly.inline = new Map();
-        pageOnly.pageLists = preparePageLists(indexRecords, sources);
+        pageOnly.pageLists = preparePageLists(
+            indexRecords.map((record) => projectPopulationFrontmatter(record, populationAudience)),
+            sources,
+        );
         attachGeneratedSections(pageOnly, derivedOnly);
         await attachPreparedAnchors(pageOnly, indexRecords, contentBase, notes, config, syntax);
         return pageOnly;
@@ -2046,6 +2090,7 @@ export async function prepareTreeSqlTables(
         (await openNotesDatabase(allRecords, {
             dependencies: await cachedDependencies(config),
             audience,
+            populationAudience,
             contentBase,
         }));
     try {
@@ -2056,9 +2101,16 @@ export async function prepareTreeSqlTables(
             only,
         });
         joinGeneratedSections(generated, sources, notes);
+        for (const source of sources)
+            source.frontmatter = projectPopulationFrontmatter(
+                source.frontmatter,
+                populationAudience,
+            );
         const prepared = await prepareSqlTables(db, sources, {
             linkable: (ref) => addresses.has(renderAddress(ref)),
-            records: indexRecords,
+            records: indexRecords.map((record) =>
+                projectPopulationFrontmatter(record, populationAudience),
+            ),
             pageLanguage: pageLanguages(indexRecords, contentBase),
         });
         prepared.inline = await prepareInlineSqlExpressions(db, sources);

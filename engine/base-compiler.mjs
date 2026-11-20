@@ -61,6 +61,7 @@
  * @module
  */
 
+import { projectPopulationFrontmatter } from "./population-values.mjs";
 import { scanPageBreaks } from "./page-breaks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
 import { authoredFrontmatter } from "./index-records.mjs";
@@ -610,9 +611,15 @@ export class BasePackCompiler {
         // The index is taken whatever the pass does with a body: it answers
         // the art fields, which name a file rather than a document, and a pass
         // that converts no prose still compiles a document that carries art.
-        this.linkIndex = this.corpus.linkIndex;
+        const privateDestination =
+            this.router?.privateOf?.(this.packName) ??
+            this.corpus.config?.packs?.find((pack) => pack.name === this.packName)?.private ===
+                true;
+        this.populationAudience = privateDestination ? "all" : "public";
+        const prepared = this.corpus.audiences?.[this.populationAudience] ?? this.corpus;
+        this.linkIndex = prepared.linkIndex;
         if (this.constructor.convertsWikilinks) {
-            this.sqlTables = this.corpus.sqlTables;
+            this.sqlTables = prepared.sqlTables;
         }
         // Use the compile corpus's setting date.
         this.currentDate = normalizeCurrentDate(this.corpus.currentDate);
@@ -751,6 +758,7 @@ export class BasePackCompiler {
         // note.
         const expanded = expandContent(body, {
             target: "foundry",
+            audience: this.populationAudience,
             index: this.linkIndex,
             note: { fm, file: absPath, source: name, bodyLine: noteLine, bodyColumn: noteColumn },
             prepared: {
@@ -1247,7 +1255,10 @@ export class BasePackCompiler {
             const parsed = this.corpus.parsed.get(absPath) ?? parseMarkdownFile(absPath);
             this.corpus.parsed.set(absPath, parsed);
             const { body, bodyLine, bodyColumn, raw } = parsed;
-            const fm = cloneAddressState(authoredFrontmatter(record));
+            const fm = projectPopulationFrontmatter(
+                cloneAddressState(authoredFrontmatter(record)),
+                this.populationAudience,
+            );
             // Which note this pass is on, so anything it calls can report a
             // position without every method having to be handed one.
             this.currentNote = { absPath, bodyLine, bodyColumn };

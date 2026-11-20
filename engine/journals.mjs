@@ -49,6 +49,9 @@
  * states only what makes this pass its own.
  */
 
+import { populationJournalPlan, populationJournalMarkdown } from "./population-journals.mjs";
+import { routerFor } from "./pack-router.mjs";
+import { loadPackConfig } from "./pack-config.mjs";
 import log from "loglevel";
 import { seeAlsoEntries, seeAlsoMarkdown } from "./see-also.mjs";
 
@@ -832,6 +835,7 @@ export class Journals extends BasePackCompiler {
         // definition. Links are compendium references rather than website
         // URLs: a player reading this at the table stays in Foundry.
         const boxes = noteInfoboxes(fm, {
+            audience: this.populationAudience,
             resolve: (ref, hint) => resolveReference(this.linkIndex, ref, hint),
             // This compile's own router, so the panel's `available` is decided
             // by the pack list this build is being driven by.
@@ -883,6 +887,39 @@ export class Journals extends BasePackCompiler {
             folder,
             stats: this.stats,
         });
+    }
+
+    /** @inheritdoc */
+    async prepare() {
+        await super.prepare();
+        const config = this.corpus.config ?? loadPackConfig();
+        this.populationPlan = populationJournalPlan(this.corpus.records, {
+            router: this.router ?? routerFor(config),
+            config,
+            parsed: this.corpus.parsed,
+            contentBase: this.contentBase,
+        });
+    }
+
+    /** @inheritdoc */
+    async finish(stats) {
+        const plan = this.populationPlan;
+        if (plan.pack !== this.packName) return;
+        for (const subject of plan.subjects) {
+            this.writeEntry(
+                buildJournalEntry({
+                    id: subject.id,
+                    name: `${subject.name} — Population`,
+                    markdown: populationJournalMarkdown(
+                        subject,
+                        (address) => this.linkIndex && resolveReference(this.linkIndex, address),
+                    ),
+                    stats: this.stats,
+                }),
+            );
+            stats.compiled++;
+        }
+        this.compiledCount = stats.compiled;
     }
 
     /** @inheritdoc */

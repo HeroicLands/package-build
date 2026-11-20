@@ -692,7 +692,7 @@ describe("prepared content-index publication", () => {
         expect(publication.expandedBodies.get(privateSource).markdown).toContain("{#hidden-stamp}");
     });
 
-    it("publishes only declared native targets using the actual ALL corpus's containing pages", async () => {
+    it("publishes only declared native targets using their destination's containing pages", async () => {
         const repo = configure("native", {
             packs: [
                 { name: "journals", type: "JournalEntry", default: true },
@@ -734,8 +734,8 @@ describe("prepared content-index publication", () => {
             sqlTables: corpus.sqlTables?.get(source),
         });
         expect(actual.errors).toEqual([]);
-        expect(actual.markdown).toContain("{#secret-page}");
-        expect(actual.markdown).toContain("{#hidden-stamp}");
+        expect(actual.markdown).toContain("{#public-page}");
+        expect(actual.markdown).toContain("{#public-stamp}");
         expect(renderFoundryMarkdown(actual.markdown)).toContain('id="shared-stamp"');
         const publication = await prepare(repo);
         const sourceBody = publication.expandedBodies.get(source).markdown;
@@ -748,8 +748,8 @@ describe("prepared content-index publication", () => {
             expect.arrayContaining(["public-page", "public-stamp", "shared-stamp"]),
         );
         const native = record.foundry.note;
-        expect(native.anchors["public-stamp"]).toBeUndefined();
-        expect(native.anchors["public-page"]).toBeUndefined();
+        expect(native.anchors["public-stamp"]).toBeTruthy();
+        expect(native.anchors["public-page"]).toBeTruthy();
         expect(native.anchors["hidden-stamp"]).toBeUndefined();
         expect(native.anchors["secret-page"]).toBeUndefined();
         const containing = splitPages(actual.markdown).find((page) =>
@@ -761,7 +761,7 @@ describe("prepared content-index publication", () => {
         expect(containing).toBeTruthy();
         const entryId = native.uuid.split(".").at(-1);
         const page = journalPageId(entryId, containing);
-        expect(page).not.toBe(journalPageId(entryId, publicContaining));
+        expect(page).toBe(journalPageId(entryId, publicContaining));
         expect(native.anchors["shared-stamp"]).toBe(`${native.uuid}.JournalEntryPage.${page}`);
         expect(native.anchors.$lead).toBeTruthy();
         expect(JSON.stringify(record)).not.toMatch(/SECRET|secret-page|hidden-stamp/);
