@@ -81,7 +81,16 @@ import { draftNoticeFor } from "./draft-notice.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { verseRegions } from "./verse-regions.mjs";
 import { separateFootnotes } from "./content-footnotes.mjs";
-import { WITHHELD_CLASS, pageOpenings, scanHeadingAttributes } from "./heading-attributes.mjs";
+import {
+    WITHHELD_CLASS,
+    pageOpenings,
+    scanHeadingAttributes,
+    splitHeadingAttributes,
+} from "./heading-attributes.mjs";
+import { codeRegions, matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
+import { EXPRESSION } from "./markdown-expressions.mjs";
+import { WIKILINK, authoredLabel, parseWikilink } from "./wikilink-syntax.mjs";
+import { buildReferenceTargets } from "./reference-targets.mjs";
 import { imagesIn } from "./content-images.mjs";
 import { IMAGE_EXTENSIONS } from "./asset-types.mjs";
 import { pathnameRoles } from "./art-fields.mjs";
@@ -116,30 +125,90 @@ function namedBlockLines(markdown, syntax) {
 }
 
 /**
- * Associate private page openings with captured source positions, never display names.
- * @param {string} body - Expanded body.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} context - Captured source provenance.
- * @returns {(line: number, kind: string, anchor?: string|null) => {anchor?: string, key?: string}} Internal identity of an opening.
+ * Resolve static page-link labels from captured declared note names.
+ * @internal
+ * @param {readonly object[]} records - Captured frontmatter or index records.
+ * @param {{contentPackage: string, config?: object, docEntryTypes?: ReadonlySet<string>, foreignReferences?: Map<string, object>}} context - Captured address and name context.
+ * @returns {(target: string) => string|undefined} The shared reference resolver's declared name.
  */
-function sourcePageIdentity(body, context) {
-    if (typeof context.source !== "string")
+export function sourceReferenceNames(records, context) {
+    const config = context.config ?? { docEntryTypes: context.docEntryTypes ?? new Set() };
+    const named = records.filter(Boolean).map((record) => ({
+        ...record,
+        package: record.package ?? context.contentPackage,
+    }));
+    let index;
+    return (target) => {
+        index ??= {
+            config,
+            contentPackage: context.contentPackage,
+            referenceTargets: buildReferenceTargets(named, new Map(), config),
+            foreignReferences: context.foreignReferences,
+            types: new Set(named.map((record) => record.type)),
+        };
+        return resolveReference(index, target)?.name;
+    };
+}
+
+/** Static authored link labels share the visible name used by Foundry page generation. */
+function sourcePageName(markdown, referenceName) {
+    if (matchAllOutsideCode(markdown, EXPRESSION).length) return pageNameText(markdown);
+    return pageNameText(
+        replaceOutsideCode(markdown, WIKILINK, (literal, inner) => {
+            const link = parseWikilink(inner, literal);
+            return (
+                authoredLabel(link) ??
+                (link.labelled ? referenceName?.(link.target) : undefined) ??
+                literal
+            );
+        }),
+    );
+}
+
+/**
+ * Associate private page openings with authored names and literal anchor declarations.
+ * @param {string} body - Expanded body.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} context - Captured source provenance.
+ * @param {(address: string) => string|undefined} [resolveRole] - Figure roles.
+ * @returns {(line: number, kind: string, anchor?: string|null) => object} Internal identity of an opening.
+ */
+function sourcePageIdentity(body, context, resolveRole) {
+    const fail = (message, line = 0) => {
         throw Object.assign(
             new Error(
-                `${context.file || "<journal>"}:${context.bodyLine ?? 1}:1: error: private journal has no captured source`,
+                `${context.file || "<journal>"}:${(context.bodyLine ?? 1) + line}:1: error: ${message}`,
             ),
             { located: true },
         );
+    };
+    if (typeof context.source !== "string") fail("private journal has no captured source");
     const source = context.source;
     const lines = source.split("\n");
     const mappings =
         context.lineMap ??
         (source === body ? lines.map((_, line) => ({ line, generated: false })) : []);
-    const anchors = new Map();
+    const authored = new Map();
     for (const heading of scanHeadingAttributes(source).headings)
-        if (heading.id) anchors.set(heading.line - 1, heading.id);
-    for (const figure of scanFigures(source).figures)
-        if (figure.id) anchors.set(figure.line - 1, figure.id);
+        authored.set(heading.line - 1, {
+            name: sourcePageName(heading.text, context.referenceName),
+            anchor: heading.id,
+        });
+    for (const figure of scanFigures(source, { resolveRole }).figures)
+        authored.set(figure.line - 1, {
+            name: figure.label || sourcePageName(figure.caption, context.referenceName),
+            anchor: figure.id,
+        });
+    const directives = new Map();
+    for (const { start, end } of codeRegions(source, { spans: false })) {
+        const line = source.slice(0, start).split("\n").length - 1;
+        directives.set(line, source.slice(start, end));
+    }
     const ordinals = new Map();
+    const ordinal = (key) => {
+        const value = ordinals.get(key) ?? 0;
+        ordinals.set(key, value + 1);
+        return value;
+    };
     return (line, kind, anchor) => {
         const location = mappings[line];
         const appended = context.generatedFrom !== undefined && line >= context.generatedFrom;
@@ -148,20 +217,29 @@ function sourcePageIdentity(body, context) {
             !Number.isInteger(location.line) ||
             location.line < 0 ||
             (!appended && location.line >= lines.length)
-        ) {
-            throw Object.assign(
-                new Error(
-                    `${context.file || "<journal>"}:${(context.bodyLine ?? 1) + line}:1: error: private journal page opening has no source association`,
-                ),
-                { located: true },
-            );
+        )
+            fail("private journal page opening has no source association", location?.line ?? line);
+        const declared = !appended && authored.get(location.line);
+        if (declared) {
+            if (anchor && declared.anchor === anchor) return { name: declared.name, anchor };
+            const repeat = ordinal(`${kind}:${declared.name}`);
+            return { name: declared.name, ...(repeat ? { ordinal: repeat } : {}) };
         }
-        if (!appended && anchor && anchors.get(location.line) === anchor) return { anchor };
-        const sourceKey = appended ? "appended" : `line:${location.line}`;
-        const key = `${sourceKey}:${kind}`;
-        const ordinal = ordinals.get(key) ?? 0;
-        ordinals.set(key, ordinal + 1);
-        return { key: `${key}:${ordinal}` };
+        const directive =
+            appended ? "generated sections" : (
+                (directives.get(location.line) ?? lines[location.line])
+            );
+        // Only a complete literal declaration can put a generated slug in an ID seed.
+        if (
+            anchor &&
+            !appended &&
+            [...directive.matchAll(/\{[^{}\n]*\}/g)].some(
+                ([attributes]) => splitHeadingAttributes(`Page ${attributes}`).id === anchor,
+            )
+        )
+            return { anchor };
+        const key = `${kind}:${directive}`;
+        return { key: `${key}:${ordinal(key)}` };
     };
 }
 
@@ -197,13 +275,13 @@ function sourcePageIdentity(body, context) {
  *   name reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
  * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Session scanner projections.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [pageSource] - Private page source provenance; omitted for public pages.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} [pageSource] - Private page source provenance; omitted for public pages.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
  *   classes: string[], figure: object|null, continues?: string,
- *   sourceIdentity?: {anchor?: string, key?: string}, markdown: string}>} Pages in document order.
+ *   sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string}, markdown: string}>} Pages in document order.
  */
 export function splitPages(body, leadName = "Introduction", resolveRole, syntax, pageSource) {
-    const identityAt = pageSource ? sourcePageIdentity(body, pageSource) : undefined;
+    const identityAt = pageSource ? sourcePageIdentity(body, pageSource, resolveRole) : undefined;
     const { markdown, definitions } = separateFootnotes(body);
     const lines = markdown.split("\n");
     const figureStarts = new Map(
@@ -226,7 +304,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
         name: leadName,
         level: 1,
         classes: [],
-        ...(identityAt ? { sourceIdentity: { key: "introduction" } } : {}),
+        ...(identityAt ? { sourceIdentity: { name: leadName } } : {}),
     };
 
     const closeCurrent = () => {
@@ -293,7 +371,20 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
                 ...(identityAt ?
                     {
                         sourceIdentity: {
-                            key: `continuation:${JSON.stringify(section.sourceIdentity)}:${JSON.stringify(itemIdentity)}`,
+                            ...((
+                                section.sourceIdentity?.name !== undefined &&
+                                (itemIdentity?.anchor || itemIdentity?.name !== undefined)
+                            ) ?
+                                {
+                                    name: section.sourceIdentity.name,
+                                    continues: itemIdentity.anchor ? item.slug : itemIdentity.name,
+                                    ...(section.sourceIdentity.ordinal ?
+                                        { ordinal: section.sourceIdentity.ordinal }
+                                    :   {}),
+                                }
+                            :   {
+                                    key: `continuation:${JSON.stringify(section.sourceIdentity)}:${JSON.stringify(itemIdentity)}`,
+                                }),
                         },
                     }
                 :   {}),
@@ -351,7 +442,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
             level: 1,
             classes: [],
             figure: null,
-            ...(identityAt ? { sourceIdentity: { key: "introduction" } } : {}),
+            ...(identityAt ? { sourceIdentity: { name: leadName } } : {}),
             markdown: intro,
         });
     }
@@ -444,13 +535,23 @@ export function assertUniqueAnchors(rawPages, noteName) {
  * Public pages use their anchor or displayed section and continuation names.
  * @param {string} entryId - The owning JournalEntry's id.
  * @param {{anchorSlug: string|null, name: string, continues?: string,
- *   sourceIdentity?: {anchor?: string, key?: string}}} page - A split page.
+ *   sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string}}} page - A split page.
  * @returns {string} A deterministic Foundry id.
  */
 export function journalPageId(entryId, page) {
     if (page.sourceIdentity) {
         if (page.sourceIdentity.anchor) return anchorPageId(entryId, page.sourceIdentity.anchor);
-        return makeId("journal-private-page", `${entryId}:${page.sourceIdentity.key}`);
+        const { name, continues, ordinal, key } = page.sourceIdentity;
+        if (name !== undefined) {
+            const seed = continues ? `${name}:after:${continues}` : name;
+            return ordinal ?
+                    makeId(
+                        "journal-private-page",
+                        JSON.stringify([entryId, name, continues, ordinal]),
+                    )
+                :   makeId("journal-page", `${entryId}:${seed}`);
+        }
+        return makeId("journal-private-page", `${entryId}:${key}`);
     }
     if (page.anchorSlug) return anchorPageId(entryId, page.anchorSlug);
     return page.continues ?
@@ -721,7 +822,7 @@ export function buildPages(rawPages, entryId, noteName, figures, resolveRole, ru
  * @param {import("./content-session.mjs").ContentSyntax} [params.syntax] - Session scanner projections.
  * @param {import("./content-scripts.mjs").RunContext} [params.runs] - The package's
  *   languages, faces and maps — see {@link module:engine/helpers.renderFoundryMarkdown}.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [params.pageSource] - Captured source provenance for a private destination.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} [params.pageSource] - Captured source provenance for a private destination.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({

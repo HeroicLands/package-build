@@ -720,13 +720,21 @@ it("requires captured source for private manifest targets and preserves public r
     const context = (privatePack: boolean) => ({
         contentPackage: "sourceproof",
         foundryPackageId: "sourceproof",
+        file: "Account.md",
+        bodyLine: 12,
         packRouter: createPackRouter([
             { name: "journals", type: "JournalEntry", default: true, private: privatePack },
         ]),
     });
     expect(() =>
         entriesForNote(frontmatter, "Account", "doc-account", rendered, context(true)),
-    ).toThrow("<journal>:1:1: error: private journal has no captured source");
+    ).toThrow("Account.md:12:1: error: private journal has no captured source");
+    expect(() =>
+        entriesForNote(frontmatter, "Account", "doc-account", rendered, {
+            ...context(true),
+            pageSource: { source: "# Source", lineMap: [] },
+        }),
+    ).toThrow("Account.md:12:1: error: private journal page opening has no source association");
     const target = entriesForNote(
         frontmatter,
         "Account",

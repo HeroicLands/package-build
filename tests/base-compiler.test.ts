@@ -12,6 +12,7 @@ import path from "node:path";
 
 // Build-time pack compilers (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
+import { createPackRouter } from "../engine/pack-router.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { documentId } from "../engine/content-address.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
@@ -511,5 +512,54 @@ describe("BasePackCompiler's convertBody agrees with the lint about an image", (
         } finally {
             spy.mockRestore();
         }
+    });
+});
+
+describe("private documentation source context", () => {
+    const frontmatter = { type: "skill", shortcode: "account", name: { full: "Account" } };
+    const compiler = () => {
+        const pass = new Probe({
+            contentBase: os.tmpdir(),
+            skipDirectories: [],
+            dest: os.tmpdir(),
+            router: createPackRouter([
+                { name: "private", type: "JournalEntry", private: true, default: true },
+            ]),
+        });
+        pass.populationAudience = "public";
+        pass.currentNote = { absPath: "assets/content/account.md", bodyLine: 12 };
+        return pass;
+    };
+
+    it("locates missing source and missing provenance at the real body line", () => {
+        const pass = compiler();
+        expect(() => pass.documentationBody(frontmatter, "An account.")).toThrow(
+            "assets/content/account.md:12:1: error: private documentation has no captured source",
+        );
+        expect(() => pass.journalPageSource(frontmatter)).toThrow(
+            "assets/content/account.md:12:1: error: private journal has no captured source provenance",
+        );
+    });
+
+    it("counts unresolved links once while preserving private conversion failures", () => {
+        const pass = compiler();
+        pass.currentNote = { ...pass.currentNote, frontmatter, source: "An account." };
+        pass.unresolvedLinks = 2;
+        const conversion = vi.spyOn(pass, "convertBody").mockImplementation(() => {
+            pass.unresolvedLinks += 2;
+            return "Private account.";
+        });
+        expect(pass.documentationBody(frontmatter, "Public account.")).toBe("Private account.");
+        expect(conversion).toHaveBeenCalledWith(frontmatter, "An account.", "all");
+        expect(pass.unresolvedLinks).toBe(2);
+        conversion.mockImplementation(() => {
+            pass.unresolvedLinks += 2;
+            throw new Error("Private conversion failed");
+        });
+        expect(() => pass.documentationBody(frontmatter, "Public account.")).toThrow(
+            "Private conversion failed",
+        );
+        expect(pass.unresolvedLinks).toBe(2);
+        conversion.mockRestore();
     });
 });

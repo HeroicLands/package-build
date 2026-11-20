@@ -57,6 +57,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { loadForeignIndexes } from "./metadata-index.mjs";
 import { noteAddressContext } from "./note-addresses.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { canonicalKey, packageAddress } from "./content-address.mjs";
@@ -80,7 +81,7 @@ import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { DICTIONARY_ENTRY_CLASS } from "./dictionary-layout.mjs";
-import { journalPageId, splitPages } from "./journals.mjs";
+import { journalPageId, splitPages, sourceReferenceNames } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { publishesContentPages } from "../content-config.mjs";
@@ -157,17 +158,26 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
  * documentation journal's is {@link itemDocEntryId} of that. Stating it here is
  * what lets the content index publish an identity it did not re-derive.
  *
- * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], syntax?: import("./content-session.mjs").ContentSyntax, pageSource?: {source:string,lineMap?:object[],generatedFrom?:number,file?:string,bodyLine?:number}}} ctx - Resolved identities, optional session scanner projections, and captured source required for private journal routing.
+ * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined, syntax?: import("./content-session.mjs").ContentSyntax, pageSource?: {source:string,lineMap?:object[],generatedFrom?:number,file?:string,bodyLine?:number,referenceName?:(target:string)=>string|undefined}}} ctx - Resolved identities, optional session scanner projections, and captured source required for private journal routing.
  * @returns {Array<object>} One or two entries, in {@link buildManifest}'s shape.
  */
 export function entriesForNote(fm, name, address, body, ctx) {
     const { contentPackage, foundryPackageId, packRouter } = ctx;
     const journalPack = packRouter.resolveOrNull(fm, "JournalEntry");
-    const pageSource = packRouter.privateOf?.(journalPack) ? ctx.pageSource : undefined;
+    const pageSource =
+        packRouter.privateOf?.(journalPack) && ctx.pageSource ?
+            {
+                file: ctx.file,
+                bodyLine: ctx.bodyLine,
+                ...ctx.pageSource,
+                referenceName: (target) =>
+                    target ? (ctx.pageSource.referenceName ?? ctx.referenceName)?.(target) : name,
+            }
+        :   undefined;
     if (packRouter.privateOf?.(journalPack) && typeof pageSource?.source !== "string") {
         throw Object.assign(
             new Error(
-                `${pageSource?.file || "<journal>"}:${pageSource?.bodyLine ?? 1}:1: error: private journal has no captured source`,
+                `${pageSource?.file || ctx.file || "<journal>"}:${pageSource?.bodyLine ?? ctx.bodyLine ?? 1}:1: error: private journal has no captured source`,
             ),
             { located: true },
         );
@@ -321,7 +331,14 @@ export function entriesForNote(fm, name, address, body, ctx) {
             systemUuids: systemUuidsFor(fm.type, fm.id),
             anchors:
                 own && packForType(fm.type)?.docType === "JournalEntry" ?
-                    anchorsOf(own, fm.id, body ?? "", name, ctx.syntax, pageSource)
+                    anchorsOf(
+                        own,
+                        fm.id,
+                        body ?? "",
+                        pageSource ? undefined : name,
+                        ctx.syntax,
+                        pageSource,
+                    )
                 :   undefined,
         },
     ];
@@ -342,7 +359,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
  * exist.
  *
  * @param {string} contentBase - Absolute path to the content tree.
- * @param {object} ctx - `{ contentPackage, foundryPackageId, packRouter }`.
+ * @param {object} ctx - `{ contentPackage, foundryPackageId, packRouter }`, with optional captured `foreignReferences`.
  * @returns {{entries: Array<object>, notes: number,
  *   skipped: Array<{file: string, reason: string}>}}
  */
@@ -353,10 +370,17 @@ export function collectFoundryEntries(contentBase, ctx) {
     // note yields two entries, so reporting one as the other overstates how
     // much of the tree is published.
     let notes = 0;
-    for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase, {
-        skipDirectories: ctx.skipDirectories,
-        addressContext: ctx.addressContext ?? { package: ctx.contentPackage },
-    })) {
+    const sources = [
+        ...walkMarkdownTree(contentBase, {
+            skipDirectories: ctx.skipDirectories,
+            addressContext: ctx.addressContext ?? { package: ctx.contentPackage },
+        }),
+    ];
+    const referenceName = sourceReferenceNames(
+        sources.map((note) => note.frontmatter),
+        ctx,
+    );
+    for (const { frontmatter: fm, body, absPath, bodyLine } of sources) {
         if (!fm) continue;
         // Its authored pin, or the id derived from its canonical address.
         // Resolved before anything reads `fm.id`, so the UUID this
@@ -391,7 +415,8 @@ export function collectFoundryEntries(contentBase, ctx) {
         entries.push(
             ...entriesForNote(fm, name, address, body ?? "", {
                 ...ctx,
-                pageSource: { source: body ?? "", file: absPath },
+                referenceName,
+                pageSource: { source: body ?? "", file: absPath, bodyLine },
             }),
         );
     }
@@ -433,11 +458,12 @@ export function foundryIdentities(config = loadPackConfig()) {
  *
  * @param {object} [config] - A resolved configuration; loaded when omitted.
  * @returns {{contentPackage: string, foundryPackageId: string, packRouter: object,
- *   web: boolean, skipDirectories: readonly string[]}}
+ *   web: boolean, skipDirectories: readonly string[], foreignReferences: Map<string, object>}}
  */
 export function entryContext(config = loadPackConfig()) {
     return {
         ...foundryIdentities(config),
+        foreignReferences: loadForeignIndexes(config, [config.contentPackage]).references,
         web: publishesContentPages(config),
         // The walk's own configuration, threaded through rather than left to
         // its default, so a caller that passes a config drives every read.

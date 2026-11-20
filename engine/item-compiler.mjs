@@ -94,20 +94,27 @@ import { assertNoRuntimeOnlyFields } from "./runtime-only-fields.mjs";
  *   resolved.
  * @param {object} fm - The note's frontmatter.
  * @param {string} name - The item's name.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [pageSource] - Captured private documentation provenance.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} [pageSource] - Captured private documentation provenance.
+ * @param {{file?: string, bodyLine?: number}} [location] - Authored note location for missing-source diagnostics.
  * @returns {string} The pointer, or "" for a note with no body.
  */
-export function itemDescription(markdown, fm, name, pageSource) {
+export function itemDescription(markdown, fm, name, pageSource, location = {}) {
     if (!String(markdown).trim()) return "";
     const router = packRouter();
     if (router.privateOf(router.resolveOrNull(fm, "JournalEntry")) && !pageSource)
         throw Object.assign(
             new Error(
-                "<journal>:1:1: error: private item documentation has no captured source provenance",
+                `${location.file || "<journal>"}:${location.bodyLine ?? 1}:1: error: private item documentation has no captured source provenance`,
             ),
             { located: true },
         );
-    const pages = splitPages(markdown, name, undefined, undefined, pageSource);
+    const pages = splitPages(
+        markdown,
+        name,
+        undefined,
+        undefined,
+        pageSource ? { ...location, ...pageSource } : undefined,
+    );
     assertUniquePages(pages, name);
     const page = pages.find((entry) => entry.anchorSlug === "description") ?? pages[0];
     const pageId = journalPageId(itemDocEntryId(fm.id), page);
@@ -350,6 +357,7 @@ export class SystemItemCompiler extends BasePackCompiler {
             fm,
             name,
             this.journalPageSource(fm),
+            { file: this.currentNote?.absPath, bodyLine: this.currentNote?.bodyLine },
         );
         const id = fm.id;
         const subType = this.itemSubtype(fm);
