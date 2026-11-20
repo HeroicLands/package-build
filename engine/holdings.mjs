@@ -22,6 +22,8 @@
  * **Governed places** sections — see {@link module:engine/derived-sections}.
  * @module
  */
+import { fitsKind } from "./data-keys.mjs";
+import { populationActual } from "./population-values.mjs";
 import { isAddressTuple, ownDocumentSystem, parseAddress, renderAddress } from "./address.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
@@ -379,7 +381,14 @@ export function checkGovernment(note) {
     if (fm.type !== "place") return [];
     const data = fm.data;
     if (!data || typeof data !== "object" || Array.isArray(data)) return [];
-    const population = data.population;
+    const population =
+        (
+            data.population &&
+            typeof data.population === "object" &&
+            (data.population.actual === null || fitsKind(data.population.actual, "number"))
+        ) ?
+            populationActual(data.population)
+        :   undefined;
     if (typeof population !== "number" && typeof population !== "string") return [];
     const count = Number(population);
     if (!Number.isFinite(count) || count <= 0 || Object.hasOwn(data, "government")) return [];

@@ -30,7 +30,7 @@ describe("settlement membership from a content session", () => {
             subType: "polity",
             shortcode: "crown",
             name: { full: "Crown" },
-            data: { seat: "place-capital", territorial_population: 1000 },
+            data: { seat: "place-capital", territorial_population: { actual: 1000 } },
         });
         add("Council.md", {
             type: "affiliation",
@@ -44,7 +44,7 @@ describe("settlement membership from a content session", () => {
             subType: "settlement",
             shortcode: "capital",
             name: { full: "Capital" },
-            data: { government: "affiliation-crown", population: 0 },
+            data: { government: "affiliation-crown", population: { actual: 0 } },
         });
         const session = await createContentSession({ config: input.config });
         try {
@@ -90,14 +90,14 @@ async function assemblyFixture(
             shortcode: "crown",
             name: { full: "Crown" },
             data: {
-                territorial_population: 500,
+                territorial_population: { actual: 500 },
                 ...(dependency ? { seat: "other-note-place-port" } : {}),
                 settlements: [
                     {
                         settlement: "Farm",
                         polity: "affiliation-crown",
                         type: "village",
-                        population: 0,
+                        population: { actual: 0 },
                         households: unknown ? null : 0,
                         market: "subsistence",
                         generatorSource: source(0),
@@ -117,7 +117,7 @@ async function assemblyFixture(
             government: badGovernment ? "affiliation-missing" : "affiliation-crown",
             type: urban ? "city" : "village",
             households: 5,
-            population: 300,
+            population: { actual: 300 },
             ...(otherCulture ? { culture: "lore-otherfolk" } : {}),
         },
     });
@@ -130,7 +130,7 @@ async function assemblyFixture(
                 subType: "polity",
                 shortcode: "child",
                 name: { full: "Child" },
-                data: { parents: ["affiliation-crown"], territorial_population: 50 },
+                data: { parents: ["affiliation-crown"], territorial_population: { actual: 50 } },
             }),
         );
     write(
@@ -188,11 +188,11 @@ async function assemblyFixture(
             record("place", "settlement", "port", {
                 government: reference(polityAddress),
                 type: "village",
-                population: 20,
+                population: { actual: 20 },
             }),
             record("affiliation", "polity", "child", {
                 parents: [reference(polityAddress)],
-                territorial_population: 50,
+                territorial_population: { actual: 50 },
             }),
         ];
         write(
@@ -477,7 +477,10 @@ describe("settlement input assembly", () => {
                     subType: "polity",
                     shortcode: "child",
                     name: { full: "Child" },
-                    data: { parents: ["affiliation-crown"], territorial_population: 450 },
+                    data: {
+                        parents: ["affiliation-crown"],
+                        territorial_population: { actual: 450 },
+                    },
                 }),
             );
             const session = await createContentSession({ config: f.session.config });
@@ -536,7 +539,10 @@ describe("settlement input assembly", () => {
                         subType: "polity",
                         shortcode,
                         name: { full: shortcode },
-                        data: { parents: ["affiliation-crown"], territorial_population: 200 },
+                        data: {
+                            parents: ["affiliation-crown"],
+                            territorial_population: { actual: 200 },
+                        },
                     }),
                 );
             const session = await createContentSession({ config: f.session.config });
@@ -640,7 +646,7 @@ describe("settlement input assembly", () => {
                     data: {
                         parents: ["affiliation-crown"],
                         seat: "place-sharedcity",
-                        territorial_population: 200,
+                        territorial_population: { actual: 200 },
                     },
                 }),
             );
@@ -654,7 +660,7 @@ describe("settlement input assembly", () => {
                     data: {
                         parents: ["affiliation-child"],
                         seat: "place-sharedcity",
-                        territorial_population: 100,
+                        territorial_population: { actual: 100 },
                     },
                 }),
             );
@@ -665,7 +671,11 @@ describe("settlement input assembly", () => {
                     subType: "settlement",
                     shortcode: "childcity",
                     name: { full: "Child City" },
-                    data: { government: "affiliation-child", type: "town", population: 80 },
+                    data: {
+                        government: "affiliation-child",
+                        type: "town",
+                        population: { actual: 80 },
+                    },
                 }),
             );
             write(
@@ -675,7 +685,11 @@ describe("settlement input assembly", () => {
                     subType: "settlement",
                     shortcode: "sharedcity",
                     name: { full: "Shared City" },
-                    data: { government: "affiliation-grand", type: "city", population: 30 },
+                    data: {
+                        government: "affiliation-grand",
+                        type: "city",
+                        population: { actual: 30 },
+                    },
                 }),
             );
             const session = await createContentSession({ config: f.session.config });
@@ -735,7 +749,12 @@ describe("settlement input assembly", () => {
                         subType: "settlement",
                         shortcode: "childcity",
                         name: { full: "Child City" },
-                        data: { government: "affiliation-child", type: "town", ...data },
+                        data: {
+                            government: "affiliation-child",
+                            type: "town",
+                            ...data,
+                            population: { actual: data.population },
+                        },
                     }),
                 );
                 const session = await createContentSession({ config: f.session.config });
@@ -771,7 +790,10 @@ describe("settlement input assembly", () => {
                     subType: "polity",
                     shortcode: "other",
                     name: { full: "Other" },
-                    data: { parents: ["affiliation-crown"], territorial_population: 50 },
+                    data: {
+                        parents: ["affiliation-crown"],
+                        territorial_population: { actual: 50 },
+                    },
                 }),
             );
             write(
@@ -783,7 +805,7 @@ describe("settlement input assembly", () => {
                     name: { full: "Child" },
                     data: {
                         parents: ["affiliation-crown", "affiliation-other"],
-                        territorial_population: 50,
+                        territorial_population: { actual: 50 },
                     },
                 }),
             );
@@ -807,7 +829,10 @@ describe("settlement input assembly", () => {
                     subType: "polity",
                     shortcode: "child",
                     name: { full: "Child" },
-                    data: { parents: ["affiliation-crown"], territorial_population: 50 },
+                    data: {
+                        parents: ["affiliation-crown"],
+                        territorial_population: { actual: 50 },
+                    },
                 }),
             );
             session = await createContentSession({ config: f.session.config });
@@ -836,12 +861,12 @@ describe("settlement input assembly", () => {
                     name: { full: "Child" },
                     data: {
                         parents: ["affiliation-crown"],
-                        territorial_population: 50,
+                        territorial_population: { actual: 50 },
                         settlements: [
                             {
                                 settlement: "Other Farm",
                                 type: "village",
-                                population: 10,
+                                population: { actual: 10 },
                                 generatorSource: f.source(0),
                             },
                         ],
@@ -879,12 +904,12 @@ describe("settlement input assembly", () => {
                     name: { full: "Child" },
                     data: {
                         parents: ["affiliation-crown"],
-                        territorial_population: 50,
+                        territorial_population: { actual: 50 },
                         settlements: [
                             {
                                 settlement: "Child Farm",
                                 type: "village",
-                                population: 10,
+                                population: { actual: 10 },
                                 generatorSource: f.source(2),
                             },
                         ],
@@ -952,7 +977,11 @@ describe("settlement input assembly", () => {
                     subType: "settlement",
                     shortcode: "childfarm",
                     name: { full: "Child Farm" },
-                    data: { government: "affiliation-child", type: "village", population: 10 },
+                    data: {
+                        government: "affiliation-child",
+                        type: "village",
+                        population: { actual: 10 },
+                    },
                 }),
             );
             const session = await createContentSession({ config: f.session.config });
@@ -1064,7 +1093,7 @@ describe("settlement input assembly", () => {
         try {
             const initial = prepareSettlementInputs(f);
             const frontmatter = structuredClone(initial.sourceCapture.get(f.crownFile).frontmatter);
-            frontmatter.data.territorial_population = null;
+            frontmatter.data.territorial_population = { actual: null };
             write(f.crownFile, note(frontmatter, "Unrelated text stays intact."));
             const nextSession = await createContentSession({ config: f.session.config });
             try {
@@ -1119,7 +1148,7 @@ describe("settlement input assembly", () => {
                     expect.objectContaining({
                         identity: f.noteAddress,
                         households: 5,
-                        population: 300,
+                        population: { actual: 300 },
                         householdSize: 5,
                     }),
                 ]),
@@ -1554,7 +1583,7 @@ describe("settlement assembly authority and identities", () => {
                     expect.objectContaining({
                         fact: expect.objectContaining({
                             identity: "other-note-place-port",
-                            population: 20,
+                            population: { actual: 20 },
                         }),
                     }),
                 ]),
@@ -1766,7 +1795,7 @@ describe("automatic rural placement", () => {
                 ...sevenSession,
                 records: sevenSession.records.map((record: any) =>
                     record.shortcode === "capital" && record.type === "place" ?
-                        { ...record, data: { ...record.data, population: 35 } }
+                        { ...record, data: { ...record.data, population: { actual: 35 } } }
                     :   record,
                 ),
             };
@@ -1820,11 +1849,14 @@ describe("automatic rural placement", () => {
                 ...f.session,
                 records: f.session.records.map((record: any) => {
                     if (record.shortcode === "crown" && record.type === "affiliation")
-                        return { ...record, data: { ...record.data, territorial_population: 0 } };
+                        return {
+                            ...record,
+                            data: { ...record.data, territorial_population: { actual: 0 } },
+                        };
                     if (record.shortcode === "capital" && record.type === "place")
                         return {
                             ...record,
-                            data: { ...record.data, households: 0, population: 0 },
+                            data: { ...record.data, households: 0, population: { actual: 0 } },
                         };
                     return record;
                 }),
@@ -1856,7 +1888,10 @@ describe("automatic rural placement", () => {
                 ...f.session,
                 records: f.session.records.map((record: any) =>
                     record.shortcode === "crown" && record.type === "affiliation" ?
-                        { ...record, data: { ...record.data, territorial_population: 100000 } }
+                        {
+                            ...record,
+                            data: { ...record.data, territorial_population: { actual: 100000 } },
+                        }
                     :   record,
                 ),
             };

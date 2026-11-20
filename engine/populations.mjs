@@ -49,6 +49,8 @@
  * @module
  */
 
+import { fitsKind } from "./data-keys.mjs";
+import { populationActual } from "./population-values.mjs";
 import { positionOfFrontmatterPath, positionOfLiteral } from "./diagnostics.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
 import { shortcodesOf } from "./holdings.mjs";
@@ -150,7 +152,16 @@ const CORPUS = new WeakMap();
  * @returns {number|undefined} The figure, or `undefined`.
  */
 function figureOf(value) {
-    const n = typeof value === "number" ? value : Number(value);
+    const actual =
+        (
+            value &&
+            typeof value === "object" &&
+            !Array.isArray(value) &&
+            (value.actual === null || fitsKind(value.actual, "number"))
+        ) ?
+            populationActual(value)
+        :   undefined;
+    const n = typeof actual === "number" ? actual : Number(actual);
     return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
