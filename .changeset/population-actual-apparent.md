@@ -9,4 +9,4 @@
 **Upgrading**
 
 - Plain population numbers are refused; replace them with maps containing `actual` and optional `apparent`, and use `.apparent` in public queries.
-- Private pages with unanchored dynamic headings or captions receive new IDs; update GM links to those pages after upgrading.
+- Unanchored dynamic private pages and private-only SQL-generated pages may receive new IDs, as may their continuations; update GM links. Literal and public-generated anchors retain stable IDs.

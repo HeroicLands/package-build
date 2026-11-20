@@ -60,6 +60,27 @@ describe("population source conversion", () => {
             wrapped: 0,
         });
     });
+    it("preserves unrelated anchors and aliases while wrapping population", () => {
+        const source =
+            "---\ndata:\n  population: 12 # residents\n  parts:\n    - roles: &a1 [locomotor]\n    - roles: *a1\n---\nBody.\n";
+        const expected = source.replace("population: 12", "population: {actual: 12}");
+        expect(convertPopulation(source, "note.md")).toMatchObject({ text: expected, wrapped: 1 });
+        expect(convertPopulation(expected, "note.md")).toMatchObject({
+            text: expected,
+            wrapped: 0,
+        });
+    });
+    it.each([
+        "data: &facts {population: 12}",
+        "data: {settlements: &rows [{population: 12}]}",
+        "data: {settlements: [&row {population: 12}]}",
+        "data: {population: !!int 12}",
+        "data: {population: {actual: &n 12}}",
+    ])("refuses shared or tagged population paths: %s", (line) => {
+        expect(() => convertPopulation(`---\n${line}\n---\nbody\n`, "note.md")).toThrow(
+            /population paths require an author edit/,
+        );
+    });
     it("locates file-level read errors", () => {
         const missing = path.join(scratchRoot, "missing-population-file", "note.md");
         expect(() => convertFiles([missing])).toThrow(`${missing}: error:`);

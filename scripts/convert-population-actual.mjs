@@ -15,9 +15,9 @@
  * Wrap authored population values in source-preserving actual declarations.
  * Run with `--preview` or `--write` and note files or content directories.
  * Every note is parsed and verified before any source is written. The summary
- * names changed files and counts the verified wrappers. Invalid YAML, aliases,
- * anchors, explicit tags, merge keys and unsupported population shapes are
- * refused before writing. A filesystem failure can interrupt the write pass.
+ * names changed files and counts the verified wrappers. Invalid YAML, merge keys,
+ * unsupported population shapes and aliases, anchors or tags on population
+ * paths are refused before writing. A filesystem failure can interrupt the write pass.
  * @module
  */
 import fs from "node:fs";
@@ -55,8 +55,6 @@ export function convertPopulation(raw, file) {
     const reject = (node, message) => fail(message, start + (node?.range?.[0] ?? 0));
     const inspect = (node) => {
         if (!node) return;
-        if (YAML.isAlias(node) || node.anchor || node.tag)
-            reject(node, "aliases, anchors and explicit YAML tags require an author edit");
         if (YAML.isMap(node)) {
             for (const pair of node.items) {
                 if (
@@ -72,18 +70,33 @@ export function convertPopulation(raw, file) {
     };
     inspect(doc.contents);
     if (!YAML.isMap(doc.contents)) reject(doc.contents, "frontmatter must be a mapping");
-    const original = doc.toJS({ maxAliasCount: 0 });
+    const rejectShared = (node) => {
+        if (node && (YAML.isAlias(node) || node.anchor || node.tag))
+            reject(
+                node,
+                "aliases, anchors and explicit YAML tags on population paths require an author edit",
+            );
+    };
+    rejectShared(doc.contents);
+    const original = doc.toJS();
     const expected = structuredClone(original);
     const data = doc.get("data", true);
     if (data == null) return { text: raw, wrapped: 0 };
+    rejectShared(data);
     if (!YAML.isMap(data)) reject(data, "data must be a mapping");
     const edits = [];
     const pairFor = (map, name) => map.items.find((pair) => pair.key?.value === name);
     const wrap = (map, target, name) => {
         const pair = pairFor(map, name);
         if (!pair) return;
+        rejectShared(pair.key);
         const node = pair.value;
+        rejectShared(node);
         if (YAML.isMap(node)) {
+            for (const item of node.items) {
+                rejectShared(item.key);
+                rejectShared(item.value);
+            }
             const value = node.toJSON();
             if (
                 !Object.hasOwn(value, "actual") ||
@@ -113,8 +126,10 @@ export function convertPopulation(raw, file) {
     wrap(data, expected.data, "territorial_population");
     const settlements = data.get("settlements", true);
     if (settlements != null) {
+        rejectShared(settlements);
         if (!YAML.isSeq(settlements)) reject(settlements, "settlements must be a list");
         settlements.items.forEach((row, index) => {
+            rejectShared(row);
             if (!YAML.isMap(row)) reject(row, "settlement row must be a mapping");
             wrap(row, expected.data.settlements[index], "population");
         });
