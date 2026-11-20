@@ -1,0 +1,9 @@
+---
+type: affiliation
+subType: polity
+shortcode: crown
+data: {note: "kept", settlements: [{settlement: Existing, households: null}, {"settlement":"Example","households":7,"notes":"A quoted: fact"}], after: [a, b]} # kept
+---
+
+Unrelated body.
+  Keep spacing.

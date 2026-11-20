@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Real map adapter probe
+on:
+    workflow_dispatch:
+        inputs:
+            candidate_sha:
+                description: Exact checked-out package-build commit
+                required: true
+                type: string
+            map_url:
+                description: Pinned saved-map attachment URL
+                required: true
+                type: string
+            json_url:
+                description: Pinned Full JSON attachment URL
+                required: true
+                type: string
+            manifest_url:
+                description: Pinned export manifest attachment URL
+                required: true
+                type: string
+            records_url:
+                description: Pinned source-record comparison attachment URL
+                required: true
+                type: string
+            verification_url:
+                description: Pinned export verification attachment URL
+                required: true
+                type: string
+            boundaries_url:
+                description: Pinned boundary observations attachment URL
+                required: true
+                type: string
+            diagnosis_url:
+                description: Pinned loader diagnosis attachment URL
+                required: true
+                type: string
+permissions:
+    contents: read
+jobs:
+    probe:
+        runs-on: ubuntu-vm
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+              with:
+                  node-version: ${{ vars.CI_NODE_VERSION || '24' }}
+            - name: Prepare evidence directory
+              run: mkdir -p "$RUNNER_TEMP/real-map-adapter-probe"
+            - name: Inspect pinned map
+              env:
+                  CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+                  PROBE_FORGE_TOKEN: ${{ github.token }}
+                  PROBE_MAP_URL: ${{ github.event.inputs.map_url }}
+                  PROBE_JSON_URL: ${{ github.event.inputs.json_url }}
+                  PROBE_MANIFEST_URL: ${{ github.event.inputs.manifest_url }}
+                  PROBE_RECORDS_URL: ${{ github.event.inputs.records_url }}
+                  PROBE_VERIFICATION_URL: ${{ github.event.inputs.verification_url }}
+                  PROBE_BOUNDARIES_URL: ${{ github.event.inputs.boundaries_url }}
+                  PROBE_DIAGNOSIS_URL: ${{ github.event.inputs.diagnosis_url }}
+              run: node ci/real-map-adapter-probe.mjs
+            - name: Retain adapter evidence
+              if: ${{ always() }}
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+              with:
+                  name: real-map-adapter-probe
+                  path: ${{ runner.temp }}/real-map-adapter-probe/
+                  if-no-files-found: error

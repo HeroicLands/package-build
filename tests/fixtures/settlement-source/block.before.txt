@@ -1,0 +1,17 @@
+---
+type: affiliation
+subType: polity
+shortcode: crown
+name: {full: "Kept"} # unchanged
+data:
+  note: |
+    Body-like frontmatter.
+  settlements:
+    - settlement: Existing # kept comment
+      households: 0
+      notes: "Keep: this"
+  unrelated: [one, two] # kept
+---
+
+Unrelated body.
+  Keep spacing.

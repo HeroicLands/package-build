@@ -1,0 +1,30 @@
+# Settlement calculations
+
+The settlement model provides calculations for an explicit authoring operation. It does not run during content checks or change notes. The editable starting figures are in `engine/settlement-model-defaults.json`; they are starting assumptions subject to calibration against a real map.
+
+`calculateSettlement` takes a household count, culture household size, acres, a household holding, four land ratings (arable, game, water, herding), development, livelihood, food approach, obligation, upward share and governance spending shares. A declared livelihood takes precedence over a supplied default; custom livelihood and governance shares can be supplied directly. A mining livelihood does not imply a deposit. The result gives the estimated population, rural capacity, food production and need, obligations, budgets and supported households. Food is limited by both the land and the producing households. The rural capacity is a ceiling, not an instruction to fill it; urban food needs are handled through draw.
+
+Omitted and unknown household counts remain distinct. A supplied population is retained separately as an authored fact; the derived population is an estimate rounded to two significant figures. Household size is supplied for the culture rather than chosen globally. The explanation records the limiting land and labor figures and the assumptions used. Public-role estimates are included in the settlement household count.
+
+`distributeRuralPopulation` distributes a stated rural population across supplied cell capacities and culture household sizes. It reports any remainder, including people who cannot fit or whose number cannot form a complete household. Existing households and urban population must be accounted for before calling it. `deliverFood` follows the supplied routes and loss rates, refuses routes losing at least half their cargo, and tracks each source's remaining surplus across demands. Neither function discovers a map route or decides an authored identity.
+
+The map adapter supplies coordinates, terrain, routes and mapped culture and polity identities. Area conversion to acres, land ratings, household holding, culture sizes and explicit route distances are inputs to these calculations. Unstated holders, locations and descriptions are not inferred. A real map export and full-polity calibration remain necessary to evaluate the starting figures.
+
+Food production and need are annual: one food unit supplies one person’s basic food for a year. Food yield vectors state units per 100 acres per year. Default transport loss rates apply per league of three nautical miles. The caller supplies area in acres and route distance in leagues and converts map units before calculation; editable rates and supplied units must agree.
+
+Allocation places initial shares in proportion to capacity, then fills complete households in the supplied cell order until no more fit in each cell. Counts and calculated values must be representable; unrepresentable arithmetic is refused.
+
+## Synthetic cultural scenarios
+
+`tests/settlement-culture-scenarios.test.ts` exercises declared profiles through the household calculator, rural proposal allocator and urban supply calculator. The examples are synthetic arithmetic fixtures, not household measurements or cultural assignments for a setting. Each selects editable starting figures explicitly; no culture is selected by its name in the calculator.
+
+| Scenario                   | Declared household size | Food approach | Selected livelihood and governance       | Distinct assertion                                                                                                                                                     |
+| -------------------------- | ----------------------- | ------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Herders                    | 5.2                     | Pastoral      | Subsistence, collective                  | Forty households produce 247 food units under the selected figures; custom household shares change production to 208.                                                  |
+| Maritime fishers           | 4.8                     | Maritime      | Fishing, representative                  | Forty households produce 273.6 food units; an explicit local livelihood mix changes production to 291.84.                                                              |
+| Institution-led settlement | 6.4                     | Irrigated     | Agrarian, institutional                  | Forty households display as 260 people; half the local budget goes to faith under the selected spending profile.                                                       |
+| City-state                 | 4.8                     | Maritime      | Trading, representative, no upward share | Four thousand households exceed local rural capacity; declared coastal food supplies their deficit, while absent access or greater declared haul loss leaves it unmet. |
+
+Each scenario also accepts custom livelihood and governance names with directly supplied household and spending shares. Those shares override the selected defaults without adding a cultural preset to the code. A mixed-polity example allocates 328 people across herders, fishers and an institution, retaining each mapped culture's household size and a settlement-level livelihood override. It allocates twenty households to each place and leaves unused capacity. The city-state supply example distinguishes a map estimate from authored households and checks an explicit transport-coefficient override.
+
+These are deterministic tests of the on-demand APIs. They neither register generation in ordinary content checks nor write settlement notes. Real-map calibration requires a pinned export, explicit map-to-setting bindings, declared profiles and existing settlement facts; synthetic arithmetic does not establish those facts or validate a setting's densities.

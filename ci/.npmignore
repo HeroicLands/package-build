@@ -4,3 +4,4 @@ content-memory-diagnostics.mjs
 encoding-consumer-overlay.mjs
 consumer-proof-pack.sh
 headwords-consumer-overlay.mjs
+real-map-adapter-probe.mjs

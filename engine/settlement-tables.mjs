@@ -102,12 +102,18 @@ const namesOf = (fm) =>
 const corpusCache = new WeakMap();
 const renderCache = new WeakMap();
 
-/** Build one canonical graph from indexed frontmatter, including dependency notes. */
-function corpusOf(index) {
+/** Build one canonical graph from indexed frontmatter, including dependency notes.
+ * @param {object} index - Immutable note and dependency capture.
+ * @param {(units:number)=>void} [charge] - Reserve graph work before expansion.
+ * @returns {object} Cached canonical membership corpus.
+ */
+function corpusOf(index, charge = () => {}) {
     if (corpusCache.has(index)) return corpusCache.get(index);
     const nodes = new Map();
     const byRecord = new Map();
-    const notes = [...(index.notes ?? []), ...(index.foreign?.index?.values() ?? [])];
+    const localNotes = index.notes ?? [];
+    charge(localNotes.length + (index.foreign?.index?.size ?? 0));
+    const notes = [...localNotes, ...(index.foreign?.index?.values() ?? [])];
     const types = new Set([...Object.keys(NOTE_VOCABULARY), ...(index.types ?? [])]);
     const packages = new Set(
         [
@@ -142,6 +148,7 @@ function corpusOf(index) {
         return isAddressTuple(tuple) ? renderAddress({ ...tuple, system: "note" }) : undefined;
     };
     for (const note of notes) {
+        charge(1);
         const fm = fmOf(note);
         if (!isNoteRecord(fm) || !fm.shortcode) continue;
         const key = renderAddress({
@@ -174,8 +181,10 @@ function corpusOf(index) {
             }
         );
     };
-    for (const node of nodes.values())
-        if (polity(node.fm))
+    for (const node of nodes.values()) {
+        charge(1);
+        if (polity(node.fm)) {
+            charge(Array.isArray(node.fm.data?.parents) ? node.fm.data.parents.length : 0);
             node.parents = [
                 ...new Set(
                     (Array.isArray(node.fm.data?.parents) ? node.fm.data.parents : [])
@@ -184,25 +193,35 @@ function corpusOf(index) {
                         .map((p) => p.key),
                 ),
             ];
+        }
+    }
     const ancestorCache = new Map();
     const ancestors = (key) => {
         if (ancestorCache.has(key)) return ancestorCache.get(key);
         const seen = new Set();
+        charge(nodes.get(key)?.parents.length ?? 0);
         const pending = [...(nodes.get(key)?.parents ?? [])];
         while (pending.length) {
+            charge(1);
             const parent = pending.pop();
             if (seen.has(parent)) continue;
             seen.add(parent);
-            pending.push(...(nodes.get(parent)?.parents ?? []));
+            charge(nodes.get(parent)?.parents.length ?? 0);
+            for (const ancestor of nodes.get(parent)?.parents ?? []) pending.push(ancestor);
         }
         ancestorCache.set(key, seen);
         return seen;
     };
-    for (const node of nodes.values())
+    for (const node of nodes.values()) {
+        charge(node.parents.length + 1);
         node.direct = node.parents.filter(
             (parent) =>
-                !node.parents.some((other) => other !== parent && ancestors(other).has(parent)),
+                !node.parents.some((other) => {
+                    charge(1);
+                    return other !== parent && ancestors(other).has(parent);
+                }),
         );
+    }
     const owners = new Map();
     const children = new Map();
     const notedNames = new Set();
@@ -213,6 +232,9 @@ function corpusOf(index) {
         map.get(key).push(value);
     };
     for (const node of nodes.values()) {
+        charge(
+            1 + (Array.isArray(node.fm.data?.settlements) ? node.fm.data.settlements.length : 0),
+        );
         for (const row of Array.isArray(node.fm.data?.settlements) ?
             node.fm.data.settlements
         :   []) {
@@ -221,7 +243,10 @@ function corpusOf(index) {
             listedCounts.set(name, (listedCounts.get(name) ?? 0) + 1);
         }
         if (polity(node.fm)) {
-            for (const key of [node.key, ...ancestors(node.key)]) addTo(owners, key, node);
+            const above = ancestors(node.key);
+            charge(above.size + node.direct.length + 1);
+            addTo(owners, node.key, node);
+            for (const key of above) addTo(owners, key, node);
             for (const key of node.direct) addTo(children, key, node);
             const seat = resolve(node.fm.data?.seat, "place", node.fm.package);
             if (seat && settlement(seat.fm)) addTo(notedByOwner, node.key, seat);
@@ -288,6 +313,47 @@ function rowsOf(corpus, owner, recursive) {
         });
     }
     return rows;
+}
+
+/**
+ * Resolve a polity's directly subordinate polities and noted settlements.
+ * @param {object} record - Indexed polity record.
+ * @param {object[]} records - Records from the same content session.
+ * @param {Map<string, object>} [foreignIndex] - Dependency index from that session.
+ * @returns {{polities: object[], settlements: object[]}} Indexed records and canonical addresses.
+ */
+export function settlementMembership(record, records, foreignIndex = new Map()) {
+    return createSettlementMembership(records, foreignIndex, record.package)(record);
+}
+
+/**
+ * Reuse one immutable captured corpus across polity membership queries.
+ * @param {object[]} records - Local records from one content session.
+ * @param {Map<string, object>} foreignIndex - Dependency records from that session.
+ * @param {string} contentPackage - Local package for unqualified references.
+ * @param {(units:number)=>void} [charge] - Reserve work before expanding graph/query entries.
+ * @returns {(record:object)=>{polities:object[],settlements:object[]}} Membership query.
+ */
+export function createSettlementMembership(
+    records,
+    foreignIndex,
+    contentPackage,
+    charge = () => {},
+) {
+    const index = { notes: records, contentPackage, foreign: { index: foreignIndex } };
+    return (record) => {
+        const corpus = corpusOf(index, charge);
+        const owner = corpus.byRecord.get(record);
+        if (!owner || !polity(record)) throw new Error("An indexed polity is required");
+        const children = corpus.children.get(owner.key) ?? [];
+        const noted = corpus.notedByOwner.get(owner.key) ?? [];
+        charge(children.length + 2 * noted.length + 1);
+        const view = (node) => ({ address: node.key, record: node.fm });
+        return {
+            polities: children.map(view),
+            settlements: [...new Map(noted.map((node) => [node.key, node])).values()].map(view),
+        };
+    };
 }
 
 /**

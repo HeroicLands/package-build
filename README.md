@@ -106,6 +106,12 @@ The documentation lives in the Markdown files in this repository. Start with [th
 | Error locations and severities                    | [Diagnostics](docs/diagnostics.md)                                        |
 | Architectural rationale                           | [Design](docs/design.md)                                                  |
 
+Settlement authoring references cover [map input](docs/reference/azgaar-map-input.md),
+[input assembly](docs/reference/settlement-inputs.md), the [model](docs/reference/settlement-model.md),
+[rural proposals](docs/reference/settlement-proposals.md), [site discovery](docs/reference/settlement-placement.md),
+[urban food](docs/reference/settlement-urban.md),
+[place-name candidates](docs/reference/settlement-names.md), and [source edits](docs/reference/settlement-source.md).
+
 Place notes may declare a governing affiliation with `data.government` (`Address`, default target type `affiliation`), or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](docs/authoring/frontmatter.md#place-governments).
 
 Every icon and image is covered by a provenance record stating `attribution`, `license` and `ai`. A Foundry package ships only the pictures whose record says `ai: false` under a licence on the shipping list, staged flat at the package root as `icons/<basename>` and `images/<basename>` and listed in its asset set, `asset-sets/default.json`; a reference to an excluded known-AI master draws its declared non-AI alternative. Other excluded pictures draw the package's `missing` stand-in. Every compiled reference keeps the original asset's address. See [assets](docs/authoring/assets.md#what-the-foundry-package-ships) and [what a package ships](docs/reference/format-details.md#what-a-package-ships).
@@ -166,3 +172,28 @@ while periodic samples depend on the Node event loop being available. A failed
 compile remains a failure; memory counters do not replace the compile and
 focused assertions. Kethira uses a
 2 GiB container without swap.
+
+### Settlement setting integration
+
+The manually dispatched [Settlement setting integration workflow](.gitea/workflows/settlement-real-factory.yml)
+checks the settlement command against a pinned accepted Thalorna `main` commit. It
+checks out that setting tree and installs both repositories' locked dependencies. The test runs only when
+`SETTLEMENT_SETTING_CHECKOUT` names the setting checkout; its map, notes and
+writes are isolated fixture data.
+
+The test covers a dry run with the actual factory, a missing resource, a locked
+write, a source edit rejected after an intervening change, a successful write,
+and a repeat with a refreshed index emitted by the production index serializer. A passing run establishes interoperability
+on that fixture. It does not establish production naming readiness or calibrate
+a real map. The setting factory supports a limited language and composition scope.
+
+### Real map adapter probe
+
+The manual **Real map adapter probe** workflow reads pinned saved-map and Full
+JSON attachments and the retained export evidence through bounded, checksum-verified
+HTTPS requests using the workflow’s read-only forge token. Dispatch the candidate branch with its exact
+`candidate_sha` and the seven attachment URLs named by the workflow inputs.
+The output artifact holds the adapter report and the original evidence files,
+including loader repairs, integrity notices and boundary observations. A refusal
+fails the job and retains its report. The probe does not generate settlements or
+write setting notes; successful ingestion is not a map calibration.

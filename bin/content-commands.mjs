@@ -41,6 +41,7 @@
  *   npm run docs:item-fields               // → … docs item-fields --out …
  */
 
+import { settlementCommand } from "./settlement-command.mjs";
 import fs from "fs";
 import path from "node:path";
 import log from "loglevel";
@@ -331,6 +332,7 @@ export function registerContentCommands(cli) {
                 (_config, argv) => argv.action === "compile",
             ),
         )
+        .command(settlementCommand())
         .command(itemsCommand())
         .command(depsCommand())
         .command(artCommand())
