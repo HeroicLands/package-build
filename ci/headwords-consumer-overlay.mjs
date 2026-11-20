@@ -27,23 +27,23 @@ const expected = [
     [
         "sii",
         [
-            ["n", "sea"],
-            ["v", "to see"],
+            ["n", "sea", "Sea."],
+            ["v", "to see", "To see."],
         ],
     ],
     [
         "rait",
         [
-            ["adj", "correct; free from error"],
-            ["adj", "morally acceptable"],
-            ["v", "mark words or letters on a surface"],
+            ["adj", "correct; free from error", "Correct; free from error."],
+            ["adj", "morally acceptable", "Morally acceptable."],
+            ["v", "mark words or letters on a surface", "Mark words or letters on a surface."],
         ],
     ],
     [
         "duu",
         [
-            ["adj", "owed or required"],
-            ["v", "to do"],
+            ["adj", "owed or required", "Owed or required."],
+            ["v", "to do", "To do."],
         ],
     ],
 ];
@@ -96,7 +96,8 @@ if (process.argv[2] === "prepare") {
                 rendered.includes(dictionaryEntryAnchor(language, form, wordClass)),
                 `${form}: anchor ${wordClass}`,
             );
-        for (const [, text] of senses) assert.ok(rendered.includes(text), `${form}: ${text}`);
+        for (const [, , sentence] of senses)
+            assert.ok(rendered.includes(sentence), `${form}: ${sentence}`);
     }
     console.log(
         "All three spellings retain their classes and meanings in the dictionary and its rendering.",
