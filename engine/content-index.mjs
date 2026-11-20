@@ -85,6 +85,7 @@
  * @module
  */
 
+import { sourceReferenceNames } from "./journals.mjs";
 import { assertSettlementRecords } from "./settlement-tables.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { projectPopulationFrontmatter } from "./population-values.mjs";
@@ -1269,6 +1270,14 @@ export function collectContentIndex(
     );
     // Everything the tree gives each note's own records, so a cached note's
     // records are reused only where none of it moved.
+    const referenceName = sourceReferenceNames(
+        parsedNotes.map((note) => note.frontmatter),
+        {
+            contentPackage,
+            docEntryTypes: manifest?.docEntryTypes,
+            foreignReferences: manifest?.foreignReferences,
+        },
+    );
     const noteContext =
         cache && !syntax ?
             cache.context({
@@ -1286,6 +1295,11 @@ export function collectContentIndex(
                     ),
                 contentPackage,
                 languages,
+                referenceNames: parsedNotes.map(({ frontmatter: fm }) => [
+                    fm?.type,
+                    fm?.shortcode,
+                    fm?.name,
+                ]),
                 manifest,
                 nameTypes: nameTypes ? [...nameTypes] : undefined,
             })
@@ -1319,7 +1333,7 @@ export function collectContentIndex(
                     bodyLine,
                     bodyColumn,
                     nameTypes,
-                    manifest,
+                    manifest: manifest && { ...manifest, referenceName },
                     addressContext: decodeContext,
                     dateContext: dates,
                     resolveRole,
@@ -1753,7 +1767,11 @@ export function indexRecordsFor({
         skipDirectories: skipDirectories ?? resolved.skipDirectories,
         assetsBase: assetsBase ?? resolved.paths.assets,
         // Only the identities a UUID is a function of — see emitContentIndex.
-        manifest: { ...foundryIdentities(resolved), syntax },
+        manifest: {
+            ...foundryIdentities(resolved),
+            syntax,
+            foreignReferences: loadForeignIndexes(resolved, [resolved.contentPackage]).references,
+        },
         problems,
         foreignRecord,
         parsed,
@@ -1980,6 +1998,11 @@ export async function preparePublicationBodies({
 }) {
     const expandedBodies = new Map();
     const foundryBodies = new Map();
+    const referenceName = sourceReferenceNames(records, {
+        contentPackage: resolved.contentPackage,
+        config: resolved,
+        foreignReferences: foreign.references,
+    });
     publicationProblems(
         foreign.stale.map((entry) => ({
             file: tree,
@@ -2144,6 +2167,7 @@ export async function preparePublicationBodies({
                     source: authored.body,
                     file,
                     bodyLine: authored.bodyLine,
+                    referenceName: (target) => (target ? referenceName(target) : record.name?.full),
                 });
             if (
                 populationAudience === "public" &&
@@ -2177,7 +2201,7 @@ export async function preparePublicationBodies({
  * @property {object[]} records - Complete index records, including hidden providers.
  * @property {Map<string, {frontmatter: object|null, body: string, raw: string, bodyLine?: number, bodyColumn?: number}>} parsed - Authored sources by absolute file.
  * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} expandedBodies - Public-population bodies with static declarations for private expression headings.
- * @property {Map<string, {markdown: string, source: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number, file: string, bodyLine?: number}>} foundryBodies - Native bodies and captured source provenance in the destination audience, used only for target identity.
+ * @property {Map<string, {markdown: string, source: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number, file: string, bodyLine?: number, referenceName?: (target:string)=>string|undefined}>} foundryBodies - Native bodies and captured source provenance in the destination audience, used only for target identity.
  * @property {import("./content-session.mjs").ContentSyntax} [syntax] - Session-local exact-text scanner projections.
  */
 
@@ -2228,7 +2252,12 @@ function projectPublicationBody(
         frontmatter: fm,
         address,
         body: foundryBody,
-        manifest: { ...manifest, pageSource },
+        manifest: {
+            ...manifest,
+            pageSource,
+            file: record.file?.path,
+            bodyLine: pageSource?.bodyLine,
+        },
     });
     const declared = new Set(
         (record.anchors ?? [])
@@ -2368,6 +2397,11 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
         throw new Error(
             "Incomplete content-index bodies: run await prepareContentIndex({ config, contentBase }) before publication",
         );
+    const referenceName = sourceReferenceNames(records, {
+        contentPackage,
+        config: resolved,
+        foreignReferences: loadForeignIndexes(resolved, [contentPackage]).references,
+    });
     const art = assetAddressIndex(records, { config: resolved });
     const publicLexical =
         publication ? undefined : (
@@ -2382,16 +2416,23 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
         const lexical = (isGmNote(record) ? allLexical : publicLexical)?.get(
             canonicalKey(contentPackage, "note", record.type, record.shortcode),
         );
-        const body =
-            publication?.expandedBodies.get(file)?.markdown ??
-            insertLexicalSections(parsed.get(file).body, lexical, { syntax: publication?.syntax })
-                .markdown;
-        projectPublicationBody(records, record, body, {
+        const authored = parsed.get(file);
+        const expanded =
+            publication?.expandedBodies.get(file) ??
+            insertLexicalSections(authored.body, lexical, { syntax: publication?.syntax });
+        const pageSource = publication?.foundryBodies.get(file) ?? {
+            ...expanded,
+            source: authored.body,
+            file,
+            bodyLine: authored.bodyLine,
+            referenceName: (target) => (target ? referenceName(target) : record.name?.full),
+        };
+        projectPublicationBody(records, record, expanded.markdown, {
             contentPackage,
             manifest: { ...foundryIdentities(resolved), syntax: publication?.syntax },
             resolveRole: (address) => embedRole(art, address),
-            foundryBody: publication?.foundryBodies.get(file).markdown,
-            pageSource: publication?.foundryBodies.get(file),
+            foundryBody: pageSource.markdown,
+            pageSource,
             syntax: publication?.syntax,
         });
     }

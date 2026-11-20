@@ -61,6 +61,7 @@
  * @module
  */
 
+import { resolveReference } from "./wikilinks.mjs";
 import { projectPopulationFrontmatter } from "./population-values.mjs";
 import { scanPageBreaks } from "./page-breaks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
@@ -812,6 +813,7 @@ export class BasePackCompiler {
             generatedFrom: expanded.generatedFrom,
             file: absPath,
             bodyLine: noteLine,
+            referenceName: (target) => (target ? resolveReference(linkIndex, target)?.name : name),
         };
         return expanded.markdown;
     }
@@ -824,11 +826,16 @@ export class BasePackCompiler {
         if (!this.currentNote?.frontmatter || this.currentNote.source === undefined)
             throw Object.assign(
                 new Error(
-                    `${this.currentNote?.absPath || "<journal>"}:1:1: error: private documentation has no captured source`,
+                    `${this.currentNote?.absPath || "<journal>"}:${this.currentNote?.bodyLine ?? 1}:1: error: private documentation has no captured source`,
                 ),
                 { located: true },
             );
-        return this.convertBody(this.currentNote.frontmatter, this.currentNote.source, "all");
+        const unresolvedLinks = this.unresolvedLinks;
+        try {
+            return this.convertBody(this.currentNote.frontmatter, this.currentNote.source, "all");
+        } finally {
+            this.unresolvedLinks = unresolvedLinks;
+        }
     }
 
     /** Captured provenance for a note's resolved private documentation or own journal. */
@@ -839,11 +846,15 @@ export class BasePackCompiler {
         if (!this.currentPageSource)
             throw Object.assign(
                 new Error(
-                    `${this.currentNote?.absPath || "<journal>"}:1:1: error: private journal has no captured source provenance`,
+                    `${this.currentNote?.absPath || "<journal>"}:${this.currentNote?.bodyLine ?? 1}:1: error: private journal has no captured source provenance`,
                 ),
                 { located: true },
             );
-        return this.currentPageSource;
+        return {
+            ...this.currentPageSource,
+            file: this.currentPageSource.file ?? this.currentNote?.absPath,
+            bodyLine: this.currentPageSource.bodyLine ?? this.currentNote?.bodyLine,
+        };
     }
 
     /**

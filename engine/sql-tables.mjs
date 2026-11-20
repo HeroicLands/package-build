@@ -1807,13 +1807,21 @@ export function attachGeneratedSections(prepared, generated) {
 async function attachPreparedAnchors(prepared, records, contentBase, parsed, config, syntax) {
     const { entriesForNote, foundryIdentities } = await import("./foundry-entries.mjs");
     const identities = config ? { ...foundryIdentities(config), syntax } : undefined;
+    const { sourceReferenceNames } = await import("./journals.mjs");
+    const { loadForeignIndexes } = await import("./metadata-index.mjs");
+    const referenceName = sourceReferenceNames(records, {
+        contentPackage: config?.contentPackage,
+        config,
+        foreignReferences:
+            config ? loadForeignIndexes(config, [config.contentPackage]).references : undefined,
+    });
     for (const record of records) {
         if (!isNoteRecord(record)) continue;
         const file = noteFile(contentBase, record);
         const results = prepared.get(file);
         if (!results) continue;
         if (syntax) results.syntax = syntax;
-        const { body } = parsed.get(file) ?? parseMarkdownFile(file);
+        const { body, bodyLine } = parsed.get(file) ?? parseMarkdownFile(file);
         const expanded = expandContentTables(body, {
             source: file,
             sqlTables: results,
@@ -1827,7 +1835,11 @@ async function attachPreparedAnchors(prepared, records, contentBase, parsed, con
             frontmatter.name?.full ?? record.file.name,
             record.address.slug,
             expanded.markdown,
-            { ...identities, pageSource: { ...expanded, source: body, file } },
+            {
+                ...identities,
+                referenceName,
+                pageSource: { ...expanded, source: body, file, bodyLine },
+            },
         );
         results.anchorUuids = entries[0]?.anchors;
         results.docAnchorUuids = entries[1]?.anchors;
