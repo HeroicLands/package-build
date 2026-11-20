@@ -37,9 +37,30 @@ describe("population source conversion", () => {
             wrapped: 0,
         });
     });
+    it.each([
+        ["---\ndata:\n  population : # unknown\n---\nbody\n", "population : {actual: null} #"],
+        [
+            '---\ndata: {"population" : , territorial_population: 10}\n---\nbody\n',
+            '"population" : {actual: null} ,',
+        ],
+    ])("preserves mapping separator spacing for empty scalars", (source, expected) => {
+        const converted = convertPopulation(source, "note.md");
+        expect(converted.text).toContain(expected);
+        expect(convertPopulation(converted.text, "note.md").wrapped).toBe(0);
+    });
+    it("retains quoted numeric spelling and existing mixed numeric maps", () => {
+        const source =
+            '---\ndata: {population: "1200", territorial_population: {actual: "50", apparent: 0}}\n---\nbody\n';
+        const expected = source.replace('population: "1200"', 'population: {actual: "1200"}');
+        expect(convertPopulation(source, "note.md")).toMatchObject({ text: expected, wrapped: 1 });
+        expect(convertPopulation(expected, "note.md")).toMatchObject({
+            text: expected,
+            wrapped: 0,
+        });
+    });
     it("locates file-level read errors", () => {
         const missing = path.join(scratchRoot, "missing-population-file", "note.md");
-        expect(() => convertFiles([missing])).toThrow(`${missing}:1:1: error:`);
+        expect(() => convertFiles([missing])).toThrow(`${missing}: error:`);
     });
     it("retains flow-style data and existing declarations", () => {
         const source =
@@ -50,6 +71,9 @@ describe("population source conversion", () => {
     });
     it.each([
         ["  population: bad", 3],
+        ['  population: ""', 3],
+        ['  population: "nope"', 3],
+        ["  population: .inf", 3],
         ["  population: [1]", 3],
         ["  population: {apparent: 3}", 3],
         ["  settlements: wrong", 3],
