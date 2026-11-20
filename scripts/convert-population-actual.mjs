@@ -127,24 +127,32 @@ export function convertPopulation(raw, file) {
     return { text: raw.slice(0, start) + updated + raw.slice(end.index), wrapped: edits.length };
 }
 
+function io(file, operation) {
+    try {
+        return operation();
+    } catch (error) {
+        throw new Error(`${file}:1:1: error: ${error.message}`);
+    }
+}
+
 /** Prepare every file before optionally writing the verified changes. */
 export function convertFiles(files, { write = false } = {}) {
     const prepared = files.map((file) => {
-        const stat = fs.lstatSync(file);
+        const stat = io(file, () => fs.lstatSync(file));
         if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1)
-            throw new Error(`${file}: error: source must be a regular, unlinked file`);
-        const bytes = fs.readFileSync(file);
+            throw new Error(`${file}:1:1: error: source must be a regular, unlinked file`);
+        const bytes = io(file, () => fs.readFileSync(file));
         const raw = bytes.toString("utf8");
-        if (!Buffer.from(raw).equals(bytes)) throw new Error(`${file}: error: invalid UTF-8`);
+        if (!Buffer.from(raw).equals(bytes)) throw new Error(`${file}:1:1: error: invalid UTF-8`);
         return { file, raw, ...convertPopulation(raw, file) };
     });
     const changed = prepared.filter(({ raw, text }) => raw !== text);
     if (write) {
         for (const item of changed) {
-            if (fs.readFileSync(item.file, "utf8") !== item.raw)
-                throw new Error(`${item.file}: error: source changed after preparation`);
+            if (io(item.file, () => fs.readFileSync(item.file, "utf8")) !== item.raw)
+                throw new Error(`${item.file}:1:1: error: source changed after preparation`);
         }
-        for (const item of changed) fs.writeFileSync(item.file, item.text);
+        for (const item of changed) io(item.file, () => fs.writeFileSync(item.file, item.text));
     }
     return {
         files: prepared.length,
@@ -155,11 +163,11 @@ export function convertFiles(files, { write = false } = {}) {
 }
 
 function collect(input) {
-    const stat = fs.lstatSync(input);
-    if (stat.isSymbolicLink()) throw new Error(`${input}: error: symbolic links are not supported`);
+    const stat = io(input, () => fs.lstatSync(input));
+    if (stat.isSymbolicLink())
+        throw new Error(`${input}:1:1: error: symbolic links are not supported`);
     if (stat.isDirectory())
-        return fs
-            .readdirSync(input)
+        return io(input, () => fs.readdirSync(input))
             .sort()
             .flatMap((name) => collect(path.join(input, name)));
     return stat.isFile() && input.endsWith(".md") ? [input] : [];

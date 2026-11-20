@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { convertPopulation, convertFiles } from "../scripts/convert-population-actual.mjs";
 
 const roots: string[] = [];
+const scratchRoot = process.env.TMPDIR || process.env.RUNNER_TEMP;
+if (!scratchRoot) throw new Error("Population conversion tests require TMPDIR or RUNNER_TEMP");
+process.env.TMPDIR = scratchRoot;
 afterEach(() => {
     for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
@@ -23,6 +26,20 @@ describe("population source conversion", () => {
             text: expected,
             wrapped: 0,
         });
+    });
+    it("wraps an empty scalar and preserves a BOM, CRLF, comments and body bytes", () => {
+        const source =
+            "\uFEFF---\r\ndata:\r\n  population: # unknown\r\n  name: unchanged\r\n---\r\nBody.\r\n";
+        const expected = source.replace("population: #", "population: {actual: null} #");
+        expect(convertPopulation(source, "note.md")).toMatchObject({ text: expected, wrapped: 1 });
+        expect(convertPopulation(expected, "note.md")).toMatchObject({
+            text: expected,
+            wrapped: 0,
+        });
+    });
+    it("locates file-level read errors", () => {
+        const missing = path.join(scratchRoot, "missing-population-file", "note.md");
+        expect(() => convertFiles([missing])).toThrow(`${missing}:1:1: error:`);
     });
     it("retains flow-style data and existing declarations", () => {
         const source =
@@ -44,7 +61,7 @@ describe("population source conversion", () => {
         );
     });
     it("previews without writes and refuses a batch before any partial write", () => {
-        const root = fs.mkdtempSync(path.join(process.env.TMPDIR!, "population-convert-"));
+        const root = fs.mkdtempSync(path.join(scratchRoot, "population-convert-"));
         roots.push(root);
         const first = path.join(root, "first.md");
         const second = path.join(root, "second.md");
