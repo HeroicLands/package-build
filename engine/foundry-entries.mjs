@@ -111,11 +111,12 @@ export const LEAD_ANCHOR = "$lead";
  * @param {string} body - The note's markdown body.
  * @param {string} name - The note's name, used as the lead page's title.
  * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Session scanner projections.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [pageSource] - Captured private page provenance.
  * @returns {Record<string, string>} The anchors.
  */
-export function anchorsOf(entryUuid, entryId, body, name, syntax) {
+export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
     const anchors = {};
-    splitPages(body, name, undefined, syntax).forEach((page, index) => {
+    splitPages(body, name, undefined, syntax, pageSource).forEach((page, index) => {
         const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
         const words = new Set(
             (syntax ? syntax(page.markdown).spans : scanSpans(page.markdown)).spans
@@ -156,11 +157,21 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax) {
  * documentation journal's is {@link itemDocEntryId} of that. Stating it here is
  * what lets the content index publish an identity it did not re-derive.
  *
- * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], syntax?: import("./content-session.mjs").ContentSyntax}} ctx - Resolved identities and optional session scanner projections.
+ * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], syntax?: import("./content-session.mjs").ContentSyntax, pageSource?: {source:string,lineMap?:object[],generatedFrom?:number,file?:string,bodyLine?:number}}} ctx - Resolved identities, optional session scanner projections, and captured source required for private journal routing.
  * @returns {Array<object>} One or two entries, in {@link buildManifest}'s shape.
  */
 export function entriesForNote(fm, name, address, body, ctx) {
     const { contentPackage, foundryPackageId, packRouter } = ctx;
+    const journalPack = packRouter.resolveOrNull(fm, "JournalEntry");
+    const pageSource = packRouter.privateOf?.(journalPack) ? ctx.pageSource : undefined;
+    if (packRouter.privateOf?.(journalPack) && typeof pageSource?.source !== "string") {
+        throw Object.assign(
+            new Error(
+                `${pageSource?.file || "<journal>"}:${pageSource?.bodyLine ?? 1}:1: error: private journal has no captured source`,
+            ),
+            { located: true },
+        );
+    }
     const key = canonicalKey(contentPackage, ownDocumentSystem(fm.type), fm.type, fm.shortcode);
     // `buildManifest` records `packageRelative(url, base)`, so the pair it is
     // given has to round-trip. The address is already package-relative, so the
@@ -290,7 +301,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
                 uuid: docUuid,
                 anchors:
                     docUuid ?
-                        anchorsOf(docUuid, docEntryId, body ?? "", name, ctx.syntax)
+                        anchorsOf(docUuid, docEntryId, body ?? "", name, ctx.syntax, pageSource)
                     :   undefined,
             },
         ];
@@ -310,7 +321,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
             systemUuids: systemUuidsFor(fm.type, fm.id),
             anchors:
                 own && packForType(fm.type)?.docType === "JournalEntry" ?
-                    anchorsOf(own, fm.id, body ?? "", name, ctx.syntax)
+                    anchorsOf(own, fm.id, body ?? "", name, ctx.syntax, pageSource)
                 :   undefined,
         },
     ];
@@ -377,7 +388,12 @@ export function collectFoundryEntries(contentBase, ctx) {
             continue;
         }
         notes += 1;
-        entries.push(...entriesForNote(fm, name, address, body ?? "", ctx));
+        entries.push(
+            ...entriesForNote(fm, name, address, body ?? "", {
+                ...ctx,
+                pageSource: { source: body ?? "", file: absPath },
+            }),
+        );
     }
     return { entries, notes, skipped };
 }

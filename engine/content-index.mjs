@@ -341,7 +341,8 @@ function foundryEntries({ frontmatter, address, body, manifest }) {
             body ?? "",
             manifest,
         );
-    } catch {
+    } catch (error) {
+        if (error.located) throw error;
         // A note the manifest cannot address is still a note. The index says so
         // by carrying no `foundry` block rather than by failing the walk.
         return null;
@@ -566,7 +567,15 @@ export function buildIndexRecord({
     // is its Item. The one document it has none of is the one that would be
     // empty, and `entriesForNote` withholds that UUID, so this block names
     // nothing that was not made.
-    const entries = foundryEntries({ frontmatter, address, body, manifest });
+    const entries = foundryEntries({
+        frontmatter,
+        address,
+        body,
+        manifest: manifest && {
+            ...manifest,
+            pageSource: { source: body ?? "", file: absPath ?? relPath, bodyLine },
+        },
+    });
     // A stub — an empty body on a type an empty body suppresses — publishes no
     // page, so it holds no address and offers no anchor to link to. **The
     // absent address is the signal**, and it is the column the table renderer
@@ -765,7 +774,15 @@ export function indexRecordsForNote({
     });
     const records = [decodeIndexAddresses(record, addressContext ?? { package: contentPackage })];
     const address = noteAddress(frontmatter, contentPackage);
-    const doc = foundryEntries({ frontmatter, address, body, manifest })?.doc;
+    const doc = foundryEntries({
+        frontmatter,
+        address,
+        body,
+        manifest: manifest && {
+            ...manifest,
+            pageSource: { source: body ?? "", file: absPath ?? relPath, bodyLine },
+        },
+    })?.doc;
     if (doc?.key && address) {
         records.push(
             buildDocRecord({
@@ -1825,7 +1842,15 @@ function publicHeadingDeclarations(expanded) {
 }
 
 /** Render the shared expression language and carry inserted scalar lines back to their source. */
-function publicationExpressions(expanded, context, { privateMetadata = false } = {}) {
+function publicationExpressions(
+    expanded,
+    context,
+    { privateMetadata = false, privateHeadings = false } = {},
+) {
+    if (privateHeadings) {
+        if (!privateMetadata) publicationExpressions(expanded, context);
+        expanded = publicHeadingDeclarations(expanded);
+    }
     const source = expanded.markdown;
     const additions = [];
     const findings = [];
@@ -1941,7 +1966,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
  * @param {object} [options.router] - Destination router.
  * @param {Function} [options.syntax] - Captured syntax scanner.
  * @param {Function} [options.prepareAudience] - Cached SQL preparation by audience.
- * @returns {Promise<{expandedBodies: Map<string, object>, foundryBodies: Map<string, object>}>} Expanded bodies, without output writes.
+ * @returns {Promise<{expandedBodies: Map<string, object>, foundryBodies: Map<string, {markdown: string, source: string, lineMap: object[], generatedFrom?: number, file: string, bodyLine?: number}>}>} Expanded bodies and native source provenance, without output writes.
  */
 export async function preparePublicationBodies({
     contentBase: tree,
@@ -2081,9 +2106,11 @@ export async function preparePublicationBodies({
             const body = bodies.get(file);
             const privateMetadata =
                 audience === "all" && populationAudience === "public" && isGmNote(record);
-            const declarations = privateMetadata ? publicHeadingDeclarations(body) : body;
+            const privateHeadings =
+                privateMetadata ||
+                (populationAudience === "public" && nativeAudience(record) === "all");
             const expanded = publicationExpressions(
-                declarations,
+                body,
                 {
                     fm: projectPopulationFrontmatter(
                         authoredFrontmatter(record),
@@ -2109,10 +2136,15 @@ export async function preparePublicationBodies({
                             }),
                     },
                 },
-                { privateMetadata },
+                { privateMetadata, privateHeadings },
             );
             if (audience === populationAudience && nativeAudience(record) === audience)
-                foundryBodies.set(file, expanded);
+                foundryBodies.set(file, {
+                    ...expanded,
+                    source: authored.body,
+                    file,
+                    bodyLine: authored.bodyLine,
+                });
             if (
                 populationAudience === "public" &&
                 (isGmNote(record) ? "all" : "public") === audience
@@ -2145,7 +2177,7 @@ export async function preparePublicationBodies({
  * @property {object[]} records - Complete index records, including hidden providers.
  * @property {Map<string, {frontmatter: object|null, body: string, raw: string, bodyLine?: number, bodyColumn?: number}>} parsed - Authored sources by absolute file.
  * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} expandedBodies - Public-population bodies with static declarations for private expression headings.
- * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} foundryBodies - Native bodies in the destination audience, used only for target identity.
+ * @property {Map<string, {markdown: string, source: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number, file: string, bodyLine?: number}>} foundryBodies - Native bodies and captured source provenance in the destination audience, used only for target identity.
  * @property {import("./content-session.mjs").ContentSyntax} [syntax] - Session-local exact-text scanner projections.
  */
 
@@ -2154,7 +2186,7 @@ function projectPublicationBody(
     records,
     record,
     body,
-    { contentPackage, manifest, resolveRole, foundryBody = body, syntax },
+    { contentPackage, manifest, resolveRole, foundryBody = body, pageSource, syntax },
 ) {
     const fm = authoredFrontmatter(record);
     const address = noteAddress(fm, contentPackage);
@@ -2174,7 +2206,10 @@ function projectPublicationBody(
                     return {
                         ...(original.get(anchor.slug) ?? generated),
                         ...((
-                            isGmNote(record) &&
+                            (isGmNote(record) ||
+                                manifest.packRouter.privateOf(
+                                    manifest.packRouter.resolveOrNull(fm, "JournalEntry"),
+                                )) &&
                             dynamicPublicationBody(original.get(anchor.slug)?.name)
                         ) ?
                             generated
@@ -2189,7 +2224,12 @@ function projectPublicationBody(
                 ...(record.anchors ?? []).filter((anchor) => anchor.kind === "event"),
             ]
         );
-    const entries = foundryEntries({ frontmatter: fm, address, body: foundryBody, manifest });
+    const entries = foundryEntries({
+        frontmatter: fm,
+        address,
+        body: foundryBody,
+        manifest: { ...manifest, pageSource },
+    });
     const declared = new Set(
         (record.anchors ?? [])
             .filter((anchor) => anchor.kind === "prose")
@@ -2351,6 +2391,7 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
             manifest: { ...foundryIdentities(resolved), syntax: publication?.syntax },
             resolveRole: (address) => embedRole(art, address),
             foundryBody: publication?.foundryBodies.get(file).markdown,
+            pageSource: publication?.foundryBodies.get(file),
             syntax: publication?.syntax,
         });
     }

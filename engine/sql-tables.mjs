@@ -1818,16 +1818,16 @@ async function attachPreparedAnchors(prepared, records, contentBase, parsed, con
             source: file,
             sqlTables: results,
             pageLists: prepared.pageLists?.get(file),
-        }).markdown;
-        results.anchors = collectAnchors(expanded, 1, undefined, syntax);
+        });
+        results.anchors = collectAnchors(expanded.markdown, 1, undefined, syntax);
         if (!identities || !record.address?.slug) continue;
         const frontmatter = authoredFrontmatter(record);
         const entries = entriesForNote(
             frontmatter,
             frontmatter.name?.full ?? record.file.name,
             record.address.slug,
-            expanded,
-            identities,
+            expanded.markdown,
+            { ...identities, pageSource: { ...expanded, source: body, file } },
         );
         results.anchorUuids = entries[0]?.anchors;
         results.docAnchorUuids = entries[1]?.anchors;

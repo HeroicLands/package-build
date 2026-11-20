@@ -151,6 +151,7 @@ export class Scenes extends BasePackCompiler {
         const entryId = hasBody ? itemDocEntryId(fm.id) : undefined;
         const scene = buildExportedScene(fm, markdown, {
             journalEntryId: entryId,
+            pageSource: this.journalPageSource(fm),
             stats: this.stats,
             resolveAddress: (address) => {
                 const result = artPathname(this.linkIndex, address, "image");
@@ -174,6 +175,7 @@ export class Scenes extends BasePackCompiler {
                     id: entryId,
                     name,
                     markdown,
+                    pageSource: this.journalPageSource(fm),
                     leadName: name,
                     resolveRole,
                     runs: this.corpus?.runs,

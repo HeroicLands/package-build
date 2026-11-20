@@ -225,12 +225,16 @@ function keyDocuments(docs, collection, parentIds, sceneId) {
  *
  * @param {object} fm - The map note's frontmatter.
  * @param {string} markdown - Its converted Markdown body.
- * @param {{journalEntryId?: string, stats?: object, resolveAddress?: Function}} [opts] - Pack metadata, derived JournalEntry ID, and asset resolver.
+ * @param {{journalEntryId?: string, stats?: object, resolveAddress?: Function, pageSource?: {source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}}} [opts] - Pack metadata, derived JournalEntry ID, and asset resolver.
  * @returns {object} The keyed Scene document.
  * @throws {Error} When `data.scene` is not an object, or a fixup or pin anchor
  *   names something the Scene or the note does not have.
  */
-export function buildExportedScene(fm, markdown, { journalEntryId, stats, resolveAddress } = {}) {
+export function buildExportedScene(
+    fm,
+    markdown,
+    { journalEntryId, stats, resolveAddress, pageSource } = {},
+) {
     const source = fm.data?.scene;
     if (!source || typeof source !== "object" || Array.isArray(source)) {
         throw new Error("a map note needs a Foundry Scene object at `data.scene`");
@@ -246,7 +250,13 @@ export function buildExportedScene(fm, markdown, { journalEntryId, stats, resolv
     for (const collection of EMBEDDED) keyDocuments(scene[collection], collection, [], fm.id);
 
     const pages = new Map();
-    for (const page of splitPages(markdown, fm.name?.full ?? scene.name)) {
+    for (const page of splitPages(
+        markdown,
+        fm.name?.full ?? scene.name,
+        undefined,
+        undefined,
+        pageSource,
+    )) {
         if (!page.anchorSlug) continue;
         if (pages.has(page.anchorSlug)) {
             throw new Error(`the map note repeats anchor "${page.anchorSlug}"`);

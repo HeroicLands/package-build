@@ -9,6 +9,10 @@ import { createPackRouter } from "../engine/pack-router.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
 import { Journals } from "../engine/journals.mjs";
+import { Items } from "../sohl/items.mjs";
+import { Scenes } from "../engine/scenes.mjs";
+import { makeId } from "../engine/ids.mjs";
+import { anchorPageId } from "../engine/wikilinks.mjs";
 import { generatePacksJson } from "../engine/generate.mjs";
 import { emitContentIndex } from "../engine/content-index.mjs";
 import { populationJournalPlan } from "../engine/population-journals.mjs";
@@ -19,7 +23,7 @@ const packs = [
     { name: "private", type: "JournalEntry", private: true },
 ];
 
-function input(packList = packs) {
+function input(packList: object[] = packs, extraConfig: object = {}) {
     const tree = fixture(0, "populationproof");
     const data = {
         contentPackage: "populationproof",
@@ -28,6 +32,7 @@ function input(packList = packs) {
         stats: { lastModifiedBy: "populationtest01" },
         skipDirectories: ["Templates"],
         packs: packList,
+        ...extraConfig,
     };
     write(tree.configFile, YAML.stringify(data));
     const config = configFromData(data, tree.configFile);
@@ -104,7 +109,7 @@ it.each(["session", "standalone"])(
         tree.add(
             "privateinline",
             { pack: "private", population: { actual: 4700, apparent: 900 } },
-            `# Population {{sql "${privateCountQuery}"}}\n\n[Account]{#safe}.\n\nResidents: {{sql "${privateCountQuery}"}}.\n\n[Account {{sql "${privateTextQuery}"}}]{#paragraph}.\n\n- Grouped residents: {{digits (sql "${privateCountQuery}")}}.\n\n| Detail | Residents |\n| --- | --- |\n| Account | {{sql "${privateCountQuery}"}} |`,
+            `# Population {{sql "${privateCountQuery}"}}\n\n[Account]{#safe}.\n\nResidents: {{sql "${privateCountQuery}"}}.\n\n[Account {{sql "${privateTextQuery}"}}]{#paragraph}.\n\n- Grouped residents: {{digits (sql "${privateCountQuery}")}}.\n\n| Detail | Residents |\n| --- | --- |\n| Account | {{sql "${privateCountQuery}"}} |\n\nZero {{sql "SELECT 0"}}; flag {{sql "SELECT false"}}.`,
             { tags: ["gm"] },
         );
         tree.add(
@@ -116,7 +121,7 @@ it.each(["session", "standalone"])(
         tree.add(
             "reader",
             {},
-            "[[place-privateplain#safe|Plain]] and [[place-privateinline#safe|Inline]], [[place-privateinline#paragraph|Paragraph]] and [[place-privateanchor#safe|Anchored]].",
+            '[[place-privateplain#safe|Plain]] and [[place-privateinline#safe|Inline]], [[place-privateinline#paragraph|Paragraph]] and [[place-privateanchor#safe|Anchored]]. Zero {{sql "SELECT 0"}}; flag {{sql "SELECT false"}}.',
         );
         const session = await createContentSession({ config: tree.config });
         try {
@@ -173,6 +178,8 @@ it.each(["session", "standalone"])(
                     const projected = publication.expandedBodies.get(
                         path.join(tree.config.paths.content, "privateinline.md"),
                     ).markdown;
+                    expect(projected).toContain("Zero 0; flag false.");
+                    expect(reader).toContain("Zero 0; flag false.");
                     expect(projected).not.toContain("4700");
                     expect(projected).not.toContain("Hidden residents");
                     expect(projected).not.toContain("{{");
@@ -204,6 +211,315 @@ it.each(["session", "standalone"])(
             expect({ records: session.records, parsed: [...session.parsed] }).toEqual(before);
             for (const [file, text] of tree.sources)
                 expect(fs.readFileSync(file, "utf8")).toBe(text);
+        } finally {
+            await session.dispose();
+            tree.close();
+        }
+    },
+);
+
+it.each(["session", "standalone"].flatMap((mode) => [false, true].map((gm) => ({ mode, gm }))))(
+    "keeps private page targets independent of actual figures (compiler: $mode, GM: $gm)",
+    async ({ mode, gm }) => {
+        let previous;
+        for (const actual of [4700, 6800]) {
+            const tree = input();
+            const query =
+                "SELECT CASE WHEN data.population.actual IS NULL THEN 'Public estimate {#generated}' ELSE 'Generated ' || data.population.actual || ' {#generated}' END AS \"_section\", 'An account.' AS Entry FROM notes WHERE shortcode = 'stable'";
+            const body = [
+                "# Population {{data.population.actual}}",
+                "",
+                "[Account]{#safe}.",
+                "",
+                ": Example {#example}",
+                "",
+                "```text",
+                "An example.",
+                "```",
+                "",
+                "[After the example]{#after}.",
+                "",
+                ...(gm ?
+                    [
+                        "{{sql \"SELECT 'Extra ' || data.population.actual || chr(10) || 'second line' FROM notes WHERE shortcode = 'stable'\"}}",
+                        "",
+                    ]
+                :   []),
+                "## Details {{data.population.actual}} {#details}",
+                "",
+                "Details.",
+                "",
+                ...(gm ?
+                    [
+                        "# Scalar {{sql \"SELECT data.population.actual FROM notes WHERE shortcode = 'stable'\"}}",
+                        "",
+                        "[Scalar account]{#scalar}.",
+                        "",
+                    ]
+                :   []),
+                "```sql",
+                query,
+                "```",
+                "",
+                "[Generated account]{#generated-safe}.",
+            ].join("\n");
+            tree.add(
+                "stable",
+                { pack: "private", population: { actual, apparent: 900 } },
+                body,
+                gm ? { tags: ["gm"] } : {},
+            );
+            tree.add(
+                "reader",
+                {},
+                "[[place-stable#safe|Account]], [[place-stable#after|After]], [[place-stable#details|Details]] and [[place-stable#generated-safe|Generated]].",
+            );
+            const session = await createContentSession({ config: tree.config });
+            try {
+                const before = structuredClone({
+                    records: session.records,
+                    parsed: [...session.parsed],
+                });
+                const corpus =
+                    mode === "session" ?
+                        await session.compileCorpus()
+                    :   await buildCompileCorpus({
+                            config: tree.config,
+                            contentBase: tree.config.paths.content,
+                            skipDirectories: tree.config.skipDirectories,
+                            router: createPackRouter(tree.config.packs),
+                        });
+                const privateDocs = await compile(tree, corpus, "private");
+                const publicDocs = await compile(tree, corpus, "journals");
+                const document = privateDocs.find((entry) => entry.name === "stable");
+                const first = document.pages.find((page) =>
+                    page.text?.content?.includes('id="safe"'),
+                );
+                expect(first.name).toBe(`Population ${actual}`);
+                expect(first._id).not.toBe(
+                    makeId("journal-page", `${document._id}:Population ${actual}`),
+                );
+                expect(document.pages.find((page) => page.name === `Details ${actual}`)._id).toBe(
+                    anchorPageId(document._id, "details"),
+                );
+                expect(document.pages.some((page) => page.name === `Generated ${actual}`)).toBe(
+                    true,
+                );
+                if (gm)
+                    expect(document.pages.some((page) => page.name === `Scalar ${actual}`)).toBe(
+                        true,
+                    );
+                const publication = await session.publication();
+                const result = emitContentIndex({ config: tree.config, publication });
+                const jsonl = fs.readFileSync(result.file, "utf8");
+                const published = jsonl
+                    .trim()
+                    .split("\n")
+                    .map((line) => JSON.parse(line))
+                    .find((record) => record.type === "place" && record.shortcode === "stable");
+                const reader = JSON.stringify(publicDocs.find((entry) => entry.name === "reader"));
+                for (const slug of ["safe", "after", "details", "generated-safe"]) {
+                    const target = published.foundry.note.anchors[slug];
+                    expect(target).toBeTruthy();
+                    const pageId = target.split(".").at(-1);
+                    expect(document.pages.some((page) => page._id === pageId)).toBe(true);
+                    expect(reader).toContain(target);
+                }
+                expect(published.foundry.note.anchors.$lead).toBe(
+                    `${published.foundry.note.uuid}.JournalEntryPage.${first._id}`,
+                );
+                const state = {
+                    ids: document.pages.map((page) => page._id),
+                    anchors: published.foundry.note.anchors,
+                };
+                if (previous) expect(state).toEqual(previous);
+                previous = state;
+                const metadata =
+                    jsonl +
+                    JSON.stringify([...corpus.audiences.public.linkIndex.byShortcode.values()]);
+                expect(metadata).not.toMatch(new RegExp(`\\b${actual}\\b`));
+                for (const hidden of [
+                    "SELECT",
+                    `Population ${actual}`,
+                    `Generated ${actual}`,
+                    "sourceIdentity",
+                    "lineMap",
+                    "journal-private-page",
+                ])
+                    expect(metadata).not.toContain(hidden);
+                expect({ records: session.records, parsed: [...session.parsed] }).toEqual(before);
+                for (const [file, text] of tree.sources)
+                    expect(fs.readFileSync(file, "utf8")).toBe(text);
+            } finally {
+                await session.dispose();
+                tree.close();
+            }
+        }
+    },
+);
+
+it.each(["session", "standalone"])(
+    "uses private documentation page identities from public item and scene passes in %s mode",
+    async (mode) => {
+        const tree = input(
+            [
+                { name: "private", type: "JournalEntry", private: true, default: true },
+                { name: "journals", type: "JournalEntry" },
+                { name: "items", type: "Item", system: "sohl", default: true },
+                {
+                    name: "scenes",
+                    type: "Scene",
+                    default: true,
+                    companions: [{ name: "adventures", type: "Adventure" }],
+                },
+            ],
+            { itemBuilders: ["sohl"], systems: { sohl: { compatibility: { verified: "0.9.0" } } } },
+        );
+        const body =
+            "# Population {{data.population.actual}}\n\n[Account]{#safe}.\n\n## Details {{data.population.actual}} {#details}\n\nAn account.";
+        tree.add("item", { population: { actual: 4700, apparent: 900 } }, body, {
+            type: "skill",
+            subType: "physical",
+            sohl: { subType: "physical", templatePriority: null },
+        });
+        tree.add(
+            "map",
+            {
+                population: { actual: 4700, apparent: 900 },
+                scene: {
+                    name: "Map",
+                    width: 512,
+                    height: 512,
+                    grid: { type: 1, size: 64, distance: 5, units: "ft" },
+                    initialLevel: "defaultLevel0000",
+                    levels: [
+                        { _id: "defaultLevel0000", background: { src: "maps/parchment.webp" } },
+                    ],
+                    notes: [
+                        { _id: "NNNNNNNNNNNNNNNN", text: "#details", x: 256, y: 256 },
+                        { _id: "GGGGGGGGGGGGGGGG", text: "#generated", x: 128, y: 128 },
+                    ],
+                },
+            },
+            [
+                body,
+                "",
+                "```sql",
+                "SELECT CASE WHEN data.population.actual IS NULL THEN 'Public estimate {#generated}' ELSE 'Generated ' || data.population.actual || ' {#generated}' END AS \"_section\", 'An account.' AS Entry FROM notes WHERE shortcode = 'map'",
+                "```",
+            ].join("\n"),
+            { type: "map", subType: "battlemap" },
+        );
+        const session = await createContentSession({ config: tree.config });
+        try {
+            const before = structuredClone({
+                records: session.records,
+                parsed: [...session.parsed],
+            });
+            const corpus =
+                mode === "session" ?
+                    await session.compileCorpus()
+                :   await buildCompileCorpus({
+                        config: tree.config,
+                        contentBase: tree.config.paths.content,
+                        skipDirectories: tree.config.skipDirectories,
+                        router: createPackRouter(tree.config.packs),
+                    });
+            const privateDocs = await compile(tree, corpus, "private");
+            const directories = Object.fromEntries(
+                ["items", "scenes", "adventures"].map((name) => {
+                    const directory = path.join(tree.config.paths.packJson, name);
+                    fs.mkdirSync(directory, { recursive: true });
+                    return [name, directory];
+                }),
+            );
+            const items = new Items({
+                contentBase: tree.config.paths.content,
+                skipDirectories: tree.config.skipDirectories,
+                dest: directories.items,
+                packName: "items",
+                corpus,
+            });
+            await items.compile();
+            expect(items.errorCount).toBe(0);
+            const scenes = new Scenes({
+                contentBase: tree.config.paths.content,
+                skipDirectories: tree.config.skipDirectories,
+                dest: directories.scenes,
+                packName: "scenes",
+                corpus,
+                companionDests: { adventures: directories.adventures },
+            });
+            await scenes.compile();
+            expect(scenes.errorCount).toBe(0);
+            const item = documents(directories.items).find((entry) => entry.name === "item");
+            const itemDoc = privateDocs.find((entry) => entry.name === "item");
+            const itemPage = itemDoc.pages.find((page) => page.name === "Population 4700");
+            expect(item.system.docHtml).toContain(
+                `Compendium.populationproof.private.JournalEntry.${itemDoc._id}.JournalEntryPage.${itemPage._id}`,
+            );
+            const scene = documents(directories.scenes)[0];
+            const mapDoc = privateDocs.find((entry) => entry.name === "map");
+            const mapPage = mapDoc.pages.find((page) => page.name === "Details 4700");
+            expect(scene.notes[0].entryId).toBe(mapDoc._id);
+            expect(scene.notes[0].pageId).toBe(mapPage._id);
+            const adventure = documents(directories.adventures)[0];
+            const bundled = adventure.journal[0];
+            const generatedPage = mapDoc.pages.find((page) => page.name === "Generated 4700");
+            const generatedCompanion = bundled.pages.find(
+                (page) => page.name === "Public estimate",
+            );
+            expect(scene.notes[1].entryId).toBe(mapDoc._id);
+            expect(scene.notes[1].pageId).toBe(generatedPage._id);
+            expect(scene.notes[1].pageId).toBe(generatedCompanion._id);
+            expect(scene.notes[1].pageId).not.toBe(anchorPageId(mapDoc._id, "generated"));
+            expect(scene.notes[1].text).toBe("Public estimate");
+            expect(mapDoc.pages.some((page) => page.name === "Population 4700")).toBe(true);
+            expect(
+                bundled.pages.every((page) =>
+                    mapDoc.pages.some((native) => native._id === page._id),
+                ),
+            ).toBe(true);
+            const publicPayload = JSON.stringify({ item, scene, adventure });
+            expect(publicPayload).not.toMatch(/\b4700\b/);
+            for (const secret of [
+                "4,700",
+                "Population 4700",
+                "Details 4700",
+                "Generated 4700",
+                "SELECT CASE",
+                "sourceIdentity",
+            ])
+                expect(publicPayload).not.toContain(secret);
+            expect({ records: session.records, parsed: [...session.parsed] }).toEqual(before);
+        } finally {
+            await session.dispose();
+            tree.close();
+        }
+    },
+);
+
+it.each(["session", "standalone"])(
+    "keeps public scalar SQL strict for a non-GM private destination in %s mode",
+    async (mode) => {
+        const tree = input();
+        tree.add(
+            "privatepublic",
+            { pack: "private", population: { actual: 4700, apparent: 900 } },
+            "# Population {{sql \"SELECT data.population.actual FROM notes WHERE shortcode = 'privatepublic'\"}}\n\n[Account]{#safe}.",
+        );
+        const session = await createContentSession({ config: tree.config });
+        try {
+            const preparation =
+                mode === "session" ?
+                    session.compileCorpus()
+                :   buildCompileCorpus({
+                        config: tree.config,
+                        contentBase: tree.config.paths.content,
+                        skipDirectories: tree.config.skipDirectories,
+                        router: createPackRouter(tree.config.packs),
+                    });
+            await expect(preparation).rejects.toThrow("scalar SQL result is empty");
         } finally {
             await session.dispose();
             tree.close();
@@ -380,8 +696,13 @@ it("emits a mixed corpus with exact private facts and one supplement only where 
                 .map((name) => `${name} — Population`)
                 .sort(),
         );
-        expect(supplements.map((entry) => entry._id).sort()).toEqual(
-            plan.subjects.map((subject) => subject.id).sort(),
+        const differentSubject = plan.subjects.find((subject) => subject.name === "different");
+        expect(differentSubject.address).toBe("populationproof-note-place-different");
+        expect(differentSubject.id).toBe(
+            makeId("population-supplement", "populationproof-note-place-different"),
+        );
+        expect(supplements.find((entry) => entry.name === "different — Population")._id).toBe(
+            makeId("population-supplement", "populationproof-note-place-different"),
         );
         for (const subject of plan.subjects) {
             const document = supplements.find((entry) => entry._id === subject.id);

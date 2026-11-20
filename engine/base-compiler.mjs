@@ -608,6 +608,8 @@ export class BasePackCompiler {
             // the same thing six times.
             this.reportsCorpusProblems = true;
         }
+        const { routerFor } = await import("./pack-router.mjs");
+        this.journalRouter = this.router ?? routerFor(this.corpus.config);
         // The index is taken whatever the pass does with a body: it answers
         // the art fields, which name a file rather than a document, and a pass
         // that converts no prose still compiles a document that carries art.
@@ -678,10 +680,14 @@ export class BasePackCompiler {
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} body - The note body, as authored.
+     * @param {"public"|"all"} [audience] - Internal destination audience override for documentation.
      * @returns {string} The converted markdown, or `body` itself for a pass
      *   that does not convert.
      */
-    convertBody(fm, body) {
+    convertBody(fm, body, audience = this.populationAudience) {
+        const view = this.corpus?.audiences?.[audience];
+        const linkIndex = view?.linkIndex ?? this.linkIndex;
+        const sqlTables = view?.sqlTables ?? this.sqlTables;
         // Every pass's own findings are collected before any of them is
         // reported, so a note with a malformed block *and* a malformed
         // caption *and* a bad expression surfaces all three in one run
@@ -758,17 +764,17 @@ export class BasePackCompiler {
         // note.
         const expanded = expandContent(body, {
             target: "foundry",
-            audience: this.populationAudience,
-            index: this.linkIndex,
+            audience,
+            index: linkIndex,
             note: { fm, file: absPath, source: name, bodyLine: noteLine, bodyColumn: noteColumn },
             prepared: {
-                sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
-                pageLists: absPath ? this.sqlTables?.pageLists?.get(absPath) : undefined,
-                inline: absPath ? this.sqlTables?.inline?.get(absPath) : undefined,
+                sqlTables: absPath ? sqlTables?.get(absPath) : undefined,
+                pageLists: absPath ? sqlTables?.pageLists?.get(absPath) : undefined,
+                inline: absPath ? sqlTables?.inline?.get(absPath) : undefined,
             },
             events: this.eventNotes(),
             // A `ref` to a map reads the number the map's own page carries.
-            resolveRole: (address) => embedRole(this.linkIndex, address),
+            resolveRole: (address) => embedRole(linkIndex, address),
             links: {
                 // A `[[#slug]]` self-link addresses the source note, which has
                 // no entry in the index — so where its own documents landed
@@ -800,7 +806,44 @@ export class BasePackCompiler {
         this.reportConvertBodyFindings(findings);
         if (expanded.linkError) throw expanded.linkError;
         this.unresolvedLinks += expanded.unresolved.length;
+        this.currentPageSource = {
+            source: body,
+            lineMap: expanded.lineMap,
+            generatedFrom: expanded.generatedFrom,
+            file: absPath,
+            bodyLine: noteLine,
+        };
         return expanded.markdown;
+    }
+
+    /** Render the private journal's own audience for a secondary document caller. */
+    documentationBody(fm, markdown) {
+        const router = this.journalRouter ?? this.router;
+        const pack = router?.resolveOrNull(fm, "JournalEntry");
+        if (!router?.privateOf(pack) || this.populationAudience === "all") return markdown;
+        if (!this.currentNote?.frontmatter || this.currentNote.source === undefined)
+            throw Object.assign(
+                new Error(
+                    `${this.currentNote?.absPath || "<journal>"}:1:1: error: private documentation has no captured source`,
+                ),
+                { located: true },
+            );
+        return this.convertBody(this.currentNote.frontmatter, this.currentNote.source, "all");
+    }
+
+    /** Captured provenance for a note's resolved private documentation or own journal. */
+    journalPageSource(fm) {
+        const router = this.journalRouter ?? this.router;
+        const pack = router?.resolveOrNull(fm, "JournalEntry");
+        if (!router?.privateOf(pack)) return undefined;
+        if (!this.currentPageSource)
+            throw Object.assign(
+                new Error(
+                    `${this.currentNote?.absPath || "<journal>"}:1:1: error: private journal has no captured source provenance`,
+                ),
+                { located: true },
+            );
+        return this.currentPageSource;
     }
 
     /**
@@ -1261,7 +1304,14 @@ export class BasePackCompiler {
             );
             // Which note this pass is on, so anything it calls can report a
             // position without every method having to be handed one.
-            this.currentNote = { absPath, bodyLine, bodyColumn };
+            this.currentNote = {
+                absPath,
+                bodyLine,
+                bodyColumn,
+                source: body,
+                frontmatter: authoredFrontmatter(record),
+            };
+            this.currentPageSource = undefined;
             // A file carrying no frontmatter at all is not a note.
             if (!fm) {
                 stats.skippedOther++;

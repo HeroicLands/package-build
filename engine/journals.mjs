@@ -81,7 +81,7 @@ import { draftNoticeFor } from "./draft-notice.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { verseRegions } from "./verse-regions.mjs";
 import { separateFootnotes } from "./content-footnotes.mjs";
-import { WITHHELD_CLASS, pageOpenings } from "./heading-attributes.mjs";
+import { WITHHELD_CLASS, pageOpenings, scanHeadingAttributes } from "./heading-attributes.mjs";
 import { imagesIn } from "./content-images.mjs";
 import { IMAGE_EXTENSIONS } from "./asset-types.mjs";
 import { pathnameRoles } from "./art-fields.mjs";
@@ -116,6 +116,56 @@ function namedBlockLines(markdown, syntax) {
 }
 
 /**
+ * Associate private page openings with captured source positions, never display names.
+ * @param {string} body - Expanded body.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} context - Captured source provenance.
+ * @returns {(line: number, kind: string, anchor?: string|null) => {anchor?: string, key?: string}} Internal identity of an opening.
+ */
+function sourcePageIdentity(body, context) {
+    if (typeof context.source !== "string")
+        throw Object.assign(
+            new Error(
+                `${context.file || "<journal>"}:${context.bodyLine ?? 1}:1: error: private journal has no captured source`,
+            ),
+            { located: true },
+        );
+    const source = context.source;
+    const lines = source.split("\n");
+    const mappings =
+        context.lineMap ??
+        (source === body ? lines.map((_, line) => ({ line, generated: false })) : []);
+    const anchors = new Map();
+    for (const heading of scanHeadingAttributes(source).headings)
+        if (heading.id) anchors.set(heading.line - 1, heading.id);
+    for (const figure of scanFigures(source).figures)
+        if (figure.id) anchors.set(figure.line - 1, figure.id);
+    const ordinals = new Map();
+    return (line, kind, anchor) => {
+        const location = mappings[line];
+        const appended = context.generatedFrom !== undefined && line >= context.generatedFrom;
+        if (
+            !location ||
+            !Number.isInteger(location.line) ||
+            location.line < 0 ||
+            (!appended && location.line >= lines.length)
+        ) {
+            throw Object.assign(
+                new Error(
+                    `${context.file || "<journal>"}:${(context.bodyLine ?? 1) + line}:1: error: private journal page opening has no source association`,
+                ),
+                { located: true },
+            );
+        }
+        if (!appended && anchor && anchors.get(location.line) === anchor) return { anchor };
+        const sourceKey = appended ? "appended" : `line:${location.line}`;
+        const key = `${sourceKey}:${kind}`;
+        const ordinal = ordinals.get(key) ?? 0;
+        ordinals.set(key, ordinal + 1);
+        return { key: `${key}:${ordinal}` };
+    };
+}
+
+/**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
  * code blocks are respected so `# foo` inside ``` or ~~~ blocks doesn't
  * trigger a split. Content before the first H1 (if non-empty) becomes a
@@ -147,11 +197,13 @@ function namedBlockLines(markdown, syntax) {
  *   name reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
  * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Session scanner projections.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [pageSource] - Private page source provenance; omitted for public pages.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
  *   classes: string[], figure: object|null, continues?: string,
- *   markdown: string}>} Pages in document order.
+ *   sourceIdentity?: {anchor?: string, key?: string}, markdown: string}>} Pages in document order.
  */
-export function splitPages(body, leadName = "Introduction", resolveRole, syntax) {
+export function splitPages(body, leadName = "Introduction", resolveRole, syntax, pageSource) {
+    const identityAt = pageSource ? sourcePageIdentity(body, pageSource) : undefined;
     const { markdown, definitions } = separateFootnotes(body);
     const lines = markdown.split("\n");
     const figureStarts = new Map(
@@ -170,7 +222,12 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
     let current = null;
     let codeFence = null;
     /** The page a heading last opened, which a captioned item interrupts. */
-    let section = { name: leadName, level: 1, classes: [] };
+    let section = {
+        name: leadName,
+        level: 1,
+        classes: [],
+        ...(identityAt ? { sourceIdentity: { key: "introduction" } } : {}),
+    };
 
     const closeCurrent = () => {
         if (!current) return;
@@ -187,6 +244,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
             level: current.level,
             classes: current.classes,
             figure: current.figure ?? null,
+            ...(current.sourceIdentity ? { sourceIdentity: current.sourceIdentity } : {}),
             ...(current.continues ? { continues: current.continues } : {}),
             markdown,
         });
@@ -224,6 +282,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
         // the item so its id holds still when pages move around it.
         if (current?.figure && lineIndex > current.figure.close) {
             const item = current.figure;
+            const itemIdentity = current.sourceIdentity;
             closeCurrent();
             current = {
                 name: section.name,
@@ -231,6 +290,13 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
                 level: section.level,
                 classes: section.classes,
                 continues: item.slug || item.label || pageNameText(item.caption),
+                ...(identityAt ?
+                    {
+                        sourceIdentity: {
+                            key: `continuation:${JSON.stringify(section.sourceIdentity)}:${JSON.stringify(itemIdentity)}`,
+                        },
+                    }
+                :   {}),
                 lines: [],
             };
         }
@@ -246,6 +312,9 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
                 level: 1,
                 classes: section.classes.includes(WITHHELD_CLASS) ? [WITHHELD_CLASS] : [],
                 figure,
+                ...(identityAt ?
+                    { sourceIdentity: identityAt(lineIndex, "figure", figure.id) }
+                :   {}),
                 lines: [line],
             };
             continue;
@@ -257,6 +326,9 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
                 anchorSlug: opening.id || null,
                 level: opening.level,
                 classes: opening.classes,
+                ...(identityAt ?
+                    { sourceIdentity: identityAt(lineIndex, "heading", opening.id) }
+                :   {}),
                 lines: [],
             };
             section = current;
@@ -279,6 +351,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
             level: 1,
             classes: [],
             figure: null,
+            ...(identityAt ? { sourceIdentity: { key: "introduction" } } : {}),
             markdown: intro,
         });
     }
@@ -308,7 +381,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax)
  * and an unanchored one from the name, so a page named for another's anchor is
  * not a collision.
  *
- * @param {Array<{anchorSlug: string|null, name: string}>} rawPages - From
+ * @param {Array<{anchorSlug: string|null, name: string, sourceIdentity?: object}>} rawPages - From
  *   {@link splitPages}.
  * @param {string} noteName - The note, for the error message.
  * @throws {Error} When two pages in one note share an anchor or a name.
@@ -317,7 +390,14 @@ export function assertUniquePages(rawPages, noteName) {
     const anchors = new Set();
     const names = new Set();
     const continuations = new Set();
+    const sourceIdentities = new Set();
     for (const page of rawPages) {
+        if (page.sourceIdentity) {
+            const key = JSON.stringify(page.sourceIdentity);
+            if (sourceIdentities.has(key))
+                throw new Error(`note "${noteName}" repeats a private page source identity`);
+            sourceIdentities.add(key);
+        }
         if (page.continues) {
             const key = `${page.name}\u0000${page.continues}`;
             if (continuations.has(key)) {
@@ -360,33 +440,18 @@ export function assertUniqueAnchors(rawPages, noteName) {
 
 /**
  * The id of one page within its entry.
- *
- * An anchored page takes the id its inbound links compute from the note id and
- * the slug, so link and page agree without shared state. Every other page is
- * keyed by its **name**, which is what lets the items pass address an item
- * doc's selected page without having compiled it (see
- * {@link sohl.utils.packs.itemDocPointer}).
- *
- * **It takes no index**. Keying a page by position *and* name,
- * so inserting a heading renumbered every page after it and a re-import created
- * new pages beside the old ones — while nothing about those pages had changed.
- * The anchored case above never took one, and is the shape this now shares.
- *
- * The name is a sound identity here in a way it is not for an embedded item: a
- * page's name is its heading, and `MD024` with `siblings_only` is in the shared
- * markdownlint rule set, so two sibling headings with the same text are already
- * a lint error. {@link assertUniquePages} states the same thing at compile
- * time, where the packer would otherwise report only an opaque duplicate key.
- *
- * A continuation page shares its section's name, so it is keyed by that name
- * and the captioned item it follows.
- *
- * @param {string} entryId - The owning JournalEntry's `_id`.
- * @param {{anchorSlug: string|null, name: string, continues?: string}} page -
- *   From {@link splitPages}.
- * @returns {string} A 16-character Foundry id.
+ * Private pages use captured source identity, retaining literal explicit anchors.
+ * Public pages use their anchor or displayed section and continuation names.
+ * @param {string} entryId - The owning JournalEntry's id.
+ * @param {{anchorSlug: string|null, name: string, continues?: string,
+ *   sourceIdentity?: {anchor?: string, key?: string}}} page - A split page.
+ * @returns {string} A deterministic Foundry id.
  */
 export function journalPageId(entryId, page) {
+    if (page.sourceIdentity) {
+        if (page.sourceIdentity.anchor) return anchorPageId(entryId, page.sourceIdentity.anchor);
+        return makeId("journal-private-page", `${entryId}:${page.sourceIdentity.key}`);
+    }
     if (page.anchorSlug) return anchorPageId(entryId, page.anchorSlug);
     return page.continues ?
             makeId("journal-page", `${entryId}:${page.name}:after:${page.continues}`)
@@ -656,6 +721,7 @@ export function buildPages(rawPages, entryId, noteName, figures, resolveRole, ru
  * @param {import("./content-session.mjs").ContentSyntax} [params.syntax] - Session scanner projections.
  * @param {import("./content-scripts.mjs").RunContext} [params.runs] - The package's
  *   languages, faces and maps — see {@link module:engine/helpers.renderFoundryMarkdown}.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [params.pageSource] - Captured source provenance for a private destination.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({
@@ -670,8 +736,9 @@ export function buildJournalEntry({
     resolveRole,
     syntax,
     runs,
+    pageSource,
 }) {
-    const rawPages = splitPages(markdown, leadName, resolveRole, syntax);
+    const rawPages = splitPages(markdown, leadName, resolveRole, syntax, pageSource);
     const pages = buildPages(
         rawPages,
         id,
@@ -849,21 +916,32 @@ export class Journals extends BasePackCompiler {
         // its roles by — so a captioned map names itself `Map 1` here
         // exactly as the website and the book name the same picture.
         const roles = pathnameRoles(this.linkIndex);
+        const appendix = seeAlsoMarkdown(
+            seeAlsoEntries(fm, (ref) => resolveReference(this.linkIndex, ref)),
+            linkToUuid,
+            1,
+        );
+        let pageSource = this.journalPageSource(fm);
+        if (pageSource && appendix) {
+            const sourceLine = Math.max(0, pageSource.source.split("\n").length - 1);
+            pageSource = {
+                ...pageSource,
+                lineMap: [
+                    ...pageSource.lineMap,
+                    ...Array.from({ length: appendix.split("\n").length + 1 }, () => ({
+                        line: sourceLine,
+                        generated: true,
+                    })),
+                ],
+            };
+        }
 
         return buildJournalEntry({
             syntax: this.corpus?.syntax,
+            pageSource,
             id,
             name,
-            markdown: [
-                markdown,
-                seeAlsoMarkdown(
-                    seeAlsoEntries(fm, (ref) => resolveReference(this.linkIndex, ref)),
-                    linkToUuid,
-                    1,
-                ),
-            ]
-                .filter(Boolean)
-                .join("\n\n"),
+            markdown: [markdown, appendix].filter(Boolean).join("\n\n"),
             resolveRole: (pathname) => roles.get(pathname),
             runs: this.corpus?.runs,
             infoboxes: boxes.map((box) => ({
