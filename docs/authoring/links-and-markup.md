@@ -211,6 +211,8 @@ The harbor faces west.
 Travelers present their papers here. See [[#harbor|the harbor]].
 ```
 
+In a GM note, give a heading containing an expression a literal `{#id}` when it needs a public link target. Public metadata uses that id as both the target and its name, without exposing the expression or query text. Without an explicit id, the dynamic heading has no public heading target. Other safely declared anchors on its private page still resolve, and private rendering retains complete values.
+
 A leading caption gives its item a JournalEntryPage of its own in Foundry, and the body after the item resumes on a continuation of the surrounding section. A solitary image with a plain caption can be an image page; other captioned items become text pages. Websites and books keep captioned items in the surrounding flow.
 
 The prose introducing a fence and the fence itself land on two different Foundry pages, so a reference such as `{{ref "#trade"}}` written just above a fence sends a Foundry reader to a different page than the one carrying the sentence. Give the introducing prose its own heading, or accept that following the reference leaves the page, before relying on a fence to sit inside a longer page's flow.
