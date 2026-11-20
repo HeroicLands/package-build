@@ -54,6 +54,7 @@ jobs:
             - name: Inspect pinned map
               env:
                   CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+                  PROBE_FORGE_TOKEN: ${{ github.token }}
                   PROBE_MAP_URL: ${{ github.event.inputs.map_url }}
                   PROBE_JSON_URL: ${{ github.event.inputs.json_url }}
                   PROBE_MANIFEST_URL: ${{ github.event.inputs.manifest_url }}

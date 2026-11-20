@@ -1,4 +1,15 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later */
+/*
+ * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
+ * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
+ *
+ * This work is licensed under the GNU General Public License v3.0 (GPLv3).
+ * You may copy, modify, and distribute it under the terms of that license.
+ *
+ * For full terms, see the LICENSE.md file in the project root or visit:
+ * https://www.gnu.org/licenses/gpl-3.0.html
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
@@ -61,8 +72,8 @@ export const pin = Object.freeze({
 });
 export const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-/** Fetch exactly one bounded, pinned attachment without redirects or credentials. */
-export async function fetchPinnedAttachment(input, spec, fetchImpl = fetch) {
+/** Fetch exactly one bounded, pinned attachment without redirects. */
+export async function fetchPinnedAttachment(input, spec, token, fetchImpl = fetch) {
     let url;
     try {
         url = new URL(input);
@@ -82,11 +93,18 @@ export async function fetchPinnedAttachment(input, spec, fetchImpl = fetch) {
         )
     )
         throw new Error("attachment URL rejected");
-    const response = await fetchImpl(url.href, {
-        redirect: "error",
-        credentials: "omit",
-        signal: AbortSignal.timeout(120000),
-    });
+    if (typeof token !== "string" || !token.trim()) throw new Error("forge token required");
+    let response;
+    try {
+        response = await fetchImpl(url.href, {
+            redirect: "error",
+            credentials: "omit",
+            headers: { Authorization: `token ${token}` },
+            signal: AbortSignal.timeout(120000),
+        });
+    } catch {
+        throw new Error("attachment request failed");
+    }
     if (response.status !== 200 || response.redirected || !response.body)
         throw new Error("attachment response rejected");
     const length = response.headers.get("content-length");
@@ -94,10 +112,14 @@ export async function fetchPinnedAttachment(input, spec, fetchImpl = fetch) {
         throw new Error("attachment exceeds byte limit");
     const parts = [];
     let count = 0;
-    for await (const part of response.body) {
-        count += part.length;
-        if (count > spec.max) throw new Error("attachment exceeds byte limit");
-        parts.push(part);
+    try {
+        for await (const part of response.body) {
+            count += part.length;
+            if (count > spec.max) throw new Error("attachment exceeds byte limit");
+            parts.push(part);
+        }
+    } catch {
+        throw new Error("attachment stream failed or exceeds byte limit");
     }
     if (length !== null && count !== Number(length)) throw new Error("attachment length mismatch");
     const bytes = Buffer.concat(parts, count);
@@ -176,12 +198,15 @@ async function main() {
             execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim() !== candidate
         )
             throw new Error("candidate SHA rejected");
+        const token = process.env.PROBE_FORGE_TOKEN;
+        if (!token?.trim()) throw new Error("forge token required");
         const bytes = {};
         for (const [name, spec] of Object.entries(inputs)) {
             report.inFlight = name;
             bytes[name] = await fetchPinnedAttachment(
                 process.env[`PROBE_${name.toUpperCase()}_URL`],
                 spec,
+                token,
             );
             report.inputs[name] = { sha256: digest(bytes[name]), bytes: bytes[name].length };
             if (!["map", "json"].includes(name))

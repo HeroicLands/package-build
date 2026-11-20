@@ -16,11 +16,14 @@ it("accepts only bounded same-forge attachments with their pinned bytes", async 
     const bytes = Buffer.from("proof");
     const spec = { sha256: digest(bytes), max: 5 };
     let options: any;
+    let calls = 0;
     const fetcher = async (_url: string, init: any) => {
+        calls++;
         options = init;
         return response("proof");
     };
-    expect(await fetchPinnedAttachment(url, spec, fetcher)).toEqual(bytes);
+    expect(await fetchPinnedAttachment(url, spec, "test-token", fetcher)).toEqual(bytes);
+    expect(options.headers).toEqual({ Authorization: "token test-token" });
     expect(options.redirect).toBe("error");
     expect(options.credentials).toBe("omit");
     for (const bad of [
@@ -29,14 +32,26 @@ it("accepts only bounded same-forge attachments with their pinned bytes", async 
         url + "?redirect=x",
         "https://git.pupluppy.org/other/12345678-1234-1234-1234-123456789abc",
     ])
-        await expect(fetchPinnedAttachment(bad, spec, fetcher)).rejects.toThrow(/URL/);
-    await expect(fetchPinnedAttachment(url, { ...spec, max: 4 }, fetcher)).rejects.toThrow(/limit/);
+        await expect(fetchPinnedAttachment(bad, spec, "test-token", fetcher)).rejects.toThrow(
+            /URL/,
+        );
+    expect(calls).toBe(1);
+    await expect(fetchPinnedAttachment(url, spec, "", fetcher)).rejects.toThrow(/token/);
+    expect(calls).toBe(1);
     await expect(
-        fetchPinnedAttachment(url, { ...spec, sha256: "0".repeat(64) }, fetcher),
+        fetchPinnedAttachment(url, { ...spec, max: 4 }, "test-token", fetcher),
+    ).rejects.toThrow(/limit/);
+    await expect(
+        fetchPinnedAttachment(url, { ...spec, sha256: "0".repeat(64) }, "test-token", fetcher),
     ).rejects.toThrow(/checksum/);
     await expect(
-        fetchPinnedAttachment(url, spec, async () => response("", { status: 302 })),
+        fetchPinnedAttachment(url, spec, "test-token", async () => response("", { status: 302 })),
     ).rejects.toThrow(/response/);
+    await expect(
+        fetchPinnedAttachment(url, spec, "test-token", async () => {
+            throw new Error("test-token");
+        }),
+    ).rejects.toThrow(/^attachment request failed$/);
 });
 
 it("retains the approved mapping and reports adapter acceptance and refusal without modifying inputs", () => {

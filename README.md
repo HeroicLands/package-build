@@ -164,7 +164,7 @@ a real map. The setting factory supports a limited language and composition scop
 
 The manual **Real map adapter probe** workflow reads pinned saved-map and Full
 JSON attachments and the retained export evidence through bounded, checksum-verified
-HTTPS requests to the forge. Dispatch the candidate branch with its exact
+HTTPS requests using the workflow’s read-only forge token. Dispatch the candidate branch with its exact
 `candidate_sha` and the seven attachment URLs named by the workflow inputs.
 The output artifact holds the adapter report and the original evidence files,
 including loader repairs, integrity notices and boundary observations. A refusal
