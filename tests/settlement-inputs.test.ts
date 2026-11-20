@@ -1148,7 +1148,7 @@ describe("settlement input assembly", () => {
                     expect.objectContaining({
                         identity: f.noteAddress,
                         households: 5,
-                        population: { actual: 300 },
+                        population: 300,
                         householdSize: 5,
                     }),
                 ]),
@@ -1583,7 +1583,7 @@ describe("settlement assembly authority and identities", () => {
                     expect.objectContaining({
                         fact: expect.objectContaining({
                             identity: "other-note-place-port",
-                            population: { actual: 20 },
+                            population: 20,
                         }),
                     }),
                 ]),
@@ -1755,7 +1755,7 @@ describe("automatic rural placement", () => {
                         return {
                             settlement: `Generated settlement ${i}`,
                             polity: f.polityAddress,
-                            population,
+                            population: { actual: population },
                             households: proposal.calculation.households,
                             type:
                                 population < 10 ? "homestead"

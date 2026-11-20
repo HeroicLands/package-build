@@ -29,7 +29,7 @@ import {
 } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
-import { checkDataKeys, fitsKind } from "./data-keys.mjs";
+import { checkDataKeys, fitsKind, isPlainMap, pathLabel } from "./data-keys.mjs";
 import {
     isAddressTuple,
     renderAddress,
@@ -44,6 +44,7 @@ import {
     SETTLEMENT_COLUMNS,
     SETTLEMENT_ROW_FIELDS,
     GENERATOR_SOURCE_FIELD,
+    populationField,
 } from "./settlement-terms.mjs";
 export {
     SETTLEMENTS_HEADING,
@@ -859,6 +860,45 @@ export function assertSettlementRecords(
             raw: rawOf?.(file) ?? (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : ""),
         };
     });
+    const populationSpec = populationField("population");
+    const populationFields = [
+        populationSpec,
+        populationField("territorial_population"),
+        { name: "settlements", kind: "list", entries: { kind: "map", fields: [populationSpec] } },
+    ];
+    const shapeFindings = notes.flatMap((note) => {
+        const source = note.fm.data;
+        if (!isPlainMap(source)) return [];
+        const data = {};
+        const findings = [];
+        const checkOuter = (value, at) => {
+            if (isPlainMap(value)) return true;
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(note.raw, ["data", ...at]),
+                severity: "error",
+                message: `\`${pathLabel(["data", ...at])}\` must be a population map with an actual figure`,
+            });
+            return false;
+        };
+        for (const key of ["population", "territorial_population"]) {
+            if (Object.hasOwn(source, key) && checkOuter(source[key], [key]))
+                data[key] = source[key];
+        }
+        if (Array.isArray(source.settlements))
+            data.settlements = source.settlements.map((row, index) => {
+                if (!isPlainMap(row) || !Object.hasOwn(row, "population")) return {};
+                return checkOuter(row.population, ["settlements", index, "population"]) ?
+                        { population: row.population }
+                    :   {};
+            });
+        return [...findings, ...checkDataKeys({ ...note, fm: { data } }, populationFields)];
+    });
+    if (shapeFindings.length)
+        throw Object.assign(new Error(shapeFindings.map(formatDiagnostic).join("\n")), {
+            located: true,
+            findings: shapeFindings,
+        });
     const index = {
         notes: [...notes, ...new Set([...foreignIndex.values()].map((record) => fmOf(record)))],
         contentPackage: records.find((r) => r.package)?.package,

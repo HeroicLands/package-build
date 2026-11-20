@@ -120,6 +120,69 @@ describe("population declarations", () => {
     });
 });
 
+describe("population publication preflight", () => {
+    const run = (data: object, subType = "guild") => {
+        const fm = { type: "affiliation", subType, shortcode: "example", package: "test", data };
+        const raw = `---\n${YAML.stringify(fm)}---\n`;
+        return () =>
+            assertSettlementRecords([fm], { fileOf: () => "Example.md", rawOf: () => raw });
+    };
+    it.each([
+        null,
+        [],
+        [1],
+        4,
+        "4",
+        {},
+        { apparent: 4 },
+        { actual: 4, extra: 1 },
+        { actual: "bad", apparent: 4 },
+    ])("refuses malformed membership values before publication: %j", (population) => {
+        expect(run({ population })).toThrow(/^Example\.md:\d+:\d+: error:/);
+    });
+    it.each([
+        null,
+        [],
+        4,
+        { apparent: 4 },
+        { actual: 4, extra: 1 },
+        { actual: "bad", apparent: 4 },
+    ])("refuses malformed territorial values before publication: %j", (territorial_population) => {
+        expect(run({ territorial_population }, "polity")).toThrow(/^Example\.md:\d+:\d+: error:/);
+    });
+    it.each([
+        null,
+        [],
+        4,
+        { apparent: 4 },
+        { actual: 0, extra: 1 },
+        { actual: "bad", apparent: 4 },
+    ])("refuses malformed inline values before publication: %j", (population) => {
+        expect(
+            run(
+                { settlements: [{ population }], territorial_population: { actual: 100 } },
+                "polity",
+            ),
+        ).toThrow(/^Example\.md:\d+:\d+: error:/);
+    });
+    it("rejects an invalid actual settlement figure even with a valid apparent figure", () => {
+        const fm = {
+            type: "place",
+            subType: "settlement",
+            shortcode: "village",
+            package: "test",
+            data: { population: { actual: 101, apparent: 100 }, notes: "A village." },
+        };
+        const raw = `---\n${YAML.stringify(fm)}---\n`;
+        expect(() =>
+            assertSettlementRecords([fm], { fileOf: () => "Village.md", rawOf: () => raw }),
+        ).toThrow(/^Village\.md:\d+:\d+: error:/);
+    });
+    it("accepts numeric string membership without changing its value", () => {
+        expect(run({ population: { actual: "1200", apparent: "1200" } })).not.toThrow();
+    });
+});
+
 describe("settlement population and hierarchy", () => {
     const row = {
         settlement: "East Farm",
