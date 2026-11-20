@@ -146,7 +146,11 @@ import {
     replaceOutsideCode,
 } from "./code-fences.mjs";
 import { PAGE_LIST_LANGUAGE } from "./page-lists.mjs";
-import { EXPRESSION, renderMarkdownExpressions } from "./markdown-expressions.mjs";
+import {
+    EXPRESSION,
+    renderMarkdownExpressions,
+    sqlQueriesInMarkdown,
+} from "./markdown-expressions.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { scanHeadingAttributes } from "./heading-attributes.mjs";
 import { eventNoteIndex } from "./event-fields.mjs";
@@ -1821,11 +1825,23 @@ function publicHeadingDeclarations(expanded) {
 }
 
 /** Render the shared expression language and carry inserted scalar lines back to their source. */
-function publicationExpressions(expanded, context) {
+function publicationExpressions(expanded, context, { privateMetadata = false } = {}) {
     const source = expanded.markdown;
     const additions = [];
     const findings = [];
     const markdown = replaceOutsideCode(source, EXPRESSION, (expression, _inside, offset) => {
+        // The complete private pass validates these expressions; metadata omits unavailable values.
+        const sqlResults =
+            privateMetadata ?
+                sqlQueriesInMarkdown(expression, context.fm).map((query) =>
+                    context.sqlResults?.get(query),
+                )
+            :   [];
+        if (
+            sqlResults.some((result) => result?.empty === true) &&
+            sqlResults.every((result) => result && (!result.error || result.empty === true))
+        )
+            return "";
         const line = source.slice(0, offset).split("\n").length - 1;
         const location = expanded.lineMap[line] ?? { line, generated: false };
         const result = renderMarkdownExpressions(expression, {
@@ -2063,32 +2079,38 @@ export async function preparePublicationBodies({
             const authored = parsed.get(file);
             const figures = figuresByFile.get(file);
             const body = bodies.get(file);
-            const declarations =
-                audience === "all" && populationAudience === "public" && isGmNote(record) ?
-                    publicHeadingDeclarations(body)
-                :   body;
-            const expanded = publicationExpressions(declarations, {
-                fm: projectPopulationFrontmatter(authoredFrontmatter(record), populationAudience),
-                dates,
-                audience: populationAudience,
-                events,
-                file,
-                bodyLine: authored.bodyLine,
-                sqlResults: prepared?.inline?.get(file),
-                figures: {
-                    get: (id) => figures?.get(id),
-                    note: (target) =>
-                        resolveCrossNoteFigures(target, {
-                            config: index.config,
-                            contentTypes: index.contentTypes,
-                            packages: index.packages,
-                            noIndexPackages: index.noIndexPackages,
-                            contentPackage: index.contentPackage,
-                            siteIndexMap: index.index,
-                            figuresByAddress,
-                        }),
+            const privateMetadata =
+                audience === "all" && populationAudience === "public" && isGmNote(record);
+            const declarations = privateMetadata ? publicHeadingDeclarations(body) : body;
+            const expanded = publicationExpressions(
+                declarations,
+                {
+                    fm: projectPopulationFrontmatter(
+                        authoredFrontmatter(record),
+                        populationAudience,
+                    ),
+                    dates,
+                    audience: populationAudience,
+                    events,
+                    file,
+                    bodyLine: authored.bodyLine,
+                    sqlResults: prepared?.inline?.get(file),
+                    figures: {
+                        get: (id) => figures?.get(id),
+                        note: (target) =>
+                            resolveCrossNoteFigures(target, {
+                                config: index.config,
+                                contentTypes: index.contentTypes,
+                                packages: index.packages,
+                                noIndexPackages: index.noIndexPackages,
+                                contentPackage: index.contentPackage,
+                                siteIndexMap: index.index,
+                                figuresByAddress,
+                            }),
+                    },
                 },
-            });
+                { privateMetadata },
+            );
             if (audience === populationAudience && nativeAudience(record) === audience)
                 foundryBodies.set(file, expanded);
             if (
