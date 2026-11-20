@@ -74,13 +74,17 @@ describe("polity settlement contract", () => {
 
 describe("population declarations", () => {
     it.each([
-        ["population: null", 15, "`data.population` must be a population map"],
+        [
+            "population: null",
+            15,
+            "`data.population` must be a population map with an actual figure",
+        ],
         [
             "population: 12",
             15,
             "`data.population` should be a population with actual and optional apparent figures, but reads 12",
         ],
-        ["population: []", 15, "`data.population` must be a population map"],
+        ["population: []", 15, "`data.population` must be a population map with an actual figure"],
         [
             "population: {actual: nope}",
             24,

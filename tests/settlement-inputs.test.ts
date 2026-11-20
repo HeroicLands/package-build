@@ -58,7 +58,7 @@ describe("settlement membership from a content session", () => {
             expect(membership.settlements.map((entry: any) => entry.address)).toEqual([
                 "sessionproof-note-place-capital",
             ]);
-            expect(membership.settlements[0].record.data.population).toBe(0);
+            expect(membership.settlements[0].record.data.population.actual).toBe(0);
         } finally {
             session.dispose();
         }
@@ -1837,7 +1837,7 @@ describe("automatic rural placement", () => {
             expect(
                 sevenSession.records.find(
                     (record: any) => record.shortcode === "capital" && record.type === "place",
-                )?.data.population,
+                )?.data.population.actual,
             ).toBe(300);
             expect(fs.readFileSync(f.crownFile, "utf8")).toBe(before);
             expect(

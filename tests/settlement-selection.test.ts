@@ -135,7 +135,7 @@ it.each([500, 5556])(
                 p.calculation.estimatedPopulation < 10 ? "homestead"
                 : p.calculation.estimatedPopulation < 100 ? "hamlet"
                 : "village",
-            population: p.calculation.estimatedPopulation,
+            population: { actual: p.calculation.estimatedPopulation },
             market: p.calculation.estimatedPopulation <= 80 ? "subsistence" : "local",
             households: p.calculation.households,
             economicFocus: p.calculation.economicFocus,
