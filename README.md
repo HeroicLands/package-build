@@ -153,12 +153,11 @@ documents from the selected commit in an isolated snapshot. The
 `authoring-reference` artifact contains the documents and a receipt with the
 source commit and SHA-256 hashes; review them before committing the output.
 
-For a population consumer check, `ci/consumer-proof-populations.mjs` accepts
-source JSONL, published index JSONL, a JSON list of canonical subject Addresses,
-and a receipt path, in that order. Set `CANDIDATE_SHA` and `CONSUMER_SHA` to the
-full source commits. The receipt records hashes and verified counts without
-copying the private source records. This check covers index projections; public
-site and Foundry output and private entries require their own checks.
+Select `consumer: thalorna-populations`, set `consumer_sha` to the exact
+Thalorna commit, and supply `population_addresses` as a JSON list of canonical
+place and affiliation Addresses. The proof checks an isolated converted source
+snapshot, public index and site, and public and private Foundry documents. Its
+receipt records source and output hashes without copying private source records.
 
 All choices pack that commit, verify the archive integrity and installed bytes,
 and refuse changes to unrelated locked dependencies before the normal consumer
