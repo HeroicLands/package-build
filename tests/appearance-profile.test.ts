@@ -114,6 +114,7 @@ describe("a culture's appearance profile", () => {
             hair_texture: "        hair_texture: { straight: 3, wavy: 1 }",
             hair_style: "        hair_style: { braided: 2, short: 1 }",
             facial_hair: "        facial_hair: { none: 2, full_beard: 1 }",
+            facial_hair_genders: "        facial_hair_genders: [male]",
             face_shape: "        face_shape: { angular: 1 }",
             nose: "        nose: { aquiline: 1, straight: 1 }",
             brow: "        brow: { heavy: 1 }",
@@ -121,6 +122,39 @@ describe("a culture's appearance profile", () => {
         };
         expect(lint(culture(profileLines(features)))).toEqual([]);
         expect(lint(culture(profileLines()))).toEqual([]);
+    });
+
+    it("requires a valid gender list exactly when facial hair is weighted", () => {
+        const weights = "        facial_hair: { full_beard: 1 }";
+        for (const list of ["[]", "[female, male, nonbinary, none, other]"]) {
+            expect(
+                lint(
+                    culture(
+                        profileLines({
+                            facial_hair: weights,
+                            facial_hair_genders: `        facial_hair_genders: ${list}`,
+                        }),
+                    ),
+                ),
+            ).toEqual([]);
+        }
+        for (const list of [undefined, "null", "male", "{}", "[male, 3]", "[null]", "[unknown]"]) {
+            const note = culture(
+                profileLines({
+                    facial_hair: weights,
+                    ...(list === undefined ?
+                        {}
+                    :   { facial_hair_genders: `        facial_hair_genders: ${list}` }),
+                }),
+            );
+            const findings = lint(note);
+            expect(findings.length).toBeGreaterThan(0);
+            expect(findings[0].line).toBeGreaterThan(0);
+        }
+        const note = culture(
+            profileLines({ facial_hair_genders: "        facial_hair_genders: [male]" }),
+        );
+        expect(lint(note).some((f: any) => f.message.includes("facial_hair_genders"))).toBe(true);
     });
 
     it("refuses a head or face word outside its list, at the word", () => {

@@ -264,3 +264,8 @@ A generic occupant maps to one native roster entry, with quantity one. This
 quantity requires a SoHL release with native vehicle occupant quantity support.
 
 Vehicle notes can list actual cargo and fittings in `data.items`; an item entry may name an item model or define an item inline, using the same fields, including `chance`, as a being’s items. A vehicle picture record pairs `data.portrait` and `data.portraitSettings` with an authored `data.icon` image or icon Address. The text-only [vehicle prompt command](../commands/vehicle.md) composes from indexed facts and items without writing the note.
+
+A culture's `data.appearanceProfile` may state `facial_hair` weights alongside
+`facial_hair_genders: [male]`. The list selects which genders receive a weighted
+draw; an empty list selects none. See [appearance profiles](../reference/format-details.md#appearance-profiles)
+for the complete declaration and inheritance rules.

@@ -642,6 +642,7 @@ describe("a generated npc's head and face", () => {
         hair_texture: { coily: 1 },
         hair_style: { braided: 1 },
         facial_hair: { full_beard: 1 },
+        facial_hair_genders: ["male"],
         face_shape: { angular: 1 },
         nose: { aquiline: 1 },
         brow: { heavy: 1 },
@@ -665,8 +666,36 @@ describe("a generated npc's head and face", () => {
             mouth: "thin",
         });
         const without = split(generateNpc(spec("Ahmetega Zekar"), CONTEXT).text);
-        for (const key of Object.keys(FACE))
+        for (const key of Object.keys(FACE).filter((key) => key !== "facial_hair_genders"))
             expect(without.fm.data.appearance, key).not.toHaveProperty(key);
+    });
+
+    it("draws facial hair only for eligible genders and preserves authored values", () => {
+        const context = {
+            ...CONTEXT,
+            profile: { ...PROFILE, ...FACE, facial_hair_genders: ["male", "other"] },
+        };
+        for (const gender of ["female", "male", "nonbinary", "none", "other"]) {
+            const make = (extra = {}) =>
+                split(generateNpc(spec("Person Zekar", { gender, ...extra }), context).text).fm.data
+                    .appearance;
+            const appearance = make();
+            if (["male", "other"].includes(gender))
+                expect(appearance.facial_hair).toBe("full_beard");
+            else expect(appearance).not.toHaveProperty("facial_hair");
+            expect(appearance.nose).toBe("aquiline");
+            const withoutEligibility = split(
+                generateNpc(spec("Person Zekar", { gender }), {
+                    ...context,
+                    profile: { ...context.profile, facial_hair_genders: [] },
+                }).text,
+            ).fm.data.appearance;
+            const { facial_hair: _hair, ...otherFeatures } = appearance;
+            expect(withoutEligibility).toEqual(otherFeatures);
+            expect(make()).toEqual(appearance);
+            expect(make({ appearance: { facial_hair: "none" } }).facial_hair).toBe("none");
+            expect(make({ appearance: { facial_hair: "stubble" } }).facial_hair).toBe("stubble");
+        }
     });
 
     it("draws the same features for the same seed", () => {

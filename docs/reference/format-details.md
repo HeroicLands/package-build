@@ -5243,7 +5243,7 @@ framing.
 [the command](../commands.md#package-build-npc-new). Only a `lore` note of
 `subType: culture` takes the key; on any other note it is an error at the key.
 
-The profile has six required keys and seven optional ones:
+The profile has required and optional keys:
 
 - `frame`, `eye_color`, `hair_color`, `skin_color` and `complexion` each map
   words of that field's [vocabulary](#a-beings-look) to positive weights. A
@@ -5251,8 +5251,13 @@ The profile has six required keys and seven optional ones:
   map; a word left out is never drawn.
 - `hair_texture`, `hair_style`, `facial_hair`, `face_shape`, `nose`, `brow` and
   `mouth` are weighted the same way and may be left out. A culture that states
-  one has it drawn for every person; a culture that leaves one out has none of
-  it drawn, and the person states none.
+  one draws it for each person, subject to the facial-hair eligibility list. A
+  culture that leaves one out draws none of it and omits the property.
+- `facial_hair_genders` is required beside `facial_hair` weights and lists the
+  eligible genders: `female`, `male`, `nonbinary`, `none`, and `other`. An empty
+  list draws facial hair for nobody. Omit the list when there are no facial-hair
+  weights. A character's authored facial-hair value, including `none`, takes
+  precedence; an excluded gender has no generated facial-hair property.
 - `height` maps a `gender` word to a range, `{min, max}`, each a height in
   metres or feet and inches as `data.height` takes it. `female` and `male` are
   required. A gender with no range of its own draws from the span of every
@@ -5285,6 +5290,7 @@ data:
     hair_texture: { straight: 4, wavy: 4, curly: 1 }
     hair_style: { short: 3, long: 3, braided: 2 }
     facial_hair: { none: 4, short_beard: 3, full_beard: 1 }
+    facial_hair_genders: [male]
     height:
       female:
         min: 4' 11"
@@ -5292,6 +5298,18 @@ data:
       male:
         min: 5' 4"
         max: 6' 3"
+```
+
+An all-character profile uses the same declaration, for example a Khazari
+profile with `facial_hair_genders: [female, male, nonbinary, none, other]`.
+A child culture inherits the whole profile from its parent; a child that states
+its own profile replaces the whole object, including the list.
+
+For example, a profile with facial-hair weights and no list reports a located
+finding such as:
+
+```text
+culture.md:7:3: error: `data.appearanceProfile` must state `facial_hair_genders` with `facial_hair`
 ```
 
 `package-build lint` checks the profile, with a finding at the word, weight or
@@ -8106,6 +8124,7 @@ not a different cultural identity. See
 | `appearanceProfile.hair_texture`             | map of `hair_texture` words to positive weights, optional                     | How often each hair texture word is drawn; a culture that omits it draws none                                                                                |
 | `appearanceProfile.hair_style`               | map of `hair_style` words to positive weights, optional                       | How often each hair style word is drawn; a culture that omits it draws none                                                                                  |
 | `appearanceProfile.facial_hair`              | map of `facial_hair` words to positive weights, optional                      | How often each facial hair word is drawn; a culture that omits it draws none                                                                                 |
+| `appearanceProfile.facial_hair_genders`      | list of gender words, required with facial-hair weights                       | Genders eligible for the weighted facial-hair draw                                                                                                           |
 | `appearanceProfile.face_shape`               | map of `face_shape` words to positive weights, optional                       | How often each face shape word is drawn; a culture that omits it draws none                                                                                  |
 | `appearanceProfile.nose`                     | map of `nose` words to positive weights, optional                             | How often each nose word is drawn; a culture that omits it draws none                                                                                        |
 | `appearanceProfile.brow`                     | map of `brow` words to positive weights, optional                             | How often each brow word is drawn; a culture that omits it draws none                                                                                        |

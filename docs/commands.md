@@ -3742,7 +3742,8 @@ content tree and its dependencies, and must name a `lore` note of
 culture missing either, with an error at the culture note:
 
 - **Its look**, from `data.appearanceProfile`: the words and ranges every
-  appearance field is drawn from. See
+  appearance field is drawn from; facial hair is drawn for the genders listed
+  in the profile. See
   [appearance profiles](reference/format-details.md#appearance-profiles).
 - **Its names**, from the language note `languages:` names for the culture's
   [language](reference/format-details.md#a-notes-language), whose
