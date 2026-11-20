@@ -8876,7 +8876,7 @@ Write `government: null` for **complete anarchy**. Omitting the key leaves gover
 | Any                   | Explicit `null`     | None; complete anarchy           |
 | Any                   | Affiliation Address | None; the reference must resolve |
 
-Populated settlements require a government that resolves to a polity. Other place subtypes accept explicit anarchy and the advisory described above. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government, except to a `district` that omits the key, which falls under its nearest parent's government as [type: place](#type-place) describes.
+Populated settlements require a government that resolves to a polity or lineage. Other place subtypes accept explicit anarchy and the advisory described above. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government, except to a `district` that omits the key, which falls under its nearest parent's government as [type: place](#type-place) describes.
 
 #### Population figures
 
@@ -8952,12 +8952,14 @@ A cell identity may also carry a nonnegative `slot` for a settlement within
 the cell; a burg identity has no slot. The identity records the corresponding map object.
 
 A settlement with a note states its own facts in `data`, with `government`
-naming its polity and `parents` naming its enclosing places. It has no authored
-row in the polity. The build merges the two sources into a Settlements table
+naming its governing polity or lineage and `parents` naming its enclosing places. A settlement
+governed by a polity has no authored row in that polity. The build merges the two sources into a Settlements table
 of direct subjects and a Settlement index of every settlement beneath the
 polity. Direct subordinate polities appear through their seats, or as linked
 polity summaries where no settlement seat is stated. All publishing surfaces
 use the same generated tables.
+
+A settlement governed by a lineage appears in no polity settlement table, membership, listed total or urban share, and cannot have an authored row in any polity’s table.
 
 `data.population` on an affiliation counts its members. A polity's separate
 `data.territorial_population` counts inhabitants: listed and noted settlements
@@ -8967,7 +8969,7 @@ Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. Each settlement note
 has short `data.notes`; a populated settlement note also requires `data.type`,
-a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity. A settlement note with a null or omitted population does not require those three fields.
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity or lineage. A settlement note with a null or omitted population does not require those three fields.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](../configuration.md#settlement-exemptions). A municipality may use `scope: urban-share` to waive only its ceiling-mode urban-share check; total ceilings and its superior polity's check still apply. A list containing only the seat does not itself declare municipal territory.
 
 ```yaml

@@ -141,12 +141,14 @@ settlement notes may state households and economicFocus. Culture notes may state
 positive householdSize.
 
 A settlement with a note states its own facts in `data`, with `government`
-naming its polity and `parents` naming its enclosing places. It has no authored
-row in the polity. The build merges the two sources into a Settlements table
+naming its governing polity or lineage and `parents` naming its enclosing places. A settlement
+governed by a polity has no authored row in that polity. The build merges the two sources into a Settlements table
 of direct subjects and a Settlement index of every settlement beneath the
 polity. Direct subordinate polities appear through their seats, or as linked
 polity summaries where no settlement seat is stated. All publishing surfaces
 use the same generated tables.
+
+A settlement governed by a lineage appears in no polity settlement table, membership, listed total or urban share, and cannot have an authored row in any polity’s table.
 
 `data.population` on an affiliation counts its members. A polity's separate
 `data.territorial_population` counts inhabitants: listed and noted settlements
@@ -155,7 +157,7 @@ A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Populations use at most two significant digits. A settlement note states short `data.notes`; a populated settlement note also requires `data.type`,
-a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity.
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity or lineage.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](docs/configuration.md#settlement-exemptions).
 
 ```yaml

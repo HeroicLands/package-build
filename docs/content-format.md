@@ -210,7 +210,7 @@ The note's readable Address is `<package>-note-lore-harbor`. In prose, link to i
 
 The [first-note guide](authoring/first-note.md) shows the build commands and how to add a system document. Use the [command reference](commands.md) for exact flags and the [diagnostics guide](diagnostics.md) for located errors.
 
-Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. A populated settlement requires a government that resolves to a polity; other populated places with an omitted government produce an advisory. See [place governments](authoring/frontmatter.md#place-governments).
+Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. A populated settlement requires a government that resolves to a polity or lineage; other populated places with an omitted government produce an advisory. See [place governments](authoring/frontmatter.md#place-governments).
 
 A polity (`affiliation`, `subType: polity`) lists settlements without notes in
 `data.settlements`. Each row names its settlement and polity and states its type, population and market.
@@ -221,12 +221,14 @@ settlement notes may state households and economicFocus. Culture notes may state
 positive householdSize.
 
 A settlement with a note states its own facts in `data`, with `government`
-naming its polity and `parents` naming its enclosing places. It has no authored
-row in the polity. The build merges the two sources into a Settlements table
+naming its governing polity or lineage and `parents` naming its enclosing places. A settlement
+governed by a polity has no authored row in that polity. The build merges the two sources into a Settlements table
 of direct subjects and a Settlement index of every settlement beneath the
 polity. Direct subordinate polities appear through their seats, or as linked
 polity summaries where no settlement seat is stated. All publishing surfaces
 use the same generated tables.
+
+A settlement governed by a lineage appears in no polity settlement table, membership, listed total or urban share, and cannot have an authored row in any polity’s table.
 
 `data.population` on an affiliation counts its members. A polity's separate
 `data.territorial_population` counts inhabitants: listed and noted settlements
@@ -235,7 +237,7 @@ A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
 settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. A settlement note states short `data.notes`; a populated settlement note also requires `data.type`,
-a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity. A settlement note with a null or omitted population does not require those three fields.
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity or lineage. A settlement note with a null or omitted population does not require those three fields.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](configuration.md#settlement-exemptions).
 
 ```yaml

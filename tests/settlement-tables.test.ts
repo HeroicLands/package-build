@@ -10,6 +10,7 @@ import YAML from "yaml";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import {
     checkSettlementTables,
+    settlementMembership,
     assertSettlementRecords,
     settlementMarkdown,
     settlementExemptionTracker,
@@ -551,7 +552,99 @@ describe("settlement boundary cases", () => {
             },
             (f) => expect(f.findings.some((x) => x.message.includes("notes"))).toBe(true),
         ));
-    it("refuses a populated settlement governed by a non-polity", () =>
+    it("accepts a governing lineage and retains its address in the index", () =>
+        checked(
+            (n) => {
+                n.push({ type: "affiliation", subType: "lineage", shortcode: "clan" });
+                n[3].data.government = "affiliation-clan";
+            },
+            (f) => {
+                expect(
+                    f.findings.filter((x) => x.message.includes("government must resolve")),
+                ).toEqual([]);
+                const records = serializeContentIndex(f.records())
+                    .trim()
+                    .split("\n")
+                    .map((line) => {
+                        const record = JSON.parse(line);
+                        return decodeIndexAddresses(record, { package: record.package });
+                    });
+                const capital = records.find(
+                    (r) => r.shortcode === "capital" && r.type === "place" && !r.documents,
+                );
+                expect(renderAddress(capital.data.government)).toMatch(/-affiliation-clan$/);
+            },
+        ));
+    it("excludes a lineage-governed village from polity membership and totals", () =>
+        checked(
+            (n) => {
+                n.push({
+                    type: "affiliation",
+                    subType: "lineage",
+                    shortcode: "clan",
+                    data: { parents: ["affiliation-crown"] },
+                });
+                n.push({
+                    type: "place",
+                    subType: "settlement",
+                    shortcode: "village",
+                    data: {
+                        parents: ["place-vale"],
+                        government: "affiliation-clan",
+                        type: "village",
+                        population: 900,
+                        market: "local",
+                        notes: "A village.",
+                    },
+                });
+            },
+            (f) => {
+                expect(
+                    f.findings.filter((x) => x.message.startsWith("territorial population:")),
+                ).toEqual([]);
+                const records = f.records();
+                const crown = records.find(
+                    (r) => r.shortcode === "crown" && r.type === "affiliation" && !r.documents,
+                )!;
+                const clan = records.find(
+                    (r) => r.shortcode === "clan" && r.type === "affiliation" && !r.documents,
+                )!;
+                const membership = settlementMembership(crown, records);
+                expect(membership.settlements.map((entry: any) => entry.record.shortcode)).toEqual([
+                    "capital",
+                ]);
+                expect(() => settlementMembership(clan, records)).toThrow(
+                    "An indexed polity is required",
+                );
+            },
+        ));
+    it("keeps lineages outside polity table ownership and row references", () =>
+        checked(
+            (n) => {
+                n.push({
+                    type: "affiliation",
+                    subType: "lineage",
+                    shortcode: "clan",
+                    data: { settlements: [row()] },
+                });
+                n[1].data.settlements[0].polity = "affiliation-clan";
+                n[2].data.parents = ["affiliation-clan"];
+            },
+            (f) => {
+                expect(
+                    f.findings.some((x) =>
+                        x.message.includes("data.settlements is a list on a polity"),
+                    ),
+                ).toBe(true);
+                expect(
+                    f.findings.some((x) => x.message.includes("polity must resolve to a polity")),
+                ).toBe(true);
+                expect(
+                    f.findings.some((x) => x.message.includes("0 must resolve to a polity")),
+                ).toBe(true);
+            },
+        ));
+    it("refuses a populated settlement governed by an unrelated affiliation", () =>
         checked(
             (n) => {
                 n[2].subType = "guild";
@@ -559,7 +652,7 @@ describe("settlement boundary cases", () => {
             (f) =>
                 expect(
                     f.findings.some((x) =>
-                        x.message.includes("government must resolve to a polity"),
+                        x.message.includes("government must resolve to a polity or lineage"),
                     ),
                 ).toBe(true),
         ));

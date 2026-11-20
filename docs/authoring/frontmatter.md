@@ -159,7 +159,39 @@ Write `government: null` for **complete anarchy**. Omitting the key leaves gover
 | Any                   | Explicit `null`     | None; complete anarchy           |
 | Any                   | Affiliation Address | None; the reference must resolve |
 
-A settlement with a positive population requires a government that resolves to a polity. The advisory and explicit anarchy rules apply to other place subtypes. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government, with one exception: a `district` that omits the key falls under the government of its nearest parent that states one, and is treated as stating that value, so it receives no advisory. An explicit value on the district, `null` included, is its own. The generated **Governed by** and **Governed places** sections use the explicit references and these inherited ones.
+A settlement with a positive population requires a government that resolves to a polity or lineage. The advisory and explicit anarchy rules apply to other place subtypes. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government, with one exception: a `district` that omits the key falls under the government of its nearest parent that states one, and is treated as stating that value, so it receives no advisory. An explicit value on the district, `null` included, is its own. The generated **Governed by** and **Governed places** sections use the explicit references and these inherited ones.
+
+A settlement governed by a lineage appears in no polity settlement table, membership, listed total or urban share, and cannot have an authored row in any polity’s table. Polity territorial totals and settlement tables remain polity-scoped.
+
+These two notes declare a lineage and its village seat:
+
+```yaml
+type: affiliation
+subType: lineage
+shortcode: riverclan
+name:
+  full: River Clan
+data:
+  seat: place-rivervillage
+  governance:
+    offices:
+      Elder:
+        description: Leads the clan.
+```
+
+```yaml
+type: place
+subType: settlement
+shortcode: rivervillage
+name:
+  full: River Village
+data:
+  government: affiliation-riverclan
+  type: village
+  population: 200
+  market: local
+  notes: A village by the river.
+```
 
 ## Publication and summaries
 

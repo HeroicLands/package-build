@@ -2908,7 +2908,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe:
                     "The governing affiliation Address; the default target type is affiliation. " +
                     "Explicit null means complete anarchy. " +
-                    "Populated settlements require a polity; other populated places without the key receive an advisory.",
+                    "Populated settlements require a polity or lineage; other populated places without the key receive an advisory.",
             },
             ...SETTLEMENT_ROW_FIELDS.filter((field) =>
                 [

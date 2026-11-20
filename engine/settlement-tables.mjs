@@ -511,15 +511,31 @@ export function checkSettlementTables(
     if (!polity(fm) && !settlement(fm) && declaration === undefined) return findings;
     const corpus = corpusOf(index);
     const self = corpus.byRecord.get(fm);
-    const checkRef = (value, types, at, requirePolity = false, allowName = false) => {
+    const checkRef = (
+        value,
+        types,
+        at,
+        requirePolity = false,
+        allowName = false,
+        government = false,
+    ) => {
         if (allowName && text(value) && !corpus.explicit(value)) return;
         const type = types.length === 1 ? types[0] : undefined;
         const hit = corpus.keyOf(value, type) ? corpus.resolve(value, type) : undefined;
-        if (!hit || !types.includes(hit.fm.type) || (requirePolity && !polity(hit.fm)))
+        if (
+            !hit ||
+            !types.includes(hit.fm.type) ||
+            (requirePolity && !polity(hit.fm)) ||
+            (government && !["polity", "lineage"].includes(hit.fm.subType))
+        )
             report(
                 "unresolved settlement reference",
                 at,
-                `${at.at(-1)} must resolve to ${requirePolity ? "a polity" : types.join(" or ")}: ${ref(value) || "missing"}`,
+                `${at.at(-1)} must resolve to ${
+                    government ? "a polity or lineage"
+                    : requirePolity ? "a polity"
+                    : types.join(" or ")
+                }: ${ref(value) || "missing"}`,
             );
     };
     const checkFacts = (row, at, listed) => {
@@ -680,7 +696,14 @@ export function checkSettlementTables(
     if (settlement(fm)) {
         checkFacts(fm.data ?? {}, ["data"], false);
         if (fm.data?.population > 0)
-            checkRef(fm.data?.government, ["affiliation"], ["data", "government"], true);
+            checkRef(
+                fm.data?.government,
+                ["affiliation"],
+                ["data", "government"],
+                false,
+                false,
+                true,
+            );
         return findings;
     }
     if (!polity(fm) || !self) return findings;
