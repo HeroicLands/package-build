@@ -9,6 +9,7 @@ import { createPackRouter } from "../engine/pack-router.mjs";
 import { createContentSession } from "../engine/content-session.mjs";
 import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
 import { Journals } from "../engine/journals.mjs";
+import { collectFoundryEntries, foundryIdentities } from "../engine/foundry-entries.mjs";
 import { parseMarkdownFile } from "../engine/helpers.mjs";
 import { itemDescription } from "../engine/item-compiler.mjs";
 import { Items } from "../sohl/items.mjs";
@@ -537,6 +538,77 @@ it("publishes a static private index synchronously with compatible native page I
         tree.close();
     }
 });
+
+it.each(
+    ["session", "standalone"].flatMap((mode) => ["Town", ""].map((label) => ({ mode, label }))),
+)(
+    "preserves raw manifest, index and native static link targets ($mode, label $label)",
+    async ({ mode, label }) => {
+        let previous;
+        for (const prefix of ["", "An introductory paragraph.\n\n"]) {
+            const tree = input();
+            tree.add("town", {}, "The town.", { name: { full: "Town" } });
+            tree.add(
+                "account",
+                { pack: "private" },
+                `${prefix}# [[place-town|${label}]]\n\n[Account]{#safe}.`,
+            );
+            const session = await createContentSession({ config: tree.config });
+            try {
+                const before = structuredClone({
+                    records: session.records,
+                    parsed: [...session.parsed],
+                });
+                const manifest = collectFoundryEntries(tree.config.paths.content, {
+                    ...foundryIdentities(tree.config),
+                    skipDirectories: tree.config.skipDirectories,
+                });
+                const raw = manifest.entries.find((entry) => entry.fm.shortcode === "account");
+                const result = emitContentIndex({ config: tree.config });
+                const jsonl = fs.readFileSync(result.file, "utf8");
+                const published = jsonl
+                    .trim()
+                    .split("\n")
+                    .map((line) => JSON.parse(line))
+                    .find((record) => record.type === "place" && record.shortcode === "account");
+                const expected = makeId("journal-page", `${published.id}:Town`);
+                const target = `${published.foundry.note.uuid}.JournalEntryPage.${expected}`;
+                expect(raw.anchors.safe).toBe(target);
+                expect(published.foundry.note.anchors.safe).toBe(target);
+                if (previous) expect(target).toBe(previous);
+                previous = target;
+                const corpus =
+                    mode === "session" ?
+                        await session.compileCorpus()
+                    :   await buildCompileCorpus({
+                            config: tree.config,
+                            contentBase: tree.config.paths.content,
+                            skipDirectories: tree.config.skipDirectories,
+                            router: createPackRouter(tree.config.packs),
+                        });
+                const [document] = await compile(tree, corpus, "private");
+                expect(document.pages.find((page) => page.name === "Town")._id).toBe(expected);
+                const lead = `${published.foundry.note.uuid}.JournalEntryPage.${document.pages[0]._id}`;
+                expect(raw.anchors.$lead).toBe(lead);
+                expect(published.foundry.note.anchors.$lead).toBe(lead);
+                expect(
+                    corpus.audiences.public.linkIndex.byShortcode.get("place/account").anchorUuids
+                        .safe,
+                ).toBe(target);
+                expect(
+                    jsonl +
+                        JSON.stringify([...corpus.audiences.public.linkIndex.byShortcode.values()]),
+                ).not.toContain("referenceName");
+                expect({ records: session.records, parsed: [...session.parsed] }).toEqual(before);
+                for (const [file, text] of tree.sources)
+                    expect(fs.readFileSync(file, "utf8")).toBe(text);
+            } finally {
+                await session.dispose();
+                tree.close();
+            }
+        }
+    },
+);
 
 it("locates a private item description's missing provenance at its authored body", () => {
     const tree = input([{ name: "private", type: "JournalEntry", default: true, private: true }]);

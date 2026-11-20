@@ -87,7 +87,10 @@ import {
     scanHeadingAttributes,
     splitHeadingAttributes,
 } from "./heading-attributes.mjs";
-import { codeRegions } from "./code-fences.mjs";
+import { codeRegions, matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
+import { EXPRESSION } from "./markdown-expressions.mjs";
+import { WIKILINK, authoredLabel, parseWikilink } from "./wikilink-syntax.mjs";
+import { buildReferenceTargets } from "./reference-targets.mjs";
 import { imagesIn } from "./content-images.mjs";
 import { IMAGE_EXTENSIONS } from "./asset-types.mjs";
 import { pathnameRoles } from "./art-fields.mjs";
@@ -122,9 +125,50 @@ function namedBlockLines(markdown, syntax) {
 }
 
 /**
+ * Resolve static page-link labels from captured declared note names.
+ * @internal
+ * @param {readonly object[]} records - Captured frontmatter or index records.
+ * @param {{contentPackage: string, config?: object, docEntryTypes?: ReadonlySet<string>, foreignReferences?: Map<string, object>}} context - Captured address and name context.
+ * @returns {(target: string) => string|undefined} The shared reference resolver's declared name.
+ */
+export function sourceReferenceNames(records, context) {
+    const config = context.config ?? { docEntryTypes: context.docEntryTypes ?? new Set() };
+    const named = records.filter(Boolean).map((record) => ({
+        ...record,
+        package: record.package ?? context.contentPackage,
+    }));
+    let index;
+    return (target) => {
+        index ??= {
+            config,
+            contentPackage: context.contentPackage,
+            referenceTargets: buildReferenceTargets(named, new Map(), config),
+            foreignReferences: context.foreignReferences,
+            types: new Set(named.map((record) => record.type)),
+        };
+        return resolveReference(index, target)?.name;
+    };
+}
+
+/** Static authored link labels share the visible name used by Foundry page generation. */
+function sourcePageName(markdown, referenceName) {
+    if (matchAllOutsideCode(markdown, EXPRESSION).length) return pageNameText(markdown);
+    return pageNameText(
+        replaceOutsideCode(markdown, WIKILINK, (literal, inner) => {
+            const link = parseWikilink(inner, literal);
+            return (
+                authoredLabel(link) ??
+                (link.labelled ? referenceName?.(link.target) : undefined) ??
+                literal
+            );
+        }),
+    );
+}
+
+/**
  * Associate private page openings with authored names and literal anchor declarations.
  * @param {string} body - Expanded body.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} context - Captured source provenance.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} context - Captured source provenance.
  * @param {(address: string) => string|undefined} [resolveRole] - Figure roles.
  * @returns {(line: number, kind: string, anchor?: string|null) => object} Internal identity of an opening.
  */
@@ -145,10 +189,13 @@ function sourcePageIdentity(body, context, resolveRole) {
         (source === body ? lines.map((_, line) => ({ line, generated: false })) : []);
     const authored = new Map();
     for (const heading of scanHeadingAttributes(source).headings)
-        authored.set(heading.line - 1, { name: pageNameText(heading.text), anchor: heading.id });
+        authored.set(heading.line - 1, {
+            name: sourcePageName(heading.text, context.referenceName),
+            anchor: heading.id,
+        });
     for (const figure of scanFigures(source, { resolveRole }).figures)
         authored.set(figure.line - 1, {
-            name: figure.label || pageNameText(figure.caption),
+            name: figure.label || sourcePageName(figure.caption, context.referenceName),
             anchor: figure.id,
         });
     const directives = new Map();
@@ -228,7 +275,7 @@ function sourcePageIdentity(body, context, resolveRole) {
  *   name reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
  * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Session scanner projections.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [pageSource] - Private page source provenance; omitted for public pages.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} [pageSource] - Private page source provenance; omitted for public pages.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
  *   classes: string[], figure: object|null, continues?: string,
  *   sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string}, markdown: string}>} Pages in document order.
@@ -775,7 +822,7 @@ export function buildPages(rawPages, entryId, noteName, figures, resolveRole, ru
  * @param {import("./content-session.mjs").ContentSyntax} [params.syntax] - Session scanner projections.
  * @param {import("./content-scripts.mjs").RunContext} [params.runs] - The package's
  *   languages, faces and maps — see {@link module:engine/helpers.renderFoundryMarkdown}.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [params.pageSource] - Captured source provenance for a private destination.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} [params.pageSource] - Captured source provenance for a private destination.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({

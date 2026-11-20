@@ -13,6 +13,7 @@ import {
     assertUniquePages,
     journalPageId,
     buildJournalEntry,
+    sourceReferenceNames,
 } from "../engine/journals.mjs";
 import { pageOpenings } from "../engine/heading-attributes.mjs";
 import { scanBlocks } from "../engine/content-blocks.mjs";
@@ -296,6 +297,40 @@ describe("private source page identities", () => {
         expect(privateIds(source)).toEqual(expected);
         expect(privateIds(`A paragraph.\n\n${source}`)).toEqual(expected);
     });
+
+    it.each(["Town", ""])(
+        "preserves resolved static heading and caption names for label %j",
+        (label) => {
+            const referenceName = sourceReferenceNames(
+                [{ type: "place", shortcode: "town", name: { full: "Town" } }],
+                { contentPackage: "demo" },
+            );
+            const source = `# [[place-town|${label}]]\n\nBefore.\n\n: View of [[place-town|${label}]]\n\nSample.\n\nAfter.`;
+            const render = (text) =>
+                text.replaceAll(
+                    `[[place-town|${label}]]`,
+                    "@UUID[Compendium.demo.journals.JournalEntry.town]{Town}",
+                );
+            const ordinary = splitPages(render(source));
+            expect(journalPageId(entryId, ordinary[0])).toBe(
+                makeId("journal-page", `${entryId}:Town`),
+            );
+            const expected = ordinary.map((page) => journalPageId(entryId, page));
+            for (const prefix of ["", "An introductory paragraph.\n\n"]) {
+                const authored = prefix + source;
+                for (const body of [authored, render(authored)]) {
+                    const pages = splitPages(body, undefined, undefined, undefined, {
+                        source: authored,
+                        referenceName,
+                        lineMap: authored
+                            .split("\n")
+                            .map((_, line) => ({ line, generated: false })),
+                    }).filter((page) => page.name !== "Introduction");
+                    expect(pages.map((page) => journalPageId(entryId, page))).toEqual(expected);
+                }
+            }
+        },
+    );
 
     it("keys dynamic headings on unexpanded names across paragraph insertions and actual values", () => {
         const heading = "Population {{data.population.actual}}";

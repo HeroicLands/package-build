@@ -61,6 +61,7 @@
  * @module
  */
 
+import { resolveReference } from "./wikilinks.mjs";
 import { projectPopulationFrontmatter } from "./population-values.mjs";
 import { scanPageBreaks } from "./page-breaks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
@@ -812,6 +813,7 @@ export class BasePackCompiler {
             generatedFrom: expanded.generatedFrom,
             file: absPath,
             bodyLine: noteLine,
+            referenceName: (target) => (target ? resolveReference(linkIndex, target)?.name : name),
         };
         return expanded.markdown;
     }

@@ -225,7 +225,7 @@ function keyDocuments(docs, collection, parentIds, sceneId) {
  *
  * @param {object} fm - The map note's frontmatter.
  * @param {string} markdown - Its converted Markdown body.
- * @param {{journalEntryId?: string, stats?: object, resolveAddress?: Function, pageSource?: {source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}}} [opts] - Pack metadata, derived JournalEntry ID, and asset resolver.
+ * @param {{journalEntryId?: string, stats?: object, resolveAddress?: Function, pageSource?: {source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}}} [opts] - Pack metadata, derived JournalEntry ID, and asset resolver.
  * @returns {object} The keyed Scene document.
  * @throws {Error} When `data.scene` is not an object, or a fixup or pin anchor
  *   names something the Scene or the note does not have.

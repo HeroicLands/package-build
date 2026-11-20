@@ -94,7 +94,7 @@ import { assertNoRuntimeOnlyFields } from "./runtime-only-fields.mjs";
  *   resolved.
  * @param {object} fm - The note's frontmatter.
  * @param {string} name - The item's name.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [pageSource] - Captured private documentation provenance.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined}} [pageSource] - Captured private documentation provenance.
  * @param {{file?: string, bodyLine?: number}} [location] - Authored note location for missing-source diagnostics.
  * @returns {string} The pointer, or "" for a note with no body.
  */
