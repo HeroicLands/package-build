@@ -50,7 +50,7 @@
  */
 
 import { fitsKind } from "./data-keys.mjs";
-import { populationActual } from "./population-values.mjs";
+import { populationActual, populationApparent } from "./population-values.mjs";
 import { positionOfFrontmatterPath, positionOfLiteral } from "./diagnostics.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
 import { shortcodesOf } from "./holdings.mjs";
@@ -121,6 +121,8 @@ const CORPUS = new WeakMap();
  * @property {string} subType
  * @property {string} title       What a finding calls it.
  * @property {number} [population] The stated figure, absent where unstated.
+ * @property {number} [actualCitation] The declared actual figure, including zero.
+ * @property {number} [apparentPopulation] The effective apparent figure.
  * @property {string[]} parents   A place's enclosing places, an affiliation's
  *                                superiors.
  */
@@ -144,25 +146,20 @@ const CORPUS = new WeakMap();
 /**
  * A `data.population` value as a number, or `undefined`.
  *
- * A figure is a positive count. Anything else — a blank, a string of prose, a
- * zero — states nothing this module can compare, and is read as unstated
- * rather than as a figure of zero, which would make every sum a finding.
+ * Actual figures used in sums are positive; apparent figures may also be zero.
  *
  * @param {unknown} value - The authored value.
+ * @param {boolean} [apparent] - Read the effective apparent figure.
  * @returns {number|undefined} The figure, or `undefined`.
  */
-function figureOf(value) {
-    const actual =
-        (
-            value &&
-            typeof value === "object" &&
-            !Array.isArray(value) &&
-            (value.actual === null || fitsKind(value.actual, "number"))
-        ) ?
-            populationActual(value)
+function figureOf(value, apparent = false) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const selected = apparent && Object.hasOwn(value, "apparent") ? value.apparent : value.actual;
+    if (selected === null || !fitsKind(selected, "number")) return undefined;
+    const n = apparent ? populationApparent(value) : populationActual(value);
+    return typeof n === "number" && Number.isFinite(n) && (apparent ? n >= 0 : n > 0) ?
+            n
         :   undefined;
-    const n = typeof actual === "number" ? actual : Number(actual);
-    return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 /**
@@ -205,6 +202,8 @@ function localNode(note) {
         subType: String(fm.subType ?? ""),
         title: String(fm.name?.full ?? shortcode),
         population: figureOf(data.population),
+        actualCitation: figureOf({ actual: data.population?.actual }, true),
+        apparentPopulation: figureOf(data.population, true),
         parents: shortcodesOf(data.parents),
     };
 }
@@ -230,6 +229,8 @@ export function foreignNode(canonical, entry) {
         subType: String(entry.subType ?? ""),
         title: String(entry.name ?? shortcode),
         population: figureOf(entry.population),
+        actualCitation: figureOf({ actual: entry.population?.actual }, true),
+        apparentPopulation: figureOf(entry.population, true),
         parents: shortcodesOf(entry.parents),
     };
 }
@@ -490,9 +491,18 @@ export function checkCitedPopulations(note, { index } = {}) {
     for (const match of body.matchAll(CITED)) {
         const [, type, shortcode, , figure] = match;
         const target = corpus.byAddress.get(`${type}/${shortcode}`.toLowerCase());
-        if (!target || target.population === undefined) continue;
+        if (
+            !target ||
+            (target.actualCitation === undefined && target.apparentPopulation === undefined)
+        )
+            continue;
         const claimed = Number(figure.replace(/,/g, ""));
-        if (!Number.isFinite(claimed) || claimed === target.population) continue;
+        if (
+            !Number.isFinite(claimed) ||
+            claimed === target.actualCitation ||
+            claimed === target.apparentPopulation
+        )
+            continue;
 
         // Which `~figure` in the file this is, so a number written twice is
         // located twice rather than both findings landing on the first.
@@ -506,7 +516,7 @@ export function checkCitedPopulations(note, { index } = {}) {
             severity: "warning",
             message:
                 `disputed figure: ${target.title} is carried at ${counted(claimed)} here and ` +
-                `${counted(target.population)} on its own note`,
+                `${counted(target.apparentPopulation ?? target.actualCitation)} on its own note`,
         });
     }
 

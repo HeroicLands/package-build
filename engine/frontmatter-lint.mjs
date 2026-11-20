@@ -541,7 +541,24 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
     // the inner keys its declaration states, as the container is to its own.
     findings.push(
         ...checkDataKeys(
-            note,
+            {
+                ...note,
+                fm: {
+                    ...note.fm,
+                    data: {
+                        ...entries,
+                        ...(Array.isArray(entries.settlements) ?
+                            {
+                                settlements: entries.settlements.map((row) =>
+                                    row?.population === null ?
+                                        { ...row, population: { actual: null } }
+                                    :   row,
+                                ),
+                            }
+                        :   {}),
+                    },
+                },
+            },
             fields.filter((field) => !note.inheritedCultureFields?.has(field.name)),
         ),
     );

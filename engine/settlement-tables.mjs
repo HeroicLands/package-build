@@ -623,6 +623,7 @@ export function checkSettlementTables(
                 :   key === "notes" ||
                     (actualOf(row.population) > 0 && ["type", "market"].includes(key));
             if (key === "population") {
+                if (value === null) continue;
                 if (
                     value &&
                     typeof value === "object" &&
@@ -966,7 +967,7 @@ export function settlementMarkdown(
         indexes = new Map();
         renderCache.set(records, indexes);
     }
-    const visibility = audience;
+    const visibility = isGmNote(fmOf(record)) ? "all" : "public";
     const cacheKey = `${record.package ?? ""}:${visibility}`;
     if (!indexes.has(cacheKey))
         indexes.set(cacheKey, {

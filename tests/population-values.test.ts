@@ -26,6 +26,11 @@ describe("population values", () => {
         expect(populationForAudience(input)).toBe(apparent);
         expect(populationDiffers(input)).toBe(differs);
     });
+    it("rejects malformed data containers and preserves absent data", () => {
+        expect(projectPopulationFrontmatter({ name: "Example" })).toEqual({ name: "Example" });
+        for (const data of [null, [], 3, "bad", new Date()])
+            expect(() => projectPopulationFrontmatter({ data })).toThrow(TypeError);
+    });
     it("projects without mutation and preserves unrelated references in either order", () => {
         const marker = new Date();
         const input = {

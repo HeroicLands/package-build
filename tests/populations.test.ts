@@ -554,6 +554,28 @@ describe("the checks are the ones the vocabulary declares", () => {
         expect(field?.check).toBe(checkPopulation);
     });
 
+    it("accepts both actual and apparent cited figures", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-populations-"));
+        const region = place("rgn", "The Region", "region", { population: 1000 }).replace(
+            "population: {actual: 1000}",
+            "population: {actual: 1000, apparent: 400}",
+        );
+        const census = doc(
+            "census",
+            "Census",
+            "[[place-rgn|Region]] ~400\n[[place-rgn|Region]] ~1,000\n[[place-rgn|Region]] ~200",
+        );
+        const index = buildLinkIndex(writeTree(root, { "Rgn.md": region, "Census.md": census }), {
+            skipDirectories: [],
+        });
+        const note = index.notes.find((entry: { file: string }) =>
+            entry.file.endsWith("Census.md"),
+        );
+        const findings = checkCitedPopulations(note, { index });
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("400 on its own note");
+    });
+
     it("checks a `doc` note's cited figures", () => {
         // The `doc` check also scopes `data.culture` to setting guides; on a
         // genre that states none, it says exactly what the citation rule says.
