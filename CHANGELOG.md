@@ -1,5 +1,29 @@
 # @heroiclands/package-build
 
+## 25.10.0
+
+**Languages and scripts**
+
+- Shared spellings keep every word-class meaning in dictionaries, glossaries and inherited vocabulary, link to every entry, and flag differing native spellings.
+- Language notes can publish writing examples and sample passages, while script encodings preserve vowel quality and stress when writing stressed short vowels.
+
+**Content and notes**
+
+- Settlement records support households and primary livelihoods, optional locations, holders and descriptions, and lineage governments for populated places; cultures can state average household size.
+- Pass creator credits as lists of text, even for one creator; asset indexes return them in recorded order, and sidecar attribution must be text or the build fails.
+- Correct unsupported creator XML in artwork masters when the build reports it.
+
+**Builds and commands**
+
+- Preview rural settlements from a pinned map and save checked settlement rows to the chosen polity.
+- Replace `art.lock` and `package-build art` with HTTPS archive URLs and SHA-256 digests in `art.archives`; screen and print books use original artwork with downloads verified and shared across projects.
+- Update copied opaque artwork paths from `.webp` to `.jpg` in Foundry documents; transparent artwork remains WebP and vectors remain SVG.
+- Use `package-build --version` without a project configuration.
+
+**Upgrading**
+
+- Pin dependencies to GitHub releases that publish the content index as an asset with an available SHA-256 digest.
+
 ## 25.9.0
 
 **Content and notes**
