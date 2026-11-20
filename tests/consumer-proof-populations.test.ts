@@ -97,7 +97,7 @@ describe("consumer population proof", () => {
         expect(resolved.subjectAddress).toBe(address);
         expect(resolved.subject.data.population).toEqual({ actual: null, apparent: 0 });
         expect(resolved.journal.data).toBeUndefined();
-        expect(resolved.uuid).toMatch(/^Compendium\\.thalorna\\.journals\\.JournalEntry\\./);
+        expect(resolved.uuid).toMatch(/^Compendium\.thalorna\.journals\.JournalEntry\./);
         expect(verifyPopulationIndex(raw.slice(0, 1), records, [address])).toEqual({
             subjects: 1,
             figures: 3,

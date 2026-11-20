@@ -237,9 +237,8 @@ function populationCells(html) {
 const normalized = (value) =>
     value === null || value === undefined ? "unknown" : Number(value).toLocaleString("en-US");
 const readNumber = (text) => {
-    const cleaned = String(text ?? "")
-        .trim()
-        .replace(/,/g, "");
+    assert.equal(typeof text, "string", "population cell is missing");
+    const cleaned = String(text).trim().replace(/,/g, "");
     if (!cleaned || /^unknown$/i.test(cleaned)) return "unknown";
     assert.match(cleaned, /^-?\d+(?:\.\d+)?$/, "population cell must contain a number or Unknown");
     return Number(cleaned).toLocaleString("en-US");
@@ -267,7 +266,17 @@ export function verifyPopulationSurfaces(source, addresses, surfaces) {
         for (const rows of surface.tables) {
             const columns = rows[0].map((cell) => cell.toLowerCase());
             if (!header.every((name) => columns.includes(name))) continue;
-            for (const row of rows.slice(1)) if (row[0] === label) matches.push({ row, columns });
+            for (const name of header)
+                assert.equal(
+                    columns.filter((column) => column === name).length,
+                    1,
+                    `${context}: duplicate ${name} column`,
+                );
+            for (const row of rows.slice(1)) {
+                if (row[0] !== label) continue;
+                assert.equal(row.length, columns.length, `${context}: incomplete ${label} row`);
+                matches.push({ row, columns });
+            }
         }
         assert.ok(matches.length > 0, `${context}: missing ${label} row`);
         return matches;
