@@ -112,11 +112,31 @@ export const LEAD_ANCHOR = "$lead";
  * @param {string} body - The note's markdown body.
  * @param {string} name - The note's name, used as the lead page's title.
  * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Session scanner projections.
- * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [pageSource] - Captured private page provenance.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, publicAnchors?: Map<string, number>, publicBody?: object}} [pageSource] - Captured private provenance and projected public anchors/body; targets must exist on stable native pages.
  * @returns {Record<string, string>} The anchors.
  */
 export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
     const anchors = {};
+    const refuse = (slug, reason) => {
+        throw Object.assign(
+            new Error(
+                `${pageSource.file || "<journal>"}:${(pageSource.bodyLine ?? 1) + (pageSource.publicAnchors.get(slug) ?? 0)}:1: error: public anchor "${slug}" ${reason}`,
+            ),
+            { located: true },
+        );
+    };
+    const publicTargets = new Map();
+    if (pageSource?.publicBody)
+        splitPages(pageSource.publicBody.markdown, name, undefined, syntax, {
+            ...pageSource,
+            ...pageSource.publicBody,
+        }).forEach((page, index) => {
+            const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
+            if (index === 0) publicTargets.set(LEAD_ANCHOR, uuid);
+            if (page.anchorSlug) publicTargets.set(page.anchorSlug, uuid);
+            for (const anchor of collectAnchors(page.markdown, 1, undefined, syntax))
+                publicTargets.set(anchor.slug, uuid);
+        });
     splitPages(body, name, undefined, syntax, pageSource).forEach((page, index) => {
         const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
         const words = new Set(
@@ -129,11 +149,26 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
                 )
                 .map((span) => span.id),
         );
-        if (index === 0) anchors[LEAD_ANCHOR] = uuid;
-        if (page.anchorSlug) anchors[page.anchorSlug] = uuid;
-        for (const anchor of collectAnchors(page.markdown, 1, undefined, syntax))
-            anchors[anchor.slug] = words.has(anchor.slug) ? `${uuid}#${anchor.slug}` : uuid;
+        const targets = new Map(
+            collectAnchors(page.markdown, 1, undefined, syntax).map((anchor) => [
+                anchor.slug,
+                words.has(anchor.slug) ? `${uuid}#${anchor.slug}` : uuid,
+            ]),
+        );
+        if (index === 0) targets.set(LEAD_ANCHOR, uuid);
+        if (page.anchorSlug) targets.set(page.anchorSlug, uuid);
+        for (const [slug, target] of targets) {
+            if (pageSource?.publicAnchors?.has(slug) && page.sourceIdentity?.name === undefined) {
+                if (page.sourceIdentity?.privateOnly)
+                    refuse(slug, "has no stable private journal page");
+                if (pageSource.publicBody && publicTargets.get(slug) !== uuid)
+                    refuse(slug, "resolves to different public and private generated pages");
+            }
+            anchors[slug] = target;
+        }
     });
+    for (const slug of pageSource?.publicAnchors?.keys() ?? [])
+        if (!Object.hasOwn(anchors, slug)) refuse(slug, "has no private journal target");
     return anchors;
 }
 
@@ -158,7 +193,7 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
  * documentation journal's is {@link itemDocEntryId} of that. Stating it here is
  * what lets the content index publish an identity it did not re-derive.
  *
- * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined, syntax?: import("./content-session.mjs").ContentSyntax, pageSource?: {source:string,lineMap?:object[],generatedFrom?:number,file?:string,bodyLine?:number,referenceName?:(target:string)=>string|undefined}}} ctx - Resolved identities, optional session scanner projections, and captured source required for private journal routing.
+ * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined, syntax?: import("./content-session.mjs").ContentSyntax, pageSource?: {source:string,lineMap?:object[],generatedFrom?:number,file?:string,bodyLine?:number,referenceName?:(target:string)=>string|undefined,publicAnchors?:Map<string,number>,publicBody?:object}}} ctx - Resolved identities, optional session scanner projections, and captured source required for private journal routing.
  * @returns {Array<object>} One or two entries, in {@link buildManifest}'s shape.
  */
 export function entriesForNote(fm, name, address, body, ctx) {
@@ -182,6 +217,13 @@ export function entriesForNote(fm, name, address, body, ctx) {
             { located: true },
         );
     }
+    if (pageSource?.publicAnchors?.size && !journalHasContent(body))
+        throw Object.assign(
+            new Error(
+                `${pageSource.file || ctx.file || "<journal>"}:${pageSource.bodyLine ?? ctx.bodyLine ?? 1}:1: error: public anchors have no private journal target`,
+            ),
+            { located: true },
+        );
     const key = canonicalKey(contentPackage, ownDocumentSystem(fm.type), fm.type, fm.shortcode);
     // `buildManifest` records `packageRelative(url, base)`, so the pair it is
     // given has to round-trip. The address is already package-relative, so the

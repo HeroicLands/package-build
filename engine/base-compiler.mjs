@@ -808,6 +808,7 @@ export class BasePackCompiler {
         if (expanded.linkError) throw expanded.linkError;
         this.unresolvedLinks += expanded.unresolved.length;
         this.currentPageSource = {
+            publicAnchors: this.corpus?.pageSources?.get(absPath)?.publicAnchors,
             source: body,
             lineMap: expanded.lineMap,
             generatedFrom: expanded.generatedFrom,

@@ -179,7 +179,7 @@ import { entriesForNote, foundryIdentities, LEAD_ANCHOR } from "./foundry-entrie
 import { walkMarkdownTree } from "./helpers.mjs";
 // The one statement of what an empty body means, shared with the lint and the
 // SQL view that derives the ladder from the absence this writes.
-import { isStubNote } from "./note-state.mjs";
+import { isStubNote, journalHasContent } from "./note-state.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 // The `package:` refusal, so a note declaring one is reported where it is
 // rather than as a bare abort.
@@ -1992,7 +1992,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
  * @param {object} [options.router] - Destination router.
  * @param {Function} [options.syntax] - Captured syntax scanner.
  * @param {Function} [options.prepareAudience] - Cached SQL preparation by audience.
- * @returns {Promise<{expandedBodies: Map<string, object>, foundryBodies: Map<string, {markdown: string, source: string, lineMap: object[], generatedFrom?: number, file: string, bodyLine?: number}>}>} Expanded bodies and native source provenance, without output writes.
+ * @returns {Promise<{expandedBodies: Map<string, object>, foundryBodies: Map<string, {markdown: string, source: string, lineMap: object[], generatedFrom?: number, file: string, bodyLine?: number, publicAnchors: Map<string,number>, publicBody: object}>}>} Expanded bodies and native source provenance, without output writes.
  */
 export async function preparePublicationBodies({
     contentBase: tree,
@@ -2188,6 +2188,16 @@ export async function preparePublicationBodies({
                 expandedBodies.set(file, expanded);
         }
     }
+    for (const [file, native] of foundryBodies) {
+        const projected = expandedBodies.get(file);
+        const publicAnchors = new Map(
+            collectAnchors(projected.markdown, 1, undefined, syntax)
+                .filter((anchor) => anchor.kind === "prose")
+                .map((anchor) => [anchor.slug, projected.lineMap[anchor.line - 1]?.line ?? 0]),
+        );
+        if (journalHasContent(projected.markdown)) publicAnchors.set(LEAD_ANCHOR, 0);
+        foundryBodies.set(file, { ...native, publicAnchors, publicBody: projected });
+    }
     return { expandedBodies, foundryBodies };
 }
 
@@ -2213,7 +2223,7 @@ export async function preparePublicationBodies({
  * @property {object[]} records - Complete index records, including hidden providers.
  * @property {Map<string, {frontmatter: object|null, body: string, raw: string, bodyLine?: number, bodyColumn?: number}>} parsed - Authored sources by absolute file.
  * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} expandedBodies - Public-population bodies with static declarations for private expression headings.
- * @property {Map<string, {markdown: string, source: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number, file: string, bodyLine?: number, referenceName?: (target:string)=>string|undefined}>} foundryBodies - Native bodies and captured source provenance in the destination audience, used only for target identity.
+ * @property {Map<string, {markdown: string, source: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number, file: string, bodyLine?: number, referenceName?: (target:string)=>string|undefined, publicAnchors?: Map<string,number>, publicBody?: object}>} foundryBodies - Native bodies and captured source provenance in the destination audience, used only for target identity.
  * @property {import("./content-session.mjs").ContentSyntax} [syntax] - Session-local exact-text scanner projections.
  */
 
@@ -2281,8 +2291,10 @@ function projectPublicationBody(
     for (const entry of [entries?.own, entries?.doc])
         if (entry?.anchors)
             entry.anchors = Object.fromEntries(
-                Object.entries(entry.anchors).filter(
-                    ([slug]) => slug === LEAD_ANCHOR || declared.has(slug),
+                Object.entries(entry.anchors).filter(([slug]) =>
+                    pageSource?.publicAnchors ?
+                        pageSource.publicAnchors.has(slug)
+                    :   slug === LEAD_ANCHOR || declared.has(slug),
                 ),
             );
     record.foundry = foundryBlock(entries?.own, ownDocumentSystem(fm.type));

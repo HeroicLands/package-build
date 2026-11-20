@@ -1808,7 +1808,7 @@ async function attachPreparedAnchors(prepared, records, contentBase, parsed, con
     const { entriesForNote, foundryIdentities } = await import("./foundry-entries.mjs");
     const identities =
         config?.foundryPackage ? { ...foundryIdentities(config), syntax } : undefined;
-    const { sourceReferenceNames } = await import("./journals.mjs");
+    const { sourceReferenceNames, splitPages } = await import("./journals.mjs");
     const { loadForeignIndexes } = await import("./metadata-index.mjs");
     const referenceName =
         identities ?
@@ -1844,6 +1844,18 @@ async function attachPreparedAnchors(prepared, records, contentBase, parsed, con
                 pageSource: { ...expanded, source: body, file, bodyLine },
             },
         );
+        const router = identities.packRouter;
+        if (
+            router.privateOf(router.resolveOrNull(frontmatter, "JournalEntry")) &&
+            splitPages(
+                expanded.markdown,
+                frontmatter.name?.full ?? record.file.name,
+                undefined,
+                syntax,
+                { ...expanded, source: body, file, bodyLine, referenceName },
+            ).some((page) => page.sourceIdentity?.name === undefined)
+        )
+            results.privatePageSourcePending = { file, bodyLine };
         results.anchorUuids = entries[0]?.anchors;
         results.docAnchorUuids = entries[1]?.anchors;
     }
@@ -1954,7 +1966,8 @@ export async function cachedDependencies(config) {
  *   other note's. The queries still read the whole corpus.
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path,
  *   carrying `inline` and `pageLists` beside them, or nothing when the tree
- *   holds no such directive and no note is given a generated section.
+ *   holds no such directive and no note is given a generated section. Private generated
+ *   page mappings require the compile corpus's paired public preparation before use in a Foundry link index.
  */
 export async function prepareTreeSqlTables(
     contentBase,
