@@ -16,7 +16,7 @@ describe("facial-hair consumer index evidence", () => {
         },
         relPath: "example.md",
         contentPackage: "thalorna",
-        body: "",
+        body: "A culture note.",
     });
     const row = JSON.parse(serializeContentIndex([record]));
     it("records the indexed list from the matching canonical address", () => {
