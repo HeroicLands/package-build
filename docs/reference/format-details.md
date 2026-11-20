@@ -3625,12 +3625,12 @@ SELECT address.slug    AS _ref,
        name.full       AS "Name",
        state           AS "State",
        m.name          AS "Market",
-       data.population AS "People"
+       data.population.apparent AS "People"
 FROM entries
 LEFT JOIN market m ON m.value = data.market
 WHERE type = 'place' AND subType = 'settlement'
   AND list_contains(data.parents, 'place-eilwith')
-ORDER BY data.population DESC NULLS LAST, name.full COLLATE NOCASE
+ORDER BY data.population.apparent DESC NULLS LAST, name.full COLLATE NOCASE
 ```
 ````
 
@@ -6194,8 +6194,8 @@ rank names the standing, and the standing says.
 | `governance.offices.<name>.holders[].contested` | `boolean`                                                                 | `true` where the term may overlap another holder's                                                                          |
 | `seat`                                          | `Address`                                                                 | Where the affiliation's authority sits                                                                                      |
 | `range`                                         | `Address[]`, optional                                                     | Places the affiliation is active in; permitted only with an empty `seat`                                                    |
-| `population`                                    | `number`                                                                  | Number of people in the affiliation (precision 2 significant digits).                                                       |
-| `territorial_population`                        | positive integer                                                          | A polity's territorial inhabitants, separate from membership                                                                |
+| `population`                                    | `{actual, apparent?}`                                                     | Number of members, with actual and optional apparent figures.                                                               |
+| `territorial_population`                        | `{actual, apparent?}`                                                     | A polity's territorial inhabitants, separate from membership                                                                |
 | `settlements`                                   | list of row maps                                                          | A polity's settlements without notes                                                                                        |
 | `settlements[].settlement`                      | nonempty name                                                             | The settlement's name.                                                                                                      |
 | `settlements[].polity`                          | polity Address or name                                                    | The governing polity.                                                                                                       |
@@ -6204,7 +6204,7 @@ rank names the standing, and the standing says.
 | `settlements[].fortification`                   | fortification or null                                                     | The settlement's defenses.                                                                                                  |
 | `settlements[].stronghold`                      | stronghold or null                                                        | The settlement's stronghold.                                                                                                |
 | `settlements[].holder`                          | affiliation or being Address, or name                                     | Who holds the land.                                                                                                         |
-| `settlements[].population`                      | nonnegative integer or null                                               | Residents, to at most two significant digits; null means unknown and zero means abandoned.                                  |
+| `settlements[].population`                      | `{actual, apparent?}`                                                     | Residents as actual and optional apparent figures; null means unknown and zero means abandoned.                             |
 | `settlements[].market`                          | market class                                                              | The market's reach.                                                                                                         |
 | `settlements[].notes`                           | nonempty short text                                                       | What distinguishes the settlement.                                                                                          |
 | `settlements[].households`                      | nonnegative whole number or null                                          | Exact household count, or null when unknown.                                                                                |
@@ -8632,7 +8632,7 @@ in their parent's **Within** section under **Districts** and **Routes**.
 | `lore`                            | `Address[]`                                                                      | Lore concerning this place — its peoples, its law, its calendar, its history                              |
 | `parents`                         | `Address[]`                                                                      | Enclosing places within which this place is located                                                       |
 | `culture`                         | `Address`                                                                        | The people this place belongs to, naming a lore note with `subType: culture`                              |
-| `population`                      | `number`                                                                         | Approximate population (precision 2 significant digits)                                                   |
+| `population`                      | `{actual, apparent?}`                                                            | Approximate population (precision 2 significant digits)                                                   |
 | `households`                      | nonnegative whole number or null                                                 | Exact household count; null means unknown.                                                                |
 | `economicFocus`                   | text                                                                             | The settlement's primary livelihood.                                                                      |
 | `government`                      | `Address` or `null` (default type: `affiliation`)                                | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
@@ -8863,7 +8863,7 @@ A place may state its governing affiliation in `data.government`. The field type
 
 ```yaml
 data:
-  population: 1200
+  population: { actual: 1200 }
   government: crown
 ```
 
@@ -8880,9 +8880,14 @@ Populated settlements require a government that resolves to a polity or lineage.
 
 #### Population figures
 
-`population` is an approximate count, written to two significant digits. A
-place states one, and so does an affiliation — how many people it counts,
-wherever they are. `package-build lint` reads those figures against each other
+`population` is a map with required `actual` and optional `apparent` figures.
+A place states its inhabitants; an affiliation states its membership. Settlement
+figures use at most two significant digits. A polity's `territorial_population`
+counts its residents, and uses the same map. Omitted `apparent` uses `actual`,
+while zero and null remain explicit values. Public outputs use apparent; checks
+and calculations use actual. Accepted numeric strings are normalized to numbers.
+See [population figures](../authoring/frontmatter.md#population-figures) for
+examples, private delivery and published index behavior. `package-build lint` reads those figures against each other
 and reports three warnings, each named by the phrase its message begins with.
 
 - **`over-full region`** — the regions whose `parents` name a place count more
@@ -8956,10 +8961,17 @@ naming its governing polity or lineage and `parents` naming its enclosing places
 governed by a polity has no authored row in that polity. The build merges the two sources into a Settlements table
 of direct subjects and a Settlement index of every settlement beneath the
 polity. Direct subordinate polities appear through their seats, or as linked
-polity summaries where no settlement seat is stated. All publishing surfaces
-use the same generated tables.
+polity summaries where no settlement seat is stated. Public tables use the apparent figures; private tables use the actual figures.
 
 A settlement governed by a lineage appears in no polity settlement table, membership, listed total or urban share, and cannot have an authored row in any polity’s table.
+
+Population fields use `{actual, apparent?}`. Validation and settlement
+calculations use `actual`; public tables use `apparent`, or `actual` when the
+apparent figure is omitted. Explicit `apparent: 0` is zero and `apparent: null`
+is unknown. Public indexes materialize the apparent value and set actual to
+null when the two differ; a dependent package cannot recover that actual figure
+from the public index. See the population authoring guide for private delivery
+and examples.
 
 `data.population` on an affiliation counts its members. A polity's separate
 `data.territorial_population` counts inhabitants: listed and noted settlements
@@ -8967,9 +8979,9 @@ throughout its subordinate chain must not exceed that total. Towns, cities, and 
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
-settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. Each settlement note
+settlement sum. Each settlement declares a population: use `actual: null` when unknown and `actual: 0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. Each settlement note
 has short `data.notes`; a populated settlement note also requires `data.type`,
-a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity or lineage. A settlement note with a null or omitted population does not require those three fields.
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity or lineage. A settlement note with a null or omitted actual figure does not require those three fields.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](../configuration.md#settlement-exemptions). A municipality may use `scope: urban-share` to waive only its ceiling-mode urban-share check; total ceilings and its superior polity's check still apply. A list containing only the seat does not itself declare municipal territory.
 
 ```yaml
@@ -8977,7 +8989,7 @@ type: affiliation
 subType: polity
 shortcode: council
 data:
-  territorial_population: 100
+  territorial_population: { actual: 100 }
   settlements:
     - settlement: East Farm
       polity: affiliation-council
@@ -8986,7 +8998,7 @@ data:
       fortification: null
       stronghold: null
       holder: The Council
-      population: 100
+      population: { actual: 100 }
       market: subsistence
       notes: A farm by the road.
 ```
@@ -9025,7 +9037,7 @@ Semantic findings are located errors except where a warning is stated:
 - **`settlements shape`** — Only a polity declares a list of settlement rows with the declared fields.
 - **`settlement field`** — Required facts, enumerated values, household counts and map identities follow the settlement vocabulary.
 - **`unresolved settlement reference`** — A reference does not resolve to its required note type.
-- **`people figure`** — A population is neither null nor a nonnegative whole number with at most two significant digits. An omitted settlement population warns and is treated as unknown.
+- **`people figure`** — An actual or apparent population is neither null nor a nonnegative whole number with at most two significant digits. An omitted settlement population warns and is treated as unknown.
 - **`duplicate settlement`** — A settlement has more than one listed or noted source.
 - **`territorial population`** — A required territorial total is missing or known settlement populations exceed the configured limits. In complete mode, the lower bound applies only when every settlement population is known.
 - **`polity superior`** — A polity declares more than one superior.

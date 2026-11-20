@@ -148,9 +148,22 @@ headword proof.
 Set `art_archives: true` with `consumer: kethira` to add an isolated artwork
 archive compile. The Thalorna proofs ignore this option.
 
-All choices pack that commit, verify the archive integrity and installed bytes,
-and refuse changes to unrelated locked dependencies before the normal consumer
-compile. Kethira checks its content index and compiled packs. The encoding proof
+Select `consumer: authoring-reference` to generate the controlled reference
+documents from the selected commit in an isolated snapshot. The
+`authoring-reference` artifact contains the documents and a receipt with the
+source commit and SHA-256 hashes; review them before committing the output.
+
+Select `consumer: thalorna-populations`, set `consumer_sha` to the exact
+Thalorna commit, and supply `population_addresses` as a JSON list of canonical
+place (`thalorna-note-place-…`) and affiliation (`thalorna-sohl-affiliation-…`)
+Addresses. Each selected subject must have differing
+figures and public site and JournalEntry output. The proof checks an isolated
+converted source snapshot, public index and site, and public and private Foundry documents. Its
+receipt records source and output hashes without copying private source records.
+
+The consumer compile choices pack that commit, verify the archive integrity and
+installed bytes, and refuse changes to unrelated locked dependencies before the
+normal consumer compile. Kethira checks its content index and compiled packs. The encoding proof
 applies two disposable note overlays and checks that the requested stressed grave
 vowels encode, decode and render without findings. The headword proof applies
 three disposable replacements and checks the resulting dictionary classes,
@@ -160,8 +173,8 @@ stay in their own repository.
 The workflow requires registry and consumer dependency access; it does not
 publish a package or site.
 
-The Thalorna proofs use the normal `build` host runner with a 3072 MiB
-Node heap limit. Each verifies the runner service and shared content slice's
+The Thalorna consumer proofs use the normal `build` host runner with a 3072 MiB
+Node heap limit. The encoding and headword proofs verify the runner service and shared content slice's
 12 GiB high watermark and 14 GiB memory limit. The profile permits swap.
 The `consumer-proof-memory` artifact retains before/after memory limits, peak
 and event counters, including failed compiles. Those cgroup counters include

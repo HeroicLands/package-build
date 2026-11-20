@@ -15,7 +15,9 @@
  * Wrap authored population values in source-preserving actual declarations.
  * Run with `--preview` or `--write` and note files or content directories.
  * Every note is parsed and verified before any source is written. The summary
- * names changed files and counts the verified wrappers.
+ * names changed files and counts the verified wrappers. Invalid YAML, aliases,
+ * anchors, explicit tags, merge keys and unsupported population shapes are
+ * refused before writing. A filesystem failure can interrupt the write pass.
  * @module
  */
 import fs from "node:fs";
@@ -23,8 +25,9 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import YAML from "yaml";
+import { fitsKind } from "../engine/data-keys.mjs";
 
-const numeric = (value) => value === null || (typeof value === "number" && Number.isFinite(value));
+const numeric = (value) => value === null || fitsKind(value, "number");
 
 /** Convert a note in memory, checking the complete parsed result before returning it. */
 export function convertPopulation(raw, file) {
@@ -99,7 +102,9 @@ export function convertPopulation(raw, file) {
         const [begin, finish] = node.range;
         const value = source.slice(begin, finish);
         if (!value) {
-            const at = pair.key.range[1] + 1;
+            const separator = pair.srcToken?.sep?.find((token) => token.type === "map-value-ind");
+            if (!separator) reject(pair.key, "population mapping separator is required");
+            const at = separator.offset + separator.source.length;
             edits.push({ begin: at, finish: at, text: " {actual: null}" });
         } else edits.push({ begin, finish, text: `{actual: ${value}}` });
         target[name] = { actual: node.value };
@@ -131,7 +136,7 @@ function io(file, operation) {
     try {
         return operation();
     } catch (error) {
-        throw new Error(`${file}:1:1: error: ${error.message}`);
+        throw new Error(`${file}: error: ${error.message}`);
     }
 }
 
@@ -140,17 +145,17 @@ export function convertFiles(files, { write = false } = {}) {
     const prepared = files.map((file) => {
         const stat = io(file, () => fs.lstatSync(file));
         if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1)
-            throw new Error(`${file}:1:1: error: source must be a regular, unlinked file`);
+            throw new Error(`${file}: error: source must be a regular, unlinked file`);
         const bytes = io(file, () => fs.readFileSync(file));
         const raw = bytes.toString("utf8");
-        if (!Buffer.from(raw).equals(bytes)) throw new Error(`${file}:1:1: error: invalid UTF-8`);
+        if (!Buffer.from(raw).equals(bytes)) throw new Error(`${file}: error: invalid UTF-8`);
         return { file, raw, ...convertPopulation(raw, file) };
     });
     const changed = prepared.filter(({ raw, text }) => raw !== text);
     if (write) {
         for (const item of changed) {
             if (io(item.file, () => fs.readFileSync(item.file, "utf8")) !== item.raw)
-                throw new Error(`${item.file}:1:1: error: source changed after preparation`);
+                throw new Error(`${item.file}: error: source changed after preparation`);
         }
         for (const item of changed) io(item.file, () => fs.writeFileSync(item.file, item.text));
     }
@@ -164,8 +169,7 @@ export function convertFiles(files, { write = false } = {}) {
 
 function collect(input) {
     const stat = io(input, () => fs.lstatSync(input));
-    if (stat.isSymbolicLink())
-        throw new Error(`${input}:1:1: error: symbolic links are not supported`);
+    if (stat.isSymbolicLink()) throw new Error(`${input}: error: symbolic links are not supported`);
     if (stat.isDirectory())
         return io(input, () => fs.readdirSync(input))
             .sort()

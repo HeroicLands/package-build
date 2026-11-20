@@ -2,15 +2,23 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -euo pipefail
 
+root="$PWD"
 proof="$RUNNER_TEMP/consumer-proof"
 guard="$PWD/ci/consumer-lock-guard.mjs"
 case "$CONSUMER_PROOF" in
-    kethira|thalorna-encoding|thalorna-headwords) ;;
+    kethira|thalorna-encoding|thalorna-headwords|thalorna-populations) ;;
     *) printf 'Unknown consumer proof: %s\n' "$CONSUMER_PROOF" >&2; exit 1 ;;
 esac
 cd consumer-proof-consumer
 test "$(git rev-parse HEAD)" = "$CONSUMER_SHA"
 printf 'Consumer commit: %s\n' "$(git rev-parse HEAD)"
+if [ "$CONSUMER_PROOF" = thalorna-populations ]; then
+    [[ "$CONSUMER_SHA" =~ ^[0-9a-f]{40}$ ]]
+    mkdir -p "$proof/source" "$proof/population-evidence"
+    git archive "$CONSUMER_SHA" | tar -x -C "$proof/source"
+    cd "$proof/source"
+    node "$root/ci/consumer-proof-populations.mjs" prepare "$proof"
+fi
 cp package-lock.json "$proof/original-lock.json"
 npm pkg set "devDependencies.@heroiclands/package-build=file:$proof/candidate.tgz"
 npm update @heroiclands/package-build --package-lock-only --ignore-scripts
@@ -33,7 +41,7 @@ NODE
 npm ci
 mkdir -p "$proof/unpacked"
 tar -xzf "$proof/candidate.tgz" -C "$proof/unpacked"
-node - "$proof/unpacked/package" node_modules/@heroiclands/package-build <<'NODE'
+node - "$proof/unpacked/package" node_modules/@heroiclands/package-build "$proof" <<'NODE'
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
@@ -46,12 +54,23 @@ function compare(source, installed) {
     }
 }
 compare(process.argv[2], process.argv[3]);
+const crypto = require('node:crypto');
+const archive = fs.readFileSync(path.join(process.argv[4], 'candidate.tgz'));
+fs.writeFileSync(path.join(process.argv[4], 'installed-archive.json'), JSON.stringify({archiveSha256: crypto.createHash('sha256').update(archive).digest('hex'), verified: true}) + '\n');
 console.log('Installed package matches every archived file.');
 NODE
-if [ "$CONSUMER_PROOF" != kethira ]; then
+if [ "$CONSUMER_PROOF" != kethira ] && [ "$CONSUMER_PROOF" != thalorna-populations ]; then
     overlay="${CONSUMER_PROOF#thalorna-}-consumer-overlay.mjs"
     cp "../ci/$overlay" ".$overlay"
     node ".$overlay" prepare
+fi
+if [ "$CONSUMER_PROOF" = thalorna-populations ]; then
+    npm run build:deps
+    npm run lint:content
+    npm run build:db
+    npm run build:site
+    node "$root/ci/consumer-proof-populations.mjs" verify "$proof"
+    exit 0
 fi
 if [ "$CONSUMER_PROOF" != kethira ]; then
     CONSUMER_PROOF_MEMORY_DIR="$RUNNER_TEMP/consumer-proof-memory" \

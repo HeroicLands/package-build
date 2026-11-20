@@ -140,13 +140,60 @@ inferred connections in **Related**. A destination also found among backlinks
 or mentions appears only in See also. Foundry journals and books append a
 **See also** section. An omitted or empty list adds no section or group.
 
+## Population figures
+
+A place, an affiliation, or a settlement row states a population as a map with
+`actual` and optional `apparent`. An affiliation's `population` counts members;
+a polity's `territorial_population` counts residents. A settlement's `actual`
+may be `null` when unknown or zero when abandoned. For example:
+
+```yaml
+data:
+  population: { actual: 1200, apparent: 800 }
+  territorial_population: { actual: 4000, apparent: null }
+  settlements:
+    - settlement: East Farm
+      polity: affiliation-council
+      type: homestead
+      population: { actual: 100, apparent: 0 }
+      market: subsistence
+```
+
+Omit `apparent` when the public count equals `actual`. An explicit zero is
+shown as zero; explicit `null` makes the public count unknown. Numeric strings
+accepted by the number fields are normalized to numbers in published output.
+Checks and calculations use `actual`, including requirements for a populated
+settlement and the limits on a polity's territory. The apparent value does not
+satisfy an actual-value requirement. The map is closed: for example,
+`population: {apparent: 100}` is an error at `data.population` because `actual`
+is required.
+
+Public tables, infoboxes and indexes use the effective apparent figure. A
+published index materializes `apparent`; when the figures differ, it sets
+`actual` to `null`, so a dependent package cannot recover the private actual
+figure from that index. Public expressions and SQL use
+`data.population.apparent`; calculations that require the real count use
+`data.population.actual` in a private context. A Foundry compile with differing
+figures needs a compiled, system-neutral private JournalEntry pack for a small
+GM population entry. A private default is selected when available; otherwise
+exactly one eligible private pack is required. An absent or ambiguous destination
+stops the compile before writing: configure one eligible pack or select a private
+default. Site-only and index-only operations need no private pack. The private
+entry contains the actual and apparent figures; an existing private entry that
+already provides them needs no duplicate.
+
+Keep private counts out of public prose and other independently published facts.
+A secret-styled passage is presentation, and household figures or published
+totals can reveal a count. State a differing or unknown `apparent` on every
+population whose actual count is private.
+
 ## Place governments
 
 A place may state its governing affiliation in `data.government`. The field type is `Address`, with `affiliation` as the default target type when the type is omitted. Use either a local shortcode or a fully qualified affiliation Address from this package or a fetched dependency:
 
 ```yaml
 data:
-  population: 1200
+  population: { actual: 1200 }
   government: crown
 ```
 
@@ -188,7 +235,7 @@ name:
 data:
   government: affiliation-riverclan
   type: village
-  population: 200
+  population: { actual: 200 }
   market: local
   notes: A village by the river.
 ```
