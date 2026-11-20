@@ -898,6 +898,7 @@ export class Journals extends BasePackCompiler {
             config,
             parsed: this.corpus.parsed,
             contentBase: this.contentBase,
+            privateTables: this.corpus.audiences?.all.sqlTables,
         });
     }
 

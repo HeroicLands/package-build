@@ -154,3 +154,27 @@ it("normalizes accepted numeric representations before deciding whether a supple
         privatePopulationFacts({ data: { population: { actual: "1200", apparent: "0" } } }),
     ).toEqual([{ label: "Population", actual: 1200, apparent: 0 }]);
 });
+
+it("uses a full private polity's generated inline section without a duplicate supplement", () => {
+    const privateRecord = { ...record, tags: ["gm"], data: { ...record.data, pack: "private" } };
+    const contentBase = path.resolve("population-fixture");
+    const file = path.join(contentBase, "hidden.md");
+    const parsed = new Map([[file, { body: "A private account." }]]);
+    const section = [] as any;
+    section.declared = [
+        { slug: "settlements", heading: "Settlements", markdown: "Generated table." },
+    ];
+    const privateTables = new Map([[file, section]]);
+    expect(plan([privateRecord], packs, { contentBase, parsed, privateTables }).subjects).toEqual(
+        [],
+    );
+    section.declared = [];
+    expect(
+        plan([privateRecord], packs, { contentBase, parsed, privateTables }).subjects,
+    ).toHaveLength(1);
+    parsed.set(file, { body: "" });
+    section.declared = [{ slug: "settlements" }];
+    expect(
+        plan([privateRecord], packs, { contentBase, parsed, privateTables }).subjects,
+    ).toHaveLength(1);
+});

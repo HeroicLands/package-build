@@ -4,7 +4,7 @@ import { expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { noteInfobox } from "../engine/infobox.mjs";
+import { noteInfobox, buildInfoboxes, systemRowsSection } from "../engine/infobox.mjs";
 import { renderMarkdownExpressions } from "../engine/markdown-expressions.mjs";
 import {
     pageFrontmatter,
@@ -437,4 +437,58 @@ it("rejects malformed membership maps at raw compile and index boundaries before
         session.dispose();
         fs.rmSync(input.root, { recursive: true, force: true });
     }
+});
+
+it("projects frontmatter before customizable public infobox fields and callbacks", () => {
+    const before = structuredClone(fm);
+    const vocabulary = { place: { data: [{ name: "population.actual", kind: "number" }] } };
+    expect(JSON.stringify(noteInfobox(fm, { vocabulary }))).not.toContain("2,300");
+    expect(JSON.stringify(noteInfobox(fm, { vocabulary, audience: "all" }))).toContain("2,300");
+    for (const audience of ["public", "all"] as const) {
+        const seen = [];
+        const boxes = buildInfoboxes(fm, {
+            audience,
+            vocabulary,
+            maps: [{ system: "example", block: "data", types: { place: {} } }],
+            compilesDocument: (value) => {
+                seen.push(value.data.population.actual);
+                return true;
+            },
+            providers: [
+                {
+                    system: "example",
+                    sections: {
+                        place: (value) => {
+                            seen.push(value.data.population.actual);
+                            return [
+                                {
+                                    layout: "rows",
+                                    rows: [
+                                        {
+                                            label: "Observed",
+                                            kind: "text",
+                                            value: String(value.data.population.actual),
+                                        },
+                                    ],
+                                },
+                            ];
+                        },
+                    },
+                },
+            ],
+        });
+        const directSeen = [];
+        systemRowsSection(fm, [{ name: "observed", kind: "number" }], {
+            block: "data",
+            audience,
+            resolveField: (_field, value) => {
+                directSeen.push(value.data.population.actual);
+                return { value: value.data.population.actual, from: "system" };
+            },
+        });
+        expect(directSeen).toEqual(audience === "public" ? [null] : [2300]);
+        expect(seen).toEqual(audience === "public" ? [null, null] : [2300, 2300]);
+        expect(JSON.stringify(boxes).includes("2300")).toBe(audience === "all");
+    }
+    expect(fm).toEqual(before);
 });

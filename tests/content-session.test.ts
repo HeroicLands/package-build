@@ -125,6 +125,7 @@ describe("one invocation owns the shared content session", () => {
                 expect(session.parsed.size).toBe(size);
                 expect(sqlSpy.mock.calls.map(([, options]) => options?.audience).sort()).toEqual([
                     "all",
+                    "all",
                     "public",
                 ]);
                 const timing = session.timings.snapshot();
@@ -320,7 +321,7 @@ describe("one invocation owns the shared content session", () => {
                 "Public",
             );
             expect(publication.foundryBodies.get([...input.files.keys()][0]).markdown).toContain(
-                "Private",
+                "Public",
             );
         } finally {
             session.dispose();

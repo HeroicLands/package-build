@@ -1868,9 +1868,56 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
         session?.records ??
         publicationIndexRecordsFor({ contentBase: tree, config: resolved, parsed });
     if (session?.problems.length) publicationProblems(session.problems);
+    const foreign = session?.foreign ?? loadForeignIndexes(resolved, [resolved.contentPackage]);
+    const { expandedBodies, foundryBodies } = await preparePublicationBodies({
+        contentBase: tree,
+        config: resolved,
+        records,
+        parsed,
+        foreign,
+        router: session?.router,
+        syntax: session?.syntax,
+        prepareAudience: session ? (audience) => session.sqlTables(audience) : undefined,
+    });
+    const publication = {
+        config: resolved,
+        contentBase: tree,
+        records,
+        parsed,
+        expandedBodies,
+        foundryBodies,
+        syntax: session?.syntax,
+    };
+    preparedPublications.add(publication);
+    return publication;
+}
+
+/**
+ * Expand captured bodies for public declarations and destination-native identities.
+ * The same expressions and inline SQL determine index and compiler page identities.
+ * @param {object} options
+ * @param {string} options.contentBase - Captured source root.
+ * @param {object} options.config - Resolved configuration.
+ * @param {object[]} options.records - Complete captured records.
+ * @param {Map<string, object>} options.parsed - Captured source bodies.
+ * @param {object} options.foreign - Captured dependency indexes.
+ * @param {object} [options.router] - Destination router.
+ * @param {Function} [options.syntax] - Captured syntax scanner.
+ * @param {Function} [options.prepareAudience] - Cached SQL preparation by audience.
+ * @returns {Promise<{expandedBodies: Map<string, object>, foundryBodies: Map<string, object>}>} Expanded bodies, without output writes.
+ */
+export async function preparePublicationBodies({
+    contentBase: tree,
+    config: resolved,
+    records,
+    parsed,
+    foreign,
+    router,
+    syntax,
+    prepareAudience,
+}) {
     const expandedBodies = new Map();
     const foundryBodies = new Map();
-    const foreign = session?.foreign ?? loadForeignIndexes(resolved, [resolved.contentPackage]);
     publicationProblems(
         foreign.stale.map((entry) => ({
             file: tree,
@@ -1889,7 +1936,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
     const { buildSiteIndex, figureIndexKeys, resolveCrossNoteFigures } =
         await import("./site-index.mjs");
     const notes = records.filter(isNoteRecord);
-    const nativeRouter = session?.router ?? routerFor(resolved);
+    const nativeRouter = router ?? routerFor(resolved);
     const nativeAudience = (record) =>
         nativeRouter.privateOf(nativeRouter.resolveOrNull(record, "JournalEntry")) ? "all" : (
             "public"
@@ -1904,8 +1951,8 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
             .map((record) => projectPopulationFrontmatter(record, populationAudience));
         const sources = audience === "all" ? notes : notes.filter((record) => !isGmNote(record));
         const prepared =
-            session && audience === populationAudience ?
-                await session.sqlTables(audience)
+            prepareAudience && audience === populationAudience ?
+                await prepareAudience(audience)
             :   await prepareTreeSqlTables(tree, {
                     config: resolved,
                     records,
@@ -1982,7 +2029,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
             currentDate: resolved.currentDate,
             records: visible,
             foreignIndex: foreign.index,
-            syntax: session?.syntax,
+            syntax,
         });
         const dates = index.dateContext;
         const events = eventNoteIndex(visible, {
@@ -2025,17 +2072,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
                 expandedBodies.set(file, expanded);
         }
     }
-    const publication = {
-        config: resolved,
-        contentBase: tree,
-        records,
-        parsed,
-        expandedBodies,
-        foundryBodies,
-        syntax: session?.syntax,
-    };
-    preparedPublications.add(publication);
-    return publication;
+    return { expandedBodies, foundryBodies };
 }
 
 /**

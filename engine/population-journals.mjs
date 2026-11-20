@@ -45,9 +45,13 @@ export function privatePopulationFacts(fm) {
  * @param {object} options.config - This compile's configuration.
  * @param {Map<string, object>} [options.parsed] - Captured authored bodies.
  * @param {string} [options.contentBase] - The source root.
+ * @param {Map<string, object[]>} [options.privateTables] - Private prepared sections establishing inline delivery.
  * @returns {{pack:string|undefined, subjects:object[]}}
  */
-export function populationJournalPlan(records, { router, config, parsed, contentBase }) {
+export function populationJournalPlan(
+    records,
+    { router, config, parsed, contentBase, privateTables },
+) {
     const subjects = [];
     const compiledPack = (name) => !config.packs?.find((pack) => pack.name === name)?.prebuilt;
     for (const record of records) {
@@ -61,15 +65,20 @@ export function populationJournalPlan(records, { router, config, parsed, content
                 parsed?.get(noteFile(contentBase, record))?.body
             :   undefined;
         // An emitted private page already carries the note's population panel.
-        // Inline rows need their supplement when an authored table replaces the derived list.
+        // Prepared section metadata establishes whether inline rows reach that page.
         const inlineFacts = (fm.data?.settlements ?? []).some((row) =>
             populationDiffers(row.population),
         );
+        const generatedInline =
+            contentBase &&
+            privateTables
+                ?.get(noteFile(contentBase, record))
+                ?.declared?.some((section) => section.slug === "settlements");
         if (
             compiledPack(ownPack) &&
             router.privateOf(ownPack) &&
             journalHasContent(body ?? "") &&
-            !inlineFacts
+            (!inlineFacts || generatedInline)
         )
             continue;
         const address =

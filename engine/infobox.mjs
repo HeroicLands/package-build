@@ -113,6 +113,7 @@
  */
 
 import {
+    projectPopulationFrontmatter,
     populationForAudience,
     populationApparent,
     populationDiffers,
@@ -1038,7 +1039,7 @@ export function linkValue(ref, resolve, hint) {
  * @returns {object} The box.
  */
 export function noteInfobox(fm, options = {}) {
-    return noteBox(fm, options).box;
+    return noteBox(projectPopulationFrontmatter(fm, options.audience ?? "public"), options).box;
 }
 
 /**
@@ -1317,14 +1318,15 @@ export function isDeclaredDefault(field, raw) {
  *
  * @param {object} fm - The note's frontmatter.
  * @param {readonly object[]} fields - The system's field declaration.
- * @param {{block: string, resolve?: Function, resolveField?: Function, taken?: Set<string>, presentation?: object}} ctx - Rendering context.
+ * @param {{block: string, resolve?: Function, resolveField?: Function, taken?: Set<string>, presentation?: object, audience?: "public"|"all"}} ctx - Rendering context.
  * @returns {object[]} Zero or one section.
  */
 export function systemRowsSection(
     fm,
     fields,
-    { block, resolve, resolveField, taken = new Set(), presentation = {} },
+    { block, resolve, resolveField, taken = new Set(), presentation = {}, audience = "public" },
 ) {
+    fm = projectPopulationFrontmatter(fm, audience);
     const rows = [];
     for (const field of fields ?? []) {
         // Asked on the authored key: the note box records what it showed by the
@@ -1380,6 +1382,7 @@ export function systemRowsSection(
  * @returns {object[]} The boxes.
  */
 export function buildInfoboxes(fm, options) {
+    fm = projectPopulationFrontmatter(fm, options.audience ?? "public");
     const {
         maps,
         providers = [],
@@ -1415,6 +1418,7 @@ export function buildInfoboxes(fm, options) {
         if (available && provider) {
             const type = fm.type;
             const ctx = {
+                audience: options.audience ?? "public",
                 block: map.block,
                 resolve,
                 resolveField,

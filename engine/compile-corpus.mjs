@@ -41,9 +41,11 @@
 import { assertSettlementRecords } from "./settlement-tables.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { routerFor } from "./pack-router.mjs";
-import { isNoteRecord, noteFile } from "./index-records.mjs";
+import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { projectPopulationFrontmatter } from "./population-values.mjs";
-import { indexRecordsFor } from "./content-index.mjs";
+import { collectAnchors } from "./anchors.mjs";
+import { entriesForNote, foundryIdentities, LEAD_ANCHOR } from "./foundry-entries.mjs";
+import { indexRecordsFor, preparePublicationBodies } from "./content-index.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
 import { scanSpans } from "./content-spans.mjs";
@@ -147,11 +149,21 @@ export async function buildCompileCorpus({
     const tables = {};
     for (const audience of ["public", "all"])
         tables[audience] = await prepareTreeSqlTables(contentBase, { ...sqlOptions, audience });
+    const bodies = await preparePublicationBodies({
+        contentBase,
+        config: resolved,
+        records,
+        parsed,
+        foreign,
+        router,
+        prepareAudience: (audience) => tables[audience],
+    });
     const audiences = buildCompileAudiences(contentBase, router, {
         config: resolved,
         records,
         tables,
         foreign,
+        bodies,
     });
     const { sqlTables, linkIndex } = audiences.public;
     return {
@@ -179,37 +191,52 @@ export async function buildCompileCorpus({
  * @param {object[]} options.records - Complete source records.
  * @param {Record<"public"|"all", Map<string, object[]>|undefined>} options.tables - Isolated prepared views.
  * @param {object} [options.foreign] - Captured dependency metadata.
+ * @param {{expandedBodies: Map<string, object>, foundryBodies: Map<string, object>}} options.bodies - Complete prepared bodies.
+ * @param {Function} [options.syntax] - Captured syntax scanner.
  * @returns {Record<"public"|"all", {linkIndex: object, sqlTables: Map<string, object[]>|undefined}>} Prepared views.
  */
-export function buildCompileAudiences(contentBase, router, { config, records, tables, foreign }) {
+export function buildCompileAudiences(
+    contentBase,
+    router,
+    { config, records, tables, foreign, bodies, syntax },
+) {
     router ??= routerFor(config);
+    const identities = { ...foundryIdentities(config), packRouter: router, syntax };
     const audiences = {};
     for (const audience of ["public", "all"]) {
         const links = new Map();
         for (const record of records) {
             if (!isNoteRecord(record)) continue;
             const file = noteFile(contentBase, record);
-            const destination =
-                router.privateOf(router.resolveOrNull(record, "JournalEntry")) ? "all" : "public";
-            const native = tables[destination]?.get(file);
-            if (!native) continue;
-            const publicAnchors = [
-                ...(record.anchors ?? []),
-                ...(tables.public?.get(file)?.anchors ?? []),
-            ].filter((anchor) => anchor.kind === "prose");
+            const nativeBody = bodies.foundryBodies.get(file)?.markdown;
+            const publicBody = bodies.expandedBodies.get(file)?.markdown;
+            if (nativeBody === undefined || !record.address?.slug) continue;
+            const fm = authoredFrontmatter(record);
+            const entries = entriesForNote(
+                fm,
+                fm.name?.full ?? record.file.name,
+                record.address.slug,
+                nativeBody,
+                identities,
+            );
+            const nativeAnchors = collectAnchors(nativeBody, 1, undefined, syntax);
+            const publicAnchors = collectAnchors(publicBody ?? "", 1, undefined, syntax).filter(
+                (anchor) => anchor.kind === "prose",
+            );
             const allowed = new Set(publicAnchors.map((anchor) => anchor.slug));
-            const visible = (slug) => audience === "all" || slug === "$lead" || allowed.has(slug);
-            const identities = (values) =>
+            const visible = (slug) =>
+                audience === "all" || slug === LEAD_ANCHOR || allowed.has(slug);
+            const filterIdentities = (values) =>
                 values &&
                 Object.fromEntries(Object.entries(values).filter(([slug]) => visible(slug)));
             const entry = [];
-            const nativeSlugs = new Set((native.anchors ?? []).map((anchor) => anchor.slug));
+            const nativeSlugs = new Set(nativeAnchors.map((anchor) => anchor.slug));
             entry.anchors =
-                audience === "all" ?
-                    (native.anchors ?? [])
-                :   publicAnchors.filter((anchor) => nativeSlugs.has(anchor.slug));
-            entry.anchorUuids = identities(native.anchorUuids);
-            entry.docAnchorUuids = identities(native.docAnchorUuids);
+                audience === "all" ? nativeAnchors : (
+                    publicAnchors.filter((anchor) => nativeSlugs.has(anchor.slug))
+                );
+            entry.anchorUuids = filterIdentities(entries[0]?.anchors);
+            entry.docAnchorUuids = filterIdentities(entries[1]?.anchors);
             links.set(file, entry);
         }
         audiences[audience] = {

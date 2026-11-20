@@ -817,7 +817,13 @@ export async function generatePacksJson({
         problems: corpusProblems,
         session,
     });
-    populationJournalPlan(corpus.records, { router, config, parsed: corpus.parsed, contentBase });
+    populationJournalPlan(corpus.records, {
+        router,
+        config,
+        parsed: corpus.parsed,
+        contentBase,
+        privateTables: corpus.audiences.all.sqlTables,
+    });
     if (reportPreparation) for (const problem of corpusProblems) emitDiagnostic(problem);
     for (const finding of await stageGeneratedDrawings(corpus.records, config))
         emitDiagnostic(finding);

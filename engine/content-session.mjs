@@ -351,11 +351,14 @@ async function createContentSessionInternal(
                 const tables = {};
                 for (const audience of ["public", "all"])
                     tables[audience] = await session.sqlTables(audience);
+                const bodies = await session.publication();
                 const audiences = buildCompileAudiences(tree, router, {
                     config,
                     records,
                     tables,
                     foreign,
+                    bodies,
+                    syntax,
                 });
                 const { sqlTables, linkIndex } = audiences.public;
                 return {
