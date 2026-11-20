@@ -617,7 +617,8 @@ function positionAt(body, offset, bodyLine) {
  *   {url: string|null, figures: Map<string, object>}|undefined,
  *   link?: Function}, events?: {note: (written: string) => object|undefined,
  *   own?: (fm: object) => object|undefined},
- *   file?: string, bodyLine?: number, audience?: "public"|"all"}} [options] -
+ *   file?: string, bodyLine?: number, audience?: "public"|"all",
+ *   onExpansion?: (expansion: {offset: number, source: string, rendered: string}) => void}} [options] -
  *   `figures` is the `ref` helper's own view of the corpus: `get` reads this
  *   note's captioned items by id, and `note` resolves another note's the
  *   way a wikilink would — omitted, a cross-note address is refused rather
@@ -627,10 +628,22 @@ function positionAt(body, offset, bodyLine) {
  *   {@link module:engine/event-fields.eventNoteIndex}; omitted, an event
  *   reference is refused.
  * @param {"public"|"all"} [options.audience="public"] - Population visibility at this output.
+ * @param {Function} [options.onExpansion] - Internal provenance callback with the expression's
+ *   offset in the supplied body, original expression and rendered text.
  */
 export function renderMarkdownExpressions(
     body,
-    { fm, dates, sqlResults, figures, events, file, bodyLine = 1, audience = "public" } = {},
+    {
+        fm,
+        dates,
+        sqlResults,
+        figures,
+        events,
+        file,
+        bodyLine = 1,
+        audience = "public",
+        onExpansion,
+    } = {},
 ) {
     fm = projectPopulationFrontmatter(fm, audience);
     const findings = [];
@@ -654,7 +667,9 @@ export function renderMarkdownExpressions(
             return source;
         }
         try {
-            return engine.compile(source, { strict: true })(fm ?? {});
+            const rendered = engine.compile(source, { strict: true })(fm ?? {});
+            onExpansion?.({ offset, source, rendered });
+            return rendered;
         } catch (error) {
             const { line, column } = positionAt(body, offset, bodyLine);
             findings.push({

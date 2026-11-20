@@ -337,9 +337,13 @@ it("publishes safe anchors at actual private page IDs without publishing the pri
         expect(bytes).not.toContain("Actual 2300 residents");
         expect(bytes).not.toContain("hidden-count");
         const native = published.foundry.note;
-        const containing = splitPages(privateBody).find((page) =>
-            renderFoundryMarkdown(page.markdown).includes('id="safe"'),
-        );
+        const containing = splitPages(
+            privateBody,
+            undefined,
+            undefined,
+            undefined,
+            publication.foundryBodies.get(file),
+        ).find((page) => renderFoundryMarkdown(page.markdown).includes('id="safe"'));
         expect(containing).toBeTruthy();
         const expected = journalPageId(native.uuid.split(".").at(-1), containing);
         const publicContaining = splitPages(safe).find((page) =>

@@ -53,6 +53,7 @@ import { resolveName } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { assertUniquePages, journalPageId, splitPages } from "./journals.mjs";
 import { foundryPackageId } from "./content-package.mjs";
+import { packRouter } from "./pack-router.mjs";
 import { itemDocEntryId, itemDocPointer } from "./item-docs.mjs";
 // The whitelist and the per-type `system` builders both come from the resolved
 // configuration, so the types this pass claims and the builders it compiles
@@ -93,11 +94,20 @@ import { assertNoRuntimeOnlyFields } from "./runtime-only-fields.mjs";
  *   resolved.
  * @param {object} fm - The note's frontmatter.
  * @param {string} name - The item's name.
+ * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number}} [pageSource] - Captured private documentation provenance.
  * @returns {string} The pointer, or "" for a note with no body.
  */
-export function itemDescription(markdown, fm, name) {
+export function itemDescription(markdown, fm, name, pageSource) {
     if (!String(markdown).trim()) return "";
-    const pages = splitPages(markdown, name);
+    const router = packRouter();
+    if (router.privateOf(router.resolveOrNull(fm, "JournalEntry")) && !pageSource)
+        throw Object.assign(
+            new Error(
+                "<journal>:1:1: error: private item documentation has no captured source provenance",
+            ),
+            { located: true },
+        );
+    const pages = splitPages(markdown, name, undefined, undefined, pageSource);
     assertUniquePages(pages, name);
     const page = pages.find((entry) => entry.anchorSlug === "description") ?? pages[0];
     const pageId = journalPageId(itemDocEntryId(fm.id), page);
@@ -335,7 +345,12 @@ export class SystemItemCompiler extends BasePackCompiler {
         const system = this.system;
         const type = fm.type;
         const name = resolveName(fm);
-        const description = itemDescription(markdown, fm, name);
+        const description = itemDescription(
+            this.documentationBody(fm, markdown),
+            fm,
+            name,
+            this.journalPageSource(fm),
+        );
         const id = fm.id;
         const subType = this.itemSubtype(fm);
         const built = {

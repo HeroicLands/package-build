@@ -191,7 +191,7 @@ export async function buildCompileCorpus({
  * @param {object[]} options.records - Complete source records.
  * @param {Record<"public"|"all", Map<string, object[]>|undefined>} options.tables - Isolated prepared views.
  * @param {object} [options.foreign] - Captured dependency metadata.
- * @param {{expandedBodies: Map<string, object>, foundryBodies: Map<string, object>}} options.bodies - Complete prepared bodies.
+ * @param {Awaited<ReturnType<typeof preparePublicationBodies>>} options.bodies - Complete prepared bodies and native source provenance.
  * @param {Function} [options.syntax] - Captured syntax scanner.
  * @returns {Record<"public"|"all", {linkIndex: object, sqlTables: Map<string, object[]>|undefined}>} Prepared views.
  */
@@ -217,7 +217,7 @@ export function buildCompileAudiences(
                 fm.name?.full ?? record.file.name,
                 record.address.slug,
                 nativeBody,
-                identities,
+                { ...identities, pageSource: bodies.foundryBodies.get(file) },
             );
             const nativeAnchors = collectAnchors(nativeBody, 1, undefined, syntax);
             const publicAnchors = collectAnchors(publicBody ?? "", 1, undefined, syntax).filter(

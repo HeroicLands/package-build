@@ -10,6 +10,9 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { collectFoundryEntries } from "../engine/foundry-entries.mjs";
+import { createPackRouter } from "../engine/pack-router.mjs";
+import { buildJournalEntry } from "../engine/journals.mjs";
 
 import {
     buildManifest,
@@ -672,4 +675,40 @@ describe("the published manifest carries none of the build's own keys", () => {
         const published = publishedRelationships({ requires: [{ id: "a", futureKey: "x" }] });
         expect(published.requires[0]).toEqual({ id: "a", futureKey: "x" });
     });
+});
+
+it("collects private manifest targets from the same captured source as generated pages", () => {
+    const content = fs.mkdtempSync(path.join(os.tmpdir(), "private-source-manifest-"));
+    const source = "# Population {{data.population.actual}}\n\n[Account]{#safe}.";
+    const file = path.join(content, "Account.md");
+    fs.writeFileSync(
+        file,
+        `---\ntype: doc\nshortcode: account\nid: AAAAAAAAAAAAAAAA\nname: {full: Account}\ndata: {population: {actual: 4700, apparent: 900}}\n---\n\n${source}\n`,
+    );
+    try {
+        const packRouter = createPackRouter([
+            { name: "private", type: "JournalEntry", default: true, private: true },
+        ]);
+        const manifest = collectFoundryEntries(content, {
+            contentPackage: "sourceproof",
+            foundryPackageId: "sourceproof",
+            packRouter,
+        });
+        const target = manifest.entries[0];
+        const rendered = source.replace("{{data.population.actual}}", "4700");
+        const entry = buildJournalEntry({
+            id: "AAAAAAAAAAAAAAAA",
+            name: "Account",
+            markdown: rendered,
+            pageSource: {
+                source,
+                file,
+                lineMap: source.split("\n").map((_, line) => ({ line, generated: false })),
+            },
+        });
+        expect(target.anchors.safe).toBe(`${target.uuid}.JournalEntryPage.${entry.pages[0]._id}`);
+        expect(target.anchors.$lead).toBe(target.anchors.safe);
+    } finally {
+        fs.rmSync(content, { recursive: true, force: true });
+    }
 });

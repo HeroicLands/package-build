@@ -174,6 +174,7 @@ export class Scenes extends BasePackCompiler {
                     id: entryId,
                     name,
                     markdown,
+                    pageSource: this.journalPageSource(fm),
                     leadName: name,
                     resolveRole,
                     runs: this.corpus?.runs,
