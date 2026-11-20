@@ -12,6 +12,9 @@
  */
 
 /** One invocation's authored sources and context-specific prepared views. */
+import { assertSettlementRecords } from "./settlement-tables.mjs";
+import { noteFile } from "./index-records.mjs";
+import { buildCompileAudiences } from "./compile-corpus.mjs";
 import path from "node:path";
 import fs from "node:fs";
 import { DEPLOYED_ASSET_TYPES } from "./asset-types.mjs";
@@ -23,7 +26,6 @@ import * as spans from "./content-spans.mjs";
 import * as sql from "./sql-tables.mjs";
 import { captureContentSources } from "./content-sources.mjs";
 import { buildLinkIndex } from "./content-links.mjs";
-import { buildContentLinkIndex } from "./helpers.mjs";
 import { runContext } from "./content-scripts.mjs";
 import { resolveReference } from "./wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
@@ -340,14 +342,27 @@ async function createContentSessionInternal(
         async compileCorpus() {
             active();
             return memo("compile", async () => {
-                const sqlTables = await session.sqlTables("all");
-                const linkIndex = buildContentLinkIndex(tree, router, {
+                assertSettlementRecords(records, {
+                    fileOf: (record) => noteFile(tree, record),
+                    rawOf: (file) => parsed.get(file)?.raw,
+                    foreignIndex: foreign.index,
+                    config,
+                });
+                const tables = {};
+                for (const audience of ["public", "all"])
+                    tables[audience] = await session.sqlTables(audience);
+                const bodies = await session.publication();
+                const audiences = buildCompileAudiences(tree, router, {
                     config,
                     records,
-                    sqlTables,
+                    tables,
                     foreign,
+                    bodies,
+                    syntax,
                 });
+                const { sqlTables, linkIndex } = audiences.public;
                 return {
+                    config,
                     currentDate: config.currentDate,
                     runs: runContext(config, records, {
                         referenceName: (target) => resolveReference(linkIndex, target)?.name,
@@ -358,6 +373,7 @@ async function createContentSessionInternal(
                     sqlTables,
                     syntax,
                     linkIndex,
+                    audiences,
                 };
             });
         },

@@ -204,6 +204,7 @@ export function expandTables(markdown, { source, prepared = {}, resolveRole }) {
  * @param {ExpandedTables} [options.tables] - The note's {@link expandTables},
  *   already run — with the figures numbered, for the book. Run here when
  *   omitted.
+ * @param {"public"|"all"} [options.audience="public"] - Population visibility at this output.
  * @param {ExpandLinks} [options.links] - How the target resolves links.
  * @returns {Expansion} The expanded body and the findings.
  * @throws {Error} When `target` is not one of {@link EXPANSION_TARGETS}.
@@ -212,6 +213,7 @@ export function expandContent(
     markdown,
     {
         target,
+        audience = "public",
         index,
         note,
         prepared = {},
@@ -247,6 +249,7 @@ export function expandContent(
 
     const expressions = renderMarkdownExpressions(markGenerated(tables.markdown, generatedFrom), {
         fm,
+        audience,
         dates: web ? index.dateContext : reckoningContext(index),
         file,
         bodyLine,

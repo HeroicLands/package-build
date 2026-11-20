@@ -73,6 +73,7 @@
  * @module
  */
 
+import { projectPopulationFrontmatter } from "./population-values.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -1427,6 +1428,7 @@ async function buildBook(book, shared) {
     }
 
     const renderPage = (page, headingOffset, anchorPrefix, columns) => {
+        page = { ...page, fm: projectPopulationFrontmatter(page.fm) };
         const { staged, numberedFigures } = prepared.get(anchorPrefix);
         // The book's own figure numbering, from `prepared`: the book numbers
         // each kind across the whole book in reading order, so a reference

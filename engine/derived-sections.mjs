@@ -282,6 +282,7 @@ export function drawMapsFrom(records, { outDir, foreignIndex = new Map(), config
  * @param {Map<string, object>} [opts.foreignIndex] - The fetched indexes.
  * @param {object} [opts.config] - The resolved configuration.
  * @param {(file:string)=>string|undefined} [opts.rawOf] - Captured source locators.
+ * @param {"public"|"all"} [opts.audience="public"] - Population visibility at this output.
  * @param {object[]} [opts.all=records] - Complete records for settlement validation.
  * @param {string|Set<string>} [opts.only] - The note file, or files, to give
  *   sections to; absent, every note.
@@ -290,7 +291,7 @@ export function drawMapsFrom(records, { outDir, foreignIndex = new Map(), config
  */
 export function derivedSections(
     records,
-    { fileOf, foreignIndex = new Map(), config, only, rawOf, all = records },
+    { fileOf, foreignIndex = new Map(), config, only, rawOf, all = records, audience = "public" },
 ) {
     assertSettlementRecords(all, { fileOf, foreignIndex, rawOf, config });
     const notes = records.filter((record) => isNoteRecord(record) && record.shortcode);
@@ -329,9 +330,12 @@ export function derivedSections(
             if (content && !authoredSection(record, slug))
                 sections.set(slug, section(slug, content));
         };
-        const settlements = settlementMarkdown(record, settlementRecords);
+        const settlements = settlementMarkdown(record, settlementRecords, { audience });
         if (settlements) sections.set("settlements", section("settlements", settlements));
-        const settlementIndex = settlementMarkdown(record, settlementRecords, { recursive: true });
+        const settlementIndex = settlementMarkdown(record, settlementRecords, {
+            recursive: true,
+            audience,
+        });
         if (settlementIndex)
             sections.set("settlementindex", section("settlementindex", settlementIndex));
         if (lists.contains?.length) add("within", groupedPlaces(lists.contains));

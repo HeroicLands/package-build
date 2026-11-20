@@ -38,7 +38,14 @@
  * @module
  */
 
-import { indexRecordsFor } from "./content-index.mjs";
+import { assertSettlementRecords } from "./settlement-tables.mjs";
+import { loadForeignIndexes } from "./metadata-index.mjs";
+import { routerFor } from "./pack-router.mjs";
+import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
+import { projectPopulationFrontmatter } from "./population-values.mjs";
+import { collectAnchors } from "./anchors.mjs";
+import { entriesForNote, foundryIdentities, LEAD_ANCHOR } from "./foundry-entries.mjs";
+import { indexRecordsFor, preparePublicationBodies } from "./content-index.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
 import { scanSpans } from "./content-spans.mjs";
@@ -58,7 +65,7 @@ import { prepareTreeSqlTables } from "./sql-tables.mjs";
  * @param {readonly string[]} opts.skipDirectories - The scope, stated by the
  *   caller as every corpus read requires.
  * @param {object} opts.router - The pack router this compile resolved. Shared
- *   by every pass, which is what makes one link index correct for all of them.
+ *   by every pass when selecting destination-specific prepared views.
  * @param {object} [opts.config] - The resolved configuration.
  * @param {object[]} [opts.problems] - Collects the notes the index cannot
  *   record, so one of them does not abort the compile before it reports. One is
@@ -66,7 +73,7 @@ import { prepareTreeSqlTables } from "./sql-tables.mjs";
  *   the index refuses is a note the compile must still *report*, exactly as the
  *   compile loop reported it when the loop was the first to see it.
  * @param {import("./content-session.mjs").ContentSession} [opts.session] - Captured context shared with other operations.
- * @returns {Promise<{currentDate: string, runs: import("./content-scripts.mjs").RunContext, records: object[], parsed: Map<string, object>, linkIndex: object, sqlTables: Map<string, object[]>|undefined, problems: object[], syntax?: import("./content-session.mjs").ContentSyntax}>} The corpus,
+ * @returns {Promise<{config: object, audiences: Record<"public"|"all", {linkIndex: object, sqlTables: Map<string, object[]>|undefined}>, currentDate: string, runs: import("./content-scripts.mjs").RunContext, records: object[], parsed: Map<string, object>, linkIndex: object, sqlTables: Map<string, object[]>|undefined, problems: object[], syntax?: import("./content-session.mjs").ContentSyntax}>} The corpus,
  *   its indexes, and the notes it could not record.
  */
 export async function buildCompileCorpus({
@@ -130,11 +137,37 @@ export async function buildCompileCorpus({
         problems: collected,
         parsed,
     });
+    const foreign = loadForeignIndexes(resolved, [resolved.contentPackage]);
+    assertSettlementRecords(records, {
+        fileOf: (record) => noteFile(contentBase, record),
+        rawOf: (file) => parsed.get(file)?.raw,
+        foreignIndex: foreign.index,
+        config: resolved,
+    });
     const corpusOptions = { config: resolved, records };
     const sqlOptions = { ...corpusOptions, skipDirectories, parsed };
-    const sqlTables = await prepareTreeSqlTables(contentBase, sqlOptions);
-    const linkIndex = buildContentLinkIndex(contentBase, router, { ...corpusOptions, sqlTables });
+    const tables = {};
+    for (const audience of ["public", "all"])
+        tables[audience] = await prepareTreeSqlTables(contentBase, { ...sqlOptions, audience });
+    const bodies = await preparePublicationBodies({
+        contentBase,
+        config: resolved,
+        records,
+        parsed,
+        foreign,
+        router,
+        prepareAudience: (audience) => tables[audience],
+    });
+    const audiences = buildCompileAudiences(contentBase, router, {
+        config: resolved,
+        records,
+        tables,
+        foreign,
+        bodies,
+    });
+    const { sqlTables, linkIndex } = audiences.public;
     return {
+        config: resolved,
         currentDate: resolved.currentDate,
         runs: runContext(resolved, records, {
             referenceName: (target) => resolveReference(linkIndex, target)?.name,
@@ -144,5 +177,77 @@ export async function buildCompileCorpus({
         problems: collected,
         linkIndex,
         sqlTables,
+        audiences,
     };
+}
+
+/**
+ * Give each output audience its projected metadata and each target its real page IDs.
+ * Private preparation contributes only permitted anchor identities to a public index.
+ * @param {string} contentBase - Captured source root.
+ * @param {object} router - The compile's pack router.
+ * @param {object} options
+ * @param {object} options.config - Resolved configuration.
+ * @param {object[]} options.records - Complete source records.
+ * @param {Record<"public"|"all", Map<string, object[]>|undefined>} options.tables - Isolated prepared views.
+ * @param {object} [options.foreign] - Captured dependency metadata.
+ * @param {{expandedBodies: Map<string, object>, foundryBodies: Map<string, object>}} options.bodies - Complete prepared bodies.
+ * @param {Function} [options.syntax] - Captured syntax scanner.
+ * @returns {Record<"public"|"all", {linkIndex: object, sqlTables: Map<string, object[]>|undefined}>} Prepared views.
+ */
+export function buildCompileAudiences(
+    contentBase,
+    router,
+    { config, records, tables, foreign, bodies, syntax },
+) {
+    router ??= routerFor(config);
+    const identities = { ...foundryIdentities(config), packRouter: router, syntax };
+    const audiences = {};
+    for (const audience of ["public", "all"]) {
+        const links = new Map();
+        for (const record of records) {
+            if (!isNoteRecord(record)) continue;
+            const file = noteFile(contentBase, record);
+            const nativeBody = bodies.foundryBodies.get(file)?.markdown;
+            const publicBody = bodies.expandedBodies.get(file)?.markdown;
+            if (nativeBody === undefined || !record.address?.slug) continue;
+            const fm = authoredFrontmatter(record);
+            const entries = entriesForNote(
+                fm,
+                fm.name?.full ?? record.file.name,
+                record.address.slug,
+                nativeBody,
+                identities,
+            );
+            const nativeAnchors = collectAnchors(nativeBody, 1, undefined, syntax);
+            const publicAnchors = collectAnchors(publicBody ?? "", 1, undefined, syntax).filter(
+                (anchor) => anchor.kind === "prose",
+            );
+            const allowed = new Set(publicAnchors.map((anchor) => anchor.slug));
+            const visible = (slug) =>
+                audience === "all" || slug === LEAD_ANCHOR || allowed.has(slug);
+            const filterIdentities = (values) =>
+                values &&
+                Object.fromEntries(Object.entries(values).filter(([slug]) => visible(slug)));
+            const entry = [];
+            const nativeSlugs = new Set(nativeAnchors.map((anchor) => anchor.slug));
+            entry.anchors =
+                audience === "all" ? nativeAnchors : (
+                    publicAnchors.filter((anchor) => nativeSlugs.has(anchor.slug))
+                );
+            entry.anchorUuids = filterIdentities(entries[0]?.anchors);
+            entry.docAnchorUuids = filterIdentities(entries[1]?.anchors);
+            links.set(file, entry);
+        }
+        audiences[audience] = {
+            sqlTables: tables[audience],
+            linkIndex: buildContentLinkIndex(contentBase, router, {
+                config,
+                records: records.map((record) => projectPopulationFrontmatter(record, audience)),
+                sqlTables: links,
+                foreign,
+            }),
+        };
+    }
+    return audiences;
 }
