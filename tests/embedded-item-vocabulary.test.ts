@@ -27,16 +27,12 @@ import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { defineDocumentSubtypes, referencedSubtype } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { Actors } from "../sohl/actors.mjs";
-
-/** This package's own root — where its test fixtures live. */
-const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /** Allow item-pass preparation to finish under the suite's usual CPU contention. */
 const COMPILE_TEST_TIMEOUT = 20_000;
@@ -238,9 +234,10 @@ async function withDemoPass(
         .spyOn(console, "warn")
         .mockImplementation((line: unknown) => void said.push(String(line)));
     try {
+        fs.mkdirSync(path.join(dir, "content"));
         const pass = new DemoActors({
             skipDirectories: [],
-            contentBase: path.join(PKG_ROOT, "tests/fixtures"),
+            contentBase: path.join(dir, "content"),
             dest: loadPackConfig().paths.packJson,
             itemsSourceDirs: [itemsDir],
         });

@@ -121,7 +121,11 @@ describe("see-also references", () => {
         ).toEqual([]);
     });
     it("appends ordered Foundry links and glosses only for a nonempty list", () => {
-        const compiler = { folderResolver: () => null, linkIndex: index };
+        const compiler = {
+            folderResolver: () => null,
+            journalPageSource: () => undefined,
+            linkIndex: index,
+        };
         const entry = (seeAlso?: unknown[]) =>
             Journals.prototype.buildEntry.call(
                 compiler,

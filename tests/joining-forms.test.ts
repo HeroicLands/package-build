@@ -31,7 +31,7 @@ function note(data: string[], body = "The joining forms of name elements and fou
         "name: {full: Joining Forms}",
         "type: skill",
         "subType: language",
-        "data:",
+        data.length ? "data:" : "data: {}",
         ...data,
         "---",
         "",
