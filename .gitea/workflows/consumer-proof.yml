@@ -8,19 +8,36 @@ on:
                 required: true
                 type: string
 
+            consumer:
+                description: Pinned consumer and assertions to run
+                required: true
+                type: choice
+                default: kethira
+                options:
+                    - kethira
+                    - thalorna-encoding
+                    - thalorna-headwords
+
 permissions:
     contents: read
 
 jobs:
-    kethira:
+    consumer:
         name: Kethira consumer compile
+        if: ${{ github.event.inputs.consumer == 'kethira' }}
         runs-on: ubuntu-vm
+        timeout-minutes: 60
+        container:
+            image: git.pupluppy.org/heroiclands/ci-job@sha256:e07e93044b9bd0c49ff8dc51fc9f21772bf1d42e889b211663f3a51514ab85e5
+            options: --memory=2g --memory-swap=2g
         env:
+            CONSUMER_PROOF: kethira
             CONSUMER_SHA: fc95936a8a89449e5785835311c85428743f74f4
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
               with:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
@@ -28,21 +45,60 @@ jobs:
             - name: Pack the candidate
               env:
                   CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
-              run: |
-                  set -euo pipefail
-                  test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
-                  printf 'Candidate commit: %s\n' "$CANDIDATE_SHA"
-                  npm ci
-                  mkdir -p "$RUNNER_TEMP/consumer-proof"
-                  npm pack --pack-destination "$RUNNER_TEMP/consumer-proof"
-                  mv "$RUNNER_TEMP"/consumer-proof/heroiclands-package-build-*.tgz "$RUNNER_TEMP/consumer-proof/candidate.tgz"
-                  sha512sum "$RUNNER_TEMP/consumer-proof/candidate.tgz"
-            - name: Check out Kethira
+              run: bash ci/consumer-proof-pack.sh
+            - name: Check out the consumer
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
                   repository: HeroicLands/sohl-kethira-basic
                   ref: ${{ env.CONSUMER_SHA }}
-                  path: consumer-proof-kethira
-            - name: Compile Kethira with the candidate
+                  path: consumer-proof-consumer
+            - name: Compile the consumer with the candidate
               run: bash ci/consumer-proof.sh
+
+    thalorna:
+        name: Thalorna consumer compile
+        if: ${{ github.event.inputs.consumer == 'thalorna-encoding' || github.event.inputs.consumer == 'thalorna-headwords' }}
+        runs-on: build
+        timeout-minutes: 60
+        env:
+            CONSUMER_PROOF: ${{ github.event.inputs.consumer }}
+            CONSUMER_SHA: 5050dea584f11552ec71c3b35d31a2739e9683eb
+            NODE_OPTIONS: --max-old-space-size=3072
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
+            - name: Verify the full compile memory profile
+              run: bash ci/consumer-proof-memory.sh before
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+              with:
+                  node-version: ${{ vars.CI_NODE_VERSION || '24' }}
+                  cache: npm
+            - name: Pack the candidate
+              env:
+                  CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
+              run: bash ci/consumer-proof-pack.sh
+            - name: Check out the consumer
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
+                  repository: HeroicLands/thalorna
+                  ref: ${{ env.CONSUMER_SHA }}
+                  path: consumer-proof-consumer
+            - name: Compile the consumer with the candidate
+              run: bash ci/consumer-proof.sh
+            - name: Record full compile memory counters
+              if: ${{ always() }}
+              run: bash ci/consumer-proof-memory.sh after
+            - name: Retain full compile memory evidence
+              if: ${{ always() }}
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+              with:
+                  name: consumer-proof-memory
+                  path: ${{ runner.temp }}/consumer-proof-memory/
+                  if-no-files-found: error
+                  retention-days: 3

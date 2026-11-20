@@ -133,9 +133,36 @@ Check the workflow gating locally with `node --test ci/wip-workflows.test.mjs`.
 
 ### Consumer compile proof
 
-The **Consumer proof** workflow runs on explicit dispatch. Supply the full
-package-build commit SHA as `candidate_sha` and dispatch the branch containing
-that commit. The job packs that commit for a compatibility compile of the pinned Kethira consumer,
-checking the installed package and its compiled outputs. It fails if installing
-the candidate changes unrelated locked dependencies. The workflow requires
-registry and consumer dependency access; it does not publish a package or site.
+The **Consumer proof** workflow (`consumer-proof.yml`) runs on explicit dispatch.
+Supply the full package-build commit SHA as `candidate_sha` and dispatch the
+branch containing that commit. Select `consumer: kethira` (the default) for the
+pinned Kethira compile, or `consumer: thalorna-encoding` for the pinned Thalorna
+encoding proof, or `consumer: thalorna-headwords` for the pinned Thalorna
+headword proof.
+
+All choices pack that commit, verify the archive integrity and installed bytes,
+and refuse changes to unrelated locked dependencies before the normal consumer
+compile. Kethira checks its content index and compiled packs. The encoding proof
+applies two disposable note overlays and checks that the requested stressed grave
+vowels encode, decode and render without findings. The headword proof applies
+three disposable replacements and checks the resulting dictionary classes,
+meanings and rendered anchors. The canonical consumer notes
+stay in their own repository.
+
+The workflow requires registry and consumer dependency access; it does not
+publish a package or site.
+
+The Thalorna proofs use the normal `build` host runner with a 3072 MiB
+Node heap limit. Each verifies the runner service and shared content slice's
+12 GiB high watermark and 14 GiB memory limit. The profile permits swap.
+The `consumer-proof-memory` artifact retains before/after memory limits, peak
+and event counters, including failed compiles. Those cgroup counters include
+other content jobs sharing the service or slice; they are not per-job peaks.
+The same artifact contains per-process Node
+memory samples, the effective V8 heap ceiling, and content-stage transitions.
+Samples include RSS, heap use and external memory; the heap ceiling does not
+limit native allocations such as DuckDB's separate memory allowance. Stage
+transitions are recorded synchronously, while periodic samples depend on the
+Node event loop being available. A failed compile remains a failure; memory
+counters do not replace the compile and focused assertions. Kethira uses a
+2 GiB container without swap.
