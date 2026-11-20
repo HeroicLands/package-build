@@ -158,10 +158,11 @@ Node heap limit. Each verifies the runner service and shared content slice's
 The `consumer-proof-memory` artifact retains before/after memory limits, peak
 and event counters, including failed compiles. Those cgroup counters include
 other content jobs sharing the service or slice; they are not per-job peaks.
-The same artifact contains per-process Node memory samples and the effective
-V8 heap ceiling. Samples include RSS, heap use and external memory; the heap
-ceiling does not limit native allocations such as DuckDB's separate memory
-allowance. Periodic samples depend on the Node event loop being available. A
-failed compile remains a failure; memory counters do not replace the compile
-and focused assertions. Kethira uses a
+The same artifact contains per-process Node memory samples, the effective V8
+heap ceiling, and content-stage transitions. Samples include RSS, heap use and
+external memory; the heap ceiling does not limit native allocations such as
+DuckDB's separate memory allowance. Stage transitions are recorded synchronously,
+while periodic samples depend on the Node event loop being available. A failed
+compile remains a failure; memory counters do not replace the compile and
+focused assertions. Kethira uses a
 2 GiB container without swap.

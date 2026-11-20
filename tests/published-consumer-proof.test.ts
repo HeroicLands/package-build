@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { expect, it } from "vitest";
 
-it("keeps the consumer proof script out of the published package", () => {
+it("keeps the consumer proof helpers out of the published package", () => {
     const output = execFileSync("npm", ["pack", "--dry-run", "--ignore-scripts", "--json"], {
         cwd: process.cwd(),
         encoding: "utf8",
@@ -25,5 +25,8 @@ it("keeps the consumer proof script out of the published package", () => {
     expect(Array.isArray(matching[0][1].files)).toBe(true);
     const paths = matching[0][1].files.map((file: { path: string }) => file.path);
     expect(paths).not.toContain("ci/consumer-proof.sh");
+    expect(paths).not.toContain("ci/consumer-proof-memory.sh");
+    expect(paths).not.toContain("ci/content-memory-diagnostics.mjs");
+    expect(paths).not.toContain("ci/encoding-consumer-overlay.mjs");
     expect(paths).toContain("ci/prettier.mjs");
 });

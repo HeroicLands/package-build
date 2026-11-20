@@ -257,15 +257,30 @@ export function templateProgram(data, options, fault) {
             fault(key, "Structural controls cannot be mapping outputs");
         if (from.normalize("NFD").includes("\u0301") && stress) {
             const plain = from.normalize("NFD").replaceAll("\u0301", "").normalize("NFC");
+            const decomposed = from.normalize("NFD");
+            const shortStress = /^[aiouAIOU]\u0300\u0301$/u.test(decomposed);
+            const vowel = base(from);
+            const graveOutput =
+                shortStress && Object.hasOwn(data.mappings, plain) ?
+                    resolve(data.mappings[plain], key)
+                :   undefined;
+            const validShortStress =
+                shortStress &&
+                [...from].length === 2 &&
+                Object.hasOwn(data.mappings, vowel) &&
+                options.codes.SHORT === "\u{E0116}" &&
+                graveOutput === resolve(data.mappings[vowel], key) + options.codes.SHORT;
             if (
-                [...from].length !== 1 ||
-                !vowelSet.has(base(from)) ||
+                ([...from].length !== 1 && !validShortStress) ||
+                !vowelSet.has(vowel) ||
                 !Object.hasOwn(data.mappings, plain) ||
                 to !== resolve(data.mappings[plain], key) + stress
             )
                 fault(
                     key,
-                    "An acute vowel must emit its unchanged vowel followed by the stress modifier",
+                    decomposed.includes("\u0300") ?
+                        "A stressed grave vowel must emit its plain vowel, SHORT, then the stress modifier; declare the vowel and both mappings, with SHORT at U+E0116"
+                    :   "An acute vowel must emit its unchanged vowel followed by the stress modifier",
                 );
         } else if (stress && to.includes(stress))
             fault(key, "The stress modifier belongs only after an acute vowel");

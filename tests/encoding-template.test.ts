@@ -57,6 +57,94 @@ describe("executable encoding note template", () => {
             expect(() => encodeText(compile(), text)).toThrow(EncodingError);
         },
     );
+    it("round trips a declared short vowel with explicit stress", () => {
+        const note = data();
+        const glyphs = { ...codes, SHORT: "\u{E0116}" };
+        note.rules["grave-accent"].allowed = true;
+        note.accepts.push("à", "ù", "À", "\u0301");
+        note.mappings.à = ["ANKRON_MIN", "SHORT"];
+        note.mappings.ù = ["ULMERA_MIN", "SHORT"];
+        note.mappings.À = ["ANKRON_MAJ", "SHORT"];
+        note.mappings["À\u0301"] = ["ANKRON_MAJ", "SHORT", "STRESS"];
+        note.mappings["à\u0301"] = ["ANKRON_MIN", "SHORT", "STRESS"];
+        note.mappings["ù\u0301"] = ["ULMERA_MIN", "SHORT", "STRESS"];
+        const enc = compileEncoding(note, { codes: glyphs });
+        const text = "bà\u0301 ù\u0301";
+        expect(encodeText(enc, text)).toBe(
+            codes.BRUTHEKA_MIN +
+                codes.ANKRON_MIN +
+                glyphs.SHORT +
+                codes.STRESS +
+                " " +
+                codes.ULMERA_MIN +
+                glyphs.SHORT +
+                codes.STRESS,
+        );
+        expect(decodeText(enc, encodeText(enc, text))).toBe(text);
+        expect(() => encodeText(enc, "\u0301")).toThrow(EncodingError);
+        expect(() => encodeText(enc, "bà\u0301\n😀")).toThrow(
+            expect.objectContaining({ offset: 4, line: 2, column: 1 }),
+        );
+        expect(
+            encodePieces(enc, "a\u0300\u0301b").map(({ from, start, end }) => ({
+                from,
+                start,
+                end,
+            })),
+        ).toEqual([
+            { from: "a\u0300\u0301", start: 0, end: 3 },
+            { from: "b", start: 3, end: 4 },
+        ]);
+    });
+    it("refuses incomplete or malformed short stressed mappings", () => {
+        const setup = () => {
+            const note = data();
+            note.rules["grave-accent"].allowed = true;
+            note.mappings.à = ["ANKRON_MIN", "SHORT"];
+            note.mappings["à\u0301"] = ["ANKRON_MIN", "SHORT", "STRESS"];
+            return note;
+        };
+        const glyphs = { ...codes, SHORT: "\u{E0116}" };
+        for (const edit of [
+            (n: any) => delete n.mappings.a,
+            (n: any) => delete n.mappings.à,
+            (n: any) => {
+                n.mappings.à = "ANKRON_MIN";
+            },
+            (n: any) => {
+                n.mappings["à\u0301"] = ["ANKRON_MIN", "STRESS", "SHORT"];
+            },
+            (n: any) => {
+                delete n.mappings["à\u0301"];
+                n.mappings["à\u0301\u0301"] = ["ANKRON_MIN", "SHORT", "STRESS"];
+            },
+            (n: any) => {
+                delete n.mappings["à\u0301"];
+                n.mappings["ab\u0301"] = ["ANKRON_MIN", "SHORT", "STRESS"];
+            },
+            (n: any) => {
+                delete n.mappings["à\u0301"];
+                n.mappings["\u0301"] = "STRESS";
+            },
+            (n: any) => {
+                delete n.mappings["à\u0301"];
+                n.mappings.è = ["ELZA_MIN", "SHORT"];
+                n.mappings["è\u0301"] = ["ELZA_MIN", "SHORT", "STRESS"];
+            },
+        ]) {
+            const note = setup();
+            edit(note);
+            expect(() => compileEncoding(note, { codes: glyphs })).toThrow(EncodingError);
+        }
+        expect(() =>
+            compileEncoding(setup(), { codes: { ...glyphs, SHORT: "\u{E0117}" } }),
+        ).toThrow(EncodingError);
+        const malformed = setup();
+        malformed.mappings["à\u0301"] = ["ANKRON_MIN", "STRESS", "SHORT"];
+        expect(() => compileEncoding(malformed, { codes: glyphs })).toThrow(
+            /A stressed grave vowel must emit its plain vowel, SHORT, then the stress modifier/,
+        );
+    });
     it("uses shared punctuation and font codes inside literal markers", () => {
         const enc = compile();
         for (const text of ["^a‼/^^A!", "⟦CHEROLA_MIN U+1F600⟧"])

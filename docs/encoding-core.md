@@ -140,6 +140,22 @@ The language key `zxx` identifies literal codage, not an invented language.
 Its mappings are empty, and `⟦CODE⟧` reads the selected font's codes without a
 language sound inventory.
 
+### Explicit stress on grave vowels
+
+Logographic and template glyph-selection mappings can use an NFC grave vowel
+followed by a combining acute as a source: `à́`, `ì́`, `ò́` or `ù́`, including
+their capital forms. Declare `rules.stress`, permit grave accents through
+`rules.grave-accent.allowed`, and include the plain vowel in `vowels`. The
+font publishes `SHORT` as U+E0116 and the declared stress modifier as U+E0114.
+The accepted characters include the grave vowel and combining acute.
+
+Declare both the plain and grave vowel mappings. The grave vowel emits the
+plain vowel’s glyph followed by `SHORT`; the stressed grave vowel emits that
+same sequence followed by the stress modifier. For example, if `a` maps to
+`ANKRON_MIN`, `à` maps to `[ANKRON_MIN, SHORT]` and `à́` maps to
+`[ANKRON_MIN, SHORT, STRESS]`. The grave preserves vowel quality and the acute
+marks stress. Other acute-vowel mapping sources are single code points.
+
 ## Conversion API
 
 The pure engine works in browsers and Node and opens no files. Callers supply

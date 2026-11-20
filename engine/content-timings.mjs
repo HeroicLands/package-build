@@ -11,6 +11,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { channel } from "node:diagnostics_channel";
+
+const stageChannel = channel("heroiclands.content.stage");
+
 /** Sequential, nested stage accounting for one content invocation. */
 export function createContentTimings() {
     const started = performance.now();
@@ -29,10 +33,13 @@ export function createContentTimings() {
         account();
         const depth = stack.length;
         stack.push(name);
+        if (stageChannel.hasSubscribers) stageChannel.publish({ phase: "start", stage: name });
         return () => {
             if (stack.length <= depth) return;
             account();
             stack.length = depth;
+            if (stageChannel.hasSubscribers)
+                stageChannel.publish({ phase: "end", stage: stack.at(-1), completed: name });
         };
     };
     return {

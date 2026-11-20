@@ -185,7 +185,7 @@ export const ENCODING_NOTE_FIELDS = Object.freeze([
             describe: "The font code or sequence written for this Roman string.",
         },
         describe:
-            "For a sound encoding, one guide spelling per allowed sound mapped to its chosen visible or shared invisible glyph code; optional capital forms and digits are accepted. For logographs, source words mapped to font codes.",
+            "For a sound encoding, one guide spelling per allowed sound mapped to its chosen visible or shared invisible glyph code; optional capital forms and digits are accepted. For logographs and template glyph selection, source words mapped to font codes. An NFC grave vowel (à, ì, ò or ù, including capitals) plus combining acute requires declared stress rules, allowed grave accents, a declared plain vowel and its mapping, and a grave mapping to that plain output plus SHORT (U+E0116). Its output is the grave mapping followed by the stress modifier (U+E0114); accepts includes the grave vowel and combining acute. Other acute-vowel sources are single code points.",
     },
     {
         name: "rules",
