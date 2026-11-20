@@ -113,6 +113,10 @@ describe("population source conversion", () => {
         const explicit = run("--write", prose);
         expect(explicit.status).toBe(1);
         expect(explicit.stderr).toContain("opening delimiter is required");
+        const secondExplicit = run("--write", note, prose);
+        expect(secondExplicit.status).toBe(1);
+        expect(secondExplicit.stderr).toContain("opening delimiter is required");
+        expect(fs.readFileSync(note, "utf8")).toBe(converted);
     });
     it("refuses malformed frontmatter in a directory before writing any file", () => {
         const script = fileURLToPath(

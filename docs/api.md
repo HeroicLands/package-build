@@ -1147,7 +1147,7 @@ at the earliest reported actual use, and returns no warning for an empty report.
 
 ### `engine.contentIndex`
 
-Collecting and publishing this package's content index. Records describe note frontmatter, assets, prose and event anchors, and the document targets those notes produce. Dynamic publication prepares generated Markdown and scalar expressions for the selected audience. The published index redacts actual population values to apparent values in every record, including GM records; local complete records retain actual figures.
+Collecting and publishing this package's content index. Records describe note frontmatter, assets, prose and event anchors, and the document targets those notes produce. Dynamic publication prepares generated Markdown and scalar expressions for the selected audience. The published index materializes the effective apparent population in every record, including GM records, and sets actual to null when it differs from apparent; local complete records retain actual figures.
 
 Own-note records carry derived `names` entries in source order as
 `{name, type, subType, ref, line, column}`. Missing classifications and an

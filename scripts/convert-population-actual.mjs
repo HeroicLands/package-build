@@ -205,7 +205,7 @@ Exit status: 0 on success or help, 1 on an error.`);
                 throw new Error(
                     "usage: node scripts/convert-population-actual.mjs --preview|--write <note-or-directory>...",
                 );
-            const files = inputs.flatMap(collect);
+            const files = inputs.flatMap((input) => collect(input));
             if (new Set(files.map((file) => path.resolve(file))).size !== files.length)
                 throw new Error("each source must be selected only once");
             const result = convertFiles(files, { write: mode === "--write" });
