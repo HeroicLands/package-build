@@ -59,6 +59,7 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {() => ReturnType<typeof sql.prepareLinkSqlTables>} linkTables
  * @property {(kind?: "lint"|"links") => Promise<ReturnType<typeof buildLinkIndex>>} audit
  * @property {() => Promise<import("./content-index.mjs").PreparedContentIndex>} publication
+ * @property {() => ReturnType<import("./content-index.mjs").preparePublicationBodies>} publicationBodies - Internal captured body preparation with note-local reference findings.
  * @property {() => ReturnType<import("./compile-corpus.mjs").buildCompileCorpus>} compileCorpus
  * @property {(targets: readonly ContentTarget[]) => Promise<ContentSession>} prepare
  * @property {ReturnType<typeof createContentTimings>} timings
@@ -334,6 +335,21 @@ async function createContentSessionInternal(
                 }),
             );
         },
+        async publicationBodies() {
+            return memo("publication-bodies", () =>
+                contentIndex.preparePublicationBodies({
+                    contentBase: tree,
+                    config,
+                    records,
+                    parsed,
+                    foreign,
+                    router,
+                    syntax,
+                    prepareAudience: (audience) => session.sqlTables(audience),
+                    deferReferences: true,
+                }),
+            );
+        },
         async publication() {
             return memo("publication", () =>
                 contentIndex.prepareContentIndex({ config, contentBase: tree, session }),
@@ -351,20 +367,8 @@ async function createContentSessionInternal(
                 const tables = {};
                 for (const audience of ["public", "all"])
                     tables[audience] = await session.sqlTables(audience);
-                // Compilation retains captured source findings; publication refuses them.
-                const bodies =
-                    problems.length ?
-                        await contentIndex.preparePublicationBodies({
-                            contentBase: tree,
-                            config,
-                            records,
-                            parsed,
-                            foreign,
-                            router,
-                            syntax,
-                            prepareAudience: (audience) => session.sqlTables(audience),
-                        })
-                    :   await session.publication();
+                // Native conversion reports note-local reference failures once per note.
+                const bodies = await session.publicationBodies();
                 const audiences = buildCompileAudiences(tree, router, {
                     config,
                     records,

@@ -1871,10 +1871,10 @@ function publicHeadingDeclarations(expanded) {
 function publicationExpressions(
     expanded,
     context,
-    { privateMetadata = false, privateHeadings = false } = {},
+    { privateMetadata = false, privateHeadings = false, referenceFindings } = {},
 ) {
     if (privateHeadings) {
-        if (!privateMetadata) publicationExpressions(expanded, context);
+        if (!privateMetadata) publicationExpressions(expanded, context, { referenceFindings });
         expanded = publicHeadingDeclarations(expanded);
     }
     const source = expanded.markdown;
@@ -1907,7 +1907,15 @@ function publicationExpressions(
         if (count) additions.push({ line, count, location });
         return result.markdown;
     });
-    publicationProblems(findings);
+    publicationProblems(
+        findings.filter((finding) => {
+            if (referenceFindings && finding.code === "reference") {
+                referenceFindings.push(finding);
+                return false;
+            }
+            return true;
+        }),
+    );
     const lineMap = expanded.lineMap.map((location) => ({ ...location }));
     let generatedFrom = expanded.generatedFrom;
     for (const addition of additions.sort((a, b) => b.line - a.line)) {
@@ -1957,16 +1965,18 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
         publicationIndexRecordsFor({ contentBase: tree, config: resolved, parsed });
     if (session?.problems.length) publicationProblems(session.problems);
     const foreign = session?.foreign ?? loadForeignIndexes(resolved, [resolved.contentPackage]);
-    const { expandedBodies, foundryBodies } = await preparePublicationBodies({
-        contentBase: tree,
-        config: resolved,
-        records,
-        parsed,
-        foreign,
-        router: session?.router,
-        syntax: session?.syntax,
-        prepareAudience: session ? (audience) => session.sqlTables(audience) : undefined,
-    });
+    const bodies =
+        session ?
+            await session.publicationBodies()
+        :   await preparePublicationBodies({
+                contentBase: tree,
+                config: resolved,
+                records,
+                parsed,
+                foreign,
+            });
+    publicationProblems(bodies.referenceFindings);
+    const { expandedBodies, foundryBodies } = bodies;
     const publication = {
         config: resolved,
         contentBase: tree,
@@ -1992,7 +2002,8 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
  * @param {object} [options.router] - Destination router.
  * @param {Function} [options.syntax] - Captured syntax scanner.
  * @param {Function} [options.prepareAudience] - Cached SQL preparation by audience.
- * @returns {Promise<{expandedBodies: Map<string, object>, foundryBodies: Map<string, {markdown: string, source: string, lineMap: object[], generatedFrom?: number, file: string, bodyLine?: number, publicAnchors: Map<string,number>, publicBody: object}>}>} Expanded bodies and native source provenance, without output writes.
+ * @param {boolean} [options.deferReferences=false] - Return note-local reference findings for the compiler to report; SQL and other failures remain fatal.
+ * @returns {Promise<{referenceFindings: object[], expandedBodies: Map<string, object>, foundryBodies: Map<string, {markdown: string, source: string, lineMap: object[], generatedFrom?: number, file: string, bodyLine?: number, publicAnchors: Map<string,number>, publicBody: object}>}>} Expanded bodies and native source provenance, without output writes.
  */
 export async function preparePublicationBodies({
     contentBase: tree,
@@ -2003,7 +2014,9 @@ export async function preparePublicationBodies({
     router,
     syntax,
     prepareAudience,
+    deferReferences = false,
 }) {
+    const referenceFindings = [];
     const expandedBodies = new Map();
     const foundryBodies = new Map();
     const referenceName = sourceReferenceNames(records, {
@@ -2167,7 +2180,11 @@ export async function preparePublicationBodies({
                             }),
                     },
                 },
-                { privateMetadata, privateHeadings },
+                {
+                    privateMetadata,
+                    privateHeadings,
+                    referenceFindings: deferReferences ? referenceFindings : undefined,
+                },
             );
             if (
                 nativeAudience(record) === populationAudience &&
@@ -2198,7 +2215,15 @@ export async function preparePublicationBodies({
         if (journalHasContent(projected.markdown)) publicAnchors.set(LEAD_ANCHOR, 0);
         foundryBodies.set(file, { ...native, publicAnchors, publicBody: projected });
     }
-    return { expandedBodies, foundryBodies };
+    return {
+        expandedBodies,
+        foundryBodies,
+        referenceFindings: [
+            ...new Map(
+                referenceFindings.map((finding) => [JSON.stringify(finding), finding]),
+            ).values(),
+        ],
+    };
 }
 
 /**
