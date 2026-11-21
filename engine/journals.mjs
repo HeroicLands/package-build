@@ -339,7 +339,17 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
             sourceFigure,
             ...sourceIdentity
         } = identityAt(line, kind, anchor);
-        return { sourceIdentity, sourceAuthored: authoredOrigin, sourceHeading, sourceFigure };
+        const sourceLine = pageSource.lineMap?.[line]?.line ?? line;
+        return {
+            sourceIdentity,
+            sourceAuthored: authoredOrigin,
+            sourceHeading,
+            sourceFigure,
+            sourceLocation: {
+                file: pageSource.file || "<journal>",
+                line: (pageSource.bodyLine ?? 1) + sourceLine,
+            },
+        };
     };
     const authoredLine = (line) => {
         const location = pageSource?.lineMap?.[line];
@@ -399,6 +409,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
                     sourceHeading: current.sourceHeading,
                     sourceFigure: current.sourceFigure,
                     sourceAfterFigure: current.sourceAfterFigure,
+                    sourceLocation: current.sourceLocation,
                 }
             :   {}),
             ...(current.continues ? { continues: current.continues } : {}),
@@ -451,6 +462,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
                 ...(identityAt ?
                     {
                         sourceAuthored: section.sourceAuthored === true && itemAuthored === true,
+                        sourceLocation: current?.sourceLocation ?? section.sourceLocation,
                         ...((
                             section.sourceAuthored === true &&
                             itemAuthored === true &&
@@ -582,17 +594,32 @@ export function assertUniquePages(rawPages, noteName) {
     const names = new Set();
     const continuations = new Set();
     const sourceIdentities = new Set();
+    const duplicate = (page, message) => {
+        if (!page.sourceIdentity) throw new Error(message);
+        const location = page.sourceLocation ?? { file: "<journal>", line: 1 };
+        const source =
+            page.sourceAuthored && page.sourceIdentity.name !== undefined ?
+                ` "${page.sourceIdentity.name}"`
+            :   "";
+        throw Object.assign(
+            new Error(
+                `${location.file}:${location.line}:1: error: note "${noteName}" repeats a private page${source}`,
+            ),
+            { located: true },
+        );
+    };
     for (const page of rawPages) {
         if (page.sourceIdentity) {
             const key = JSON.stringify(page.sourceIdentity);
             if (sourceIdentities.has(key))
-                throw new Error(`note "${noteName}" repeats a private page source identity`);
+                duplicate(page, `note "${noteName}" repeats a private page source identity`);
             sourceIdentities.add(key);
         }
         if (page.continues) {
             const key = `${page.name}\u0000${page.continues}`;
             if (continuations.has(key)) {
-                throw new Error(
+                duplicate(
+                    page,
                     `note "${noteName}" has two captioned items both captioned "${page.continues}" in "${page.name}"; give one an {#anchor}`,
                 );
             }
@@ -601,7 +628,8 @@ export function assertUniquePages(rawPages, noteName) {
         }
         if (page.anchorSlug) {
             if (anchors.has(page.anchorSlug)) {
-                throw new Error(
+                duplicate(
+                    page,
                     `note "${noteName}" declares the anchor {#${page.anchorSlug}} on more than one heading; an anchor must be unique within its note`,
                 );
             }
@@ -609,7 +637,8 @@ export function assertUniquePages(rawPages, noteName) {
             continue;
         }
         if (names.has(page.name)) {
-            throw new Error(
+            duplicate(
+                page,
                 `note "${noteName}" has more than one page named "${page.name}"; a page is identified by its heading, so the two would compile to one document — rename one, or give it an {#anchor}`,
             );
         }
