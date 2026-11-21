@@ -45,7 +45,8 @@
  *   `complexion` — weighted draws from the culture's appearance profile;
  *   `complexion` is a list of the one word drawn. `hair_texture`, `hair_style`,
  *   `facial_hair`, `face_shape`, `nose`, `brow` and `mouth` are drawn the same
- *   way for each the profile states, and omitted for each it does not.
+ *   way for each the profile states, and omitted for each it does not. Facial
+ *   hair is drawn only for genders listed in the profile.
  * - `items` — independently drawn from culture and occupation item lists;
  *   omitted when no item is drawn.
  * - `height` — from the profile's range for the gender, in feet and inches.
@@ -476,6 +477,10 @@ export function generateNpc(spec, context) {
     const problems = npcSpecProblems(spec);
     if (problems.length) throw new Error(problems.join("; "));
     const { profile, names, currentDate, dateContext = {}, defaults = {} } = context;
+    if (profile?.facial_hair != null && !Array.isArray(profile.facial_hair_genders))
+        throw new Error(
+            "`data.appearanceProfile` must state `facial_hair_genders` with `facial_hair`",
+        );
     const present = normalizeCurrentDate(currentDate);
     if (!isPlainMap(names)) throw new Error("`npc new` needs the language's `data.names`");
     const taken = context.taken ?? new Set();
@@ -539,6 +544,7 @@ export function generateNpc(spec, context) {
     for (const key of profileLookKeys(BEING_LOOK_VOCABULARY)) {
         if (key === "frame" || given(look[key])) continue;
         if (profile[key] === undefined || profile[key] === null) continue;
+        if (key === "facial_hair" && !profile.facial_hair_genders.includes(gender)) continue;
         const word = weighted(profile[key], draw(`data.appearance.${key}`));
         appearance[key] = key === "complexion" ? [word] : word;
     }

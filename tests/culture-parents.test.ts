@@ -109,6 +109,33 @@ describe("culture parents", () => {
         expect(recordAt(output, "child").lang).toBe("en");
         expect(fs.readFileSync(path.join(root, "child.md"), "utf8")).toBe(before);
     });
+    it("inherits the entire facial hair declaration and never borrows a child list", () => {
+        const parent = {
+            ...profile,
+            facial_hair: { full_beard: 1 },
+            facial_hair_genders: ["male"],
+        };
+        const child = { ...profile, facial_hair: { stubble: 1 } };
+        const output = records(
+            tree({
+                parent: { appearanceProfile: parent },
+                inherited: { parents: ["parent"] },
+                child: { parents: ["parent"], appearanceProfile: child },
+            }),
+        );
+        expect(dataAt(output, "inherited").appearanceProfile).toEqual(parent);
+        expect(dataAt(output, "child").appearanceProfile).toEqual(child);
+        const note = {
+            file: "child.md",
+            raw: `---\ndata:\n  appearanceProfile:\n    facial_hair: { stubble: 1 }\n---\n`,
+            fm: { data: { appearanceProfile: child } },
+        };
+        expect(
+            profileFindings(note, BEING_LOOK_VOCABULARY).some((f: any) =>
+                f.message.includes("facial_hair_genders"),
+            ),
+        ).toBe(true);
+    });
     it("resolves fields independently with first-listed depth-first precedence", () => {
         const root = tree({
             grand: { lang: "deep", appearanceProfile: profile },

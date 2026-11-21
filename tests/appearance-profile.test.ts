@@ -114,6 +114,7 @@ describe("a culture's appearance profile", () => {
             hair_texture: "        hair_texture: { straight: 3, wavy: 1 }",
             hair_style: "        hair_style: { braided: 2, short: 1 }",
             facial_hair: "        facial_hair: { none: 2, full_beard: 1 }",
+            facial_hair_genders: "        facial_hair_genders: [male]",
             face_shape: "        face_shape: { angular: 1 }",
             nose: "        nose: { aquiline: 1, straight: 1 }",
             brow: "        brow: { heavy: 1 }",
@@ -121,6 +122,106 @@ describe("a culture's appearance profile", () => {
         };
         expect(lint(culture(profileLines(features)))).toEqual([]);
         expect(lint(culture(profileLines()))).toEqual([]);
+    });
+
+    it("requires a valid gender list exactly when facial hair is weighted", () => {
+        const weights = "        facial_hair: { full_beard: 1 }";
+        for (const list of ["[]", "[female, male, nonbinary, none, other]"]) {
+            expect(
+                lint(
+                    culture(
+                        profileLines({
+                            facial_hair: weights,
+                            facial_hair_genders: `        facial_hair_genders: ${list}`,
+                        }),
+                    ),
+                ),
+            ).toEqual([]);
+        }
+        const cases = [
+            [
+                undefined,
+                "appearanceProfile:",
+                "`data.appearanceProfile` must state `facial_hair_genders` with `facial_hair`",
+            ],
+            [
+                "null",
+                "appearanceProfile:",
+                "`data.appearanceProfile` must state `facial_hair_genders` with `facial_hair`",
+            ],
+            [
+                "male",
+                "male\n",
+                '`data.appearanceProfile.facial_hair_genders` should be a list of genders, but reads "male"',
+            ],
+            [
+                "{}",
+                "{}",
+                "`data.appearanceProfile.facial_hair_genders` should be a list of genders, but reads {}",
+            ],
+            [
+                "[male, 3]",
+                "3]",
+                "`data.appearanceProfile.facial_hair_genders[1]` should be a gender word, but reads 3",
+            ],
+            [
+                "[null]",
+                "null]",
+                "`data.appearanceProfile.facial_hair_genders` entries must be gender words",
+            ],
+            [
+                "[unknown]",
+                "unknown",
+                '`data.appearanceProfile.facial_hair_genders[0]` should be `female` or `male` or `nonbinary` or `none` or `other`, but reads "unknown"',
+            ],
+        ] as const;
+        for (const [list, literal, message] of cases) {
+            const note = culture(
+                profileLines({
+                    facial_hair: weights,
+                    ...(list === undefined ?
+                        {}
+                    :   { facial_hair_genders: `        facial_hair_genders: ${list}` }),
+                }),
+            );
+            expect(lint(note)).toEqual([
+                expect.objectContaining({
+                    file,
+                    ...at(note.raw, literal),
+                    severity: "error",
+                    message,
+                }),
+            ]);
+        }
+        const note = culture(
+            profileLines({ facial_hair_genders: "        facial_hair_genders: [male]" }),
+        );
+        expect(lint(note)).toEqual([
+            expect.objectContaining({
+                file,
+                ...at(note.raw, "facial_hair_genders:"),
+                severity: "error",
+                message:
+                    "`data.appearanceProfile.facial_hair_genders` requires `facial_hair` weights",
+            }),
+        ]);
+    });
+
+    it("locates a repeated facial-hair gender at the repeated entry", () => {
+        const note = culture(
+            profileLines({
+                facial_hair: "        facial_hair: { full_beard: 1 }",
+                facial_hair_genders: "        facial_hair_genders: [male, male]",
+            }),
+        );
+        expect(lint(note)).toEqual([
+            expect.objectContaining({
+                file,
+                ...at(note.raw, "male]"),
+                severity: "error",
+                message: '`data.appearanceProfile.facial_hair_genders` repeats gender "male"',
+            }),
+        ]);
     });
 
     it("refuses a head or face word outside its list, at the word", () => {

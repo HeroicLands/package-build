@@ -336,6 +336,14 @@ describe("buildIndexRecord", () => {
             ["{}", {}],
             ["[]", []],
             ["{ height: {} }", { height: {} }],
+            [
+                "{ facial_hair: { full_beard: 1 }, facial_hair_genders: [male] }",
+                { facial_hair: { full_beard: 1 }, facial_hair_genders: ["male"] },
+            ],
+            [
+                "{ facial_hair: { none: 1 }, facial_hair_genders: [] }",
+                { facial_hair: { none: 1 }, facial_hair_genders: [] },
+            ],
             ["[{ height: {} }]", [{ height: {} }]],
         ] as const) {
             const source = `---\ntype: lore\nsubType: culture\nshortcode: example\ndata:\n  appearanceProfile: ${yaml}\n---\nBody.\n`;

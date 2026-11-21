@@ -26,6 +26,8 @@
  * - `hair_texture`, `hair_style`, `facial_hair`, `face_shape`, `nose`, `brow`
  *   and `mouth` are weighted the same way and may be left out; a culture that
  *   leaves one out draws none of it.
+ * - `facial_hair_genders` lists the genders eligible for a facial-hair draw;
+ *   it is required with facial-hair weights.
  * - `height` maps a gender word to a `{min, max}` range, each a height in
  *   metres or feet and inches. `female` and `male` are required; a gender with
  *   no range of its own draws from the span of every range stated.
@@ -157,7 +159,7 @@ export function profileProblems(profile, lookVocabulary) {
         return problems;
     }
     const lookKeys = profileLookKeys(lookVocabulary);
-    const known = [...lookKeys, "height"];
+    const known = [...lookKeys, "height", "facial_hair_genders"];
     for (const key of Object.keys(profile)) {
         if (known.includes(key)) continue;
         const guess = nearest(key, known);
@@ -216,6 +218,58 @@ export function profileProblems(profile, lookVocabulary) {
                     `\`${label([key, word])}\` should be a positive weight, but reads ` +
                         `${JSON.stringify(weight)}; leave a word out to never draw it`,
                 );
+        }
+    }
+
+    const facialWeights = profile.facial_hair !== undefined && profile.facial_hair !== null;
+    const applicability = profile.facial_hair_genders;
+    if (facialWeights && (applicability === undefined || applicability === null)) {
+        meaning(
+            [],
+            "`data.appearanceProfile` must state `facial_hair_genders` with `facial_hair`",
+            true,
+        );
+    } else if (!facialWeights && applicability !== undefined) {
+        meaning(
+            ["facial_hair_genders"],
+            "`data.appearanceProfile.facial_hair_genders` requires `facial_hair` weights",
+            true,
+        );
+    }
+    if (applicability !== undefined && applicability !== null) {
+        if (!Array.isArray(applicability)) {
+            shape(
+                ["facial_hair_genders"],
+                "`data.appearanceProfile.facial_hair_genders` should be a list of genders",
+            );
+        } else {
+            const genders = wordsFor(lookVocabulary, "gender");
+            const seen = new Set();
+            applicability.forEach((gender, index) => {
+                if (gender === null) {
+                    meaning(
+                        ["facial_hair_genders", index],
+                        "`data.appearanceProfile.facial_hair_genders` entries must be gender words",
+                    );
+                } else if (typeof gender !== "string") {
+                    shape(
+                        ["facial_hair_genders", index],
+                        "`data.appearanceProfile.facial_hair_genders` entries must be gender words",
+                    );
+                } else if (!genders.includes(gender)) {
+                    shape(
+                        ["facial_hair_genders", index],
+                        `\`data.appearanceProfile.facial_hair_genders\` takes ${genders.join(", ")}, not ${JSON.stringify(gender)}`,
+                    );
+                } else if (seen.has(gender)) {
+                    meaning(
+                        ["facial_hair_genders", index],
+                        `\`data.appearanceProfile.facial_hair_genders\` repeats gender ${JSON.stringify(gender)}`,
+                    );
+                } else {
+                    seen.add(gender);
+                }
+            });
         }
     }
 
