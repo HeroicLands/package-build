@@ -126,6 +126,8 @@ function baseConfig({ packs, rootDir = os.tmpdir() }: any) {
         contentPackage: contentPackage(),
         foundryPackage: "sohl",
         packageKind: "systems",
+        itemBuilders: ["sohl"],
+        systems: { sohl: { compatibility: { verified: "0.9.0" } } },
         stats: {
             lastModifiedBy: "sohltestbuild0000",
         },
