@@ -709,6 +709,149 @@ it.each(["session", "standalone"])(
 );
 
 it.each(["session", "standalone"])(
+    "refuses scalar fences that change authored public anchor owners in %s mode",
+    async (mode) => {
+        for (const kind of ["static", "blanked", "generated-caption"])
+            for (const actual of [700, 1700]) {
+                const tree = input();
+                const generated =
+                    kind === "generated-caption" ?
+                        "': Example {#example}' || chr(10) || chr(10) || '```text' || chr(10) || 'An example.' || chr(10) || '```'"
+                    :   "'~~~'";
+                const query = `SELECT CASE WHEN data.population.actual > 1000 THEN ${generated} ELSE ' ' END FROM notes WHERE shortcode = 'fenced'`;
+                const scalar = `{{sql "${query}"}}`;
+                const heading =
+                    kind === "static" ? "# Alpha" : "# Population {{data.population.actual}}";
+                tree.add(
+                    "fenced",
+                    { pack: "private", population: { actual, apparent: 900 } },
+                    kind === "generated-caption" ?
+                        `${heading}\n\n[Own]{#own}.\n\n${scalar}\n\n[Foo]{#foo}.`
+                    :   `${heading}\n\n[Own]{#own}.\n\n${scalar}\n\n# Beta\n\n${scalar}\n\n[Foo]{#foo}.`,
+                    { tags: ["gm"] },
+                );
+                const session = await createContentSession({ config: tree.config });
+                try {
+                    const before = structuredClone({
+                        records: session.records,
+                        parsed: [...session.parsed],
+                    });
+                    const build = () =>
+                        mode === "session" ?
+                            session.compileCorpus()
+                        :   buildCompileCorpus({
+                                config: tree.config,
+                                contentBase: tree.config.paths.content,
+                                skipDirectories: tree.config.skipDirectories,
+                                router: createPackRouter(tree.config.packs),
+                            });
+                    const publication = await session.publication();
+                    if (actual === 1700) {
+                        const message =
+                            /fenced\.md:\d+:1: error: public anchor "foo" resolves to different public and private pages/;
+                        await expect(build()).rejects.toThrow(message);
+                        expect(() =>
+                            emitContentIndex({ config: tree.config, publication }),
+                        ).toThrow(message);
+                        expect(documents(path.join(tree.config.paths.packJson, "private"))).toEqual(
+                            [],
+                        );
+                    } else {
+                        const corpus = await build();
+                        const [document] = await compile(tree, corpus, "private");
+                        const page = document.pages.find(
+                            (page) =>
+                                page.name ===
+                                (kind === "generated-caption" ? "Population 700" : "Beta"),
+                        );
+                        const indexed =
+                            corpus.audiences.public.linkIndex.byShortcode.get("place/fenced");
+                        expect(indexed.anchorUuids.foo).toBe(
+                            `Compendium.populationproof.private.JournalEntry.${document._id}.JournalEntryPage.${page._id}`,
+                        );
+                        const result = emitContentIndex({ config: tree.config, publication });
+                        const bytes = fs.readFileSync(result.file, "utf8");
+                        for (const hidden of [
+                            query,
+                            "Population 700",
+                            "sourceHeading",
+                            "sourceFigure",
+                            "sourceAfterFigure",
+                            "blankedHeadingAnchors",
+                        ])
+                            expect(bytes).not.toContain(hidden);
+                    }
+                    expect({ records: session.records, parsed: [...session.parsed] }).toEqual(
+                        before,
+                    );
+                    for (const [file, text] of tree.sources)
+                        expect(fs.readFileSync(file, "utf8")).toBe(text);
+                } finally {
+                    await session.dispose();
+                    tree.close();
+                }
+            }
+    },
+);
+
+it.each(["session", "standalone"])(
+    "resolves only a blanked dynamic heading's own safe anchors in %s mode",
+    async (mode) => {
+        let previous;
+        for (const actual of [700, 1700]) {
+            const tree = input();
+            tree.add(
+                "blanked",
+                { pack: "private", population: { actual, apparent: 900 } },
+                "# Population {{data.population.actual}}\n\n[Own]{#safe}.\n\n: Example {#example}\n\n```text\nAn example.\n```\n\n[After]{#after}.",
+                { tags: ["gm"] },
+            );
+            const session = await createContentSession({ config: tree.config });
+            try {
+                const corpus =
+                    mode === "session" ?
+                        await session.compileCorpus()
+                    :   await buildCompileCorpus({
+                            config: tree.config,
+                            contentBase: tree.config.paths.content,
+                            skipDirectories: tree.config.skipDirectories,
+                            router: createPackRouter(tree.config.packs),
+                        });
+                const [document] = await compile(tree, corpus, "private");
+                const page = document.pages.find((page) => page.name === `Population ${actual}`);
+                const target = `Compendium.populationproof.private.JournalEntry.${document._id}.JournalEntryPage.${page._id}`;
+                const indexed = corpus.audiences.public.linkIndex.byShortcode.get("place/blanked");
+                expect(indexed.anchorUuids.safe).toBe(target);
+                expect(indexed.anchorUuids.$lead).toBe(target);
+                const continuation = document.pages.find((page) =>
+                    page.text?.content?.includes('id="after"'),
+                );
+                expect(indexed.anchorUuids.after).toBe(
+                    `Compendium.populationproof.private.JournalEntry.${document._id}.JournalEntryPage.${continuation._id}`,
+                );
+                const targets = { lead: target, after: indexed.anchorUuids.after };
+                if (previous) expect(targets).toEqual(previous);
+                previous = targets;
+                const publication = await session.publication();
+                const result = emitContentIndex({ config: tree.config, publication });
+                const metadata = JSON.stringify(indexed) + fs.readFileSync(result.file, "utf8");
+                for (const hidden of [
+                    `Population ${actual}`,
+                    "sourceHeading",
+                    "sourceFigure",
+                    "sourceAfterFigure",
+                    "blankedHeadingAnchors",
+                ])
+                    expect(metadata).not.toContain(hidden);
+            } finally {
+                await session.dispose();
+                tree.close();
+            }
+        }
+    },
+);
+
+it.each(["session", "standalone"])(
     "compares authored and generated public owners for spans and leads in %s mode",
     async (mode) => {
         for (const kind of ["span", "lead", "item"])
@@ -764,7 +907,7 @@ it.each(["session", "standalone"])(
                     const publication = await session.publication();
                     if (actual === 1700) {
                         const slug = kind === "span" ? "safe" : "$lead";
-                        const message = `public anchor "${slug}" resolves to different public and private generated pages`;
+                        const message = `public anchor "${slug}" resolves to different public and private pages`;
                         await expect(build()).rejects.toThrow(message);
                         expect(() =>
                             emitContentIndex({ config: tree.config, publication }),
@@ -1121,10 +1264,10 @@ it.each(["session", "standalone"])(
                             router: createPackRouter(tree.config.packs),
                         });
                 await expect(build()).rejects.toThrow(
-                    /trailing\.md:\d+:1: error: public anchor "safe" resolves to different public and private generated pages/,
+                    /trailing\.md:\d+:1: error: public anchor "safe" resolves to different public and private pages/,
                 );
                 expect(() => emitContentIndex({ config: tree.config, publication })).toThrow(
-                    /public anchor "safe" resolves to different public and private generated pages/,
+                    /public anchor "safe" resolves to different public and private pages/,
                 );
                 expect(documents(path.join(tree.config.paths.packJson, "private"))).toEqual([]);
             } finally {

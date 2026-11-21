@@ -2503,7 +2503,7 @@ Journals pack compiler — produces JSON pack files for the "journals" Foundry c
 | `buildJournalEntry`    | `buildJournalEntry({ id, name, markdown, leadName, folder, stats, resolveRole, syntax, runs, pageSource })` | {object} The JournalEntry document, keyed for the pack.                                                                                                                          | Assemble one JournalEntry document from a note's converted markdown.                                                             |
 | `Journals`             | `class Journals extends BasePackCompiler`                                                                   | —                                                                                                                                                                                | not called directly — imported and driven by `engine/generate.mjs` as the "journals" pack compiler                               |
 
-`pageSource` carries captured source and optional line mapping for a private destination. `journalPageId` uses a literal anchor for an explicitly anchored authored page; unanchored authored private dynamic pages use their source heading or caption before expression expansion. Static and public pages retain their ordinary page identities; a continuation after a private dynamic opening uses the authored source name. A generated page uses its anchor for identity when the complete literal slug is declared in the captured generating directive or also appears in the public expansion. Private-only generated pages use an identity derived from the unrendered directive and row position, without actual values. Public anchor membership comes from the public expansion alone. If either owning page is generated, its public and private target IDs must match; identical unanchored generated pages can retain their positional ID. A mismatch or missing native target produces a located error, including for trailing spans and first-page links. An unanchored static heading uses its authored text to derive a published page ID; a reader can test guesses against that ID.
+`pageSource` carries captured source and optional line mapping for a private destination. `journalPageId` uses a literal anchor for an explicitly anchored authored page; unanchored authored private dynamic pages use their source heading or caption before expression expansion. Static and public pages retain their ordinary page identities; a continuation after a private dynamic opening uses the authored source name. A generated page uses its anchor for identity when the complete literal slug is declared in the captured generating directive or also appears in the public expansion. Private-only generated pages use an identity derived from the unrendered directive and row position, without actual values. Public anchor membership comes from the public expansion alone. Public and private target IDs must match; identical unanchored generated pages can retain their positional ID. A differing target is permitted only for an anchor on its own deliberately blanked authored dynamic heading page or its exact authored-caption continuation, as recorded by the captured owner provenance. A mismatch or missing native target produces a located error, including for trailing spans and first-page links. An unanchored static heading uses its authored text to derive a published page ID; a reader can test guesses against that ID.
 
 `itemDescription(markdown, fm, name, pageSource?, location = {})` returns the item documentation pointer, or an empty string for an empty body. A private documentation route requires captured source provenance; `location.file` and `location.bodyLine` locate diagnostics. `location.config` supplies the captured package configuration, and `location.router` supplies its destination router; omitted context uses the loaded configuration.
 
@@ -2515,9 +2515,16 @@ and continues valid siblings; `publication()` refuses the collected findings.
 
 The compile corpus carries internal `pageSources` by captured file. Their
 `publicAnchors` map records projected public slugs and source offsets, and
-`publicBody` retains the projected body for checking generated page ownership.
+`publicBody` retains the projected body for comparing every public and private page target.
 Split pages retain a `sourceAuthored` ownership flag outside the identity seed;
 a continuation is authored only when both its section and captioned item are authored.
+`sourceHeading` and `sourceFigure` identify exact authored openings outside the
+identity seed; `sourceAfterFigure` identifies an authored continuation's caption.
+The projected body's internal `blankedHeadingAnchors` maps a slug to
+`{heading, continuationAfter?}` for the unanchored authored dynamic heading that
+the public projection blanks. A differing public target requires that exact native
+heading page or the same authored heading-and-caption continuation. Generated
+captions and later heading pages receive no exception.
 These values authorize private target identities and are absent from published
 index and link metadata.
 
