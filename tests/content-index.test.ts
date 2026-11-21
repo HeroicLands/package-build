@@ -291,6 +291,32 @@ describe("collectAnchors", () => {
 });
 
 describe("buildIndexRecord", () => {
+    it.each([{ data: null }, { data: [] }])(
+        "normalizes an accepted empty data container without changing its source: $data",
+        ({ data }) => {
+            const frontmatter = Object.freeze({ type: "folder", shortcode: "gear", data });
+            const record = buildIndexRecord({
+                frontmatter,
+                relPath: "Gear.md",
+                contentPackage: "demo",
+            });
+            expect(record.data).toEqual({});
+            expect(frontmatter.data).toBe(data);
+        },
+    );
+
+    it.each([{ data: 3 }, { data: "bad" }, { data: [1] }])(
+        "preserves invalid data for validation: $data",
+        ({ data }) => {
+            const record = buildIndexRecord({
+                frontmatter: { type: "folder", shortcode: "gear", data },
+                relPath: "Gear.md",
+                contentPackage: "demo",
+            });
+            expect(record.data).toEqual(data);
+        },
+    );
+
     it("carries the whole frontmatter through unflattened", () => {
         const record = buildIndexRecord({
             frontmatter: { type: "being", sohl: { system: { body: { weight: { base: 1500 } } } } },

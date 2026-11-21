@@ -821,6 +821,13 @@ describe("captured heading reference names", () => {
             [{ type: "place", shortcode: "town", name: { full: "Town" } }],
             {
                 contentPackage: "demo",
+                config: {
+                    contentPackage: "demo",
+                    docEntryTypes: new Set(),
+                    relationships: {
+                        requires: [{ id: "other", manifest: "https://example.test/module.json" }],
+                    },
+                },
                 foreignReferences: () => {
                     loads++;
                     return new Map([["other-note-place-town", { name: "Other town" }]]);
@@ -828,7 +835,9 @@ describe("captured heading reference names", () => {
             },
         );
         expect(name("place-town")).toBe("Town");
+        expect(name("demo-note-place-town")).toBe("Town");
         expect(name("demo-note-place-missing")).toBeUndefined();
+        expect(name("undeclared-note-place-town")).toBeUndefined();
         expect(loads).toBe(0);
         expect(name("other-note-place-town")).toBe("Other town");
         expect(name("other-note-place-town")).toBe("Other town");
@@ -840,11 +849,35 @@ describe("captured heading reference names", () => {
             [{ type: "place", shortcode: "town", name: { full: "Town" } }],
             {
                 contentPackage: "demo",
+                config: {
+                    contentPackage: "demo",
+                    docEntryTypes: new Set(),
+                    relationships: {
+                        requires: [{ id: "other", manifest: "https://example.test/module.json" }],
+                    },
+                },
                 foreignReferences: () => {
                     throw new Error("Dependency index is unavailable");
                 },
             },
         );
         expect(() => name("other-note-place-town")).toThrow("Dependency index is unavailable");
+    });
+    it("refuses packages without content indexes before loading dependency names", () => {
+        let loads = 0;
+        const name = sourceReferenceNames(
+            [{ type: "place", shortcode: "town", name: { full: "Town" } }],
+            {
+                contentPackage: "demo",
+                packages: new Set(["other"]),
+                noIndexPackages: new Set(["other"]),
+                foreignReferences: () => {
+                    loads++;
+                    return new Map([["other-note-place-town", { name: "Other town" }]]);
+                },
+            },
+        );
+        expect(name("other-note-place-town")).toBeUndefined();
+        expect(loads).toBe(0);
     });
 });

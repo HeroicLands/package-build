@@ -790,7 +790,16 @@ export class BasePackCompiler {
         if (tables.length) {
             const err = new Error(tables.map((e) => `content table — ${e.reason}`).join("; "));
             if (noteLine !== undefined && tables[0].line !== undefined)
-                err.position = { line: noteLine + tables[0].line };
+                err.position = {
+                    line: noteLine + tables[0].line,
+                    ...(tables[0].column === undefined ?
+                        {}
+                    :   {
+                            column:
+                                tables[0].column +
+                                (tables[0].line === 0 ? (noteColumn ?? 1) - 1 : 0),
+                        }),
+                };
             throw err;
         }
         const { lineMap } = expanded;

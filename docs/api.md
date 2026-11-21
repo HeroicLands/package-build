@@ -2534,8 +2534,12 @@ These values authorize private target identities and are absent from published
 index and link metadata.
 
 `sourceReferenceNames` takes `context.contentPackage`, with optional `config`,
-`docEntryTypes`, and `foreignReferences`. Dependency references may be a captured
-map or a lazy callback returning that map; local name resolution does not load
+`addressContext.config`, `docEntryTypes`, `packages`, `noIndexPackages`, and
+`foreignReferences`. Package names come from the local package, declared content
+dependencies, and the optional captured `packages` set. `noIndexPackages` refuses
+packages without content indexes, alongside the configuration's declarations.
+Dependency references may be a captured map or a lazy callback returning that map;
+local name resolution does not load
 dependency indexes. `indexRecordsFor` accepts captured `foreignReferences` for
 stub names and otherwise uses its supplied `foreignIndex` before reading caches.
 Private page source contexts carry its
