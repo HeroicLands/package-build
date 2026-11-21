@@ -594,8 +594,10 @@ const APPEARANCE_PROFILE_FIELD = Object.freeze({
         "What this culture's people look like, for `package-build npc new`: " +
         `${wordList(profileLookKeys(BEING_LOOK_VOCABULARY)).replace(/ or (?!.* or )/, " and ")} ` +
         "each map words of that field's vocabulary to positive weights, and `height` maps a " +
-        "gender to a `{min, max}` range, " +
-        `${wordList([...requiredHeightGenders()]).replace(" or ", " and ")} required. A culture ` +
+        "gender to a `{min, max}` range. Height ranges for " +
+        `${wordList([...requiredHeightGenders()]).replace(" or ", " and ")} are required. ` +
+        "`facial_hair_genders` lists the genders eligible for a facial-hair draw when those " +
+        "weights are stated. A culture " +
         "note only. See [appearance profiles](format-details.md#appearance-profiles).",
     fields: Object.freeze([
         ...profileLookKeys(BEING_LOOK_VOCABULARY).map((key) =>
@@ -616,6 +618,18 @@ const APPEARANCE_PROFILE_FIELD = Object.freeze({
                 }),
             }),
         ),
+        Object.freeze({
+            name: "facial_hair_genders",
+            kind: "list",
+            shape: "a list of genders",
+            describe:
+                "Genders eligible for the weighted facial-hair draw; required with facial-hair weights.",
+            entries: Object.freeze({
+                kind: "string",
+                shape: "a gender word",
+                allowed: Object.freeze(BEING_LOOK_VOCABULARY.gender.map(({ value }) => value)),
+            }),
+        }),
         Object.freeze({
             name: "height",
             kind: "map",
