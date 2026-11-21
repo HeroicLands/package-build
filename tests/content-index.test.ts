@@ -291,17 +291,19 @@ describe("collectAnchors", () => {
 });
 
 describe("buildIndexRecord", () => {
-    it.each([{ data: null }, { data: [] }])(
+    it.each([{ data: null }, { data: Object.freeze([]) }])(
         "normalizes an accepted empty data container without changing its source: $data",
         ({ data }) => {
-            const frontmatter = Object.freeze({ type: "folder", shortcode: "gear", data });
+            const frontmatter = { type: "folder", shortcode: "gear", data };
             const record = buildIndexRecord({
                 frontmatter,
                 relPath: "Gear.md",
                 contentPackage: "demo",
             });
             expect(record.data).toEqual({});
+            expect(record.data).not.toBe(data);
             expect(frontmatter.data).toBe(data);
+            expect(frontmatter.data).toEqual(data === null ? null : []);
         },
     );
 
