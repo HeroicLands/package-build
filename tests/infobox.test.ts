@@ -96,6 +96,7 @@ function addressSample(field: { ref?: string; accepts?: readonly string[] }): un
 /** A value the vocabulary's declared shape will accept, so every field is filled. */
 function sampleFor(field: {
     shape?: string;
+    fields?: readonly { name: string }[];
     kind?: string;
     entryKind?: string;
     standings?: boolean;
@@ -104,6 +105,7 @@ function sampleFor(field: {
     ref?: string;
     accepts?: readonly string[];
 }): unknown {
+    if (field.fields?.some((inner) => inner.name === "actual")) return { actual: 7 };
     if (field.shape?.startsWith("list of `{ to,"))
         return [{ to: "someref", bearing: "NE", mode: "land", days: 2 }];
     if (field.standings) return { "affiliation-someref": { rank: 3, office: "Steward" } };
@@ -182,7 +184,13 @@ function sampleOf(spec: any, key: string): unknown {
 function emptyOf(spec: any): unknown {
     if (spec.fields)
         return Object.fromEntries(
-            spec.fields.map((inner: any) => [inner.name, inner.kind === "list" ? [] : null]),
+            spec.fields.map((inner: any) => [
+                inner.name,
+                inner.name === "population" || inner.name === "territorial_population" ?
+                    { actual: null }
+                : inner.kind === "list" ? []
+                : null,
+            ]),
         );
     if (spec.kind === "list" || spec.kind === "string-or-list")
         return spec.entries?.fields ? [emptyOf(spec.entries)] : [];

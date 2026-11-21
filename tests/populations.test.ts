@@ -43,7 +43,7 @@ describe("fetched population figures", () => {
             foreignNode("thalorna-note-place-haven", {
                 type: "place",
                 name: "Haven",
-                population: 1200,
+                population: { actual: 1200 },
             })?.population,
         ).toBe(1200);
         expect(
@@ -81,7 +81,7 @@ function place(
         `    full: ${name}`,
         "data:",
         `    parents: [${parents.join(", ")}]`,
-        ...(population === undefined ? [] : [`    population: ${population}`]),
+        ...(population === undefined ? [] : [`    population: {actual: ${population}}`]),
         ...(government === undefined ? [] : [`    government: ${government}`]),
         "---",
         "",
@@ -106,7 +106,7 @@ function affiliation(
         `    full: ${name}`,
         "data:",
         `    parents: [${parents.join(", ")}]`,
-        ...(population === undefined ? [] : [`    population: ${population}`]),
+        ...(population === undefined ? [] : [`    population: {actual: ${population}}`]),
         "---",
         "",
         "Prose.",
@@ -312,7 +312,7 @@ describe("the rules read the corpus the way the notes are authored", () => {
                 type: "place",
                 subType: "region",
                 shortcode: "rgn",
-                data: { population: 1000, government: "affiliation-crown" },
+                data: { population: { actual: 1000 }, government: "affiliation-crown" },
             },
         };
         const index = {
@@ -324,7 +324,7 @@ describe("the rules read the corpus the way the notes are authored", () => {
                         {
                             type: "affiliation",
                             subType: "polity",
-                            population: 9000,
+                            population: { actual: 9000 },
                             domains: ["rgn"],
                         },
                     ],
@@ -525,7 +525,7 @@ describe("foreignNode", () => {
         const node = foreignNode("kethira-sohl-affiliation-Empire", {
             type: "affiliation",
             subType: "polity",
-            population: 8000,
+            population: { actual: 8000 },
             domains: ["north", "south"],
         });
         expect(node).toMatchObject({ shortcode: "empire", type: "affiliation", population: 8000 });
@@ -552,6 +552,28 @@ describe("the checks are the ones the vocabulary declares", () => {
     it("checks `data.population` on a place", () => {
         const field = dataFields("place", NOTE_VOCABULARY)?.find((f) => f.name === "population");
         expect(field?.check).toBe(checkPopulation);
+    });
+
+    it("accepts both actual and apparent cited figures", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-populations-"));
+        const region = place("rgn", "The Region", "region", { population: 1000 }).replace(
+            "population: {actual: 1000}",
+            "population: {actual: 1000, apparent: 400}",
+        );
+        const census = doc(
+            "census",
+            "Census",
+            "[[place-rgn|Region]] ~400\n[[place-rgn|Region]] ~1,000\n[[place-rgn|Region]] ~200",
+        );
+        const index = buildLinkIndex(writeTree(root, { "Rgn.md": region, "Census.md": census }), {
+            skipDirectories: [],
+        });
+        const note = index.notes.find((entry: { file: string }) =>
+            entry.file.endsWith("Census.md"),
+        );
+        const findings = checkCitedPopulations(note, { index });
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("400 on its own note");
     });
 
     it("checks a `doc` note's cited figures", () => {

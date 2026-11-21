@@ -8,9 +8,17 @@
 import { describe, it, expect } from "vitest";
 // Build-time pack helper (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
-import { splitPages, assertUniquePages } from "../engine/journals.mjs";
+import {
+    splitPages,
+    assertUniquePages,
+    journalPageId,
+    buildJournalEntry,
+    sourceReferenceNames,
+} from "../engine/journals.mjs";
 import { pageOpenings } from "../engine/heading-attributes.mjs";
 import { scanBlocks } from "../engine/content-blocks.mjs";
+import { makeId } from "../engine/ids.mjs";
+import { anchorPageId } from "../engine/wikilinks.mjs";
 
 /** The lines inside a named block, as the page splitter supplies them. */
 function blockLines(markdown: string): Set<number> {
@@ -247,5 +255,196 @@ describe("a page-opening heading inside a named block", () => {
         const body = ["# Public", "Before.", "", "# Next {#next}", "After."].join("\n");
         const names = [...pageOpenings(body, blockLines(body)).values()].map((o) => o.text);
         expect(names).toEqual(["Public", "Next"]);
+    });
+});
+
+describe("private source page identities", () => {
+    const entryId = "0123456789abcdef";
+    it("keeps public and literal anchored page IDs unchanged", () => {
+        const body = "# Population 4700\n\nAn account.\n\n## Details 4700 {#details}\n\nDetails.";
+        const publicPages = splitPages(body);
+        expect(journalPageId(entryId, publicPages[0])).toBe(
+            makeId("journal-page", `${entryId}:Population 4700`),
+        );
+        expect(journalPageId(entryId, publicPages[1])).toBe(anchorPageId(entryId, "details"));
+        const source = body.replaceAll("4700", "{{data.population.actual}}");
+        const lineMap = source.split("\n").map((_, line) => ({ line, generated: false }));
+        const privatePages = splitPages(body, undefined, undefined, undefined, { source, lineMap });
+        expect(journalPageId(entryId, privatePages[0])).not.toBe(
+            journalPageId(entryId, publicPages[0]),
+        );
+        expect(journalPageId(entryId, privatePages[1])).toBe(anchorPageId(entryId, "details"));
+        const doc = buildJournalEntry({
+            id: entryId,
+            name: "Account",
+            markdown: body,
+            pageSource: { source, lineMap },
+        });
+        expect(doc.pages.map((page) => page._id)).toEqual(
+            privatePages.map((page) => journalPageId(entryId, page)),
+        );
+        expect(JSON.stringify(doc)).not.toContain("sourceIdentity");
+    });
+
+    it("preserves static page and continuation IDs when paragraphs move headings", () => {
+        const source =
+            "# Account\n\nBefore.\n\n: Example {#Example}\n\n```text\nSample\n```\n\nAfter.\n\n## Details {#explicit}\n\nAn anchored section.\n\n# Details\n\nDetails.";
+        const expected = splitPages(source).map((page) => journalPageId(entryId, page));
+        const privateIds = (body) =>
+            splitPages(body, undefined, undefined, undefined, { source: body })
+                .filter((page) => page.name !== "Introduction")
+                .map((page) => journalPageId(entryId, page));
+        expect(privateIds(source)).toEqual(expected);
+        expect(privateIds(`A paragraph.\n\n${source}`)).toEqual(expected);
+    });
+
+    it.each(["Town", ""])(
+        "preserves resolved static heading and caption names for label %j",
+        (label) => {
+            const referenceName = sourceReferenceNames(
+                [{ type: "place", shortcode: "town", name: { full: "Town" } }],
+                { contentPackage: "demo" },
+            );
+            const source = `# [[place-town|${label}]]\n\nBefore.\n\n: View of [[place-town|${label}]]\n\nSample.\n\nAfter.`;
+            const render = (text) =>
+                text.replaceAll(
+                    `[[place-town|${label}]]`,
+                    "@UUID[Compendium.demo.journals.JournalEntry.town]{Town}",
+                );
+            const ordinary = splitPages(render(source));
+            expect(journalPageId(entryId, ordinary[0])).toBe(
+                makeId("journal-page", `${entryId}:Town`),
+            );
+            const expected = ordinary.map((page) => journalPageId(entryId, page));
+            for (const prefix of ["", "An introductory paragraph.\n\n"]) {
+                const authored = prefix + source;
+                for (const body of [authored, render(authored)]) {
+                    const pages = splitPages(body, undefined, undefined, undefined, {
+                        source: authored,
+                        referenceName,
+                        lineMap: authored
+                            .split("\n")
+                            .map((_, line) => ({ line, generated: false })),
+                    }).filter((page) => page.name !== "Introduction");
+                    expect(pages.map((page) => journalPageId(entryId, page))).toEqual(expected);
+                }
+            }
+        },
+    );
+
+    it("keys dynamic headings on unexpanded names across paragraph insertions and actual values", () => {
+        const heading = "Population {{data.population.actual}}";
+        const ids = (actual, prefix) => {
+            const source = `${prefix}# ${heading}\n\nAn account.\n\n# Static\n\nDetails.`;
+            const body = source.replace("{{data.population.actual}}", String(actual));
+            return splitPages(body, undefined, undefined, undefined, {
+                source,
+                lineMap: source.split("\n").map((_, line) => ({ line, generated: false })),
+            })
+                .filter((page) => page.name !== "Introduction")
+                .map((page) => journalPageId(entryId, page));
+        };
+        expect(ids(4700, "")).toEqual(ids(6800, "A paragraph.\n\n"));
+        expect(ids(4700, "")).toEqual([
+            makeId("journal-page", `${entryId}:${heading}`),
+            makeId("journal-page", `${entryId}:Static`),
+        ]);
+        expect(ids(4700, "")[0]).not.toBe(makeId("journal-page", `${entryId}:Population 4700`));
+    });
+
+    it("uses literal generated anchors across ordering changes and withholds concealed slugs from seeds", () => {
+        const source = "```sql\nSELECT 'Known {#known}', secret_heading\n```";
+        const pages = (body) =>
+            splitPages(body, undefined, undefined, undefined, {
+                source,
+                lineMap: body.split("\n").map(() => ({ line: 0, generated: true })),
+            });
+        const first = pages("# Known {#known}\n\nOne.\n\n# Hidden {#count4700}\n\nTwo.");
+        const second = pages("# Hidden {#count6800}\n\nTwo.\n\n# Known {#known}\n\nOne.");
+        expect(journalPageId(entryId, first[0])).toBe(anchorPageId(entryId, "known"));
+        expect(journalPageId(entryId, second[1])).toBe(journalPageId(entryId, first[0]));
+        expect(journalPageId(entryId, first[1])).toBe(journalPageId(entryId, second[0]));
+        expect(journalPageId(entryId, first[1])).not.toBe(anchorPageId(entryId, "count4700"));
+    });
+
+    it("locates duplicate private headings without rendering their figures", () => {
+        const source =
+            "# Beta {{data.population.actual}}\n\nOne.\n\n# Beta {{data.population.actual}}\n\nTwo.";
+        const body = source.replaceAll("{{data.population.actual}}", "700");
+        const pages = splitPages(body, undefined, undefined, undefined, {
+            source,
+            lineMap: body.split("\n").map((_, line) => ({ line, generated: false })),
+            file: "source.md",
+            bodyLine: 8,
+        });
+        expect(() => assertUniquePages(pages, "Account")).toThrow(
+            'source.md:12:1: error: note "Account" repeats a private page "Beta {{data.population.actual}}"',
+        );
+    });
+    it("does not disclose generated duplicate page names", () => {
+        const source = "```sql\nSELECT heading\n```";
+        const body = "# Beta 700\n\nOne.\n\n# Beta 700\n\nTwo.";
+        const pages = splitPages(body, undefined, undefined, undefined, {
+            source,
+            lineMap: body.split("\n").map(() => ({ line: 0, generated: true })),
+            file: "source.md",
+            bodyLine: 8,
+        });
+        try {
+            assertUniquePages(pages, "Account");
+            throw new Error("Expected a duplicate refusal");
+        } catch (error) {
+            expect(String(error)).toContain(
+                'source.md:8:1: error: note "Account" repeats a private page',
+            );
+            expect(String(error)).not.toContain("700");
+        }
+    });
+    it("associates generated openings with their directive and structural ordinal", () => {
+        const source = "```sql\nSELECT a_heading\n```";
+        const render = (actual) => `# First ${actual}\n\nOne.\n\n# Second ${actual}\n\nTwo.`;
+        const identity = (actual) =>
+            splitPages(render(actual), undefined, undefined, undefined, {
+                source,
+                lineMap: render(actual)
+                    .split("\n")
+                    .map(() => ({ line: 0, generated: true })),
+            }).map((page) => journalPageId(entryId, page));
+        expect(identity(4700)).toEqual(identity(6800));
+        expect(new Set(identity(4700)).size).toBe(2);
+    });
+
+    it("refuses an unassociated private opening and duplicate source identities", () => {
+        expect(() =>
+            splitPages("# Rendered", undefined, undefined, undefined, {
+                file: "source.md",
+                bodyLine: 8,
+            } as any),
+        ).toThrow("source.md:8:1: error: private journal has no captured source");
+        expect(() =>
+            splitPages("# Rendered\n\nBody.", undefined, undefined, undefined, {
+                source: "# Source\n\nBody.",
+                lineMap: [],
+                file: "source.md",
+                bodyLine: 8,
+            }),
+        ).toThrow("source.md:8:1: error: private journal page opening has no source association");
+        expect(() =>
+            assertUniquePages(
+                [
+                    {
+                        name: "First",
+                        anchorSlug: null,
+                        sourceIdentity: { name: "Source" },
+                    },
+                    {
+                        name: "Second",
+                        anchorSlug: null,
+                        sourceIdentity: { name: "Source" },
+                    },
+                ],
+                "Account",
+            ),
+        ).toThrow("repeats a private page");
     });
 });

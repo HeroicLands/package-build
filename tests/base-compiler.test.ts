@@ -12,7 +12,12 @@ import path from "node:path";
 
 // Build-time pack compilers (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
+import { createPackRouter } from "../engine/pack-router.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
+import { createContentSession } from "../engine/content-session.mjs";
+import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
+import { prepareContentIndex } from "../engine/content-index.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { documentId } from "../engine/content-address.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 import { Items } from "../sohl/items.mjs";
@@ -390,40 +395,85 @@ describe("a {{ref}} resolves in a compiled journal entry", () => {
         expect(intro.text.content).not.toContain("](#plate)");
     });
 
-    it("refuses an anchor matching no figure, before anything compiles", async () => {
-        const broken = path.join(
-            os.tmpdir(),
-            `sohl-base-compiler-ref-journal-broken-${process.pid}`,
-        );
-        fs.mkdirSync(broken, { recursive: true });
-        try {
-            fs.writeFileSync(
-                path.join(broken, "Broken.md"),
-                note('See {{ref "#nosuch"}}.', {
-                    name: { full: "Ref Broken" },
-                    id: "0123456789abcdef",
-                    shortcode: "refbroken",
-                    type: "doc",
-                }),
+    it.each(["session", "standalone"])(
+        "declines a broken reference while compiling a valid sibling in %s mode",
+        async (mode) => {
+            const broken = path.join(
+                os.tmpdir(),
+                `sohl-base-compiler-ref-journal-broken-${process.pid}`,
             );
-            const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+            fs.mkdirSync(broken, { recursive: true });
+            let session;
             try {
-                const out = dest("ref-journal-broken");
-                const pack = new Journals({ skipDirectories: [], contentBase: broken, dest: out });
-                await pack.compile();
-                expect(pack.errorCount).toBe(1);
-                expect(read(out)["Ref Broken"]).toBeUndefined();
-                const messages = spy.mock.calls.map((call) => String(call[0]));
-                expect(
-                    messages.some((m) => m.includes('names no figure for anchor "#nosuch"')),
-                ).toBe(true);
+                fs.writeFileSync(
+                    path.join(broken, "Broken.md"),
+                    note('See {{ref "#nosuch"}}.', {
+                        name: { full: "Ref Broken" },
+                        id: "0123456789abcdef",
+                        shortcode: "refbroken",
+                        type: "doc",
+                    }),
+                );
+                fs.writeFileSync(
+                    path.join(broken, "Valid.md"),
+                    note("Valid sibling prose.", {
+                        name: { full: "Ref Valid" },
+                        id: "1234567890abcdef",
+                        shortcode: "refvalid",
+                        type: "doc",
+                    }),
+                );
+                const config = loadPackConfig();
+                session = await createContentSession({
+                    config,
+                    contentBase: broken,
+                    skipDirectories: [],
+                });
+                const corpus =
+                    mode === "session" ?
+                        await session.compileCorpus()
+                    :   await buildCompileCorpus({
+                            config,
+                            contentBase: broken,
+                            skipDirectories: [],
+                        });
+                const out = dest(`ref-journal-broken-${mode}`);
+                const pack = new Journals({
+                    skipDirectories: [],
+                    contentBase: broken,
+                    dest: out,
+                    corpus,
+                });
+                const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+                try {
+                    await pack.compile();
+                    expect(pack.errorCount).toBe(1);
+                    expect(read(out)["Ref Broken"]).toBeUndefined();
+                    expect(JSON.stringify(read(out)["Ref Valid"])).toContain(
+                        "Valid sibling prose.",
+                    );
+                    const messages = spy.mock.calls
+                        .map((call) => String(call[0]))
+                        .filter((message) =>
+                            message.includes('names no figure for anchor "#nosuch"'),
+                        );
+                    expect(messages).toHaveLength(1);
+                    expect(messages[0]).toMatch(/Broken\.md:\d+:\d+: error:/);
+                } finally {
+                    spy.mockRestore();
+                }
+                await expect(session.publication()).rejects.toThrow(
+                    /names no figure for anchor "#nosuch"/,
+                );
+                await expect(prepareContentIndex({ config, contentBase: broken })).rejects.toThrow(
+                    /names no figure for anchor "#nosuch"/,
+                );
             } finally {
-                spy.mockRestore();
+                await session?.dispose();
+                fs.rmSync(broken, { recursive: true, force: true });
             }
-        } finally {
-            fs.rmSync(broken, { recursive: true, force: true });
-        }
-    });
+        },
+    );
 });
 
 describe("BasePackCompiler's constructor contract", () => {
@@ -511,5 +561,54 @@ describe("BasePackCompiler's convertBody agrees with the lint about an image", (
         } finally {
             spy.mockRestore();
         }
+    });
+});
+
+describe("private documentation source context", () => {
+    const frontmatter = { type: "skill", shortcode: "account", name: { full: "Account" } };
+    const compiler = () => {
+        const pass = new Probe({
+            contentBase: os.tmpdir(),
+            skipDirectories: [],
+            dest: os.tmpdir(),
+            router: createPackRouter([
+                { name: "private", type: "JournalEntry", private: true, default: true },
+            ]),
+        });
+        pass.populationAudience = "public";
+        pass.currentNote = { absPath: "assets/content/account.md", bodyLine: 12 };
+        return pass;
+    };
+
+    it("locates missing source and missing provenance at the real body line", () => {
+        const pass = compiler();
+        expect(() => pass.documentationBody(frontmatter, "An account.")).toThrow(
+            "assets/content/account.md:12:1: error: private documentation has no captured source",
+        );
+        expect(() => pass.journalPageSource(frontmatter)).toThrow(
+            "assets/content/account.md:12:1: error: private journal has no captured source provenance",
+        );
+    });
+
+    it("counts unresolved links once while preserving private conversion failures", () => {
+        const pass = compiler();
+        pass.currentNote = { ...pass.currentNote, frontmatter, source: "An account." };
+        pass.unresolvedLinks = 2;
+        const conversion = vi.spyOn(pass, "convertBody").mockImplementation(() => {
+            pass.unresolvedLinks += 2;
+            return "Private account.";
+        });
+        expect(pass.documentationBody(frontmatter, "Public account.")).toBe("Private account.");
+        expect(conversion).toHaveBeenCalledWith(frontmatter, "An account.", "all");
+        expect(pass.unresolvedLinks).toBe(2);
+        conversion.mockImplementation(() => {
+            pass.unresolvedLinks += 2;
+            throw new Error("Private conversion failed");
+        });
+        expect(() => pass.documentationBody(frontmatter, "Public account.")).toThrow(
+            "Private conversion failed",
+        );
+        expect(pass.unresolvedLinks).toBe(2);
+        conversion.mockRestore();
     });
 });

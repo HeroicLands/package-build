@@ -402,7 +402,7 @@ describe("prepared content-index publication", () => {
     });
 
     it(
-        "accepts a declared SQL target on the public surface and refuses its absent native target",
+        "accepts a declared SQL target on public and native surfaces",
         () => {
             const body = "Read [[pub-note-lore-register#public-stamp|the public stamp]].";
             write(
@@ -418,9 +418,10 @@ describe("prepared content-index publication", () => {
                     records,
                 }),
             });
-            expect(native.unresolved).toEqual([
-                expect.objectContaining({ reason: "unknown-anchor", anchor: "public-stamp" }),
-            ]);
+            expect(native.unresolved).toEqual([]);
+            const target = foreign.index.get("pub-note-lore-register")?.anchors?.["public-stamp"];
+            expect(target).toBeTruthy();
+            expect(native.markdown).toContain(`@UUID[${target}]{the public stamp}`);
             const errors: any[] = [];
             const site = buildSiteIndex([], { package: "leaf", foreignIndex: foreign.index });
             const web = resolveWebWikilinks(body, {
@@ -692,7 +693,7 @@ describe("prepared content-index publication", () => {
         expect(publication.expandedBodies.get(privateSource).markdown).toContain("{#hidden-stamp}");
     });
 
-    it("publishes only declared native targets using the actual ALL corpus's containing pages", async () => {
+    it("publishes only declared native targets using their destination's containing pages", async () => {
         const repo = configure("native", {
             packs: [
                 { name: "journals", type: "JournalEntry", default: true },
@@ -734,8 +735,8 @@ describe("prepared content-index publication", () => {
             sqlTables: corpus.sqlTables?.get(source),
         });
         expect(actual.errors).toEqual([]);
-        expect(actual.markdown).toContain("{#secret-page}");
-        expect(actual.markdown).toContain("{#hidden-stamp}");
+        expect(actual.markdown).toContain("{#public-page}");
+        expect(actual.markdown).toContain("{#public-stamp}");
         expect(renderFoundryMarkdown(actual.markdown)).toContain('id="shared-stamp"');
         const publication = await prepare(repo);
         const sourceBody = publication.expandedBodies.get(source).markdown;
@@ -748,8 +749,8 @@ describe("prepared content-index publication", () => {
             expect.arrayContaining(["public-page", "public-stamp", "shared-stamp"]),
         );
         const native = record.foundry.note;
-        expect(native.anchors["public-stamp"]).toBeUndefined();
-        expect(native.anchors["public-page"]).toBeUndefined();
+        expect(native.anchors["public-stamp"]).toBeTruthy();
+        expect(native.anchors["public-page"]).toBeTruthy();
         expect(native.anchors["hidden-stamp"]).toBeUndefined();
         expect(native.anchors["secret-page"]).toBeUndefined();
         const containing = splitPages(actual.markdown).find((page) =>
@@ -761,7 +762,7 @@ describe("prepared content-index publication", () => {
         expect(containing).toBeTruthy();
         const entryId = native.uuid.split(".").at(-1);
         const page = journalPageId(entryId, containing);
-        expect(page).not.toBe(journalPageId(entryId, publicContaining));
+        expect(page).toBe(journalPageId(entryId, publicContaining));
         expect(native.anchors["shared-stamp"]).toBe(`${native.uuid}.JournalEntryPage.${page}`);
         expect(native.anchors.$lead).toBeTruthy();
         expect(JSON.stringify(record)).not.toMatch(/SECRET|secret-page|hidden-stamp/);
@@ -782,7 +783,7 @@ describe("prepared content-index publication", () => {
             publication.foundryBodies,
         ];
         const before = snapshot(inputs);
-        for (const input of inputs) freeze(input);
+        freeze(inputs);
         const result = emit(publisher, publication, path.join(root, "frozen-output"));
         expect(result).not.toBeInstanceOf(Promise);
         expect(snapshot(inputs)).toBe(before);

@@ -315,7 +315,7 @@ export function prepareNamedSettlements({
                 population < bands.homesteadBelow ? "homestead"
                 : population < bands.hamletBelow ? "hamlet"
                 : "village",
-            population,
+            population: { actual: population },
             market: population <= bands.localAbove ? "subsistence" : "local",
             households: calculation.households,
             economicFocus: calculation.economicFocus,

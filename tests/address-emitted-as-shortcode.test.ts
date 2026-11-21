@@ -23,7 +23,6 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, it, expect, vi } from "vitest";
 
@@ -31,9 +30,6 @@ import { addressFields, reduceAddressFields } from "../engine/address-fields.mjs
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { Items } from "../sohl/items.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
-
-/** This package's own root — where its test fixtures live. */
-const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /**
  * The vocabularies of a tree that publishes `foo`, depends on `bar`, and
@@ -288,9 +284,10 @@ async function withPass(run: (pass: any, said: string[]) => void) {
         .spyOn(console, "warn")
         .mockImplementation((line: unknown) => void said.push(String(line)));
     try {
+        fs.mkdirSync(path.join(dir, "content"));
         const pass = new Items({
             skipDirectories: [],
-            contentBase: path.join(PKG_ROOT, "tests/fixtures"),
+            contentBase: path.join(dir, "content"),
             dest: loadPackConfig().paths.packJson,
         });
         await pass.prepare();

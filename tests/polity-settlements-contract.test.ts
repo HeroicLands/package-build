@@ -72,6 +72,133 @@ describe("polity settlement contract", () => {
     });
 });
 
+describe("population declarations", () => {
+    it.each([
+        [
+            "population: null",
+            15,
+            "`data.population` must be a population map with an actual figure",
+        ],
+        [
+            "population: 12",
+            15,
+            "`data.population` should be a population with actual and optional apparent figures, but reads 12",
+        ],
+        ["population: []", 15, "`data.population` must be a population map with an actual figure"],
+        [
+            "population: {actual: nope}",
+            24,
+            '`data.population.actual` should be a number or null, but reads "nope"',
+        ],
+        [
+            "population: {actual: 100, apparent: nope}",
+            39,
+            '`data.population.apparent` should be a number or null, but reads "nope"',
+        ],
+    ])("locates malformed declaration %s", (line, column, message) => {
+        const raw = `---\ntype: place\nsubType: region\nshortcode: valley\ndata:\n  ${line}\n---\n`;
+        const note = { file: "valley.md", raw, fm: YAML.parse(raw.split("---\n")[1]) };
+        const findings = lintNote(note, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });
+        expect(findings).toContainEqual(
+            expect.objectContaining({
+                file: "valley.md",
+                line: 6,
+                column,
+                severity: "error",
+                message,
+            }),
+        );
+    });
+    it("reports inline null once at the population value", () => {
+        const raw =
+            "---\ntype: affiliation\nsubType: polity\nshortcode: example\ndata:\n  settlements:\n    - population: null\n---\n";
+        const note = { file: "example.md", raw, fm: YAML.parse(raw.split("---\n")[1]) };
+        const findings = lintNote(note, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });
+        const population = findings.filter((finding) => finding.message.includes("population"));
+        expect(population).toHaveLength(1);
+        expect(population[0]).toMatchObject({
+            line: 7,
+            message: expect.stringContaining("must be a population map"),
+        });
+    });
+    it("requires a closed actual and apparent map", () => {
+        const fields = NOTE_VOCABULARY.affiliation.data;
+        const note = (population: unknown) => ({
+            file: "note.md",
+            raw: "---\ndata:\n  population: 9\n---\n",
+            fm: { data: { population } },
+        });
+        expect(checkDataKeys(note({ actual: 12, apparent: 0 }), fields)).toEqual([]);
+        expect(checkDataKeys(note({ actual: "12", apparent: "0" }), fields)).toEqual([]);
+        expect(checkDataKeys(note({ actual: null, apparent: null }), fields)).toEqual([]);
+        expect(checkDataKeys(note({ apparent: 12 }), fields).length).toBeGreaterThan(0);
+        expect(checkDataKeys(note({ actual: 12, extra: 1 }), fields).length).toBeGreaterThan(0);
+    });
+});
+
+describe("population publication preflight", () => {
+    const run = (data: object, subType = "guild") => {
+        const fm = { type: "affiliation", subType, shortcode: "example", package: "test", data };
+        const raw = `---\n${YAML.stringify(fm)}---\n`;
+        return () =>
+            assertSettlementRecords([fm], { fileOf: () => "Example.md", rawOf: () => raw });
+    };
+    it.each([
+        null,
+        [],
+        [1],
+        4,
+        "4",
+        {},
+        { apparent: 4 },
+        { actual: 4, extra: 1 },
+        { actual: "bad", apparent: 4 },
+    ])("refuses malformed membership values before publication: %j", (population) => {
+        expect(run({ population })).toThrow(/^Example\.md:\d+:\d+: error:/);
+    });
+    it.each([
+        null,
+        [],
+        4,
+        { apparent: 4 },
+        { actual: 4, extra: 1 },
+        { actual: "bad", apparent: 4 },
+    ])("refuses malformed territorial values before publication: %j", (territorial_population) => {
+        expect(run({ territorial_population }, "polity")).toThrow(/^Example\.md:\d+:\d+: error:/);
+    });
+    it.each([
+        null,
+        [],
+        4,
+        { apparent: 4 },
+        { actual: 0, extra: 1 },
+        { actual: "bad", apparent: 4 },
+    ])("refuses malformed inline values before publication: %j", (population) => {
+        expect(
+            run(
+                { settlements: [{ population }], territorial_population: { actual: 100 } },
+                "polity",
+            ),
+        ).toThrow(/^Example\.md:\d+:\d+: error:/);
+    });
+    it("rejects an invalid actual settlement figure even with a valid apparent figure", () => {
+        const fm = {
+            type: "place",
+            subType: "settlement",
+            shortcode: "village",
+            package: "test",
+            data: { population: { actual: 101, apparent: 100 }, notes: "A village." },
+        };
+        const raw = `---\n${YAML.stringify(fm)}---\n`;
+        expect(() =>
+            assertSettlementRecords([fm], { fileOf: () => "Village.md", rawOf: () => raw }),
+        ).toThrow(/^Village\.md:\d+:\d+: error:/);
+    });
+    it("accepts numeric string membership without changing its value", () => {
+        expect(run({ population: { actual: "1200", apparent: "1200" } })).not.toThrow();
+    });
+});
+
 describe("settlement population and hierarchy", () => {
     const row = {
         settlement: "East Farm",
@@ -81,7 +208,7 @@ describe("settlement population and hierarchy", () => {
         fortification: null,
         stronghold: null,
         holder: "The Crown",
-        population: 100,
+        population: { actual: 100 },
         market: "subsistence",
         notes: "A farm by the road.",
     };
@@ -93,7 +220,7 @@ describe("settlement population and hierarchy", () => {
                 type: "affiliation",
                 subType: "polity",
                 shortcode: "crown",
-                data: { settlements: rows, territorial_population: total },
+                data: { settlements: rows, territorial_population: { actual: total } },
             },
         };
         const place = {
@@ -110,6 +237,38 @@ describe("settlement population and hierarchy", () => {
             },
         };
     }
+    it("validates actual counts and renders the selected audience", () => {
+        const { polity, index } = corpus(
+            [{ ...row, population: { actual: 200, apparent: 0 } }],
+            100,
+        );
+        expect(
+            checkSettlementTables(polity, { index }).some((finding) =>
+                finding.message.includes("territorial"),
+            ),
+        ).toBe(true);
+        expect(settlementMarkdown(polity.fm, [polity.fm], { audience: "public" })).toContain(
+            "| 0 |",
+        );
+        expect(settlementMarkdown(polity.fm, [polity.fm], { audience: "all" })).toContain(
+            "| 200 |",
+        );
+        const unknown = corpus([{ ...row, population: { actual: 100, apparent: null } }]);
+        expect(checkSettlementTables(unknown.polity, { index: unknown.index })).toEqual([]);
+        expect(settlementMarkdown(unknown.polity.fm)).not.toContain("| 100 |");
+    });
+    it("uses actual rather than apparent for population validation", () => {
+        const invalid = corpus([{ ...row, population: { actual: 101, apparent: 100 } }]);
+        expect(
+            checkSettlementTables(invalid.polity, { index: invalid.index }).some((finding) =>
+                finding.message.startsWith("people figure:"),
+            ),
+        ).toBe(true);
+        for (const apparent of [0, null]) {
+            const valid = corpus([{ ...row, population: { actual: 100, apparent } }]);
+            expect(checkSettlementTables(valid.polity, { index: valid.index })).toEqual([]);
+        }
+    });
     it("allows unknown location, holder and notes while checking supplied values", () => {
         const unknown: Partial<typeof row> = { ...row };
         delete unknown.location;
@@ -167,7 +326,7 @@ describe("settlement population and hierarchy", () => {
                 type: "place",
                 subType: "settlement",
                 shortcode: "settlement",
-                data: { population: null, notes: "A place.", households },
+                data: { population: { actual: null }, notes: "A place.", households },
             },
             raw: "",
         };
@@ -188,7 +347,7 @@ describe("settlement population and hierarchy", () => {
         (households) => {
             const { index } = corpus([]);
             const data = {
-                population: null,
+                population: { actual: null },
                 notes: "A place.",
                 ...(households === undefined ? {} : { households }),
             };
@@ -329,7 +488,7 @@ describe("settlement population and hierarchy", () => {
                 type: "place",
                 subType: "settlement",
                 shortcode: "village",
-                data: { population: null, notes: "A village.", economicFocus },
+                data: { population: { actual: null }, notes: "A village.", economicFocus },
             };
             const note = { file: "Village.md", fm, raw: `---\n${YAML.stringify(fm)}---\n` };
             const findings = lintNote(note, {
@@ -374,7 +533,11 @@ describe("settlement population and hierarchy", () => {
             type: "place",
             subType: "settlement",
             shortcode: "village",
-            data: { population: null, notes: "A village.", economicFocus: "custom livelihood" },
+            data: {
+                population: { actual: null },
+                notes: "A village.",
+                economicFocus: "custom livelihood",
+            },
         };
         const note = { file: "Village.md", fm, raw: `---\n${YAML.stringify(fm)}---\n` };
         expect(

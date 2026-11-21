@@ -69,6 +69,7 @@ describe("GM note routing", () => {
                     contentPackage: "demo",
                     foundryPackageId: "demo",
                     packRouter: router,
+                    pageSource: { source: "Secret prose." },
                 })[0].uuid,
             ).toContain("gm-journals");
         } finally {
@@ -96,6 +97,7 @@ describe("GM note routing", () => {
             contentPackage: "demo",
             foundryPackageId: "demo",
             packRouter: itemRouter,
+            pageSource: { source: "Prose." },
         });
         expect(entries[0].uuid).toContain("gm-items");
         expect(entries[1].uuid).toContain("gm-journals");

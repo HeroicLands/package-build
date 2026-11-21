@@ -11,6 +11,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { projectPopulationFrontmatter } from "./population-values.mjs";
 import Handlebars from "handlebars";
 
 import { isAddressTuple, renderAddress } from "./address.mjs";
@@ -575,8 +576,8 @@ function refCallFault(node, figures, eventContext) {
  *   note's — see {@link refFigure}.
  * @param {object} [eventContext] - What an event reference reads — see
  *   {@link eventReference}.
- * @returns {Array<{offset: number, message: string}>} One entry per faulty
- *   `{{...}}` expression, `offset` into `body`.
+ * @returns {Array<{offset: number, message: string, referenceOnly: boolean}>} One entry per faulty
+ *   `{{...}}` expression, `offset` into `body`, and whether it contains no SQL call.
  */
 function refFaults(body, figures, eventContext) {
     const faults = [];
@@ -587,11 +588,16 @@ function refFaults(body, figures, eventContext) {
         } catch {
             continue; // The render pass reports the malformed expression itself.
         }
+        const containsSql = (node) =>
+            node &&
+            typeof node === "object" &&
+            (node.path?.original === "sql" || Object.values(node).some(containsSql));
+        const referenceOnly = !containsSql(program);
         const visit = (node) => {
             if (!node || typeof node !== "object") return;
             if (node.path?.original === "ref") {
                 const message = refCallFault(node, figures, eventContext);
-                if (message) faults.push({ offset: match.index, message });
+                if (message) faults.push({ offset: match.index, message, referenceOnly });
             }
             for (const parameter of node.params ?? []) visit(parameter);
         };
@@ -616,7 +622,8 @@ function positionAt(body, offset, bodyLine) {
  *   {url: string|null, figures: Map<string, object>}|undefined,
  *   link?: Function}, events?: {note: (written: string) => object|undefined,
  *   own?: (fm: object) => object|undefined},
- *   file?: string, bodyLine?: number}} [options] -
+ *   file?: string, bodyLine?: number, audience?: "public"|"all",
+ *   onExpansion?: (expansion: {offset: number, source: string, rendered: string}) => void}} [options] -
  *   `figures` is the `ref` helper's own view of the corpus: `get` reads this
  *   note's captioned items by id, and `note` resolves another note's the
  *   way a wikilink would — omitted, a cross-note address is refused rather
@@ -625,33 +632,51 @@ function positionAt(body, offset, bodyLine) {
  *   event reference reads: every note's events by Address, from
  *   {@link module:engine/event-fields.eventNoteIndex}; omitted, an event
  *   reference is refused.
+ * @param {"public"|"all"} [options.audience="public"] - Population visibility at this output.
+ * @param {Function} [options.onExpansion] - Internal provenance callback with the expression's
+ *   offset in the supplied body, original expression and rendered text.
  */
 export function renderMarkdownExpressions(
     body,
-    { fm, dates, sqlResults, figures, events, file, bodyLine = 1 } = {},
+    {
+        fm,
+        dates,
+        sqlResults,
+        figures,
+        events,
+        file,
+        bodyLine = 1,
+        audience = "public",
+        onExpansion,
+    } = {},
 ) {
+    fm = projectPopulationFrontmatter(fm, audience);
     const findings = [];
     const engine = Handlebars.create();
     for (const helper of HELPERS)
         engine.registerHelper(helper.name, helper.make({ sqlResults, dates, figures, events, fm }));
     const staticFaults = new Map(
-        refFaults(body, figures, { events, fm, dates }).map((f) => [f.offset, f.message]),
+        refFaults(body, figures, { events, fm, dates }).map((f) => [f.offset, f]),
     );
     const markdown = replaceOutsideCode(body, EXPRESSION, (source, _inside, offset) => {
         const fault = staticFaults.get(offset);
         if (fault) {
             const { line, column } = positionAt(body, offset, bodyLine);
-            findings.push({
+            const finding = {
                 ...(file ? { file } : {}),
                 line,
                 column,
                 severity: "error",
-                message: `Markdown expression ${source} failed: ${fault}`,
-            });
+                message: `Markdown expression ${source} failed: ${fault.message}`,
+            };
+            if (fault.referenceOnly) Object.defineProperty(finding, "code", { value: "reference" });
+            findings.push(finding);
             return source;
         }
         try {
-            return engine.compile(source, { strict: true })(fm ?? {});
+            const rendered = engine.compile(source, { strict: true })(fm ?? {});
+            onExpansion?.({ offset, source, rendered });
+            return rendered;
         } catch (error) {
             const { line, column } = positionAt(body, offset, bodyLine);
             findings.push({

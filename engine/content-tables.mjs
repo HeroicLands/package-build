@@ -90,13 +90,15 @@ export function expandContentTables(markdown, { source = "", sqlTables, pageList
                 : prepared.pages === 0 && !prepared.allowEmpty ? prepared.empty
                 : undefined;
             if (failure) {
-                errors.push({
+                const finding = {
                     source,
                     directive: block.join("\n"),
                     reason: failure,
                     line: i,
                     column: indent.length + 1,
-                });
+                };
+                Object.defineProperty(finding, "code", { value: "page-list" });
+                errors.push(finding);
                 block.forEach((value, offset) => emit(value, i + offset));
                 i = close;
                 continue;

@@ -33,6 +33,19 @@ see [writing in invented scripts](docs/guides/writing-in-invented-scripts.md).
 Parallel verse sets `cols=N`, then prefixes each reading with its column
 number; blank lines divide logical rows.
 
+## Converting population declarations
+
+The source checkout includes a one-time converter for content packages. From a package-build checkout at the release containing the converter, install its dependencies with `npm ci`, then supply the consumer's content directory:
+
+```bash
+node scripts/convert-population-actual.mjs --preview /path/to/consumer/assets/content
+node scripts/convert-population-actual.mjs --write /path/to/consumer/assets/content
+```
+
+The converter wraps numeric values, quoted numeric values and null as `actual` in `data.population`, `data.territorial_population` and inline `data.settlements` population fields. Existing maps with `actual` and optional `apparent` remain unchanged. Set `apparent` separately wherever the public figure differs, and update public queries to read `.apparent`. The script is in the source checkout, not the installed package.
+
+Directory inputs recurse through Markdown files and skip files without frontmatter; an explicitly named Markdown file requires frontmatter. The converter preserves surrounding text, comments, quoting, BOM and line endings. It refuses invalid YAML, anchors, aliases, explicit tags, merge or complex keys, unsupported population values and linked files. It checks the whole selection before writing; a filesystem failure during writing can interrupt the write pass. Use `--help` for options and exit status.
+
 ## Working on this repository
 
 Run `npm ci` in each fresh clone or worktree. Its `prepare` step installs the
@@ -148,9 +161,26 @@ headword proof.
 Set `art_archives: true` with `consumer: kethira` to add an isolated artwork
 archive compile. The Thalorna proofs ignore this option.
 
-All choices pack that commit, verify the archive integrity and installed bytes,
-and refuse changes to unrelated locked dependencies before the normal consumer
-compile. Kethira checks its content index and compiled packs. The encoding proof
+Select `consumer: authoring-reference` to generate the controlled reference
+documents from the selected commit in an isolated snapshot. The
+`authoring-reference` artifact contains the documents and a receipt with the
+source commit and SHA-256 hashes; review them before committing the output.
+
+Select `consumer: thalorna-populations`, set `consumer_sha` to the exact
+Thalorna commit, and supply `population_addresses` as a JSON list of canonical
+place (`thalorna-note-place-…`) and affiliation (`thalorna-sohl-affiliation-…`)
+Addresses. Each selected subject must have differing
+figures and public site and JournalEntry output. The proof checks an isolated
+converted source snapshot, public index and site, and public and private Foundry documents. Its
+receipt records source and output hashes without copying private source records.
+The source commit must contain population `actual`/`apparent` maps, public SQL
+queries that read `apparent`, and `facial_hair_genders` beside authored
+`facial_hair` weights. The proof converts populations in its source snapshot;
+it does not convert appearance profiles.
+
+The consumer compile choices pack that commit, verify the archive integrity and
+installed bytes, and refuse changes to unrelated locked dependencies before the
+normal consumer compile. Kethira checks its content index and compiled packs. The encoding proof
 applies two disposable note overlays and checks that the requested stressed grave
 vowels encode, decode and render without findings. The headword proof applies
 three disposable replacements and checks the resulting dictionary classes,
@@ -162,13 +192,15 @@ For `consumer: thalorna-facial-hair`, supply the exact Thalorna commit as
 compiles it with the candidate and checks the indexed profiles and generated
 characters. The `facial-hair-consumer-proof` artifact records the two commits,
 archive hashes, source profiles, indexed lists and generation counts. The source
-commit must contain the author's applicability declarations.
+commit must contain population `actual`/`apparent` maps, public SQL queries
+that read `apparent`, and `facial_hair_genders` beside authored `facial_hair`
+weights. This proof does not convert populations.
 
 The workflow requires registry and consumer dependency access; it does not
 publish a package or site.
 
-The Thalorna proofs use the normal `build` host runner with a 3072 MiB
-Node heap limit. Each verifies the runner service and shared content slice's
+The Thalorna consumer proofs use the normal `build` host runner with a 3072 MiB
+Node heap limit. The encoding and headword proofs verify the runner service and shared content slice's
 12 GiB high watermark and 14 GiB memory limit. The profile permits swap.
 The `consumer-proof-memory` artifact retains before/after memory limits, peak
 and event counters, including failed compiles. Those cgroup counters include

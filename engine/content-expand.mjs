@@ -204,6 +204,7 @@ export function expandTables(markdown, { source, prepared = {}, resolveRole }) {
  * @param {ExpandedTables} [options.tables] - The note's {@link expandTables},
  *   already run — with the figures numbered, for the book. Run here when
  *   omitted.
+ * @param {"public"|"all"} [options.audience="public"] - Population visibility at this output.
  * @param {ExpandLinks} [options.links] - How the target resolves links.
  * @returns {Expansion} The expanded body and the findings.
  * @throws {Error} When `target` is not one of {@link EXPANSION_TARGETS}.
@@ -212,6 +213,7 @@ export function expandContent(
     markdown,
     {
         target,
+        audience = "public",
         index,
         note,
         prepared = {},
@@ -235,7 +237,10 @@ export function expandContent(
     const web = target !== "foundry";
 
     const { tables, figures } = staged ?? expandTables(markdown, { source, prepared, resolveRole });
-    const { lineMap, generatedFrom } = tables;
+    const lineMap = tables.lineMap.map((location) => ({ ...location }));
+    let generatedFrom = tables.generatedFrom;
+    const expressionSource = markGenerated(tables.markdown, generatedFrom);
+    const expressionAdditions = [];
     const figuresById = new Map(
         figures.figures
             .filter((figure) => figure.id)
@@ -245,12 +250,20 @@ export function expandContent(
             ]),
     );
 
-    const expressions = renderMarkdownExpressions(markGenerated(tables.markdown, generatedFrom), {
+    const expressions = renderMarkdownExpressions(expressionSource, {
         fm,
+        audience,
         dates: web ? index.dateContext : reckoningContext(index),
         file,
         bodyLine,
         sqlResults: prepared.inline,
+        onExpansion: ({ offset, rendered }) => {
+            const markedLine = expressionSource.slice(0, offset).split("\n").length - 1;
+            const line =
+                markedLine - (generatedFrom !== undefined && markedLine > generatedFrom ? 1 : 0);
+            const count = rendered.split("\n").length - 1;
+            if (count) expressionAdditions.push({ line, count, location: lineMap[line] });
+        },
         events,
         figures:
             web ?
@@ -272,6 +285,18 @@ export function expandContent(
                 }
             :   { get: (id) => figuresById.get(id), link: foundryRefLink },
     });
+
+    for (const { line, count, location } of expressionAdditions.sort((a, b) => b.line - a.line)) {
+        lineMap.splice(
+            line + 1,
+            0,
+            ...Array.from({ length: count }, () => ({
+                ...location,
+                generated: true,
+            })),
+        );
+        if (generatedFrom !== undefined && line < tables.generatedFrom) generatedFrom += count;
+    }
 
     const findings = {
         tables: tables.errors,

@@ -10,6 +10,10 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { collectFoundryEntries, entriesForNote } from "../engine/foundry-entries.mjs";
+import { indexRecordsForNote } from "../engine/content-index.mjs";
+import { createPackRouter } from "../engine/pack-router.mjs";
+import { buildJournalEntry } from "../engine/journals.mjs";
 
 import {
     buildManifest,
@@ -672,4 +676,111 @@ describe("the published manifest carries none of the build's own keys", () => {
         const published = publishedRelationships({ requires: [{ id: "a", futureKey: "x" }] });
         expect(published.requires[0]).toEqual({ id: "a", futureKey: "x" });
     });
+});
+
+it("collects private manifest targets from the same captured source as generated pages", () => {
+    const content = fs.mkdtempSync(path.join(os.tmpdir(), "private-source-manifest-"));
+    const source = "# Population {{data.population.actual}}\n\n[Account]{#safe}.";
+    const file = path.join(content, "Account.md");
+    fs.writeFileSync(
+        file,
+        `---\ntype: doc\nshortcode: account\nid: AAAAAAAAAAAAAAAA\nname: {full: Account}\ndata: {population: {actual: 4700, apparent: 900}}\n---\n\n${source}\n`,
+    );
+    try {
+        const packRouter = createPackRouter([
+            { name: "private", type: "JournalEntry", default: true, private: true },
+        ]);
+        const manifest = collectFoundryEntries(content, {
+            contentPackage: "sourceproof",
+            foundryPackageId: "sourceproof",
+            skipDirectories: [],
+            packRouter,
+        });
+        const target = manifest.entries[0];
+        const rendered = source.replace("{{data.population.actual}}", "4700");
+        const entry = buildJournalEntry({
+            id: "AAAAAAAAAAAAAAAA",
+            name: "Account",
+            markdown: rendered,
+            pageSource: {
+                source,
+                file,
+                lineMap: source.split("\n").map((_, line) => ({ line, generated: false })),
+            },
+        });
+        expect(target.anchors.safe).toBe(`${target.uuid}.JournalEntryPage.${entry.pages[0]._id}`);
+        expect(target.anchors.$lead).toBe(target.anchors.safe);
+    } finally {
+        fs.rmSync(content, { recursive: true, force: true });
+    }
+});
+
+it("requires captured source for private manifest targets and preserves public routing without it", () => {
+    const frontmatter = { type: "doc", shortcode: "account", id: "AAAAAAAAAAAAAAAA" };
+    const rendered = "# Generated 4700 {#generated}\n\nAn account.";
+    const context = (privatePack: boolean) => ({
+        contentPackage: "sourceproof",
+        foundryPackageId: "sourceproof",
+        file: "Account.md",
+        bodyLine: 12,
+        packRouter: createPackRouter([
+            { name: "journals", type: "JournalEntry", default: true, private: privatePack },
+        ]),
+    });
+    expect(() =>
+        entriesForNote(frontmatter, "Account", "doc-account", rendered, context(true)),
+    ).toThrow("Account.md:12:1: error: private journal has no captured source");
+    expect(() =>
+        entriesForNote(frontmatter, "Account", "doc-account", rendered, {
+            ...context(true),
+            pageSource: { source: "# Source", lineMap: [] },
+        }),
+    ).toThrow("Account.md:12:1: error: private journal page opening has no source association");
+    const target = entriesForNote(
+        frontmatter,
+        "Account",
+        "doc-account",
+        rendered,
+        context(false),
+    )[0];
+    const publicEntry = buildJournalEntry({
+        id: frontmatter.id,
+        name: "Account",
+        markdown: rendered,
+    });
+    expect(target.anchors.generated).toBe(
+        `${target.uuid}.JournalEntryPage.${publicEntry.pages[0]._id}`,
+    );
+});
+
+it("captures authored source when deriving private index targets", () => {
+    const source = "# Population {{data.population.actual}}\n\n[Account]{#safe}.";
+    const records = indexRecordsForNote({
+        frontmatter: { type: "doc", shortcode: "account", name: { full: "Account" } },
+        body: source,
+        bodyLine: 1,
+        relPath: "Account.md",
+        contentPackage: "sourceproof",
+        manifest: {
+            contentPackage: "sourceproof",
+            foundryPackageId: "sourceproof",
+            packRouter: createPackRouter([
+                { name: "private", type: "JournalEntry", default: true, private: true },
+            ]),
+        },
+    });
+    const record = records[0];
+    const entry = buildJournalEntry({
+        id: record.id,
+        name: "Account",
+        markdown: source.replace("{{data.population.actual}}", "4700"),
+        pageSource: {
+            source,
+            lineMap: source.split("\n").map((_, line) => ({ line, generated: false })),
+        },
+    });
+    expect(record.foundry.note.anchors.safe).toBe(
+        `${record.foundry.note.uuid}.JournalEntryPage.${entry.pages[0]._id}`,
+    );
+    expect(record.foundry.note.anchors.$lead).toBe(record.foundry.note.anchors.safe);
 });

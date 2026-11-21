@@ -28,7 +28,7 @@ function rendered(value: unknown) {
 }
 
 it.each([false, true])(
-    "shares each entries JSON load with identical audience results (concurrent: %s)",
+    "isolates each audience JSON load with identical audience results (concurrent: %s)",
     async (concurrent) => {
         const input = fixture();
         const dep = path.join(input.config.paths.metadataCache, "source@1.0.0");
@@ -179,7 +179,7 @@ it.each([false, true])(
                     await Promise.all([session.sqlTables("all"), session.sqlTables("public")])
                 :   [await session.sqlTables("all"), await session.sqlTables("public")];
             await new Promise<void>((resolve) => setImmediate(resolve));
-            expect(instanceClose).toHaveBeenCalledTimes(1);
+            expect(instanceClose).toHaveBeenCalledTimes(2);
             expect(connectionClose).toHaveBeenCalledTimes(2);
             const readsAfterPreparation = read.mock.calls.length;
             const runsAfterPreparation = run.mock.calls.length;
@@ -209,22 +209,22 @@ it.each([false, true])(
                 expect(
                     reads.filter((sql) => /^CREATE TABLE/.test(sql)),
                     file,
-                ).toHaveLength(1);
+                ).toHaveLength(2);
                 expect(
                     reads,
                     `${file}: inference must read the materialized table too`,
-                ).toHaveLength(1);
+                ).toHaveLength(2);
             }
-            expect(create).toHaveBeenCalledTimes(1);
+            expect(create).toHaveBeenCalledTimes(2);
             expect(read).toHaveBeenCalledTimes(readsAfterPreparation);
             expect(run).toHaveBeenCalledTimes(runsAfterPreparation);
             session.dispose();
             await new Promise<void>((resolve) => setImmediate(resolve));
-            expect(instanceClose).toHaveBeenCalledTimes(1);
+            expect(instanceClose).toHaveBeenCalledTimes(2);
             expect(connectionClose).toHaveBeenCalledTimes(2);
             session.dispose();
             await new Promise<void>((resolve) => setImmediate(resolve));
-            expect(instanceClose).toHaveBeenCalledTimes(1);
+            expect(instanceClose).toHaveBeenCalledTimes(2);
         } finally {
             session.dispose();
             fs.rmSync(input.root, { recursive: true, force: true });
@@ -365,7 +365,7 @@ it.each([
             });
             // Flush the promise drain, without timing-dependent sleeps.
             await new Promise<void>((resolve) => setImmediate(resolve));
-            expect(closed).toHaveBeenCalledTimes(1);
+            expect(closed).toHaveBeenCalledTimes(2);
             expect(connectionClosed).toHaveBeenCalledTimes(2);
             if (!dispose) {
                 if (secondFails)
@@ -378,7 +378,7 @@ it.each([
             session.dispose();
             session.dispose();
             await new Promise<void>((resolve) => setImmediate(resolve));
-            expect(closed).toHaveBeenCalledTimes(1);
+            expect(closed).toHaveBeenCalledTimes(2);
             expect(connectionClosed).toHaveBeenCalledTimes(2);
             fs.rmSync(input.root, { recursive: true, force: true });
         }
@@ -407,9 +407,9 @@ it.each(["all", "public"] as const)(
             expect(await session.sqlTables(second)).toBe(other);
             expect(await session.sqlTables(first)).toBe(result);
             await new Promise<void>((resolve) => setImmediate(resolve));
-            expect(create).toHaveBeenCalledTimes(1);
+            expect(create).toHaveBeenCalledTimes(2);
             expect(connect).toHaveBeenCalledTimes(2);
-            expect(closed).toHaveBeenCalledTimes(1);
+            expect(closed).toHaveBeenCalledTimes(2);
             expect(connectionClosed).toHaveBeenCalledTimes(2);
         } finally {
             session.dispose();

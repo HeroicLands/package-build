@@ -13,7 +13,7 @@ import { infoboxesToHtml, infoboxesToTypst } from "../engine/infobox-render.mjs"
 function note(data: Record<string, unknown>, subType = "settlement") {
     return {
         file: "town.md",
-        raw: "---\ntype: place\nsubType: settlement\nshortcode: town\ndata:\n    population: 100\n---\n",
+        raw: "---\ntype: place\nsubType: settlement\nshortcode: town\ndata:\n    population: { actual: 100 }\n---\n",
         fm: { type: "place", subType, shortcode: "town", name: { full: "Town" }, data },
     };
 }
@@ -36,13 +36,15 @@ describe("explicit place government", () => {
             for (const population of [undefined, null, 0]) {
                 expect(checkGovernment(note({ population }, subType))).toEqual([]);
             }
-            const populated = note({ population: 100 }, subType);
+            const populated = note({ population: { actual: 100 } }, subType);
             expect(checkGovernment(populated)).toMatchObject([{ severity: "warning", line: 6 }]);
-            expect(checkGovernment(note({ population: 100, government: null }, subType))).toEqual(
-                [],
-            );
             expect(
-                checkGovernment(note({ population: 100, government: "council" }, subType)),
+                checkGovernment(note({ population: { actual: 100 }, government: null }, subType)),
+            ).toEqual([]);
+            expect(
+                checkGovernment(
+                    note({ population: { actual: 100 }, government: "council" }, subType),
+                ),
             ).toEqual([]);
             expect(NOTE_VOCABULARY.place.check?.(populated, {})).toEqual(
                 checkGovernment(populated),
@@ -53,7 +55,7 @@ describe("explicit place government", () => {
     it.each(["", 42, [], {}, "missing", "demo-note-place-town"].map((value) => [value]))(
         "rejects invalid government %j",
         (government) => {
-            const findings = lintNote(note({ population: 100, government }, "region"), {
+            const findings = lintNote(note({ population: { actual: 100 }, government }, "region"), {
                 vocabulary: NOTE_VOCABULARY,
                 schemas: ENGINE_NOTE_SCHEMAS,
                 index: { contentPackage: "demo", addressHit: () => null } as any,
@@ -67,7 +69,7 @@ describe("explicit place government", () => {
     it.each(["council", "foreign-note-affiliation-council"])(
         "accepts a resolved affiliation %s",
         (government) => {
-            const findings = lintNote(note({ population: 100, government }, "region"), {
+            const findings = lintNote(note({ population: { actual: 100 }, government }, "region"), {
                 vocabulary: NOTE_VOCABULARY,
                 schemas: ENGINE_NOTE_SCHEMAS,
                 index: {
@@ -97,7 +99,13 @@ describe("explicit place government", () => {
     it("preserves anarchy and omitted government in compiled Foundry journal properties", () => {
         for (const data of [{ government: null }, {}]) {
             const compiled = Journals.prototype.buildEntry.call(
-                { folderResolver: () => null, linkIndex: undefined, router: undefined, stats: {} },
+                {
+                    folderResolver: () => null,
+                    journalPageSource: () => undefined,
+                    linkIndex: undefined,
+                    router: undefined,
+                    stats: {},
+                },
                 { ...note(data).fm, id: "0123456789abcdef" },
                 "Authored prose.",
             );

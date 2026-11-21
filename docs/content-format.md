@@ -225,10 +225,17 @@ naming its governing polity or lineage and `parents` naming its enclosing places
 governed by a polity has no authored row in that polity. The build merges the two sources into a Settlements table
 of direct subjects and a Settlement index of every settlement beneath the
 polity. Direct subordinate polities appear through their seats, or as linked
-polity summaries where no settlement seat is stated. All publishing surfaces
-use the same generated tables.
+polity summaries where no settlement seat is stated. Public tables use the apparent figures; private tables use the actual figures.
 
 A settlement governed by a lineage appears in no polity settlement table, membership, listed total or urban share, and cannot have an authored row in any polity’s table.
+
+Population fields use `{actual, apparent?}`. Validation and settlement
+calculations use `actual`; public tables use `apparent`, or `actual` when the
+apparent figure is omitted. Explicit `apparent: 0` is zero and `apparent: null`
+is unknown. Public indexes materialize the apparent value and set actual to
+null when the two differ; a dependent package cannot recover that actual figure
+from the public index. See the [population authoring guide](authoring/frontmatter.md#population-figures) for private delivery
+and examples.
 
 `data.population` on an affiliation counts its members. A polity's separate
 `data.territorial_population` counts inhabitants: listed and noted settlements
@@ -236,8 +243,8 @@ throughout its subordinate chain must not exceed that total. Towns, cities, and 
 A polity with settlements, a seat, or subordinate polities requires this total.
 Each polity declares at most one superior in `data.parents`.
 Seats count once, and subordinate territorial totals are never added to the
-settlement sum. Each settlement declares a population: use `null` when unknown and `0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. A settlement note states short `data.notes`; a populated settlement note also requires `data.type`,
-a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity or lineage. A settlement note with a null or omitted population does not require those three fields.
+settlement sum. Each settlement declares a population: use `actual: null` when unknown and `actual: 0` for an abandoned settlement. An omitted population produces a warning and is treated as unknown. Positive populations use at most two significant digits. Complete-table totals must not exceed the upper allowance, and must also meet the lower allowance when every settlement population is known. A settlement note states short `data.notes`; a populated settlement note also requires `data.type`,
+a declared `data.market` label (such as `local`), and a `data.government` that resolves to a polity or lineage. A settlement note with a null or omitted actual figure does not require those three fields.
 For an aggregate population finding, declare a reasoned settlement exemption for that polity in the [configuration](configuration.md#settlement-exemptions).
 
 ```yaml
@@ -245,7 +252,7 @@ type: affiliation
 subType: polity
 shortcode: council
 data:
-  territorial_population: 100
+  territorial_population: { actual: 100 }
   settlements:
     - settlement: East Farm
       polity: affiliation-council
@@ -254,7 +261,7 @@ data:
       fortification: null
       stronghold: null
       holder: The Council
-      population: 100
+      population: { actual: 100 }
       market: subsistence
       notes: A farm by the road.
 ```

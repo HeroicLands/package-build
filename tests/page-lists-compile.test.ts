@@ -19,12 +19,17 @@
  * answers a page list without opening a database.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { createContentSession } from "../engine/content-session.mjs";
+import { prepareContentIndex } from "../engine/content-index.mjs";
+import { generatePacksJson } from "../engine/generate.mjs";
+import { fixture, note, write } from "./content-session-fixture.js";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -203,7 +208,7 @@ describe("a tag that selects nothing fails the compile", () => {
     }, 120_000);
 
     it("names the tag it could not find", () => {
-        expect(missing.errors).toBeGreaterThan(0);
+        expect(missing.errors, missing.output).toBeGreaterThan(0);
         expect(missing.output).toContain("key-concpet");
     });
 
@@ -211,3 +216,84 @@ describe("a tag that selects nothing fails the compile", () => {
         expect(missing.output).toMatch(/Key_Concepts\.md:\d+/);
     });
 });
+
+it.each(["session", "standalone"])(
+    "counts a bad page list once and preserves valid siblings in %s mode",
+    async (mode) => {
+        const tree = fixture(0, "pageproof");
+        const broken = path.join(tree.config.paths.content, "Broken.md");
+        write(
+            broken,
+            note(
+                { type: "doc", shortcode: "broken", name: { full: "Broken" } },
+                'Before.\n\n```pagelist {tag="missing-tag"}\n```\n\nAfter.',
+            ),
+        );
+        write(
+            path.join(tree.config.paths.content, "Valid.md"),
+            note(
+                { type: "doc", shortcode: "valid", name: { full: "Valid" } },
+                "Valid sibling prose.",
+            ),
+        );
+        const session = await createContentSession({ config: tree.config });
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            const before = structuredClone({
+                records: session.records,
+                parsed: [...session.parsed],
+            });
+            const count = await generatePacksJson({
+                config: tree.config,
+                ...(mode === "session" ? { session } : {}),
+            });
+            const messages = spy.mock.calls.map((args) => args.map(String).join(" "));
+            expect(count, messages.join("\n")).toBe(1);
+            const output = packDocs(tree.root, "journals");
+            expect(output.Broken).toBeUndefined();
+            expect(JSON.stringify(output.Valid)).toContain("Valid sibling prose.");
+            const located = messages.filter((message) => message.includes("missing-tag"));
+            expect(located).toHaveLength(1);
+            expect(located[0]).toMatch(/Broken\.md:\d+:\d+: error:/);
+            await expect(session.publication()).rejects.toThrow(
+                /Broken\.md:\d+:1: error:.*missing-tag/,
+            );
+            await expect(prepareContentIndex({ config: tree.config })).rejects.toThrow(
+                /Broken\.md:\d+:1: error:.*missing-tag/,
+            );
+            expect(fs.existsSync(tree.config.paths.contentIndex)).toBe(false);
+            expect({ records: session.records, parsed: [...session.parsed] }).toEqual(before);
+        } finally {
+            spy.mockRestore();
+            await session.dispose();
+            fs.rmSync(tree.root, { recursive: true, force: true });
+        }
+    },
+);
+
+it.each(["session", "standalone"])(
+    "keeps SQL failure fatal beside a deferred page list in %s mode",
+    async (mode) => {
+        const tree = fixture(0, "pageproof");
+        write(
+            path.join(tree.config.paths.content, "Broken.md"),
+            note(
+                { type: "doc", shortcode: "broken", name: { full: "Broken" } },
+                '```pagelist {tag="missing-tag"}\n```\n\n```sql\nSELECT missing_column FROM notes\n```',
+            ),
+        );
+        const session = await createContentSession({ config: tree.config });
+        try {
+            await expect(
+                generatePacksJson({
+                    config: tree.config,
+                    ...(mode === "session" ? { session } : {}),
+                }),
+            ).rejects.toThrow(/missing_column/);
+            expect(packDocs(tree.root, "journals")).toEqual({});
+        } finally {
+            await session.dispose();
+            fs.rmSync(tree.root, { recursive: true, force: true });
+        }
+    },
+);

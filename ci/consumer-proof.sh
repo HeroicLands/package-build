@@ -6,13 +6,19 @@ root="$PWD"
 proof="$RUNNER_TEMP/consumer-proof"
 guard="$PWD/ci/consumer-lock-guard.mjs"
 case "$CONSUMER_PROOF" in
-    kethira|thalorna-encoding|thalorna-headwords|thalorna-facial-hair) ;;
+    kethira|thalorna-encoding|thalorna-headwords|thalorna-populations|thalorna-facial-hair) ;;
     *) printf 'Unknown consumer proof: %s\n' "$CONSUMER_PROOF" >&2; exit 1 ;;
 esac
 cd consumer-proof-consumer
 test "$(git rev-parse HEAD)" = "$CONSUMER_SHA"
 printf 'Consumer commit: %s\n' "$(git rev-parse HEAD)"
-if [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
+if [ "$CONSUMER_PROOF" = thalorna-populations ]; then
+    [[ "$CONSUMER_SHA" =~ ^[0-9a-f]{40}$ ]]
+    mkdir -p "$proof/source" "$proof/population-evidence"
+    git archive "$CONSUMER_SHA" | tar -x -C "$proof/source"
+    cd "$proof/source"
+    node "$root/ci/consumer-proof-populations.mjs" prepare "$proof"
+elif [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
     [[ "$CONSUMER_SHA" =~ ^[0-9a-f]{40}$ ]]
     mkdir -p "$proof/source" "$proof/facial-hair-evidence"
     git archive "$CONSUMER_SHA" > "$proof/consumer-source.tar"
@@ -41,7 +47,7 @@ NODE
 npm ci
 mkdir -p "$proof/unpacked"
 tar -xzf "$proof/candidate.tgz" -C "$proof/unpacked"
-node - "$proof/unpacked/package" node_modules/@heroiclands/package-build <<'NODE'
+node - "$proof/unpacked/package" node_modules/@heroiclands/package-build "$proof" <<'NODE'
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
@@ -54,21 +60,33 @@ function compare(source, installed) {
     }
 }
 compare(process.argv[2], process.argv[3]);
+const crypto = require('node:crypto');
+const archive = fs.readFileSync(path.join(process.argv[4], 'candidate.tgz'));
+fs.writeFileSync(path.join(process.argv[4], 'installed-archive.json'), JSON.stringify({archiveSha256: crypto.createHash('sha256').update(archive).digest('hex'), verified: true}) + '\n');
 console.log('Installed package matches every archived file.');
 NODE
 if [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
     cp "$root/ci/facial-hair-consumer-overlay.mjs" .facial-hair-consumer-overlay.mjs
     node .facial-hair-consumer-overlay.mjs prepare
-elif [ "$CONSUMER_PROOF" != kethira ]; then
+elif [ "$CONSUMER_PROOF" != kethira ] && [ "$CONSUMER_PROOF" != thalorna-populations ]; then
     overlay="${CONSUMER_PROOF#thalorna-}-consumer-overlay.mjs"
     cp "../ci/$overlay" ".$overlay"
     node ".$overlay" prepare
+fi
+if [ "$CONSUMER_PROOF" = thalorna-populations ]; then
+    npm run build:deps
+    npm run lint:content
+    npm run build:db
+    npm run build:site
+    node "$root/ci/consumer-proof-populations.mjs" verify "$proof"
+    exit 0
 fi
 if [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
     npm run build:db
     node .facial-hair-consumer-overlay.mjs verify
     exit 0
-elif [ "$CONSUMER_PROOF" != kethira ]; then
+fi
+if [ "$CONSUMER_PROOF" != kethira ]; then
     CONSUMER_PROOF_MEMORY_DIR="$RUNNER_TEMP/consumer-proof-memory" \
         NODE_OPTIONS="$NODE_OPTIONS --import=\"$PWD/../ci/content-memory-diagnostics.mjs\"" \
         npm run build:db

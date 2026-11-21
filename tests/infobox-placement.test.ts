@@ -48,6 +48,7 @@ describe("generated journal infobox pages", () => {
         const compiled = Journals.prototype.buildEntry.call(
             {
                 folderResolver: () => null,
+                journalPageSource: () => undefined,
                 linkIndex: undefined,
                 router: undefined,
                 stats: {},

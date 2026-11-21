@@ -366,7 +366,7 @@ describe("resolving foreign addresses from cached indexes", () => {
             address: { canonical: "thalorna-note-place-vale", slug: "place-vale" },
             data: {
                 government: "thalorna-note-affiliation-aerarimmpr",
-                population: 100,
+                population: { actual: 100 },
                 type: "village",
                 market: "local",
                 notes: "A village.",
@@ -491,7 +491,7 @@ describe("resolving foreign addresses from cached indexes", () => {
 
     it("carries an authored population and leaves older indexes without a figure", () => {
         cacheIndex("thalorna", "0.1.0", [
-            record({ data: { population: 1200 } }),
+            record({ data: { population: { actual: 1200 } } }),
             record({
                 shortcode: "unfigured",
                 address: {
@@ -501,7 +501,9 @@ describe("resolving foreign addresses from cached indexes", () => {
             }),
         ]);
         const { index } = loadForeignIndexes(config(), ["sohl"]);
-        expect(index.get("thalorna-note-affiliation-aerarimmpr")?.population).toBe(1200);
+        expect(index.get("thalorna-note-affiliation-aerarimmpr")?.population).toEqual({
+            actual: 1200,
+        });
         expect(index.get("thalorna-note-affiliation-unfigured")?.population).toBeUndefined();
     });
 
@@ -553,12 +555,12 @@ describe("resolving foreign addresses from cached indexes", () => {
                 type: "place",
                 subType: "settlement",
                 address: { slug: "place-aerarimmpr", canonical: "thalorna-note-place-aerarimmpr" },
-                data: { population: null },
+                data: { population: { actual: null } },
             }),
         ]);
         const { index } = loadForeignIndexes(config(), ["sohl"]);
         const entry = [...index.values()].find((item: any) => item.type === "place");
-        expect(entry?.population).toBeNull();
+        expect(entry?.population).toEqual({ actual: null });
     });
 
     // A note compiling into two systems' documents holds a block per system,

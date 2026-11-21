@@ -23,6 +23,7 @@ import path from "node:path";
 import log from "loglevel";
 
 import { defineConfig } from "../content-config.mjs";
+import { ITEM_BUILDERS } from "../sohl/item-builders.mjs";
 import { createPackRouter, declaresNoPack, NO_PACK } from "../engine/pack-router.mjs";
 import { generatePacksJson } from "../engine/generate.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
@@ -52,8 +53,9 @@ function baseConfig({ packs, rootDir = os.tmpdir(), systems, site, publish }: an
         contentPackage: contentPackage(),
         foundryPackage: "sohl",
         packageKind: "systems",
+        itemBuilders: [{ system: "sohl", builders: ITEM_BUILDERS }],
         stats: { lastModifiedBy: "sohltestbuild0000" },
-        ...(Object.keys(declared).length ? { systems: declared } : {}),
+        systems: { sohl: { compatibility: { verified: "0.9.0" } }, ...declared },
         packs,
         ...(site ? { site } : {}),
         ...(publish ? { publish } : {}),

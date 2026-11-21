@@ -12,6 +12,11 @@
  */
 
 /** Indexed polity settlement facts, validation and shared table markup. @module */
+import {
+    populationActual,
+    populationApparent,
+    populationForAudience,
+} from "./population-values.mjs";
 import fs from "node:fs";
 import { normalizeSettlementPopulation } from "./settlement-population.mjs";
 import { fail, normalizeSettlementExemptions } from "../config.mjs";
@@ -24,7 +29,7 @@ import {
 } from "./diagnostics.mjs";
 import { FENCE_LINE } from "./code-fences.mjs";
 import { nameFormsOf } from "./name-forms.mjs";
-import { checkDataKeys } from "./data-keys.mjs";
+import { checkDataKeys, fitsKind, isPlainMap, pathLabel } from "./data-keys.mjs";
 import {
     isAddressTuple,
     renderAddress,
@@ -39,6 +44,7 @@ import {
     SETTLEMENT_COLUMNS,
     SETTLEMENT_ROW_FIELDS,
     GENERATOR_SOURCE_FIELD,
+    populationField,
 } from "./settlement-terms.mjs";
 export {
     SETTLEMENTS_HEADING,
@@ -89,6 +95,19 @@ const ref = (value) =>
 const fmOf = (note) => note?.fm ?? note?.settlementRecord ?? note ?? {};
 const polity = (note) => fmOf(note).type === "affiliation" && fmOf(note).subType === "polity";
 const settlement = (note) => fmOf(note).type === "place" && fmOf(note).subType === "settlement";
+const actualOf = (value) =>
+    (
+        value &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        (value.actual === null || fitsKind(value.actual, "number"))
+    ) ?
+        populationActual(value)
+    :   undefined;
+const apparentOf = (value) =>
+    value.apparent === null || fitsKind(value.apparent, "number") ?
+        populationApparent(value)
+    :   undefined;
 const population = (value) =>
     Number.isSafeInteger(value) && value > 0 && String(value).replace(/0+$/, "").length <= 2;
 const namesOf = (fm) =>
@@ -292,7 +311,7 @@ function rowsOf(corpus, owner, recursive) {
             if (map(row))
                 add(`name:${text(row.settlement).toLowerCase()}`, {
                     ...row,
-                    population: row.population ?? null,
+                    population: row.population,
                     source: node,
                 });
     const noted = new Map();
@@ -304,7 +323,7 @@ function rowsOf(corpus, owner, recursive) {
         const government = corpus.resolve(node.fm.data?.government, "affiliation", node.fm.package);
         add(node.key, {
             ...node.fm.data,
-            population: node.fm.data?.population ?? null,
+            population: node.fm.data?.population,
             settlement: node.key,
             polity: government?.key,
             location: node.fm.data?.parents?.[0],
@@ -601,27 +620,47 @@ export function checkSettlementTables(
             const required =
                 listed ?
                     field.required
-                :   key === "notes" || (row.population > 0 && ["type", "market"].includes(key));
+                :   key === "notes" ||
+                    (actualOf(row.population) > 0 && ["type", "market"].includes(key));
             if (key === "population") {
+                if (value === null) continue;
+                if (
+                    value &&
+                    typeof value === "object" &&
+                    Object.hasOwn(value, "apparent") &&
+                    apparentOf(value) !== null &&
+                    apparentOf(value) !== 0 &&
+                    !population(apparentOf(value))
+                )
+                    report(
+                        "people figure",
+                        [...at, key, "apparent"],
+                        "apparent population is zero, null, or a positive whole number with at most two significant digits",
+                    );
                 if (value === undefined) {
                     report(
                         "people figure",
                         [...at, key],
-                        "population must be provided; use null when unknown",
+                        "population must be provided; use actual: null when unknown",
                         false,
                         "warning",
                     );
                     continue;
                 }
-                if (value === null || value === 0) continue;
+                if (
+                    value &&
+                    typeof value === "object" &&
+                    (actualOf(value) === null || actualOf(value) === 0)
+                )
+                    continue;
             }
             if (value == null && field.nullable) continue;
             if (value === undefined && !required) continue;
             if (key === "population") {
-                if (!population(value))
+                if (!value || typeof value !== "object" || !population(actualOf(value)))
                     report(
                         "people figure",
-                        [...at, key],
+                        [...at, key, "actual"],
                         "population is a positive whole number with at most two significant digits",
                     );
             } else if (field.allowed) {
@@ -695,7 +734,7 @@ export function checkSettlementTables(
         );
     if (settlement(fm)) {
         checkFacts(fm.data ?? {}, ["data"], false);
-        if (fm.data?.population > 0)
+        if (fm.data?.population && actualOf(fm.data.population) > 0)
             checkRef(
                 fm.data?.government,
                 ["affiliation"],
@@ -713,28 +752,46 @@ export function checkSettlementTables(
         report("polity cycle", ["data", "parents"], "the subordinate chain returns to this polity");
     if (Array.isArray(fm.data?.parents) && fm.data.parents.length > 1)
         report("polity superior", ["data", "parents"], "a polity declares at most one superior");
-    const total = fm.data?.territorial_population;
-    if (
-        total === undefined &&
-        (declaration !== undefined || fm.data?.seat !== undefined || corpus.children.has(self.key))
-    )
+    const total =
+        fm.data?.territorial_population === undefined ?
+            undefined
+        :   actualOf(fm.data.territorial_population);
+    const totalRequired =
+        declaration !== undefined || fm.data?.seat !== undefined || corpus.children.has(self.key);
+    if ((total === undefined || total === null) && totalRequired)
         report(
             "territorial population",
             ["data", "territorial_population"],
             "a polity with settlements, a seat, or subordinate polities requires a territorial population",
             true,
         );
-    if (total !== undefined) {
+    const territorial = fm.data?.territorial_population;
+    if (
+        territorial &&
+        typeof territorial === "object" &&
+        Object.hasOwn(territorial, "apparent") &&
+        apparentOf(territorial) !== null &&
+        apparentOf(territorial) !== 0 &&
+        !population(apparentOf(territorial))
+    )
+        report(
+            "territorial population",
+            ["data", "territorial_population", "apparent"],
+            "apparent territorial population is zero, null, or a positive whole number with at most two significant digits",
+        );
+    if (total !== undefined && total !== null) {
         if (!population(total))
             report(
                 "territorial population",
-                ["data", "territorial_population"],
+                ["data", "territorial_population", "actual"],
                 "territorial population is a positive whole number with at most two significant digits",
             );
         else {
             const rows = rowsOf(corpus, self, true);
             const sum = rows.reduce(
-                (sum, row) => sum + (Number.isFinite(row.population) ? row.population : 0),
+                (sum, row) =>
+                    sum +
+                    (Number.isFinite(actualOf(row.population)) ? actualOf(row.population) : 0),
                 0,
             );
             const urban = rows.reduce(
@@ -742,9 +799,9 @@ export function checkSettlementTables(
                     sum +
                     ((
                         ["town", "city", "metropolis"].includes(row.type) &&
-                        Number.isFinite(row.population)
+                        Number.isFinite(actualOf(row.population))
                     ) ?
-                        row.population
+                        actualOf(row.population)
                     :   0),
                 0,
             );
@@ -753,7 +810,7 @@ export function checkSettlementTables(
             if (settlementPopulation.mode === "complete") {
                 if (
                     sum - total > total * 0.05 ||
-                    (rows.every((row) => Number.isFinite(row.population)) &&
+                    (rows.every((row) => Number.isFinite(actualOf(row.population))) &&
                         total - sum > total * 0.05)
                 )
                     report(
@@ -804,6 +861,45 @@ export function assertSettlementRecords(
             raw: rawOf?.(file) ?? (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : ""),
         };
     });
+    const populationSpec = populationField("population");
+    const populationFields = [
+        populationSpec,
+        populationField("territorial_population"),
+        { name: "settlements", kind: "list", entries: { kind: "map", fields: [populationSpec] } },
+    ];
+    const shapeFindings = notes.flatMap((note) => {
+        const source = note.fm.data;
+        if (!isPlainMap(source)) return [];
+        const data = {};
+        const findings = [];
+        const checkOuter = (value, at) => {
+            if (isPlainMap(value)) return true;
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(note.raw, ["data", ...at]),
+                severity: "error",
+                message: `\`${pathLabel(["data", ...at])}\` must be a population map with an actual figure`,
+            });
+            return false;
+        };
+        for (const key of ["population", "territorial_population"]) {
+            if (Object.hasOwn(source, key) && checkOuter(source[key], [key]))
+                data[key] = source[key];
+        }
+        if (Array.isArray(source.settlements))
+            data.settlements = source.settlements.map((row, index) => {
+                if (!isPlainMap(row) || !Object.hasOwn(row, "population")) return {};
+                return checkOuter(row.population, ["settlements", index, "population"]) ?
+                        { population: row.population }
+                    :   {};
+            });
+        return [...findings, ...checkDataKeys({ ...note, fm: { data } }, populationFields)];
+    });
+    if (shapeFindings.length)
+        throw Object.assign(new Error(shapeFindings.map(formatDiagnostic).join("\n")), {
+            located: true,
+            findings: shapeFindings,
+        });
     const index = {
         notes: [...notes, ...new Set([...foreignIndex.values()].map((record) => fmOf(record)))],
         contentPackage: records.find((r) => r.package)?.package,
@@ -859,14 +955,19 @@ export function assertSettlementRecords(
 }
 
 /** Render a polity's direct subjects or all settlements beneath it. */
-export function settlementMarkdown(record, records = [record], { recursive = false } = {}) {
+export function settlementMarkdown(
+    record,
+    records = [record],
+    { recursive = false, audience = "public" } = {},
+) {
+    populationForAudience(undefined, audience);
     if (!polity(record)) return "";
     let indexes = renderCache.get(records);
     if (!indexes) {
         indexes = new Map();
         renderCache.set(records, indexes);
     }
-    const visibility = isGmNote(record) ? "all" : "public";
+    const visibility = isGmNote(fmOf(record)) ? "all" : "public";
     const cacheKey = `${record.package ?? ""}:${visibility}`;
     if (!indexes.has(cacheKey))
         indexes.set(cacheKey, {
@@ -921,7 +1022,9 @@ export function settlementMarkdown(record, records = [record], { recursive = fal
                 label(row.fortification),
                 label(row.stronghold),
                 named(row.holder),
-                row.population == null ? "" : row.population.toLocaleString("en-US"),
+                populationForAudience(row.population, audience) == null ? "" : (
+                    populationForAudience(row.population, audience).toLocaleString("en-US")
+                ),
                 row.market ? label(row.market) : "",
                 escape(row.notes),
             ].join(" | ")} |`,

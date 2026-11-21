@@ -17,7 +17,6 @@ import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
     extractAnchorSection,
@@ -27,9 +26,6 @@ import {
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { Actors } from "../sohl/actors.mjs";
 import { Hm3Actors } from "../hm3/actors.mjs";
-
-/** This package's own root — where its test fixtures live. */
-const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 describe("extractAnchorSection (an H1 only)", () => {
     it("extracts an H1 section carrying the wanted anchor", () => {
@@ -120,9 +116,10 @@ describe("the actor pass reports a misplaced anchor instead of compiling it blan
             .spyOn(console, "error")
             .mockImplementation((line: unknown) => void said.push(String(line)));
         try {
+            fs.mkdirSync(path.join(dir, "content"));
             const pass = new Pass({
                 skipDirectories: [],
-                contentBase: path.join(PKG_ROOT, "tests/fixtures"),
+                contentBase: path.join(dir, "content"),
                 dest: loadPackConfig().paths.packJson,
                 itemsSourceDirs: [path.join(dir, "items")],
             });

@@ -38,6 +38,7 @@
  * The HeroicLands vault is not a build input for SoHL content.
  */
 
+import { populationJournalPlan } from "./population-journals.mjs";
 import { noteAddressContext, decodeNoteAddresses } from "./note-addresses.mjs";
 import { GENERATED_DRAWING_DIR } from "./generated-sections.mjs";
 import fs from "fs";
@@ -815,6 +816,13 @@ export async function generatePacksJson({
         config,
         problems: corpusProblems,
         session,
+    });
+    populationJournalPlan(corpus.records, {
+        router,
+        config,
+        parsed: corpus.parsed,
+        contentBase,
+        privateTables: corpus.audiences.all.sqlTables,
     });
     if (reportPreparation) for (const problem of corpusProblems) emitDiagnostic(problem);
     for (const finding of await stageGeneratedDrawings(corpus.records, config))

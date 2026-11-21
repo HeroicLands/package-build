@@ -28,6 +28,7 @@ import path from "node:path";
 import log from "loglevel";
 
 import { defineConfig } from "../content-config.mjs";
+import { ITEM_BUILDERS } from "../sohl/item-builders.mjs";
 import { generatePacksJson, orderPassesByDependency } from "../engine/generate.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 
@@ -43,6 +44,8 @@ function baseConfig({ packs, rootDir = os.tmpdir() }: any) {
         contentPackage: contentPackage(),
         foundryPackage: "sohl",
         packageKind: "systems",
+        itemBuilders: [{ system: "sohl", builders: ITEM_BUILDERS }],
+        systems: { sohl: { compatibility: { verified: "0.9.0" } } },
         stats: {
             lastModifiedBy: "sohltestbuild0000",
         },

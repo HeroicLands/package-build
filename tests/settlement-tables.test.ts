@@ -17,6 +17,7 @@ import {
     SETTLEMENT_ROW_FIELDS,
 } from "../engine/settlement-tables.mjs";
 import { indexRecordsFor, serializeContentIndex } from "../engine/content-index.mjs";
+import { isNoteRecord } from "../engine/index-records.mjs";
 import { decodeIndexAddresses } from "../engine/note-addresses.mjs";
 import { renderAddress } from "../engine/address.mjs";
 import { prepareTreeSqlTables, openNotesDatabase, runSqlQuery } from "../engine/sql-tables.mjs";
@@ -37,7 +38,7 @@ const row = (settlement = "East Farm", population = 100) => ({
     fortification: null,
     stronghold: null,
     holder: "The Council",
-    population,
+    population: { actual: population },
     market: "subsistence",
     notes: "A farm by the road.",
 });
@@ -50,8 +51,8 @@ function subjects() {
             shortcode: "crown",
             name: { full: "The Crown" },
             data: {
-                population: 10,
-                territorial_population: 1000,
+                population: { actual: 10 },
+                territorial_population: { actual: 1000 },
                 seat: "place-capital",
                 settlements: [row()],
             },
@@ -63,7 +64,7 @@ function subjects() {
             name: { full: "The Council" },
             data: {
                 parents: ["affiliation-crown"],
-                territorial_population: 700,
+                territorial_population: { actual: 700 },
                 seat: "place-town",
                 settlements: [row("West Farm", 300)],
             },
@@ -77,7 +78,7 @@ function subjects() {
                 parents: ["place-vale"],
                 government: "affiliation-crown",
                 type: "village",
-                population: 200,
+                population: { actual: 200 },
                 market: "local",
                 notes: "A bridge village.",
             },
@@ -91,7 +92,7 @@ function subjects() {
                 parents: ["place-vale"],
                 government: "affiliation-council",
                 type: "town",
-                population: 400,
+                population: { actual: 400 },
                 market: "regional",
                 notes: "A market town.",
             },
@@ -132,11 +133,35 @@ function checked(
     }
 }
 describe("settlement population declarations", () => {
+    it("selects GM rows by polity visibility and figures by audience", () =>
+        checked(
+            (notes) => {
+                notes[4].tags = ["gm"];
+                notes[4].data.population = { actual: 400, apparent: 40 };
+            },
+            (f) => {
+                const records = f.records();
+                const crown = records.find(
+                    (record) => isNoteRecord(record) && record.shortcode === "crown",
+                );
+                const publicTable = settlementMarkdown(crown, records, {
+                    recursive: true,
+                    audience: "all",
+                });
+                expect(publicTable).not.toContain("Town");
+                const gmCrown = { ...crown, tags: ["gm"] };
+                const gmRecords = records.map((record) => (record === crown ? gmCrown : record));
+                expect(settlementMarkdown(gmCrown, gmRecords, { recursive: true })).toContain("40");
+                expect(
+                    settlementMarkdown(gmCrown, gmRecords, { recursive: true, audience: "all" }),
+                ).toContain("400");
+            },
+        ));
     it.each([null, 0])("accepts %s in notes and listed rows", (value) =>
         checked(
             (n) => {
-                n[3].data.population = value;
-                n[1].data.settlements[0].population = value;
+                n[3].data.population = { actual: value };
+                n[1].data.settlements[0].population = { actual: value };
             },
             (f) =>
                 expect(
@@ -161,7 +186,7 @@ describe("settlement population declarations", () => {
         checked(
             (n) => {
                 delete n[1].data.settlements[0].population;
-                n[3].data.population = null;
+                n[3].data.population = { actual: null };
             },
             (f) => {
                 expect(
@@ -185,9 +210,10 @@ describe("settlement population declarations", () => {
     it.each([null, undefined])("checks a known complete-mode overflow with unknown %s", (value) =>
         checked(
             (n) => {
-                n[1].data.territorial_population = 1000;
-                n[3].data.population = 2000;
-                n[1].data.settlements[0].population = value;
+                n[1].data.territorial_population = { actual: 1000 };
+                n[3].data.population = { actual: 2000 };
+                n[1].data.settlements[0].population =
+                    value === undefined ? undefined : { actual: value };
             },
             (f) =>
                 expect(
@@ -225,11 +251,11 @@ describe("settlement population declarations", () => {
                 }
             },
         ));
-    it.each([-1, 1.5, 101, "100"])("rejects invalid population %s", (value) =>
+    it.each([-1, 1.5, 101, "invalid"])("rejects invalid population %s", (value) =>
         checked(
             (n) => {
-                n[3].data.population = value;
-                n[1].data.settlements[0].population = value;
+                n[3].data.population = { actual: value };
+                n[1].data.settlements[0].population = { actual: value };
             },
             (f) =>
                 expect(
@@ -237,6 +263,20 @@ describe("settlement population declarations", () => {
                 ).toBe(2),
         ),
     );
+});
+describe("settlement actual and apparent figures", () => {
+    it("checks hidden actual figures against the complete territorial total", () =>
+        checked(
+            (notes) => {
+                notes[3].data.population = { actual: 2000, apparent: 0 };
+            },
+            (f) =>
+                expect(
+                    f.findings.some((finding) =>
+                        finding.message.startsWith("territorial population:"),
+                    ),
+                ).toBe(true),
+        ));
 });
 describe("polity settlement guards", () => {
     it("counts mixed rows and notes once, including seats, without membership or subordinate totals", () =>
@@ -247,7 +287,7 @@ describe("polity settlement guards", () => {
     it.each([950, 1000, 1050])("allows a five percent difference for total %s", (total) =>
         checked(
             (n) => {
-                n[1].data.territorial_population = total;
+                n[1].data.territorial_population = { actual: total };
             },
             (f) => {
                 // The difference is measured against the stated territorial total.
@@ -260,8 +300,8 @@ describe("polity settlement guards", () => {
     it("rejects populations with more than two significant digits", () =>
         checked(
             (n) => {
-                n[1].data.settlements[0].population = 101;
-                n[3].data.population = 201;
+                n[1].data.settlements[0].population = { actual: 101 };
+                n[3].data.population = { actual: 201 };
             },
             (f) =>
                 expect(
@@ -299,12 +339,12 @@ describe("polity settlement guards", () => {
             type: "affiliation",
             subType: "polity",
             shortcode: "empty",
-            data: { territorial_population: 100 },
+            data: { territorial_population: { actual: 100 } },
         };
         const note = {
             fm,
             file: "empty.md",
-            raw: "---\ndata:\n  territorial_population: 100\n---\n",
+            raw: "---\ndata:\n  territorial_population: { actual: 100 }\n---\n",
         };
         const findings = checkSettlementTables(note, {
             index: { notes: [note], contentPackage: "sohl" },
@@ -371,7 +411,7 @@ describe("polity settlement guards", () => {
     it("reports completeness remedies for a polity with a seat and a subordinate", () =>
         checked(
             (n) => {
-                n[1].data.territorial_population = 2000;
+                n[1].data.territorial_population = { actual: 2000 };
             },
             (f) =>
                 expect(
@@ -592,7 +632,7 @@ describe("settlement boundary cases", () => {
                         parents: ["place-vale"],
                         government: "affiliation-clan",
                         type: "village",
-                        population: 900,
+                        population: { actual: 900 },
                         market: "local",
                         notes: "A village.",
                     },
@@ -659,14 +699,14 @@ describe("settlement boundary cases", () => {
     it("enforces the exact tolerance boundary without rounding totals first", () =>
         checked(
             (n) => {
-                n[1].data.settlements[0].population = 50;
+                n[1].data.settlements[0].population = { actual: 50 };
             },
             (f) => expect(f.findings).toEqual([]),
         ));
     it("rejects a total just outside tolerance", () =>
         checked(
             (n) => {
-                n[1].data.settlements[0].population = 49;
+                n[1].data.settlements[0].population = { actual: 49 };
             },
             (f) =>
                 expect(
@@ -684,7 +724,7 @@ describe("settlement boundary cases", () => {
                     name: { full: "Local Council" },
                     data: {
                         parents: ["affiliation-council"],
-                        territorial_population: 20,
+                        territorial_population: { actual: 20 },
                         settlements: [row("Hill Farm", 20)],
                     },
                 });
@@ -731,7 +771,7 @@ describe("indexed settlement output", () => {
                         government: "affiliation-crown",
                         parents: ["place-vale"],
                         type: "encampment",
-                        population: 10,
+                        population: { actual: 10 },
                         market: "subsistence",
                         notes: "Hidden.",
                     },
@@ -854,7 +894,7 @@ describe("settlement graph reuse", () => {
             data: {
                 government: `affiliation-p${i % polities.length}`,
                 type: "village",
-                population: 100,
+                population: { actual: 100 },
                 market: "local",
                 notes: "A settlement.",
             },
@@ -899,7 +939,7 @@ describe("settlement exemptions", () => {
             checked(
                 (notes) => {
                     notes[2].data.settlements = [];
-                    notes[2].data.territorial_population = 500;
+                    notes[2].data.territorial_population = { actual: 500 };
                     notes[4].data.type = urbanType;
                     notes.push({
                         type: "place",
@@ -910,7 +950,7 @@ describe("settlement exemptions", () => {
                             parents: ["place-town"],
                             government: "affiliation-council",
                             type: "village",
-                            population: 100,
+                            population: { actual: 100 },
                             market: "local",
                             notes: "A district within the seat.",
                         },
@@ -947,7 +987,7 @@ describe("settlement exemptions", () => {
     it("retains over-total findings and credits only scopes that suppress a finding", () =>
         checked(
             (notes) => {
-                notes[2].data.territorial_population = 100;
+                notes[2].data.territorial_population = { actual: 100 };
             },
             ({ index }) => {
                 const tracker = settlementExemptionTracker(
@@ -992,7 +1032,7 @@ describe("settlement exemptions", () => {
         checked(
             (notes) => {
                 notes[4].data.type = "village";
-                notes[2].data.territorial_population = 100;
+                notes[2].data.territorial_population = { actual: 100 };
             },
             ({ index }) => {
                 const tracker = settlementExemptionTracker(
@@ -1217,7 +1257,7 @@ describe("settlement exemption scope", () => {
     it("retains precision and government findings without crediting a selector", () =>
         checked(
             (notes) => {
-                notes[3].data.population = 123;
+                notes[3].data.population = { actual: 123 };
                 notes[3].data.government = "affiliation-missing";
             },
             ({ index }) => {
@@ -1329,7 +1369,7 @@ describe("settlement exemptions on actual violations", () => {
     it("supports a territorial-sum owner exception", () =>
         checked(
             (notes) => {
-                notes[1].data.territorial_population = 2000;
+                notes[1].data.territorial_population = { actual: 2000 };
             },
             ({ index }) => {
                 const note = index.notes.find((n: any) => n.fm.shortcode === "crown");
@@ -1391,7 +1431,7 @@ describe("settlement population boundaries", () => {
     ])("checks territorial total %s and urban fraction %s", (total, urbanShare, expected) => {
         checked(
             (n) => {
-                n[1].data.territorial_population = total;
+                n[1].data.territorial_population = { actual: total };
             },
             (f) => {
                 const crown = f.index.notes.find((n: any) => n.fm.shortcode === "crown");
@@ -1408,8 +1448,8 @@ describe("settlement population boundaries", () => {
     it("exempts aggregate findings without suppressing precision findings", () => {
         checked(
             (n) => {
-                n[1].data.territorial_population = 900;
-                n[1].data.settlements[0].population = 101;
+                n[1].data.territorial_population = { actual: 900 };
+                n[1].data.settlements[0].population = { actual: 101 };
             },
             (f) => {
                 const crown = f.index.notes.find((n: any) => n.fm.shortcode === "crown");
@@ -1508,7 +1548,7 @@ describe("public settlement policy validation", () => {
                 shortcode: "territory",
                 name: "Territory",
                 package: "local",
-                data: { territorial_population: 100 },
+                data: { territorial_population: { actual: 100 } },
             };
             const town = {
                 type: "place",
@@ -1517,7 +1557,7 @@ describe("public settlement policy validation", () => {
                 name: "Town",
                 package: "local",
                 data: {
-                    population: percent,
+                    population: { actual: percent },
                     type: "town",
                     market: "local",
                     notes: "Market town.",
@@ -1540,7 +1580,7 @@ describe("public settlement policy validation", () => {
                 });
             expect(check()).toHaveLength(0);
             expect(publish).not.toThrow();
-            town.data.population++;
+            town.data.population.actual++;
             expect(check()).toHaveLength(1);
             expect(check()[0].message).toContain(`allowed share of ${percent} percent`);
             expect(publish).toThrow(/exceed the allowed share/);
@@ -1556,7 +1596,7 @@ describe("metropolis population policy", () => {
             shortcode: "territory",
             name: "Territory",
             package: "local",
-            data: { territorial_population: 100 },
+            data: { territorial_population: { actual: 100 } },
         };
         const city = {
             type: "place",
@@ -1565,7 +1605,7 @@ describe("metropolis population policy", () => {
             name: "Metro",
             package: "local",
             data: {
-                population: 100,
+                population: { actual: 100 },
                 type: "metropolis",
                 market: "local",
                 notes: "Market center.",
@@ -1601,7 +1641,7 @@ describe("metropolis population policy", () => {
     it("credits ceiling exemptions and identifies unused selectors", () =>
         checked(
             (notes) => {
-                notes[1].data.territorial_population = 900;
+                notes[1].data.territorial_population = { actual: 900 };
             },
             ({ index }) => {
                 const note = index.notes.find((n: any) => n.fm.shortcode === "crown");

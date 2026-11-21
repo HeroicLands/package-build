@@ -131,7 +131,7 @@ describe("automatic lexical sections use their source audience", () => {
     });
 
     it("retains the complete providers and usage on a GM source", () => {
-        const body = expanded("Gmdaughter");
+        const body = expanded("Gmdaughter", corpus.audiences.all.sqlTables);
         expect(body).toContain("SECRET replacement.");
         expect(body).toContain("**privateonly**");
         expect(body).toContain("[[demo-note-lore-gmuse|SECRET use]]");
@@ -151,8 +151,12 @@ describe("automatic lexical sections use their source audience", () => {
     });
 
     it("preserves the requested complete audience of an explicit custom SQL dictionary", () => {
-        expect(corpus.sqlTables.get(file("Custom"))[0].markdown).toContain("SECRET replacement.");
-        expect(corpus.sqlTables.get(file("Custom"))[0].markdown).toContain("**privateonly**");
+        expect(corpus.audiences.all.sqlTables.get(file("Custom"))[0].markdown).toContain(
+            "SECRET replacement.",
+        );
+        expect(corpus.audiences.all.sqlTables.get(file("Custom"))[0].markdown).toContain(
+            "**privateonly**",
+        );
     });
 
     it("keeps an unknown derived citation as plain text without inventing a link or refusal", () => {

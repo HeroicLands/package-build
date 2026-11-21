@@ -841,6 +841,13 @@ export function buildContentLinkIndex(
         const fm = authoredFrontmatter(record);
         const absPath = noteFile(contentBase, record);
         const prepared = sqlTables?.get(absPath);
+        if (prepared?.privatePageSourcePending)
+            throw Object.assign(
+                new Error(
+                    `${absPath}:${prepared.privatePageSourcePending.bodyLine ?? 1}:1: error: private generated journal targets require paired public preparation; use the compile corpus's prepared link index`,
+                ),
+                { located: true },
+            );
         // The id a note's document is filed under: its authored pin, or the
         // one derived from its canonical address. Derived by the index
         // against the configuration this build resolved — never here through

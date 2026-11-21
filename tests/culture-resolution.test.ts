@@ -15,6 +15,8 @@ import {
     prepareContentIndex,
     resolveCultures,
 } from "../engine/content-index.mjs";
+import { sourceReferenceNames } from "../engine/journals.mjs";
+import { entryContext } from "../engine/foundry-entries.mjs";
 import { formatDiagnostic, formatLocator } from "../engine/diagnostics.mjs";
 import { readCanonicalKey } from "../engine/address.mjs";
 import { encodeAddresses } from "../engine/note-addresses.mjs";
@@ -459,7 +461,7 @@ describe("a place three levels below a cultured root", () => {
         cultures();
         place("realm", "{culture: lore-vedyari, parents: []}");
         place("shire", "{parents: [realm]}");
-        place("vale", "{parents: [shire], population: null}");
+        place("vale", "{parents: [shire], population: {actual: null}}");
         place("hamlet", "{parents: [vale]}");
     }
 
@@ -512,7 +514,7 @@ describe("parents that disagree", () => {
         cultures();
         place("north", "{culture: lore-vedyari}");
         place("south", "{culture: lore-osket}");
-        const pass = place("pass", "{population: null, parents: [north, south]}");
+        const pass = place("pass", "{population: {actual: null}, parents: [north, south]}");
         place("inn", "{parents: [pass]}");
         place("fort", "{parents: [pass, north]}");
         return pass;
@@ -586,7 +588,7 @@ describe("a polity's seat and governed places", () => {
         cultures();
         place("city", "{culture: lore-vedyari}");
         place("vale", "{culture: lore-osket, government: affiliation-duchy}");
-        const duchy = affiliation("duchy", "polity", "{population: null, seat: city}");
+        const duchy = affiliation("duchy", "polity", "{population: {actual: null}, seat: city}");
         const problems: any[] = [];
         const records = collect(problems);
         expect(problems).toHaveLength(1);
@@ -615,7 +617,7 @@ describe("a polity's seat and governed places", () => {
         cultures();
         place("vale", "{culture: lore-osket, government: affiliation-duchy}");
         place("moor", "{culture: lore-vedyari, government: affiliation-duchy}");
-        const duchy = affiliation("duchy", "polity", "{population: null}");
+        const duchy = affiliation("duchy", "polity", "{population: {actual: null}}");
         const problems: any[] = [];
         collect(problems);
         expect(problems).toHaveLength(1);
@@ -805,9 +807,77 @@ describe("dependency indexes", () => {
         cultures();
         place("realm", "{culture: lore-vedyari}");
         place("shire", "{parents: [realm]}");
-        const records = indexRecordsFor({
-            config: config(path.join(tmp, "never-fetched")) as never,
-        });
+        const localConfig = config(path.join(tmp, "never-fetched"));
+        expect(() => entryContext(localConfig as never)).not.toThrow();
+        const records = indexRecordsFor({ config: localConfig as never });
         expect(cultureOf(records, "place", "shire")).toBe(VEDYARI);
+    });
+});
+
+describe("captured heading reference names", () => {
+    it("loads dependency names only for a foreign target and reuses them", () => {
+        let loads = 0;
+        const name = sourceReferenceNames(
+            [{ type: "place", shortcode: "town", name: { full: "Town" } }],
+            {
+                contentPackage: "demo",
+                config: {
+                    contentPackage: "demo",
+                    docEntryTypes: new Set(),
+                    relationships: {
+                        requires: [{ id: "other", manifest: "https://example.test/module.json" }],
+                    },
+                },
+                foreignReferences: () => {
+                    loads++;
+                    return new Map([["other-note-place-town", { name: "Other town" }]]);
+                },
+            },
+        );
+        expect(name("place-town")).toBe("Town");
+        expect(name("demo-note-place-town")).toBe("Town");
+        expect(name("demo-note-place-missing")).toBeUndefined();
+        expect(name("undeclared-note-place-town")).toBeUndefined();
+        expect(loads).toBe(0);
+        expect(name("other-note-place-town")).toBe("Other town");
+        expect(name("other-note-place-town")).toBe("Other town");
+        expect(loads).toBe(1);
+    });
+
+    it("preserves a dependency lookup refusal when a foreign heading needs it", () => {
+        const name = sourceReferenceNames(
+            [{ type: "place", shortcode: "town", name: { full: "Town" } }],
+            {
+                contentPackage: "demo",
+                config: {
+                    contentPackage: "demo",
+                    docEntryTypes: new Set(),
+                    relationships: {
+                        requires: [{ id: "other", manifest: "https://example.test/module.json" }],
+                    },
+                },
+                foreignReferences: () => {
+                    throw new Error("Dependency index is unavailable");
+                },
+            },
+        );
+        expect(() => name("other-note-place-town")).toThrow("Dependency index is unavailable");
+    });
+    it("refuses packages without content indexes before loading dependency names", () => {
+        let loads = 0;
+        const name = sourceReferenceNames(
+            [{ type: "place", shortcode: "town", name: { full: "Town" } }],
+            {
+                contentPackage: "demo",
+                packages: new Set(["other"]),
+                noIndexPackages: new Set(["other"]),
+                foreignReferences: () => {
+                    loads++;
+                    return new Map([["other-note-place-town", { name: "Other town" }]]);
+                },
+            },
+        );
+        expect(name("other-note-place-town")).toBeUndefined();
+        expect(loads).toBe(0);
     });
 });

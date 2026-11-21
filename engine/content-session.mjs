@@ -12,6 +12,9 @@
  */
 
 /** One invocation's authored sources and context-specific prepared views. */
+import { assertSettlementRecords } from "./settlement-tables.mjs";
+import { noteFile } from "./index-records.mjs";
+import { buildCompileAudiences } from "./compile-corpus.mjs";
 import path from "node:path";
 import fs from "node:fs";
 import { DEPLOYED_ASSET_TYPES } from "./asset-types.mjs";
@@ -23,7 +26,6 @@ import * as spans from "./content-spans.mjs";
 import * as sql from "./sql-tables.mjs";
 import { captureContentSources } from "./content-sources.mjs";
 import { buildLinkIndex } from "./content-links.mjs";
-import { buildContentLinkIndex } from "./helpers.mjs";
 import { runContext } from "./content-scripts.mjs";
 import { resolveReference } from "./wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
@@ -57,6 +59,7 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {() => ReturnType<typeof sql.prepareLinkSqlTables>} linkTables
  * @property {(kind?: "lint"|"links") => Promise<ReturnType<typeof buildLinkIndex>>} audit
  * @property {() => Promise<import("./content-index.mjs").PreparedContentIndex>} publication
+ * @property {() => ReturnType<import("./content-index.mjs").preparePublicationBodies>} publicationBodies - Internal captured body preparation with note-local reference and page-list findings.
  * @property {() => ReturnType<import("./compile-corpus.mjs").buildCompileCorpus>} compileCorpus
  * @property {(targets: readonly ContentTarget[]) => Promise<ContentSession>} prepare
  * @property {ReturnType<typeof createContentTimings>} timings
@@ -213,6 +216,7 @@ async function createContentSessionInternal(
             problems,
             warnings,
             foreignIndex: foreign.index,
+            foreignReferences: foreign.references,
             syntax,
             timings,
             masterRecords: artModule ? artModule.masterAssetRecords(art.masters) : [],
@@ -332,6 +336,22 @@ async function createContentSessionInternal(
                 }),
             );
         },
+        async publicationBodies() {
+            return memo("publication-bodies", () =>
+                contentIndex.preparePublicationBodies({
+                    contentBase: tree,
+                    config,
+                    records,
+                    parsed,
+                    foreign,
+                    router,
+                    syntax,
+                    prepareAudience: (audience) => session.sqlTables(audience),
+                    deferReferences: true,
+                    deferPageLists: true,
+                }),
+            );
+        },
         async publication() {
             return memo("publication", () =>
                 contentIndex.prepareContentIndex({ config, contentBase: tree, session }),
@@ -340,24 +360,40 @@ async function createContentSessionInternal(
         async compileCorpus() {
             active();
             return memo("compile", async () => {
-                const sqlTables = await session.sqlTables("all");
-                const linkIndex = buildContentLinkIndex(tree, router, {
+                assertSettlementRecords(records, {
+                    fileOf: (record) => noteFile(tree, record),
+                    rawOf: (file) => parsed.get(file)?.raw,
+                    foreignIndex: foreign.index,
+                    config,
+                });
+                const tables = {};
+                for (const audience of ["public", "all"])
+                    tables[audience] = await session.sqlTables(audience);
+                // Native conversion reports reference and page-list failures once per note.
+                const bodies = await session.publicationBodies();
+                const audiences = buildCompileAudiences(tree, router, {
                     config,
                     records,
-                    sqlTables,
+                    tables,
                     foreign,
+                    bodies,
+                    syntax,
                 });
+                const { sqlTables, linkIndex } = audiences.public;
                 return {
+                    config,
                     currentDate: config.currentDate,
                     runs: runContext(config, records, {
                         referenceName: (target) => resolveReference(linkIndex, target)?.name,
                     }),
                     records,
                     parsed,
+                    pageSources: bodies.foundryBodies,
                     problems,
                     sqlTables,
                     syntax,
                     linkIndex,
+                    audiences,
                 };
             });
         },
