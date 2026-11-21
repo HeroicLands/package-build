@@ -724,8 +724,11 @@ it.each(["session", "standalone"])(
                         systems: { sohl: { compatibility: { verified: "0.9.0" } } },
                     },
                 );
+                const ownRecord = kind === "item" ? " AND documents IS NULL" : "";
                 const query =
-                    "SELECT 'Generated account' AS \"_section\", 'Account.' AS Entry FROM notes WHERE shortcode = 'owner' AND documents IS NULL AND (data.population.actual IS NULL OR data.population.actual < 1000)";
+                    "SELECT 'Generated account' AS \"_section\", 'Account.' AS Entry FROM notes WHERE shortcode = 'owner'" +
+                    ownRecord +
+                    " AND (data.population.actual IS NULL OR data.population.actual < 1000)";
                 const fence = `\`\`\`sql {section-level=1 allow-empty=true}\n${query}\n\`\`\``;
                 const body =
                     kind === "span" ?
