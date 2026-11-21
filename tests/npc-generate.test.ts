@@ -642,10 +642,11 @@ describe("a generated npc's head and face", () => {
         hair_texture: { coily: 1 },
         hair_style: { braided: 1 },
         facial_hair: { full_beard: 1 },
-        face_shape: { angular: 1 },
-        nose: { aquiline: 1 },
-        brow: { heavy: 1 },
-        mouth: { thin: 1 },
+        facial_hair_genders: ["male"],
+        face_shape: { angular: 1, oval: 1 },
+        nose: { aquiline: 1, straight: 1 },
+        brow: { heavy: 1, straight: 1 },
+        mouth: { thin: 1, full: 1 },
     };
 
     it("draws each feature the profile weights, and none it does not", () => {
@@ -659,14 +660,82 @@ describe("a generated npc's head and face", () => {
             hair_texture: "coily",
             hair_style: "braided",
             facial_hair: "full_beard",
-            face_shape: "angular",
-            nose: "aquiline",
-            brow: "heavy",
-            mouth: "thin",
         });
         const without = split(generateNpc(spec("Ahmetega Zekar"), CONTEXT).text);
-        for (const key of Object.keys(FACE))
+        for (const key of Object.keys(FACE).filter((key) => key !== "facial_hair_genders"))
             expect(without.fm.data.appearance, key).not.toHaveProperty(key);
+    });
+
+    it("draws facial hair only for eligible genders and preserves authored values", () => {
+        const context = {
+            ...CONTEXT,
+            profile: { ...PROFILE, ...FACE, facial_hair_genders: ["male", "other"] },
+        };
+        for (const gender of ["female", "male", "nonbinary", "none", "other"]) {
+            const make = (extra = {}) =>
+                split(generateNpc(spec("Person Zekar", { gender, ...extra }), context).text).fm.data
+                    .appearance;
+            const appearance = make();
+            if (["male", "other"].includes(gender))
+                expect(appearance.facial_hair).toBe("full_beard");
+            else expect(appearance).not.toHaveProperty("facial_hair");
+            expect(["aquiline", "straight"]).toContain(appearance.nose);
+            const eligible = split(generateNpc(spec("Person Zekar", { gender }), context).text).fm;
+            const withoutEligibility = split(
+                generateNpc(spec("Person Zekar", { gender }), {
+                    ...context,
+                    profile: { ...context.profile, facial_hair_genders: [] },
+                }).text,
+            ).fm;
+            delete eligible.data.appearance.facial_hair;
+            expect(withoutEligibility).toEqual(eligible);
+            expect(make()).toEqual(appearance);
+            expect(make({ appearance: { facial_hair: "none" } }).facial_hair).toBe("none");
+            expect(make({ appearance: { facial_hair: "stubble" } }).facial_hair).toBe("stubble");
+        }
+    });
+
+    it("keeps every other generated field stable across seeded weighted draws", () => {
+        const profile = { ...PROFILE, ...FACE };
+        const values = Object.fromEntries(
+            ["face_shape", "nose", "brow", "mouth"].map((key) => [key, new Set()]),
+        );
+        for (let i = 0; i < 32; i++) {
+            const context = { ...CONTEXT, profile, seed: String(i) };
+            const generated = split(generateNpc(spec("Person Zekar"), context).text).fm;
+            for (const key of Object.keys(values)) values[key].add(generated.data.appearance[key]);
+            const excluded = split(
+                generateNpc(spec("Person Zekar"), {
+                    ...context,
+                    profile: { ...profile, facial_hair_genders: [] },
+                }).text,
+            ).fm;
+            delete generated.data.appearance.facial_hair;
+            expect(excluded).toEqual(generated);
+        }
+        for (const draws of Object.values(values)) expect(draws.size).toBeGreaterThan(1);
+    });
+
+    it("reports an unchecked profile missing its facial-hair list", () => {
+        const { facial_hair_genders: _genders, ...profile } = FACE;
+        expect(() =>
+            generateNpc(spec("Person Zekar"), {
+                ...CONTEXT,
+                profile: { ...PROFILE, ...profile },
+            }),
+        ).toThrow("`data.appearanceProfile` must state `facial_hair_genders` with `facial_hair`");
+    });
+
+    it("draws facial hair for every gender in an all-character profile", () => {
+        const genders = ["female", "male", "nonbinary", "none", "other"];
+        const context = {
+            ...CONTEXT,
+            profile: { ...PROFILE, ...FACE, facial_hair_genders: genders },
+        };
+        for (const gender of genders) {
+            const { fm } = split(generateNpc(spec("Person Zekar", { gender }), context).text);
+            expect(fm.data.appearance.facial_hair).toBe("full_beard");
+        }
     });
 
     it("draws the same features for the same seed", () => {

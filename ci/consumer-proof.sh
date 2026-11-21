@@ -2,15 +2,23 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -euo pipefail
 
+root="$PWD"
 proof="$RUNNER_TEMP/consumer-proof"
 guard="$PWD/ci/consumer-lock-guard.mjs"
 case "$CONSUMER_PROOF" in
-    kethira|thalorna-encoding|thalorna-headwords) ;;
+    kethira|thalorna-encoding|thalorna-headwords|thalorna-facial-hair) ;;
     *) printf 'Unknown consumer proof: %s\n' "$CONSUMER_PROOF" >&2; exit 1 ;;
 esac
 cd consumer-proof-consumer
 test "$(git rev-parse HEAD)" = "$CONSUMER_SHA"
 printf 'Consumer commit: %s\n' "$(git rev-parse HEAD)"
+if [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
+    [[ "$CONSUMER_SHA" =~ ^[0-9a-f]{40}$ ]]
+    mkdir -p "$proof/source" "$proof/facial-hair-evidence"
+    git archive "$CONSUMER_SHA" > "$proof/consumer-source.tar"
+    tar -xf "$proof/consumer-source.tar" -C "$proof/source"
+    cd "$proof/source"
+fi
 cp package-lock.json "$proof/original-lock.json"
 npm pkg set "devDependencies.@heroiclands/package-build=file:$proof/candidate.tgz"
 npm update @heroiclands/package-build --package-lock-only --ignore-scripts
@@ -48,12 +56,19 @@ function compare(source, installed) {
 compare(process.argv[2], process.argv[3]);
 console.log('Installed package matches every archived file.');
 NODE
-if [ "$CONSUMER_PROOF" != kethira ]; then
+if [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
+    cp "$root/ci/facial-hair-consumer-overlay.mjs" .facial-hair-consumer-overlay.mjs
+    node .facial-hair-consumer-overlay.mjs prepare
+elif [ "$CONSUMER_PROOF" != kethira ]; then
     overlay="${CONSUMER_PROOF#thalorna-}-consumer-overlay.mjs"
     cp "../ci/$overlay" ".$overlay"
     node ".$overlay" prepare
 fi
-if [ "$CONSUMER_PROOF" != kethira ]; then
+if [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
+    npm run build:db
+    node .facial-hair-consumer-overlay.mjs verify
+    exit 0
+elif [ "$CONSUMER_PROOF" != kethira ]; then
     CONSUMER_PROOF_MEMORY_DIR="$RUNNER_TEMP/consumer-proof-memory" \
         NODE_OPTIONS="$NODE_OPTIONS --import=\"$PWD/../ci/content-memory-diagnostics.mjs\"" \
         npm run build:db

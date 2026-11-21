@@ -89,6 +89,23 @@ A being's `data.archetypes` names the roles it can fill in an adventure. Choose 
 
 A being's look is stated in a closed vocabulary. `data.gender` and `data.frame` take one word each, as do `data.appearance.eye_color`, `hair_color`, `skin_color`, `hair_texture`, `hair_style`, `facial_hair`, `face_shape`, `nose`, `brow` and `mouth`; `data.appearance.complexion` takes a list of words, `[]` where no condition is established, and is required once a being states an appearance. A value outside a field's list — a variant spelling such as `gray`, a word from another field's list, or an empty string — is an error naming the words the field takes. Leave a field out when the fact is unrecorded. `data.appearance.extra_features` lists the visible physical marks no word covers, each a short plain description of one, such as `a burn scar on the left forearm`. `data.portraitSettings` states the model, seed, age band and optional extra details for the prompt. `data.portrait.prompt` holds the exact positive text used for a portrait, and `data.portrait.negativePrompt` holds its separate negative text where applicable; a being with no portrait states no `portrait` block. The [look reference](../reference/format-details.md#a-beings-look) gives every word and what it means.
 
+A culture's `data.appearanceProfile` requires `facial_hair_genders` beside
+`facial_hair` weights. The list selects the genders that receive a weighted
+draw. These profile excerpts show all genders and no genders:
+
+```yaml
+facial_hair: { full_beard: 1 }
+facial_hair_genders: [female, male, nonbinary, none, other]
+```
+
+```yaml
+facial_hair: { none: 1 }
+facial_hair_genders: []
+```
+
+See [appearance profiles](../reference/format-details.md#appearance-profiles)
+for the complete declaration and inheritance rules.
+
 A being lists the items it has, and a culture lore note the items its people
 typically carry, in `data.items`. An entry is `{key?, model?, name?, img?, kind?,
 chance?, system?: {subType?, quantity?, weight?}}`; with `model` alone, an item
