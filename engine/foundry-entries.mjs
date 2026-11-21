@@ -132,10 +132,12 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
             ...pageSource.publicBody,
         }).forEach((page, index) => {
             const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
-            if (index === 0) publicTargets.set(LEAD_ANCHOR, uuid);
-            if (page.anchorSlug) publicTargets.set(page.anchorSlug, uuid);
+            if (index === 0)
+                publicTargets.set(LEAD_ANCHOR, { uuid, authored: page.sourceAuthored });
+            if (page.anchorSlug)
+                publicTargets.set(page.anchorSlug, { uuid, authored: page.sourceAuthored });
             for (const anchor of collectAnchors(page.markdown, 1, undefined, syntax))
-                publicTargets.set(anchor.slug, uuid);
+                publicTargets.set(anchor.slug, { uuid, authored: page.sourceAuthored });
         });
     splitPages(body, name, undefined, syntax, pageSource).forEach((page, index) => {
         const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
@@ -158,10 +160,10 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
         if (index === 0) targets.set(LEAD_ANCHOR, uuid);
         if (page.anchorSlug) targets.set(page.anchorSlug, uuid);
         for (const [slug, target] of targets) {
-            if (pageSource?.publicAnchors?.has(slug) && page.sourceIdentity?.name === undefined) {
-                if (page.sourceIdentity?.privateOnly)
-                    refuse(slug, "has no stable private journal page");
-                if (pageSource.publicBody && publicTargets.get(slug) !== uuid)
+            if (pageSource?.publicAnchors?.has(slug) && pageSource.publicBody) {
+                const projected = publicTargets.get(slug);
+                const authoredOwners = page.sourceAuthored === true && projected?.authored === true;
+                if (!authoredOwners && projected?.uuid !== uuid)
                     refuse(slug, "resolves to different public and private generated pages");
             }
             anchors[slug] = target;
