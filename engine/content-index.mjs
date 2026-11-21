@@ -591,6 +591,14 @@ export function buildIndexRecord({
         decodeIndexAddresses(
             {
                 ...frontmatter,
+                // The frontmatter schema accepts an empty data container as an empty map.
+                ...((
+                    Object.hasOwn(frontmatter, "data") &&
+                    (frontmatter.data == null ||
+                        (Array.isArray(frontmatter.data) && frontmatter.data.length === 0))
+                ) ?
+                    { data: {} }
+                :   {}),
                 ...(Object.keys(resolvedDates).length ? { resolvedDates } : {}),
                 package: contentPackage,
                 ...(images.length ?
@@ -1276,6 +1284,9 @@ export function collectContentIndex(
         {
             contentPackage,
             docEntryTypes: manifest?.docEntryTypes,
+            addressContext: manifest?.addressContext ?? addressContext,
+            packages: manifest?.packages,
+            noIndexPackages: manifest?.noIndexPackages,
             foreignReferences: manifest?.foreignReferences,
         },
     );
@@ -2063,6 +2074,7 @@ export async function preparePublicationBodies({
     const referenceName = sourceReferenceNames(records, {
         contentPackage: resolved.contentPackage,
         config: resolved,
+        packages: foreign.packages,
         foreignReferences: foreign.references,
     });
     publicationProblems(

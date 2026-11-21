@@ -52,6 +52,8 @@
 import { populationJournalPlan, populationJournalMarkdown } from "./population-journals.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { metadataRelationships, noContentIndexPackages } from "./metadata-index.mjs";
+import { packageAddresses } from "./pathnames.mjs";
 import log from "loglevel";
 import { seeAlsoEntries, seeAlsoMarkdown } from "./see-also.mjs";
 
@@ -129,11 +131,27 @@ function namedBlockLines(markdown, syntax) {
  * Resolve static page-link labels from captured declared note names.
  * @internal
  * @param {readonly object[]} records - Captured frontmatter or index records.
- * @param {{contentPackage: string, config?: object, docEntryTypes?: ReadonlySet<string>, foreignReferences?: Map<string, object>|(() => Map<string, object>)}} context - Captured address and name context.
+ * @param {{contentPackage: string, config?: object, addressContext?: object, docEntryTypes?: ReadonlySet<string>, packages?: ReadonlySet<string>, noIndexPackages?: ReadonlySet<string>, foreignReferences?: Map<string, object>|(() => Map<string, object>)}} context - Captured address and name context.
  * @returns {(target: string) => string|undefined} The shared reference resolver's declared name.
  */
 export function sourceReferenceNames(records, context) {
-    const config = context.config ?? { docEntryTypes: context.docEntryTypes ?? new Set() };
+    const config = context.config ??
+        context.addressContext?.config ?? {
+            contentPackage: context.contentPackage,
+            docEntryTypes: context.docEntryTypes ?? new Set(),
+        };
+    const dependencies = new Set(metadataRelationships(config).map((entry) => entry.id));
+    const packages = new Set([
+        context.contentPackage,
+        ...(context.packages ?? []),
+        ...[...packageAddresses(config)]
+            .filter(([, entry]) => dependencies.has(entry.id))
+            .map(([name]) => name),
+    ]);
+    const noIndexPackages = new Set([
+        ...noContentIndexPackages(config),
+        ...(context.noIndexPackages ?? []),
+    ]);
     const named = records.filter(Boolean).map((record) => ({
         ...record,
         package: record.package ?? context.contentPackage,
@@ -144,6 +162,8 @@ export function sourceReferenceNames(records, context) {
         index ??= {
             config,
             contentPackage: context.contentPackage,
+            packages,
+            noIndexPackages,
             referenceTargets: buildReferenceTargets(named, new Map(), config),
             foreignReferences: {
                 get(key) {

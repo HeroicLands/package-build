@@ -216,7 +216,10 @@ describe("buildPdf image findings", () => {
                 "",
             ].join("\n"),
         );
-        fs.writeFileSync(path.join(dir, "book.yaml"), `contents:\n  - filter: "type = 'place'"\n`);
+        fs.writeFileSync(
+            path.join(dir, "book.yaml"),
+            `contents:\n  - sectionName: Places\n    contents:\n      - filter: "type = 'place'"\n`,
+        );
         const result = await buildPdf({ config, compile: false });
         expect(
             result.built,
