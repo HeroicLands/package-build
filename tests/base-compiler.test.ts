@@ -14,6 +14,10 @@ import path from "node:path";
 // because the pack-build scripts live outside the `@src` alias tree.
 import { createPackRouter } from "../engine/pack-router.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
+import { createContentSession } from "../engine/content-session.mjs";
+import { buildCompileCorpus } from "../engine/compile-corpus.mjs";
+import { prepareContentIndex } from "../engine/content-index.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { documentId } from "../engine/content-address.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 import { Items } from "../sohl/items.mjs";
@@ -391,32 +395,85 @@ describe("a {{ref}} resolves in a compiled journal entry", () => {
         expect(intro.text.content).not.toContain("](#plate)");
     });
 
-    it("refuses an anchor matching no figure, before anything compiles", async () => {
-        const broken = path.join(
-            os.tmpdir(),
-            `sohl-base-compiler-ref-journal-broken-${process.pid}`,
-        );
-        fs.mkdirSync(broken, { recursive: true });
-        try {
-            fs.writeFileSync(
-                path.join(broken, "Broken.md"),
-                note('See {{ref "#nosuch"}}.', {
-                    name: { full: "Ref Broken" },
-                    id: "0123456789abcdef",
-                    shortcode: "refbroken",
-                    type: "doc",
-                }),
+    it.each(["session", "standalone"])(
+        "declines a broken reference while compiling a valid sibling in %s mode",
+        async (mode) => {
+            const broken = path.join(
+                os.tmpdir(),
+                `sohl-base-compiler-ref-journal-broken-${process.pid}`,
             );
-            const out = dest("ref-journal-broken");
-            const pack = new Journals({ skipDirectories: [], contentBase: broken, dest: out });
-            await expect(pack.compile()).rejects.toThrow(
-                /Broken\.md:\d+:\d+: error: .*names no figure for anchor "#nosuch"/,
-            );
-            expect(read(out)).toEqual({});
-        } finally {
-            fs.rmSync(broken, { recursive: true, force: true });
-        }
-    });
+            fs.mkdirSync(broken, { recursive: true });
+            let session;
+            try {
+                fs.writeFileSync(
+                    path.join(broken, "Broken.md"),
+                    note('See {{ref "#nosuch"}}.', {
+                        name: { full: "Ref Broken" },
+                        id: "0123456789abcdef",
+                        shortcode: "refbroken",
+                        type: "doc",
+                    }),
+                );
+                fs.writeFileSync(
+                    path.join(broken, "Valid.md"),
+                    note("Valid sibling prose.", {
+                        name: { full: "Ref Valid" },
+                        id: "1234567890abcdef",
+                        shortcode: "refvalid",
+                        type: "doc",
+                    }),
+                );
+                const config = loadPackConfig();
+                session = await createContentSession({
+                    config,
+                    contentBase: broken,
+                    skipDirectories: [],
+                });
+                const corpus =
+                    mode === "session" ?
+                        await session.compileCorpus()
+                    :   await buildCompileCorpus({
+                            config,
+                            contentBase: broken,
+                            skipDirectories: [],
+                        });
+                const out = dest(`ref-journal-broken-${mode}`);
+                const pack = new Journals({
+                    skipDirectories: [],
+                    contentBase: broken,
+                    dest: out,
+                    corpus,
+                });
+                const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+                try {
+                    await pack.compile();
+                    expect(pack.errorCount).toBe(1);
+                    expect(read(out)["Ref Broken"]).toBeUndefined();
+                    expect(JSON.stringify(read(out)["Ref Valid"])).toContain(
+                        "Valid sibling prose.",
+                    );
+                    const messages = spy.mock.calls
+                        .map((call) => String(call[0]))
+                        .filter((message) =>
+                            message.includes('names no figure for anchor "#nosuch"'),
+                        );
+                    expect(messages).toHaveLength(1);
+                    expect(messages[0]).toMatch(/Broken\.md:\d+:\d+: error:/);
+                } finally {
+                    spy.mockRestore();
+                }
+                await expect(session.publication()).rejects.toThrow(
+                    /names no figure for anchor "#nosuch"/,
+                );
+                await expect(prepareContentIndex({ config, contentBase: broken })).rejects.toThrow(
+                    /names no figure for anchor "#nosuch"/,
+                );
+            } finally {
+                await session?.dispose();
+                fs.rmSync(broken, { recursive: true, force: true });
+            }
+        },
+    );
 });
 
 describe("BasePackCompiler's constructor contract", () => {

@@ -685,6 +685,30 @@ it("locates a private item description's missing provenance at its authored body
 });
 
 it.each(["session", "standalone"])(
+    "keeps SQL-bearing reference failures fatal in %s preparation",
+    async (mode) => {
+        const tree = input();
+        tree.add("broken", {}, '{{and (ref "#missing") (sql "SELECT NULL")}}');
+        const session = await createContentSession({ config: tree.config });
+        try {
+            const build = () =>
+                mode === "session" ?
+                    session.compileCorpus()
+                :   buildCompileCorpus({
+                        config: tree.config,
+                        contentBase: tree.config.paths.content,
+                        skipDirectories: tree.config.skipDirectories,
+                    });
+            await expect(build()).rejects.toThrow(/names no figure for anchor "#missing"/);
+            expect(documents(path.join(tree.config.paths.packJson, "journals"))).toEqual([]);
+        } finally {
+            await session.dispose();
+            tree.close();
+        }
+    },
+);
+
+it.each(["session", "standalone"])(
     "compares authored and generated public owners for spans and leads in %s mode",
     async (mode) => {
         for (const kind of ["span", "lead", "item"])

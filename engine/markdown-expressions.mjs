@@ -576,8 +576,8 @@ function refCallFault(node, figures, eventContext) {
  *   note's — see {@link refFigure}.
  * @param {object} [eventContext] - What an event reference reads — see
  *   {@link eventReference}.
- * @returns {Array<{offset: number, message: string}>} One entry per faulty
- *   `{{...}}` expression, `offset` into `body`.
+ * @returns {Array<{offset: number, message: string, referenceOnly: boolean}>} One entry per faulty
+ *   `{{...}}` expression, `offset` into `body`, and whether it contains no SQL call.
  */
 function refFaults(body, figures, eventContext) {
     const faults = [];
@@ -588,11 +588,16 @@ function refFaults(body, figures, eventContext) {
         } catch {
             continue; // The render pass reports the malformed expression itself.
         }
+        const containsSql = (node) =>
+            node &&
+            typeof node === "object" &&
+            (node.path?.original === "sql" || Object.values(node).some(containsSql));
+        const referenceOnly = !containsSql(program);
         const visit = (node) => {
             if (!node || typeof node !== "object") return;
             if (node.path?.original === "ref") {
                 const message = refCallFault(node, figures, eventContext);
-                if (message) faults.push({ offset: match.index, message });
+                if (message) faults.push({ offset: match.index, message, referenceOnly });
             }
             for (const parameter of node.params ?? []) visit(parameter);
         };
@@ -651,7 +656,7 @@ export function renderMarkdownExpressions(
     for (const helper of HELPERS)
         engine.registerHelper(helper.name, helper.make({ sqlResults, dates, figures, events, fm }));
     const staticFaults = new Map(
-        refFaults(body, figures, { events, fm, dates }).map((f) => [f.offset, f.message]),
+        refFaults(body, figures, { events, fm, dates }).map((f) => [f.offset, f]),
     );
     const markdown = replaceOutsideCode(body, EXPRESSION, (source, _inside, offset) => {
         const fault = staticFaults.get(offset);
@@ -662,7 +667,8 @@ export function renderMarkdownExpressions(
                 line,
                 column,
                 severity: "error",
-                message: `Markdown expression ${source} failed: ${fault}`,
+                ...(fault.referenceOnly ? { code: "reference" } : {}),
+                message: `Markdown expression ${source} failed: ${fault.message}`,
             });
             return source;
         }
