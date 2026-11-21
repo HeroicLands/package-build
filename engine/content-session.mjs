@@ -216,6 +216,7 @@ async function createContentSessionInternal(
             problems,
             warnings,
             foreignIndex: foreign.index,
+            foreignReferences: foreign.references,
             syntax,
             timings,
             masterRecords: artModule ? artModule.masterAssetRecords(art.masters) : [],

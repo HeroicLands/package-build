@@ -509,12 +509,14 @@ export function foundryIdentities(config = loadPackConfig()) {
  *
  * @param {object} [config] - A resolved configuration; loaded when omitted.
  * @returns {{contentPackage: string, foundryPackageId: string, packRouter: object,
- *   web: boolean, skipDirectories: readonly string[], foreignReferences: Map<string, object>}}
+ *   web: boolean, skipDirectories: readonly string[], foreignReferences: () => Map<string, object>}}
  */
 export function entryContext(config = loadPackConfig()) {
+    let foreignReferences;
     return {
         ...foundryIdentities(config),
-        foreignReferences: loadForeignIndexes(config, [config.contentPackage]).references,
+        foreignReferences: () =>
+            (foreignReferences ??= loadForeignIndexes(config, [config.contentPackage]).references),
         web: publishesContentPages(config),
         // The walk's own configuration, threaded through rather than left to
         // its default, so a caller that passes a config drives every read.

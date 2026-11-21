@@ -218,7 +218,13 @@ describe("buildPdf image findings", () => {
         );
         fs.writeFileSync(path.join(dir, "book.yaml"), `contents:\n  - filter: "type = 'place'"\n`);
         const result = await buildPdf({ config, compile: false });
-        expect(result.built).toBe(true);
+        expect(
+            result.built,
+            JSON.stringify({
+                reason: "reason" in result ? result.reason : undefined,
+                findings: result.findings,
+            }),
+        ).toBe(true);
         expect(result.books).toHaveLength(1);
         expect(result.books[0].pdf).toBeNull();
         const source = fs.readFileSync(result.books[0].typ, "utf8");

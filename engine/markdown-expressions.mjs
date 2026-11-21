@@ -662,14 +662,15 @@ export function renderMarkdownExpressions(
         const fault = staticFaults.get(offset);
         if (fault) {
             const { line, column } = positionAt(body, offset, bodyLine);
-            findings.push({
+            const finding = {
                 ...(file ? { file } : {}),
                 line,
                 column,
                 severity: "error",
-                ...(fault.referenceOnly ? { code: "reference" } : {}),
                 message: `Markdown expression ${source} failed: ${fault.message}`,
-            });
+            };
+            if (fault.referenceOnly) Object.defineProperty(finding, "code", { value: "reference" });
+            findings.push(finding);
             return source;
         }
         try {

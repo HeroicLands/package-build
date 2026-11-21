@@ -203,7 +203,7 @@ describe("a tag that selects nothing fails the compile", () => {
     }, 120_000);
 
     it("names the tag it could not find", () => {
-        expect(missing.errors).toBeGreaterThan(0);
+        expect(missing.errors, missing.output).toBeGreaterThan(0);
         expect(missing.output).toContain("key-concpet");
     });
 

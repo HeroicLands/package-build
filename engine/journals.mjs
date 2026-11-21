@@ -91,6 +91,7 @@ import { codeRegions, matchAllOutsideCode, replaceOutsideCode } from "./code-fen
 import { EXPRESSION } from "./markdown-expressions.mjs";
 import { WIKILINK, authoredLabel, parseWikilink } from "./wikilink-syntax.mjs";
 import { buildReferenceTargets } from "./reference-targets.mjs";
+import { readCanonicalKey } from "./content-address.mjs";
 import { imagesIn } from "./content-images.mjs";
 import { IMAGE_EXTENSIONS } from "./asset-types.mjs";
 import { pathnameRoles } from "./art-fields.mjs";
@@ -128,7 +129,7 @@ function namedBlockLines(markdown, syntax) {
  * Resolve static page-link labels from captured declared note names.
  * @internal
  * @param {readonly object[]} records - Captured frontmatter or index records.
- * @param {{contentPackage: string, config?: object, docEntryTypes?: ReadonlySet<string>, foreignReferences?: Map<string, object>}} context - Captured address and name context.
+ * @param {{contentPackage: string, config?: object, docEntryTypes?: ReadonlySet<string>, foreignReferences?: Map<string, object>|(() => Map<string, object>)}} context - Captured address and name context.
  * @returns {(target: string) => string|undefined} The shared reference resolver's declared name.
  */
 export function sourceReferenceNames(records, context) {
@@ -138,12 +139,22 @@ export function sourceReferenceNames(records, context) {
         package: record.package ?? context.contentPackage,
     }));
     let index;
+    let foreignReferences;
     return (target) => {
         index ??= {
             config,
             contentPackage: context.contentPackage,
             referenceTargets: buildReferenceTargets(named, new Map(), config),
-            foreignReferences: context.foreignReferences,
+            foreignReferences: {
+                get(key) {
+                    if (readCanonicalKey(key)?.package === context.contentPackage) return undefined;
+                    foreignReferences ??=
+                        typeof context.foreignReferences === "function" ?
+                            context.foreignReferences()
+                        :   context.foreignReferences;
+                    return foreignReferences?.get(key);
+                },
+            },
             types: new Set(named.map((record) => record.type)),
         };
         return resolveReference(index, target)?.name;
