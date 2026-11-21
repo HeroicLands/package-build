@@ -2522,9 +2522,11 @@ a continuation is authored only when both its section and captioned item are aut
 identity seed; `sourceAfterFigure` identifies an authored continuation's caption.
 The projected body's internal `blankedHeadingAnchors` maps a slug to
 `{heading, continuationAfter?}` for the unanchored authored dynamic heading that
-the public projection blanks. A differing public target requires that exact native
-heading page or the same authored heading-and-caption continuation. Generated
-captions and later heading pages receive no exception.
+the public projection blanks. When this map records an owner for a slug, that exact
+native heading page or authored heading-and-caption continuation is required,
+even if another page has the projected target UUID. Only a slug without a recorded
+blanked owner uses public/private UUID equality. Generated captions and later
+heading pages receive no exception.
 These values authorize private target identities and are absent from published
 index and link metadata.
 
