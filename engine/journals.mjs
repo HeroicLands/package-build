@@ -221,9 +221,14 @@ function sourcePageIdentity(body, context, resolveRole) {
             fail("private journal page opening has no source association", location?.line ?? line);
         const declared = !appended && authored.get(location.line);
         if (declared) {
-            if (anchor && declared.anchor === anchor) return { name: declared.name, anchor };
+            if (anchor && declared.anchor === anchor)
+                return { name: declared.name, anchor, authoredOrigin: !location.generated };
             const repeat = ordinal(`${kind}:${declared.name}`);
-            return { name: declared.name, ...(repeat ? { ordinal: repeat } : {}) };
+            return {
+                name: declared.name,
+                ...(repeat ? { ordinal: repeat } : {}),
+                authoredOrigin: !location.generated,
+            };
         }
         const directive =
             appended ? "generated sections" : (
@@ -280,10 +285,22 @@ function sourcePageIdentity(body, context, resolveRole) {
  * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined, publicAnchors?: Map<string, number>}} [pageSource] - Private page source provenance; omitted for public pages.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
  *   classes: string[], figure: object|null, continues?: string,
- *   sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string, privateOnly?: boolean}, markdown: string}>} Pages in document order.
+ *   sourceAuthored?: boolean, sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string, privateOnly?: boolean}, markdown: string}>} Pages in document order.
  */
 export function splitPages(body, leadName = "Introduction", resolveRole, syntax, pageSource) {
     const identityAt = pageSource ? sourcePageIdentity(body, pageSource, resolveRole) : undefined;
+    const openingIdentity = (line, kind, anchor) => {
+        const { authoredOrigin = false, ...sourceIdentity } = identityAt(line, kind, anchor);
+        return { sourceIdentity, sourceAuthored: authoredOrigin };
+    };
+    const authoredLine = (line) => {
+        const location = pageSource?.lineMap?.[line];
+        return (
+            pageSource?.generatedFrom !== undefined && line >= pageSource.generatedFrom ? false
+            : location ? !location.generated
+            : pageSource?.source === body
+        );
+    };
     const { markdown, definitions } = separateFootnotes(body);
     const lines = markdown.split("\n");
     const figureStarts = new Map(
@@ -301,12 +318,15 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
     const beforeFirstH1 = [];
     let current = null;
     let codeFence = null;
+    let introAuthored = true;
     /** The page a heading last opened, which a captioned item interrupts. */
     let section = {
         name: leadName,
         level: 1,
         classes: [],
-        ...(identityAt ? { sourceIdentity: { name: leadName } } : {}),
+        ...(identityAt ?
+            { sourceIdentity: { name: leadName }, sourceAuthored: introAuthored }
+        :   {}),
     };
 
     const closeCurrent = () => {
@@ -324,7 +344,9 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
             level: current.level,
             classes: current.classes,
             figure: current.figure ?? null,
-            ...(current.sourceIdentity ? { sourceIdentity: current.sourceIdentity } : {}),
+            ...(current.sourceIdentity ?
+                { sourceIdentity: current.sourceIdentity, sourceAuthored: current.sourceAuthored }
+            :   {}),
             ...(current.continues ? { continues: current.continues } : {}),
             markdown,
         });
@@ -363,6 +385,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
         if (current?.figure && lineIndex > current.figure.close) {
             const item = current.figure;
             const itemIdentity = current.sourceIdentity;
+            const itemAuthored = current.sourceAuthored;
             closeCurrent();
             current = {
                 name: section.name,
@@ -372,6 +395,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
                 continues: item.slug || item.label || pageNameText(item.caption),
                 ...(identityAt ?
                     {
+                        sourceAuthored: section.sourceAuthored === true && itemAuthored === true,
                         sourceIdentity: {
                             ...((
                                 section.sourceIdentity?.name !== undefined &&
@@ -411,9 +435,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
                 level: 1,
                 classes: section.classes.includes(WITHHELD_CLASS) ? [WITHHELD_CLASS] : [],
                 figure,
-                ...(identityAt ?
-                    { sourceIdentity: identityAt(lineIndex, "figure", figure.id) }
-                :   {}),
+                ...(identityAt ? openingIdentity(lineIndex, "figure", figure.id) : {}),
                 lines: [line],
             };
             continue;
@@ -425,9 +447,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
                 anchorSlug: opening.id || null,
                 level: opening.level,
                 classes: opening.classes,
-                ...(identityAt ?
-                    { sourceIdentity: identityAt(lineIndex, "heading", opening.id) }
-                :   {}),
+                ...(identityAt ? openingIdentity(lineIndex, "heading", opening.id) : {}),
                 lines: [],
             };
             section = current;
@@ -438,6 +458,10 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
             current.lines.push(line);
         } else {
             beforeFirstH1.push(line);
+            if (line.trim() && identityAt) {
+                introAuthored &&= authoredLine(lineIndex);
+                section.sourceAuthored = introAuthored;
+            }
         }
     }
     closeCurrent();
@@ -450,7 +474,9 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
             level: 1,
             classes: [],
             figure: null,
-            ...(identityAt ? { sourceIdentity: { name: leadName } } : {}),
+            ...(identityAt ?
+                { sourceIdentity: { name: leadName }, sourceAuthored: introAuthored }
+            :   {}),
             markdown: intro,
         });
     }

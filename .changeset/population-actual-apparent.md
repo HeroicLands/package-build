@@ -10,3 +10,4 @@
 
 - Plain population numbers are refused; replace them with maps containing `actual` and optional `apparent`, and use `.apparent` in public queries.
 - Unanchored dynamic private pages and private-only SQL-generated pages may receive new IDs, as may their continuations; update GM links. Literal and public-generated anchors retain stable IDs.
+- Public anchors with differing generated destinations are refused; use matching targets and the compile corpus's link index instead of raw private generated tables.

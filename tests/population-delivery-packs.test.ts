@@ -685,6 +685,185 @@ it("locates a private item description's missing provenance at its authored body
 });
 
 it.each(["session", "standalone"])(
+    "compares authored and generated public owners for spans and leads in %s mode",
+    async (mode) => {
+        for (const kind of ["span", "lead", "item"])
+            for (const actual of [700, 1700]) {
+                const tree = input(
+                    [
+                        { name: "private", type: "JournalEntry", private: true, default: true },
+                        { name: "journals", type: "JournalEntry" },
+                        { name: "items", type: "Item", system: "sohl", default: true },
+                    ],
+                    {
+                        itemBuilders: ["sohl"],
+                        systems: { sohl: { compatibility: { verified: "0.9.0" } } },
+                    },
+                );
+                const query =
+                    "SELECT 'Generated account' AS \"_section\", 'Account.' AS Entry FROM notes WHERE shortcode = 'owner' AND documents IS NULL AND (data.population.actual IS NULL OR data.population.actual < 1000)";
+                const fence = `\`\`\`sql {section-level=1 allow-empty=true}\n${query}\n\`\`\``;
+                const body =
+                    kind === "span" ?
+                        `# Authored {#authored}\n\nAccount.\n\n${fence}\n\n[Safe account]{#safe}.`
+                    :   `${fence}\n\n# Authored {#authored}\n\nAccount.`;
+                tree.add(
+                    "owner",
+                    { population: { actual, apparent: 900 } },
+                    body,
+                    kind === "item" ?
+                        {
+                            type: "skill",
+                            subType: "physical",
+                            sohl: { subType: "physical", templatePriority: null },
+                        }
+                    :   {},
+                );
+                const session = await createContentSession({ config: tree.config });
+                try {
+                    const before = structuredClone({
+                        records: session.records,
+                        parsed: [...session.parsed],
+                    });
+                    const build = () =>
+                        mode === "session" ?
+                            session.compileCorpus()
+                        :   buildCompileCorpus({
+                                config: tree.config,
+                                contentBase: tree.config.paths.content,
+                                skipDirectories: tree.config.skipDirectories,
+                                router: createPackRouter(tree.config.packs),
+                            });
+                    const publication = await session.publication();
+                    if (actual === 1700) {
+                        const slug = kind === "span" ? "safe" : "$lead";
+                        const message = `public anchor "${slug}" resolves to different public and private generated pages`;
+                        await expect(build()).rejects.toThrow(message);
+                        expect(() =>
+                            emitContentIndex({ config: tree.config, publication }),
+                        ).toThrow(message);
+                        expect(documents(path.join(tree.config.paths.packJson, "items"))).toEqual(
+                            [],
+                        );
+                        expect(documents(path.join(tree.config.paths.packJson, "private"))).toEqual(
+                            [],
+                        );
+                    } else {
+                        const corpus = await build();
+                        const [document] = await compile(tree, corpus, "private");
+                        const page = document.pages.find(
+                            (page) => page.name === "Generated account",
+                        );
+                        const indexed = corpus.audiences.public.linkIndex.byShortcode.get(
+                            `${kind === "item" ? "skill" : "place"}/owner`,
+                        );
+                        const target = (
+                            kind === "item" ?
+                                indexed.docAnchorUuids
+                            :   indexed.anchorUuids)[kind === "span" ? "safe" : "$lead"];
+                        expect(target).toBe(
+                            `Compendium.populationproof.private.JournalEntry.${document._id}.JournalEntryPage.${page._id}`,
+                        );
+                    }
+                    expect({ records: session.records, parsed: [...session.parsed] }).toEqual(
+                        before,
+                    );
+                    for (const [file, text] of tree.sources)
+                        expect(fs.readFileSync(file, "utf8")).toBe(text);
+                } finally {
+                    await session.dispose();
+                    tree.close();
+                }
+            }
+    },
+);
+
+it.each(["session", "standalone"])(
+    "publishes identical positional generated pages and item leads in %s mode",
+    async (mode) => {
+        const tree = input(
+            [
+                { name: "private", type: "JournalEntry", private: true, default: true },
+                { name: "journals", type: "JournalEntry" },
+                { name: "items", type: "Item", system: "sohl", default: true },
+            ],
+            { itemBuilders: ["sohl"], systems: { sohl: { compatibility: { verified: "0.9.0" } } } },
+        );
+        const body =
+            "\`\`\`sql {section-level=1}\nSELECT 'Generated account' AS \"_section\", 'Account.' AS Entry\n\`\`\`\n\n[Safe account]{#safe}.";
+        tree.add("plain", {}, body);
+        tree.add("item", {}, body, {
+            type: "skill",
+            subType: "physical",
+            sohl: { subType: "physical", templatePriority: null },
+        });
+        const session = await createContentSession({ config: tree.config });
+        try {
+            const corpus =
+                mode === "session" ?
+                    await session.compileCorpus()
+                :   await buildCompileCorpus({
+                        config: tree.config,
+                        contentBase: tree.config.paths.content,
+                        skipDirectories: tree.config.skipDirectories,
+                        router: createPackRouter(tree.config.packs),
+                    });
+            const native = await compile(tree, corpus, "private");
+            const publication = await session.publication();
+            const output = emitContentIndex({ config: tree.config, publication });
+            const bytes = fs.readFileSync(output.file, "utf8");
+            for (const [name, type] of [
+                ["plain", "place"],
+                ["item", "skill"],
+            ]) {
+                const document = native.find((entry) => entry.name === name);
+                const page = document.pages.find((entry) => entry.name === "Generated account");
+                const captured = corpus.pageSources.get(
+                    path.join(tree.config.paths.content, `${name}.md`),
+                );
+                const [rawPage] = splitPages(
+                    captured.markdown,
+                    undefined,
+                    undefined,
+                    undefined,
+                    captured,
+                );
+                expect(rawPage.sourceAuthored).toBe(false);
+                expect(rawPage.sourceIdentity.privateOnly).toBe(true);
+                expect(page._id).toBe(journalPageId(document._id, rawPage));
+                const record = corpus.audiences.public.linkIndex.byShortcode.get(`${type}/${name}`);
+                const anchors = type === "skill" ? record.docAnchorUuids : record.anchorUuids;
+                const target = `Compendium.populationproof.private.JournalEntry.${document._id}.JournalEntryPage.${page._id}`;
+                expect(anchors.safe).toBe(target);
+                expect(anchors.$lead).toBe(target);
+                expect(bytes).toContain(target);
+            }
+            const dest = path.join(tree.config.paths.packJson, "items");
+            fs.mkdirSync(dest, { recursive: true });
+            const items = new Items({
+                contentBase: tree.config.paths.content,
+                skipDirectories: tree.config.skipDirectories,
+                dest,
+                packName: "items",
+                corpus,
+            });
+            await items.compile();
+            expect(items.errorCount).toBe(0);
+            const lead =
+                corpus.audiences.public.linkIndex.byShortcode.get("skill/item").docAnchorUuids
+                    .$lead;
+            expect(documents(dest).find((entry) => entry.name === "item").system.docHtml).toContain(
+                lead,
+            );
+            expect(bytes).not.toContain("sourceAuthored");
+        } finally {
+            await session.dispose();
+            tree.close();
+        }
+    },
+);
+
+it.each(["session", "standalone"])(
     "keeps public data-assembled page targets stable across private rows in %s mode",
     async (mode) => {
         let previous;
@@ -915,10 +1094,10 @@ it.each(["session", "standalone"])(
                             router: createPackRouter(tree.config.packs),
                         });
                 await expect(build()).rejects.toThrow(
-                    /trailing\.md:\d+:1: error: public anchor "safe" has no stable private journal page/,
+                    /trailing\.md:\d+:1: error: public anchor "safe" resolves to different public and private generated pages/,
                 );
                 expect(() => emitContentIndex({ config: tree.config, publication })).toThrow(
-                    /public anchor "safe" has no stable private journal page/,
+                    /public anchor "safe" resolves to different public and private generated pages/,
                 );
                 expect(documents(path.join(tree.config.paths.packJson, "private"))).toEqual([]);
             } finally {

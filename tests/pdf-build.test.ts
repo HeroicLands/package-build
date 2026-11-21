@@ -208,7 +208,7 @@ describe("buildPdf image findings", () => {
                 "  population: {actual: 2300, apparent: 800}",
                 "---",
                 "",
-                "Population: {{data.population.apparent}}.",
+                "Actual: {{data.population.actual}}; apparent: {{data.population.apparent}}.",
                 "",
                 "```sql",
                 "SELECT data.population.actual AS Actual, data.population.apparent AS Apparent FROM notes WHERE shortcode = 'vale'",
