@@ -16,7 +16,11 @@ it("imports the vehicle module and engine barrel independently in a bare consume
             if (fs.existsSync(entry))
                 fs.cpSync(entry, path.join(installed, entry), { recursive: true });
         fs.copyFileSync("package.json", path.join(installed, "package.json"));
-        fs.cpSync("node_modules", path.join(root, "node_modules"), { recursive: true });
+        const vitestCache = path.resolve("node_modules", ".vitest-cache");
+        fs.cpSync("node_modules", path.join(root, "node_modules"), {
+            recursive: true,
+            filter: (source) => path.resolve(source) !== vitestCache,
+        });
         const env = { ...process.env };
         delete env.PACKAGE_BUILD_CONFIG;
         delete env.CONTENT_BUILD_CONFIG;
