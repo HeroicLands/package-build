@@ -367,6 +367,39 @@ describe("private source page identities", () => {
         expect(journalPageId(entryId, first[1])).not.toBe(anchorPageId(entryId, "count4700"));
     });
 
+    it("locates duplicate private headings without rendering their figures", () => {
+        const source =
+            "# Beta {{data.population.actual}}\n\nOne.\n\n# Beta {{data.population.actual}}\n\nTwo.";
+        const body = source.replaceAll("{{data.population.actual}}", "700");
+        const pages = splitPages(body, undefined, undefined, undefined, {
+            source,
+            lineMap: body.split("\n").map((_, line) => ({ line, generated: false })),
+            file: "source.md",
+            bodyLine: 8,
+        });
+        expect(() => assertUniquePages(pages, "Account")).toThrow(
+            'source.md:12:1: error: note "Account" repeats a private page "Beta {{data.population.actual}}"',
+        );
+    });
+    it("does not disclose generated duplicate page names", () => {
+        const source = "```sql\nSELECT heading\n```";
+        const body = "# Beta 700\n\nOne.\n\n# Beta 700\n\nTwo.";
+        const pages = splitPages(body, undefined, undefined, undefined, {
+            source,
+            lineMap: body.split("\n").map(() => ({ line: 0, generated: true })),
+            file: "source.md",
+            bodyLine: 8,
+        });
+        try {
+            assertUniquePages(pages, "Account");
+            throw new Error("Expected a duplicate refusal");
+        } catch (error) {
+            expect(String(error)).toContain(
+                'source.md:8:1: error: note "Account" repeats a private page',
+            );
+            expect(String(error)).not.toContain("700");
+        }
+    });
     it("associates generated openings with their directive and structural ordinal", () => {
         const source = "```sql\nSELECT a_heading\n```";
         const render = (actual) => `# First ${actual}\n\nOne.\n\n# Second ${actual}\n\nTwo.`;
@@ -412,6 +445,6 @@ describe("private source page identities", () => {
                 ],
                 "Account",
             ),
-        ).toThrow("repeats a private page source identity");
+        ).toThrow("repeats a private page");
     });
 });
