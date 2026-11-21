@@ -402,7 +402,7 @@ describe("prepared content-index publication", () => {
     });
 
     it(
-        "accepts a declared SQL target on the public surface and refuses its absent native target",
+        "accepts a declared SQL target on public and native surfaces",
         () => {
             const body = "Read [[pub-note-lore-register#public-stamp|the public stamp]].";
             write(
@@ -418,9 +418,10 @@ describe("prepared content-index publication", () => {
                     records,
                 }),
             });
-            expect(native.unresolved).toEqual([
-                expect.objectContaining({ reason: "unknown-anchor", anchor: "public-stamp" }),
-            ]);
+            expect(native.unresolved).toEqual([]);
+            const target = foreign.index.get("pub-note-lore-register")?.anchors?.["public-stamp"];
+            expect(target).toBeTruthy();
+            expect(native.markdown).toContain(`@UUID[${target}]{the public stamp}`);
             const errors: any[] = [];
             const site = buildSiteIndex([], { package: "leaf", foreignIndex: foreign.index });
             const web = resolveWebWikilinks(body, {
@@ -782,7 +783,7 @@ describe("prepared content-index publication", () => {
             publication.foundryBodies,
         ];
         const before = snapshot(inputs);
-        for (const input of inputs) freeze(input);
+        freeze(inputs);
         const result = emit(publisher, publication, path.join(root, "frozen-output"));
         expect(result).not.toBeInstanceOf(Promise);
         expect(snapshot(inputs)).toBe(before);
