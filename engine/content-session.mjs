@@ -59,7 +59,7 @@ import { lintNoteStates } from "./stub-lint.mjs";
  * @property {() => ReturnType<typeof sql.prepareLinkSqlTables>} linkTables
  * @property {(kind?: "lint"|"links") => Promise<ReturnType<typeof buildLinkIndex>>} audit
  * @property {() => Promise<import("./content-index.mjs").PreparedContentIndex>} publication
- * @property {() => ReturnType<import("./content-index.mjs").preparePublicationBodies>} publicationBodies - Internal captured body preparation with note-local reference findings.
+ * @property {() => ReturnType<import("./content-index.mjs").preparePublicationBodies>} publicationBodies - Internal captured body preparation with note-local reference and page-list findings.
  * @property {() => ReturnType<import("./compile-corpus.mjs").buildCompileCorpus>} compileCorpus
  * @property {(targets: readonly ContentTarget[]) => Promise<ContentSession>} prepare
  * @property {ReturnType<typeof createContentTimings>} timings
@@ -348,6 +348,7 @@ async function createContentSessionInternal(
                     syntax,
                     prepareAudience: (audience) => session.sqlTables(audience),
                     deferReferences: true,
+                    deferPageLists: true,
                 }),
             );
         },
@@ -368,7 +369,7 @@ async function createContentSessionInternal(
                 const tables = {};
                 for (const audience of ["public", "all"])
                     tables[audience] = await session.sqlTables(audience);
-                // Native conversion reports note-local reference failures once per note.
+                // Native conversion reports reference and page-list failures once per note.
                 const bodies = await session.publicationBodies();
                 const audiences = buildCompileAudiences(tree, router, {
                     config,
