@@ -1701,6 +1701,7 @@ function dependencyAddresses(config) {
  * @param {import("./content-session.mjs").ContentSyntax} [opts.syntax] - Session scanner projections.
  * @param {Iterable<string>} [opts.nameTypes] - Bare name kinds, defaulting to configured item types.
  * @param {Map<string, object>} [opts.foreignIndex] - Captured dependency address view.
+ * @param {Map<string, object>} [opts.foreignReferences] - Captured dependency names, including stubs; defaults to the supplied address view or lazy cache lookup.
  * @param {ReturnType<typeof import("./content-timings.mjs").createContentTimings>} [opts.timings] -
  *   Invocation stage accounting.
  * @param {object[]} [opts.warnings] - Receives nonfatal asset findings.
@@ -1719,6 +1720,7 @@ export function indexRecordsFor({
     syntax,
     nameTypes,
     foreignIndex,
+    foreignReferences,
     timings,
     cache,
     masterRecords,
@@ -1758,8 +1760,11 @@ export function indexRecordsFor({
     // Read on the first parent another package publishes, and not before, so
     // a package whose parents are all its own reads no dependency index.
     let foreign;
+    let loadedForeign;
+    const dependencies = () =>
+        (loadedForeign ??= loadForeignIndexes(resolved, [resolved.contentPackage]));
     const foreignRecord = (key) => {
-        foreign ??= foreignIndex ?? loadForeignIndexes(resolved, [resolved.contentPackage]).index;
+        foreign ??= foreignIndex ?? dependencies().index;
         return foreign.get(key);
     };
     const records = collectContentIndex(tree, {
@@ -1779,7 +1784,7 @@ export function indexRecordsFor({
         manifest: {
             ...foundryIdentities(resolved),
             syntax,
-            foreignReferences: loadForeignIndexes(resolved, [resolved.contentPackage]).references,
+            foreignReferences: () => foreignReferences ?? foreignIndex ?? dependencies().references,
         },
         problems,
         foreignRecord,
@@ -1796,9 +1801,7 @@ export function indexRecordsFor({
     });
     const alternativeFindings = checkArtAlternatives(records, {
         config: resolved,
-        foreignIndex: () =>
-            (foreign ??=
-                foreignIndex ?? loadForeignIndexes(resolved, [resolved.contentPackage]).index),
+        foreignIndex: () => (foreign ??= foreignIndex ?? dependencies().index),
         assetsBase: assetsBase ?? resolved.paths.assets,
     });
     if (problems) {
@@ -1924,7 +1927,12 @@ function publicationExpressions(
         });
         const column = offset - source.lastIndexOf("\n", offset - 1) - 1;
         findings.push(
-            ...result.findings.map((finding) => ({ ...finding, column: finding.column + column })),
+            ...result.findings.map((finding) => {
+                const located = { ...finding, column: finding.column + column };
+                if (finding.code === "reference")
+                    Object.defineProperty(located, "code", { value: "reference" });
+                return located;
+            }),
         );
         const count = result.markdown.split("\n").length - 1;
         if (count) additions.push({ line, count, location });
@@ -2096,6 +2104,7 @@ export async function preparePublicationBodies({
                     audience,
                     populationAudience,
                     foreignIndex: foreign.index,
+                    syntax,
                 });
         const bodies = new Map();
         const figuresByFile = new Map();
@@ -2480,7 +2489,7 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
     const referenceName = sourceReferenceNames(records, {
         contentPackage,
         config: resolved,
-        foreignReferences: loadForeignIndexes(resolved, [contentPackage]).references,
+        foreignReferences: () => loadForeignIndexes(resolved, [contentPackage]).references,
     });
     const art = assetAddressIndex(records, { config: resolved });
     const publicLexical =

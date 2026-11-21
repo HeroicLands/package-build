@@ -165,6 +165,19 @@ jobs:
                   tests/population-journals.test.ts
                   tests/population-delivery-packs.test.ts
                   tests/base-compiler.test.ts
+                  tests/art-alternatives.test.ts
+                  tests/content-index-prepared-publication.test.ts
+                  tests/content-session.test.ts
+                  tests/culture-resolution.test.ts
+                  tests/event-field-references.test.ts
+                  tests/figure-references.test.ts
+                  tests/lexical-source-audiences.test.ts
+                  tests/multi-pack-routing.test.ts
+                  tests/pack-folder.test.ts
+                  tests/pack-none.test.ts
+                  tests/page-lists-compile.test.ts
+                  tests/pass-ordering.test.ts
+                  tests/pdf-build.test.ts
                   tests/consumer-proof-populations.test.ts
                   tests/convert-population-actual.test.ts
             - name: Check out the exact Thalorna source

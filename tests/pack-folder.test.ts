@@ -238,7 +238,7 @@ describe("compiling a note that names its folder by address", () => {
             const result = compile(root);
             const items = packDocs(root, "items");
 
-            expect(result.errors).toBe(0);
+            expect(result.errors, result.output).toBe(0);
             expect(items["Bowl By Address"].folder).toBe(
                 makeId("folder", folderAddress("sohl", "cookware")),
             );
@@ -256,7 +256,8 @@ describe("compiling a note that names its folder by address", () => {
                 "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
             });
             roots.push(root);
-            compile(root);
+            const result = compile(root);
+            expect(result.errors, result.output).toBe(0);
             const items = packDocs(root, "items");
 
             expect(items["Cookware"]).toMatchObject({ type: "Item", color: "#7a4b2a" });
@@ -283,7 +284,7 @@ describe("compiling a note that names its folder by address", () => {
             const items = packDocs(root, "items");
             const journals = packDocs(root, "journals");
 
-            expect(result.errors).toBe(0);
+            expect(result.errors, result.output).toBe(0);
             expect(journals["Cookware"]).toMatchObject({ type: "JournalEntry" });
             // The same id in both packs: a documentation journal filed *beside* its
             // item, not in a folder that merely looks alike.
@@ -305,7 +306,8 @@ describe("compiling a note that names its folder by address", () => {
                 "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
             });
             roots.push(root);
-            compile(root);
+            const result = compile(root);
+            expect(result.errors, result.output).toBe(0);
 
             expect(packDocs(root, "items")["Unused"]).toBeUndefined();
         },
@@ -322,7 +324,7 @@ describe("compiling a note that names its folder by address", () => {
             roots.push(root);
             const result = compile(root);
 
-            expect(result.errors).toBeGreaterThan(0);
+            expect(result.errors, result.output).toBeGreaterThan(0);
             expect(result.output).toMatch(/no folder note is addressed "sohl-none-folder-nowhere"/);
         },
         SUBPROCESS_TEST_TIMEOUT,
@@ -349,7 +351,7 @@ describe("compiling a note that names its folder by address", () => {
             const items = packDocs(root, "items");
             const journals = packDocs(root, "journals");
 
-            expect(result.errors).toBe(0);
+            expect(result.errors, result.output).toBe(0);
             // Same folder document id in both packs...
             expect(journals["Gear"]._id).toBe(items["Gear"]._id);
             // ...filed at the root of one and under Rules/Descriptions in the other.
@@ -374,7 +376,8 @@ describe("compiling a note that names its folder by address", () => {
                 ),
             });
             roots.push(root);
-            compile(root);
+            const result = compile(root);
+            expect(result.errors, result.output).toBe(0);
 
             expect(packDocs(root, "items")["Bowl Loose"].folder).toBeNull();
         },

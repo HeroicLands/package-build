@@ -15,6 +15,8 @@ import {
     prepareContentIndex,
     resolveCultures,
 } from "../engine/content-index.mjs";
+import { sourceReferenceNames } from "../engine/journals.mjs";
+import { entryContext } from "../engine/foundry-entries.mjs";
 import { formatDiagnostic, formatLocator } from "../engine/diagnostics.mjs";
 import { readCanonicalKey } from "../engine/address.mjs";
 import { encodeAddresses } from "../engine/note-addresses.mjs";
@@ -805,9 +807,44 @@ describe("dependency indexes", () => {
         cultures();
         place("realm", "{culture: lore-vedyari}");
         place("shire", "{parents: [realm]}");
-        const records = indexRecordsFor({
-            config: config(path.join(tmp, "never-fetched")) as never,
-        });
+        const localConfig = config(path.join(tmp, "never-fetched"));
+        expect(() => entryContext(localConfig as never)).not.toThrow();
+        const records = indexRecordsFor({ config: localConfig as never });
         expect(cultureOf(records, "place", "shire")).toBe(VEDYARI);
+    });
+});
+
+describe("captured heading reference names", () => {
+    it("loads dependency names only for a foreign target and reuses them", () => {
+        let loads = 0;
+        const name = sourceReferenceNames(
+            [{ type: "place", shortcode: "town", name: { full: "Town" } }],
+            {
+                contentPackage: "demo",
+                foreignReferences: () => {
+                    loads++;
+                    return new Map([["other-note-place-town", { name: "Other town" }]]);
+                },
+            },
+        );
+        expect(name("place-town")).toBe("Town");
+        expect(name("demo-note-place-missing")).toBeUndefined();
+        expect(loads).toBe(0);
+        expect(name("other-note-place-town")).toBe("Other town");
+        expect(name("other-note-place-town")).toBe("Other town");
+        expect(loads).toBe(1);
+    });
+
+    it("preserves a dependency lookup refusal when a foreign heading needs it", () => {
+        const name = sourceReferenceNames(
+            [{ type: "place", shortcode: "town", name: { full: "Town" } }],
+            {
+                contentPackage: "demo",
+                foreignReferences: () => {
+                    throw new Error("Dependency index is unavailable");
+                },
+            },
+        );
+        expect(() => name("other-note-place-town")).toThrow("Dependency index is unavailable");
     });
 });
