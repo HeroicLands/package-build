@@ -1,5 +1,15 @@
 # @heroiclands/package-build
 
+## 25.11.0
+
+**Content and notes**
+
+- Culture profiles with facial-hair weights list the eligible genders; generated characters outside the list omit facial hair.
+
+**Upgrading**
+
+- Add `facial_hair_genders` beside every `facial_hair` map in a culture profile.
+
 ## 25.10.0
 
 **Languages and scripts**
