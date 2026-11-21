@@ -221,13 +221,25 @@ function sourcePageIdentity(body, context, resolveRole) {
             fail("private journal page opening has no source association", location?.line ?? line);
         const declared = !appended && authored.get(location.line);
         if (declared) {
+            const sourceOpening =
+                location.generated ?
+                    {}
+                :   {
+                        [kind === "heading" ? "sourceHeading" : "sourceFigure"]: location.line,
+                    };
             if (anchor && declared.anchor === anchor)
-                return { name: declared.name, anchor, authoredOrigin: !location.generated };
+                return {
+                    name: declared.name,
+                    anchor,
+                    authoredOrigin: !location.generated,
+                    ...sourceOpening,
+                };
             const repeat = ordinal(`${kind}:${declared.name}`);
             return {
                 name: declared.name,
                 ...(repeat ? { ordinal: repeat } : {}),
                 authoredOrigin: !location.generated,
+                ...sourceOpening,
             };
         }
         const directive =
@@ -285,13 +297,18 @@ function sourcePageIdentity(body, context, resolveRole) {
  * @param {{source: string, lineMap?: object[], generatedFrom?: number, file?: string, bodyLine?: number, referenceName?: (target: string) => string|undefined, publicAnchors?: Map<string, number>}} [pageSource] - Private page source provenance; omitted for public pages.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
  *   classes: string[], figure: object|null, continues?: string,
- *   sourceAuthored?: boolean, sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string, privateOnly?: boolean}, markdown: string}>} Pages in document order.
+ *   sourceAuthored?: boolean, sourceHeading?: number, sourceFigure?: number, sourceAfterFigure?: number, sourceIdentity?: {anchor?: string, name?: string, continues?: string, ordinal?: number, key?: string, privateOnly?: boolean}, markdown: string}>} Pages in document order.
  */
 export function splitPages(body, leadName = "Introduction", resolveRole, syntax, pageSource) {
     const identityAt = pageSource ? sourcePageIdentity(body, pageSource, resolveRole) : undefined;
     const openingIdentity = (line, kind, anchor) => {
-        const { authoredOrigin = false, ...sourceIdentity } = identityAt(line, kind, anchor);
-        return { sourceIdentity, sourceAuthored: authoredOrigin };
+        const {
+            authoredOrigin = false,
+            sourceHeading,
+            sourceFigure,
+            ...sourceIdentity
+        } = identityAt(line, kind, anchor);
+        return { sourceIdentity, sourceAuthored: authoredOrigin, sourceHeading, sourceFigure };
     };
     const authoredLine = (line) => {
         const location = pageSource?.lineMap?.[line];
@@ -345,7 +362,13 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
             classes: current.classes,
             figure: current.figure ?? null,
             ...(current.sourceIdentity ?
-                { sourceIdentity: current.sourceIdentity, sourceAuthored: current.sourceAuthored }
+                {
+                    sourceIdentity: current.sourceIdentity,
+                    sourceAuthored: current.sourceAuthored,
+                    sourceHeading: current.sourceHeading,
+                    sourceFigure: current.sourceFigure,
+                    sourceAfterFigure: current.sourceAfterFigure,
+                }
             :   {}),
             ...(current.continues ? { continues: current.continues } : {}),
             markdown,
@@ -386,6 +409,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
             const item = current.figure;
             const itemIdentity = current.sourceIdentity;
             const itemAuthored = current.sourceAuthored;
+            const itemSourceFigure = current.sourceFigure;
             closeCurrent();
             current = {
                 name: section.name,
@@ -396,6 +420,17 @@ export function splitPages(body, leadName = "Introduction", resolveRole, syntax,
                 ...(identityAt ?
                     {
                         sourceAuthored: section.sourceAuthored === true && itemAuthored === true,
+                        ...((
+                            section.sourceAuthored === true &&
+                            itemAuthored === true &&
+                            section.sourceHeading !== undefined &&
+                            itemSourceFigure !== undefined
+                        ) ?
+                            {
+                                sourceHeading: section.sourceHeading,
+                                sourceAfterFigure: itemSourceFigure,
+                            }
+                        :   {}),
                         sourceIdentity: {
                             ...((
                                 section.sourceIdentity?.name !== undefined &&

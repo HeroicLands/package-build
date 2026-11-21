@@ -85,7 +85,8 @@
  * @module
  */
 
-import { sourceReferenceNames } from "./journals.mjs";
+import { sourceReferenceNames, splitPages } from "./journals.mjs";
+import { separateFootnotes } from "./content-footnotes.mjs";
 import { assertSettlementRecords } from "./settlement-tables.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { projectPopulationFrontmatter } from "./population-values.mjs";
@@ -1856,15 +1857,37 @@ function publicHeadingDeclarations(expanded) {
         return "value";
     });
     const lines = source.split("\n");
+    const blankedHeadings = new Map();
     for (const heading of scanHeadingAttributes(masked).headings) {
         if (!dynamicLines.has(heading.line)) continue;
+        const location = expanded.lineMap[heading.line - 1];
+        if (!heading.id && location && !location.generated)
+            blankedHeadings.set(heading.line - 1, location.line);
         const attributes = [`#${heading.id}`, ...heading.classes.map((name) => `.${name}`)];
         lines[heading.line - 1] =
             heading.id ?
                 `${"#".repeat(heading.level)} ${heading.id} {${attributes.join(" ")}}`
             :   "";
     }
-    return { ...expanded, markdown: lines.join("\n") };
+    // Pre-scalar page boundaries bind each exception to its own blanked heading.
+    const blankedHeadingAnchors = new Map();
+    if (blankedHeadings.size)
+        splitPages(masked, undefined, undefined, undefined, { source: masked }).forEach(
+            (page, index) => {
+                const heading = blankedHeadings.get(page.sourceHeading);
+                if (heading === undefined || page.figure) return;
+                const after =
+                    page.sourceAfterFigure === undefined ?
+                        undefined
+                    :   expanded.lineMap[page.sourceAfterFigure];
+                if (page.continues && (!after || after.generated)) return;
+                const owner = { heading, ...(after ? { continuationAfter: after.line } : {}) };
+                if (index === 0) blankedHeadingAnchors.set(LEAD_ANCHOR, owner);
+                for (const anchor of collectAnchors(separateFootnotes(page.markdown).markdown))
+                    blankedHeadingAnchors.set(anchor.slug, owner);
+            },
+        );
+    return { ...expanded, markdown: lines.join("\n"), blankedHeadingAnchors };
 }
 
 /** Render the shared expression language and carry inserted scalar lines back to their source. */
@@ -1930,7 +1953,14 @@ function publicationExpressions(
         if (generatedFrom !== undefined && addition.line < expanded.generatedFrom)
             generatedFrom += addition.count;
     }
-    return { markdown, lineMap, ...(generatedFrom === undefined ? {} : { generatedFrom }) };
+    return {
+        markdown,
+        lineMap,
+        ...(expanded.blankedHeadingAnchors ?
+            { blankedHeadingAnchors: expanded.blankedHeadingAnchors }
+        :   {}),
+        ...(generatedFrom === undefined ? {} : { generatedFrom }),
+    };
 }
 
 /**

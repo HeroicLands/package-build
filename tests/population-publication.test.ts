@@ -338,7 +338,7 @@ it.each([
         expect(privateBody).toContain("Actual 2300 residents");
         if (splitTargets) {
             const refusal =
-                /hidden\.md:\d+:1: error: public anchor "safe" resolves to different public and private generated pages/;
+                /hidden\.md:\d+:1: error: public anchor "safe" resolves to different public and private pages/;
             expect(() => emitContentIndex({ config, publication })).toThrow(refusal);
             await expect(session.compileCorpus()).rejects.toThrow(refusal);
             await expect(

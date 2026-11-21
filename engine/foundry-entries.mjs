@@ -132,12 +132,10 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
             ...pageSource.publicBody,
         }).forEach((page, index) => {
             const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
-            if (index === 0)
-                publicTargets.set(LEAD_ANCHOR, { uuid, authored: page.sourceAuthored });
-            if (page.anchorSlug)
-                publicTargets.set(page.anchorSlug, { uuid, authored: page.sourceAuthored });
+            if (index === 0) publicTargets.set(LEAD_ANCHOR, { uuid });
+            if (page.anchorSlug) publicTargets.set(page.anchorSlug, { uuid });
             for (const anchor of collectAnchors(page.markdown, 1, undefined, syntax))
-                publicTargets.set(anchor.slug, { uuid, authored: page.sourceAuthored });
+                publicTargets.set(anchor.slug, { uuid });
         });
     splitPages(body, name, undefined, syntax, pageSource).forEach((page, index) => {
         const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
@@ -162,9 +160,16 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
         for (const [slug, target] of targets) {
             if (pageSource?.publicAnchors?.has(slug) && pageSource.publicBody) {
                 const projected = publicTargets.get(slug);
-                const authoredOwners = page.sourceAuthored === true && projected?.authored === true;
-                if (!authoredOwners && projected?.uuid !== uuid)
-                    refuse(slug, "resolves to different public and private generated pages");
+                const blankedOwner = pageSource.publicBody.blankedHeadingAnchors?.get(slug);
+                const blankedHeading =
+                    blankedOwner !== undefined &&
+                    page.sourceAuthored === true &&
+                    page.sourceHeading === blankedOwner.heading &&
+                    page.sourceAfterFigure === blankedOwner.continuationAfter &&
+                    !page.anchorSlug &&
+                    !page.figure;
+                if (!blankedHeading && projected?.uuid !== uuid)
+                    refuse(slug, "resolves to different public and private pages");
             }
             anchors[slug] = target;
         }
