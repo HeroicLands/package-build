@@ -709,6 +709,114 @@ it.each(["session", "standalone"])(
 );
 
 it.each(["session", "standalone"])(
+    "requires recorded blanked owners despite matching fallback IDs in %s mode",
+    async (mode) => {
+        for (const headed of [true, false])
+            for (const actual of [700, 1700]) {
+                const tree = input();
+                const query =
+                    "SELECT CASE WHEN data.population.actual > 1000 THEN '~~~' ELSE ' ' END FROM notes WHERE shortcode = 'owner'";
+                const scalar = `{{sql "${query}"}}`;
+                tree.add(
+                    "owner",
+                    { pack: "private", population: { actual, apparent: 900 } },
+                    `${headed ? "# Alpha\n\n" : ""}[Own]{#own}.\n\n${scalar}\n\n# Beta {{data.population.actual}}\n\n${scalar}\n\n[Foo]{#foo}.`,
+                    { tags: ["gm"] },
+                );
+                tree.add("reader", {}, "[[place-owner#foo|Foo]] and [[place-owner#own|Own]].");
+                const session = await createContentSession({ config: tree.config });
+                try {
+                    const before = structuredClone({
+                        records: session.records,
+                        parsed: [...session.parsed],
+                    });
+                    const publication = await session.publication();
+                    const source = publication.foundryBodies.get(
+                        path.join(tree.config.paths.content, "owner.md"),
+                    );
+                    const projected = splitPages(
+                        source.publicBody.markdown,
+                        "Introduction",
+                        undefined,
+                        undefined,
+                        { ...source, ...source.publicBody },
+                    );
+                    expect(projected).toHaveLength(1);
+                    expect(projected[0].markdown).toContain("{#own}");
+                    expect(projected[0].markdown).toContain("{#foo}");
+                    const build = () =>
+                        mode === "session" ?
+                            session.compileCorpus()
+                        :   buildCompileCorpus({
+                                config: tree.config,
+                                contentBase: tree.config.paths.content,
+                                skipDirectories: tree.config.skipDirectories,
+                                router: createPackRouter(tree.config.packs),
+                            });
+                    if (actual === 1700) {
+                        const native = splitPages(
+                            source.markdown,
+                            "Introduction",
+                            undefined,
+                            undefined,
+                            source,
+                        );
+                        expect(native).toHaveLength(1);
+                        expect(journalPageId("0123456789abcdef", native[0])).toBe(
+                            journalPageId("0123456789abcdef", projected[0]),
+                        );
+                        const message =
+                            /owner\.md:\d+:1: error: public anchor "foo" resolves to different public and private pages/;
+                        await expect(build()).rejects.toThrow(message);
+                        expect(() =>
+                            emitContentIndex({ config: tree.config, publication }),
+                        ).toThrow(message);
+                        expect(documents(path.join(tree.config.paths.packJson, "private"))).toEqual(
+                            [],
+                        );
+                        expect(
+                            documents(path.join(tree.config.paths.packJson, "journals")),
+                        ).toEqual([]);
+                    } else {
+                        const corpus = await build();
+                        const [document] = await compile(tree, corpus, "private");
+                        const publicDocs = await compile(tree, corpus, "journals");
+                        const beta = document.pages.find((page) => page.name === "Beta 700");
+                        const target = `Compendium.populationproof.private.JournalEntry.${document._id}.JournalEntryPage.${beta._id}`;
+                        const indexed =
+                            corpus.audiences.public.linkIndex.byShortcode.get("place/owner");
+                        expect(indexed.anchorUuids.foo).toBe(target);
+                        expect(indexed.anchorUuids.foo).not.toBe(indexed.anchorUuids.own);
+                        const reader = JSON.stringify(
+                            publicDocs.find((entry) => entry.name === "reader"),
+                        );
+                        expect(reader).toContain(target);
+                        expect(reader).toContain(indexed.anchorUuids.own);
+                        const result = emitContentIndex({ config: tree.config, publication });
+                        const metadata =
+                            reader + JSON.stringify(indexed) + fs.readFileSync(result.file, "utf8");
+                        for (const hidden of [
+                            "Beta 700",
+                            query,
+                            "sourceHeading",
+                            "blankedHeadingAnchors",
+                        ])
+                            expect(metadata).not.toContain(hidden);
+                    }
+                    expect({ records: session.records, parsed: [...session.parsed] }).toEqual(
+                        before,
+                    );
+                    for (const [file, text] of tree.sources)
+                        expect(fs.readFileSync(file, "utf8")).toBe(text);
+                } finally {
+                    await session.dispose();
+                    tree.close();
+                }
+            }
+    },
+);
+
+it.each(["session", "standalone"])(
     "refuses scalar fences that change authored public anchor owners in %s mode",
     async (mode) => {
         for (const kind of ["static", "blanked", "generated-caption"])

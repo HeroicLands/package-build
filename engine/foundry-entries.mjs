@@ -160,6 +160,8 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
         for (const [slug, target] of targets) {
             if (pageSource?.publicAnchors?.has(slug) && pageSource.publicBody) {
                 const projected = publicTargets.get(slug);
+                const hasBlankedOwner =
+                    pageSource.publicBody.blankedHeadingAnchors?.has(slug) === true;
                 const blankedOwner = pageSource.publicBody.blankedHeadingAnchors?.get(slug);
                 const blankedHeading =
                     blankedOwner !== undefined &&
@@ -168,7 +170,7 @@ export function anchorsOf(entryUuid, entryId, body, name, syntax, pageSource) {
                     page.sourceAfterFigure === blankedOwner.continuationAfter &&
                     !page.anchorSlug &&
                     !page.figure;
-                if (!blankedHeading && projected?.uuid !== uuid)
+                if (hasBlankedOwner ? !blankedHeading : projected?.uuid !== uuid)
                     refuse(slug, "resolves to different public and private pages");
             }
             anchors[slug] = target;
