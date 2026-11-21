@@ -158,6 +158,7 @@ export async function buildCompileCorpus({
         router,
         prepareAudience: (audience) => tables[audience],
         deferReferences: true,
+        deferPageLists: true,
     });
     const audiences = buildCompileAudiences(contentBase, router, {
         config: resolved,

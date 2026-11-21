@@ -2508,10 +2508,13 @@ Journals pack compiler — produces JSON pack files for the "journals" Foundry c
 `itemDescription(markdown, fm, name, pageSource?, location = {})` returns the item documentation pointer, or an empty string for an empty body. A private documentation route requires captured source provenance; `location.file` and `location.bodyLine` locate diagnostics. `location.config` supplies the captured package configuration, and `location.router` supplies its destination router; omitted context uses the loaded configuration.
 
 `preparePublicationBodies` accepts internal `deferReferences: true` to retain
-note-local reference findings in `referenceFindings`; SQL, identity and other
-expression failures remain fatal. Sessions share that body preparation through
-`publicationBodies()`. Compilation reports a broken reference once for its note
-and continues valid siblings; `publication()` refuses the collected findings.
+note-local reference findings in `referenceFindings`. Internal `deferPageLists: true`
+retains page-list findings in `pageListFindings`; the table expander's nonenumerable
+classification distinguishes those errors from SQL failures. SQL, identity and
+other expression/table failures remain fatal. Sessions share that body preparation
+through `publicationBodies()`. Compilation reports a broken reference or page list
+once for its note and continues valid siblings; `publication()` refuses all collected
+findings before writes.
 
 The compile corpus carries internal `pageSources` by captured file. Their
 `publicAnchors` map records projected public slugs and source offsets, and

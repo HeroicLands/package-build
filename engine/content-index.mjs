@@ -2013,7 +2013,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
                 parsed,
                 foreign,
             });
-    publicationProblems(bodies.referenceFindings);
+    publicationProblems([...bodies.referenceFindings, ...bodies.pageListFindings]);
     const { expandedBodies, foundryBodies } = bodies;
     const publication = {
         config: resolved,
@@ -2041,7 +2041,8 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
  * @param {Function} [options.syntax] - Captured syntax scanner.
  * @param {Function} [options.prepareAudience] - Cached SQL preparation by audience.
  * @param {boolean} [options.deferReferences=false] - Return note-local reference findings for the compiler to report; SQL and other failures remain fatal.
- * @returns {Promise<{referenceFindings: object[], expandedBodies: Map<string, object>, foundryBodies: Map<string, {markdown: string, source: string, lineMap: object[], generatedFrom?: number, file: string, bodyLine?: number, publicAnchors: Map<string,number>, publicBody: object}>}>} Expanded bodies and native source provenance, without output writes.
+ * @param {boolean} [options.deferPageLists=false] - Return page-list findings for native per-note reporting; SQL and other table failures remain fatal.
+ * @returns {Promise<{referenceFindings: object[], pageListFindings: object[], expandedBodies: Map<string, object>, foundryBodies: Map<string, {markdown: string, source: string, lineMap: object[], generatedFrom?: number, file: string, bodyLine?: number, publicAnchors: Map<string,number>, publicBody: object}>}>} Expanded bodies and native source provenance, without output writes.
  */
 export async function preparePublicationBodies({
     contentBase: tree,
@@ -2053,8 +2054,10 @@ export async function preparePublicationBodies({
     syntax,
     prepareAudience,
     deferReferences = false,
+    deferPageLists = false,
 }) {
     const referenceFindings = [];
+    const pageListFindings = [];
     const expandedBodies = new Map();
     const foundryBodies = new Map();
     const referenceName = sourceReferenceNames(records, {
@@ -2120,13 +2123,20 @@ export async function preparePublicationBodies({
                 pageLists: prepared?.pageLists?.get(file),
             });
             publicationProblems(
-                expanded.errors.map((problem) => ({
-                    file,
-                    line: (authored.bodyLine ?? 1) + problem.line,
-                    column: problem.column,
-                    severity: "error",
-                    message: problem.reason,
-                })),
+                expanded.errors.flatMap((problem) => {
+                    const finding = {
+                        file,
+                        line: (authored.bodyLine ?? 1) + problem.line,
+                        column: problem.column,
+                        severity: "error",
+                        message: problem.reason,
+                    };
+                    if (deferPageLists && problem.code === "page-list") {
+                        pageListFindings.push(finding);
+                        return [];
+                    }
+                    return [finding];
+                }),
             );
             bodies.set(file, expanded);
             const byId = new Map(
@@ -2257,6 +2267,11 @@ export async function preparePublicationBodies({
     return {
         expandedBodies,
         foundryBodies,
+        pageListFindings: [
+            ...new Map(
+                pageListFindings.map((finding) => [JSON.stringify(finding), finding]),
+            ).values(),
+        ],
         referenceFindings: [
             ...new Map(
                 referenceFindings.map((finding) => [JSON.stringify(finding), finding]),
