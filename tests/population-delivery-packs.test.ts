@@ -716,7 +716,7 @@ it.each(["session", "standalone"])(
                 const tree = input();
                 const generated =
                     kind === "generated-caption" ?
-                        "': Example {#example}' || chr(10) || chr(10) || '```text' || chr(10) || 'An example.' || chr(10) || '```'"
+                        "': Example ' || chr(123) || '#example' || chr(125) || chr(10) || chr(10) || repeat(chr(96), 3) || 'text' || chr(10) || 'An example.' || chr(10) || repeat(chr(96), 3)"
                     :   "'~~~'";
                 const query = `SELECT CASE WHEN data.population.actual > 1000 THEN ${generated} ELSE ' ' END FROM notes WHERE shortcode = 'fenced'`;
                 const scalar = `{{sql "${query}"}}`;
