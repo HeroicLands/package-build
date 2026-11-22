@@ -251,7 +251,6 @@ jobs:
                   tests/pass-ordering.test.ts
                   tests/pdf-build.test.ts
                   tests/consumer-proof-populations.test.ts
-                  tests/convert-population-actual.test.ts
             - name: Check out the exact Thalorna source
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:

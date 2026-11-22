@@ -30,7 +30,10 @@ const polity = {
     data: {
         population: { actual: 160, apparent: 0 },
         territorial_population: { actual: 160, apparent: null },
-        settlements: [{ settlement: "Farm", population: { actual: 160, apparent: 20 } }],
+        settlements: [
+            { settlement: "Farm", population: { actual: 160, apparent: 20 } },
+            { settlement: "Dock", population: { actual: 90 } },
+        ],
     },
 };
 const place = {
@@ -69,7 +72,7 @@ const raw = [
     { ...place, address: { canonical: placeAddress } },
 ];
 const publicPolity =
-    '<dl class="infobox-rows"><dt>Population</dt><dd>0</dd></dl><table><tr><th>Settlement</th><th>Population</th></tr><tr><td>Farm</td><td>20</td></tr></table><style>.x { width: 160px }</style><p id=\"a160b\">There are 160 miles of road. Population records are at <a href=\"/160\">160</a>.</p>';
+    '<dl class="infobox-rows"><dt>Population</dt><dd>0</dd></dl><table><tr><th>Settlement</th><th>Population</th></tr><tr><td>Farm</td><td>20</td></tr><tr><td>Dock</td><td>90</td></tr></table><style>.x { width: 160px }</style><p id=\"a160b\">There are 160 miles of road. Population records are at <a href=\"/160\">160</a>.</p>';
 const privatePolity =
     "<table><tr><th>Population</th><th>Actual</th><th>Apparent</th></tr><tr><td>Membership</td><td>160</td><td>0</td></tr><tr><td>Territorial population</td><td>160</td><td>Unknown</td></tr><tr><td>Farm</td><td>160</td><td>20</td></tr></table>";
 const publicPlace = '<dl class="infobox-rows"><dt>Population</dt><dd>800</dd></dl>';
@@ -100,7 +103,7 @@ describe("consumer population proof", () => {
         expect(resolved.uuid).toMatch(/^Compendium\.thalorna\.journals\.JournalEntry\./);
         expect(verifyPopulationIndex(raw.slice(0, 1), records, [address])).toEqual({
             subjects: 1,
-            figures: 3,
+            figures: 4,
             differing: 3,
         });
     });
@@ -204,7 +207,7 @@ it("prepares an authored snapshot and verifies exact producer UUIDs", () => {
         fs.mkdirSync(path.join(proof, "population-evidence"), { recursive: true });
         put(
             "assets/content/Council.md",
-            "---\ntype: affiliation\nsubType: polity\nshortcode: council\nname: {full: Council}\nsohl: {}\ndata: {population: {actual: 160, apparent: 0}, territorial_population: {actual: 160, apparent: null}, settlements: [{settlement: Farm, population: {actual: 160, apparent: 20}}]}\n---\nBody.\n",
+            "---\ntype: affiliation\nsubType: polity\nshortcode: council\nname: {full: Council}\nsohl: {}\ndata: {population: {actual: 160, apparent: 0}, territorial_population: {actual: 160, apparent: null}, settlements: [{settlement: Farm, population: {actual: 160, apparent: 20}}, {settlement: Dock, population: {actual: 90}}]}\n---\nBody.\n",
         );
         put(
             "assets/content/Harbor.md",
@@ -281,7 +284,9 @@ it("prepares an authored snapshot and verifies exact producer UUIDs", () => {
         const renderer = createRenderer("foundry");
         const generatedPolity =
             renderBox("0") +
-            renderer.render("| Settlement | Population |\n| --- | ---: |\n| Farm | 20 |\n");
+            renderer.render(
+                "| Settlement | Population |\n| --- | ---: |\n| Farm | 20 |\n| Dock | 90 |\n",
+            );
         const generatedPlace = renderBox("800");
         const generatedPrivatePolity = renderer.render(
             "| Population | Actual | Apparent |\n| --- | ---: | ---: |\n| Membership | 160 | 0 |\n| Territorial population | 160 | Unknown |\n| Farm | 160 | 20 |\n",
@@ -336,7 +341,7 @@ it("prepares an authored snapshot and verifies exact producer UUIDs", () => {
         const receipt = JSON.parse(
             fs.readFileSync(path.join(proof, "population-evidence/receipt.json"), "utf8"),
         );
-        expect(receipt).toMatchObject({ subjects: 2, figures: 4, differing: 4, hiddenFigures: 4 });
+        expect(receipt).toMatchObject({ subjects: 2, figures: 5, differing: 4, hiddenFigures: 4 });
         const privateFile = path.join(root, "build/packs-json/private/council.json");
         const privateEntry = JSON.parse(fs.readFileSync(privateFile, "utf8"));
         privateEntry.ownership.default = 1;
