@@ -70,6 +70,7 @@ import {
 import { isPackageRecord } from "./index-records.mjs";
 import { systemPackages } from "./item-entries.mjs";
 import { downloadCached } from "./download-cache.mjs";
+import { buildUserAgent, fetchFollowingRedirects } from "./user-agent.mjs";
 
 /** Written once a fetch completes, so a half-finished cache is never used. */
 const STAMP = ".complete";
@@ -329,16 +330,17 @@ async function fetchBytes(url, context, token, mirror = false) {
             let current = url;
             for (let redirects = 0; ; redirects++) {
                 response = undefined;
-                response = await fetch(
-                    current,
+                response =
                     token ?
-                        {
+                        await fetch(current, {
                             redirect: "manual",
                             signal: controller.signal,
-                            headers: { Authorization: `token ${token}` },
-                        }
-                    :   { redirect: "follow", signal: controller.signal },
-                );
+                            headers: {
+                                Authorization: `token ${token}`,
+                                "user-agent": buildUserAgent(current),
+                            },
+                        })
+                    :   await fetchFollowingRedirects(current, { signal: controller.signal });
                 if (!token || ![301, 302, 303, 307, 308].includes(response.status)) break;
                 const location = response.headers.get("location");
                 await response.body?.cancel().catch(() => {});
@@ -416,6 +418,7 @@ async function githubJson(url, signal) {
                 signal,
                 headers: {
                     Accept: "application/vnd.github+json",
+                    "user-agent": buildUserAgent(url),
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
                 },
             });

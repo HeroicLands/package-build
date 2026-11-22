@@ -39,6 +39,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parse } from "yaml";
+import { fetchFollowingRedirects } from "../engine/user-agent.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = resolve(HERE, "..", "site-theme", "data", "banners.yaml");
@@ -172,12 +173,9 @@ async function probe(url) {
         // HEAD first — it is what the question actually is. Some object stores
         // answer 405 to it, so fall back to a ranged GET rather than reporting a
         // published file as missing.
-        let res = await fetch(url, { method: "HEAD", redirect: "follow" });
+        let res = await fetchFollowingRedirects(url, { method: "HEAD" });
         if (res.status === 405 || res.status === 501) {
-            res = await fetch(url, {
-                headers: { Range: "bytes=0-0" },
-                redirect: "follow",
-            });
+            res = await fetchFollowingRedirects(url, { headers: { Range: "bytes=0-0" } });
         }
         return {
             ok: res.status === 200 || res.status === 206,

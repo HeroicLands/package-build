@@ -37,6 +37,7 @@ import path from "node:path";
 
 import { checkHomepage, fail } from "../config.mjs";
 import { siteFontsParam } from "./script-font-delivery.mjs";
+import { fetchFollowingRedirects } from "./user-agent.mjs";
 
 /**
  * The directory that is deployed, relative to the repository root.
@@ -223,7 +224,7 @@ export async function fetchNavigation(
     fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
 
-    const res = await fetch(url, { redirect: "follow" });
+    const res = await fetchFollowingRedirects(url, {}, { fetch, config });
     if (!res.ok) {
         throw new Error(
             `could not download the site navigation at ${url}: HTTP ${res.status} ${res.statusText}`,

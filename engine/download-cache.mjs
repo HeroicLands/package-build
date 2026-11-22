@@ -17,6 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { fetchFollowingRedirects } from "./user-agent.mjs";
 
 /** Return the user's shared download cache directory. */
 export function downloadCacheDirectory() {
@@ -98,7 +99,7 @@ function safeUrl(value, base, allowLoopback = false) {
  * Fetch bytes into the shared checksum cache and return their verified path.
  * @param {string} url HTTPS URL without user information.
  * @param {string} sha256 Expected lowercase SHA-256.
- * @param {{cacheDir?: string, maxBytes?: number, signal?: AbortSignal, fetch?: typeof globalThis.fetch, token?: string, allowLoopback?: boolean}} [options] Download options.
+ * @param {{cacheDir?: string, maxBytes?: number, signal?: AbortSignal, fetch?: typeof globalThis.fetch, token?: string, allowLoopback?: boolean, config?: object}} [options] Download options.
  * @returns {Promise<string>} Absolute path of the verified cached file.
  */
 export async function downloadCached(url, sha256, options = {}) {
@@ -123,45 +124,53 @@ export async function downloadCached(url, sha256, options = {}) {
     const file = path.join(temporary, "content");
     let response;
     try {
-        for (let redirects = 0; ; redirects++) {
-            try {
-                response = await (options.fetch ?? globalThis.fetch)(parsed.href, {
+        try {
+            response = await fetchFollowingRedirects(
+                parsed.href,
+                {
                     signal: options.signal,
-                    redirect: "manual",
                     headers: {
                         "accept-encoding": "identity",
                         ...(options.token ? { Authorization: `token ${options.token}` } : {}),
                     },
-                });
-            } catch {
-                const error = failure("download request failed");
-                error.retryable = true;
-                throw error;
-            }
-            if ([301, 302, 303, 307, 308].includes(response.status)) {
-                const location = response.headers.get("location");
-                await response.body?.cancel().catch(() => {});
-                if (!location || redirects >= 5)
-                    throw failure("download redirect limit or missing location", response?.status);
-                const next = safeUrl(location, parsed, options.allowLoopback === true);
-                if (parsed.protocol === "https:" && next.protocol !== "https:")
-                    throw failure("download redirect refused", response?.status);
-                if (options.token && next.origin !== origin)
-                    throw failure("authenticated download redirect refused", response?.status);
-                parsed = next;
-                continue;
-            }
-            if (!response.ok || !response.body) {
-                const error = failure("download request failed", response.status);
-                error.retryable = response.status >= 500 && response.status < 600;
-                throw error;
-            }
-            if (response.url) {
-                const actual = safeUrl(response.url, undefined, options.allowLoopback === true);
-                if (options.token && actual.origin !== origin)
-                    throw failure("authenticated download redirect refused", response?.status);
-            }
-            break;
+                },
+                {
+                    fetch: options.fetch,
+                    config: options.config,
+                    onRedirect({ response: hop, current, location, hops }) {
+                        const refuse = (message) => {
+                            const error = failure(message, hop.status);
+                            error.refused = true;
+                            return error;
+                        };
+                        if (!location || hops >= 5)
+                            throw refuse("download redirect limit or missing location");
+                        const next = safeUrl(location, current, options.allowLoopback === true);
+                        if (current.protocol === "https:" && next.protocol !== "https:")
+                            throw refuse("download redirect refused");
+                        if (options.token && next.origin !== origin)
+                            throw refuse("authenticated download redirect refused");
+                        parsed = next;
+                        return next;
+                    },
+                },
+            );
+        } catch (cause) {
+            if (cause?.refused || /download URL must be HTTPS/u.test(cause?.message ?? ""))
+                throw cause;
+            const error = failure("download request failed");
+            error.retryable = true;
+            throw error;
+        }
+        if (!response.ok || !response.body) {
+            const error = failure("download request failed", response.status);
+            error.retryable = response.status >= 500 && response.status < 600;
+            throw error;
+        }
+        if (response.url) {
+            const actual = safeUrl(response.url, undefined, options.allowLoopback === true);
+            if (options.token && actual.origin !== origin)
+                throw failure("authenticated download redirect refused", response?.status);
         }
         const encoding = response.headers.get("content-encoding");
         if (encoding && encoding.toLowerCase() !== "identity")

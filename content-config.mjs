@@ -64,6 +64,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+    CONTACT_RULE,
+    HOST_RULE,
+    contactIsValid,
+    hostSuffixIsValid,
+} from "./engine/user-agent-rules.mjs";
 import YAML from "yaml";
 import { normalizeSettlementPopulation } from "./engine/settlement-population.mjs";
 import { normalizeCurrentDate } from "./engine/current-date.mjs";
@@ -724,6 +730,12 @@ export function publishesContentPages(config) {
  * @property {boolean} [forbidGeneratedArt]  Whether `lint` refuses an asset
  *                                          record of this package carrying
  *                                          `ai: true`. Default `false`.
+ * @property {string} [userAgentUrl]       Contact URL carried in the User-Agent
+ *                                          of every outbound request.
+ * @property {string} [userAgentEmail]      Contact email carried only to the
+ *                                          hosts `userAgentEmailHosts` lists.
+ * @property {string[]} [userAgentEmailHosts] Host suffixes that receive
+ *                                          `userAgentEmail`. Default `[]`.
  * @property {PackageBuildSection} [packageBuild]  Reserved for
  *                                          `@heroiclands/package-build`, which
  *                                          validates it. Not read here.
@@ -815,6 +827,10 @@ export function publishesContentPages(config) {
  * @property {readonly string[]} skipDirectories
  * @property {boolean} forbidGeneratedArt  Whether `lint` refuses an asset
  *                                     record of this package carrying `ai: true`.
+ * @property {string|null} userAgentUrl  Contact URL for outbound requests.
+ * @property {string|null} userAgentEmail  Contact email for listed hosts.
+ * @property {readonly string[]} userAgentEmailHosts  Host suffixes that
+ *                                     receive the email.
  * @property {import("./engine/content-icons.mjs").IconRegistry} icons  The
  *                                     fonts this package ships and the names it
  *                                     draws from them; empty when it declares
@@ -849,6 +865,9 @@ const CONFIG_KEYS = [
     "art",
     "skipDirectories",
     "forbidGeneratedArt",
+    "userAgentUrl",
+    "userAgentEmail",
+    "userAgentEmailHosts",
     "icons",
     "languages",
     "packs",
@@ -1257,6 +1276,22 @@ function optionalBoolean(value, field, fallback) {
     if (value === undefined) return fallback;
     if (typeof value !== "boolean") fail(field, "must be a boolean");
     return /** @type {boolean} */ (value);
+}
+
+/**
+ * An optional contact value for the User-Agent header: a non-empty string of
+ * visible ASCII without parentheses, semicolons or backslashes, which would
+ * break the header's parenthesised comment.
+ *
+ * @param {unknown} value - The supplied value.
+ * @param {string} field - The field's dotted path, for the error message.
+ * @returns {string|null} The value, or `null` when absent.
+ */
+function optionalContact(value, field) {
+    if (value === undefined) return null;
+    const text = requireNonEmptyString(value, field);
+    if (!contactIsValid(text)) fail(field, CONTACT_RULE);
+    return text;
 }
 
 /**
@@ -3291,6 +3326,17 @@ export function defineConfig(config) {
         false,
     );
 
+    const userAgentUrl = optionalContact(input.userAgentUrl, "userAgentUrl");
+    const userAgentEmail = optionalContact(input.userAgentEmail, "userAgentEmail");
+    if (input.userAgentEmailHosts !== undefined && !Array.isArray(input.userAgentEmailHosts)) {
+        fail("userAgentEmailHosts", "must be an array");
+    }
+    const userAgentEmailHosts = (input.userAgentEmailHosts ?? []).map((host, index) => {
+        const name = requireNonEmptyString(host, `userAgentEmailHosts[${index}]`);
+        if (!hostSuffixIsValid(name)) fail(`userAgentEmailHosts[${index}]`, HOST_RULE);
+        return name;
+    });
+
     // Refused above for a documentation package, so there is nothing to read
     // and nothing to derive an asset root or a package-wide system from.
     const foundryPackage =
@@ -3409,6 +3455,9 @@ export function defineConfig(config) {
         docEntryTypes,
         skipDirectories: Object.freeze(skipDirectories),
         forbidGeneratedArt,
+        userAgentUrl,
+        userAgentEmail,
+        userAgentEmailHosts: Object.freeze(userAgentEmailHosts),
         icons: normalizeIcons(input.icons, rootDir),
         languages: normalizeLanguages(input.languages),
         packs: Object.freeze(packs),

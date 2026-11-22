@@ -60,37 +60,40 @@ alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
 authoring.
 
-| Key                                         | Type                                                                       | Required                                                                                           | Default                                               |
-| ------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| [`currentDate`](#currentdate)               | quoted neutral date string                                                 | no                                                                                                 | `"720.1"`                                             |
-| [`defaultCalendar`](#defaultcalendar)       | calendar note shortcode                                                    | no                                                                                                 | —                                                     |
-| [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                                                     |
-| [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                                                     |
-| [`homepage`](#homepage)                     | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                                                |
-| [`authors`](#authors)                       | list of `{name, email?, url?, discord?, role?}`                            | no                                                                                                 | `[]`                                                  |
-| [`packageKind`](#packagekind)               | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                                                     |
-| [`stats`](#stats)                           | object                                                                     | yes; refused in a `documentation` package                                                          | —                                                     |
-| [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                                                  |
-| [`art`](#artmasterroots)                    | object with `masterRoots`, `componentRoots` and `archives`                 | no                                                                                                 | `{masterRoots: [], componentRoots: [], archives: []}` |
-| [`paths`](#paths)                           | object                                                                     | no                                                                                                 | see [`paths`](#paths)                                 |
-| [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                                                                                 | `[]`                                                  |
-| [`forbidGeneratedArt`](#forbidgeneratedart) | boolean                                                                    | no                                                                                                 | `false`                                               |
-| [`icons`](#icons)                           | object, or a path to a file holding one                                    | no                                                                                                 | empty registry                                        |
-| [`languages`](#languages)                   | object (name → `{tag, note?}`)                                             | no                                                                                                 | `{}`                                                  |
-| [`packs`](#packs)                           | array                                                                      | yes, at least one entry, in a `systems` or `modules` package; refused in a `documentation` package | —                                                     |
-| [`docs`](#docs)                             | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                                  |
-| [`site`](#site)                             | object                                                                     | no                                                                                                 | see [`site`](#site)                                   |
-| [`pdf`](#pdf)                               | object                                                                     | no                                                                                                 | `null`                                                |
-| [`compatibility`](#compatibility)           | object                                                                     | no; refused in a `documentation` package                                                           | `null`                                                |
-| [`relationships`](#relationships)           | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                                  |
-| [`systems`](#systems)                       | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                                  |
-| [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                                |
-| [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                                                  |
-| [`publish`](#publish)                       | object                                                                     | no                                                                                                 | `{address: {prefix: ""}}`                             |
+| Key                                          | Type                                                                       | Required                                                                                           | Default                                               |
+| -------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [`currentDate`](#currentdate)                | quoted neutral date string                                                 | no                                                                                                 | `"720.1"`                                             |
+| [`defaultCalendar`](#defaultcalendar)        | calendar note shortcode                                                    | no                                                                                                 | —                                                     |
+| [`contentPackage`](#contentpackage)          | string                                                                     | yes                                                                                                | —                                                     |
+| [`foundryPackage`](#foundrypackage)          | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                                                     |
+| [`homepage`](#homepage)                      | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                                                |
+| [`authors`](#authors)                        | list of `{name, email?, url?, discord?, role?}`                            | no                                                                                                 | `[]`                                                  |
+| [`packageKind`](#packagekind)                | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                                                     |
+| [`stats`](#stats)                            | object                                                                     | yes; refused in a `documentation` package                                                          | —                                                     |
+| [`itemBuilders`](#itembuilders)              | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                                                  |
+| [`art`](#artmasterroots)                     | object with `masterRoots`, `componentRoots` and `archives`                 | no                                                                                                 | `{masterRoots: [], componentRoots: [], archives: []}` |
+| [`paths`](#paths)                            | object                                                                     | no                                                                                                 | see [`paths`](#paths)                                 |
+| [`skipDirectories`](#skipdirectories)        | string[]                                                                   | no                                                                                                 | `[]`                                                  |
+| [`forbidGeneratedArt`](#forbidgeneratedart)  | boolean                                                                    | no                                                                                                 | `false`                                               |
+| [`userAgentUrl`](#user-agent-contact)        | string                                                                     | no                                                                                                 | —                                                     |
+| [`userAgentEmail`](#user-agent-contact)      | string                                                                     | no                                                                                                 | —                                                     |
+| [`userAgentEmailHosts`](#user-agent-contact) | list of host suffixes                                                      | no                                                                                                 | `[]`                                                  |
+| [`icons`](#icons)                            | object, or a path to a file holding one                                    | no                                                                                                 | empty registry                                        |
+| [`languages`](#languages)                    | object (name → `{tag, note?}`)                                             | no                                                                                                 | `{}`                                                  |
+| [`packs`](#packs)                            | array                                                                      | yes, at least one entry, in a `systems` or `modules` package; refused in a `documentation` package | —                                                     |
+| [`docs`](#docs)                              | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                                  |
+| [`site`](#site)                              | object                                                                     | no                                                                                                 | see [`site`](#site)                                   |
+| [`pdf`](#pdf)                                | object                                                                     | no                                                                                                 | `null`                                                |
+| [`compatibility`](#compatibility)            | object                                                                     | no; refused in a `documentation` package                                                           | `null`                                                |
+| [`relationships`](#relationships)            | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                                  |
+| [`systems`](#systems)                        | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                                  |
+| [`requiresSystem`](#requiressystem)          | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                                |
+| [`packageBuild`](#the-packagebuild-section)  | object                                                                     | no                                                                                                 | `{}`                                                  |
+| [`publish`](#publish)                        | object                                                                     | no                                                                                                 | `{address: {prefix: ""}}`                             |
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, userAgentUrl, userAgentEmail, userAgentEmailHosts, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -201,7 +204,7 @@ build writes its `name` as `params.author`. `null` when `authors` is empty.
 as an unknown key, at the key's own line, because `authors` is the one list a
 package names its people in:
 
-> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish).``
+> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, userAgentUrl, userAgentEmail, userAgentEmailHosts, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish).``
 
 `package.json`'s own `author` is npm's and is not read.
 
@@ -750,6 +753,82 @@ finds:
 > ``<file>: error: `<address>` is machine-generated art (`ai: true`), and `forbidGeneratedArt` refuses it in this package``
 
 > ``package-build config: `forbidGeneratedArt` must be a boolean.``
+
+### User-Agent contact
+
+**Keys:** `userAgentUrl` (string), `userAgentEmail` (string),
+`userAgentEmailHosts` (list of host suffixes) · **Optional** · defaults: absent,
+absent, `[]`.
+
+Every outbound request the build makes carries one `User-Agent` header:
+
+```text
+<name>/<version> (<url>[; <email>]) <client>/<version>
+```
+
+`<name>` and `<version>` are the `name` and `version` of the repository's
+`package.json`, with characters a header product token cannot carry replaced by
+`-`. `<client>` names the HTTP client in use. `<url>` is `userAgentUrl`.
+`<email>` is `userAgentEmail`, and it is sent only to a host that equals an
+entry of `userAgentEmailHosts` or is a subdomain of one. With an empty or absent
+list the email goes to no host, and with no `userAgentUrl` and no email the
+parenthesised contact is omitted.
+
+```yaml
+userAgentUrl: https://example.org/contact
+userAgentEmail: user@example.org
+userAgentEmailHosts:
+  - wikimedia.org
+```
+
+The host list scopes where the email goes, so it reaches only the services
+that ask clients to identify themselves. Redirects are followed one hop at a
+time and the header is rebuilt for each hop's host: a listed host that
+redirects to an unlisted one does not pass the email on, and an unlisted host
+that redirects to a listed one adds it for that hop only. An entry is a domain
+suffix of at least two labels whose last label contains a letter, such as
+`wikimedia.org`; a one-label entry such as `org` and a numeric one such as `3.4`
+are refused. An entry may be written `wikimedia.org`, `.wikimedia.org` or
+`*.wikimedia.org`, and all three mean the same.
+
+Each value may also be given in the environment, as a convenience for values
+that belong to one machine. An environment value takes precedence over the
+configuration:
+
+| Variable                               | Overrides             | Form                     |
+| -------------------------------------- | --------------------- | ------------------------ |
+| `PACKAGE_BUILD_USER_AGENT_URL`         | `userAgentUrl`        | string                   |
+| `PACKAGE_BUILD_USER_AGENT_EMAIL`       | `userAgentEmail`      | string                   |
+| `PACKAGE_BUILD_USER_AGENT_EMAIL_HOSTS` | `userAgentEmailHosts` | comma-separated suffixes |
+
+The environment host list replaces the configured list; it does not add to it.
+Its entries follow the same suffix rule as the configured list.
+
+A URL or email is visible ASCII with no parentheses, semicolons or backslashes;
+whitespace, control characters and non-ASCII characters are refused. A refused
+configured value is a configuration error. A refused environment value, or a
+refused entry of the environment host list, is ignored with a warning that
+names the variable and never prints the value. A refused environment URL or
+email leaves the configured one in force. The environment host list still
+replaces the configured list, so when every entry is refused the email is sent
+to no host:
+
+> `warning: PACKAGE_BUILD_USER_AGENT_EMAIL must be visible ASCII without parentheses, semicolons or backslashes; the value is ignored`
+
+A configured email with no host list is reported as a warning the first time a
+request is made, located at the `userAgentEmail` key when it is configured in
+YAML and without a location when it comes from the environment; the email is
+sent nowhere:
+
+> `<file>:<line>:<column>: warning: userAgentEmail is set but userAgentEmailHosts is empty; the email is sent to no host`
+
+A configuration that exists but cannot be loaded is reported once as a warning,
+and requests then carry no configured contact.
+
+Requests made by child processes carry their own tool's header: `npm view`, run
+by the dependency bump check, sends npm's `User-Agent`.
+
+> ``package-build config: `userAgentUrl` must be a string.``
 
 ### `icons`
 

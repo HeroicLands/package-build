@@ -1022,7 +1022,7 @@ describe("mirrored dependency releases", () => {
             await expect(
                 fetchMetadata(config, { id: rel.id, manifest: rel.manifest, verified: "1" }),
             ).rejects.toThrow(/metadataUrl/);
-            expect(publicFetch.mock.calls[0][1].headers).toBeUndefined();
+            expect(publicFetch.mock.calls[0][1].headers.Authorization).toBeUndefined();
         } finally {
             vi.unstubAllGlobals();
             vi.unstubAllEnvs();
