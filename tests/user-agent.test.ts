@@ -205,6 +205,31 @@ describe("fetchFollowingRedirects", () => {
         return seen;
     }
 
+    it("preserves the caller's method and Range header on the first hop and each redirect", async () => {
+        const seen: [string | undefined, Record<string, string>][] = [];
+        const fetcher = async (
+            href: string,
+            init: { method?: string; headers: Record<string, string> },
+        ) => {
+            seen.push([init.method, init.headers]);
+            const host = new URL(href).hostname;
+            if (host === "a.example.com") return redirect("https://b.example.com/x");
+            if (host === "b.example.com") return redirect("https://c.example.com/y");
+            return new Response("ok");
+        };
+        await fetchFollowingRedirects(
+            "https://a.example.com/",
+            { method: "GET", headers: { Range: "bytes=0-0" } },
+            { fetch: fetcher as any, config, env: {} },
+        );
+        expect(seen).toHaveLength(3);
+        for (const [method, headers] of seen) {
+            expect(method).toBe("GET");
+            expect(headers.Range).toBe("bytes=0-0");
+            expect(headers["user-agent"]).toBeTruthy();
+        }
+    });
+
     it("does not pass the email from a listed host to an unlisted one", async () => {
         const seen = await run("https://upload.wikimedia.org/a", {
             "upload.wikimedia.org": "https://cdn.example.com/b",
@@ -256,7 +281,7 @@ describe("fetchFollowingRedirects", () => {
     it("drops Authorization when a hop changes origin and refuses a redirect loop", async () => {
         const auths: (string | undefined)[] = [];
         const fetcher = async (href: string, init: { headers: Record<string, string> }) => {
-            auths.push(init.headers.authorization);
+            auths.push(init.headers.Authorization);
             return new URL(href).hostname === "a.example.com" ?
                     redirect("https://b.example.com/x")
                 :   new Response("ok");

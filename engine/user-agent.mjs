@@ -231,6 +231,21 @@ export function buildUserAgent(url, { config, rootDir, env = process.env } = {})
 }
 
 /**
+ * The caller's headers as a plain object that keeps the names as written, so a
+ * `fetch` that inspects `Range` sees `Range`. A `Headers` instance or an entry
+ * list is read through `Headers`; a caller-supplied User-Agent is dropped.
+ * @param {HeadersInit|undefined} value - The caller's headers.
+ * @returns {Record<string, string>} The headers.
+ */
+function callerHeaders(value) {
+    const entries =
+        value && !Array.isArray(value) && !(value instanceof Headers) ?
+            Object.entries(value)
+        :   [...new Headers(value).entries()];
+    return Object.fromEntries(entries.filter(([name]) => name.toLowerCase() !== "user-agent"));
+}
+
+/**
  * Fetch a URL, following redirects by hand so each hop carries the
  * User-Agent built for that hop's host. The email therefore reaches a host only
  * when that host is listed, however the request got there. `Authorization` is
@@ -256,7 +271,7 @@ export async function fetchFollowingRedirects(url, init = {}, options = {}) {
     const doFetch = options.fetch ?? globalThis.fetch;
     let current = new URL(url);
     let method = init.method;
-    let headers = Object.fromEntries(new Headers(init.headers).entries());
+    let headers = callerHeaders(init.headers);
     for (let hops = 0; ; hops++) {
         const response = await doFetch(current.href, {
             ...init,
