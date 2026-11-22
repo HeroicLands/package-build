@@ -28,7 +28,7 @@ const language = {
         naming: { draws: [{ kind: "place", elements: ["place"] }] },
     },
 };
-const pass = () => ({ available: true, valid: true });
+const pass = () => ({ available: true, valid: true, source: "fixture" });
 const validators = () => ({
     spelling: pass,
     language: pass,
@@ -79,7 +79,191 @@ describe("settlement name candidates", () => {
         });
         expect(result.status).toBe("accepted");
         expect(result.languageAddress).toBe("thalorna-note-skill-aelwthlng");
+        // Fixture checks do not establish real pronunciation or Earth-word acceptance.
+        for (const outcome of Object.values(result.checks)) {
+            expect(outcome).toMatchObject({ source: "fixture" });
+        }
         expect(result.elements.every((element: any) => element.kind === "place")).toBe(true);
+    });
+    it("uses the declared Dunhari stem and ending pool with fixture-only checks", () => {
+        const dunhariCulture = {
+            ...culture,
+            package: "thalorna",
+            shortcode: "dunhariclt",
+            lang: "dunh",
+        };
+        const elements = [
+            {
+                form: "qarvel",
+                position: "opening",
+                kind: "place",
+                word: "qarvel-",
+                sense: "to wall in",
+                examples: ["qarvelakhend"],
+            },
+            {
+                form: "tazhin",
+                position: "opening",
+                kind: "place",
+                word: "tazhin-",
+                sense: "to thresh grain",
+                examples: ["tazhinakhend"],
+            },
+            {
+                form: "venzel",
+                position: "opening",
+                kind: "place",
+                word: "venzel-",
+                sense: "to press oil",
+                examples: ["venzelakhend"],
+            },
+            {
+                form: "sorvad",
+                position: "opening",
+                kind: "place",
+                word: "sorvad-",
+                sense: "to sow",
+                examples: ["sorvadakhend"],
+            },
+            {
+                form: "tevraz",
+                position: "opening",
+                kind: "place",
+                word: "tevraz-",
+                sense: "to well up without failing",
+                examples: ["tevrazavad"],
+            },
+            {
+                form: "ghavul",
+                position: "opening",
+                kind: "place",
+                word: "ghavul-",
+                sense: "to draw water",
+                examples: ["ghavulavad"],
+            },
+            {
+                form: "avad",
+                position: "closing",
+                kind: "place",
+                sense: "watered ground: an oasis or a spring",
+                examples: ["tevrazavad", "ghavulavad"],
+            },
+            {
+                form: "akhend",
+                position: "closing",
+                kind: "place",
+                sense: "a town, a walled settlement",
+                examples: ["qarvelakhend", "tazhinakhend", "venzelakhend", "sorvadakhend"],
+            },
+        ];
+        const dunhariLanguage = {
+            ...language,
+            package: "thalorna",
+            shortcode: "dunharlng",
+            languageCode: "dunh",
+            data: { elements, naming: { draws: [{ kind: "place", elements: ["place"] }] } },
+        };
+        const existing = [
+            "qarvelakhend",
+            "tazhinakhend",
+            "venzelakhend",
+            "sorvadakhend",
+            "tevrazavad",
+            "ghavulavad",
+        ];
+        const available = [
+            "qarvelavad",
+            "tazhinavad",
+            "venzelavad",
+            "sorvadavad",
+            "tevrazakhend",
+            "ghavulakhend",
+        ];
+        const fixtureChecks = Object.fromEntries(
+            Object.keys(validators()).map((check) => [
+                check,
+                vi.fn(() => ({ available: true, valid: true, source: "fixture" })),
+            ]),
+        );
+        const input = {
+            ...request(),
+            culture: dunhariCulture,
+            language: dunhariLanguage,
+            validators: fixtureChecks,
+            maxCandidates: 12,
+        };
+        const selection = { candidateLimit: 6 };
+        const selected: string[] = [];
+        for (let i = 0; i < selection.candidateLimit; i++) {
+            const result = proposeSettlementName({
+                ...input,
+                exclusions: [...existing, ...selected],
+            });
+            expect(result.status).toBe("accepted");
+            // Fixture checks do not establish real pronunciation or Earth-word acceptance.
+            for (const outcome of Object.values(result.checks)) {
+                expect(outcome).toMatchObject({ source: "fixture" });
+            }
+            expect(available).toContain(result.name);
+            expect(selected).not.toContain(result.name);
+            expect(result).toMatchObject({
+                cultureAddress: "thalorna-note-lore-dunhariclt",
+                languageAddress: "thalorna-note-skill-dunharlng",
+            });
+            expect(result.elements.map((element: any) => element.form).join("")).toBe(result.name);
+            for (const component of result.elements) {
+                expect(component).toMatchObject({
+                    form: elements[component.index].form,
+                    position: elements[component.index].position,
+                    kind: elements[component.index].kind,
+                    sense: elements[component.index].sense,
+                });
+            }
+            selected.push(result.name);
+        }
+        expect([...selected].sort()).toEqual([...available].sort());
+        for (const check of Object.values(fixtureChecks)) {
+            expect(check).toHaveBeenCalledTimes(selection.candidateLimit);
+            for (const [name, context] of check.mock.calls as unknown as [string, any][]) {
+                expect(selected).toContain(name);
+                expect(context).toMatchObject({
+                    identity: input.identity,
+                    seed: input.seed,
+                    cultureAddress: "thalorna-note-lore-dunhariclt",
+                    languageAddress: "thalorna-note-skill-dunharlng",
+                    culture: dunhariCulture,
+                    language: dunhariLanguage,
+                });
+                expect(context.elements.map((element: any) => element.form).join("")).toBe(name);
+            }
+        }
+        const exclusions = [...existing, ...selected];
+        expect(proposeSettlementName({ ...input, exclusions })).toMatchObject({
+            status: "exhausted",
+            examined: 12,
+            totalPairs: 12,
+        });
+        const pairBudget = 6;
+        expect(
+            proposeSettlementName({
+                ...input,
+                exclusions,
+                maxCandidates: pairBudget,
+            }),
+        ).toMatchObject({
+            status: "budget",
+            examined: pairBudget,
+            totalPairs: 12,
+        });
+        for (const check of Object.keys(fixtureChecks)) {
+            expect(
+                proposeSettlementName({
+                    ...input,
+                    exclusions: existing,
+                    validators: { ...fixtureChecks, [check]: () => ({ available: false }) },
+                }),
+            ).toMatchObject({ status: "missing", field: `validators.${check}` });
+        }
     });
     it("requires a typed place draw and eligible positions and refuses unsupported composition", () => {
         for (const data of [
