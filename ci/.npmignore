@@ -6,8 +6,12 @@ facial-hair-consumer-overlay.mjs
 consumer-proof-pack.sh
 headwords-consumer-overlay.mjs
 consumer-art-proof.mjs
+consumer-art-release-proof.mjs
+consumer-art-release-network.mjs
 consumer-lock-guard.mjs
 consumer-lock-guard.test.mjs
 real-map-adapter-probe.mjs
 settlement-real-calibration.mjs
 consumer-proof-populations.mjs
+consumer-art-release-fixture.mjs
+consumer-art-release-fixture-build.mjs

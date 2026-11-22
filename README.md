@@ -148,6 +148,16 @@ headword proof.
 Set `art_archives: true` with `consumer: kethira` to add an isolated artwork
 archive compile. The Thalorna proofs ignore this option.
 
+Select `consumer: thalorna-art-release`, supply the exact `consumer_sha`, and set
+`art_release_tag` to a published `HeroicLands/art-thalorna` tag and
+`art_release_sha256` to its reviewed release digest. This proof
+compiles the real Thalorna source with every released ZIP, first with an empty
+archive cache and then with archive fetches refused. The
+`art-release-consumer-proof` artifact records release coordinates and digests,
+archive layout, original-byte preservation, staged artwork and compiled
+references. It requires an eligible published release and does not publish one.
+See [the CI instructions](ci/README.md) for inputs, limits and evidence.
+
 Select `consumer: authoring-reference` to generate the controlled reference
 documents from the selected commit in an isolated snapshot. The
 `authoring-reference` artifact contains the documents and a receipt with the

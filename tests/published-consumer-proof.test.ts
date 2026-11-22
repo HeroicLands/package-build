@@ -26,6 +26,8 @@ it("keeps the consumer proof helpers out of the published package", () => {
     const paths = matching[0][1].files.map((file: { path: string }) => file.path);
     expect(paths).not.toContain("ci/consumer-proof.sh");
     expect(paths).not.toContain("ci/consumer-art-proof.mjs");
+    expect(paths).not.toContain("ci/consumer-art-release-proof.mjs");
+    expect(paths).not.toContain("ci/consumer-art-release-network.mjs");
     expect(paths).not.toContain("ci/consumer-lock-guard.mjs");
     expect(paths).not.toContain("ci/consumer-lock-guard.test.mjs");
     expect(paths).not.toContain("ci/consumer-proof-memory.sh");

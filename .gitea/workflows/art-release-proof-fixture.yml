@@ -1,0 +1,46 @@
+name: Artwork release proof fixture
+
+on:
+    pull_request:
+        branches: [main]
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    fixture:
+        name: Complete release proof with synthetic HTTPS assets
+        if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') }}
+        runs-on: ubuntu-vm
+        timeout-minutes: 60
+        env:
+            TMPDIR: ${{ runner.temp }}
+        steps:
+            - name: Require a ready pull request
+              env:
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+              run: |
+                  case "${PR_TITLE-}" in
+                      [Ww][Ii][Pp]:*) echo 'The fixture requires a ready pull request.' >&2; exit 1 ;;
+                  esac
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  github-server-url: https://git.pupluppy.org
+                  persist-credentials: false
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+              with:
+                  node-version: ${{ vars.CI_NODE_VERSION || '24' }}
+            - name: Verify fixture prerequisites
+              run: |
+                  python3 -c 'import sys,zipfile; assert sys.version_info >= (3, 8)'
+                  openssl version
+            - run: npm ci
+            - name: Exercise complete proof and rejection paths
+              run: node ci/consumer-art-release-fixture.mjs

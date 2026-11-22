@@ -6,7 +6,7 @@ root="$PWD"
 proof="$RUNNER_TEMP/consumer-proof"
 guard="$PWD/ci/consumer-lock-guard.mjs"
 case "$CONSUMER_PROOF" in
-    kethira|thalorna-encoding|thalorna-headwords|thalorna-populations|thalorna-facial-hair) ;;
+    kethira|thalorna-encoding|thalorna-headwords|thalorna-populations|thalorna-facial-hair|thalorna-art-release) ;;
     *) printf 'Unknown consumer proof: %s\n' "$CONSUMER_PROOF" >&2; exit 1 ;;
 esac
 cd consumer-proof-consumer
@@ -18,9 +18,12 @@ if [ "$CONSUMER_PROOF" = thalorna-populations ]; then
     git archive "$CONSUMER_SHA" | tar -x -C "$proof/source"
     cd "$proof/source"
     node "$root/ci/consumer-proof-populations.mjs" prepare "$proof"
-elif [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
+elif [ "$CONSUMER_PROOF" = thalorna-facial-hair ] || [ "$CONSUMER_PROOF" = thalorna-art-release ]; then
     [[ "$CONSUMER_SHA" =~ ^[0-9a-f]{40}$ ]]
-    mkdir -p "$proof/source" "$proof/facial-hair-evidence"
+    mkdir -p "$proof/source"
+    if [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
+        mkdir -p "$proof/facial-hair-evidence"
+    fi
     git archive "$CONSUMER_SHA" > "$proof/consumer-source.tar"
     tar -xf "$proof/consumer-source.tar" -C "$proof/source"
     cd "$proof/source"
@@ -65,6 +68,10 @@ const archive = fs.readFileSync(path.join(process.argv[4], 'candidate.tgz'));
 fs.writeFileSync(path.join(process.argv[4], 'installed-archive.json'), JSON.stringify({archiveSha256: crypto.createHash('sha256').update(archive).digest('hex'), verified: true}) + '\n');
 console.log('Installed package matches every archived file.');
 NODE
+if [ "$CONSUMER_PROOF" = thalorna-art-release ]; then
+    node "$root/ci/consumer-art-release-proof.mjs"
+    exit 0
+fi
 if [ "$CONSUMER_PROOF" = thalorna-facial-hair ]; then
     cp "$root/ci/facial-hair-consumer-overlay.mjs" .facial-hair-consumer-overlay.mjs
     node .facial-hair-consumer-overlay.mjs prepare
