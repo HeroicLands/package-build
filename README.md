@@ -33,19 +33,6 @@ see [writing in invented scripts](docs/guides/writing-in-invented-scripts.md).
 Parallel verse sets `cols=N`, then prefixes each reading with its column
 number; blank lines divide logical rows.
 
-## Converting population declarations
-
-The source checkout includes a one-time converter for content packages. From a package-build checkout at the release containing the converter, install its dependencies with `npm ci`, then supply the consumer's content directory:
-
-```bash
-node scripts/convert-population-actual.mjs --preview /path/to/consumer/assets/content
-node scripts/convert-population-actual.mjs --write /path/to/consumer/assets/content
-```
-
-The converter wraps numeric values, quoted numeric values and null as `actual` in `data.population`, `data.territorial_population` and inline `data.settlements` population fields. Existing maps with `actual` and optional `apparent` remain unchanged. Set `apparent` separately wherever the public figure differs, and update public queries to read `.apparent`. The script is in the source checkout, not the installed package.
-
-Directory inputs recurse through Markdown files and skip files without frontmatter; an explicitly named Markdown file requires frontmatter. The converter preserves surrounding text, comments, quoting, BOM and line endings. It refuses invalid YAML, anchors, aliases, explicit tags, merge or complex keys, unsupported population values and linked files. It checks the whole selection before writing; a filesystem failure during writing can interrupt the write pass. Use `--help` for options and exit status.
-
 ## Working on this repository
 
 Run `npm ci` in each fresh clone or worktree. Its `prepare` step installs the
