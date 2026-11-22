@@ -156,14 +156,14 @@ source commit and SHA-256 hashes; review them before committing the output.
 Select `consumer: thalorna-populations`, set `consumer_sha` to the exact
 Thalorna commit, and supply `population_addresses` as a JSON list of canonical
 place (`thalorna-note-place-…`) and affiliation (`thalorna-sohl-affiliation-…`)
-Addresses. Each selected subject must have differing
-figures and public site and JournalEntry output. The proof checks an isolated
-converted source snapshot, public index and site, and public and private Foundry documents. Its
+Addresses. At least one selected subject must have differing figures; each
+selected subject must have public site and JournalEntry output. The proof checks an isolated
+source snapshot, public index and site, and public and private Foundry documents. Its
 receipt records source and output hashes without copying private source records.
 The source commit must contain population `actual`/`apparent` maps, public SQL
 queries that read `apparent`, and `facial_hair_genders` beside authored
-`facial_hair` weights. The proof converts populations in its source snapshot;
-it does not convert appearance profiles.
+`facial_hair` weights. The proof reads the authored population declarations without
+changing the snapshot’s notes.
 
 The consumer compile choices pack that commit, verify the archive integrity and
 installed bytes, and refuse changes to unrelated locked dependencies before the

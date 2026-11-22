@@ -29,7 +29,6 @@ import {
 import { flattenPublishedAddresses } from "../engine/address-values.mjs";
 import { makeId } from "../engine/ids.mjs";
 import { formatQuantity } from "../engine/infobox.mjs";
-import { convertFiles } from "../scripts/convert-population-actual.mjs";
 
 /** Normalize an in-memory tuple or a published Address link. */
 function addressOf(value) {
@@ -423,8 +422,7 @@ function main(mode, proof) {
             (name) =>
                 name.endsWith(".md") && /^(?:\uFEFF)?---\r?\n/.test(fs.readFileSync(name, "utf8")),
         );
-        const conversion = convertFiles(noteFiles, { write: true });
-        assert.ok(conversion.files > 0, "the source snapshot has no notes");
+        assert.ok(noteFiles.length > 0, "the source snapshot has no notes");
         const selected = [];
         for (const file of noteFiles) {
             const raw = fs.readFileSync(file, "utf8");

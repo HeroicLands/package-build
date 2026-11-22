@@ -190,7 +190,7 @@ describe("consumer population proof", () => {
     });
 });
 
-it("prepares a converted snapshot and verifies exact producer UUIDs", () => {
+it("prepares an authored snapshot and verifies exact producer UUIDs", () => {
     const scratch = process.env.TMPDIR || process.env.RUNNER_TEMP;
     if (!scratch) throw new Error("Population proof tests require TMPDIR or RUNNER_TEMP");
     const root = fs.mkdtempSync(path.join(scratch, "population-proof-"));
@@ -241,11 +241,28 @@ it("prepares a converted snapshot and verifies exact producer UUIDs", () => {
                 env,
                 encoding: "utf8",
             });
+        const content = path.join(root, "assets/content");
+        const hashes = (directory: string): [string, string][] =>
+            fs
+                .readdirSync(directory, { withFileTypes: true })
+                .flatMap((entry): [string, string][] => {
+                    const file = path.join(directory, entry.name);
+                    return entry.isDirectory() ?
+                            hashes(file)
+                        :   [
+                                [
+                                    path.relative(content, file),
+                                    createHash("sha256")
+                                        .update(fs.readFileSync(file))
+                                        .digest("hex"),
+                                ],
+                            ];
+                })
+                .sort(([a], [b]) => a.localeCompare(b));
+        const original = hashes(content);
         const prepared = run("prepare");
         expect(prepared.status, prepared.stderr).toBe(0);
-        expect(fs.readFileSync(path.join(root, "assets/content/Other.md"), "utf8")).toContain(
-            "{actual: 40}",
-        );
+        expect(hashes(content)).toEqual(original);
         const index = [...produced(polity), ...produced(place)];
         put(
             "build/content-index/thalorna-metadata.jsonl",
