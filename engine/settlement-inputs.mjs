@@ -121,7 +121,7 @@ function sourceKey(source, mapId) {
  * @param {string|{package: string, system: string, type: string, shortcode: string}} options.polityAddress - Selected local polity Address.
  * @param {object} options.map - Normalized map.
  * @param {object} [options.bindings] - Explicit map and note bindings.
- * @param {object} [options.settings] - Calculation settings and physical inputs.
+ * @param {object} [options.settings] - Calculation settings and physical inputs. `householdSizes` maps a culture Address to a positive household size used in place of the culture note's `data.householdSize`; the result's `cultureSizeSources` names `trial` or `note` for each culture size.
  * @param {{membership?: Function, charge?: Function}} [context] - Operation-local membership query and work meter.
  * @returns {object} Selected facts, writer capture, calculator inputs and missing stages.
  */
@@ -201,7 +201,16 @@ export function prepareSettlementInputs(
     if (!object(settings) || !object(bindings))
         throw new TypeError("bindings and settings must be objects");
     for (const key of Object.keys(settings))
-        if (!["urbanShares", "placements", "landRules", "urban", "model"].includes(key))
+        if (
+            ![
+                "urbanShares",
+                "placements",
+                "landRules",
+                "urban",
+                "model",
+                "householdSizes",
+            ].includes(key)
+        )
             inputMissing(`settings.${key}`, "this setting is not an external settlement input");
     for (const key of Object.keys(bindings))
         if (!["rows", "notes", "subpolities"].includes(key))
@@ -367,8 +376,45 @@ export function prepareSettlementInputs(
         return hits.length === 1 ? hits[0] : undefined;
     };
     const cultureSizes = {};
+    const cultureSizeSources = {};
+    const sizeOverrides = new Map();
+    if (settings.householdSizes !== undefined) {
+        if (!object(settings.householdSizes))
+            inputMissing("settings.householdSizes", "provide a mapping of culture Address to size");
+        else
+            for (const [name, size] of Object.entries(settings.householdSizes)) {
+                let key;
+                try {
+                    key = canonical(name);
+                } catch {
+                    key = undefined;
+                }
+                const target = key && recordByAddress.get(key);
+                if (key && sizeOverrides.has(key))
+                    inputMissing(
+                        `settings.householdSizes.${name}`,
+                        "name each culture Address once",
+                    );
+                else if (!target || target.type !== "lore" || target.subType !== "culture")
+                    inputMissing(
+                        `settings.householdSizes.${name}`,
+                        "bind an indexed culture Address",
+                    );
+                else if (!positive(size))
+                    inputMissing(
+                        `settings.householdSizes.${name}`,
+                        "provide a positive household size",
+                    );
+                else sizeOverrides.set(key, size);
+            }
+    }
     const readCultureSize = (address, file = "settlement-inputs") => {
         const key = canonical(address);
+        if (key && sizeOverrides.has(key)) {
+            cultureSizes[key] = sizeOverrides.get(key);
+            cultureSizeSources[key] = "trial";
+            return key;
+        }
         const culture = key && recordByAddress.get(key);
         if (
             !culture ||
@@ -384,6 +430,7 @@ export function prepareSettlementInputs(
             return undefined;
         }
         cultureSizes[key] = culture.data.householdSize;
+        cultureSizeSources[key] = "note";
         return key;
     };
     for (const address of new Set(
@@ -1146,6 +1193,7 @@ export function prepareSettlementInputs(
         existingRows,
         existingFacts: facts,
         cultureSizes,
+        cultureSizeSources,
         subpolities,
         urbanTargets,
         cellAreaConversions,

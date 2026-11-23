@@ -268,6 +268,13 @@ it("reports synthetic numerical budgets, household capacity and reserved acreage
             expect(candidate.areaAcres).toBe(candidate.households * candidate.holdingAcres);
             expect(candidate.areaAcres).toBeLessThanOrEqual(candidate.ceilingAcres);
         }
+        expect(receipt.cultureSizeSources).toEqual({ [culture]: "note" });
+        const sized = inspectSession(session, map, {
+            ...trial,
+            settings: { ...trial.settings, householdSizes: { [culture]: 6 } },
+        });
+        expect(sized.cultureSizes).toEqual({ [culture]: 6 });
+        expect(sized.cultureSizeSources).toEqual({ [culture]: "trial" });
         expect(inspectSession(session, map, trial)).toEqual(receipt);
         expect(await sourceHashes(session)).toEqual(before);
         session.assertUnchanged();

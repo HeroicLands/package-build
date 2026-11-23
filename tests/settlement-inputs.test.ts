@@ -1497,6 +1497,112 @@ describe("settlement assembly authority and identities", () => {
             f.session.dispose();
         }
     });
+    it("states the note's household size as the source by default", async () => {
+        const f = await assemblyFixture();
+        try {
+            const result = prepareSettlementInputs(f);
+            expect(result.cultureSizes[f.cultureAddress]).toBe(5);
+            expect(result.cultureSizeSources[f.cultureAddress]).toBe("note");
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("uses a trial household size in place of the note's and states the source", async () => {
+        const f = await assemblyFixture();
+        try {
+            const settings = { householdSizes: { [f.cultureAddress]: 6 } };
+            const result = prepareSettlementInputs({ ...f, settings });
+            expect(result.cultureSizes[f.cultureAddress]).toBe(6);
+            expect(result.cultureSizeSources[f.cultureAddress]).toBe("trial");
+            expect(
+                result.missing.filter((m: any) => m.field.startsWith("settings.householdSizes")),
+            ).toEqual([]);
+            expect(result.existingFacts.map((e: any) => e.fact.householdSize)).toEqual([6, 6]);
+            expect(settings).toEqual({ householdSizes: { [f.cultureAddress]: 6 } });
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("gives a culture that declares no size a trial size", async () => {
+        const f = await assemblyFixture(false, false, false, false, true, false, true);
+        try {
+            const culture = "sessionproof-note-lore-otherfolk";
+            const result = prepareSettlementInputs({
+                ...f,
+                settings: { householdSizes: { [culture]: 6 } },
+            });
+            expect(result.missing.some((m: any) => m.field === `culture ${culture}`)).toBe(false);
+            expect(result.cultureSizes[culture]).toBe(6);
+            expect(result.cultureSizeSources[culture]).toBe("trial");
+        } finally {
+            f.session.dispose();
+        }
+    });
+    it("reports a malformed trial household size", async () => {
+        const f = await assemblyFixture();
+        try {
+            for (const bad of [0, -1, "6", null, Number.NaN]) {
+                const result = prepareSettlementInputs({
+                    ...f,
+                    settings: { householdSizes: { [f.cultureAddress]: bad } },
+                });
+                expect(result.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            field: `settings.householdSizes.${f.cultureAddress}`,
+                            message: "provide a positive household size",
+                        }),
+                    ]),
+                );
+                expect(result.cultureSizeSources[f.cultureAddress]).toBe("note");
+            }
+            const unknown = prepareSettlementInputs({
+                ...f,
+                settings: { householdSizes: { "sessionproof-note-lore-nobody": 4 } },
+            });
+            expect(unknown.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        field: "settings.householdSizes.sessionproof-note-lore-nobody",
+                    }),
+                ]),
+            );
+            for (const key of ["sessionproof-bogus-lore-folk", "sessionproof-Note-lore-folk"]) {
+                const bad = prepareSettlementInputs({
+                    ...f,
+                    settings: { householdSizes: { [key]: 4 } },
+                });
+                expect(bad.missing).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            field: `settings.householdSizes.${key}`,
+                            message: "bind an indexed culture Address",
+                        }),
+                    ]),
+                );
+            }
+            const twice = prepareSettlementInputs({
+                ...f,
+                settings: {
+                    householdSizes: {
+                        [f.cultureAddress]: 6,
+                        "sessionproof-note-lore-Folk": 7,
+                    },
+                },
+            });
+            expect(twice.missing.map((m: any) => m.message)).toContain(
+                "name each culture Address once",
+            );
+            const shape = prepareSettlementInputs({ ...f, settings: { householdSizes: [6] } });
+            expect(shape.missing).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ field: "settings.householdSizes" }),
+                ]),
+            );
+        } finally {
+            f.session.dispose();
+        }
+    });
     it("uses an indexed settlement culture for rural reservations ahead of the map", async () => {
         const f = await assemblyFixture(false, false, false, false, true);
         try {

@@ -123,6 +123,20 @@ Thalorna build runner and memory profile and retains its memory counters separat
 release, compatible pinned consumer, registry access and normal dependency
 availability are required for execution.
 
+## Settlement calibration trial
+
+The settlement calibration trial input is a JSON object with the optional keys
+`bindings`, `settings`, `selection` and `bands`. `settings.householdSizes` maps a
+fully qualified culture Address to a positive household size that the run uses in
+place of that culture note's `data.householdSize`. A culture whose note declares no
+size runs from the trial size alone. A size that is not positive, an Address that
+is not an indexed culture, or a culture named twice in different letter case is
+reported in the receipt's `preflight.missing` as `settings.householdSizes.<address>`.
+
+The receipt's `cultureSizeSources` maps each culture Address in `cultureSizes` to
+`trial` when `settings.householdSizes` supplied its size and `note` when the
+culture note did.
+
 ## Release-proof HTTPS fixture
 
 The **Artwork release proof fixture** workflow runs the complete `proveRelease`

@@ -110,6 +110,7 @@ export function inspectSession(session, map, trial = {}) {
     return {
         polity: { address: mapping.state.address, data: assembled.polity.data },
         cultureSizes: assembled.cultureSizes,
+        cultureSizeSources: assembled.cultureSizeSources,
         existing: assembled.existingFacts.map(({ fact, data, file }) => ({
             fact,
             data,
