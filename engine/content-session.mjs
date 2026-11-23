@@ -292,10 +292,14 @@ async function createContentSessionInternal(
                             if (!sqlScope) {
                                 const dependencies = await sql.cachedDependencies(config);
                                 active();
-                                sqlScope ??= sql.createNotesDatabaseScope(records, {
-                                    dependencies,
-                                    contentBase: tree,
-                                });
+                                sqlScope ??= sql.createConfiguredNotesDatabaseScope(
+                                    records,
+                                    config,
+                                    {
+                                        dependencies,
+                                        contentBase: tree,
+                                    },
+                                );
                             }
                             return sqlScope.database(audience);
                         },

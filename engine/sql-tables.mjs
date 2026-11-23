@@ -60,6 +60,7 @@ import { languageNotesByCode } from "./note-language.mjs";
 import { lexicalSectionsFor } from "./lexical-sections.mjs";
 import { eventViewSections } from "./event-views.mjs";
 import { appendGeneratedSections, joinSections } from "./generated-sections.mjs";
+import { DEFAULT_SQL_MEMORY_LIMIT } from "./sql-memory-limit.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -344,14 +345,44 @@ function sqlRecord(record) {
  * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes from
  *   local and dependency relations.
  * @param {"all"|"public"} [opts.populationAudience=opts.audience] - Population visibility.
- * @param {boolean} [opts.testMemoryLimit] - Test-only fixed 256 MB budget;
- *   production always uses 2 GB. This is not authored configuration.
+ * @param {string} [opts.memoryLimit] - The DuckDB memory budget, from
+ *   the configuration's `sql.memoryLimit`
+ *   (default {@link DEFAULT_SQL_MEMORY_LIMIT}).
+ * @param {boolean} [opts.testMemoryLimit] - Test-only fixed 256 MB budget that
+ *   takes precedence over `memoryLimit`. This is not authored configuration.
  * @param {string} [opts.contentBase] - The directory the records' paths are
  *   relative to, so a refused key is reported at its file and line.
  * @returns {ReturnType<typeof openDatabase>} The open database.
  */
 export async function openNotesDatabase(records, opts = {}) {
     return openDatabase(records, opts);
+}
+
+/**
+ * {@link openNotesDatabase} under a configuration's `sql.memoryLimit`.
+ *
+ * @param {object[]} records - Content-index records.
+ * @param {{sql?: {memoryLimit?: string}}} config - The resolved configuration.
+ * @param {NonNullable<Parameters<typeof openNotesDatabase>[1]>} [opts] - Load options.
+ * @returns {ReturnType<typeof openNotesDatabase>} The open database.
+ */
+export function openConfiguredNotesDatabase(records, config, opts = {}) {
+    return openNotesDatabase(records, { ...opts, memoryLimit: config?.sql?.memoryLimit });
+}
+
+/**
+ * {@link createNotesDatabaseScope} under a configuration's `sql.memoryLimit`.
+ *
+ * @param {object[]} records - Content-index records.
+ * @param {{sql?: {memoryLimit?: string}}} config - The resolved configuration.
+ * @param {Parameters<typeof createNotesDatabaseScope>[1]} [options] - Shared load options.
+ * @returns {ReturnType<typeof createNotesDatabaseScope>} The scope.
+ */
+export function createConfiguredNotesDatabaseScope(records, config, options = {}) {
+    return createNotesDatabaseScope(records, {
+        ...options,
+        memoryLimit: config?.sql?.memoryLimit,
+    });
 }
 
 /**
@@ -370,6 +401,7 @@ async function openDatabase(
         populationAudience = audience,
         contentBase,
         testMemoryLimit = false,
+        memoryLimit: configuredMemoryLimit = DEFAULT_SQL_MEMORY_LIMIT,
     } = {},
     shared,
 ) {
@@ -385,7 +417,7 @@ async function openDatabase(
     if (shared) shared.spillDir = spillDir;
     const jsonl = path.join(base, "notes.jsonl");
 
-    const memoryLimit = testMemoryLimit === true ? "256 MB" : "2 GB";
+    const memoryLimit = testMemoryLimit === true ? "256 MB" : configuredMemoryLimit;
     let instance;
     let connection;
     let load = "local relations";
@@ -648,7 +680,7 @@ async function openDatabase(
             const message =
                 `SQL memory_limit ${memoryLimit} exhausted loading ${load}` +
                 (err.sqlLoad ? ` (${err.sqlLoad})` : "") +
-                ".";
+                "; raise `sql.memoryLimit` in the package configuration.";
             throw Object.assign(new Error(message, { cause: err }), {
                 findings: [{ code: "sql-memory-limit", severity: "error", message }],
             });
@@ -2115,7 +2147,7 @@ export async function prepareTreeSqlTables(
     // been fetched already fails earlier with a message naming the fetch.
     const db =
         (typeof database === "function" ? await database() : database) ??
-        (await openNotesDatabase(allRecords, {
+        (await openConfiguredNotesDatabase(allRecords, config, {
             dependencies: await cachedDependencies(config),
             audience,
             populationAudience,

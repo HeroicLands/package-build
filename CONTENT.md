@@ -44,9 +44,10 @@ list of `{from, codes}` records so source keys retain their case. SQL also
 provides `nameSort` and the `entries` state; `notes` excludes stub entries.
 The canonical pack index retains its complete Foundry export.
 
-Each SQL database has a fixed `memory_limit` of **2 GB**, independent of host
-memory. Load exhaustion reports `sql-memory-limit`, the limit, and the local
-or dependency load that failed. There is no authored memory setting.
+Each SQL database's `memory_limit` is the configuration's `sql.memoryLimit`
+(default **2 GB**; see `docs/configuration.md`), independent of host memory.
+Load exhaustion reports `sql-memory-limit`, the limit, and the local or
+dependency load that failed.
 A content session loads the local and each dependency's JSON records once.
 Public and complete preparations share those base tables, with separate
 connections and catalogs preserving unqualified, `main.*` and dependency

@@ -338,6 +338,13 @@ describe("every nested key list is documented", () => {
         );
     });
 
+    it("`sql`", () => {
+        assertDocuments(
+            "sql",
+            allowedKeys(() => defineConfig(minimal({ sql: { __unrecognised__: true } }))),
+        );
+    });
+
     it("`publish` and `publish.address`", () => {
         assertDocuments(
             "publish",
@@ -524,6 +531,27 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
             thrown(() =>
                 defineConfig(minimal({ stats: { lastModifiedBy: "x", systemVersion: "1.0.0" } })),
             ).replace(/^package-build config: `stats\.systemVersion` /, ""),
+        );
+    });
+
+    it("`sql.memoryLimit`", () => {
+        assertQuoted(
+            thrown(() => defineConfig(minimal({ sql: { memoryLimit: "lots" } }))).replace(
+                /^package-build config: `sql\.memoryLimit` /,
+                "",
+            ),
+        );
+        assertQuoted(
+            thrown(() => defineConfig(minimal({ sql: { memoryLimit: "0 GB" } }))).replace(
+                /^package-build config: `sql\.memoryLimit` /,
+                "",
+            ),
+        );
+        assertQuoted(
+            thrown(() => defineConfig(minimal({ sql: { memoryLimit: "20000000 TB" } }))).replace(
+                /^package-build config: `sql\.memoryLimit` /,
+                "",
+            ),
         );
     });
 

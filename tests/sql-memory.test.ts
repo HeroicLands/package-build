@@ -237,6 +237,20 @@ describe("SQL memory projection", () => {
         }
     });
 
+    it("applies the configured memory limit, and the test override wins over it", async () => {
+        const budget = async (opts: Record<string, unknown>) => {
+            const db = await openNotesDatabase([], opts);
+            try {
+                const result = await db.query("SELECT current_setting('memory_limit') AS budget");
+                return result.rows[0].budget;
+            } finally {
+                await db.close();
+            }
+        };
+        expect(await budget({ memoryLimit: "4 GB" })).toBe("3.7 GiB");
+        expect(await budget({ memoryLimit: "4 GB", testMemoryLimit: true })).toBe("244.1 MiB");
+    });
+
     it.each(["local", "dependency"])(
         "names genuine %s load exhaustion and closes resources",
         async (load) => {
@@ -262,7 +276,9 @@ describe("SQL memory projection", () => {
                             code: "sql-memory-limit",
                             severity: "error",
                             message: expect.stringMatching(
-                                load === "local" ? /256 MB.*local/ : /256 MB.*other/,
+                                load === "local" ?
+                                    /256 MB.*local.*`sql\.memoryLimit`/
+                                :   /256 MB.*other.*`sql\.memoryLimit`/,
                             ),
                         }),
                     ],

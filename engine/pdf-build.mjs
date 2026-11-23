@@ -102,7 +102,11 @@ import {
     readEntryPages,
     typstFailure,
 } from "./pdf-pages.mjs";
-import { cachedDependencies, openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
+import {
+    cachedDependencies,
+    openConfiguredNotesDatabase,
+    prepareTreeSqlTables,
+} from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
 import { collectContentPages, siteGates, gatesFailed, resolveSitePass } from "./site-build.mjs";
 import { figureIndexKeys, resolveInfoboxRef } from "./site-index.mjs";
@@ -912,7 +916,7 @@ async function prepareWorld(resolved, { contentBase, findings, edition }) {
         dir = fs.mkdtempSync(path.join(os.tmpdir(), "content-pdf-"));
         // The one database over the corpus: the books' filters, the generated
         // sections and every authored query read it.
-        db = await openNotesDatabase(records, {
+        db = await openConfiguredNotesDatabase(records, resolved, {
             dir,
             dependencies: await cachedDependencies(resolved),
             audience: "public",

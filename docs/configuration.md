@@ -90,10 +90,11 @@ authoring.
 | [`requiresSystem`](#requiressystem)          | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                                |
 | [`packageBuild`](#the-packagebuild-section)  | object                                                                     | no                                                                                                 | `{}`                                                  |
 | [`publish`](#publish)                        | object                                                                     | no                                                                                                 | `{address: {prefix: ""}}`                             |
+| [`sql`](#sql)                                | object                                                                     | no                                                                                                 | `{memoryLimit: "2 GB"}`                               |
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, userAgentUrl, userAgentEmail, userAgentEmailHosts, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, userAgentUrl, userAgentEmail, userAgentEmailHosts, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, sql). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -204,7 +205,7 @@ build writes its `name` as `params.author`. `null` when `authors` is empty.
 as an unknown key, at the key's own line, because `authors` is the one list a
 package names its people in:
 
-> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, userAgentUrl, userAgentEmail, userAgentEmailHosts, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish).``
+> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, art, skipDirectories, forbidGeneratedArt, userAgentUrl, userAgentEmail, userAgentEmailHosts, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, sql).``
 
 `package.json`'s own `author` is npm's and is not read.
 
@@ -2119,6 +2120,43 @@ manifest's package homepage also stays at that root. A page staged under
 Any other key under `publish.address` is refused:
 
 > ``package-build config: `publish.address.<key>` is not a recognized option (expected one of: prefix).``
+
+---
+
+### `sql`
+
+**Type:** object · **Optional** · default `{memoryLimit: "2 GB"}`.
+
+`sql` holds the settings of the SQL engine that answers `sql` directives and
+the PDF books' filters.
+
+| Key               | Type                   | Required | Default  |
+| ----------------- | ---------------------- | -------- | -------- |
+| `sql.memoryLimit` | string (a DuckDB size) | no       | `"2 GB"` |
+
+`sql.memoryLimit` is the memory the engine holds before it spills to disk or
+refuses a query. It is a number followed by a unit: `KB`, `MB`, `GB`, `TB`,
+`KiB`, `MiB`, `GiB` or `TiB`; `KB` means 1000 bytes and `KiB` means 1024.
+It must be at least 1 MB and below 2^64 bytes. A package whose notes make a
+relation larger than the default raises it, within the memory of the machine that
+builds it:
+
+```yaml
+sql:
+  memoryLimit: 6 GB
+```
+
+A value that is not a size, or is outside that range, is refused:
+
+> ``package-build config: `sql.memoryLimit` must be a size such as `2 GB` or `512 MiB`: a number followed by KB, MB, GB, TB, KiB, MiB, GiB or TiB.``
+
+> ``package-build config: `sql.memoryLimit` must be at least 1 MB.``
+
+> ``package-build config: `sql.memoryLimit` must be below 2^64 bytes.``
+
+Any other key under `sql` is refused:
+
+> ``package-build config: `sql.<key>` is not a recognized option (expected one of: memoryLimit).``
 
 ---
 

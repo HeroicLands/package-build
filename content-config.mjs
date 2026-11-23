@@ -85,6 +85,7 @@ import { EMPTY_ICON_REGISTRY, checkIconRegistry } from "./engine/content-icons.m
 import { MAP_TYPES, NO_PACK, PACK_BY_TYPE } from "./engine/ids.mjs";
 import { ACTOR_TYPES } from "./engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
+import { DEFAULT_SQL_MEMORY_LIMIT, sqlMemoryLimitProblem } from "./engine/sql-memory-limit.mjs";
 
 /**
  * What kind of package this is.
@@ -736,6 +737,9 @@ export function publishesContentPages(config) {
  *                                          hosts `userAgentEmailHosts` lists.
  * @property {string[]} [userAgentEmailHosts] Host suffixes that receive
  *                                          `userAgentEmail`. Default `[]`.
+ * @property {{memoryLimit?: string}} [sql]  The SQL engine's settings.
+ *                                          `memoryLimit` is a DuckDB size such
+ *                                          as `"6 GB"`. Default `"2 GB"`.
  * @property {PackageBuildSection} [packageBuild]  Reserved for
  *                                          `@heroiclands/package-build`, which
  *                                          validates it. Not read here.
@@ -848,6 +852,9 @@ export function publishesContentPages(config) {
  *                                     range, or `null` when none is declared.
  * @property {Readonly<Relationships>} relationships  Frozen; `{}` when absent.
  * @property {Readonly<PublishSwitches>} publish
+ * @property {Readonly<{memoryLimit: string}>} sql  The SQL engine's settings;
+ *                                     `memoryLimit` is the budget it holds
+ *                                     before spilling or failing.
  */
 
 const CONFIG_KEYS = [
@@ -880,6 +887,7 @@ const CONFIG_KEYS = [
     "requiresSystem",
     "packageBuild",
     "publish",
+    "sql",
 ];
 const SYSTEM_KEYS = ["manifest", "compatibility"];
 const COMPATIBILITY_KEYS = ["minimum", "verified"];
@@ -1018,6 +1026,7 @@ const STATS_KEYS = ["lastModifiedBy"];
  */
 export const DERIVED_SYSTEM_VERSION = Symbol.for("package-build.derivedSystemVersion");
 const PUBLISH_KEYS = ["address"];
+const SQL_KEYS = ["memoryLimit"];
 const ADDRESS_KEYS = ["prefix"];
 
 /** @param {unknown} value */
@@ -3094,6 +3103,26 @@ function normalizeItemBuilders(value) {
 }
 
 /**
+ * The `sql` section: the settings of the SQL engine that answers note queries.
+ *
+ * @param {unknown} value - The authored `sql:` value.
+ * @returns {Readonly<{memoryLimit: string}>} The settings, defaults filled in.
+ */
+function normalizeSql(value) {
+    if (value === undefined) return Object.freeze({ memoryLimit: DEFAULT_SQL_MEMORY_LIMIT });
+    if (!isPlainObject(value)) fail("sql", "must be an object");
+    const sql = /** @type {Record<string, unknown>} */ (value);
+    rejectUnknownKeys(sql, SQL_KEYS, "sql.");
+    if (sql.memoryLimit === undefined) {
+        return Object.freeze({ memoryLimit: DEFAULT_SQL_MEMORY_LIMIT });
+    }
+    const memoryLimit = requireNonEmptyString(sql.memoryLimit, "sql.memoryLimit").trim();
+    const problem = sqlMemoryLimitProblem(memoryLimit);
+    if (problem) fail("sql.memoryLimit", problem);
+    return Object.freeze({ memoryLimit });
+}
+
+/**
  * @param {unknown} value
  * @returns {Readonly<PublishSwitches>}
  */
@@ -3475,5 +3504,6 @@ export function defineConfig(config) {
         requiresSystem,
         packageBuild: normalizePackageBuild(input.packageBuild),
         publish: normalizePublish(input.publish),
+        sql: normalizeSql(input.sql),
     });
 }
