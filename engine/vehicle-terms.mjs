@@ -126,6 +126,20 @@ export const VEHICLE_FIELDS = Object.freeze([
                 true,
                 `One of ${words(VEHICLE_MEDIA)}. Aquatic is underwater; floating is on the water surface.`,
             ),
+            scalar(
+                "label",
+                "string",
+                "A nonblank text label.",
+                false,
+                "Optional nonblank free text naming how the vehicle moves in this distribution, such as `sail` or `oar`.",
+            ),
+            scalar(
+                "crew",
+                "number",
+                "A nonnegative whole count of oarsmen.",
+                false,
+                "Optional nonnegative whole number of oarsmen that row this distribution.",
+            ),
             rows(
                 "rates",
                 [

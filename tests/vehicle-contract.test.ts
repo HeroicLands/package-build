@@ -32,6 +32,8 @@ const fixtures: any[] = [
         movementProperties: [
             {
                 medium: "floating",
+                label: "oar",
+                crew: 12,
                 rates: [{ prob: 1, distance: 0, distUnit: "feet", timeUnit: "hour" }],
             },
         ],

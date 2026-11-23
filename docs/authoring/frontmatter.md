@@ -322,6 +322,33 @@ Capacity is measured in seams; fractions are allowed. The
 [note-type reference](../reference/note-types.md#vehicle) describes the
 vehicle fields and their units.
 
+A movement row can carry an optional `label`, free text such as `sail` or `oar`,
+and an optional `crew`, the whole number of oarsmen who row it. A hull moved by
+both sail and oars lists two `floating` rows and labels each. The movement
+distributions with their labels and crew are carried in the content index; the
+vehicle Actor's movement comes from `movementProfiles`.
+
+```yaml
+data:
+  family: Longship
+  size: 3
+  locomotion: [floating]
+  role: [military]
+  capacity: 40
+  movementProperties:
+    - label: sail
+      medium: floating
+      rates:
+        - { prob: 0.1, distance: 0, distUnit: leagues, timeUnit: watch }
+        - { prob: 0.9, distance: 5, distUnit: leagues, timeUnit: watch }
+    - label: oar
+      crew: 20
+      medium: floating
+      rates:
+        - { prob: 0.1, distance: 0, distUnit: leagues, timeUnit: watch }
+        - { prob: 0.9, distance: 2, distUnit: leagues, timeUnit: watch }
+```
+
 The `sohl` block produces a vehicle Actor. Native `sohl.system` values override
 generic defaults; capacities in seams do not determine the native pounds limit.
 A generic occupant maps to one native roster entry, with quantity one. This

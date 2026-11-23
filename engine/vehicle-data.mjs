@@ -198,6 +198,12 @@ export function checkVehicleData(note, { index } = {}) {
                         [...q, "medium"],
                         `${JSON.stringify(row.medium)} must be one of ${VEHICLE_MEDIA.join(", ")}`,
                     );
+                if (
+                    has(row, "label") &&
+                    (row.label === null || (typeof row.label === "string" && !row.label.trim()))
+                )
+                    report([...q, "label"], "must be nonblank");
+                number(row, "crew", q, true);
                 if (!Array.isArray(row.rates)) return;
                 if (!row.rates.length) {
                     report([...q, "rates"], "must be a nonempty list");

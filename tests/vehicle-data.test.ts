@@ -467,3 +467,41 @@ it.each([
         severity: "error",
     });
 });
+
+it("accepts movement rows without a label or crew, and rows with both", () => {
+    expect(findings(base())).toEqual([]);
+    const rates = [rate()];
+    expect(
+        findings({
+            ...base(),
+            locomotion: ["floating"],
+            movementProperties: [
+                { medium: "floating", label: "sail", rates },
+                { medium: "floating", label: "oar", crew: 20, rates },
+                { medium: "floating", label: "towed by a team", crew: 0, rates },
+            ],
+        }),
+    ).toEqual([]);
+});
+
+it("locates a blank or malformed movement label and crew at the field's own line", () => {
+    const check = (key: "label" | "crew", value: any) => {
+        const data = {
+            ...base(),
+            movementProperties: [{ medium: "terrestrial", [key]: value, rates: [rate()] }],
+        };
+        const fm = { type: "vehicle", shortcode: "cart", name: { full: "Cart" }, data };
+        const raw = `---\n${YAML.stringify(fm)}---\nBody.\n`;
+        const out = lintVehicle({ file: "cart.md", fm, raw });
+        const hits = out.filter((item: any) =>
+            item.message.includes(`movementProperties[0].${key}`),
+        );
+        const label = `${key}=${JSON.stringify(value)}`;
+        expect(hits, label).toHaveLength(1);
+        const line = raw.split("\n").findIndex((l) => l.trim().startsWith(`${key}:`)) + 1;
+        expect(hits[0].line, label).toBe(line);
+        expect(hits[0].column, label).toBeGreaterThan(0);
+    };
+    for (const label of ["", "  ", null, 5, []]) check("label", label);
+    for (const crew of [-1, 1.5, null, NaN, Infinity, "12", "abc"]) check("crew", crew);
+});
