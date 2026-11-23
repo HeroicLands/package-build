@@ -5132,6 +5132,8 @@ The words, and what each means:
 | `braided`         | Braided         | Worn in one or more plaits.                           |
 | `locked`          | Locked          | Twisted or matted into locks.                         |
 | `knotted`         | Knotted         | Gathered into a knot or bun.                          |
+| `tied_back`       | Tied Back       | Drawn back from the face and tied, as in a tail.      |
+| `pinned_up`       | Pinned Up       | Pinned or dressed high on the head.                   |
 | `shaved_sides`    | Shaved Sides    | The sides shaved, with a strip left along the crown.  |
 
 **`data.appearance.facial_hair`**

@@ -185,6 +185,18 @@ describe("a being's look takes its words from a closed vocabulary", () => {
         }
     });
 
+    it("declares hair tied back and hair pinned up as hair styles", () => {
+        const words = (LOOK["appearance.hair_style"] ?? []).map(({ value }) => value);
+        expect(words).toContain("tied_back");
+        expect(words).toContain("pinned_up");
+        for (const value of ["tied_back", "pinned_up"]) {
+            expect(findingsOn("appearance.hair_style", value), value).toEqual([]);
+        }
+        for (const value of ["tied-back", "tiedback", "pinned"]) {
+            expect(findingsOn("appearance.hair_style", value), value).toHaveLength(1);
+        }
+    });
+
     it("spells grey the British way, and suggests it for gray", () => {
         for (const field of ["appearance.eye_color", "appearance.hair_color"]) {
             expect(findingsOn(field, "grey"), field).toEqual([]);
