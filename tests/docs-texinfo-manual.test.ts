@@ -19,7 +19,8 @@ import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 
 import { convertDocs, formatFinding, infoText } from "../scripts/docs-texinfo/convert.mjs";
-import { MANIFEST, manifestFiles } from "../scripts/docs-texinfo/manifest.mjs";
+import { resolvePackageBuildConfig } from "../config.mjs";
+import { readPackConfig } from "../engine/pack-config.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -35,28 +36,32 @@ function pages(dir: string): string[] {
     });
 }
 
-describe("the manual's manifest", () => {
-    it("names every page under docs/ exactly once", () => {
-        const listed = manifestFiles();
-        const repeated = listed.filter((file, i) => listed.indexOf(file) !== i);
-        expect(repeated, "pages the manifest names twice").toEqual([]);
-        expect([...listed].sort()).toEqual(pages(DOCS).sort());
+const CONFIGURED = resolvePackageBuildConfig(
+    readPackConfig(path.join(ROOT, "package-build.config.yaml")),
+).texinfo;
+
+describe("the declared manuals", () => {
+    it("start at the documentation home", () => {
+        expect(CONFIGURED[0].page).toBe("index.md");
     });
 
-    it("opens with the documentation home", () => {
-        expect(MANIFEST[0]).toBe("index.md");
+    it("reach every page under docs/", () => {
+        const { findings } = convertDocs({ root: ROOT, manuals: CONFIGURED });
+        expect(findings.map(formatFinding)).toEqual([]);
     });
 });
 
 describe("the documentation as a manual", () => {
-    const { texinfo, findings } = convertDocs({ root: ROOT });
+    const result = convertDocs({ root: ROOT, manuals: CONFIGURED });
+    const { findings } = result;
+    const texinfo = result.manuals[0].texinfo;
 
     it("converts with no unmapped construct", () => {
         expect(findings.map(formatFinding)).toEqual([]);
     });
 
-    it("has one chapter per page that is not attached to another", () => {
-        const chapters = MANIFEST.length - 1;
+    it("has one chapter per page but the top page", () => {
+        const chapters = pages(DOCS).length - 1;
         expect(texinfo.match(/^@chapter /gm)).toHaveLength(chapters);
         const version = JSON.parse(
             fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
@@ -113,20 +118,92 @@ describe("the documentation as a manual", () => {
 });
 
 describe("node scripts/docs-texinfo.mjs", () => {
-    it("writes the manual where --out names", () => {
+    it("writes the manuals and the Info dir file where --out names", () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "docs-texinfo-"));
         try {
-            const out = path.join(dir, "manual.texi");
+            const out = dir;
             const run = spawnSync(process.execPath, ["scripts/docs-texinfo.mjs", "--out", out], {
                 cwd: ROOT,
                 encoding: "utf8",
             });
             expect(run.stderr).toBe("");
             expect(run.status).toBe(0);
-            expect(fs.readFileSync(out, "utf8").startsWith("\\input texinfo\n")).toBe(true);
+            expect(
+                fs
+                    .readFileSync(path.join(out, "package-build.texi"), "utf8")
+                    .startsWith("\\input texinfo\n"),
+            ).toBe(true);
+            expect(fs.readFileSync(path.join(out, "dir"), "utf8")).toContain("(package-build)");
         } finally {
             fs.rmSync(dir, { recursive: true, force: true });
         }
+    });
+
+    it("writes a dir file Info reads: a node separator, then the Top node", () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "docs-texinfo-"));
+        try {
+            const run = spawnSync(process.execPath, ["scripts/docs-texinfo.mjs", "--out", dir], {
+                cwd: ROOT,
+                encoding: "utf8",
+            });
+            expect(run.status).toBe(0);
+            const bytes = fs.readFileSync(path.join(dir, "dir"));
+            const text = bytes.toString("latin1");
+            expect(bytes.filter((b) => b === 0x1f).length).toBe(1);
+            expect(text).toMatch(/\n\x1f\nFile: dir,\tNode: Top\t[^\n]*\n\n\* Menu:\n/);
+            expect(text.indexOf("\x1f")).toBeLessThan(text.indexOf("* Menu:"));
+
+            const info = spawnSync("info", ["-d", dir, "-o", "-", "(dir)"], {
+                encoding: "utf8",
+                env: { ...process.env, INFOPATH: "" },
+            });
+            if (!info.error && info.status === 0) {
+                expect(info.stdout).toContain("(package-build)");
+            }
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    describe("with a configuration it cannot accept", () => {
+        const run = (config: string, docs: Record<string, string> = { "index.md": "# T\n" }) => {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "docs-texinfo-root-"));
+            try {
+                fs.mkdirSync(path.join(root, "docs"));
+                fs.writeFileSync(path.join(root, "package.json"), '{"name":"p","version":"1.0.0"}');
+                fs.writeFileSync(path.join(root, "package-build.config.yaml"), config);
+                for (const [name, body] of Object.entries(docs))
+                    fs.writeFileSync(path.join(root, "docs", name), body);
+                return spawnSync(
+                    process.execPath,
+                    [path.join(ROOT, "scripts/docs-texinfo.mjs"), "--root", root, "--check"],
+                    { cwd: root, encoding: "utf8" },
+                );
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        };
+
+        it("positions a bad entry, exits 1 and prints no stack trace", () => {
+            const result = run(
+                "contentPackage: p\npackageKind: documentation\nauthors:\n  - name: A\npackageBuild:\n  texinfo:\n    - page: ../index.md\n",
+            );
+            expect(result.status).toBe(1);
+            expect(result.stderr).toMatch(
+                /^package-build\.config\.yaml:7:\d+: error: .*packageBuild\.texinfo\[0\]\.page/m,
+            );
+            expect(result.stderr).not.toMatch(/\n\s+at /);
+        });
+
+        it("positions an empty list at the configuration file", () => {
+            const result = run(
+                "contentPackage: p\npackageKind: documentation\nauthors:\n  - name: A\npackageBuild:\n  texinfo: []\n",
+            );
+            expect(result.status).toBe(1);
+            expect(result.stderr).toMatch(
+                /^package-build\.config\.yaml:1:1: error: packageBuild\.texinfo declares no manual/m,
+            );
+        });
     });
 
     it("prints its usage, options, and exit status for --help", () => {
@@ -137,7 +214,8 @@ describe("node scripts/docs-texinfo.mjs", () => {
         expect(run.status).toBe(0);
         for (const text of [
             "usage: node scripts/docs-texinfo.mjs",
-            "--out <file>",
+            "--root <dir>",
+            "--out <dir>",
             "--check",
             "Exit status:",
         ])

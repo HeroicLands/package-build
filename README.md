@@ -73,18 +73,21 @@ to include those fixtures. The default test command leaves them disabled.
 
 ### The Texinfo manual
 
-`node scripts/docs-texinfo.mjs` converts every page under `docs/` into one
-Texinfo manual, `build/docs/package-build.texi`; `--out <file>` writes it
-elsewhere, `--check` converts without writing, and `--help` prints the usage.
-A construct the converter cannot map is reported as
-`file:line:column: error: message`, and any finding exits with status 1 and
+`node scripts/docs-texinfo.mjs` converts the Markdown under `docs/` into the
+Texinfo manuals that `packageBuild.texinfo` declares in
+`package-build.config.yaml`, writing `build/docs/<name>.texi` for each and an
+Info `dir` file that lists them; `--root <dir>` names another repository root, `--out <dir>` writes elsewhere, `--check`
+converts without writing, and `--help` prints the usage. A finding is reported
+as `file:line:column: error: message`, and any finding exits with status 1 and
 writes nothing.
 
-`scripts/docs-texinfo/manifest.mjs` sets the manual's order: the first entry
-is the Top node and every other entry is a chapter. A new page under `docs/`
-goes into the manifest in the same change, at its place in reading order, or
-attached inside another page's chapter after a named heading; a test fails
-when a page is missing from the manifest or listed twice.
+Each manual starts at the top page its entry names and follows that page's
+links: every page it reaches is a chapter, in the order the links are first met.
+`docs/index.md` links every page of this repository's own manual, in reading
+order, so a new page under `docs/` is linked from the index at its place in
+that order; a page no manual reaches is a finding. The
+[configuration reference](docs/configuration.md#packagebuildtexinfo) describes
+the key.
 
 The documentation keeps to the Markdown the converter maps: headings, paragraphs,
 inline code, strong and emphasis, links, fenced code, lists, quotations and pipe
@@ -159,7 +162,7 @@ on macOS arm64 and Linux x64, downloaded once into a reusable cache. Select an
 installed browser with `package-build e2e fast -- --browser electron` (also
 available for `run` and `open`). See [browser selection and cache settings](docs/guides/e2e.md#choose-a-browser).
 
-The package is GPL-3.0-or-later for code and CC-BY-SA-4.0 for original content. See [LICENSE.md](LICENSE.md).
+The package is GPL-3.0-or-later for code and CC-BY-SA-4.0 for the documentation text and the generated manual. See [LICENSE.md](LICENSE.md).
 
 ## Pull request checks
 

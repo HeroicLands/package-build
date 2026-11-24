@@ -12,9 +12,14 @@
  */
 
 /**
- * Convert the Markdown documentation under `docs/` into one Texinfo manual.
+ * Convert the Markdown documentation under `docs/` into Texinfo manuals.
  *
- * Each page is a chapter, in the order `manifest.mjs` gives. A page's title is
+ * A manual starts at a top page and follows that page's links to the other
+ * Markdown pages of the documentation tree: each reachable page is a chapter,
+ * in the order its link is first met, breadth first (the top page's links in
+ * order, then those of each page reached, in turn), and a page met again stays
+ * where it first was. The top page is the Top node. A documentation page no
+ * manual reaches is a finding. A page's title is
  * its first heading when that heading is the only one at the shallowest level,
  * and otherwise its front matter `name.full`. The two heading levels below the
  * title are nodes (`@section`, `@subsection`); deeper headings are
@@ -37,9 +42,9 @@ import remarkParse from "remark-parse";
 import { unified } from "unified";
 import YAML from "yaml";
 
+import { positionOfYamlPath } from "../../engine/diagnostics.mjs";
 import { docHeadingAnchors } from "../../engine/docs-checks.mjs";
 import { HEADING_LINE, splitHeadingAttributes } from "../../engine/heading-attributes.mjs";
-import { MANIFEST } from "./manifest.mjs";
 
 /**
  * @typedef {{file: string, line?: number, column?: number,
@@ -267,39 +272,42 @@ class NodeNames {
 }
 
 /**
- * Convert the documentation to a Texinfo manual.
+ * Convert one manual: the page `page` and every documentation page its links
+ * reach.
  *
  * @param {object} options
- * @param {string} [options.root] - The repository root.
- * @param {string} [options.docsDir] - The documentation, relative to the root.
- * @param {ReadonlyArray<import("./manifest.mjs").ManifestEntry>} [options.manifest]
- * @param {string} [options.version] - Defaults to the root `package.json`'s.
- * @param {(file: string) => string} [options.read] - Reads a root-relative file.
- * @param {(file: string) => boolean} [options.exists] - Whether a root-relative
+ * @param {string} options.root - The repository root.
+ * @param {string} options.docsDir - The documentation, relative to the root.
+ * @param {string} options.page - The top page, relative to `docsDir`.
+ * @param {string} options.out - The output name, without extension.
+ * @param {string|undefined} options.title - The manual's title; the top page's
+ *   title when absent.
+ * @param {string} options.packageName - The documented package's name.
+ * @param {string} options.version - The documented package's version.
+ * @param {(file: string) => string} options.read - Reads a root-relative file.
+ * @param {(file: string) => boolean} options.exists - Whether a root-relative
  *   file exists.
- * @param {string[]} [options.shipped] - The root `package.json` `files` list:
+ * @param {string[]} options.shipped - The root `package.json` `files` list:
  *   what a link to a repository file may point into.
- * @param {Indexer} [options.indexer] - Index entries and index nodes; none by
- *   default.
- * @returns {{texinfo: string, findings: Finding[]}}
+ * @param {Indexer} options.indexer - Index entries and index nodes.
+ * @returns {{texinfo: string, title: string, description: string,
+ *   reached: string[], findings: Finding[]}}
  */
-export function convertDocs({
-    root = process.cwd(),
-    docsDir = "docs",
-    manifest = MANIFEST,
-    version,
-    read = (file) => fs.readFileSync(path.join(root, file), "utf8"),
-    exists = (file) => fs.existsSync(path.join(root, file)),
-    shipped,
-    indexer = {},
-} = {}) {
+function convertManual({
+    root,
+    docsDir,
+    page,
+    out: outName,
+    title: declaredTitle,
+    packageName,
+    version: packageVersion,
+    read,
+    exists,
+    shipped: shippedPaths,
+    indexer,
+}) {
     /** @type {Finding[]} */
     const findings = [];
-    const pkg =
-        version === undefined || shipped === undefined ? JSON.parse(read("package.json")) : {};
-    const packageVersion = version ?? pkg.version;
-    const shippedPaths = shipped ?? pkg.files ?? [];
-
     const report = (doc, node, message) => {
         const start = node?.position?.start;
         findings.push({
@@ -311,7 +319,7 @@ export function convertDocs({
     };
 
     // Pass 1: read every page and lay each chapter out as a stream of headings
-    // and blocks, attached pages spliced in.
+    // and blocks.
 
     /** @type {Map<string, any>} */
     const docs = new Map();
@@ -324,7 +332,7 @@ export function convertDocs({
             findings.push({
                 file,
                 severity: "error",
-                message: "the manifest names a page that does not exist",
+                message: "the page does not exist",
             });
             return undefined;
         }
@@ -416,33 +424,61 @@ export function convertDocs({
         return stream;
     };
 
-    const chapters = [];
-    for (const [index, entry] of manifest.entries()) {
-        const relative = typeof entry === "string" ? entry : entry.file;
+    /**
+     * The documentation page a link points at, relative to `docsDir`, when it
+     * is a Markdown page of the documentation tree that exists.
+     */
+    const pageOf = (doc, url) => {
+        if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(url)) return undefined;
+        const hash = url.indexOf("#");
+        const target = hash < 0 ? url : url.slice(0, hash);
+        if (!target) return undefined;
+        let decoded;
+        try {
+            decoded = decodeURI(target);
+        } catch {
+            return undefined;
+        }
+        const relative = path.posix.normalize(
+            path.posix.join(path.posix.dirname(doc.relative), decoded),
+        );
+        if (relative.startsWith("../") || !relative.endsWith(".md")) return undefined;
+        return exists(path.posix.join(docsDir, relative)) ? relative : undefined;
+    };
+
+    /** The pages a page links to, in the order its links appear. */
+    const linkedPages = (doc) => {
+        const found = [];
+        const walk = (node) => {
+            if (node.type === "link") {
+                const target = pageOf(doc, node.url);
+                if (target) found.push(target);
+            }
+            for (const child of node.children ?? []) walk(child);
+        };
+        walk(doc.tree);
+        return found;
+    };
+
+    // The pages in the order their links are first met, breadth first.
+    const order = [];
+    const queue = [page];
+    const queued = new Set(queue);
+    for (const relative of queue) {
         const doc = loadDoc(relative);
         if (!doc) continue;
-        const stream = pageStream(doc, 0, index === 0);
-        for (const { file, after } of typeof entry === "string" ? [] : entry.attach || []) {
-            const attached = loadDoc(file);
-            if (!attached) continue;
-            const at = stream.findIndex(
-                (event) => event.type === "heading" && event.anchor === after,
-            );
-            if (at < 0) {
-                findings.push({
-                    file: doc.file,
-                    severity: "error",
-                    message: `the manifest attaches ${file} after #${after}, which no heading here declares`,
-                });
-                continue;
-            }
-            const level = stream[at].level;
-            let end = stream.findIndex(
-                (event, i) => i > at && event.type === "heading" && event.level <= level,
-            );
-            if (end < 0) end = stream.length;
-            stream.splice(end, 0, ...pageStream(attached, level, false));
+        order.push(relative);
+        for (const next of linkedPages(doc)) {
+            if (queued.has(next)) continue;
+            queued.add(next);
+            queue.push(next);
         }
+    }
+
+    const chapters = [];
+    for (const [index, relative] of order.entries()) {
+        const doc = docs.get(relative);
+        const stream = pageStream(doc, 0, index === 0);
         // A heading never sits more than one level below the one before it,
         // so the sectioning nests.
         let previous = -1;
@@ -600,19 +636,15 @@ export function convertDocs({
         const withinDocs = path.posix.normalize(
             path.posix.join(path.posix.dirname(doc.relative), decoded),
         );
-        const page = docs.get(withinDocs);
-        if (page) return ref(anchor ? resolveAnchor(page, anchor, node, owner) : page.target);
+        const linked = docs.get(withinDocs);
+        if (linked) return ref(anchor ? resolveAnchor(linked, anchor, node, owner) : linked.target);
         const file = path.posix.normalize(path.posix.join(docsDir, withinDocs));
-        if (file.startsWith("../") || !exists(file)) {
-            report(doc, node, `link ${url} resolves to ${file}, which does not exist`);
+        if (file.startsWith("../")) {
+            report(doc, node, `link ${url} leaves the project`);
             return inline(node.children, ctx);
         }
-        if (file.startsWith(`${docsDir}/`) && file.endsWith(".md")) {
-            report(
-                doc,
-                node,
-                `link ${url} points at ${file}, which the manual's manifest does not include`,
-            );
+        if (!exists(file)) {
+            report(doc, node, `link ${url} resolves to ${file}, which does not exist`);
             return inline(node.children, ctx);
         }
         if (!shippedFile(file)) {
@@ -893,7 +925,10 @@ export function convertDocs({
         for (const child of event.children) detail.push(menuEntry(child.name));
     }
     const top = chapters.find((chapter) => chapter.top);
-    const description = top?.doc.front?.description ?? "";
+    const description = String(top?.doc.front?.description ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+    const title = declaredTitle ?? topTitle;
     const masterMenu = [
         "@menu",
         ...chapterNodes.map((event) => menuEntry(event.name, event.doc.front?.description)),
@@ -908,36 +943,35 @@ export function convertDocs({
         [
             "\\input texinfo",
             "@c Generated from the Markdown under docs/ by scripts/docs-texinfo.mjs.",
-            "@setfilename package-build.info",
+            `@setfilename ${escapeTexinfo(outName)}.info`,
             "@documentencoding UTF-8",
             "@documentlanguage en",
-            "@settitle Package Build",
+            `@settitle ${escapeTexinfo(title)}`,
             `@set VERSION ${escapeTexinfo(packageVersion ?? "")}`,
         ].join("\n"),
         [
             "@copying",
-            "This manual documents @code{@@heroiclands/package-build}, version @value{VERSION}.",
+            `This manual documents @code{${escapeTexinfo(packageName)}}, version @value{VERSION}.`,
             "",
             'Copyright @copyright{} 2024-2026 Tom Rodriguez ("Toasty").',
             "",
             "@quotation",
-            "This manual is part of @code{@@heroiclands/package-build}, which is free",
-            "software: you can redistribute it and/or modify it under the terms of the",
-            "GNU General Public License as published by the Free Software Foundation,",
-            "either version 3 of the License, or (at your option) any later version",
-            "(GPL-3.0-or-later). See @uref{https://www.gnu.org/licenses/}.",
+            "The text of this manual is licensed under the Creative Commons",
+            "Attribution-ShareAlike 4.0 International License (CC-BY-SA-4.0). See",
+            "@uref{https://creativecommons.org/licenses/by-sa/4.0/}. The software it",
+            "documents is licensed under GPL-3.0-or-later.",
             "@end quotation",
             "@end copying",
         ].join("\n"),
         [
             "@dircategory HeroicLands",
             "@direntry",
-            `${"* Package Build: (package-build).".padEnd(32)} ${escapeTexinfo(description.replace(/\s+/g, " ").trim())}`.trimEnd(),
+            direntry(title, outName, description),
             "@end direntry",
         ].join("\n"),
         [
             "@titlepage",
-            "@title Package Build",
+            `@title ${escapeTexinfo(title)}`,
             "@subtitle Version @value{VERSION}",
             "@page",
             "@vskip 0pt plus 1filll",
@@ -954,5 +988,196 @@ export function convertDocs({
         "@bye",
     ].join("\n\n");
 
-    return { texinfo: `${texinfo}\n`, findings };
+    return {
+        texinfo: `${texinfo}\n`,
+        title,
+        description,
+        reached: order.map((relative) => path.posix.join(docsDir, relative)),
+        findings,
+    };
+}
+
+/**
+ * One Info directory entry: `* Title: (name).   Description`.
+ * @param {string} title
+ * @param {string} name - The Info file, without extension.
+ * @param {string} description
+ * @returns {string}
+ */
+function direntry(title, name, description) {
+    // A colon ends the entry's label, so the title carries none.
+    const label = escapeTexinfo(title).replace(/:/g, "");
+    return `${`* ${label}: (${escapeTexinfo(name)}).`.padEnd(32)} ${escapeTexinfo(description)}`.trimEnd();
+}
+
+/**
+ * The files under a root-relative directory, recursively, as root-relative
+ * paths.
+ * @param {string} root
+ * @param {string} dir
+ * @returns {string[]}
+ */
+function listFiles(root, dir) {
+    return fs
+        .readdirSync(path.join(root, dir), { withFileTypes: true })
+        .flatMap((entry) =>
+            entry.isDirectory() ?
+                listFiles(root, path.posix.join(dir, entry.name))
+            :   [path.posix.join(dir, entry.name)],
+        );
+}
+
+/**
+ * Convert the documentation to Texinfo manuals, one per declared top page.
+ *
+ * Every manual starts at its top page and follows links to the other pages of
+ * the documentation tree. A page under the documentation tree that no manual
+ * reaches is a finding, and so is a link to a page that does not exist or that
+ * leaves the project.
+ *
+ * @param {object} options
+ * @param {ReadonlyArray<{page: string, out?: string|null, title?: string|null}>} options.manuals
+ *   The manuals: each a top page relative to `docsDir`, an output name without
+ *   extension (the page's stem, or the package name for `index`, by default)
+ *   and a title (the top page's by default).
+ * @param {string} [options.root] - The repository root.
+ * @param {string} [options.docsDir] - The documentation, relative to the root.
+ * @param {string} [options.version] - Defaults to the root `package.json`'s.
+ * @param {(file: string) => string} [options.read] - Reads a root-relative file.
+ * @param {(file: string) => boolean} [options.exists] - Whether a root-relative
+ *   file exists.
+ * @param {(dir: string) => string[]} [options.list] - The root-relative files
+ *   under a root-relative directory.
+ * @param {string[]} [options.shipped] - The root `package.json` `files` list:
+ *   what a link to a repository file may point into.
+ * @param {Indexer} [options.indexer] - Index entries and index nodes; none by
+ *   default.
+ * @returns {{manuals: Array<{out: string, title: string, texinfo: string}>,
+ *   dir: string, findings: Finding[]}} The manuals, the Info `dir` file that
+ *   lists them, and every finding.
+ */
+export function convertDocs({
+    manuals,
+    root = process.cwd(),
+    docsDir = "docs",
+    version,
+    read = (file) => fs.readFileSync(path.join(root, file), "utf8"),
+    exists = (file) => fs.existsSync(path.join(root, file)),
+    list = (dir) => listFiles(root, dir),
+    shipped,
+    indexer = {},
+    config,
+}) {
+    const pkg =
+        version === undefined || shipped === undefined ? JSON.parse(read("package.json")) : {};
+    const packageVersion = version ?? pkg.version ?? "";
+    const packageName = pkg.name ?? "";
+    const shippedPaths = shipped ?? pkg.files ?? [];
+    const bare = packageName.replace(/^@[^/]+\//, "");
+
+    /** @type {Finding[]} */
+    const findings = [];
+    const seen = new Set();
+    const note = (finding) => {
+        const key = formatFinding(finding);
+        if (seen.has(key)) return;
+        seen.add(key);
+        findings.push(finding);
+    };
+
+    const reached = new Set();
+    const written = new Map();
+    const results = [];
+    // A finding about a manual's declaration sits at the entry's `page` key in
+    // the configuration file, when the caller passes its path and text.
+    const declared = (index, manual, message) => ({
+        ...(config ?
+            {
+                file: config.file,
+                ...positionOfYamlPath(config.text, ["packageBuild", "texinfo", index, "page"]),
+            }
+        :   { file: path.posix.join(docsDir, manual.page) }),
+        severity: "error",
+        message,
+    });
+    for (const [index, manual] of manuals.entries()) {
+        const stem = path.posix.basename(manual.page, ".md");
+        const out = manual.out ?? (stem === "index" && bare ? bare : stem);
+        if (written.has(out)) {
+            note(
+                declared(
+                    index,
+                    manual,
+                    `the manual output name ${out} is used by ${written.get(out)} as well; give one an \`out\``,
+                ),
+            );
+            continue;
+        }
+        if (!exists(path.posix.join(docsDir, manual.page))) {
+            note(
+                declared(
+                    index,
+                    manual,
+                    `the top page ${path.posix.join(docsDir, manual.page)} does not exist`,
+                ),
+            );
+            continue;
+        }
+        written.set(out, path.posix.join(docsDir, manual.page));
+        const result = convertManual({
+            root,
+            docsDir,
+            page: manual.page,
+            out,
+            title: manual.title ?? undefined,
+            packageName: packageName || "package",
+            version: packageVersion,
+            read,
+            exists,
+            shipped: shippedPaths,
+            indexer,
+        });
+        for (const finding of result.findings) note(finding);
+        for (const file of result.reached) reached.add(file);
+        results.push({ out, ...result });
+    }
+
+    let pages = [];
+    try {
+        pages = list(docsDir).filter((file) => file.endsWith(".md"));
+    } catch {
+        pages = [];
+    }
+    for (const file of pages.sort()) {
+        if (reached.has(file)) continue;
+        note({
+            file,
+            line: 1,
+            column: 1,
+            severity: "error",
+            message: "no manual reaches this page; link it from a configured top page",
+        });
+    }
+
+    const dir = [
+        "-*- Text -*-",
+        "This is the Info directory of the generated manuals.",
+        "",
+        "\x1f",
+        "File: dir,\tNode: Top\tThis is the top of the INFO tree",
+        "",
+        "* Menu:",
+        "",
+        "HeroicLands",
+        ...results.map((manual) =>
+            direntry(manual.title, manual.out, manual.description).replace(/@([@{}])/g, "$1"),
+        ),
+        "",
+    ].join("\n");
+
+    return {
+        manuals: results.map(({ out, title, texinfo }) => ({ out, title, texinfo })),
+        dir,
+        findings,
+    };
 }

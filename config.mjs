@@ -84,6 +84,7 @@ const SECTION_KEYS = [
     "proseScore",
     "settlementExemptions",
     "settlementPopulation",
+    "texinfo",
 ];
 
 /**
@@ -239,6 +240,13 @@ function requireBoolean(value, fallback, where) {
  * @property {string} to    Destination, relative to the staged package root.
  * @property {{package: string, system: string, type: string}|undefined} [bindsTo]
  *   The foreign Address each file's basename claims, without its shortcode.
+ *
+ * @typedef {object} TexinfoManual
+ * @property {string} page  The top Markdown page, relative to `docs/`.
+ * @property {string|null} out  The output file name without extension, or
+ *   `null` for the default.
+ * @property {string|null} title  The manual's title, or `null` for the top
+ *   page's title.
  */
 
 /**
@@ -340,6 +348,63 @@ function normalizeManifest(value) {
         }
     }
     return Object.freeze(structuredClone(input));
+}
+
+const TEXINFO_KEYS = ["page", "out", "title"];
+const TEXINFO_OUT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/**
+ * The Texinfo manuals the documentation converter writes: a list of top pages,
+ * each with an optional output name and title.
+ *
+ * @param {unknown} value
+ * @returns {readonly Readonly<TexinfoManual>[]}
+ */
+function normalizeTexinfo(value) {
+    if (value === undefined) return Object.freeze([]);
+    if (!Array.isArray(value)) fail("packageBuild.texinfo", "must be a list");
+    const pages = new Set();
+    const outs = new Set();
+    return Object.freeze(
+        value.map((entry, index) => {
+            const where = `packageBuild.texinfo[${index}]`;
+            if (!isMapping(entry)) fail(where, "must be a mapping");
+            const input = /** @type {Record<string, unknown>} */ (entry);
+            rejectUnknownKeys(input, TEXINFO_KEYS, `${where}.`);
+            const page = requireNonEmptyString(input.page, `${where}.page`);
+            if (
+                !page.endsWith(".md") ||
+                page.startsWith("/") ||
+                page.includes("\\") ||
+                page.split("/").some((part) => part === ".." || part === "." || part === "")
+            ) {
+                fail(
+                    `${where}.page`,
+                    "must be a Markdown page path relative to the documentation tree, such as `index.md`",
+                );
+            }
+            if (pages.has(page)) fail(`${where}.page`, `names \`${page}\` more than once`);
+            pages.add(page);
+            /** @type {string|null} */
+            let out = null;
+            if (input.out !== undefined) {
+                out = requireNonEmptyString(input.out, `${where}.out`);
+                if (!TEXINFO_OUT.test(out) || out.endsWith(".texi") || out.endsWith(".info")) {
+                    fail(
+                        `${where}.out`,
+                        "must be a file name without an extension, of letters, digits, `.`, `_` and `-`",
+                    );
+                }
+                if (outs.has(out)) fail(`${where}.out`, `names \`${out}\` more than once`);
+                outs.add(out);
+            }
+            const title =
+                input.title === undefined ?
+                    null
+                :   requireNonEmptyString(input.title, `${where}.title`);
+            return Object.freeze({ page, out, title });
+        }),
+    );
 }
 
 /** The optional converter artifact is a JSON file beneath the package stage. */
@@ -638,6 +703,8 @@ export function normalizeSettlementExemptions(value, population = {}) {
  *                                   named first in the manifest's `styles`.
  * @property {Readonly<Record<string, unknown>>} manifest  The manifest
  *                                   specification, emitted as declared.
+ * @property {readonly Readonly<TexinfoManual>[]} texinfo  The Texinfo manuals,
+ *                                   one per top page of the documentation.
  * @property {string|null} converterData  Optional JSON path relative to the build stage.
  * @property {string|null} manifestFlags  Module to load a `flags` function
  *                                   from, for namespaced flags a repository has
@@ -1014,6 +1081,7 @@ export function resolvePackageBuildConfig(shared) {
                     shared.rootDir,
                 ),
         manifest: normalizeManifest(section.manifest),
+        texinfo: normalizeTexinfo(section.texinfo),
         converterData: normalizeConverterData(section.converterData),
         manifestFlags:
             section.manifestFlags === undefined ?

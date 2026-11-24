@@ -2261,8 +2261,9 @@ packageBuild:
 | [`packageBuild.settlementPopulation`](#settlement-population)                              | mapping                                     | no       | ceiling mode, urban share 0.1                              |
 | [`packageBuild.settlementExemptions`](#settlement-exemptions)                              | array                                       | no       | `[]`                                                       |
 | [`packageBuild.proseScore`](#packagebuildprosescore)                                       | object                                      | no       | `{minWords: 80, bands: {}}`                                |
+| [`packageBuild.texinfo`](#packagebuildtexinfo)                                             | array of objects                            | no       | `[]`                                                       |
 
-> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, shippingLicenses, baseStyles, manifest, manifestFlags, converterData, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore, settlementExemptions, settlementPopulation).``
+> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, shippingLicenses, baseStyles, manifest, manifestFlags, converterData, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore, settlementExemptions, settlementPopulation, texinfo).``
 
 ### `packageBuild.proseLint`
 
@@ -2673,6 +2674,77 @@ the repository's own. Every value must still be a non-empty string, naming
 the source directory:
 
 > ``package-build config: `packageBuild.e2e.documents.<key>` must be a non-empty string.``
+
+### `packageBuild.texinfo`
+
+The Texinfo manuals `scripts/docs-texinfo.mjs` writes from the Markdown under
+`docs/`: a list with one entry per manual. Only package-build's own
+documentation build reads this key, because `scripts/` is not part of the
+published package; a consuming package's configuration does not use it. Each entry names the manual's top
+page. The converter starts there, follows the page's links to the other
+Markdown pages of `docs/`, and makes each page it reaches a chapter, in the
+order the links are first met: the top page's links in order, then the links of
+each page reached, in turn. The top page is the manual's Top node. A page
+linked more than once is one chapter, and a page two manuals both reach is a
+chapter of each.
+
+| Key                            | Type   | Required | Default                                                                   |
+| ------------------------------ | ------ | -------- | ------------------------------------------------------------------------- |
+| `packageBuild.texinfo[].page`  | string | yes      | none                                                                      |
+| `packageBuild.texinfo[].out`   | string | no       | the page's file name without `.md`; the package name when that is `index` |
+| `packageBuild.texinfo[].title` | string | no       | the top page's title                                                      |
+
+`page` is a path relative to `docs/`, ending in `.md`. `out` names the files
+the manual becomes, `<out>.texi` and `<out>.info`, and `title` is the manual's
+title. The Info directory file, `dir`, lists every manual with the top page's
+`description` front matter.
+
+```yaml
+packageBuild:
+  texinfo:
+    - page: index.md
+      out: tools
+      title: Tools Guide
+    - page: reference/index.md
+      out: tools-reference
+```
+
+With that configuration, `docs/index.md` is the Top node of `tools`, and every
+page it links to, directly or through another page, is a chapter of it.
+`docs/reference/index.md` is the Top node of `tools-reference` and starts its
+own chapter list from its own links. A page both manuals link is a chapter in
+each. The output is `build/docs/tools.texi`, `build/docs/tools-reference.texi`
+and `build/docs/dir`.
+
+The top page of a manual lists the pages it reaches in the order a reader
+should meet them, so its link order is the manual's chapter order.
+
+A link to a Markdown page that does not exist, or that leaves the repository,
+and a page under `docs/` that no manual reaches, are reported as
+`file:line:column: error: message` and stop the conversion:
+
+> `docs/guides/setup.md:12:4: error: link ../tools.md resolves to docs/tools.md, which does not exist`
+
+> `docs/lost.md:1:1: error: no manual reaches this page; link it from a configured top page`
+
+A top page that does not exist and two manuals with one output name are
+reported at the entry's `page` key in `package-build.config.yaml`:
+
+> `package-build.config.yaml:9:13: error: the top page docs/gone.md does not exist`
+
+> ``package-build config: `packageBuild.texinfo` must be a list.``
+
+> ``package-build config: `packageBuild.texinfo[<index>]` must be a mapping.``
+
+> ``package-build config: `packageBuild.texinfo[<index>].<key>` is not a recognised key (expected one of: page, out, title).``
+
+> ``package-build config: `packageBuild.texinfo[<index>].page` must be a Markdown page path relative to the documentation tree, such as `index.md`.``
+
+> ``package-build config: `packageBuild.texinfo[<index>].page` names `<page>` more than once.``
+
+> ``package-build config: `packageBuild.texinfo[<index>].out` must be a file name without an extension, of letters, digits, `.`, `_` and `-`.``
+
+> ``package-build config: `packageBuild.texinfo[<index>].out` names `<out>` more than once.``
 
 ---
 

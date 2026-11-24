@@ -1,0 +1,11 @@
+# The configuration of this repository's own documentation build: it declares
+# the Texinfo manuals that scripts/docs-texinfo.mjs writes.
+contentPackage: packagebuild
+packageKind: documentation
+authors:
+    - name: Tom Rodriguez
+packageBuild:
+    texinfo:
+        - page: index.md
+          out: package-build
+          title: Package Build

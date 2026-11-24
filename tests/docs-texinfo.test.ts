@@ -20,27 +20,53 @@ import {
     infoText,
     nodeNameFor,
 } from "../scripts/docs-texinfo/convert.mjs";
-import type { ManifestEntry } from "../scripts/docs-texinfo/manifest.mjs";
 
 type Files = Record<string, string>;
 
-/** Convert in-memory pages: keys are paths relative to `docs/`. */
-function convert(pages: Files, manifest?: ManifestEntry[], options: Record<string, unknown> = {}) {
-    const files: Files = { "assets/preview/gitea.ini": "", "CONTENT.md": "" };
+type Manual = { page: string; out?: string; title?: string };
+
+/**
+ * Convert in-memory pages: keys are paths relative to `docs/`. Unless
+ * `options.link` is false, the index links to every other page in key order, so
+ * each page is a chapter of the first manual.
+ */
+function convert(
+    pages: Files,
+    manuals: Manual[] = [{ page: "index.md", out: "manual" }],
+    options: Record<string, unknown> = {},
+) {
+    const { link = true, ...rest } = options;
+    const files: Files = {
+        "assets/preview/gitea.ini": "",
+        "CONTENT.md": "",
+        "package.json": JSON.stringify({
+            name: "@org/pkg",
+            version: "1.2.3",
+            files: ["assets", "docs"],
+        }),
+    };
     for (const [file, source] of Object.entries(pages)) files[`docs/${file}`] = source;
+    if (link && files["docs/index.md"] !== undefined) {
+        const others = Object.keys(pages).filter((f) => f !== "index.md");
+        files["docs/index.md"] +=
+            "\n" + others.map((f) => `<!-- ${f} -->\n[${f}](${f})\n`).join("\n");
+    }
     const result = convertDocs({
         root: "/nowhere",
-        version: "1.2.3",
-        shipped: ["assets", "docs"],
-        manifest: manifest ?? ["index.md", ...Object.keys(pages).filter((f) => f !== "index.md")],
+        manuals,
         read: (file: string) => {
             if (!(file in files)) throw new Error(`no ${file}`);
             return files[file];
         },
         exists: (file: string) => file in files,
-        ...options,
+        list: (dir: string) => Object.keys(files).filter((f) => f.startsWith(`${dir}/`)),
+        ...rest,
     });
-    return { ...result, lines: result.findings.map(formatFinding) };
+    return {
+        ...result,
+        texinfo: result.manuals[0]?.texinfo ?? "",
+        lines: result.findings.map(formatFinding),
+    };
 }
 
 const INDEX = "# Manual\n\nThe opening.\n";
@@ -175,25 +201,110 @@ describe("chapters and sections", () => {
         expect(texinfo).toContain("See @ref{Long title,,it}.");
     });
 
-    it("attaches a page after the section the manifest names", () => {
+    it("makes each page a chapter in the order its link is first met", () => {
         const { texinfo, findings } = convert(
             {
-                "index.md": INDEX,
-                "commands.md":
-                    "# Commands\n\n## Group\n\n### `tool one`\n\nOne.\n\n### `tool two`\n\nTwo.\n",
-                "commands/one.md": "# One manual\n\nMore.\n\n## Details\n\nD.\n",
+                "index.md": "# Manual\n\n[B](b.md) then [A](a.md) and [B again](b.md).\n",
+                "a.md": "# A\n\n[C](c.md)\n",
+                "b.md": "# B\n\n[A](a.md) [D](d.md)\n",
+                "c.md": "# C\n",
+                "d.md": "# D\n",
             },
-            [
-                "index.md",
-                { file: "commands.md", attach: [{ file: "commands/one.md", after: "tool-one" }] },
-            ],
+            undefined,
+            { link: false },
         );
         expect(findings).toEqual([]);
-        const text = chapter(texinfo, "Commands");
-        expect(text).toContain("* tool one::\n* One manual::\n* tool two::");
-        expect(text).toContain(
-            "One.\n\n@node One manual\n@subsection One manual\n\nMore.\n\n@anchor{Details}\n@subsubheading Details\n\nD.\n\n@node tool two",
+        expect([...texinfo.matchAll(/^@chapter (.+)$/gm)].map((m) => m[1])).toEqual([
+            "B",
+            "A",
+            "D",
+            "C",
+        ]);
+        expect(texinfo.match(/^@node B$/gm)).toHaveLength(1);
+    });
+
+    it("makes one manual per configured top page, each with its own pages", () => {
+        const pages = {
+            "index.md": "# Guide\n\n[Setup](setup.md)\n",
+            "setup.md": "# Setup\n\n[Shared](shared.md)\n",
+            "ref.md":
+                "---\ndescription: The reference.\n---\n\n# Reference\n\n[Shared](shared.md) [Keys](keys.md)\n",
+            "keys.md": "# Keys\n",
+            "shared.md": "# Shared\n",
+        };
+        const { manuals, dir, findings } = convert(
+            pages,
+            [{ page: "index.md", out: "guide", title: "The Guide" }, { page: "ref.md" }],
+            { link: false },
         );
+        expect(findings).toEqual([]);
+        expect(manuals.map((m: { out: string }) => m.out)).toEqual(["guide", "ref"]);
+        const chapters = (texinfo: string) =>
+            [...texinfo.matchAll(/^@chapter (.+)$/gm)].map((m) => m[1]);
+        expect(chapters(manuals[0].texinfo)).toEqual(["Setup", "Shared"]);
+        expect(chapters(manuals[1].texinfo)).toEqual(["Shared", "Keys"]);
+        expect(manuals[0].texinfo).toContain("@setfilename guide.info");
+        expect(manuals[0].texinfo).toContain("@settitle The Guide");
+        expect(manuals[0].texinfo).toContain("@node Top\n@top Guide");
+        expect(manuals[1].texinfo).toContain("@setfilename ref.info");
+        expect(manuals[1].texinfo).toContain("@settitle Reference");
+        expect(dir).toContain("* Menu:");
+        // Info finds the Top node only after the 0x1F node separator on its own line.
+        expect(dir).toMatch(/\n\x1f\nFile: dir,\tNode: Top\t/);
+        expect(dir).toContain("* The Guide: (guide).");
+        expect(dir).toContain(`${"* Reference: (ref).".padEnd(32)} The reference.`);
+    });
+
+    it("names the default output after the package for the index page", () => {
+        const { manuals } = convert({ "index.md": INDEX }, [{ page: "index.md" }]);
+        expect(manuals[0].out).toBe("pkg");
+    });
+
+    it("reports two manuals with the same output name", () => {
+        const { lines } = convert(
+            { "index.md": INDEX, "a.md": "# A\n" },
+            [
+                { page: "index.md", out: "m" },
+                { page: "a.md", out: "m" },
+            ],
+            { link: false },
+        );
+        expect(lines).toContain(
+            "docs/a.md: error: the manual output name m is used by docs/index.md as well; give one an `out`",
+        );
+    });
+
+    it("positions an output-name clash and a missing top page at the configuration entry", () => {
+        const text =
+            "packageBuild:\n  texinfo:\n    - page: index.md\n      out: m\n    - page: a.md\n      out: m\n    - page: gone.md\n";
+        const { lines } = convert(
+            { "index.md": INDEX, "a.md": "# A\n" },
+            [{ page: "index.md", out: "m" }, { page: "a.md", out: "m" }, { page: "gone.md" }],
+            { link: false, config: { file: "package-build.config.yaml", text } },
+        );
+        expect(lines).toContain(
+            "package-build.config.yaml:5:13: error: the manual output name m is used by docs/index.md as well; give one an `out`",
+        );
+        expect(lines).toContain(
+            "package-build.config.yaml:7:13: error: the top page docs/gone.md does not exist",
+        );
+    });
+
+    it("reports a page no manual reaches", () => {
+        const { lines } = convert(
+            { "index.md": INDEX, "lost.md": "# Lost\n", "deep/also.md": "# Also\n" },
+            undefined,
+            { link: false },
+        );
+        expect(lines).toEqual([
+            "docs/deep/also.md:1:1: error: no manual reaches this page; link it from a configured top page",
+            "docs/lost.md:1:1: error: no manual reaches this page; link it from a configured top page",
+        ]);
+    });
+
+    it("reports a top page that does not exist", () => {
+        const { lines } = convert({ "index.md": INDEX }, [{ page: "gone.md" }], { link: false });
+        expect(lines).toContain("docs/gone.md: error: the top page docs/gone.md does not exist");
     });
 });
 
@@ -386,20 +497,14 @@ describe("links", () => {
         const { lines } = convert(
             {
                 "index.md": INDEX,
-                "a.md": "# A\n\n[x](#nowhere) [y](b.md#nowhere) [z](missing.md)\n[w](../CONTENT.md) [v](stray.md)\n",
+                "a.md": "# A\n\n[x](#nowhere) [y](b.md#nowhere) [z](missing.md)\n[w](../CONTENT.md) [v](../../outside.md)\n",
                 "b.md": "# B\n",
                 ...{},
             },
-            ["index.md", "a.md", "b.md"],
+            undefined,
             {
                 exists: (file: string) =>
-                    [
-                        "docs/index.md",
-                        "docs/a.md",
-                        "docs/b.md",
-                        "docs/stray.md",
-                        "CONTENT.md",
-                    ].includes(file),
+                    ["docs/index.md", "docs/a.md", "docs/b.md", "CONTENT.md"].includes(file),
             },
         );
         expect(lines).toEqual([
@@ -407,7 +512,7 @@ describe("links", () => {
             "docs/a.md:3:15: error: link b.md#nowhere points at an anchor no heading in docs/b.md declares",
             "docs/a.md:3:33: error: link missing.md resolves to docs/missing.md, which does not exist",
             "docs/a.md:4:1: error: link ../CONTENT.md points at CONTENT.md, which the package does not ship",
-            "docs/a.md:4:20: error: link stray.md points at docs/stray.md, which the manual's manifest does not include",
+            "docs/a.md:4:20: error: link ../../outside.md leaves the project",
         ]);
     });
 });
@@ -467,14 +572,14 @@ describe("the manual", () => {
         });
         expect(texinfo.startsWith("\\input texinfo\n")).toBe(true);
         for (const line of [
-            "@setfilename package-build.info",
-            "@settitle Package Build",
+            "@setfilename manual.info",
+            "@settitle Manual",
             "@set VERSION 1.2.3",
             "@dircategory HeroicLands",
-            "* Package Build: (package-build). The whole toolchain.",
+            `${"* Manual: (manual).".padEnd(32)} The whole toolchain.`,
             'Copyright @copyright{} 2024-2026 Tom Rodriguez ("Toasty").',
-            "GNU General Public License",
-            "(GPL-3.0-or-later)",
+            "Attribution-ShareAlike 4.0 International License (CC-BY-SA-4.0)",
+            "@uref{https://creativecommons.org/licenses/by-sa/4.0/}",
             "@node Top\n@top Manual\n\n@insertcopying\n\nThe opening.",
             `${"* A::".padEnd(32)} First things.`,
             "@detailmenu\n --- The Detailed Node Listing ---\n\nA\n\n* S::\n@end detailmenu",

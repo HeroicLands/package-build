@@ -13,13 +13,15 @@
  */
 
 /**
- * Write the Texinfo manual generated from `docs/`.
+ * Write the Texinfo manuals the configuration declares.
  *
- *     node scripts/docs-texinfo.mjs [--out <file>] [--check] [--help]
+ *     node scripts/docs-texinfo.mjs [--root <dir>] [--out <dir>] [--check] [--help]
  *
- * Writes `build/docs/package-build.texi` beneath the repository root, or the
- * file `--out` names. `--check` converts and reports without writing. Every
- * construct the converter cannot map is printed to stderr as
+ * Reads `packageBuild.texinfo` from `package-build.config.yaml` at the
+ * repository root (or the one `--root` names) and writes one `<name>.texi` per manual, with the Info
+ * `dir` file that lists them, into `build/docs/` beneath the repository root
+ * or the directory `--out` names. `--check` converts and reports without
+ * writing. Every finding is printed to stderr as
  * `file:line:column: error: message`; any finding exits with status 1 and
  * writes nothing. `--help` prints the usage and exits with status 0.
  */
@@ -29,34 +31,42 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import { resolvePackageBuildConfig } from "../config.mjs";
+import { locateConfigError, readPackConfig } from "../engine/pack-config.mjs";
 import { convertDocs, formatFinding } from "./docs-texinfo/convert.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const OWN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-const USAGE = "usage: node scripts/docs-texinfo.mjs [--out <file>] [--check] [--help]";
+const USAGE =
+    "usage: node scripts/docs-texinfo.mjs [--root <dir>] [--out <dir>] [--check] [--help]";
 
 const HELP = `${USAGE}
 
-Convert the Markdown under docs/ into one Texinfo manual, in the order
-scripts/docs-texinfo/manifest.mjs gives.
+Convert the Markdown under docs/ into the Texinfo manuals that
+packageBuild.texinfo declares in package-build.config.yaml. Each manual starts
+at its top page and follows links to the other pages, in the order it first
+meets them.
 
 Options:
-  --out <file>  Write the manual to <file> rather than
-                build/docs/package-build.texi beneath the repository root.
-  --check       Convert and report findings without writing the manual.
+  --root <dir>  Read the configuration and docs/ of the repository at <dir>
+                rather than this one.
+  --out <dir>   Write the manuals and the Info dir file to <dir> rather than
+                build/docs beneath the repository root.
+  --check       Convert and report findings without writing.
   --help        Print this help and exit.
 
-Each construct the converter cannot map is printed to stderr as
+Each finding is printed to stderr as
 file:line:column: error: message.
 
 Exit status:
-  0  the manual converted with no findings, or --help
+  0  every manual converted with no findings, or --help
   1  a finding, or an unknown option`;
 
 let values;
 try {
     ({ values } = parseArgs({
         options: {
+            root: { type: "string" },
             out: { type: "string" },
             check: { type: "boolean", default: false },
             help: { type: "boolean", default: false },
@@ -73,7 +83,27 @@ if (values.help) {
     process.exit(0);
 }
 
-const { texinfo, findings } = convertDocs({ root: ROOT });
+const ROOT = path.resolve(values.root ?? OWN_ROOT);
+const CONFIG = path.join(ROOT, "package-build.config.yaml");
+const CONFIG_REL = path.relative(process.cwd(), CONFIG);
+
+let configured;
+try {
+    configured = resolvePackageBuildConfig(readPackConfig(CONFIG)).texinfo;
+} catch (error) {
+    console.error(String(locateConfigError(error, CONFIG_REL).message ?? error));
+    process.exit(1);
+}
+if (!configured.length) {
+    console.error(`${CONFIG_REL}:1:1: error: packageBuild.texinfo declares no manual`);
+    process.exit(1);
+}
+
+const { manuals, dir, findings } = convertDocs({
+    root: ROOT,
+    manuals: configured,
+    config: { file: "package-build.config.yaml", text: fs.readFileSync(CONFIG, "utf8") },
+});
 for (const finding of findings) {
     console.error(
         formatFinding({
@@ -83,12 +113,18 @@ for (const finding of findings) {
     );
 }
 if (findings.length) {
-    console.error(`docs-texinfo: ${findings.length} construct(s) have no Texinfo mapping`);
+    console.error(`docs-texinfo: ${findings.length} finding(s)`);
     process.exit(1);
 }
 if (!values.check) {
-    const out = path.resolve(values.out ?? path.join(ROOT, "build", "docs", "package-build.texi"));
-    fs.mkdirSync(path.dirname(out), { recursive: true });
-    fs.writeFileSync(out, texinfo);
-    console.log(`docs-texinfo: wrote ${path.relative(process.cwd(), out)}`);
+    const out = path.resolve(values.out ?? path.join(ROOT, "build", "docs"));
+    fs.mkdirSync(out, { recursive: true });
+    for (const manual of manuals) {
+        fs.writeFileSync(path.join(out, `${manual.out}.texi`), manual.texinfo);
+        console.log(
+            `docs-texinfo: wrote ${path.relative(process.cwd(), path.join(out, `${manual.out}.texi`))}`,
+        );
+    }
+    fs.writeFileSync(path.join(out, "dir"), dir);
+    console.log(`docs-texinfo: wrote ${path.relative(process.cwd(), path.join(out, "dir"))}`);
 }
