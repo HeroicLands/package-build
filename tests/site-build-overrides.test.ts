@@ -46,7 +46,7 @@ function build(root: string, args: string[]) {
     return spawnSync(process.execPath, [CLI, "site", "build", ...args], {
         cwd: root,
         encoding: "utf8",
-        env: { ...process.env, PACKAGE_BUILD_CONFIG: "" },
+        env: { ...process.env, PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml") },
     });
 }
 

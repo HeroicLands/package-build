@@ -2,7 +2,7 @@
 "@heroiclands/package-build": patch
 ---
 
-**Documentation**
+**Builds and commands**
 
 - The `e2e` command page lists the `fast` flags, the build `sweep` requires, and the end-to-end stage, which is `dev`, `qa`, `prod` or `test`.
 - Every environment variable the commands read is in one index, including the SFTP agent and port and the end-to-end world overrides.

@@ -212,7 +212,10 @@ export async function noPicturePackageOutputs(root) {
             stage: tree(path.join(root, stageDir)),
             cdn: plan.uploads.map((upload) => [upload.key, upload.size]).sort(),
             dependencies: {
-                cached: cachedMetadataIndexes(config).map((entry) => [entry.id, relative(entry.file)]),
+                cached: cachedMetadataIndexes(config).map((entry) => [
+                    entry.id,
+                    relative(entry.file),
+                ]),
                 sql: (await cachedDependencies(config)).map((entry) => [
                     entry.id,
                     relative(entry.file),
