@@ -1,12 +1,16 @@
 # License Information
 
-`@heroiclands/content-build` is **source code only** and is licensed under
-[GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html).
+`@heroiclands/package-build` is licensed in two parts:
 
-Unlike the Song of Heroic Lands system repository, this package carries no
-creative content, so the CC-BY-SA-4.0 half of that project's dual licence does
-not apply here. The content trees this toolchain _compiles_ are licensed by the
-repositories that hold them, and their licences are unaffected by this one.
+- The source code is licensed under
+  [GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html).
+- The documentation text under `docs/` and the Texinfo manual generated from it
+  are licensed under
+  [CC-BY-SA-4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+  (Creative Commons Attribution-ShareAlike 4.0 International).
+
+The content trees this toolchain _compiles_ are licensed by the repositories
+that hold them, and their licences are unaffected by this one.
 
 ## Source Code License
 
@@ -23,3 +27,9 @@ PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program. If not, see <https://www.gnu.org/licenses/>.
+
+## Documentation License
+
+The documentation text under `docs/` and the generated Texinfo manual are
+licensed under the Creative Commons Attribution-ShareAlike 4.0 International
+License. To view a copy, see <https://creativecommons.org/licenses/by-sa/4.0/>.

@@ -159,7 +159,7 @@ on macOS arm64 and Linux x64, downloaded once into a reusable cache. Select an
 installed browser with `package-build e2e fast -- --browser electron` (also
 available for `run` and `open`). See [browser selection and cache settings](docs/guides/e2e.md#choose-a-browser).
 
-The package is GPL-3.0-or-later for code and CC-BY-SA-4.0 for original content. See [LICENSE.md](LICENSE.md).
+The package is GPL-3.0-or-later for code and CC-BY-SA-4.0 for the documentation text and the generated manual. See [LICENSE.md](LICENSE.md).
 
 ## Pull request checks
 
