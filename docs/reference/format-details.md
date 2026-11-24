@@ -2400,8 +2400,10 @@ data:
 - **`direction`**, optional, is `vertical-rl` for a script written in columns,
   top to bottom, with the columns read from the right. A
   [`scroll` fence](../authoring/links-and-markup.md#scrolls) sets text in
-  such a script, and is an error in any other. A script that states no
-  direction is written in lines.
+  such a script, and is an error in any other. A verse div in such a script
+  sets each line as a column; see
+  [verse in a script written in columns](../authoring/links-and-markup.md#verse-in-a-script-written-in-columns).
+  A script that states no direction is written in lines.
 
 A `skill` note of `subType: language` may state `data.emphasis`: `words`,
 `rubric` or `overline`. It overrides the script's convention in every run of the
@@ -7173,7 +7175,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `script`                                   | `{ fonts, emphasis, direction? }`                                                                                   | `script` only: the faces the script is written in, how it marks emphasis and its direction — see [script notes and emphasis](#script-notes-and-emphasis)                                       |
 | `script.fonts`                             | `string[]`, required                                                                                                | Installed faces by the slug `font=` names them by; a face belongs to one script                                                                                                                |
 | `script.emphasis`                          | `rubric` or `overline`, required                                                                                    | Sets `*…*` and `**…**` in a run in one of its faces                                                                                                                                            |
-| `script.direction`                         | `vertical-rl`                                                                                                       | Written in columns, top to bottom, read from the right, which a [`scroll` fence](../authoring/links-and-markup.md#scrolls) sets                                                                |
+| `script.direction`                         | `vertical-rl`                                                                                                       | Written in columns, top to bottom, read from the right, which a [`scroll` fence](../authoring/links-and-markup.md#scrolls) and a verse div set                                                 |
 
 #### A language's words
 

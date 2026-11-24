@@ -1477,6 +1477,45 @@ a.tag:hover {
         grid-template-columns: 1fr;
     }
 }
+/* Verse in a script written in columns: each line is a column, top to bottom,
+   read from the right, one em for the character and half an em between
+   columns. A column holds at most 40em, the book's 40 characters, and a longer
+   line continues in the next column; an indent lowers a column by one
+   character a level. A stanza wider than the page scrolls sideways from the
+   right. A paired Roman presentation stays in lines to the right of the
+   columns, and moves below them in a narrow container. */
+.single-content .verse-vertical .verse-columns {
+    display: block;
+    writing-mode: vertical-rl;
+    line-height: 1.5;
+    inline-size: max-content;
+    max-inline-size: 40em;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.single-content .verse-vertical .verse-columns .verse-line {
+    display: block;
+    margin-inline-start: calc(var(--verse-indent, 0em) * 0.8);
+}
+.single-content .verse-vertical .verse-pair {
+    display: grid;
+    direction: ltr;
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    align-items: start;
+}
+.single-content .verse-vertical .verse-pair .verse-roman .verse-line {
+    display: block;
+}
+@container (max-width: 32rem) {
+    .single-content .verse-vertical .verse-pair {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 0.5em;
+    }
+}
 
 /* Ornamental horizontal rule: thin line flanking a centered gold
    diamond. Uses gradients on ::before/::after to keep the markup

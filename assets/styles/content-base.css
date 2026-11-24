@@ -273,6 +273,63 @@
     }
 }
 
+/*
+ * Verse in a script written in columns: each line is a column, top to bottom,
+ * and the columns are read from the right. The line height sets the column
+ * pitch: one em for the character and half an em between columns. A column
+ * holds at most 40em, the book's 40 characters, and a longer line continues in
+ * the next column. An indent lowers a column's first character by one
+ * character for each level. A stanza wider than its container scrolls
+ * sideways, starting at the right. A paired Roman presentation stays in lines
+ * to the right of the columns, where the first column stands, and moves below
+ * them in a narrow container.
+ */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-vertical
+    .verse-columns {
+    display: block;
+    writing-mode: vertical-rl;
+    line-height: 1.5;
+    inline-size: max-content;
+    max-inline-size: 40em;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-vertical
+    .verse-columns
+    .verse-line {
+    display: block;
+    margin-inline-start: calc(var(--verse-indent, 0em) * 0.8);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-vertical
+    .verse-pair {
+    display: grid;
+    direction: ltr;
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    align-items: start;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-vertical
+    .verse-pair
+    .verse-roman
+    .verse-line {
+    display: block;
+}
+@container (max-width: 32rem) {
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+        .verse-vertical
+        .verse-pair {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 0.5em;
+    }
+}
+
 /* Text set in one of the faces. The font family and features come from the
  * face's own class; a right-to-left block or verse reads from the right. */
 .script-block {

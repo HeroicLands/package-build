@@ -769,11 +769,84 @@ between blank lines is a stanza like any other. HTML preserves `direction` and
 `speaker` classes. Typst preserves those classes through `book-span` and provides
 plain `book-direction` and `book-speaker` hooks. The default appearance is plain.
 
+#### Verse in a script written in columns
+
+A verse div set in a face whose script note states `direction: vertical-rl` is
+written in that script's direction: each line is a column, top to bottom, and
+the columns are read from the right. The div states no direction of its own;
+the script note does:
+
+```yaml
+data:
+  script:
+    fonts: [teng-chou]
+    emphasis: rubric
+    direction: vertical-rl
+```
+
+The verse is written exactly as any other. `lang=` names the language, `enc=`
+the encoding document that draws it in the script, and `/`, leading periods,
+blank lines and `--- {.canto}` keep their meanings. `work=` pairs it with its
+other versions, which stay in lines:
+
+```markdown
+::: {.verse form=song work=record lang=en}
+The record opens at the top,/
+.and the columns run to the left.
+:::
+
+::: {.verse form=song work=record lang=tsu enc=tsutengchouenc}
+chen teng chou hing/
+.tan tsou dou rou
+:::
+```
+
+The encoded original shows its script beside its Roman text, as on any paired
+div. Only the script is set in columns; the Roman presentation, the stanza
+labels and the canto headings and rules stay in lines. A div set in the
+face, by `enc=` or by `font=`, is set in columns, and only a Roman div, with no
+`enc=` or with `enc=default`, stays in lines. An inline verse quotation
+in the script stays in the line of its prose paragraph.
+
+**On the site, in the preview and in Foundry**, the div carries the class
+`verse-vertical`. The build writes it from the script note's direction, and a
+verse div that writes it is refused with a finding at the class. Each stanza's lines in the script are a `.verse-columns`
+block set with `writing-mode: vertical-rl`, one `.verse-line` column for each
+line: a column one em wide and half an em apart from the next. A column holds
+at most 40em, the 40 characters a book column holds, and a longer line, such as
+a paragraph of a prose work, continues in the next column to the left. Each
+level of indent lowers a column's first character by one em. A stanza wider
+than its page scrolls sideways, starting at the right, where the first column
+stands. On a paired div, the columns and the
+Roman `.verse-roman` lines sit side by side in a `.verse-pair`, the Roman to
+the right of the first column; in a container narrower than 32rem, the Roman
+moves below the columns.
+
+**In the book**, Typst has no vertical writing, so each line is a column image
+drawn from the face's TrueType outlines, as a [scroll](#scrolls) is. Every
+column of a verse is as tall as its longest line, up to 40 characters, and a
+longer line continues in the next column. Each level of indent leaves one empty
+cell at the top of the column. A stanza's columns are read from the right and
+wrap down the page where the measure ends; on a paired div, the Roman lines sit
+to their right, with the stanza label at the left. Each column's alt text is
+the Roman text its line was written from; a line drawn in more than one column
+shares the words of that text among its columns in order, in proportion to the
+characters each holds, so every word is read once. A div set by `font=` with no
+Roman presentation has no such text, and each of its columns reads "Verse in"
+and the face's family. Emphasis follows the script's convention as in a scroll.
+An editorial gap (`lang=zxx`) is one empty cell, whatever the length of the
+text it stands for. The columns carry the characters and their emphasis only: a
+speaker's styling and footnote markers in the script's line are not drawn in
+the book, and a paired div keeps them in its Roman lines. A face that the fonts package lists with no TrueType file is set in
+lines in the book.
+
 ### Scrolls
 
 Some scripts are written in vertical columns, top to bottom, with the columns
 read from the right, as on a handscroll. A `scroll` fence sets a passage in one
-of these scripts:
+of these scripts. Verse in one of them, with its lines, indents and versions,
+goes in a verse div; see
+[verse in a script written in columns](#verse-in-a-script-written-in-columns).
 
 ````markdown
 ```scroll {rows=25 cols=12 lang=tsu enc=tsutengchouenc}

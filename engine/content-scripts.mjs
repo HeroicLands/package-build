@@ -36,6 +36,8 @@
  * Public diagnostics count Unicode code-point columns. A scroll's face must
  * belong to a script written vertically. An encoded verse derives native and
  * Roman presentations from one authored text and retains explicit boundaries.
+ * A verse div set in a face whose script is written in columns carries the
+ * class that sets its lines as columns.
  * @module
  */
 
@@ -44,7 +46,7 @@ import { assetImageInfoByPathname } from "./art-fields.mjs";
 import { blockTokens } from "./markdown-blocks.mjs";
 
 import { scanBlocks, BLOCK_CONTAINERS } from "./content-blocks.mjs";
-import { scanVerse } from "./content-verse.mjs";
+import { scanVerse, VERTICAL_VERSE_CLASS } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { footnoteLabels, footnoteReferences } from "./content-footnotes.mjs";
 import { scanScrolls, scrollParagraphs } from "./content-scroll.mjs";
@@ -2150,9 +2152,12 @@ const SCRIPT_BLOCK_CLASS = "script-block";
  * @param {RunDetail} detail - The run.
  * @param {boolean} search - Whether the target is the site, whose search
  *   index a face's code points are kept out of.
+ * @param {ReadonlyMap<string, "vertical-rl">} [directions] - Each face whose
+ *   script is written in columns; a verse div in one of them carries
+ *   {@link module:engine/content-verse.VERTICAL_VERSE_CLASS}.
  * @returns {string|undefined} The text between the braces.
  */
-function rewrittenAttributes(detail, search) {
+function rewrittenAttributes(detail, search, directions) {
     const { run, own, keys, face, generic, encoding } = detail;
     const emphasis = own.classes.find((name) => name === "emph" || name === "strong");
     if (emphasis && !Object.keys(keys).length) {
@@ -2182,6 +2187,8 @@ function rewrittenAttributes(detail, search) {
         if (run.kind === "block") classes.push(SCRIPT_BLOCK_CLASS);
         classes.push(face.class);
         if (run.kind !== "span" && face.direction === "rtl") values.push(["dir", "rtl"]);
+        if (run.kind === "verse" && directions?.get(face.slug) === "vertical-rl")
+            classes.push(VERTICAL_VERSE_CLASS);
         if (search) values.push(["data-pagefind-ignore", "true"]);
     } else if (generic) classes.push(generic);
     if (run.enc !== undefined && run.enc !== "default" && !encoding) return undefined;
@@ -2442,7 +2449,7 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
     for (const detail of details) {
         const { run } = detail;
         if (faulted(run) || (detail.owner && faulted(detail.owner.run))) continue;
-        const attributes = rewrittenAttributes(detail, search);
+        const attributes = rewrittenAttributes(detail, search, ctx.directions);
         if (run.kind === "span") {
             const contentEnd = /** @type {number} */ (detail.contentEnd);
             if (book && detail.reference) {

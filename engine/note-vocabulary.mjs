@@ -2490,8 +2490,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                         allowed: SCRIPT_DIRECTIONS,
                         describe:
                             "How the script is written: `vertical-rl` is columns, top to bottom, " +
-                            "read from the right, which a `scroll` fence sets. A script stating " +
-                            "none is written in lines.",
+                            "read from the right, which a `scroll` fence and a verse div set. A " +
+                            "script stating none is written in lines.",
                     },
                 ]),
                 describe:

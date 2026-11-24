@@ -109,6 +109,16 @@ export const VERSE_KEYS = Object.freeze([
     "data-pagefind-ignore",
 ]);
 
+/**
+ * The class a verse div set in a face whose script is written in columns
+ * carries. {@link module:engine/content-scripts.renderRuns} writes it from the
+ * script note's `direction: vertical-rl`. Markup never states it: a verse div
+ * that writes it is refused by {@link scanVerse}. Each stanza's lines in that
+ * face are then set as columns, top to bottom, read from the right, and a
+ * paired Roman presentation stays in lines beside them.
+ */
+export const VERTICAL_VERSE_CLASS = "verse-vertical";
+
 /** A canto separator, including the escaped form produced by a native run. */
 export const STANZA_BREAK = /^(?:\\?\*){3}$/;
 
@@ -148,6 +158,12 @@ export function scanVerse(source, { checkWorks = true } = {}) {
                     column: keyColumn(lines[region.start], key),
                     message: `${key}= is not a verse attribute`,
                 });
+        if (region.classes.includes(VERTICAL_VERSE_CLASS))
+            errors.push({
+                ...at,
+                column: keyColumn(lines[region.start], `.${VERTICAL_VERSE_CLASS}`),
+                message: `.${VERTICAL_VERSE_CLASS} is set from the script note's direction, not written`,
+            });
         if (region.attributes.work !== undefined && !region.attributes.work.trim())
             errors.push({ ...at, message: "work= needs a nonempty page-local key" });
         const model = parseVerse(region.logicalBody, {
@@ -745,12 +761,24 @@ export function workShapeFindings(blocks) {
  * @param {VerseModel} [options.model] - Parsed structure; defaults to parsing the body.
  * @param {VersePresentation} [options.presentation] - Native-cell font and language.
  * @param {boolean} [options.inline] - Whether wrappers must remain inline-safe.
+ * @param {boolean} [options.vertical] - Whether the lines in the verse's face
+ *   are set as columns: each stanza's native lines in one `.verse-columns`
+ *   block, a column to a line, and a paired Roman presentation in a
+ *   `.verse-roman` block beside it, both inside a `.verse-pair`. Inline verse is
+ *   never set in columns.
  * @returns {string} Markdown with verse layout wrappers.
  */
 export function verseMarkdown(
     body,
-    { labelled = false, model = parseVerse(body), presentation, inline = false } = {},
+    {
+        labelled = false,
+        model = parseVerse(body),
+        presentation,
+        inline = false,
+        vertical = false,
+    } = {},
 ) {
+    const columns = vertical && !inline;
     const escape = (value) =>
         String(value)
             .replace(/&/g, "&amp;")
@@ -780,6 +808,17 @@ export function verseMarkdown(
                 );
             }
             const label = labelled ? `<span class="verse-label">${group.label}</span>` : "";
+            if (columns) {
+                const line = (text, level) =>
+                    `<span class="verse-line${level ? ` i${level}` : ""}"${indentStyle(level)}>${inlineVerse(text)}</span>`;
+                const paired = group.lines.some((entry) => entry.romanText !== undefined);
+                const native = group.lines.map((entry) => line(entry.text, entry.level)).join("");
+                const set =
+                    paired ?
+                        `<span class="verse-pair"><span class="${escape(`${nativeClasses} verse-columns`)}"${nativeAttrs}>${native}</span><span class="verse-roman">${group.lines.map((entry) => line(entry.romanText ?? entry.text, entry.level)).join("")}</span></span>`
+                    :   `<span class="verse-columns">${native}</span>`;
+                return `<div class="verse-stanza">${label}\n\n${set}\n\n</div>`;
+            }
             const rows = group.lines
                 .map((line) => {
                     const content = (text) =>
@@ -807,7 +846,8 @@ export function verseMarkdown(
 }
 
 /**
- * Replace verse divs with wrappers whose bodies remain inline Markdown.
+ * Replace verse divs with wrappers whose bodies remain inline Markdown. A div
+ * carrying {@link VERTICAL_VERSE_CLASS} sets its lines in the face as columns.
  * @param {string} source - Markdown containing verse divs.
  * @param {object} [options] - Encoded display models.
  * @param {Map<string, VersePresentation>} [options.verses] - Presentations keyed by rewritten body.
@@ -862,7 +902,12 @@ export function renderVerse(source, { verses = new Map() } = {}) {
             "",
             `${container ? openingPrefix : indent}<div ${attrs.join(" ")}>`,
             blank,
-            ...verseMarkdown(block.body, { labelled, model, presentation: transported })
+            ...verseMarkdown(block.body, {
+                labelled,
+                model,
+                presentation: transported,
+                vertical: block.classes.includes(VERTICAL_VERSE_CLASS),
+            })
                 .split("\n")
                 .map((line) => (line ? continuation + line : blank)),
             blank,

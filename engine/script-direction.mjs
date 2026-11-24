@@ -27,7 +27,9 @@
  * read from the right. A script that states no direction is written in lines.
  * Markup never states a direction: a `scroll` fence takes its script's, and is
  * refused in a script written in lines; see
- * {@link module:engine/content-scroll}.
+ * {@link module:engine/content-scroll}. A verse div in such a script sets its
+ * lines as columns; see
+ * {@link module:engine/content-verse.VERTICAL_VERSE_CLASS}.
  *
  * @module
  */

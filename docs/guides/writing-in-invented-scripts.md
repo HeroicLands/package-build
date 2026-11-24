@@ -786,6 +786,29 @@ direction is an error. See
 [scrolls](../authoring/links-and-markup.md#scrolls) for every attribute, the
 defaults on each target and the errors.
 
+Verse in that script goes in an ordinary verse div, encoded as any other. Each
+line is set as a column, read from the right, with its indents kept; a column
+holds at most 40 characters, and a longer line continues in the next column.
+The Roman presentation stays in lines beside the columns. Its English version,
+paired by `work=`, is set in lines:
+
+```markdown
+::: {.verse form=song work=record lang=tsu enc=tsutengchouenc}
+chen teng chou hing/
+.tan tsou dou rou
+:::
+
+::: {.verse form=song work=record lang=en}
+The record opens at the top,/
+.and the columns run to the left.
+:::
+```
+
+The book draws each line as a column image from the face's outlines, as it
+draws a scroll. See
+[verse in a script written in columns](../authoring/links-and-markup.md#verse-in-a-script-written-in-columns)
+for the markup each target writes.
+
 ## The core vocabulary
 
 A setting can name the concepts every one of its languages has a word for, and

@@ -18,7 +18,7 @@
  * markdown and a plan and returns a `.typ` document; the filesystem, the note
  * bodies and the compiler that turns the result into a PDF all live in
  * {@link module:engine/pdf-build}. The one file it reads is the TrueType face a
- * `scroll` fence is drawn from, through {@link module:engine/font-outlines}. That split is what lets the outline, the
+ * `scroll` fence, or a verse in a script written in columns, is drawn from, through {@link module:engine/font-outlines}. That split is what lets the outline, the
  * table of contents, every anchor and every link destination be asserted in a
  * unit test with no renderer installed — which is most of what a book has to
  * get right, and all of what a test can check without eyes.
@@ -87,9 +87,15 @@ import { scanSpans } from "./content-spans.mjs";
 import { GENERIC_FONTS, renderRuns, scanRuns } from "./content-scripts.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
-import { rightToLeft } from "./content-verse.mjs";
+import { rightToLeft, VERTICAL_VERSE_CLASS } from "./content-verse.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
-import { panelRoman, scanScrolls, scrollPanels, scrollParagraphs } from "./content-scroll.mjs";
+import {
+    BOOK_SCROLL_ROWS,
+    panelRoman,
+    scanScrolls,
+    scrollPanels,
+    scrollParagraphs,
+} from "./content-scroll.mjs";
 import { BOOK_INK, BOOK_RUBRIC, fontOutlines, scrollPanelSvg } from "./font-outlines.mjs";
 import { HTML_TAG, htmlMessage } from "./content-html.mjs";
 import { EXPRESSION } from "./markdown-expressions.mjs";
@@ -551,6 +557,7 @@ export function markdownToTypst(markdown, opts = {}) {
         footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
         scrolls: marked?.scrolls ?? opts.scrolls ?? new Map(),
         verses: marked?.verses ?? opts.verses ?? new Map(),
+        faces: opts.runs?.faces,
         pageBreaks: opts.pageBreaks !== false,
     };
     // A withheld section is set in the box a `:::secret` is set in, and its
@@ -1291,12 +1298,168 @@ function typstLanguage(tag) {
 /** The classes that set a run in a font: a face's run carries `script`. */
 const FONT_CLASSES = Object.freeze(["script", ...Object.values(GENERIC_FONTS)]);
 
-/** The logical lines of one stanza, with a shared label and paired scripts. */
+/**
+ * The text of a line's inline tokens, as its alt text reads.
+ *
+ * @param {Array<{type: string, content?: string, children?: any[]|null}>} children - The tokens.
+ * @returns {string} The text, its spacing collapsed.
+ */
+function tokensText(children) {
+    let out = "";
+    for (const child of children ?? []) {
+        if (child.type === "text" || child.type === "code_inline") out += child.content;
+        else if (child.type === "softbreak" || child.type === "hardbreak") out += " ";
+        if (child.children) out += tokensText(child.children);
+    }
+    return out.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * A verse line in a face as the cells of a column: one cell for each level of
+ * indent, then one for each character, set by its script's convention where
+ * the rewrite of marked text marked it. An editorial gap (`lang=zxx`) is one
+ * empty cell, whatever the length of the text it stands for, so the gap keeps
+ * its place in the column without lengthening it. The cells carry the
+ * characters and their emphasis; a speaker's styling and footnote markers are
+ * not drawn.
+ *
+ * @param {{level?: number, children?: any[]}} line - The line, its native tokens.
+ * @returns {import("./content-scroll.mjs").ScrollCell[]} The cells.
+ */
+function verseCells(line) {
+    /** @type {import("./content-scroll.mjs").ScrollCell[]} */
+    const cells = Array.from({ length: line.level ?? 0 }, () => ({ text: " ", roman: "" }));
+    const conventions = [];
+    let gap = 0;
+    const walk = (tokens) => {
+        for (const token of tokens ?? []) {
+            if (gap > 0) {
+                if (token.type === "span_open") gap += 1;
+                else if (token.type === "span_close") gap -= 1;
+                continue;
+            }
+            if (token.type === "span_open" && token.attrGet?.("lang") === "zxx") {
+                gap = 1;
+                cells.push({ text: " ", roman: "" });
+                continue;
+            }
+            if (token.type === "script_emphasis_open") conventions.push(token.meta?.convention);
+            else if (token.type === "script_emphasis_close") conventions.pop();
+            else if (token.type === "text" || token.type === "code_inline")
+                for (const char of token.content) {
+                    if (/\p{Default_Ignorable_Code_Point}/u.test(char)) continue;
+                    const emphasis = conventions.at(-1);
+                    cells.push({ text: char, roman: "", ...(emphasis ? { emphasis } : {}) });
+                }
+            if (token.children) walk(token.children);
+        }
+    };
+    walk(line.children);
+    return cells;
+}
+
+/**
+ * The alt text of each column a verse line is drawn in. The words of the text
+ * the line was written from are shared among its columns in order, in
+ * proportion to the characters each column holds, so every word is read once
+ * and a column that continues a long line carries the words it continues
+ * with. Indent cells hold no character.
+ *
+ * @param {import("./content-scroll.mjs").ScrollCell[][]} columns - The line's
+ *   columns, its indent cells included.
+ * @param {number} indent - The indent cells at the head of the first column.
+ * @param {string} roman - The text the line was written from.
+ * @returns {string[]} One alt text for each column.
+ */
+function columnAlts(columns, indent, roman) {
+    const words = roman.split(" ").filter(Boolean);
+    const total = columns.reduce((sum, column) => sum + column.length, 0);
+    const characters = Math.max(1, total - indent);
+    let end = 0;
+    let taken = 0;
+    return columns.map((column) => {
+        end += column.length;
+        const until =
+            end >= total ?
+                words.length
+            :   Math.round((Math.max(0, end - indent) / characters) * words.length);
+        const share = words.slice(taken, until).join(" ");
+        taken = Math.max(taken, until);
+        return share;
+    });
+}
+
+/**
+ * The face a verse in a script written in columns is drawn from: the face
+ * whose class its native presentation carries, where the div carries
+ * {@link VERTICAL_VERSE_CLASS} and the face has a TrueType file.
+ *
+ * @param {string[]|undefined} divClasses - The div's classes.
+ * @param {string[]|undefined} nativeClasses - The native presentation's classes.
+ * @param {object} ctx - Render context, holding the faces.
+ * @returns {import("./script-fonts.mjs").Face|undefined} The face, or
+ *   `undefined` for a verse set in lines.
+ */
+function columnFace(divClasses, nativeClasses, ctx) {
+    if (!divClasses?.includes(VERTICAL_VERSE_CLASS) || !ctx.faces) return undefined;
+    const face = [...ctx.faces.values()].find((entry) => nativeClasses?.includes(entry.class));
+    return face?.file ? face : undefined;
+}
+
+/**
+ * The logical lines of one stanza, with a shared label and paired scripts.
+ *
+ * A div in a script written in columns sets each stanza's native lines as
+ * columns read from the right: Typst has no vertical writing, so each line is
+ * an image drawn from the face's outlines, as a `scroll` fence's columns are.
+ * Every column of the verse is as tall as its longest line, up to
+ * {@link BOOK_SCROLL_ROWS} characters; a longer line continues in the next
+ * column. The columns sit in a paragraph set right to left and wrap where the
+ * measure ends. A paired Roman presentation stays in lines to their right.
+ */
 function workVerse(token, poem, ctx) {
     const paired = token.meta.versePaired;
     const labelled = token.type !== "verse_inline" && Boolean(poem?.attributes.work);
     const nativeClasses = paired?.classes ?? poem?.classes;
     const nativeAttributes = paired?.attributes ?? poem?.attributes;
+    const face =
+        token.type === "verse_inline" ? undefined : columnFace(poem?.classes, nativeClasses, ctx);
+    const outlines = face ? fontOutlines(face.file) : undefined;
+    const lineCells =
+        face ?
+            new Map(
+                (token.meta.verseGroups ?? []).flatMap((group) =>
+                    group.cantoBreak ? [] : group.lines.map((line) => [line, verseCells(line)]),
+                ),
+            )
+        :   new Map();
+    const rows = Math.min(
+        BOOK_SCROLL_ROWS,
+        Math.max(1, ...[...lineCells.values()].map((cells) => cells.length)),
+    );
+    const columnsOf = (lines) => {
+        const boxes = lines.flatMap((line) => {
+            const cells = lineCells.get(line);
+            const columns = [];
+            for (let at = 0; at < Math.max(1, cells.length); at += rows)
+                columns.push(cells.slice(at, at + rows));
+            const text = tokensText(paired ? line.romanChildren : line.children)
+                .replace(/\p{Co}/gu, "")
+                .replace(/\s+/g, " ")
+                .trim();
+            const alts =
+                text ?
+                    columnAlts(columns, line.level ?? 0, text)
+                :   columns.map(() => `Verse in ${face.family}`);
+            return columns.map(
+                (column, at) =>
+                    `#box(image(bytes("${escapeTypstString(scrollPanelSvg([column], rows, outlines))}"), ` +
+                    `format: "svg", height: ${rows}em, alt: "${escapeTypstString(alts[at])}"))`,
+            );
+        });
+        // A zero-width space lets a line break between two columns and adds no width.
+        return `#block(width: 100%)[#set text(dir: rtl)\n${boxes.join("\u200B")}\n]`;
+    };
     const body = (token.meta.verseGroups ?? [])
         .map((group) => {
             if (group.cantoBreak) {
@@ -1312,6 +1475,29 @@ function workVerse(token, poem, ctx) {
                 return `${mark ? scriptWrapped(mark, nativeClasses, nativeAttributes) + "\n" : ""}${rule}${heading ? "\n" + heading : ""}${anchor}`;
             }
             const label = labelled ? `#text(size: 0.75em, fill: luma(45%))[${group.label}]` : "";
+            if (face) {
+                const native = columnsOf(group.lines);
+                const roman =
+                    paired ?
+                        group.lines
+                            .map(
+                                (line) =>
+                                    `${line.level ? `#h(${line.level * 1.25}em)` : ""}${renderInline({ children: line.romanChildren }, ctx)}`,
+                            )
+                            .join(" \\\n")
+                    :   undefined;
+                const cells = [
+                    ...(labelled ? [`[${label}]`] : []),
+                    `[${native}]`,
+                    ...(roman === undefined ? [] : [`[${roman}]`]),
+                ];
+                const columns = [
+                    ...(labelled ? ["2.5em"] : []),
+                    "1fr",
+                    ...(roman === undefined ? [] : ["1fr"]),
+                ];
+                return `#set text(dir: ltr)\n#grid(columns: (${columns.join(", ")}), column-gutter: 1.5em, ${cells.join(", ")})`;
+            }
             const lineText = (line, roman = false) => {
                 const text = renderInline(
                     { children: roman ? line.romanChildren : line.children },

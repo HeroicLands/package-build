@@ -1019,7 +1019,10 @@ passage of it goes in a
 preview and in Foundry, the fence is set with `writing-mode: vertical-rl` in a
 panel that scrolls sideways from the right. In the book, its panels are images
 drawn from the face's TrueType file, which the installed fonts package lists
-under `files.ttf`. A span in the same face stays horizontal.
+under `files.ttf`. A
+[verse div](authoring/links-and-markup.md#verse-in-a-script-written-in-columns)
+in that face sets each line as a column in the same way, its Roman
+presentation in lines beside it. A span in the same face stays horizontal.
 
 The shape is checked when the configuration loads, and each fault is a
 configuration error at its key:
