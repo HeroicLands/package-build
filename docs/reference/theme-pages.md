@@ -3,6 +3,9 @@ shortcode: referencethemepages
 name: { full: "What the theme draws" }
 type: doc
 subType: reference
+texinfo:
+  parent: homepage-root
+  after: [guidessite]
 ---
 
 # What the theme draws

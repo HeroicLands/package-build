@@ -3,6 +3,9 @@ shortcode: referenceformatdetails
 name: { full: "Content format details" }
 type: doc
 subType: reference
+texinfo:
+  parent: homepage-root
+  after: [referencenotetypes]
 ---
 
 ## Content format: how a note becomes documents

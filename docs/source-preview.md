@@ -1,8 +1,11 @@
 ---
-shortcode: source-preview
+shortcode: sourcepreview
 name: { full: "Source preview and Gitea renderer" }
 type: doc
 subType: reference
+texinfo:
+  parent: homepage-root
+  after: [encodingcore]
 ---
 
 # Source preview and Gitea renderer

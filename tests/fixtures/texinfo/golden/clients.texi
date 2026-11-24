@@ -1,0 +1,20 @@
+@node Clients
+@chapter Clients
+@cindex Clients
+
+@ref{Configuration - Clients,,Configuration} and @ref{Options,,options}.
+
+@menu
+* Configuration - Clients::
+@end menu
+
+@node Configuration - Clients
+@section Configuration
+@cindex Configuration
+
+Client settings.
+
+@anchor{Options}
+@subheading Options
+
+Client options.

@@ -1,3 +1,12 @@
+---
+shortcode: referencesettlementplacement
+type: doc
+name: { full: "Settlement site discovery" }
+texinfo:
+  parent: homepage-root
+  after: [referencesettlementproposals]
+---
+
 # Settlement site discovery
 
 `discoverPlacementSites` from `@heroiclands/package-build/engine/settlement-placement` finds geometric candidates in explicitly selected normalized Azgaar cells. Its input is a map returned by `readAzgaarMap`, restricted to the cells being considered, plus all relevant existing site positions in the map's coordinate system. It does not choose how many settlements to create, allocate land, name them, bind map identities or modify source data.

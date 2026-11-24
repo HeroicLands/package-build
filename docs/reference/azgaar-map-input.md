@@ -1,3 +1,12 @@
+---
+shortcode: referenceazgaarmapinput
+type: doc
+name: { full: "Azgaar map input" }
+texinfo:
+  parent: homepage-root
+  after: [referenceformatdetails]
+---
+
 # Azgaar map input
 
 `readAzgaarMap` in `engine/azgaar-map.mjs` reads an Azgaar 1.156.0 **Full JSON** export and the `.map` file it came from. It is an internal authoring input; ordinary builds do not call it. The input supplies the bytes and file names, SHA-256 hashes of both files, version, map identity, seed, dimensions and units as a `pin`. It also supplies an explicit state ID and polity Address and a culture Address for each non-neutral culture in the selected state. It does not match names to notes.

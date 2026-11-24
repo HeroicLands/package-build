@@ -1,3 +1,12 @@
+---
+shortcode: referencesettlementnames
+type: doc
+name: { full: "Settlement name candidates" }
+texinfo:
+  parent: homepage-root
+  after: [referencesettlementurban]
+---
+
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
 
 # Settlement name candidates

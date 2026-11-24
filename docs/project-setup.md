@@ -3,6 +3,9 @@ shortcode: projectsetup
 name: { full: "Project setup" }
 type: doc
 subType: userguide
+texinfo:
+  parent: homepage-root
+  after: [design]
 ---
 
 # Project setup

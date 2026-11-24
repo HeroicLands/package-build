@@ -3,6 +3,9 @@ shortcode: guidesicons
 name: { full: "Icons and artwork" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [guidesbook]
 ---
 
 # Icons and artwork

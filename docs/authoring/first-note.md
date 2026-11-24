@@ -3,6 +3,9 @@ shortcode: authoringfirstnote
 name: { full: "Your first content note" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [contentformat]
 ---
 
 # Your first content note

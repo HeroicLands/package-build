@@ -3,6 +3,9 @@ shortcode: guidessite
 name: { full: "Build a content website" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [guidespacks]
 ---
 
 # Build a content website

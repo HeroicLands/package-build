@@ -3,6 +3,9 @@ shortcode: referencenotetypes
 name: { full: "Note types and fields" }
 type: doc
 subType: reference
+texinfo:
+  parent: homepage-root
+  after: [api]
 ---
 
 # Note types and fields

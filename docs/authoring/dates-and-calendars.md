@@ -3,6 +3,9 @@ shortcode: authoringdatesandcalendars
 name: { full: "Dates, calendars, and eras" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [authoringassets]
 ---
 
 # Dates, calendars, and eras

@@ -3,6 +3,9 @@ shortcode: guidesreleaseanddeploy
 name: { full: "Release and deploy a package" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [guidese2e]
 ---
 
 # Release and deploy a package

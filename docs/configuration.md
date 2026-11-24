@@ -3,6 +3,9 @@ shortcode: configuration
 name: { full: "Configuration" }
 type: doc
 subType: reference
+texinfo:
+  parent: homepage-root
+  after: [commands]
 ---
 
 ## Configuration: `package-build.config.yaml`, key by key
@@ -2680,24 +2683,20 @@ the source directory:
 The Texinfo manuals `scripts/docs-texinfo.mjs` writes from the Markdown under
 `docs/`: a list with one entry per manual. Only package-build's own
 documentation build reads this key, because `scripts/` is not part of the
-published package; a consuming package's configuration does not use it. Each entry names the manual's top
-page. The converter starts there, follows the page's links to the other
-Markdown pages of `docs/`, and makes each page it reaches a chapter, in the
-order the links are first met: the top page's links in order, then the links of
-each page reached, in turn. The top page is the manual's Top node. A page
-linked more than once is one chapter, and a page two manuals both reach is a
-chapter of each.
+published package; a consuming package's configuration does not use it. Each
+entry names the manual's top page, and the pages that take part and the order
+of their chapters come from the `texinfo` front matter of the pages themselves.
 
 | Key                            | Type   | Required | Default                                                                   |
 | ------------------------------ | ------ | -------- | ------------------------------------------------------------------------- |
 | `packageBuild.texinfo[].page`  | string | yes      | none                                                                      |
 | `packageBuild.texinfo[].out`   | string | no       | the page's file name without `.md`; the package name when that is `index` |
-| `packageBuild.texinfo[].title` | string | no       | the top page's title                                                      |
+| `packageBuild.texinfo[].title` | string | no       | the top page's `name.full`                                                |
 
 `page` is a path relative to `docs/`, ending in `.md`. `out` names the files
 the manual becomes, `<out>.texi` and `<out>.info`, and `title` is the manual's
-title. The Info directory file, `dir`, lists every manual with the top page's
-`description` front matter.
+title. The Info directory file, `dir`, lists every manual that has a directory
+entry, with the top page's `description` front matter.
 
 ```yaml
 packageBuild:
@@ -2705,27 +2704,158 @@ packageBuild:
     - page: index.md
       out: tools
       title: Tools Guide
-    - page: reference/index.md
-      out: tools-reference
 ```
 
-With that configuration, `docs/index.md` is the Top node of `tools`, and every
-page it links to, directly or through another page, is a chapter of it.
-`docs/reference/index.md` is the Top node of `tools-reference` and starts its
-own chapter list from its own links. A page both manuals link is a chapter in
-each. The output is `build/docs/tools.texi`, `build/docs/tools-reference.texi`
-and `build/docs/dir`.
+#### Page front matter
 
-The top page of a manual lists the pages it reaches in the order a reader
-should meet them, so its link order is the manual's chapter order.
+```yaml
+type: doc
+shortcode: serverconfiguration
+name: { full: Server configuration }
+description: Settings the server reads at start.
+tags: [server, settings]
+subType: reference
+texinfo:
+  parent: guidesindex
+  before: [guidesclients]
+  after: [guidesinstall]
+```
 
-A link to a Markdown page that does not exist, or that leaves the repository,
-and a page under `docs/` that no manual reaches, are reported as
-`file:line:column: error: message` and stop the conversion:
+| Key                 | Meaning                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `texinfo`           | Present: the page takes part. Absent: the page is never converted, and the crawl does not follow its links.                                             |
+| `texinfo.parent`    | Required. The page's parent, or `null` for the manual's top page. A manual has one top page, and the configured page must declare `parent: null`.       |
+| `texinfo.before`    | Optional list. This page comes before each page listed.                                                                                                 |
+| `texinfo.after`     | Optional list. This page comes after each page listed.                                                                                                  |
+| `name.full`         | The section title, the source of the node name, and a concept index entry. Without it the first heading, then the file name, stands in and is reported. |
+| `description`       | The page's menu description. On the top page it is also the directory entry and the Top node summary. Nothing is written for a page that has none.      |
+| `tags`              | One concept index entry per tag.                                                                                                                        |
+| `subType`           | `reference` also enters the page in the reference index. Any other value is ignored. The mapping is one table, `SUBTYPE_INDEXES`, in the converter.     |
+| `type`, `shortcode` | The page's Address, which `parent`, `before` and `after` use to name it.                                                                                |
 
-> `docs/guides/setup.md:12:4: error: link ../tools.md resolves to docs/tools.md, which does not exist`
+`parent`, `before` and `after` name pages by Address, read by the same parser as
+every other Address. A page's Address is its package (the configuration's
+`contentPackage`), the system `note`, its `type` and its `shortcode`, so a page
+needs `type` and `shortcode` to be named. A written Address takes its omitted
+segments from the context, and the default type is `doc`: `guidesclients`,
+`doc-guidesclients` and `<package>-note-doc-guidesclients` name the same page.
+A page is never named by its file path, so moving a page changes nothing. A page
+whose `type` and `shortcode` form no Address, or share one with another page, is
+reported and cannot be named. Links never decide the structure. They discover
+pages, and each link to a page in the manual becomes a cross-reference.
 
-> `docs/lost.md:1:1: error: no manual reaches this page; link it from a configured top page`
+The crawl starts at the top page and follows links through pages that take part.
+A link to a page without `texinfo` is not followed and is reported. A page
+that takes part but that no chain of such links reaches is not in the manual and
+is reported. A page appears once, at its parent's position, however many pages
+link to it.
+
+A page is excluded and reported when it declares no `parent`, declares
+`parent: null` while not being the top page, names a parent that does not
+resolve, does not take part, or is not reached, or has a parent chain that does
+not lead to the top page, a loop included.
+
+Among the children of one parent, `before` and `after` are hints. A hint that
+does not resolve, names a page without `texinfo`, or names a page with another
+parent is ignored and reported. When the hints of a group contradict each other,
+all of that group's hints are dropped and the group is reported. Ties and
+unhinted groups are ordered by `name.full`, then by path, so the same input
+always writes the same bytes.
+
+#### Depth and node names
+
+A top-level child is a `@chapter`, and each level below it is a `@section`,
+`@subsection` and `@subsubsection`. A page deeper than that is folded into its
+level-four ancestor as an `@anchor` and a `@subsubheading`, and each fold is
+reported. Headings inside a page are `@heading`, `@subheading` and
+`@subsubheading`, with an `@anchor` where a link points at them.
+
+A node name comes from `name.full`, with `.`, `,`, `:`, `(`, `)`, `@`, `{` and
+`}` replaced by spaces (a colon followed by a space becomes `-`) and
+whitespace collapsed. Node and anchor names share one namespace. When two pages
+produce one name, each takes its parent's name as a suffix, for example
+`Configuration - Servers`, and the change is reported. A name that is still
+taken after that takes the page's path as a last suffix, and one that is taken
+even then is an error; the converter never appends a counter that unrelated
+pages can change.
+
+#### Package metadata
+
+The converter reads `package.json` from the repository root. A missing `name` or
+`version` stops the build. `version` is `@set VERSION`, the `name` without its
+npm scope is the default output name, `author` and `contributors` are the
+`@author` lines and the copyright holder (the configuration's `authors` stand in
+when `package.json` has none), and `homepage`, `repository` and `bugs` are links
+in the Top node. `texinfo.dircategory` in `package.json` is the Info directory
+category; without it the manual has no `@dircategory` or `@direntry`, and the
+build reports it. `texinfo.license` is the license of the manual's text, and the
+license statement in `@copying` names it, then names the software's license:
+whatever else `license` lists. Without `texinfo.license` the statement is
+`license` alone.
+
+```json
+{
+  "license": "GPL-3.0-or-later AND CC-BY-SA-4.0",
+  "texinfo": { "dircategory": "HeroicLands", "license": "CC-BY-SA-4.0" }
+}
+```
+
+The manual is dated by `SOURCE_DATE_EPOCH`, or by the last git commit.
+
+#### Output
+
+`<out>.texi` holds the header, the copying notice, the directory entry, the
+title page, the Top node, the master menu with its detailed node listing, one
+`@include` per chapter, and one unnumbered node for each index. Each chapter
+file holds a chapter and everything below it. Node lines carry no
+next, previous or up pointers; `texi2any` computes them. A node with children
+ends with a menu of them. Text is written for Info, HTML and print: a
+character the print fonts lack is replaced there by an ASCII stand-in or its
+code point, and Info and HTML keep it.
+
+The Top node holds the page's `description`, the package's links and the text
+of the top page before its first heading; the headings that follow, which list
+what the master menu already lists, stay out of it.
+
+Markdown becomes the Texinfo a reader expects. A code span is `@option` for
+`--name` or a single-letter `-x` (an affix such as `-print` is code), `@var`
+for a lone `<name>`, and `@env` for an environment variable: a `$NAME` span, or
+an all-capitals name with an underscore that the text calls an environment
+variable (the words "environment variable" directly before or after it) or that
+sits in the first column of a table with "environment" in a header. Other
+capitalised names, such as an exported constant, are `@code`. A span that is
+exactly a known program name (`npm`, `npx`, `node`, `git`, `docker`, `texi2any`,
+`texi2pdf`, `makeinfo`, `package-build`) is `@command`; one that starts with a
+program name and carries arguments is `@samp`. A span is `@file` when it is a
+path or ends in a known file extension, and `@code` otherwise. An option written in plain text is `@option` as well, so
+its dashes stay dashes. A `mailto:` link is `@email`. Options, environment
+variables and commands also enter the variable index (`@vindex`) and the
+program index (`@pindex`); the indexes appear when something fills them. Fenced code is `@example`,
+`lisp` is `@lisp` and `verbatim` is `@verbatim`; quotations and GitHub alerts
+are `@quotation`; lists, definition lists and pipe tables become `@itemize`,
+`@enumerate`, `@table` and `@multitable`; images become `@image` and are copied
+beside the manual; raw HTML becomes `@html`; footnotes are inline. A link to a
+page in the manual becomes `@xref` after "See", `@pxref` in parentheses and
+`@ref` otherwise. A link to a page outside the manual becomes `@url` when
+that page declares a public address in its own front matter with
+`url: https://...`, the anchor of the link appended, and is plain text
+otherwise; either way it is reported. A
+missing page or an unknown anchor is plain text and is reported. A table too wide to fit its columns becomes a
+keyed `@table` and is reported.
+
+#### Findings
+
+Each finding is `file:line:column: severity: message`. An error stops the
+build and nothing is written: a missing top page, a top page without
+`parent: null`, an unusable `package.json`, and a configuration entry that
+cannot be used. A warning is reported, the manual is written, and the warnings
+that concern a manual are written to its own `<out>.report.txt`:
+
+> `docs/lost.md:1:1: warning: the page has texinfo front matter but no chain of links through participating pages reaches it from the top page`
+
+> `docs/guides/setup.md:12:4: warning: link ../tools.md resolves to docs/tools.md, which does not exist`
+
+> `docs/guides/setup.md:4:11: warning: the page is excluded: parent "nowhere" does not resolve to a page`
 
 A top page that does not exist and two manuals with one output name are
 reported at the entry's `page` key in `package-build.config.yaml`:

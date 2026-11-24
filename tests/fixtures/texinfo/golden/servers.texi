@@ -1,0 +1,19 @@
+@node Servers
+@chapter Servers
+@cindex Servers
+
+@ref{Configuration - Servers,,Configuration}.
+
+@menu
+* Configuration - Servers::      Server configuration.
+@end menu
+
+@node Configuration - Servers
+@section Configuration
+@cindex Configuration
+
+Server settings.
+
+@subheading Options
+
+Server options.

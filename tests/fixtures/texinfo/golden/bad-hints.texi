@@ -1,0 +1,5 @@
+@node Bad Hints
+@chapter Bad Hints
+@cindex Bad Hints
+
+Hints that point nowhere useful.

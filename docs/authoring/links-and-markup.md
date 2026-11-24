@@ -3,6 +3,9 @@ shortcode: authoringlinksandmarkup
 name: { full: "Addresses, links, and body markup" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [authoringfrontmatter]
 ---
 
 # Addresses, links, and body markup

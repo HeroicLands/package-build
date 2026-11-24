@@ -3,6 +3,9 @@ shortcode: guidesreferencepages
 name: { full: "Reference pages and content indexes" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [guidesicons]
 ---
 
 # Reference pages and content indexes

@@ -3,6 +3,9 @@ shortcode: authoringfrontmatter
 name: { full: "Frontmatter and system blocks" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [authoringfirstnote]
 ---
 
 # Frontmatter and system blocks

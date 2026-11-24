@@ -3,6 +3,9 @@ shortcode: guidesinventedscripts
 name: { full: "Write in invented languages and scripts" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [guidesreleaseanddeploy]
 ---
 
 # Write in invented languages and scripts

@@ -75,38 +75,45 @@ to include those fixtures. The default test command leaves them disabled.
 
 `node scripts/docs-texinfo.mjs` converts the Markdown under `docs/` into the
 Texinfo manuals that `packageBuild.texinfo` declares in
-`package-build.config.yaml`, writing `build/docs/<name>.texi` for each and an
-Info `dir` file that lists them; `--root <dir>` names another repository root, `--out <dir>` writes elsewhere, `--check`
-converts without writing, and `--help` prints the usage. A finding is reported
-as `file:line:column: error: message`, and any finding exits with status 1 and
-writes nothing.
+`package-build.config.yaml`. For each manual it writes `build/docs/<name>.texi`,
+one included file per chapter under `build/docs/<name>-chapters/`, the images
+the manual shows under `build/docs/<name>-images/`, a build report
+`<name>.report.txt`, and an Info `dir` file that lists the manuals.
+`--root <dir>` names another repository root, `--out <dir>` writes elsewhere,
+`--check` converts without writing, and `--help` prints the usage. A finding is
+reported as `file:line:column: severity: message`: an error exits with status 1
+and writes nothing, and a warning is reported and the manual is written.
 
-Each manual starts at the top page its entry names and follows that page's
-links: every page it reaches is a chapter, in the order the links are first met.
-`docs/index.md` links every page of this repository's own manual, in reading
-order, so a new page under `docs/` is linked from the index at its place in
-that order; a page no manual reaches is a finding. The
+The manual's structure comes from each page's `texinfo` front matter, never from
+links:
+
+```yaml
+texinfo:
+  parent: homepage-root
+  before: [guidespacks]
+  after: [gettingstarted]
+```
+
+`parent` is required, and `parent: null` marks the top page. `before` and
+`after` order siblings. A page without `texinfo` is not in the manual. Links
+only discover pages and become cross-references: the crawl starts at the top
+page, follows links through pages that take part, and stops at a page that does
+not. `parent`, `before` and `after` name pages by Address, with `doc` as the
+default type, so a page needs a `type` and a `shortcode`.
+
+The manual's title is the top page's `name.full`, its version and file name
+come from `package.json`, and its Info directory category and the license of
+its text come from `texinfo.dircategory` and `texinfo.license` in `package.json`. Its date is `SOURCE_DATE_EPOCH` or the
+last commit's time, so a build never changes with the clock. The
 [configuration reference](docs/configuration.md#packagebuildtexinfo) describes
-the key.
+the front matter, the node names, the depth rules, the indexes and every
+finding the build reports.
 
-The documentation keeps to the Markdown the converter maps: headings, paragraphs,
-inline code, strong and emphasis, links, fenced code, lists, quotations and pipe
-tables with a header row. A table whose first column is all inline code becomes
-a keyed table; any other table becomes columns when each column fits its
-longest word, and a keyed table otherwise. The converter refuses:
-
-- images;
-- raw HTML other than comments;
-- footnotes;
-- reference links and link reference definitions;
-- strikethrough;
-- task lists;
-- definition lists;
-- fenced divs (`:::`);
-- GitHub alerts (`> [!NOTE]` and its siblings);
-- a pipe table without a header row and delimiter row;
-- a heading inside a list or quotation;
-- a link or anchor that resolves to no page, heading or shipped file.
+`texi2any` builds the Info and split HTML output and `texi2pdf` the PDF, and the
+tests run all three on the manual and on a fixture tree, treating a warning as a
+failure. Outside CI they skip, with the reason, when a tool or `texinfo.tex` is
+missing; in CI, where the Build and Test job installs Texinfo and TeX, a missing
+tool fails them.
 
 ## Documentation
 

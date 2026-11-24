@@ -3,6 +3,9 @@ shortcode: design
 name: { full: "Design of the package-build toolchain" }
 type: doc
 subType: concept
+texinfo:
+  parent: homepage-root
+  after: [gettingstarted]
 ---
 
 # Design of the package-build toolchain

@@ -3,6 +3,8 @@ shortcode: gettingstarted
 name: { full: "Getting started" }
 type: doc
 subType: userguide
+texinfo:
+  parent: homepage-root
 ---
 
 # Getting started

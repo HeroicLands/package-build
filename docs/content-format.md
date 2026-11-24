@@ -3,6 +3,9 @@ shortcode: contentformat
 name: { full: "Authoring HeroicLands content" }
 type: doc
 subType: userguide
+texinfo:
+  parent: homepage-root
+  after: [guidesmoduleproject]
 ---
 
 # Authoring HeroicLands content

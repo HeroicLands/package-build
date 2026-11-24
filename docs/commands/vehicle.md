@@ -3,6 +3,8 @@ shortcode: cmdvehicle
 name: { full: "Vehicle command" }
 type: doc
 subType: reference
+texinfo:
+  parent: commands
 ---
 
 # Vehicle command

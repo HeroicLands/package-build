@@ -1,3 +1,12 @@
+---
+shortcode: referencesettlementmodel
+type: doc
+name: { full: "Settlement calculations" }
+texinfo:
+  parent: homepage-root
+  after: [referencesettlementinputs]
+---
+
 # Settlement calculations
 
 The settlement model provides calculations for an explicit authoring operation. It does not run during content checks or change notes. The editable starting figures are in `engine/settlement-model-defaults.json` and are starting assumptions, not measurements of any setting.

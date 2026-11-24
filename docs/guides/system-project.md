@@ -3,6 +3,9 @@ shortcode: guidessystemproject
 name: { full: "Building a Foundry system" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [projectsetup]
 ---
 
 # Building a Foundry system

@@ -3,6 +3,9 @@ shortcode: guideslocalization
 name: { full: "Localize a Foundry package" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [guidesreferencepages]
 ---
 
 # Localize a Foundry package

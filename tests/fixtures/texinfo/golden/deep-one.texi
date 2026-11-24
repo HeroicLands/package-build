@@ -1,0 +1,52 @@
+@node Deep One
+@chapter Deep One
+@cindex Deep One
+
+@ref{Deep Two,,Next}.
+
+@menu
+* Deep Two::
+@end menu
+
+@node Deep Two
+@section Deep Two
+@cindex Deep Two
+
+@ref{Deep Three,,Next}.
+
+@menu
+* Deep Three::
+@end menu
+
+@node Deep Three
+@subsection Deep Three
+@cindex Deep Three
+
+@ref{Deep Four,,Next}.
+
+@menu
+* Deep Four::
+@end menu
+
+@node Deep Four
+@subsubsection Deep Four
+@cindex Deep Four
+
+@ref{Deep Five,,Next}.
+
+@anchor{Deep Five}
+@subsubheading Deep Five
+@cindex Deep Five
+
+Folded. @ref{Deep Six,,Next}, and @ref{Deep Four,,back to four}.
+
+@anchor{Folded heading}
+@subsubheading Folded heading
+
+Text.
+
+@anchor{Deep Six}
+@subsubheading Deep Six
+@cindex Deep Six
+
+Folded too, see @ref{Folded heading,,heading}.

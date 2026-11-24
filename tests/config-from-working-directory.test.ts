@@ -42,7 +42,11 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
-import { CONFIG_BASENAME, resolveConfigFile } from "../engine/pack-config.mjs";
+import {
+    CONFIG_BASENAME,
+    resolveConfigFile,
+    warnsOfIgnoredConfig,
+} from "../engine/pack-config.mjs";
 
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -266,5 +270,25 @@ describe("resolveConfigFile, asked about a tree it is not standing in", () => {
         });
         expect(found.fromCwd).toBeUndefined();
         expect(found.path).toBe(found.fromModule);
+    });
+});
+
+describe("warnsOfIgnoredConfig", () => {
+    it("warns when an installed toolchain's walk finds a consumer's configuration the build ignores", () => {
+        const found = resolveConfigFile({ cwd: nested, moduleDir: path.join(installed, "engine") });
+        expect(warnsOfIgnoredConfig(found, path.join(installed, "engine"))).toBe(true);
+    });
+
+    it("is silent when the module's configuration is the one at the root of the toolchain itself", () => {
+        const found = resolveConfigFile({ cwd: nested, moduleDir: path.join(parent, "engine") });
+        expect(found.fromModule).toBe(path.join(parent, `${CONFIG_BASENAME}.yaml`));
+        expect(warnsOfIgnoredConfig(found, path.join(parent, "engine"))).toBe(false);
+    });
+
+    it("is silent when both walks agree or one finds nothing", () => {
+        const same = resolveConfigFile({ cwd: parent, moduleDir: path.join(installed, "engine") });
+        expect(warnsOfIgnoredConfig(same, path.join(installed, "engine"))).toBe(false);
+        expect(warnsOfIgnoredConfig(undefined)).toBe(false);
+        expect(warnsOfIgnoredConfig({ fromCwd: undefined, fromModule: "/x/c.yaml" })).toBe(false);
     });
 });

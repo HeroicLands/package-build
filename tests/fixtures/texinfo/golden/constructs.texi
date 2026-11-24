@@ -1,0 +1,99 @@
+@node Constructs
+@chapter Constructs
+@cindex Constructs
+@cindex constructs
+@vindex --check
+
+Intro with a footnote@footnote{The footnote, with a comma.} and a @ref{Escaping and Links,,reference link} and struck text.
+A line break:@*
+second line, with an image @image{fixture-images/docs-pic,,,The alt@comma{} text,.png} and @inlineraw{html,<b>}html@inlineraw{html,</b>} inline.
+
+@anchor{Inline code}
+@heading Inline code
+
+Use @option{--check}, @var{dir}, @code{name} and @code{a@@b}.
+
+@subheading Deeper heading
+
+@anchor{Deepest heading}
+@subsubheading Deepest heading
+
+Text under the deepest heading, linked from @ref{Deepest heading,,here}.
+
+@heading Blocks
+
+@example
+$ tool --flag <file> @{braces@} @@at
+@end example
+
+@lisp
+(defun f (x) @{x@})
+@end lisp
+
+@verbatim
+raw @text {kept} as is
+@end verbatim
+
+@quotation
+A quotation
+over two lines.
+@end quotation
+
+@quotation Warning
+Mind the gap.
+@end quotation
+
+@itemize @bullet
+@item
+one
+
+@item
+two
+
+@itemize @bullet
+@item
+nested
+@end itemize
+@end itemize
+
+@enumerate
+@item
+first
+
+@item
+second
+
+@item
+third
+@end enumerate
+
+@table @asis
+@item Term
+The definition, with @code{code}.
+@end table
+
+@itemize @bullet
+@item
+A task
+@end itemize
+
+@multitable @columnfractions 0.0833 0.0972
+@headitem Name @tab Value
+@item a @tab 1
+@item b @tab 2
+@end multitable
+
+@table @asis
+@item supercalifragilisticexpialidocious-word
+@emph{A very long column heading that cannot be narrow}: verylongunbreakablewordnumberone-verylongunbreakablewordnumbertwo
+
+@emph{Another long column heading here}: x
+
+@emph{Third long column heading text}: y
+@end table
+
+@html
+<div>raw html block</div>
+@end html
+
+Unicode: box @inlinefmtifelse{tex,+,├}@inlinefmtifelse{tex,-,─}@inlinefmtifelse{tex,-,─} and @inlinefmtifelse{tex,U+2705,✅} and @inlinefmtifelse{tex,U+27E6,⟦}x@inlinefmtifelse{tex,U+27E7,⟧} and é.

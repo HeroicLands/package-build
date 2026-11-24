@@ -3,6 +3,9 @@ shortcode: guidesmoduleproject
 name: { full: "Building a Foundry module" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [guidessystemproject]
 ---
 
 # Building a Foundry module

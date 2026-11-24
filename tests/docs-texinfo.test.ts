@@ -6,9 +6,16 @@
  */
 
 /**
- * The Markdown-to-Texinfo converter maps each construct the documentation uses
- * and reports, at its location, each one it cannot map.
+ * The Markdown-to-Texinfo converter builds a manual from the `texinfo` front
+ * matter of the pages it reaches by links, reports what it cannot use, and
+ * writes the same manual on every run. A fixture tree holds every structural
+ * case and every construct; golden files hold its output.
  */
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
 
@@ -19,615 +26,940 @@ import {
     formatFinding,
     infoText,
     nodeNameFor,
+    sourceEpoch,
 } from "../scripts/docs-texinfo/convert.mjs";
+import { EPOCH, FILES, PNG, addressed } from "./fixtures/texinfo/tree.mjs";
+import {
+    buildInfoAndHtml,
+    buildPdf,
+    hasEpsf,
+    skipUnlessPresent,
+    texi2anySkip,
+    texi2pdfSkip,
+} from "./helpers/texinfo-tools";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const GOLDEN = path.join(HERE, "fixtures", "texinfo", "golden");
 
 type Files = Record<string, string>;
 
-type Manual = { page: string; out?: string; title?: string };
-
-/**
- * Convert in-memory pages: keys are paths relative to `docs/`. Unless
- * `options.link` is false, the index links to every other page in key order, so
- * each page is a chapter of the first manual.
- */
-function convert(
-    pages: Files,
-    manuals: Manual[] = [{ page: "index.md", out: "manual" }],
-    options: Record<string, unknown> = {},
-) {
-    const { link = true, ...rest } = options;
-    const files: Files = {
-        "assets/preview/gitea.ini": "",
-        "CONTENT.md": "",
-        "package.json": JSON.stringify({
-            name: "@org/pkg",
-            version: "1.2.3",
-            files: ["assets", "docs"],
-        }),
-    };
-    for (const [file, source] of Object.entries(pages)) files[`docs/${file}`] = source;
-    if (link && files["docs/index.md"] !== undefined) {
-        const others = Object.keys(pages).filter((f) => f !== "index.md");
-        files["docs/index.md"] +=
-            "\n" + others.map((f) => `<!-- ${f} -->\n[${f}](${f})\n`).join("\n");
-    }
+function run(files: Files, options: Record<string, unknown> = {}) {
     const result = convertDocs({
         root: "/nowhere",
-        manuals,
+        manuals: [{ page: "index.md", out: "manual" }],
+        epoch: EPOCH,
         read: (file: string) => {
             if (!(file in files)) throw new Error(`no ${file}`);
             return files[file];
         },
         exists: (file: string) => file in files,
         list: (dir: string) => Object.keys(files).filter((f) => f.startsWith(`${dir}/`)),
-        ...rest,
+        ...options,
     });
     return {
         ...result,
-        texinfo: result.manuals[0]?.texinfo ?? "",
+        manual: result.manuals[0],
         lines: result.findings.map(formatFinding),
     };
 }
 
-const INDEX = "# Manual\n\nThe opening.\n";
+const PACKAGE = JSON.stringify({
+    name: "@org/pkg",
+    version: "1.2.3",
+    files: ["docs", "LICENSE.md"],
+    texinfo: { dircategory: "Tests" },
+    author: "Ann Author",
+});
 
-/** The text between a chapter's `@node` line and the next chapter's. */
-function chapter(texinfo: string, name: string): string {
-    const opening = `@node ${name}\n@chapter`;
-    const start = texinfo.indexOf(opening);
-    expect(start, `chapter ${name}`).toBeGreaterThanOrEqual(0);
-    const next = texinfo.indexOf("\n@chapter", start + opening.length);
-    const end = next < 0 ? texinfo.indexOf("@bye") : texinfo.lastIndexOf("@node", next);
-    return texinfo.slice(start, end);
+/** A page with an Address and no `texinfo` front matter. */
+const PLAIN = (body: string) =>
+    `---\ntype: doc\nshortcode: plain\nname: { full: Plain }\n---\n\n${body}`;
+
+/** A page with `texinfo` front matter. */
+function note(name: string, texinfo: string, body: string, extra = ""): string {
+    return `---\nname: { full: ${JSON.stringify(name)} }\n${extra}texinfo:\n${texinfo}\n---\n\n${body}\n`;
 }
 
-describe("escaping", () => {
+/** A top page that links to every other page, plus the pages. */
+function small(pages: Files, top = "# Manual\n\nThe opening.") {
+    const links = Object.keys(pages)
+        .map((file) => `[${file}](${file})`)
+        .join(" ");
+    return addressed({
+        "package.json": PACKAGE,
+        "docs/index.md": note("Manual", "  parent: null", `${top}\n\n${links}`),
+        ...Object.fromEntries(Object.entries(pages).map(([file, body]) => [`docs/${file}`, body])),
+    });
+}
+
+/** Everything one conversion wrote, as one text, keyed by file name. */
+function written(result: ReturnType<typeof run>): Record<string, string> {
+    const { manual } = result;
+    return {
+        "fixture.texi": manual.texinfo,
+        ...Object.fromEntries(
+            manual.chapters.map((chapter: { path: string; texinfo: string }) => [
+                chapter.path.replace(/^[^/]+\//, ""),
+                chapter.texinfo,
+            ]),
+        ),
+        "report.txt": `${result.lines.join("\n")}\n`,
+    };
+}
+
+describe("escaping and names", () => {
     it("escapes @, braces, and commas inside an argument", () => {
         expect(escapeTexinfo("a@b {c}")).toBe("a@@b @{c@}");
         expect(escapeTexinfo("x, y")).toBe("x, y");
         expect(escapeTexinfo("x, y", { argument: true })).toBe("x@comma{} y");
     });
 
-    it("escapes text and code in a page", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\nMeet @ noon about {braces} and `{@x}`.\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain("Meet @@ noon about @{braces@} and @code{@{@@x@}}.");
-    });
-
-    it("writes node names Info can read, keeping code only in titles", () => {
+    it("writes node names without . , : ( ) @ { }", () => {
         expect(nodeNameFor("Configuration: `a.yaml`, key by key.")).toBe(
             "Configuration - `a yaml` key by key",
         );
         expect(nodeNameFor("packageBuild.stageDir and packageBuild.assets")).toBe(
             "packageBuild stageDir and packageBuild assets",
         );
-        expect(nodeNameFor("package-build encode [text..]")).toBe("package-build encode [text]");
-        expect(nodeNameFor("./engine/art-provenance")).toBe("/engine/art-provenance");
-        expect(nodeNameFor("ns:key (and more)")).toBe("ns key (and more)");
-        expect(nodeNameFor("(leading) parenthesis")).toBe("leading) parenthesis");
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n## The `@{x}` key, and: more\n\nText.\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain(
-            "@node The @@@{x@} key and - more\n@section The @code{@@@{x@}} key, and: more",
+        expect(nodeNameFor("ns:key (and more)")).toBe("ns key and more");
+        expect(nodeNameFor("  a   @{b}  ")).toBe("a b");
+        expect(nodeNameFor("...")).toBe("Section");
+    });
+
+    it("escapes text and code in a page", () => {
+        const { manual, findings } = run(
+            small({
+                "a.md": note(
+                    "A",
+                    "  parent: index.md",
+                    "# A\n\nMeet @ noon about {braces} and `{@x}`.",
+                ),
+            }),
+        );
+        expect(findings.filter((f: any) => f.severity === "error")).toEqual([]);
+        expect(manual.chapters[0].texinfo).toContain(
+            "Meet @@ noon about @{braces@} and @code{@{@@x@}}.",
+        );
+    });
+
+    it("leaves option names, placeholders and code to semantic commands", () => {
+        const { manual } = run(
+            small({
+                "a.md": note(
+                    "A",
+                    "  parent: index.md",
+                    "# A\n\nUse `--out`, `-x`, `<dir>` and `plain`.",
+                ),
+            }),
+        );
+        expect(manual.chapters[0].texinfo).toContain(
+            "Use @option{--out}, @option{-x}, @var{dir} and @code{plain}.",
         );
     });
 });
 
-describe("chapters and sections", () => {
-    it("takes a single first heading at the shallowest level as the chapter title", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "---\nname: { full: Not this }\n---\n\n# Alpha\n\nIntro.\n\n## Beta\n\nB.\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain("@node Alpha\n@chapter Alpha\n\nIntro.");
-        expect(texinfo).toContain("@node Beta\n@section Beta\n\nB.");
-        expect(texinfo).not.toContain("Not this");
+describe("the manual's header and metadata", () => {
+    const { manual, lines } = run(small({}));
+
+    it("takes its metadata from package.json and the top page", () => {
+        const text = manual.texinfo;
+        expect(text.startsWith("\\input texinfo   @c -*-texinfo-*-\n")).toBe(true);
+        expect(text).toContain("@setfilename manual.info\n");
+        expect(text).toContain(
+            "@set VERSION 1.2.3\n@set UPDATED 14 November 2023\n@settitle Manual\n",
+        );
+        expect(text.indexOf("@set VERSION")).toBeLessThan(text.indexOf("@settitle"));
+        expect(text).toContain("@dircategory Tests\n@direntry\n* Manual: (manual).");
+        expect(text).toContain("@author Ann Author\n");
+        expect(text).toContain("@ifnottex\n@node Top\n@top Manual\n");
+        expect(text.trimEnd().endsWith("@bye")).toBe(true);
     });
 
-    it("takes front matter name.full when the shallowest level has several headings", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "---\nname: { full: Gamma }\n---\n\nLead.\n\n## One\n\n### Deep\n\n## Two\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain("@node Gamma\n@chapter Gamma\n\nLead.");
-        expect(texinfo).toContain("@node One\n@section One");
-        expect(texinfo).toContain("@node Deep\n@subsection Deep");
-        expect(texinfo).toContain("@node Two\n@section Two");
+    it("strips an npm scope from the default output name", () => {
+        const result = run(small({}), { manuals: [{ page: "index.md" }] });
+        expect(result.manual.out).toBe("pkg");
+        expect(result.manual.texinfo).toContain("@setfilename pkg.info\n");
     });
 
-    it("reports a page with neither a single first heading nor name.full", () => {
-        const { lines } = convert({ "index.md": INDEX, "b.md": "## One\n\n## Two\n" });
-        expect(lines).toEqual([
-            "docs/b.md: error: the page has no title: no single first heading at the shallowest level, and no front matter name.full",
+    it("leaves out the directory entry and reports it when package.json names no dircategory", () => {
+        const files = small({});
+        files["package.json"] = JSON.stringify({ name: "p", version: "1.0.0" });
+        const result = run(files);
+        expect(result.manual.texinfo).not.toContain("@dircategory");
+        expect(result.manual.texinfo).not.toContain("@direntry");
+        expect(result.lines).toContain(
+            "package.json: warning: package.json has no texinfo.dircategory; the manual has no dircategory and no direntry",
+        );
+        expect(result.dir).not.toContain("(p)");
+    });
+
+    it("stops with an error when package.json lacks a name or version", () => {
+        const files = small({});
+        files["package.json"] = JSON.stringify({ name: "p" });
+        const result = run(files);
+        expect(result.manuals).toEqual([]);
+        expect(result.lines).toEqual(["package.json: error: package.json has no `version`"]);
+    });
+
+    it("dates the manual by SOURCE_DATE_EPOCH, never by the clock", () => {
+        expect(sourceEpoch("/nowhere", { SOURCE_DATE_EPOCH: "1700000000" })).toBe(1700000000);
+        const result = run(small({}), { epoch: 86400 * 365 });
+        expect(result.manual.texinfo).toContain("@set UPDATED 1 January 1971\n");
+        expect(lines).toBeDefined();
+    });
+
+    it("builds an Info dir file from the directory entries", () => {
+        const result = run(small({}));
+        expect(result.dir).toMatch(
+            /\n\x1f\nFile: dir,\tNode: Top\t[^\n]*\n\n\* Menu:\n\nTests\n\* Manual: \(manual\)\./,
+        );
+    });
+});
+
+describe("structure comes from the texinfo front matter", () => {
+    it("requires the top page to declare parent null", () => {
+        const files = small({});
+        files["docs/index.md"] = note("Manual", "  parent: other", "# Manual");
+        const result = run(files);
+        expect(result.manuals).toEqual([]);
+        expect(result.lines).toEqual([
+            "docs/index.md:4:11: error: the top page must declare `parent: null`",
         ]);
     });
 
-    it("makes headings below a subsection anchored sub-subheadings", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n## S\n\n### T\n\n#### U\n\n##### V\n\nText.\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain(
-            "@node T\n@subsection T\n\n@anchor{U}\n@subsubheading U\n\n@anchor{V}\n@subsubheading V",
-        );
-        expect(texinfo).not.toContain("@node U");
-    });
-
-    it("writes each node's menu before its first child", () => {
-        const { texinfo } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\nIntro.\n\n## S1\n\n### T1\n\n### T2\n\n## S2\n",
-        });
-        expect(chapter(texinfo, "A")).toContain(
-            "Intro.\n\n@menu\n* S1::\n* S2::\n@end menu\n\n@node S1\n@section S1\n\n@menu\n* T1::\n* T2::\n@end menu\n\n@node T1",
-        );
-        expect(texinfo.match(/\* S1::/g)).toHaveLength(2);
-    });
-
-    it("nests a heading that skips a level under the one before it", () => {
-        const { texinfo } = convert({ "index.md": INDEX, "a.md": "# A\n\n### Skipped\n" });
-        expect(texinfo).toContain("@node Skipped\n@section Skipped");
-    });
-
-    it("qualifies a repeated node name by its chapter, then numbers it", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n## Overview\n\n## Overview\n",
-            "b.md": "# B\n\n## Overview\n\n## Overview\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain("@node Overview\n");
-        expect(texinfo).toContain("@node Overview (A)\n");
-        expect(texinfo).toContain("@node Overview (B)\n");
-        expect(texinfo).toContain("@node Overview (B) 2\n");
-    });
-
-    it("drops an attribute block from the heading and resolves its id", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n## Long title {#short}\n\nSee [it](#short).\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain("@section Long title\n");
-        expect(texinfo).toContain("See @ref{Long title,,it}.");
-    });
-
-    it("makes each page a chapter in the order its link is first met", () => {
-        const { texinfo, findings } = convert(
-            {
-                "index.md": "# Manual\n\n[B](b.md) then [A](a.md) and [B again](b.md).\n",
-                "a.md": "# A\n\n[C](c.md)\n",
-                "b.md": "# B\n\n[A](a.md) [D](d.md)\n",
-                "c.md": "# C\n",
-                "d.md": "# D\n",
-            },
-            undefined,
-            { link: false },
-        );
-        expect(findings).toEqual([]);
-        expect([...texinfo.matchAll(/^@chapter (.+)$/gm)].map((m) => m[1])).toEqual([
-            "B",
-            "A",
-            "D",
-            "C",
+    it("requires the top page to take part", () => {
+        const files = small({});
+        files["docs/index.md"] = "# Manual\n";
+        expect(run(files).lines).toEqual([
+            "docs/index.md: error: the top page has no texinfo front matter",
         ]);
-        expect(texinfo.match(/^@node B$/gm)).toHaveLength(1);
     });
 
-    it("makes one manual per configured top page, each with its own pages", () => {
-        const pages = {
-            "index.md": "# Guide\n\n[Setup](setup.md)\n",
-            "setup.md": "# Setup\n\n[Shared](shared.md)\n",
-            "ref.md":
-                "---\ndescription: The reference.\n---\n\n# Reference\n\n[Shared](shared.md) [Keys](keys.md)\n",
-            "keys.md": "# Keys\n",
-            "shared.md": "# Shared\n",
+    it("orders siblings by hints, then by title, and nests children under their parent", () => {
+        const { manual } = run(
+            small({
+                "b.md": note("B", "  parent: index.md\n  after: [c.md]", "# B"),
+                "c.md": note("C", "  parent: index.md", "# C"),
+                "a.md": note("A", "  parent: index.md\n  before: [c.md]", "# A"),
+                "child.md": note("Child", "  parent: c.md", "# Child"),
+            }),
+        );
+        const chapters = [...manual.texinfo.matchAll(/^@include .*\/(.+)\.texi$/gm)].map(
+            (m) => m[1],
+        );
+        expect(chapters).toEqual(["a", "c", "b"]);
+        const c = manual.chapters.find((chapter: any) => chapter.path.endsWith("/c.texi"));
+        expect(c.texinfo).toContain("@menu\n* Child::\n@end menu\n\n@node Child\n@section Child\n");
+    });
+
+    it("excludes and reports a page whose parent, chain or key is unusable", () => {
+        const result = run(
+            small({
+                "orphan.md": note("Orphan", "  parent: nowhere", "# Orphan"),
+                "loop-a.md": note("Loop A", "  parent: loop-b.md", "# A"),
+                "loop-b.md": note("Loop B", "  parent: loop-a.md", "# B"),
+                "none.md": note("None", "  {}", "# None"),
+                "top2.md": note("Top Two", "  parent: null", "# T"),
+                "plain.md": PLAIN("# Plain\n\n[hidden](hidden.md)\n"),
+                "hidden.md": note("Hidden", "  parent: index.md", "# H"),
+            }),
+        );
+        expect(result.lines.filter((line) => /is excluded/.test(line)).sort()).toEqual([
+            "docs/loop-a.md:6:11: warning: the page is excluded: its parent chain does not lead to the top page",
+            "docs/loop-b.md:6:11: warning: the page is excluded: its parent chain does not lead to the top page",
+            "docs/none.md:6:3: warning: the page is excluded: texinfo has no parent",
+            'docs/orphan.md:6:11: warning: the page is excluded: parent "nowhere" does not resolve to a page',
+            "docs/top2.md:6:11: warning: the page is excluded: it declares `parent: null`, and the manual has one top page",
+        ]);
+        expect(result.manual.texinfo).not.toMatch(/Orphan|Loop A|Top Two|None/);
+        expect(result.lines).toEqual(
+            expect.arrayContaining([
+                expect.stringMatching(
+                    /^docs\/index\.md:\d+:\d+: warning: the crawl stops at docs\/plain\.md, which has no texinfo front matter$/,
+                ),
+            ]),
+        );
+    });
+
+    it("never follows the links of a page that does not take part", () => {
+        const result = run(
+            addressed({
+                "package.json": PACKAGE,
+                "docs/index.md": note("Manual", "  parent: null", "# Manual\n\n[plain](plain.md)"),
+                "docs/plain.md": PLAIN("# Plain\n\n[hidden](hidden.md)\n"),
+                "docs/hidden.md": note("Hidden", "  parent: index.md", "# Hidden"),
+            }),
+        );
+        expect(result.manual.chapters).toEqual([]);
+        expect(result.lines).toEqual(
+            expect.arrayContaining([
+                "docs/hidden.md:1:1: warning: the page has texinfo front matter but no chain of links through participating pages reaches it from the top page",
+            ]),
+        );
+    });
+
+    it("ignores a hint that does not resolve, names a non-sibling, or names the page itself", () => {
+        const result = run(
+            small({
+                "a.md": note(
+                    "A",
+                    "  parent: index.md\n  before: [ghost.md, plain.md, kid.md, a.md]\n  after: nope",
+                    "# A",
+                ),
+                "plain.md": PLAIN("# Plain\n"),
+                "kid.md": note("Kid", "  parent: a.md", "# Kid"),
+            }),
+        );
+        expect(result.lines.filter((line) => /hint|texinfo\.after/.test(line))).toEqual([
+            'docs/a.md:7:12: warning: the before hint "ghost" is ignored: it does not resolve to a page',
+            'docs/a.md:7:19: warning: the before hint "plain" is ignored: it is not part of the manual',
+            'docs/a.md:7:26: warning: the before hint "kid" is ignored: it is not a sibling',
+            'docs/a.md:7:31: warning: the before hint "a" is ignored: it names the page itself',
+            "docs/a.md:8:10: warning: texinfo.after must be a list; the hints are ignored",
+        ]);
+    });
+
+    it("drops a sibling group's hints when they contradict each other", () => {
+        const result = run(
+            small({
+                "x.md": note("X", "  parent: index.md\n  before: [y.md]", "# X"),
+                "y.md": note("Y", "  parent: index.md\n  before: [x.md]", "# Y"),
+            }),
+        );
+        expect(result.lines).toContain(
+            "docs/x.md:6:3: warning: the ordering hints among the children of Manual contradict each other; the group is ordered by title",
+        );
+        const order = [...result.manual.texinfo.matchAll(/^@include .*\/(.+)\.texi$/gm)].map(
+            (m) => m[1],
+        );
+        expect(order).toEqual(["x", "y"]);
+    });
+
+    it("gives every page one place however many pages link to it", () => {
+        const result = run(
+            small({
+                "a.md": note("A", "  parent: index.md", "# A\n\n[b](b.md) [index](index.md)"),
+                "b.md": note("B", "  parent: index.md", "# B\n\n[a](a.md)"),
+            }),
+        );
+        expect(result.manual.texinfo.match(/^@include /gm)).toHaveLength(2);
+        expect(
+            result.manual.chapters
+                .map((c: any) => c.texinfo)
+                .join("")
+                .match(/^@node B$/gm),
+        ).toHaveLength(1);
+    });
+});
+
+describe("depth", () => {
+    const chain = (depth: number) => {
+        const pages: Files = {};
+        for (let n = 1; n <= depth; n++)
+            pages[`p${n}.md`] = note(
+                `P${n}`,
+                `  parent: ${n === 1 ? "index.md" : `p${n - 1}.md`}`,
+                `# P${n}\n\n## Inner ${n}\n\n[next](p${n + 1}.md)`,
+            );
+        return pages;
+    };
+
+    it("numbers four levels and never skips one", () => {
+        const { manual } = run(small(chain(4)));
+        const text = manual.chapters[0].texinfo;
+        expect(text.match(/^@(?:chapter|section|subsection|subsubsection) /gm)).toEqual([
+            "@chapter ",
+            "@section ",
+            "@subsection ",
+            "@subsubsection ",
+        ]);
+    });
+
+    it("folds a page deeper than level four into its level-four ancestor and reports it", () => {
+        const result = run(small(chain(6)));
+        const text = result.manual.chapters[0].texinfo;
+        expect(text).toContain("@anchor{P5}\n@subsubheading P5\n");
+        expect(text).toContain("@anchor{P6}\n@subsubheading P6\n");
+        expect(text).not.toContain("@node P5");
+        expect(result.lines).toContain(
+            "docs/p5.md:1:1: warning: the page is 5 levels deep and folds into P4 as a subsubheading",
+        );
+        expect(text).toContain("@ref{P5,,next}");
+    });
+
+    it("renders a page's inner headings relative to its own level, with anchors only where linked", () => {
+        const { manual } = run(
+            small({
+                "a.md": note(
+                    "A",
+                    "  parent: index.md",
+                    "# A\n\n## One\n\n### Two\n\n#### Three\n\n##### Four\n\n[to two](#two)",
+                ),
+            }),
+        );
+        expect(manual.chapters[0].texinfo).toContain(
+            "@heading One\n\n@anchor{Two}\n@subheading Two\n\n@subsubheading Three\n\n@subsubheading Four\n",
+        );
+    });
+});
+
+describe("node names", () => {
+    it("qualifies every page of a repeated name by its parent, and reports the new names", () => {
+        const result = run(
+            small({
+                "s.md": note("Server", "  parent: index.md", "# Server\n\n[c](sc.md)"),
+                "c.md": note("Client", "  parent: index.md", "# Client\n\n[c](cc.md)"),
+                "sc.md": note("Configuration", "  parent: s.md", "# Configuration"),
+                "cc.md": note("Configuration", "  parent: c.md", "# Configuration"),
+            }),
+        );
+        const text = result.manual.chapters.map((c: any) => c.texinfo).join("\n");
+        expect(text).toContain("@node Configuration - Server\n@section Configuration\n");
+        expect(text).toContain("@node Configuration - Client\n@section Configuration\n");
+        expect(result.lines).toContain(
+            "docs/sc.md:1:1: warning: the node name Configuration collides with another name and becomes Configuration - Server",
+        );
+    });
+
+    it("keeps a name stable when an unrelated page is added", () => {
+        const base = {
+            "a.md": note("A", "  parent: index.md", "# A"),
+            "x.md": note("Same", "  parent: a.md", "# S"),
+            "y.md": note("Same", "  parent: index.md", "# S"),
         };
-        const { manuals, dir, findings } = convert(
-            pages,
-            [{ page: "index.md", out: "guide", title: "The Guide" }, { page: "ref.md" }],
-            { link: false },
+        const before = run(small(base))
+            .manual.chapters.map((c: any) => c.texinfo)
+            .join("");
+        const after = run(small({ ...base, "z.md": note("Z", "  parent: index.md", "# Z") }))
+            .manual.chapters.map((c: any) => c.texinfo)
+            .join("");
+        for (const name of ["Same - A", "Same - Manual"]) {
+            expect(before).toContain(`@node ${name}\n`);
+            expect(after).toContain(`@node ${name}\n`);
+        }
+    });
+
+    it("never reuses Top or an index name", () => {
+        const result = run(small({ "a.md": note("Concept Index", "  parent: index.md", "# A") }));
+        expect(result.manual.texinfo.match(/^@node Concept Index$/gm)).toHaveLength(1);
+        expect(result.lines.some((line) => /Concept Index collides/.test(line))).toBe(true);
+    });
+
+    it("falls back to the first heading, then the file name, and reports it", () => {
+        const result = run(
+            small({
+                "h.md": "---\ntexinfo:\n  parent: index.md\n---\n\n# From Heading\n",
+                "file-name.md": "---\ntexinfo:\n  parent: index.md\n---\n\nText only.\n",
+            }),
         );
-        expect(findings).toEqual([]);
-        expect(manuals.map((m: { out: string }) => m.out)).toEqual(["guide", "ref"]);
-        const chapters = (texinfo: string) =>
-            [...texinfo.matchAll(/^@chapter (.+)$/gm)].map((m) => m[1]);
-        expect(chapters(manuals[0].texinfo)).toEqual(["Setup", "Shared"]);
-        expect(chapters(manuals[1].texinfo)).toEqual(["Shared", "Keys"]);
-        expect(manuals[0].texinfo).toContain("@setfilename guide.info");
-        expect(manuals[0].texinfo).toContain("@settitle The Guide");
-        expect(manuals[0].texinfo).toContain("@node Top\n@top Guide");
-        expect(manuals[1].texinfo).toContain("@setfilename ref.info");
-        expect(manuals[1].texinfo).toContain("@settitle Reference");
-        expect(dir).toContain("* Menu:");
-        // Info finds the Top node only after the 0x1F node separator on its own line.
-        expect(dir).toMatch(/\n\x1f\nFile: dir,\tNode: Top\t/);
-        expect(dir).toContain("* The Guide: (guide).");
-        expect(dir).toContain(`${"* Reference: (ref).".padEnd(32)} The reference.`);
-    });
-
-    it("names the default output after the package for the index page", () => {
-        const { manuals } = convert({ "index.md": INDEX }, [{ page: "index.md" }]);
-        expect(manuals[0].out).toBe("pkg");
-    });
-
-    it("reports two manuals with the same output name", () => {
-        const { lines } = convert(
-            { "index.md": INDEX, "a.md": "# A\n" },
-            [
-                { page: "index.md", out: "m" },
-                { page: "a.md", out: "m" },
-            ],
-            { link: false },
-        );
-        expect(lines).toContain(
-            "docs/a.md: error: the manual output name m is used by docs/index.md as well; give one an `out`",
-        );
-    });
-
-    it("positions an output-name clash and a missing top page at the configuration entry", () => {
-        const text =
-            "packageBuild:\n  texinfo:\n    - page: index.md\n      out: m\n    - page: a.md\n      out: m\n    - page: gone.md\n";
-        const { lines } = convert(
-            { "index.md": INDEX, "a.md": "# A\n" },
-            [{ page: "index.md", out: "m" }, { page: "a.md", out: "m" }, { page: "gone.md" }],
-            { link: false, config: { file: "package-build.config.yaml", text } },
-        );
-        expect(lines).toContain(
-            "package-build.config.yaml:5:13: error: the manual output name m is used by docs/index.md as well; give one an `out`",
-        );
-        expect(lines).toContain(
-            "package-build.config.yaml:7:13: error: the top page docs/gone.md does not exist",
-        );
-    });
-
-    it("reports a page no manual reaches", () => {
-        const { lines } = convert(
-            { "index.md": INDEX, "lost.md": "# Lost\n", "deep/also.md": "# Also\n" },
-            undefined,
-            { link: false },
-        );
-        expect(lines).toEqual([
-            "docs/deep/also.md:1:1: error: no manual reaches this page; link it from a configured top page",
-            "docs/lost.md:1:1: error: no manual reaches this page; link it from a configured top page",
-        ]);
-    });
-
-    it("reports a top page that does not exist", () => {
-        const { lines } = convert({ "index.md": INDEX }, [{ page: "gone.md" }], { link: false });
-        expect(lines).toContain("docs/gone.md: error: the top page docs/gone.md does not exist");
-    });
-});
-
-describe("blocks", () => {
-    it("writes fenced code as an example, a nested fence included", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n````markdown\n# Title {#t}\n\n```sql\nSELECT '@';\n```\n````\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain(
-            "@example\n# Title @{#t@}\n\n```sql\nSELECT '@@';\n```\n@end example",
-        );
-    });
-
-    it("writes a keyed table as @table @code", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n| Key | Meaning |\n| --- | --- |\n| `one` | The first. |\n| `two` | The `second`. |\n\n| Key | Type | Meaning |\n| --- | --- | --- |\n| `three` | string | Third. |\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain(
-            "@table @code\n@item one\nThe first.\n@item two\nThe @code{second}.\n@end table",
-        );
-        expect(texinfo).toContain(
-            "@table @code\n@item three\n@emph{Type}: string\n\n@emph{Meaning}: Third.\n@end table",
-        );
-    });
-
-    it("writes any other table as @multitable", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n| Name | Value |\n| --- | --- |\n| `one` | 1 |\n| plain words | `2` |\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toMatch(
-            /@multitable @columnfractions 0\.\d{4} 0\.\d{4}\n@headitem Name @tab Value\n@item @code\{one\} @tab 1\n@item plain words @tab @code\{2\}\n@end multitable/,
-        );
-    });
-
-    it("makes every multitable column at least its longest word plus two", () => {
-        const word = "Fortification";
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": `# A\n\n| ${word} | Notes |\n| --- | --- |\n| yes | ${"long prose ".repeat(20)}|\n`,
-        });
-        expect(findings).toEqual([]);
-        const fractions = /@multitable @columnfractions (.+)/.exec(texinfo)?.[1].split(" ");
-        expect(fractions).toHaveLength(2);
-        const sizes = (fractions ?? []).map((f) => Math.round(Number(f) * 72));
-        expect(sizes[0]).toBeGreaterThanOrEqual(word.length + 2);
-        expect(sizes[0] + sizes[1] + 2).toBeLessThanOrEqual(72);
-    });
-
-    it("measures a column by what Info prints, a cross-reference unbroken", () => {
-        expect(infoText("@code{a@comma{} b} @strong{c} @emph{d}")).toBe("‘a, b’ *c* _d_");
-        expect(infoText("@ref{Node name,,the label}")).toBe(
-            "*note\u00a0the\u00a0label:\u00a0Node\u00a0name.",
-        );
-        expect(infoText("@pxref{N}")).toBe("*note\u00a0N::");
-        expect(columnFractions([["*note\u00a0x\u00a0y::", "z"]])).toEqual([
-            (13 / 72).toFixed(4),
-            (3 / 72).toFixed(4),
-        ]);
-    });
-
-    it("shrinks the line by the indentation a table sits at", () => {
-        const rows = [["a".repeat(30), "b".repeat(30)]];
-        expect(columnFractions(rows)).toHaveLength(2);
-        expect(columnFractions(rows, 10)).toBeUndefined();
-    });
-
-    it("writes a table whose columns cannot fit as a @table keyed on its first column", () => {
-        const head = Array.from({ length: 8 }, (_, i) => `Heading${i}`);
-        const row = ["**First** key", ...head.slice(1).map((h) => `${h.toLowerCase()}value`)];
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": `# A\n\n| ${head.join(" | ")} |\n| ${head.map(() => "---").join(" | ")} |\n| ${row.join(" | ")} |\n| | lone |\n`,
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).not.toContain("@multitable");
-        expect(texinfo).toContain(
-            "@table @asis\n@item @strong{First} key\n@emph{Heading1}: heading1value\n\n@emph{Heading2}: heading2value",
-        );
-        expect(texinfo).toContain("@item @w{}\n@emph{Heading1}: lone\n@end table");
-    });
-
-    it("writes a table of headers alone that cannot fit as a list of them", () => {
-        const head = Array.from({ length: 8 }, (_, i) => `Heading${i}`);
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": `# A\n\n| ${head.join(" | ")} |\n| ${head.map(() => "---").join(" | ")} |\n`,
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain(
-            `@itemize @bullet\n${head.map((h) => `@item ${h}`).join("\n")}\n@end itemize`,
-        );
-    });
-
-    it("writes bullet, ordered, and nested lists, with quotations inside items", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n- one\n  - inner\n- two\n\n  > quoted\n\n3. third\n4. fourth\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain(
-            "@itemize @bullet\n@item\none\n\n@itemize @bullet\n@item\ninner\n@end itemize\n\n@item\ntwo\n\n@quotation\nquoted\n@end quotation\n@end itemize",
-        );
-        expect(texinfo).toContain("@enumerate 3\n@item\nthird\n\n@item\nfourth\n@end enumerate");
-    });
-
-    it("writes strong, emphasis, and quotations", () => {
-        const { texinfo } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n**Bold** and _soft_.\n\n> A quote.\n",
-        });
-        expect(texinfo).toContain(
-            "@strong{Bold} and @emph{soft}.\n\n@quotation\nA quote.\n@end quotation",
-        );
-    });
-
-    it('writes strong text that opens with "note" as @b, which Info prints plain', () => {
-        const { texinfo } = convert({ "index.md": INDEX, "a.md": "# A\n\nA **note infobox**.\n" });
-        expect(texinfo).toContain("A @b{note infobox}.");
-        expect(texinfo).not.toContain("@strong{note");
-    });
-
-    it("drops HTML comments and thematic breaks", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->\n\n# A\n\nOne.\n\n---\n\n<!-- marker:start -->\n\nTwo.\n",
-        });
-        expect(findings).toEqual([]);
-        expect(chapter(texinfo, "A")).toBe("@node A\n@chapter A\n\nOne.\n\nTwo.\n\n");
+        expect(result.manual.texinfo).toContain("* From Heading::");
+        expect(result.manual.texinfo).toContain("* file-name::");
+        expect(result.lines.filter((line) => /no name\.full/.test(line))).toHaveLength(2);
     });
 });
 
 describe("links", () => {
     const pages = {
-        "index.md": "# Manual\n\n- [Alpha](a.md)\n",
-        "a.md": "# Alpha\n\nSee [below](#deep-part), [Beta's part](b.md#part-two), [Beta](b.md), and [`x, y`](b.md#part-two).\n\n## Deep part\n",
-        "b.md": "# Beta\n\n## Part two\n\nBack to [the top](index.md) and [Alpha](a.md#alpha).\n",
+        "a.md": note(
+            "A",
+            "  parent: index.md",
+            "# A\n\nSee [b](b.md), for more. A [mid link](b.md) reads on, and ([b](b.md)) in brackets. Also [lab: colon](b.md) and [x, y](b.md#sec).\n\n[external](https://example.org/a,b) and [site](/x) and [shipped](../LICENSE.md).",
+        ),
+        "b.md": note(
+            "B",
+            "  parent: index.md",
+            "# B\n\n## Sec\n\n[up](index.md) [dead](missing.md) [bad](b.md#nope)",
+        ),
     };
+    const files = small(pages);
+    files["LICENSE.md"] = "x";
+    const result = run(files);
+    const text = result.manual.chapters.map((c: any) => c.texinfo).join("\n");
 
-    it("resolves same-page and cross-page anchors to nodes", () => {
-        const { texinfo, findings } = convert(pages);
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain(
-            "See @ref{Deep part,,below}, @ref{Part two,,Beta's part}, @ref{Beta}, and @ref{Part two,,@code{x@comma{} y}}.",
-        );
-        expect(texinfo).toContain("Back to @ref{Top,,the top} and @ref{Alpha}.");
-        expect(texinfo).toContain("@item\n@ref{Alpha}\n@end itemize");
+    it("writes a cross-reference by position in the sentence", () => {
+        expect(text).toContain("@xref{B,,b}, for more.");
+        expect(text).toContain("A @ref{B,,mid link} reads on, and (@pxref{B,,b}) in brackets.");
     });
 
     it("writes a label with a colon as text followed by a reference", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\nSee [type: place](#type-place) and [`pack: none`](#type-place).\n\n## type: place\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain(
-            "See type: place (@pxref{type - place}) and @code{pack: none} (@pxref{type - place}).",
-        );
+        expect(text).toContain("lab: colon (@pxref{B})");
     });
 
-    it("resolves an anchor on a sub-subheading to its @anchor", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n## S\n\n### T\n\n#### Fine point\n\nSee [it](#fine-point).\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain("See @ref{Fine point,,it}.");
+    it("points at the anchor of a linked heading and escapes commas in link text", () => {
+        expect(text).toContain("@ref{Sec,,x@comma{} y}");
+        expect(text).toContain("@anchor{Sec}\n@heading Sec");
     });
 
-    it("writes external links, shipped files, and site paths", () => {
-        const { texinfo, findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n[Docs, here](https://example.org/a,b) and <https://example.org>.\n\nThe [config](../assets/preview/gitea.ini) and [a page](/site/page/).\n",
-        });
-        expect(findings).toEqual([]);
-        expect(texinfo).toContain(
-            "@uref{https://example.org/a@comma{}b, Docs@comma{} here} and @uref{https://example.org}.",
-        );
-        expect(texinfo).toContain(
-            "The config (@file{assets/preview/gitea.ini}) and a page (@code{/site/page/}).",
-        );
+    it("writes external links, site paths and shipped files", () => {
+        expect(text).toContain("@uref{https://example.org/a@comma{}b, external}");
+        expect(text).toContain("site (@code{/x})");
+        expect(text).toContain("shipped (@file{LICENSE.md})");
     });
 
-    it("reports links and anchors nothing resolves", () => {
-        const { lines } = convert(
-            {
-                "index.md": INDEX,
-                "a.md": "# A\n\n[x](#nowhere) [y](b.md#nowhere) [z](missing.md)\n[w](../CONTENT.md) [v](../../outside.md)\n",
-                "b.md": "# B\n",
-                ...{},
-            },
-            undefined,
-            {
-                exists: (file: string) =>
-                    ["docs/index.md", "docs/a.md", "docs/b.md", "CONTENT.md"].includes(file),
-            },
+    it("writes an unresolvable link as plain text and reports it, never a dangling reference", () => {
+        expect(text).toContain("up dead bad");
+        expect(result.lines).toEqual(
+            expect.arrayContaining([
+                expect.stringMatching(
+                    /missing\.md resolves to docs\/missing\.md, which does not exist/,
+                ),
+                expect.stringMatching(/link b\.md#nope points at an anchor no heading/),
+            ]),
         );
-        expect(lines).toEqual([
-            "docs/a.md:3:1: error: link #nowhere points at an anchor no heading in docs/a.md declares",
-            "docs/a.md:3:15: error: link b.md#nowhere points at an anchor no heading in docs/b.md declares",
-            "docs/a.md:3:33: error: link missing.md resolves to docs/missing.md, which does not exist",
-            "docs/a.md:4:1: error: link ../CONTENT.md points at CONTENT.md, which the package does not ship",
-            "docs/a.md:4:20: error: link ../../outside.md leaves the project",
+        const declared = new Set(
+            [
+                ...`${result.manual.texinfo}\n${text}`.matchAll(/^@node (.+)$|^@anchor\{(.+)\}$/gm),
+            ].map((m) => m[1] ?? m[2]),
+        );
+        const targets = [...text.matchAll(/@(?:x|px)?ref\{((?:[^,{}@]|@.)+?)[,}]/g)].map(
+            (m) => m[1],
+        );
+        expect(targets.filter((target) => !declared.has(target))).toEqual([]);
+    });
+});
+
+describe("Addresses", () => {
+    it("names a page by its shortcode, its type and shortcode, or its full Address", () => {
+        const { manual, lines } = run(
+            small({
+                "a.md": note("A", "  parent: index.md", "# A"),
+                "b.md": note("B", "  parent: doc-a", "# B"),
+                "c.md": note("C", "  parent: pkg-note-doc-b", "# C"),
+            }),
+        );
+        expect(lines.filter((line) => /excluded|hint/.test(line))).toEqual([]);
+        expect(manual.chapters[0].texinfo).toContain("@section B\n");
+        expect(manual.chapters[0].texinfo).toContain("@subsection C\n");
+    });
+
+    it("never names a page by its file path", () => {
+        const files = small({ "a.md": note("A", "  parent: index.md", "# A") });
+        files["docs/a.md"] = files["docs/a.md"].replace("parent: index", "parent: index.md");
+        const { lines } = run(files);
+        expect(lines.filter((line) => /excluded/.test(line))).toEqual([
+            expect.stringContaining('parent "index.md" does not resolve to a page'),
         ]);
     });
-});
 
-describe("constructs with no mapping", () => {
-    it.each([
-        ["an image", "![alt](pic.png)", "an image has no Texinfo mapping"],
-        [
-            "raw HTML",
-            "Returns {Set<string>}.",
-            'raw HTML "<string>" has no Texinfo mapping; write it as code or text',
-        ],
-        [
-            "block HTML",
-            "<div>\nx\n</div>",
-            "raw HTML has no Texinfo mapping; write it as Markdown or code",
-        ],
-        ["strikethrough", "~~gone~~", "strikethrough has no Texinfo mapping"],
-        ["a task list", "- [ ] todo", "a task list has no Texinfo mapping"],
-        ["a fenced div", "::: {.verse}\nline\n:::", "a fenced div (`:::`) has no Texinfo mapping"],
-        ["a definition list", "Term\n: Meaning", "a definition list has no Texinfo mapping"],
-        [
-            "a GitHub alert",
-            "> [!NOTE]\n> Read this.",
-            "a GitHub alert ([!NOTE]) has no Texinfo mapping; write a plain quotation",
-        ],
-        [
-            "a pipe table without a header row",
-            "| `a` | one |\n| `b` | two |",
-            "a pipe table needs a header row followed by a delimiter row; this one reads as a paragraph",
-        ],
-        [
-            "a reference link",
-            "[x][ref]\n\n[ref]: https://example.org",
-            "reference link [x] has no Texinfo mapping; write an inline link",
-        ],
-    ])("reports %s at its location", (_name, markdown, message) => {
-        const { lines } = convert({ "index.md": INDEX, "a.md": `# A\n\n${markdown}\n` });
-        expect(lines[0]).toMatch(/^docs\/a\.md:3:\d+: error: /);
-        expect(lines[0]).toContain(message);
-    });
-
-    it("leaves code alone, however it looks", () => {
-        const { findings } = convert({
-            "index.md": INDEX,
-            "a.md": "# A\n\n```markdown\n![alt](pic.png) <b>x</b> ~~y~~\n::: div\n:::\n```\n\n`<string>`\n",
-        });
-        expect(findings).toEqual([]);
+    it("refuses a page that shares an Address with another and says so", () => {
+        const files = small({ "a.md": note("A", "  parent: index.md", "# A") });
+        files["docs/b.md"] = files["docs/a.md"];
+        const { lines } = run(files);
+        expect(lines.some((line) => /also names a\.md/.test(line))).toBe(true);
     });
 });
 
-describe("the manual", () => {
-    it("carries its header, copying notice, directory entry, and master menu", () => {
-        const { texinfo } = convert({
-            "index.md": "---\ndescription: The whole toolchain.\n---\n\n# Manual\n\nThe opening.\n",
-            "a.md": "---\ndescription: First things.\n---\n\n# A\n\n## S\n",
+describe("the license statement", () => {
+    const withLicense = (texinfo: Record<string, unknown>, license?: string) => {
+        const files = small({});
+        files["package.json"] = JSON.stringify({
+            name: "p",
+            version: "1.0.0",
+            author: "A",
+            license,
+            texinfo: { dircategory: "T", ...texinfo },
         });
-        expect(texinfo.startsWith("\\input texinfo\n")).toBe(true);
-        for (const line of [
-            "@setfilename manual.info",
-            "@settitle Manual",
-            "@set VERSION 1.2.3",
-            "@dircategory HeroicLands",
-            `${"* Manual: (manual).".padEnd(32)} The whole toolchain.`,
-            'Copyright @copyright{} 2024-2026 Tom Rodriguez ("Toasty").',
-            "Attribution-ShareAlike 4.0 International License (CC-BY-SA-4.0)",
-            "@uref{https://creativecommons.org/licenses/by-sa/4.0/}",
-            "@node Top\n@top Manual\n\n@insertcopying\n\nThe opening.",
-            `${"* A::".padEnd(32)} First things.`,
-            "@detailmenu\n --- The Detailed Node Listing ---\n\nA\n\n* S::\n@end detailmenu",
-        ]) {
-            expect(texinfo).toContain(line);
-        }
-        expect(texinfo.trimEnd().endsWith("@bye")).toBe(true);
-    });
+        return run(files).manual.texinfo as string;
+    };
 
-    it("is the same on every run", () => {
-        const pages = { "index.md": INDEX, "a.md": "# A\n\nText.\n" };
-        expect(convert(pages).texinfo).toBe(convert(pages).texinfo);
-    });
-
-    it("places an indexer's entries and appends its nodes", () => {
-        const events: unknown[] = [];
-        const { texinfo } = convert(
-            {
-                "index.md": INDEX,
-                "a.md": "# A\n\n| Key | Meaning |\n| --- | --- |\n| `k` | K. |\n",
-            },
-            undefined,
-            {
-                indexer: {
-                    entries: (event: { kind: string; text: string }) => {
-                        events.push(event);
-                        return [`@cindex ${event.text}`];
-                    },
-                    nodes: () => [
-                        {
-                            name: "Index",
-                            description: "Every entry.",
-                            texinfo: "@unnumbered Index\n\n@printindex cp",
-                        },
-                    ],
-                },
-            },
+    it("names the manual's license and the software's apart", () => {
+        const text = withLicense({ license: "CC-BY-SA-4.0" }, "GPL-3.0-or-later AND CC-BY-SA-4.0");
+        expect(text).toContain(
+            "@quotation\nThe text of this manual is licensed under CC-BY-SA-4.0.\nThe software it documents is licensed under GPL-3.0-or-later.\n@end quotation",
         );
-        expect(texinfo).toContain("@chapter A\n@cindex A");
-        expect(texinfo).toContain("@item k\n@cindex k\nK.");
-        expect(texinfo).toContain(`${"* Index::".padEnd(32)} Every entry.`);
-        expect(texinfo).toContain("@node Index\n@unnumbered Index\n\n@printindex cp\n\n@bye");
-        expect(events).toContainEqual({
-            kind: "item",
-            file: "docs/a.md",
-            node: "A",
-            text: "k",
-            header: "Key",
+    });
+
+    it("names the manual's license alone when the package has no other", () => {
+        const text = withLicense({ license: "CC-BY-SA-4.0" }, "CC-BY-SA-4.0");
+        expect(text).toContain(
+            "The text of this manual is licensed under CC-BY-SA-4.0.\n@end quotation",
+        );
+    });
+
+    it("states the package license when the manual declares none", () => {
+        expect(withLicense({}, "MIT")).toContain("Licensed under MIT.\n@end quotation");
+    });
+});
+
+describe("what a code span, a link or plain text is", () => {
+    const chapter = (text: string) =>
+        run(small({ "a.md": note("A", "  parent: index.md", `# A\n\n${text}`) })).manual.chapters[0]
+            .texinfo as string;
+
+    it("maps paths to @file, variables to @env, commands to @command and addresses to @email", () => {
+        const text = chapter(
+            "`docs/a.md` `config.mjs` `~/dev/x` `$SOURCE_DATE_EPOCH` `PACKAGE_KINDS` `npm run build` `git` `-print` `a.b` `and/or words` [m](mailto:a@b.c) [Name](mailto:a@b.c)",
+        );
+        expect(text).toContain(
+            "@file{docs/a.md} @file{config.mjs} @file{~/dev/x} @env{SOURCE_DATE_EPOCH} @code{PACKAGE_KINDS} @samp{npm run build} @command{git} @code{-print} @code{a.b} @code{and/or words} @email{a@@b.c, m} @email{a@@b.c, Name}",
+        );
+    });
+
+    it("indexes options and variables in the variable index and commands in the program index", () => {
+        const { manual } = run(
+            small({
+                "a.md": note(
+                    "A",
+                    "  parent: index.md",
+                    "# A\n\n`--out` `$HOME_DIR` `npm run x` `--out` `-rith`",
+                ),
+            }),
+        );
+        expect(manual.chapters[0].texinfo).toContain(
+            "@cindex A\n@vindex --out\n@vindex HOME_DIR\n@pindex npm\n",
+        );
+        expect(manual.texinfo).toContain(
+            "@node Variable Index\n@unnumbered Variable Index\n@printindex vr",
+        );
+        expect(manual.texinfo).toContain(
+            "@node Program Index\n@unnumbered Program Index\n@printindex pg",
+        );
+    });
+
+    it("marks a capitalised name an environment variable only where the content says so", () => {
+        const text = chapter(
+            "Set the environment variable `FOO_BAR`, or `BAZ_QUX` environment variable. The export `PACKAGE_KINDS` stays code.\n\n| Name | Meaning |\n| --- | --- |\n| `ONE_TWO` | x |",
+        );
+        expect(text).toContain("@env{FOO_BAR}");
+        expect(text).toContain("@env{BAZ_QUX}");
+        expect(text).toContain("@code{PACKAGE_KINDS}");
+        expect(text).toContain("@code{ONE_TWO}");
+        const table = chapter(
+            "| Environment variable | Meaning |\n| --- | --- |\n| `ONE_TWO` | x |",
+        );
+        expect(table).toContain("@env{ONE_TWO}");
+    });
+
+    it("keeps an option written in plain text from becoming an en dash", () => {
+        expect(chapter("Pass --check or -x, not pre-push or a--b.")).toContain(
+            "Pass @option{--check} or @option{-x}, not pre-push or a--b.",
+        );
+    });
+
+    it("links a page outside the manual by the public URL its front matter declares, and by none otherwise", () => {
+        const files = small({
+            "a.md": note("A", "  parent: index.md", "# A\n\n[x](plain.md#s) [y](other.md)"),
         });
+        files["docs/plain.md"] = PLAIN("# Plain\n\n## S\n").replace(
+            "name: { full: Plain }\n",
+            "name: { full: Plain }\nurl: https://example.org/pages/plain\n",
+        );
+        files["docs/other.md"] = PLAIN("# Other\n").replace("shortcode: plain", "shortcode: other");
+        files["package.json"] = JSON.stringify({
+            name: "p",
+            version: "1.0.0",
+            homepage: "https://example.org/p#docs",
+        });
+        const result = run(files);
+        expect(result.manual.chapters[0].texinfo).toContain(
+            "@url{https://example.org/pages/plain#s, x} y",
+        );
+        expect(
+            result.lines.filter((line) => /which is not part of the manual/.test(line)),
+        ).toHaveLength(2);
+    });
+
+    it("writes only the text before its first heading into the Top node", () => {
+        const { manual } = run(
+            small(
+                { "a.md": note("A", "  parent: index.md", "# A") },
+                "# Manual\n\nThe summary.\n\n## Links\n\nLong list.",
+            ),
+        );
+        expect(manual.texinfo).toContain("The summary.");
+        expect(manual.texinfo).not.toContain("Long list.");
+    });
+});
+
+describe("one report per manual", () => {
+    it("keeps each manual's findings to itself", () => {
+        const files = small({
+            "a.md": note("A", "  parent: index.md", "# A\n\n[gone](gone.md)"),
+        });
+        files["docs/other.md"] = note("Other", "  parent: null", "# Other\n\n[gone](gone2.md)");
+        files["docs/other.md"] = addressed({ "docs/other.md": files["docs/other.md"] })[
+            "docs/other.md"
+        ];
+        const result = run(files, {
+            manuals: [
+                { page: "index.md", out: "one" },
+                { page: "other.md", out: "two" },
+            ],
+        });
+        const own = (index: number) => result.manuals[index].findings.map(formatFinding).join("\n");
+        expect(own(0)).toContain("gone.md");
+        expect(own(0)).not.toContain("gone2.md");
+        expect(own(1)).toContain("gone2.md");
+        expect(own(1)).not.toContain("gone.md ");
+    });
+});
+
+describe("indexes", () => {
+    it("indexes each page by name and tag, and a reference page also in the reference index", () => {
+        const { manual } = run(
+            small({
+                "a.md": note(
+                    "Alpha",
+                    "  parent: index.md",
+                    "# Alpha",
+                    "tags: [one, two]\nsubType: reference\n",
+                ),
+                "b.md": note("Beta", "  parent: index.md", "# Beta", "subType: unknown\n"),
+            }),
+        );
+        const a = manual.chapters.find((c: any) => c.path.endsWith("alpha.texi")).texinfo;
+        expect(a).toContain(
+            "@node Alpha\n@chapter Alpha\n@cindex Alpha\n@cindex one\n@cindex two\n@rfindex Alpha\n",
+        );
+        const b = manual.chapters.find((c: any) => c.path.endsWith("beta.texi")).texinfo;
+        expect(b).toBe("@node Beta\n@chapter Beta\n@cindex Beta\n");
+        expect(manual.texinfo).toContain("@defindex rf\n");
+        expect(manual.texinfo).toContain(
+            "@node Concept Index\n@unnumbered Concept Index\n@printindex cp\n\n@node Reference Index\n@unnumbered Reference Index\n@printindex rf\n",
+        );
+    });
+
+    it("writes no reference index when no page is a reference", () => {
+        const { manual } = run(small({}));
+        expect(manual.texinfo).not.toContain("@defindex");
+        expect(manual.texinfo).not.toContain("Reference Index");
+    });
+
+    it("lists a node's description in its menu entry and nothing when it has none", () => {
+        const { manual } = run(
+            small({
+                "a.md": note(
+                    "Alpha",
+                    "  parent: index.md",
+                    "# Alpha",
+                    "description: Does a thing.\n",
+                ),
+                "b.md": note("Beta", "  parent: index.md", "# Beta"),
+            }),
+        );
+        expect(manual.texinfo).toContain(`${"* Alpha::".padEnd(32)} Does a thing.\n* Beta::\n`);
+    });
+});
+
+describe("blocks", () => {
+    const body = (text: string) =>
+        run(small({ "a.md": note("A", "  parent: index.md", `# A\n\n${text}`) }));
+    const chapter = (text: string) => body(text).manual.chapters[0].texinfo as string;
+
+    it("writes fenced code as an example, lisp as lisp and verbatim code unescaped", () => {
+        const text = chapter(
+            "```sh\na @ {b}\n```\n\n```lisp\n(f {x})\n```\n\n```verbatim\na @ {b}\n```",
+        );
+        expect(text).toContain("@example\na @@ @{b@}\n@end example");
+        expect(text).toContain("@lisp\n(f @{x@})\n@end lisp");
+        expect(text).toContain("@verbatim\na @ {b}\n@end verbatim");
+    });
+
+    it("writes lists, definition lists, quotations and alerts", () => {
+        const text = chapter(
+            "- one\n- two\n\n3. three\n4. four\n\nTerm\n: Definition\n\n> quoted\n\n> [!NOTE]\n> Careful.",
+        );
+        expect(text).toContain("@itemize @bullet\n@item\none\n\n@item\ntwo\n@end itemize");
+        expect(text).toContain("@enumerate 3\n");
+        expect(text).toContain("@table @asis\n@item Term\nDefinition\n@end table");
+        expect(text).toContain("@quotation\nquoted\n@end quotation");
+        expect(text).toContain("@quotation Note\nCareful.\n@end quotation");
+    });
+
+    it("writes raw HTML for HTML output and drops comments and rules", () => {
+        const text = chapter("<div>x</div>\n\n<!-- c -->\n\n---\n\nEnd.");
+        expect(text).toContain("@html\n<div>x</div>\n@end html");
+        expect(text).not.toContain("<!--");
+        expect(text.trimEnd().endsWith("End.")).toBe(true);
+    });
+
+    it("writes a footnote inline and a reference link as a link", () => {
+        const text = chapter(
+            "A note[^1] and [ref][r].\n\n[^1]: Footnote text.\n\n[r]: https://example.org/",
+        );
+        expect(text).toContain(
+            "A note@footnote{Footnote text.} and @uref{https://example.org/, ref}.",
+        );
+    });
+
+    it("writes an image with its alt text and copies the file", () => {
+        const files = small({
+            "a.md": note("A", "  parent: index.md", "# A\n\n![Alt, text](p.png)"),
+        });
+        files["docs/p.png"] = "";
+        const result = run(files);
+        expect(result.manual.chapters[0].texinfo).toContain(
+            "@image{manual-images/docs-p,,,Alt@comma{} text,.png}",
+        );
+        expect(result.manual.assets).toEqual([
+            { from: "docs/p.png", to: "manual-images/docs-p.png" },
+        ]);
+    });
+
+    it("reports a construct with no mapping at its line", () => {
+        const result = body("~~gone~~\n\n::: note\nx\n:::\n\n- [ ] task");
+        expect(result.lines).toEqual(
+            expect.arrayContaining([
+                expect.stringMatching(/^docs\/a\.md:11:\d+: warning: strikethrough/),
+                expect.stringMatching(/^docs\/a\.md:13:1: warning: a fenced div/),
+                expect.stringMatching(/^docs\/a\.md:17:1: warning: a task list/),
+            ]),
+        );
+    });
+
+    it("writes the printed manual an ASCII stand-in for a character its fonts lack", () => {
+        const text = chapter("A ├─ ✅ é.");
+        expect(text).toContain("@inlinefmtifelse{tex,+,├}@inlinefmtifelse{tex,-,─}");
+        expect(text).toContain("@inlinefmtifelse{tex,U+2705,✅} é.");
+    });
+});
+
+describe("tables", () => {
+    const table = (text: string) =>
+        run(small({ "a.md": note("A", "  parent: index.md", `# A\n\n${text}`) }));
+
+    it("writes a table as a multitable with columns at least as wide as their longest word", () => {
+        const { manual } = table("| Name | Value |\n| ---- | ----- |\n| a | one two |");
+        expect(manual.chapters[0].texinfo).toMatch(
+            /@multitable @columnfractions 0\.\d+ 0\.\d+\n@headitem Name @tab Value\n@item a @tab one two\n@end multitable/,
+        );
+        expect(
+            columnFractions([
+                ["Name", "Value"],
+                ["a", "one two"],
+            ]),
+        ).toEqual(["0.0833", "0.1250"]);
+    });
+
+    it("measures a column by what Info prints", () => {
+        expect(infoText("@code{x} @emph{y} @strong{z}")).toBe("‘x’ _y_ *z*");
+        expect(infoText("@ref{Node}")).toBe("*note Node::");
+    });
+
+    it("restructures a table whose columns cannot fit, and reports it", () => {
+        const { manual, lines } = table(
+            `| A | B | C |\n| - | - | - |\n| ${"x".repeat(40)} | ${"y".repeat(40)} | z |`,
+        );
+        expect(manual.chapters[0].texinfo).toContain("@table @asis\n@item xxxx");
+        expect(lines).toContain(
+            "docs/a.md:11:1: warning: the table is too wide for its columns and is restructured as a list keyed on its first column",
+        );
+    });
+});
+
+describe("the fixture manual", () => {
+    const FIXTURE = { manuals: [{ page: "index.md", out: "fixture" }] };
+    const first = run(FILES, FIXTURE);
+    const outputs = written(first);
+
+    it("matches the golden files", () => {
+        const names = Object.keys(outputs).sort();
+        if (process.env.UPDATE_GOLDEN) {
+            fs.rmSync(GOLDEN, { recursive: true, force: true });
+            for (const name of names) {
+                fs.mkdirSync(path.dirname(path.join(GOLDEN, name)), { recursive: true });
+                fs.writeFileSync(path.join(GOLDEN, name), outputs[name]);
+            }
+        }
+        const expected =
+            fs.existsSync(GOLDEN) ?
+                fs
+                    .readdirSync(GOLDEN, { recursive: true, withFileTypes: true })
+                    .filter((entry) => entry.isFile())
+                    .map((entry) =>
+                        path
+                            .relative(GOLDEN, path.join(entry.parentPath, entry.name))
+                            .split(path.sep)
+                            .join("/"),
+                    )
+                    .sort()
+            :   [];
+        expect(names).toEqual(expected);
+        for (const name of names)
+            expect(outputs[name], name).toBe(fs.readFileSync(path.join(GOLDEN, name), "utf8"));
+    });
+
+    it("is byte-identical on every run, whatever order the files are listed in", () => {
+        const second = run(FILES, {
+            ...FIXTURE,
+            list: (dir: string) =>
+                Object.keys(FILES)
+                    .filter((f) => f.startsWith(`${dir}/`))
+                    .reverse(),
+        });
+        expect(written(second)).toEqual(outputs);
+        expect(second.dir).toBe(first.dir);
+    });
+
+    it("excludes what the brief says to exclude and reports each case", () => {
+        const text = Object.values(outputs).join("\n");
+        for (const gone of ["Second Top", "Orphan", "Loop A", "Loop B", "No Parent", "Hidden"])
+            expect(text, gone).not.toMatch(new RegExp(`@node ${gone}$`, "m"));
+        const report = outputs["report.txt"];
+        for (const expectation of [
+            /plain\.md, which has no texinfo front matter/,
+            /second-top\.md.*excluded: it declares `parent: null`/,
+            /orphan\.md.*parent "nowhere" does not resolve/,
+            /loop-a\.md.*parent chain does not lead/,
+            /no-parent\.md.*texinfo has no parent/,
+            /hidden\.md.*no chain of links/,
+            /hints\/c\.md.*contradict/,
+            /bad-hints\.md.*"hintsc" is ignored: it is not a sibling/,
+            /deep6\.md.*folds into Deep Four/,
+            /server\/config\.md.*becomes Configuration - Servers/,
+            /constructs\.md.*fenced div/,
+        ])
+            expect(report).toMatch(expectation);
+    });
+
+    it("declares every node and anchor it refers to", () => {
+        const text = Object.values(outputs).join("\n");
+        const declared = new Set(
+            [...text.matchAll(/^@node (.+)$|^@anchor\{(.+)\}$/gm)].map((m) => m[1] ?? m[2]),
+        );
+        const targets = [...text.matchAll(/@(?:x|px)?ref\{((?:[^,{}@]|@.)+?)[,}]/g)].map(
+            (m) => m[1],
+        );
+        expect(targets.length).toBeGreaterThan(5);
+        expect(targets.filter((target) => !declared.has(target))).toEqual([]);
+    });
+
+    describe("builds with the Texinfo tools and no warning", () => {
+        const materialize = (stripImages = false) => {
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), "texinfo-fixture-"));
+            const manual = first.manual;
+            const strip = (text: string) =>
+                stripImages ? text.replace(/@image\{(?:[^{}]|@comma\{\})*\}/g, "") : text;
+            fs.writeFileSync(path.join(dir, "fixture.texi"), manual.texinfo);
+            fs.mkdirSync(path.join(dir, "fixture-chapters"));
+            for (const chapter of manual.chapters)
+                fs.writeFileSync(path.join(dir, chapter.path), strip(chapter.texinfo));
+            for (const asset of manual.assets) {
+                fs.mkdirSync(path.dirname(path.join(dir, asset.to)), { recursive: true });
+                fs.writeFileSync(path.join(dir, asset.to), PNG);
+            }
+            return dir;
+        };
+
+        it("texi2any writes Info and HTML", (context) => {
+            skipUnlessPresent(context, texi2anySkip());
+            const dir = materialize();
+            try {
+                expect(buildInfoAndHtml(dir, "fixture.texi")).toEqual([]);
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        it("texi2pdf writes a PDF", (context) => {
+            skipUnlessPresent(context, texi2pdfSkip());
+            // Images need epsf.tex, which a minimal TeX installation lacks.
+            const dir = materialize(!hasEpsf());
+            try {
+                expect(buildPdf(dir, "fixture.texi")).toEqual([]);
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        }, 300_000);
     });
 });

@@ -1,3 +1,12 @@
+---
+shortcode: referencesettlementsource
+type: doc
+name: { full: "Settlement source edits" }
+texinfo:
+  parent: homepage-root
+  after: [referencesettlementnames]
+---
+
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
 
 # Settlement source edits

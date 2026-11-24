@@ -3,6 +3,9 @@ shortcode: guidesbook
 name: { full: "Build a PDF book" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [referencethemepages]
 ---
 
 # Build a PDF book

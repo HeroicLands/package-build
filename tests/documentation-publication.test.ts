@@ -30,7 +30,10 @@ describe("package documentation", () => {
         ).toEqual([]);
         expect(Object.keys(pkg.scripts).filter((name) => /^build:book/.test(name))).toEqual([]);
         expect(pkg.scripts).not.toHaveProperty("build:content-index");
-        expect(existsSync(path.join(root, "package-build.config.yaml"))).toBe(false);
+        // The only configuration this repository carries declares its manuals.
+        const config = readFileSync(path.join(root, "package-build.config.yaml"), "utf8");
+        expect(config).toContain("packageKind: documentation");
+        expect(config).not.toMatch(/^\s*packs:/m);
         expect(existsSync(path.join(root, "book.yaml"))).toBe(false);
     });
 

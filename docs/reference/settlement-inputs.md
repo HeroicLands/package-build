@@ -1,3 +1,12 @@
+---
+shortcode: referencesettlementinputs
+type: doc
+name: { full: "Settlement input assembly" }
+texinfo:
+  parent: homepage-root
+  after: [referenceazgaarmapinput]
+---
+
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
 
 # Settlement input assembly

@@ -3,6 +3,8 @@ shortcode: root
 name: { full: Package Build Documentation }
 type: homepage
 description: Guides and reference for building HeroicLands Foundry systems, modules, and content.
+texinfo:
+  parent: null
 ---
 
 # Package Build Documentation

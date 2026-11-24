@@ -18,12 +18,12 @@
  *     node scripts/docs-texinfo.mjs [--root <dir>] [--out <dir>] [--check] [--help]
  *
  * Reads `packageBuild.texinfo` from `package-build.config.yaml` at the
- * repository root (or the one `--root` names) and writes one `<name>.texi` per manual, with the Info
- * `dir` file that lists them, into `build/docs/` beneath the repository root
+ * repository root (or the one `--root` names) and writes one `<name>.texi` per manual with its chapter files, images and
+ * report, and the Info `dir` file that lists them, into `build/docs/` beneath the repository root
  * or the directory `--out` names. `--check` converts and reports without
  * writing. Every finding is printed to stderr as
- * `file:line:column: error: message`; any finding exits with status 1 and
- * writes nothing. `--help` prints the usage and exits with status 0.
+ * `file:line:column: severity: message`; an error exits with status 1 and
+ * writes nothing, and a warning is reported and the manual is written. `--help` prints the usage and exits with status 0.
  */
 
 import fs from "node:fs";
@@ -44,8 +44,8 @@ const HELP = `${USAGE}
 
 Convert the Markdown under docs/ into the Texinfo manuals that
 packageBuild.texinfo declares in package-build.config.yaml. Each manual starts
-at its top page and follows links to the other pages, in the order it first
-meets them.
+at its top page and follows links to the pages that take part, and takes its
+structure and order from each page's texinfo front matter.
 
 Options:
   --root <dir>  Read the configuration and docs/ of the repository at <dir>
@@ -56,11 +56,12 @@ Options:
   --help        Print this help and exit.
 
 Each finding is printed to stderr as
-file:line:column: error: message.
+file:line:column: severity: message, and the warnings are also written to
+<name>.report.txt beside the manual.
 
 Exit status:
-  0  every manual converted with no findings, or --help
-  1  a finding, or an unknown option`;
+  0  every manual converted with no error (warnings are reported), or --help
+  1  an error, or an unknown option`;
 
 let values;
 try {
@@ -88,8 +89,13 @@ const CONFIG = path.join(ROOT, "package-build.config.yaml");
 const CONFIG_REL = path.relative(process.cwd(), CONFIG);
 
 let configured;
+let configAuthors = [];
+let contentPackage;
 try {
-    configured = resolvePackageBuildConfig(readPackConfig(CONFIG)).texinfo;
+    const raw = readPackConfig(CONFIG);
+    configured = resolvePackageBuildConfig(raw).texinfo;
+    contentPackage = raw.contentPackage;
+    configAuthors = (raw.authors ?? []).map((author) => author?.name).filter(Boolean);
 } catch (error) {
     console.error(String(locateConfigError(error, CONFIG_REL).message ?? error));
     process.exit(1);
@@ -102,29 +108,46 @@ if (!configured.length) {
 const { manuals, dir, findings } = convertDocs({
     root: ROOT,
     manuals: configured,
+    authors: configAuthors,
+    contentPackage,
     config: { file: "package-build.config.yaml", text: fs.readFileSync(CONFIG, "utf8") },
 });
-for (const finding of findings) {
-    console.error(
-        formatFinding({
-            ...finding,
-            file: path.relative(process.cwd(), path.join(ROOT, finding.file)),
-        }),
-    );
-}
-if (findings.length) {
-    console.error(`docs-texinfo: ${findings.length} finding(s)`);
+const lines = findings.map((finding) =>
+    formatFinding({
+        ...finding,
+        file: path.relative(process.cwd(), path.join(ROOT, finding.file)),
+    }),
+);
+for (const text of lines) console.error(text);
+const errors = findings.filter((finding) => finding.severity === "error").length;
+if (errors) {
+    console.error(`docs-texinfo: ${errors} error(s); no manual written`);
     process.exit(1);
 }
 if (!values.check) {
     const out = path.resolve(values.out ?? path.join(ROOT, "build", "docs"));
-    fs.mkdirSync(out, { recursive: true });
+    const show = (file) => path.relative(process.cwd(), file);
     for (const manual of manuals) {
+        fs.mkdirSync(path.join(out, `${manual.out}-chapters`), { recursive: true });
         fs.writeFileSync(path.join(out, `${manual.out}.texi`), manual.texinfo);
-        console.log(
-            `docs-texinfo: wrote ${path.relative(process.cwd(), path.join(out, `${manual.out}.texi`))}`,
+        for (const chapter of manual.chapters)
+            fs.writeFileSync(path.join(out, chapter.path), chapter.texinfo);
+        for (const asset of manual.assets) {
+            fs.mkdirSync(path.dirname(path.join(out, asset.to)), { recursive: true });
+            fs.copyFileSync(path.join(ROOT, asset.from), path.join(out, asset.to));
+        }
+        const own = manual.findings.map((finding) =>
+            formatFinding({
+                ...finding,
+                file: path.relative(process.cwd(), path.join(ROOT, finding.file)),
+            }),
         );
+        fs.writeFileSync(
+            path.join(out, `${manual.out}.report.txt`),
+            own.length ? `${own.join("\n")}\n` : "",
+        );
+        console.log(`docs-texinfo: wrote ${show(path.join(out, `${manual.out}.texi`))}`);
     }
     fs.writeFileSync(path.join(out, "dir"), dir);
-    console.log(`docs-texinfo: wrote ${path.relative(process.cwd(), path.join(out, "dir"))}`);
+    console.log(`docs-texinfo: wrote ${show(path.join(out, "dir"))}`);
 }

@@ -1,0 +1,34 @@
+@node Escaping and Links
+@chapter Escaping and Links
+@cindex Escaping and Links
+@cindex escaping
+@cindex links
+@rfindex Escaping and Links
+@vindex --option
+@vindex -x
+@vindex --dashes
+@vindex --check
+@vindex SOURCE_DATE_EPOCH
+@vindex XDG_CACHE_HOME
+@pindex git
+@pindex npm
+@pindex texi2any
+
+Write @@ signs, @{braces@}, and @code{@{@@x@}} with care. Use @option{--option}, @option{-x} and
+@var{file} inside code, never plain @option{--dashes} or "quotes".
+
+@xref{Inline code,,the @option{--check} option@comma{} one@comma{} two}, for details.
+A mid-sentence link to the loop, a cycle reads on, and
+(@pxref{Hints,,hints}) in parentheses.
+
+A link with a: colon (@pxref{Hints}) and an @uref{https://example.org/a@comma{}b, external page@comma{} with a comma}.
+
+@b{note that} this is strong, @strong{Notes are fine}, @emph{emphasis}, and a @uref{https://example.org/auto}.
+
+Files @file{docs/index.md} and @file{LICENSE.md}, the variable @env{SOURCE_DATE_EPOCH}, the
+environment variable @env{XDG_CACHE_HOME}, the export @code{PACKAGE_KINDS}, the affix @code{-rith}, the program
+@command{git}, the command lines @samp{npm run build} and @samp{texi2any --html}, and the mail address @email{ada@@example.org, Ada}
+or @email{ada@@example.org}.
+
+Back to the top and the license file (@file{LICENSE.md}) and
+root path (@code{/docs/x}).

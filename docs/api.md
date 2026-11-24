@@ -3,6 +3,9 @@ shortcode: api
 name: { full: "API reference" }
 type: doc
 subType: reference
+texinfo:
+  parent: homepage-root
+  after: [diagnostics]
 ---
 
 # API reference
@@ -193,18 +196,19 @@ Whether a content tree has anything to compile. The pack build's worst failure i
 
 The consuming repository's resolved `package-build.config.yaml`: the content package, the Foundry package and its kind, every path, the `_stats` identity, item-type membership and the pack list — read on call rather than hoisted at import, so importing this package never requires a configuration to exist.
 
-| Export              | Signature                            | Returns                       | Use it when                                                                           |
-| ------------------- | ------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------- |
-| `CONFIG_BASENAME`   | `const CONFIG_BASENAME`              | —                             | naming the stem every consuming repository declares its build under                   |
-| `CONFIG_FILENAMES`  | `const CONFIG_FILENAMES`             | —                             | listing the file names a configuration may be written as                              |
-| `findConfigFile`    | `findConfigFile(from)`               | `string \| undefined`         | finding the nearest configuration file at or above a directory                        |
-| `resolveConfigFile` | `resolveConfigFile(...)`             | `{path, fromCwd, fromModule}` | asking which configuration file a build launched here would read, without loading it  |
-| `locateConfigError` | `locateConfigError(err, configPath)` | the decorated error           | attaching the position of the key a configuration error names                         |
-| `configFromData`    | `configFromData(data, configPath)`   | `ContentBuildConfig`          | turning a parsed YAML configuration into the frozen one the engine reads              |
-| `loadPackConfig`    | `loadPackConfig()`                   | `ContentBuildConfig`          | reading the consuming repository's resolved, frozen configuration                     |
-| `configSourcePath`  | `configSourcePath(config)`           | `string \| undefined`         | locating this exact resolved configuration; absent for objects created only in memory |
-| `packConfigPath`    | `packConfigPath()`                   | `string`                      | naming the file `loadPackConfig` resolved the configuration from, for a diagnostic    |
-| `readPackConfig`    | `readPackConfig(configPath)`         | `ContentBuildConfig`          | reading the configuration one named file declares, unmemoised                         |
+| Export                 | Signature                                 | Returns                       | Use it when                                                                                               |
+| ---------------------- | ----------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `CONFIG_BASENAME`      | `const CONFIG_BASENAME`                   | —                             | naming the stem every consuming repository declares its build under                                       |
+| `CONFIG_FILENAMES`     | `const CONFIG_FILENAMES`                  | —                             | listing the file names a configuration may be written as                                                  |
+| `findConfigFile`       | `findConfigFile(from)`                    | `string \| undefined`         | finding the nearest configuration file at or above a directory                                            |
+| `resolveConfigFile`    | `resolveConfigFile(...)`                  | `{path, fromCwd, fromModule}` | asking which configuration file a build launched here would read, without loading it                      |
+| `warnsOfIgnoredConfig` | `warnsOfIgnoredConfig(found, moduleDir?)` | `boolean`                     | deciding whether a build ignores a configuration its toolchain walk found, other than the toolchain's own |
+| `locateConfigError`    | `locateConfigError(err, configPath)`      | the decorated error           | attaching the position of the key a configuration error names                                             |
+| `configFromData`       | `configFromData(data, configPath)`        | `ContentBuildConfig`          | turning a parsed YAML configuration into the frozen one the engine reads                                  |
+| `loadPackConfig`       | `loadPackConfig()`                        | `ContentBuildConfig`          | reading the consuming repository's resolved, frozen configuration                                         |
+| `configSourcePath`     | `configSourcePath(config)`                | `string \| undefined`         | locating this exact resolved configuration; absent for objects created only in memory                     |
+| `packConfigPath`       | `packConfigPath()`                        | `string`                      | naming the file `loadPackConfig` resolved the configuration from, for a diagnostic                        |
+| `readPackConfig`       | `readPackConfig(configPath)`              | `ContentBuildConfig`          | reading the configuration one named file declares, unmemoised                                             |
 
 Pass the resolved configuration to render and index operations that work with a specific repository.
 

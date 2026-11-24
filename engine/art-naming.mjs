@@ -167,7 +167,12 @@ export function pictureReferences({ frontmatter, body, contentPackage, packages,
         if (!type || segments.length < 2) continue;
         const shortcode = segments[segments.length - 1].replace(/\.[^.]+$/, "");
         found.push({
-            address: `${forms.package}-${ASSET_SYSTEM}-${type.type}-${shortcode}`,
+            address: renderAddress({
+                package: forms.package,
+                system: ASSET_SYSTEM,
+                type: type.type,
+                shortcode,
+            }),
             written: image.src,
         });
     }

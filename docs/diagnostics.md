@@ -3,6 +3,9 @@ shortcode: diagnostics
 name: { full: "Diagnostics" }
 type: doc
 subType: reference
+texinfo:
+  parent: homepage-root
+  after: [configuration]
 ---
 
 # Diagnostics

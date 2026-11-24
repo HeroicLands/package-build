@@ -1,0 +1,28 @@
+docs/index.md:16:1: warning: the crawl stops at docs/plain.md, which has no texinfo front matter
+docs/hidden.md:1:1: warning: the page has texinfo front matter but no chain of links through participating pages reaches it from the top page
+docs/second-top.md:6:11: warning: the page is excluded: it declares `parent: null`, and the manual has one top page
+docs/orphan.md:6:11: warning: the page is excluded: parent "nowhere" does not resolve to a page
+docs/no-parent.md:6:3: warning: the page is excluded: texinfo has no parent
+docs/loop-a.md:6:11: warning: the page is excluded: its parent chain does not lead to the top page
+docs/loop-b.md:6:11: warning: the page is excluded: its parent chain does not lead to the top page
+docs/bad-hints.md:7:12: warning: the before hint "ghost" is ignored: it does not resolve to a page
+docs/bad-hints.md:7:19: warning: the before hint "plain" is ignored: it is not part of the manual
+docs/bad-hints.md:7:26: warning: the before hint "hintsc" is ignored: it is not a sibling
+docs/bad-hints.md:7:34: warning: the before hint "badhints" is ignored: it names the page itself
+docs/bad-hints.md:8:10: warning: texinfo.after must be a list; the hints are ignored
+docs/hints/c.md:6:3: warning: the ordering hints among the children of Hints contradict each other; the group is ordered by title
+docs/deep5.md:1:1: warning: the page is 5 levels deep and folds into Deep Four as a subsubheading
+docs/deep6.md:1:1: warning: the page is 6 levels deep and folds into Deep Four as a subsubheading
+docs/server/config.md:1:1: warning: the node name Configuration collides with another name and becomes Configuration - Servers
+docs/client/config.md:1:1: warning: the node name Configuration collides with another name and becomes Configuration - Clients
+docs/constructs.md:15:61: warning: strikethrough has no Texinfo mapping and is written as plain text
+docs/constructs.md:64:1: warning: a task list has no Texinfo mapping and is written as a list
+docs/constructs.md:71:1: warning: the table is too wide for its columns and is restructured as a list keyed on its first column
+docs/constructs.md:81:1: warning: a fenced div (`:::`) has no Texinfo mapping and is dropped
+docs/escaping.md:19:24: warning: link loop-a.md points at docs/loop-a.md, which is not part of the manual
+docs/index.md:16:1: warning: link plain.md points at docs/plain.md, which is not part of the manual
+docs/index.md:16:20: warning: link second-top.md points at docs/second-top.md, which is not part of the manual
+docs/index.md:16:49: warning: link orphan.md points at docs/orphan.md, which is not part of the manual
+docs/index.md:17:1: warning: link loop-a.md points at docs/loop-a.md, which is not part of the manual
+docs/index.md:17:20: warning: link no-parent.md points at docs/no-parent.md, which is not part of the manual
+docs/index.md:17:47: warning: link missing.md resolves to docs/missing.md, which does not exist

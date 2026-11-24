@@ -1,0 +1,36 @@
+@node Hints
+@chapter Hints
+@cindex Hints
+
+Siblings and contradictory hints: @ref{C Page,,c}, @ref{D Page,,d}, @ref{E Page,,e}, @ref{F Page,,f}.
+
+@menu
+* C Page::
+* D Page::
+* E Page::
+* F Page::
+@end menu
+
+@node C Page
+@section C Page
+@cindex C Page
+
+C.
+
+@node D Page
+@section D Page
+@cindex D Page
+
+D.
+
+@node E Page
+@section E Page
+@cindex E Page
+
+E is placed after F.
+
+@node F Page
+@section F Page
+@cindex F Page
+
+F.

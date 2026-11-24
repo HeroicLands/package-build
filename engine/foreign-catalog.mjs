@@ -309,6 +309,7 @@ const DOWNLOAD_DELAY_MS = 1000;
 const DOWNLOAD_JITTER_MS = 250;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 const MAX_MIRROR_REDIRECTS = 10;
+/** The largest content index a mirror may serve, in bytes. */
 export const MAX_INDEX_BYTES = 256 * 1024 * 1024;
 
 class MirrorRedirectError extends Error {}

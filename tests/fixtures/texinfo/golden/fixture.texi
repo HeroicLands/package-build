@@ -1,0 +1,128 @@
+\input texinfo   @c -*-texinfo-*-
+@c %**start of header
+@setfilename fixture.info
+@defindex rf
+@set VERSION 1.2.3
+@set UPDATED 14 November 2023
+@settitle Fixture Manual
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@copying
+This manual is for @code{fixture} (version @value{VERSION}, @value{UPDATED}).
+
+Copyright @copyright{} 2023 Ada Writer, Bo Helper.
+
+@quotation
+The text of this manual is licensed under CC-BY-SA-4.0.
+The software it documents is licensed under GPL-3.0-or-later.
+@end quotation
+@end copying
+
+@dircategory Fixtures
+@direntry
+* Fixture Manual: (fixture).     The manual that exercises the converter.
+@end direntry
+
+@titlepage
+@title Fixture Manual
+@subtitle For version @value{VERSION}, @value{UPDATED}
+@author Ada Writer
+@author Bo Helper
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top Fixture Manual
+
+The manual that exercises the converter.
+
+Homepage: @url{https://example.org/fixture}@*
+Repository: @url{https://example.org/org/fixture}@*
+Bug reports: @url{https://example.org/org/fixture/issues}
+
+The top page links to every case.
+
+@xref{Escaping and Links,,escaping}. Also @ref{Constructs,,constructs}, @ref{Hints,,hints},
+@ref{Deep One,,deep}, @ref{Servers,,servers}, @ref{Clients,,clients},
+@url{https://example.org/pages/plain, plain}, second top, orphan,
+loop, no parent, missing,
+@ref{Bad Hints,,bad hints} and the license (@file{LICENSE.md}).
+@end ifnottex
+
+@menu
+* Bad Hints::
+* Deep One::
+* Hints::
+* Constructs::                   Every Markdown construct.
+* Escaping and Links::           Special characters and links.
+* Servers::
+* Clients::
+* Concept Index::                Index of concepts.
+* Variable Index::               Index of options and environment variables.
+* Program Index::                Index of commands.
+* Reference Index::              Index of reference pages.
+
+@detailmenu
+ --- The Detailed Node Listing ---
+
+Deep One
+
+* Deep Two::
+* Deep Three::
+* Deep Four::
+
+Hints
+
+* C Page::
+* D Page::
+* E Page::
+* F Page::
+
+Servers
+
+* Configuration - Servers::
+
+Clients
+
+* Configuration - Clients::
+@end detailmenu
+@end menu
+
+@include fixture-chapters/bad-hints.texi
+
+@include fixture-chapters/deep-one.texi
+
+@include fixture-chapters/hints.texi
+
+@include fixture-chapters/constructs.texi
+
+@include fixture-chapters/escaping-and-links.texi
+
+@include fixture-chapters/servers.texi
+
+@include fixture-chapters/clients.texi
+
+@node Concept Index
+@unnumbered Concept Index
+@printindex cp
+
+@node Variable Index
+@unnumbered Variable Index
+@printindex vr
+
+@node Program Index
+@unnumbered Program Index
+@printindex pg
+
+@node Reference Index
+@unnumbered Reference Index
+@printindex rf
+
+@bye

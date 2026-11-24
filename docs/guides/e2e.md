@@ -3,6 +3,9 @@ shortcode: guidese2e
 name: { full: "Test a package in Foundry" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [guideslocalization]
 ---
 
 # Test a package in Foundry

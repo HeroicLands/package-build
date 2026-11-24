@@ -1,3 +1,12 @@
+---
+shortcode: referencesettlementproposals
+type: doc
+name: { full: "Rural settlement proposals" }
+texinfo:
+  parent: homepage-root
+  after: [referencesettlementmodel]
+---
+
 # Rural settlement proposals
 
 `proposeSettlements` accepts normalized Azgaar cells, explicit source identities and note bindings, declared land rules, culture household sizes, existing facts, subordinate polity totals and a rural population. It returns proposals and the unchanged existing facts; it does not name settlements or write notes. It reserves existing rural households before distributing the remaining people across declared placement capacities. Existing household counts take precedence over population figures and map estimates. An explicitly unknown household count prevents distribution until its contribution is known.

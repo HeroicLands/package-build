@@ -3,6 +3,9 @@ shortcode: authoringassets
 name: { full: "Images, icons, audio, and provenance" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [authoringlinksandmarkup]
 ---
 
 # Images, icons, audio, and provenance

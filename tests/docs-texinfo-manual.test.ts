@@ -6,8 +6,9 @@
  */
 
 /**
- * The Texinfo manual covers every documentation page exactly once, and the
- * documentation converts with nothing left unmapped.
+ * The Texinfo manual covers every documentation page exactly once, the
+ * documentation converts with nothing unmapped, and the Texinfo tools build the
+ * manual without a warning.
  */
 
 import { spawnSync } from "node:child_process";
@@ -21,6 +22,13 @@ import { describe, it, expect } from "vitest";
 import { convertDocs, formatFinding, infoText } from "../scripts/docs-texinfo/convert.mjs";
 import { resolvePackageBuildConfig } from "../config.mjs";
 import { readPackConfig } from "../engine/pack-config.mjs";
+import {
+    buildInfoAndHtml,
+    buildPdf,
+    skipUnlessPresent,
+    texi2anySkip,
+    texi2pdfSkip,
+} from "./helpers/texinfo-tools";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -40,40 +48,56 @@ const CONFIGURED = resolvePackageBuildConfig(
     readPackConfig(path.join(ROOT, "package-build.config.yaml")),
 ).texinfo;
 
+/** Restructured tables are reported and expected; every other finding is a defect. */
+const unexpected = (findings: any[]) =>
+    findings.filter((f) => !(f.severity === "warning" && f.kind === "restructured"));
+
 describe("the declared manuals", () => {
     it("start at the documentation home", () => {
         expect(CONFIGURED[0].page).toBe("index.md");
     });
 
-    it("reach every page under docs/", () => {
+    it("take every page under docs/ into the manual", () => {
         const { findings } = convertDocs({ root: ROOT, manuals: CONFIGURED });
-        expect(findings.map(formatFinding)).toEqual([]);
+        expect(unexpected(findings).map(formatFinding)).toEqual([]);
     });
 });
 
 describe("the documentation as a manual", () => {
     const result = convertDocs({ root: ROOT, manuals: CONFIGURED });
     const { findings } = result;
-    const texinfo = result.manuals[0].texinfo;
+    const manual = result.manuals[0];
+    const texinfo = `${manual.texinfo}\n${manual.chapters.map((c: any) => c.texinfo).join("\n")}`;
 
     it("converts with no unmapped construct", () => {
-        expect(findings.map(formatFinding)).toEqual([]);
+        expect(unexpected(findings).map(formatFinding)).toEqual([]);
     });
 
-    it("has one chapter per page but the top page", () => {
-        const chapters = pages(DOCS).length - 1;
-        expect(texinfo.match(/^@chapter /gm)).toHaveLength(chapters);
+    it("has one node per page but the top page, and its metadata from package.json", () => {
+        const nodes = [...texinfo.matchAll(/^@node (.+)$/gm)].map((m) => m[1]);
+        const indexNodes = [
+            "Top",
+            "Concept Index",
+            "Reference Index",
+            "Variable Index",
+            "Program Index",
+        ];
+        expect(nodes.filter((name) => !indexNodes.includes(name))).toHaveLength(
+            pages(DOCS).length - 1,
+        );
         const version = JSON.parse(
             fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
         ).version;
-        expect(texinfo).toContain(`@set VERSION ${version}\n`);
+        expect(manual.texinfo).toContain(`@set VERSION ${version}\n`);
+        expect(manual.texinfo).toContain("@dircategory HeroicLands\n");
+        expect(manual.chapters.length).toBeGreaterThan(10);
     });
 
     it("declares every node it refers to", () => {
         const declared = new Set(
             [...texinfo.matchAll(/^@node (.+)$|^@anchor\{(.+)\}$/gm)].map((m) => m[1] ?? m[2]),
         );
-        const referenced = [...texinfo.matchAll(/@ref\{((?:[^,{}@]|@.)+?)(?:,|\})/g)].map(
+        const referenced = [...texinfo.matchAll(/@(?:x|px)?ref\{((?:[^,{}@]|@.)+?)(?:,|\})/g)].map(
             (m) => m[1],
         );
         expect(referenced.filter((name) => !declared.has(name))).toEqual([]);
@@ -84,9 +108,9 @@ describe("the documentation as a manual", () => {
         const named = [...texinfo.matchAll(/^@node (.+)$|^@anchor\{(.+)\}$/gm)].map(
             (m) => m[1] ?? m[2],
         );
-        expect(named.filter((name) => name.includes("."))).toEqual([]);
+        expect(named.filter((name) => /[.,:()]/.test(name))).toEqual([]);
         const labels = [
-            ...texinfo.matchAll(/@ref\{(?:[^,{}@]|@.)+?,,((?:[^{}]|\{[^{}]*\})*)\}/g),
+            ...texinfo.matchAll(/@x?ref\{(?:[^,{}@]|@.)+?,,((?:[^{}]|\{[^{}]*\})*)\}/g),
         ].map((m) => m[1]);
         expect(labels.filter((label) => label.includes(":"))).toEqual([]);
         expect(texinfo).not.toMatch(/@strong\{note\s/i);
@@ -115,7 +139,50 @@ describe("the documentation as a manual", () => {
         });
         expect(narrow).toEqual([]);
     });
+
+    describe("builds with the Texinfo tools and no warning", () => {
+        const materialize = () => {
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), "texinfo-docs-"));
+            fs.writeFileSync(path.join(dir, `${manual.out}.texi`), manual.texinfo);
+            fs.mkdirSync(path.join(dir, `${manual.out}-chapters`));
+            for (const chapter of manual.chapters)
+                fs.writeFileSync(path.join(dir, chapter.path), chapter.texinfo);
+            return dir;
+        };
+
+        it("texi2any writes Info and HTML", (context) => {
+            skipUnlessPresent(context, texi2anySkip());
+            const dir = materialize();
+            try {
+                expect(buildInfoAndHtml(dir, `${manual.out}.texi`)).toEqual([]);
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        }, 120_000);
+
+        it("texi2pdf writes a PDF", (context) => {
+            skipUnlessPresent(context, texi2pdfSkip());
+            const dir = materialize();
+            try {
+                expect(buildPdf(dir, `${manual.out}.texi`)).toEqual([]);
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        }, 600_000);
+    });
 });
+
+/** The findings a CLI run printed, as objects. */
+function parseLines(stderr: string) {
+    return stderr
+        .split("\n")
+        .filter(Boolean)
+        .map((text) => ({
+            text,
+            severity: /: (error|warning): /.exec(text)?.[1],
+            kind: /too wide for its columns/.test(text) ? "restructured" : "other",
+        }));
+}
 
 describe("node scripts/docs-texinfo.mjs", () => {
     it("writes the manuals and the Info dir file where --out names", () => {
@@ -125,15 +192,20 @@ describe("node scripts/docs-texinfo.mjs", () => {
             const run = spawnSync(process.execPath, ["scripts/docs-texinfo.mjs", "--out", out], {
                 cwd: ROOT,
                 encoding: "utf8",
+                env: { ...process.env, SOURCE_DATE_EPOCH: "1700000000" },
             });
-            expect(run.stderr).toBe("");
             expect(run.status).toBe(0);
+            expect(unexpected(parseLines(run.stderr))).toEqual([]);
             expect(
                 fs
                     .readFileSync(path.join(out, "package-build.texi"), "utf8")
-                    .startsWith("\\input texinfo\n"),
+                    .startsWith("\\input texinfo "),
             ).toBe(true);
             expect(fs.readFileSync(path.join(out, "dir"), "utf8")).toContain("(package-build)");
+            expect(fs.readdirSync(path.join(out, "package-build-chapters")).length).toBeGreaterThan(
+                10,
+            );
+            expect(fs.existsSync(path.join(out, "package-build.report.txt"))).toBe(true);
         } finally {
             fs.rmSync(dir, { recursive: true, force: true });
         }

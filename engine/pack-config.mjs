@@ -739,7 +739,7 @@ export function loadPackConfig() {
     // in absolute paths nobody rereads. A warning rather than an error — the
     // shape is legitimate, and the working directory's answer is the right one
     // — but never silence.
-    if (found?.fromCwd && found.fromModule && found.fromCwd !== found.fromModule) {
+    if (warnsOfIgnoredConfig(found)) {
         emitDiagnostic({
             severity: "warning",
             message:
@@ -757,6 +757,21 @@ export function loadPackConfig() {
     loaded = readPackConfig(configPath);
     loadedFrom = configPath;
     return loaded;
+}
+
+/**
+ * Whether the two walks found different files and the module's is one a build
+ * would have read. The configuration at the root of the package holding this
+ * module is the toolchain's own documentation configuration; it belongs to no
+ * consuming repository and is never ignored on anyone's behalf.
+ *
+ * @param {{fromCwd?: string, fromModule?: string}|undefined} found - The walks' answers.
+ * @param {string} [moduleDir] - The directory this module sits in.
+ * @returns {boolean}
+ */
+export function warnsOfIgnoredConfig(found, moduleDir = import.meta.dirname) {
+    if (!found?.fromCwd || !found.fromModule || found.fromCwd === found.fromModule) return false;
+    return path.dirname(found.fromModule) !== path.dirname(moduleDir);
 }
 
 /**

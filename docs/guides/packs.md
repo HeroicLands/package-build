@@ -3,6 +3,9 @@ shortcode: guidespacks
 name: { full: "Compendium packs" }
 type: doc
 subType: howto
+texinfo:
+  parent: homepage-root
+  after: [authoringdatesandcalendars]
 ---
 
 # Compendium packs

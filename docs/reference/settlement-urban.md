@@ -1,3 +1,12 @@
+---
+shortcode: referencesettlementurban
+type: doc
+name: { full: "Urban food proposals" }
+texinfo:
+  parent: homepage-root
+  after: [referencesettlementplacement]
+---
+
 # Urban food proposals
 
 `proposeUrbanSupply` calculates food needs for explicitly bound urban places and distributes available food over declared routes. Each city has one stable map source and one explicit identity. A burg must belong to its mapped cell; a cell placement may carry a slot. Authored households and population take precedence over map estimates, and an unknown authored value stays unknown. A mapped culture and its household size supply people per household; an explicit city household size overrides that input. A declared urban total reserves subordinate polity totals and authored cities before limiting estimated new households. Missing reservations prevent allocation against that total.

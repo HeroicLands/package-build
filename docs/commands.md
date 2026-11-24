@@ -3,6 +3,9 @@ shortcode: commands
 name: { full: "Command reference" }
 type: doc
 subType: reference
+texinfo:
+  parent: homepage-root
+  after: [sourcepreview]
 ---
 
 # Command reference

@@ -1,3 +1,12 @@
+---
+shortcode: encodingcore
+type: doc
+name: { full: "Encoding text" }
+texinfo:
+  parent: homepage-root
+  after: [guidesinventedscripts]
+---
+
 # Encoding text
 
 An encoding is a `doc` note for one language in one font. `enc=` resolves its
