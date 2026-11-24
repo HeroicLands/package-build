@@ -210,14 +210,28 @@ export function selectCalendarFormat(calendar, name) {
         formats && typeof formats === "object" && !Array.isArray(formats) ?
             Object.keys(formats)
         :   [];
-    if (names.length === 0) {
+    // `display` prints dates and is never the format they are read in.
+    const readable = names.filter((each) => each !== "display");
+    if (names.length === 0 || (readable.length === 0 && name !== "display")) {
         if (name && name !== "std") throw new RangeError(`calendar format ${name} does not exist`);
         return { name: "std", pattern: "D MMMM [yearInEra] G" };
     }
-    const selected = name ?? (names.includes("std") ? "std" : names[0]);
+    const selected = name ?? (readable.includes("std") ? "std" : readable[0]);
     if (!Object.hasOwn(formats, selected))
         throw new RangeError(`calendar format ${selected} does not exist`);
     return { name: selected, pattern: formats[selected] };
+}
+
+/**
+ * The pattern a calendar declares for printing a date where no format is
+ * named, or `undefined` when it declares none and dates print in `std`.
+ *
+ * @param {object} [calendar] - The calendar definition.
+ * @returns {string|undefined} The `display` pattern.
+ */
+export function displayCalendarPattern(calendar) {
+    const display = calendar?.formats?.display;
+    return typeof display === "string" && display ? display : undefined;
 }
 
 const pad = (value, width) =>
@@ -233,10 +247,9 @@ const ordinal = (value) => {
     return `${value}${suffix}`;
 };
 
-/** Format calendar date components with Calendaria's documented tokens. */
-export function formatCalendarPattern(pattern, parts, precision = "day", includeClock = true) {
-    const segments = calendarPatternSegmentsForPrecision(pattern, precision, includeClock);
-    const unsupported = segments.find(
+/** The first segment of a pattern that needs runtime data a printed date lacks. */
+function unsupportedPrintToken(segments) {
+    return segments.find(
         (segment) =>
             (segment.token &&
                 [
@@ -258,6 +271,26 @@ export function formatCalendarPattern(pattern, parts, precision = "day", include
                 ].includes(segment.value.split(/[=|]/, 1)[0])) ||
             (segment.token && segment.value.includes("=")),
     );
+}
+
+/**
+ * Why a pattern cannot print a date, or `null`: a token that needs
+ * Calendaria's runtime state, such as a moon phase or a cycle.
+ *
+ * @param {string} pattern - A calendar format pattern.
+ * @returns {string|null} The message.
+ */
+export function printableCalendarFormatError(pattern) {
+    const unsupported = unsupportedPrintToken(calendarFormatSegments(pattern));
+    return unsupported ?
+            `calendar format token ${unsupported.value} needs Calendaria runtime data`
+        :   null;
+}
+
+/** Format calendar date components with Calendaria's documented tokens. */
+export function formatCalendarPattern(pattern, parts, precision = "day", includeClock = true) {
+    const segments = calendarPatternSegmentsForPrecision(pattern, precision, includeClock);
+    const unsupported = unsupportedPrintToken(segments);
     if (unsupported)
         throw new RangeError(
             `calendar format token ${unsupported.value} needs Calendaria runtime data`,

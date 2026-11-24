@@ -62,7 +62,7 @@ The `weekdays` array gives the names in order, starting at index 0. Weeks contin
 
 Every calendar has exactly one era with `start: null` and one with `start: 1`. The null era covers the years before calendar year 1 and counts them backwards: under `Y GGG`, package-build prints canonical `-50.2` as `50 BVR` when the epoch is `1.1`. This null-start era is an authoring extension and is omitted from the Calendaria definition; Foundry's calendar represents current time. Each other `start` is a distinct, positive **calendar year**, never a day-precise date: `start: 701` begins on day 1 of calendar year 701. `start: 1` begins on the canonical day given by `epoch`, even when that day is `1.91` or another date. Eras end where the next numeric start begins. Array order does not determine chronology. The optional `marker` identifies an era in authored dates and must be unique across the corpus.
 
-`formats` contains any number of named Calendaria patterns. `std` is the default for `dateto`, `datefrom`, and `dateformat`; if absent, the first named pattern is the default. The default pattern must contain enough information to read a day back: a complete year (`Y`, `YYYY`, or `[yearInEra]`), a day of year (`DDD`) or month and day, and an era label when using `[yearInEra]`. `Y` means the calendar year in Calendaria; `[yearInEra]` means the year counted from the era's start. In package-build's null-start era, `Y`, `YY`, and `YYYY` print the positive historical year. Other named patterns can use display-only Calendaria tokens. Use `package-build dateto <calendar> <canonical-date> --format <name>` or `{{dateformat "commoncal" data.born "long"}}` to select another output format. The [format token reference](../reference/format-details.md#calendar-format-tokens) lists every Calendaria token and the input constraints.
+`formats` contains any number of named Calendaria patterns. `std` is the default for `dateto` and `datefrom`; if absent, the first named pattern other than `display` is the default. The optional `display` is the pattern dates print in when no format is named, with [Choose how dates print](#choose-how-dates-print) giving the rules. The default pattern must contain enough information to read a day back: a complete year (`Y`, `YYYY`, or `[yearInEra]`), a day of year (`DDD`) or month and day, and an era label when using `[yearInEra]`. `Y` means the calendar year in Calendaria; `[yearInEra]` means the year counted from the era's start. In package-build's null-start era, `Y`, `YY`, and `YYYY` print the positive historical year. Named patterns other than `std` and `display` may use tokens that need Calendaria's runtime state, such as `[moon]`; package-build's printer rejects them. Use `package-build dateto <calendar> <canonical-date> --format <name>` or `{{dateformat "commoncal" data.born "long"}}` to select another output format by name. The [format token reference](../reference/format-details.md#calendar-format-tokens) lists every Calendaria token and the input constraints.
 
 ## Write and convert dates
 
@@ -94,7 +94,7 @@ Every note reads its dates in one calendar. The infobox's birth and death dates,
 2. its culture's calendar — the `data.calendar` of the culture note its `data.culture` names;
 3. for a place, its parents' calendar — the calendar each place in its `data.parents` reads in, by these same rules;
 4. the package's `defaultCalendar`, set in the [configuration](../configuration.md#defaultcalendar);
-5. otherwise none, and a date prints as it was written.
+5. otherwise none, and a day prints as a plain year and day, `day 120 of 709`, and a year-only date as the year.
 
 ```yaml
 # package-build.config.yaml
@@ -113,6 +113,36 @@ data:
 Brenford names no calendar and no culture, so it reads in Vylaria's. A place whose parents read in **different** calendars is a build error at its `data.parents`, naming the place and each calendar; give the place its own `data.calendar` to settle it. A parent, or a culture, that only reaches the default counts for nothing, so a place among parents that all fall through to `defaultCalendar` takes the default without an error.
 
 An event section prints every date in the calendar of the page showing it, whichever note the event is written on: Brenford's chronology reads in Vylaria's count even where an event comes from a history kept in the common calendar. The [format reference](../reference/format-details.md#a-notes-calendar) gives the rules in full.
+
+## Choose how dates print
+
+A calendar's `std` format is the one dates are **read** in (`datefrom`), and a calendar with no other format prints its dates in it. `std` therefore often reads as numbers: with `std: "MM/DD/Y GGG"`, the date `709.120` prints as `04/29/709 AF`, which a reader takes for a Gregorian date.
+
+The optional **`display`** format prints dates for readers. It is the pattern every date a note shows without a named format uses: the infobox's `born` and `died`, `{{dateformat}}` with no last argument, an event's `when` and `until` in the event views, `{{ref ... field="when"}}`, the `events` relation's `whenText` and `whenIn`, and the `resolvedDates` prose in the content index. A calendar that sets no `display` prints every date in `std`, except that `{{ref ... field="when"}}` prints the date as the event writes it, as it does without the key. Setting `display` changes the printed dates and nothing else: `datefrom` and `dateto` keep reading `std`, and `display` need not identify a day.
+
+A calendar whose `std` is numeric gets month names by setting `display`:
+
+```yaml
+formats:
+  std: "MM/DD/Y GGG"
+  display: "D MMMM Y GGG"
+```
+
+With that calendar, `when: "709.120"` prints as `29 Brazemandi 709 AF` on every surface, and `datefrom commoncal 04/29/709 AF` still reads. `display` takes the printable tokens only: a token that needs Calendaria's runtime state, such as `[moon]` or `[cycle]`, is a build error located at `data.formats.display`.
+
+| Shape                 | Written                        | `std: "MM/DD/Y GGG"` alone | With `display: "MMMM D, Y GGG"`  |
+| --------------------- | ------------------------------ | -------------------------- | -------------------------------- |
+| Year and day          | `709.120`                      | `04/29/709 AF`             | `Brazemandi 29, 709 AF`          |
+| Year, day and clock   | `709.120:143005`               | `04/29/709 AF 14:30:05`    | `Brazemandi 29, 709 AF 14:30:05` |
+| Month                 | `datefrom commoncal 04/709 AF` | `04/709 AF`                | `Brazemandi, 709 AF`             |
+| Year only             | `709`                          | `709 AF`                   | `709 AF`                         |
+| Before the first year | `-5.120`                       | `04/29/5 BF`               | `Brazemandi 29, 5 BF`            |
+
+A date prints to the precision it states: a year-only date prints as the year, a month as the month and year. To print one date another way, name a format in `{{dateformat "commoncal" data.born "long"}}`; a named format is used exactly as written, `std` included. A calendar that already prints as wanted through `std` needs no `display`.
+
+**Migration.** A calendar with a numeric `std` keeps printing `04/29/709 AF` until it sets `display`. Add one line under `formats`, such as `display: "D MMMM Y GGG"`, to print the month name on every surface. Foundry's own calendar interface reads `std` as the short format, whatever `display` says.
+
+A date in no calendar prints as a plain year and day, `day 120 of 709`, or `day 120 of year -5` before year 1; a year-only date prints as the year.
 
 ## Write a recurring date
 

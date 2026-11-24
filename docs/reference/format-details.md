@@ -458,7 +458,7 @@ A note's dates print in one calendar, the first of:
 3. for a `place`, its parents' calendar: each note its `data.parents` names,
    resolved by these same rules;
 4. the package's [`defaultCalendar`](../configuration.md#defaultcalendar);
-5. otherwise none, and a date prints as it was written.
+5. otherwise none, and a day prints as a plain year and day, `day 120 of 709`, and a year-only date as the year.
 
 Steps 2 and 3 take only a calendar that some note states. A culture or a
 parent that itself falls through to `defaultCalendar` contributes nothing, so a
@@ -480,6 +480,16 @@ The calendar decides what a reader sees wherever the note prints a date: the
 infobox's `born` and `died`, `dateformat` with no calendar named, the `events`
 relation's `whenText`, and every date in the [event views](#event-views) the
 note's page shows.
+
+Every one of those dates prints in the calendar's `display` format when it
+declares one, and in `std` when it does not. `std` is the format a date is read
+in, so a numeric `std` prints month and day as numbers unless `display` names
+the month. A named format, as in `{{dateformat "commoncal" data.born "long"}}`,
+is used exactly as written. A date no calendar places prints as
+`day <day> of <year>`, `day <day> of year <negative year>` before year 1, and a
+year-only date as the year. The
+[authoring guide](../authoring/dates-and-calendars.md#choose-how-dates-print)
+has a worked example for each shape.
 
 ##### A note's language
 
@@ -8113,7 +8123,7 @@ not a different cultural identity. See
 | `eras[].label`                               | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                                                                   |
 | `eras[].label.after`                         | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                                                             |
 | `eras[].label.before`                        | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                                                           |
-| `formats`                                    | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                                                           |
+| `formats`                                    | map of names to Calendaria patterns                                           | Named date formats; `std` is the format dates are read in; optional `display` is the format they print in                                                    |
 | `culture`                                    | `Address`                                                                     | The people this lore belongs to — for a `literature` note, the people whose work it is — naming a lore note with `subType: culture`; not on a `culture` note |
 | `form`                                       | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text                                            |
 | `subjects`                                   | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                   |
@@ -8470,7 +8480,7 @@ data:
 
 Each weekday's zero-based index is its position in the array. The weekday cycle starts with the first day of calendar year 1 and continues through month and year boundaries. Each month is in year order, including short festival months. Seasons start on one-based days of year in increasing array order; each ends immediately before the next begins, and the last wraps through the start of the next year if needed. A named day identifies one day of year and can appear in a date pattern through `[namedDay]` or `[namedDayAbbr]`.
 
-`formats` holds any number of named patterns. `std` is the default for `datefrom`, `dateto`, and `dateformat`; when no `std` is present, the first pattern is the default. `dateto --format <name>` and `{{dateformat "commoncal" data.born "long"}}` select another output pattern. The default must identify one day: it needs `Y`, `YYYY`, or `[yearInEra]`; `DDD` or both a month and day token; and an era label if it uses `[yearInEra]`. `YY` alone cannot identify a year. The default may use clock tokens. Display-only tokens are valid in other named patterns, but package-build's date printer raises an error for tokens that require Calendaria runtime state, such as a moon phase, cycle, or climate zone.
+`formats` holds any number of named patterns. `std` is the default for `datefrom` and `dateto`; when no `std` is present, the first pattern other than `display` is the default. The optional `display` is the pattern every date prints in where no format is named, whether in the infobox, `dateformat` with no last argument, an event view or the index's `resolvedDates` prose; without it dates print in `std`, and `{{ref field="when"}}` prints the date as the event writes it. `display` may be any pattern of printable tokens, numeric ones included, and does not need to identify a day; a token that needs Calendaria's runtime state is an error at `data.formats.display`. `display` is not sent to Calendaria. `dateto --format <name>` and `{{dateformat "commoncal" data.born "long"}}` select another output pattern. The default must identify one day: it needs `Y`, `YYYY`, or `[yearInEra]`; `DDD` or both a month and day token; and an era label if it uses `[yearInEra]`. `YY` alone cannot identify a year. The default may use clock tokens. Named patterns other than `std` and `display` may use tokens that need Calendaria's runtime state, such as a moon phase, cycle, or climate zone; package-build's date printer raises an error for them. A numeric `std` prints month and day as numbers until the calendar sets `display`.
 
 When printing a year or month without a day, package-build omits finer fields from the selected pattern. A year-only date does not acquire the weekday, month, day, or time of its first day merely because the pattern names them.
 

@@ -182,8 +182,10 @@ const HELPERS = Object.freeze([
             "A date written in a calendar. The calendar is an Address or its shortcode; left " +
             "out, it is the note's own calendar — its `data.calendar`, else its culture's, " +
             "else for a place its parents', else the configured `defaultCalendar` — and a " +
-            "note with none prints the date as written. The date is the value a note " +
-            "carries, and the optional last argument names an output pattern.",
+            "note with none prints a day as a plain year and day, such as `day 120 of 709`. " +
+            "The date is the value a note carries, and the optional last argument names an " +
+            "output pattern; left out, the calendar's `display` format prints the date when it " +
+            "declares one, else its `std` format.",
         make:
             ({ dates, fm }) =>
             (...args) => {
@@ -209,8 +211,11 @@ const HELPERS = Object.freeze([
                     calendar === undefined ? noteCalendar(fm, dates)
                     : isAddressTuple(calendar) ? renderAddress(calendar)
                     : calendar;
-                if (reference === undefined) return printEventDate(authored, parsed.date, dates);
-                const printable = formatDateInCalendar(parsed.date, reference, dates, format);
+                if (reference === undefined)
+                    return printEventDate(authored, parsed.date, dates, { plain: true });
+                const printable = formatDateInCalendar(parsed.date, reference, dates, format, {
+                    display: true,
+                });
                 if (!printable)
                     throw new RangeError(`date cannot be printed in calendar ${reference}`);
                 return printable.prose ?? printable.text;
@@ -324,7 +329,7 @@ function eventReference(address, field, { events, fm, dates } = {}) {
             };
         event = note.events[0];
     }
-    const value = eventFieldText(event, field, dates);
+    const value = eventFieldText(event, field, dates, fm ? noteCalendar(fm, dates) : undefined);
     if (value.missing)
         return { problem: `ref "${address}" field="${field}": that event states no ${field}` };
     return { text: flattenCaptionLinks(value.text) };

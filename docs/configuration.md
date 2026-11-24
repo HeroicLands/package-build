@@ -331,9 +331,10 @@ The shortcode of the `lore` note with `subType: calendar` that prints the dates
 of every note no other rule gives a calendar. A note reads its dates in its own
 `data.calendar`, else its culture's, else — for a place — its parents', and
 only then in this one; with no `defaultCalendar` and nothing else to go on, a
-date prints as it was written. The
+day prints as a plain year and day, `day 120 of 709`. The
 [format reference](reference/format-details.md#a-notes-calendar) gives the
-rules in full.
+rules in full. The calendar's own optional `formats.display` sets how its dates print, such as `D MMMM Y GGG` over a numeric `std`; see
+[Choose how dates print](authoring/dates-and-calendars.md#choose-how-dates-print).
 
 ```yaml
 contentPackage: thalorna

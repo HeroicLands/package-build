@@ -125,7 +125,8 @@ import { ITEM_NOTE_TYPES } from "./item-entries.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
 import { cultureNamesItself } from "./culture-choice.mjs";
-import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
+import { parseNoteDate } from "./note-dates.mjs";
+import { printEventDateIn } from "./event-fields.mjs";
 import { displayBeingHeight, displayBeingWeight } from "./being-measurements.mjs";
 import {
     officeAnchor,
@@ -1094,21 +1095,7 @@ function noteBox(
         if (field.name === "culture" && cultureNamesItself(fm, raw, { contentPackage })) continue;
         if (fm?.type === "being" && ["born", "died"].includes(field.name) && dates) {
             const parsed = parseNoteDate(raw, dates).date;
-            const era =
-                parsed?.marker ? dates.markers?.get(parsed.marker)
-                : parsed?.qualifier ? dates.eras?.get(parsed.qualifier)
-                : null;
-            let printable = null;
-            const calendar = noteCalendar(fm, dates);
-            if (parsed?.known && calendar) {
-                try {
-                    printable = formatDateInCalendar(parsed, calendar, dates);
-                } catch {
-                    // The calendar reference is checked at the authored field.
-                }
-            }
-            printable ??= formatNoteDate(parsed, era, dates.daysPerYear);
-            if (printable) raw = printable.prose ?? printable.text;
+            if (parsed?.known) raw = printEventDateIn(raw, parsed, dates, noteCalendar(fm, dates));
         }
         if (["population", "territorial_population"].includes(field.name) && raw !== undefined) {
             const label = overlay.label ?? humanizeFieldName(field.name);

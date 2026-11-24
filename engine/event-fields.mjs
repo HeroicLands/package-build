@@ -23,7 +23,14 @@
  */
 
 import { ownDocumentSystem, parseAddress, readCanonicalKey, renderAddress } from "./address.mjs";
-import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
+import { eraYear } from "./calendars.mjs";
+import {
+    calendarEras,
+    formatDateInCalendar,
+    formatNoteDate,
+    parseNoteDate,
+} from "./note-dates.mjs";
+import { displayCalendarPattern } from "./calendar-format.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 
 /** The fields of an event an inline reference may print, in the order a message names them. */
@@ -143,22 +150,53 @@ export function eventNoteIndex(records, { contentPackage, foreignIndex, dates } 
 }
 
 /**
+ * A date with a year and a day of year and no era to read it in, as a reader
+ * takes it in: `day 120 of 709`, with `~` and the clock kept.
+ *
+ * @param {object} date - The resolved date.
+ * @returns {string|null} The text, or `null` for a date that is not a day.
+ */
+function plainDayOfYear(date) {
+    if (date.precision !== "day" || !Number.isSafeInteger(date.canonicalDay)) return null;
+    if (!Number.isSafeInteger(date.canonicalYear)) return null;
+    const clock =
+        date.seconds === undefined ?
+            ""
+        :   ` ${String(Math.floor(date.seconds / 3600)).padStart(2, "0")}:` +
+            `${String(Math.floor(date.seconds / 60) % 60).padStart(2, "0")}:` +
+            `${String(date.seconds % 60).padStart(2, "0")}`;
+    const counted = eraYear(date.canonicalYear);
+    const year = counted < 0 ? `year ${counted}` : counted;
+    return `${date.approximate ? "~" : ""}day ${date.canonicalDay} of ${year}${clock}`;
+}
+
+/**
  * A date as a note prints one: in the era its own marker or qualifier names,
  * where the reckoning knows that era, else as written — `~` kept either way.
+ * With `plain`, a day no calendar places prints as `day 120 of 709`.
  *
  * @param {unknown} written - The date as the event writes it.
  * @param {object|null} date - The resolved date.
  * @param {object} [dates] - The reckoning context.
+ * @param {{plain?: boolean}} [options] - `plain` for a date read in no calendar.
  * @returns {string} The printed date.
  */
-export function printEventDate(written, date, dates) {
+export function printEventDate(written, date, dates, { plain = false } = {}) {
     if (!date?.known) return String(written);
     const era =
         date.marker ? dates?.markers?.get(date.marker)
         : date.qualifier ? dates?.eras?.get(date.qualifier)
         : null;
-    const printable = era ? formatNoteDate(date, era, dates?.daysPerYear) : null;
-    return printable?.prose ?? printable?.text ?? date.prose ?? date.text ?? String(written);
+    const printable =
+        era ? formatNoteDate(date, era, dates?.daysPerYear, undefined, { display: true }) : null;
+    return (
+        printable?.prose ??
+        printable?.text ??
+        date.prose ??
+        (plain ? plainDayOfYear(date) : null) ??
+        date.text ??
+        String(written)
+    );
 }
 
 /**
@@ -174,14 +212,33 @@ export function printEventDate(written, date, dates) {
 export function printEventDateIn(written, date, dates, calendar) {
     if (date?.known && calendar) {
         try {
-            const printable = formatDateInCalendar(date, calendar, dates);
+            const printable = formatDateInCalendar(date, calendar, dates, undefined, {
+                display: true,
+            });
             const text = printable?.prose ?? printable?.text;
             if (text) return text;
         } catch {
             // A calendar that does not resolve leaves the date in its own era.
         }
     }
-    return printEventDate(written, date, dates);
+    return printEventDate(written, date, dates, { plain: true });
+}
+
+/**
+ * Whether a calendar declares a `display` format, the one a date prints in
+ * where no format is named.
+ *
+ * @param {object} [dates] - The reckoning context.
+ * @param {string} [calendar] - The calendar's Address or shortcode.
+ * @returns {boolean} Whether the calendar resolves and declares one.
+ */
+function declaresDisplay(dates, calendar) {
+    if (!calendar) return false;
+    try {
+        return displayCalendarPattern(calendarEras(calendar, dates)[0]?.calendar) !== undefined;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -190,15 +247,21 @@ export function printEventDateIn(written, date, dates, calendar) {
  * @param {EventView} event - The event.
  * @param {string} field - One of {@link EVENT_REFERENCE_FIELDS}.
  * @param {object} [dates] - The reckoning context.
+ * @param {string} [calendar] - The calendar the page reads its dates in; a date
+ *   prints in it when the calendar declares a `display` format.
  * @returns {{text: string}|{missing: true}} The text, or that the event states
  *   no such field.
  */
-export function eventFieldText(event, field, dates) {
+export function eventFieldText(event, field, dates, calendar) {
     const entry = event.entry ?? {};
     if (field === "when" || field === "until") {
         const written = entry[field];
         if (written === undefined || written === null || written === "") return { missing: true };
-        return { text: printEventDate(written, event[field], dates) };
+        const printed =
+            declaresDisplay(dates, calendar) ?
+                printEventDateIn(written, event[field], dates, calendar)
+            :   printEventDate(written, event[field], dates, { plain: !calendar });
+        return { text: printed };
     }
     if (field === "name") {
         const name =

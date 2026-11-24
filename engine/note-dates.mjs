@@ -42,6 +42,7 @@ import {
     calendarFormatHasClock,
     formatCalendarPattern,
     selectCalendarFormat,
+    displayCalendarPattern,
 } from "./calendar-format.mjs";
 import {
     calendarStructure,
@@ -609,17 +610,17 @@ export function calendarEras(reference, context) {
 }
 
 /** Print a resolved date using the era active in one addressed calendar. */
-export function formatDateInCalendar(date, reference, context, formatName) {
+export function formatDateInCalendar(date, reference, context, formatName, options) {
     const eras = calendarEras(reference, context);
     const chosen = eraCovering(date, eras, context?.daysPerYear);
     const name = String(reference ?? "");
     if (context?.eras?.get(name)?.era && chosen === null)
         throw new RangeError(`date falls outside calendar era ${name}`);
-    return formatNoteDate(date, chosen, context?.daysPerYear, formatName);
+    return formatNoteDate(date, chosen, context?.daysPerYear, formatName, options);
 }
 
 /** Print a resolved date in one era, retaining its authored precision. */
-export function formatNoteDate(date, era, daysPerYear, formatName) {
+export function formatNoteDate(date, era, daysPerYear, formatName, { display = false } = {}) {
     if (!date?.known || !Number.isSafeInteger(date.canonicalYear)) return null;
     if (!era) return { era: null, year: eraYear(date.canonicalYear), text: date.text, prose: null };
     if (!Number.isSafeInteger(daysPerYear) || !Number.isSafeInteger(date.spanDays)) return null;
@@ -662,7 +663,10 @@ export function formatNoteDate(date, era, daysPerYear, formatName) {
         target.abbreviation || target.marker || target.name || target.era.split(".").at(-1);
     let text = `${date.approximate ? "~" : ""}${day === null ? "" : `${day} `}${monthName ? `${monthName} ` : ""}${year} ${eraName}${clock}`;
     if (target.calendar?.formats) {
-        const { pattern } = selectCalendarFormat(target.calendar, formatName);
+        const pattern =
+            (display && formatName === undefined ?
+                displayCalendarPattern(target.calendar)
+            :   undefined) ?? selectCalendarFormat(target.calendar, formatName).pattern;
         const hasClock = calendarFormatHasClock(pattern);
         const rendered = formatCalendarPattern(
             pattern,
@@ -688,8 +692,13 @@ export function formatNoteDate(date, era, daysPerYear, formatName) {
         typeof target.label === "string" ?
             target.label
         :   target.label?.[year < 0 ? "before" : "after"];
+    const displayed =
+        display &&
+        formatName === undefined &&
+        displayCalendarPattern(target.calendar) !== undefined;
     const prose =
-        target.calendar?.formats ? null
+        displayed ? text
+        : target.calendar?.formats ? null
         : typeof label === "string" && label.includes("{date}") ?
             label.replace("{date}", `${date.approximate ? "~" : ""}${digits}`)
         :   null;
@@ -792,7 +801,9 @@ function withMarkerProse(date, context) {
         date.marker ? context?.markers?.get(date.marker)
         : date.qualifier ? context?.eras?.get(date.qualifier)
         : null;
-    const printable = formatNoteDate(date, era, context?.daysPerYear);
+    const printable = formatNoteDate(date, era, context?.daysPerYear, undefined, {
+        display: true,
+    });
     return { ...date, prose: printable?.prose ?? null };
 }
 
@@ -834,7 +845,9 @@ function withSweptEraProse(date, context, { generated = false } = {}) {
             era = null;
         }
     }
-    const printable = formatNoteDate(date, era, context?.daysPerYear);
+    const printable = formatNoteDate(date, era, context?.daysPerYear, undefined, {
+        display: true,
+    });
     return {
         ...date,
         prose: printable?.prose ?? null,

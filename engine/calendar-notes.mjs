@@ -77,6 +77,7 @@ import {
     calendarFormatSyntaxError,
     readableCalendarFormatError,
     selectCalendarFormat,
+    printableCalendarFormatError,
 } from "./calendar-format.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
@@ -537,9 +538,14 @@ export function checkCalendarDateFormats(note) {
         if (typeof value !== "string") continue;
         const syntaxError = calendarFormatSyntaxError(value);
         if (syntaxError) findings.push(atData(note, ["formats", slot], "error", syntaxError));
+        else if (slot === "display") {
+            const printError = printableCalendarFormatError(value);
+            if (printError) findings.push(atData(note, ["formats", slot], "error", printError));
+        }
     }
-    const standard = Object.hasOwn(formats, "std") ? "std" : Object.keys(formats)[0];
-    if (typeof formats[standard] === "string") {
+    const readable = Object.keys(formats).filter((slot) => slot !== "display");
+    const standard = Object.hasOwn(formats, "std") ? "std" : readable[0];
+    if (standard !== undefined && typeof formats[standard] === "string") {
         const error = readableCalendarFormatError(formats[standard]);
         if (error) findings.push(atData(note, ["formats", standard], "error", error));
     }
