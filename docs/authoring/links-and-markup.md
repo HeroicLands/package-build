@@ -369,7 +369,7 @@ section; those retain their own scope and presentation.
 
 ### Alerts
 
-Alerts replace the former `:::info` and `:::warn` fences. Start with a special blockquote marker, optionally followed by an attribute block, then write the alert body as a standard blockquote:
+Alerts start with a special blockquote marker, optionally followed by an attribute block, then write the alert body as a standard blockquote:
 
 ```markdown
 > [!NOTE]

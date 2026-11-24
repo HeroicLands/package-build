@@ -647,7 +647,7 @@ export function assertUniquePages(rawPages, noteName) {
 }
 
 /**
- * The anchor half of {@link assertUniquePages}, under its former name.
+ * The anchor half of {@link assertUniquePages}.
  *
  * @deprecated Call {@link assertUniquePages}, which checks page names too.
  * @param {Array<{anchorSlug: string|null, name: string}>} rawPages - From

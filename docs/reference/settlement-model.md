@@ -1,6 +1,6 @@
 # Settlement calculations
 
-The settlement model provides calculations for an explicit authoring operation. It does not run during content checks or change notes. The editable starting figures are in `engine/settlement-model-defaults.json`; they are starting assumptions subject to calibration against a real map.
+The settlement model provides calculations for an explicit authoring operation. It does not run during content checks or change notes. The editable starting figures are in `engine/settlement-model-defaults.json` and are starting assumptions, not measurements of any setting.
 
 `calculateSettlement` takes a household count, culture household size, acres, a household holding, four land ratings (arable, game, water, herding), development, livelihood, food approach, obligation, upward share and governance spending shares. A declared livelihood takes precedence over a supplied default; custom livelihood and governance shares can be supplied directly. A mining livelihood does not imply a deposit. The result gives the estimated population, rural capacity, food production and need, obligations, budgets and supported households. Food is limited by both the land and the producing households. The rural capacity is a ceiling, not an instruction to fill it; urban food needs are handled through draw.
 
@@ -8,7 +8,7 @@ Omitted and unknown household counts remain distinct. A supplied population is r
 
 `distributeRuralPopulation` distributes a stated rural population across supplied cell capacities and culture household sizes. It reports any remainder, including people who cannot fit or whose number cannot form a complete household. Existing households and urban population must be accounted for before calling it. `deliverFood` follows the supplied routes and loss rates, refuses routes losing at least half their cargo, and tracks each source's remaining surplus across demands. Neither function discovers a map route or decides an authored identity.
 
-The map adapter supplies coordinates, terrain, routes and mapped culture and polity identities. Area conversion to acres, land ratings, household holding, culture sizes and explicit route distances are inputs to these calculations. Unstated holders, locations and descriptions are not inferred. A real map export and full-polity calibration remain necessary to evaluate the starting figures.
+The map adapter supplies coordinates, terrain, routes and mapped culture and polity identities. Area conversion to acres, land ratings, household holding, culture sizes and explicit route distances are inputs to these calculations. Unstated holders, locations and descriptions are not inferred.
 
 Food production and need are annual: one food unit supplies one person’s basic food for a year. Food yield vectors state units per 100 acres per year. Default transport loss rates apply per league of three nautical miles. The caller supplies area in acres and route distance in leagues and converts map units before calculation; editable rates and supplied units must agree.
 
@@ -27,4 +27,4 @@ Allocation places initial shares in proportion to capacity, then fills complete 
 
 Each scenario also accepts custom livelihood and governance names with directly supplied household and spending shares. Those shares override the selected defaults without adding a cultural preset to the code. A mixed-polity example allocates 328 people across herders, fishers and an institution, retaining each mapped culture's household size and a settlement-level livelihood override. It allocates twenty households to each place and leaves unused capacity. The city-state supply example distinguishes a map estimate from authored households and checks an explicit transport-coefficient override.
 
-These are deterministic tests of the on-demand APIs. They neither register generation in ordinary content checks nor write settlement notes. Real-map calibration requires a pinned export, explicit map-to-setting bindings, declared profiles and existing settlement facts; synthetic arithmetic does not establish those facts or validate a setting's densities.
+These are deterministic tests of the on-demand APIs. They neither register generation in ordinary content checks nor write settlement notes. Synthetic arithmetic does not establish a setting's settlement facts or validate its densities; those come from a pinned map export, explicit map-to-setting bindings, declared profiles and existing settlement facts.

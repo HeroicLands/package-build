@@ -4362,7 +4362,7 @@ Inline Markdown remains active inside the span. Bracket spans have lower priorit
 
 ##### Alerts
 
-Alerts replace the former `:::info` and `:::warn` fences. Start with a special blockquote marker, optionally followed by an attribute block, then write the alert body as a standard blockquote:
+Alerts start with a special blockquote marker, optionally followed by an attribute block, then write the alert body as a standard blockquote:
 
 ```markdown
 > [!NOTE]
@@ -6406,7 +6406,7 @@ office itself: a being states the post it holds in its own
 `data.affiliations.<body>.office`. For each office in `governance.offices`, the
 body's **Office holders** [generated section](#generated-sections) lists every
 being naming it whose `data.died` is unset, so several holders at once, a post
-held jointly, a vacant post that lists no one and a former holder who has died
+held jointly, a vacant post that lists no one and a holder who has died
 all need no further key. Offices follow the body's order, and holders are
 ordered by name; an office nobody living holds has no line, and a body with no
 held office has no section. A public body lists only public beings. The

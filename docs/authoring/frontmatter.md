@@ -351,7 +351,6 @@ data:
 
 The `sohl` block produces a vehicle Actor. Native `sohl.system` values override
 generic defaults; capacities in seams do not determine the native pounds limit.
-A generic occupant maps to one native roster entry, with quantity one. This
-quantity requires a SoHL release with native vehicle occupant quantity support.
+A generic occupant maps to one native roster entry, with quantity one.
 
 Vehicle notes can list actual cargo and fittings in `data.items`; an item entry may name an item model or define an item inline, using the same fields, including `chance`, as a being’s items. A vehicle picture record pairs `data.portrait` and `data.portraitSettings` with an authored `data.icon` image or icon Address. The text-only [vehicle prompt command](../commands/vehicle.md) composes from indexed facts and items without writing the note.

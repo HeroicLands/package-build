@@ -140,7 +140,7 @@ With that calendar, `when: "709.120"` prints as `29 Brazemandi 709 AF` on every 
 
 A date prints to the precision it states: a year-only date prints as the year, a month as the month and year. To print one date another way, name a format in `{{dateformat "commoncal" data.born "long"}}`; a named format is used exactly as written, `std` included. A calendar that already prints as wanted through `std` needs no `display`.
 
-**Migration.** A calendar with a numeric `std` keeps printing `04/29/709 AF` until it sets `display`. Add one line under `formats`, such as `display: "D MMMM Y GGG"`, to print the month name on every surface. Foundry's own calendar interface reads `std` as the short format, whatever `display` says.
+A calendar with a numeric `std` and no `display` prints `04/29/709 AF`. One line under `formats`, such as `display: "D MMMM Y GGG"`, prints the month name on every surface. Foundry's own calendar interface reads `std` as the short format, whatever `display` says.
 
 A date in no calendar prints as a plain year and day, `day 120 of 709`, or `day 120 of year -5` before year 1; a year-only date prints as the year.
 

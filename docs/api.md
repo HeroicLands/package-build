@@ -904,7 +904,7 @@ The id a note's document is filed under: its pinned `id:`, when a note authors o
 
 ### `engine.metadataIndex`
 
-The published content index — the artifact packages exchange addresses through. **A package publishes its own index; a consumer fetches the ones it depends on.** That is the whole mechanism, and it replaces a vendored link manifest that each repository committed a copy of every other repository's file into. Vendoring failed three ways, and only the last is about staleness:
+The published content index — the artifact packages exchange addresses through. **A package publishes its own index; a consumer fetches the ones it depends on.** That is the whole mechanism.
 
 `loadForeignIndexes` keeps address-less dependency identities in `stubs` for
 `addressHit` and in `references` for typed reference resolution. They do not

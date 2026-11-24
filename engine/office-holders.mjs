@@ -45,9 +45,9 @@ export function officeBodyKey(tuple) {
  * Nothing is authored on the office for this: a being states the post it holds
  * in its own `data.affiliations.<body>.office`, and this collects, for every
  * office in a body's `governance.offices`, each being naming it. A being whose
- * `data.died` is set holds nothing, so a former holder drops out and a vacant
- * office lists no one. A post the body does not declare is the standing check's
- * finding and is listed nowhere.
+ * `data.died` is set holds nothing, so a holder who has died drops out and a
+ * vacant office lists no one. A post the body does not declare is the standing
+ * check's finding and is listed nowhere.
  *
  * Offices keep the body's declared order; holders are ordered by name.
  *

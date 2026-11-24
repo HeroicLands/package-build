@@ -299,7 +299,7 @@ const COMPLETE_ADDRESS = {
  * @property {string} [derived] - `true` on a derivative, the distribution copy
  *   of a master; absent on a master. Written as `hl:derived` in the XMP packet
  *   only. A write accepts `true` or the string `true`, and `null` removes it.
- * @property {string} [derivedFrom] - A former path or address of the image this
+ * @property {string} [derivedFrom] - An earlier path or address of the image this
  *   one was made from. Written as `hl:derivedFrom` in the XMP packet only.
  * @property {boolean} [ai] - Whether the image is AI-generated, stored as `hl:ai`.
  * @property {string} [digitalSourceType] - The IPTC digital source type, as a
@@ -1026,7 +1026,7 @@ function losslessCreditProperty(markup, bindings, field, value) {
  * @param {string} packet - The source XMP.
  * @param {Set<string>} [unsafeCredits] - Receives credit fields that need their original XML.
  * @param {Map<string, number>} [creditCounts] - Receives all credit-property occurrence counts.
- * @returns {object} Scalar properties and the former-name list.
+ * @returns {object} Scalar properties and the list of earlier names.
  */
 function readManagedProperties(packet, unsafeCredits, creditCounts, invalidCreator) {
     const own = OWN_DESCRIPTION.exec(packet);

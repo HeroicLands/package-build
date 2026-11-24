@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 const ROOT = join(import.meta.dirname, "..");
 const DIRS = ["engine", "sohl", "hm3", "bin", "site-theme", "docs"];
 const EXTENSIONS = /\.(mjs|js|md|css|yaml|yml|html|json)$/;
-const WORDING = /retired|\brenamed\b|no longer|formerly|legacy|\bused to\b|previously/i;
+const WORDING =
+    /retired|\brenamed\b|no longer|formerly|legacy|\bused to\b|previously|\bformer\b|^\*\*Migration/i;
 
 /**
  * Lines that carry retirement wording and are allowed to: each names a live
@@ -33,6 +34,11 @@ const ALLOWLIST: { file: string; line: RegExp; reason: string }[] = [
         file: "docs/api.md",
         line: /`legacyShort`/,
         reason: "Documents the reserved shared-control identifier.",
+    },
+    {
+        file: "docs/api.md",
+        line: /creator credits and former names/,
+        reason: "Names the former-names metadata list.",
     },
     {
         file: "engine/address-diff.mjs",
@@ -128,6 +134,8 @@ describe("shipped prose carries no retirement wording", () => {
         expect(WORDING.test("prepareNamedSettlements")).toBe(false);
         expect(WORDING.test("The item was renamed.")).toBe(true);
         expect(WORDING.test("The item was RENAMED.")).toBe(true);
+        expect(WORDING.test("They replace the former fences.")).toBe(true);
+        expect(WORDING.test("**Migration.** Add a line.")).toBe(true);
     });
     const all = hits();
     const allowed = (h: { file: string; text: string }) =>
