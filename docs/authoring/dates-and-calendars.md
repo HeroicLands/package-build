@@ -133,6 +133,8 @@ formats:
 
 With that calendar, `when: "709.120"` prints as `29 Brazemandi 709 AF` on every surface, and `datefrom commoncal 04/29/709 AF` still reads. `display` takes the printable tokens only: a token that needs Calendaria's runtime state, such as `[moon]` or `[cycle]`, is a build error located at `data.formats.display`.
 
+**A month with no name never prints blank.** When the format a date prints in uses `MMMM`, or `MMM` with no `abbreviation` to stand in, and the date's month has no `name`, the date prints as a plain count of days in the calendar's own year and era: `day 120 of 709 AF`, `~day 120 of 709 AF 14:30:05` with a clock, and `month 4 of 709 AF` for a month. The year is the one `Y` prints, so a calendar whose epoch is `101.1` prints canonical `709.120` as `day 120 of 609 AF`, and an era that starts at calendar year 500 prints it as `day 120 of 709 NR`. A year-only date prints as the year. This holds for `display` and for a `std` that names the month, on the infobox, event views, `ref`, `dateformat`, timelines and the index; a format of numbers only prints its numbers. `package-build dateto` prints in `std`, so a `std` that names the month in a calendar whose months have no names reports that the date cannot be expressed in the calendar, and `datefrom` never has to read the plain form.
+
 | Shape                 | Written                        | `std: "MM/DD/Y GGG"` alone | With `display: "MMMM D, Y GGG"`  |
 | --------------------- | ------------------------------ | -------------------------- | -------------------------------- |
 | Year and day          | `709.120`                      | `04/29/709 AF`             | `Brazemandi 29, 709 AF`          |

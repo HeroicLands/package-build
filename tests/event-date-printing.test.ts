@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { resolvedDateFields } from "../engine/note-dates.mjs";
 import { eventFieldText, printEventDate, printEventDateIn } from "../engine/event-fields.mjs";
 import { eventRows } from "../engine/event-rows.mjs";
+import { expandContent } from "../engine/content-expand.mjs";
+import { dateToCalendar } from "../engine/date-conversion.mjs";
 import { renderMarkdownExpressions } from "../engine/markdown-expressions.mjs";
 import { checkCalendarNote } from "../engine/calendar-notes.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
@@ -317,6 +319,137 @@ describe("a calendar that sets a display format", () => {
             }).markdown;
         expect(named("std")).toBe("04/29/709 AF");
         expect(named("long")).toBe("29 Brazemandi 709 AF");
+    });
+});
+
+describe("a calendar whose months have no names", () => {
+    const unnamed = (formats: Record<string, string>, epoch = "1.1") => {
+        const note: any = calendarNote(formats);
+        note.fm.data.epoch = epoch;
+        for (const month of note.fm.data.months) (delete month.name, delete month.abbreviation);
+        return context([world, note]);
+    };
+
+    /** The date as every printing surface prints it. */
+    const surfaces = (written: string, dates: any) => {
+        const date = dateOf(written, dates);
+        const fm = {
+            type: "being",
+            name: { full: "Henwo" },
+            data: { died: written, calendar: "commoncal" },
+        };
+        const infobox = noteInfobox(fm, { dates }).sections[0].rows.find(
+            (each: any) => each.label === "Died",
+        )?.value;
+        const record = {
+            package: "thalorna",
+            type: "lore",
+            shortcode: "siege",
+            resolvedCalendar: "commoncal",
+            data: { events: [{ when: written }] },
+            resolvedDates: { events: [{ when: date }] },
+        };
+        const [row] = eventRows([record], dates, ["commoncal"]);
+        const explicit = renderMarkdownExpressions(`{{dateformat "commoncal" "${written}"}}`, {
+            dates,
+        });
+        const implicit = renderMarkdownExpressions(`{{dateformat "${written}"}}`, { dates, fm });
+        const born = resolvedDateFields(fm, dates);
+        return {
+            infobox,
+            whenText: row.whenText,
+            whenIn: row.whenIn.commoncal,
+            ref: eventFieldText(
+                { entry: { when: written }, when: date },
+                "when",
+                dates,
+                "commoncal",
+            ).text,
+            explicit: explicit.markdown,
+            implicit: implicit.markdown,
+            findings: [...(explicit.findings ?? []), ...(implicit.findings ?? [])].length,
+            index: born.died.prose,
+            printed: printEventDateIn(written, date, dates, "commoncal"),
+        };
+    };
+
+    const shapes: Array<[string, string]> = [
+        ["709.120", "day 120 of 709 AF"],
+        ["~709.120:143005", "~day 120 of 709 AF 14:30:05"],
+        ["datefrom commoncal 04/709 AF", "month 4 of 709 AF"],
+        ["709", "709 AF"],
+    ];
+
+    describe.each([
+        [
+            "a display format that names the month",
+            { std: "MM/DD/Y GGG", display: "D MMMM Y GGG" },
+            true,
+        ],
+        [
+            "a display format that abbreviates the month",
+            { std: "MM/DD/Y GGG", display: "D MMM Y GGG" },
+            true,
+        ],
+        ["a std that names the month and no display", { std: "D MMMM Y GGG" }, false],
+    ])("with %s", (_name, formats, display) => {
+        const dates = unnamed(formats);
+        const readable = shapes.filter(([written]) => display || !written.startsWith("datefrom"));
+        it.each(readable)(
+            "prints %s as a plain year and day on every surface",
+            (written, plain) => {
+                const printed = surfaces(written, dates);
+                expect(printed.findings).toBe(0);
+                const { index, ref, findings: _findings, ...printing } = printed;
+                for (const [surface, value] of Object.entries(printing))
+                    expect([surface, value]).toEqual([surface, plain]);
+                // A reference prints the authored date unless the calendar sets `display`.
+                expect(ref).toBe(display ? plain : written);
+                // The index carries prose for a date written in a calendar.
+                expect(index).toBe(written.startsWith("datefrom") ? plain : null);
+            },
+        );
+
+        it("prints a day in the book", () => {
+            const note = { fm: {}, file: "Book.md", source: "", bodyLine: 1, bodyColumn: 1 };
+            const body = '{{dateformat "commoncal" "709.120"}} {{dateformat "commoncal" "709"}}';
+            const expanded = expandContent(body, {
+                target: "book",
+                index: { dateContext: dates } as never,
+                note,
+            });
+            expect(expanded.markdown).toBe("day 120 of 709 AF 709 AF");
+        });
+
+        it("prints dateto in std, and refuses a std that has no month name to print", () => {
+            const print = () => dateToCalendar("commoncal", "709.120", dates);
+            if (display) expect(print()).toBe("04/29/709 AF");
+            else expect(print).toThrow("cannot be expressed in calendar commoncal");
+        });
+    });
+
+    it("prints the calendar year of an era that starts after year 1", () => {
+        const note: any = calendarNote({ std: "MM/DD/Y GGG", display: "D MMMM Y GGG" });
+        for (const month of note.fm.data.months) (delete month.name, delete month.abbreviation);
+        note.fm.data.eras.push({ shortcode: "nr", name: "New", abbreviation: "NR", start: 500 });
+        const dates = context([world, note]);
+        const printed = surfaces("709.120", dates);
+        expect(printed.infobox).toBe("day 120 of 709 NR");
+        expect(printed.explicit).toBe("day 120 of 709 NR");
+        expect(printed.whenText).toBe("day 120 of 709 NR");
+        expect(surfaces("709", dates).infobox).toBe("709 NR");
+    });
+
+    it("counts the day and the year in the calendar's own epoch", () => {
+        const dates = unnamed({ std: "MM/DD/Y GGG", display: "D MMMM Y GGG" }, "101.1");
+        expect(surfaces("709.120", dates).infobox).toBe("day 120 of 609 AF");
+        expect(surfaces("709.120", dates).explicit).toBe("day 120 of 609 AF");
+        expect(surfaces("709", dates).infobox).toBe("609 AF");
+    });
+
+    it("leaves a numeric format unchanged", () => {
+        const dates = unnamed({ std: "MM/DD/Y GGG", display: "DD.MM.Y GGG" });
+        expect(surfaces("709.120", dates).infobox).toBe("29.04.709 AF");
     });
 });
 

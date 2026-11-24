@@ -141,6 +141,19 @@ export function readableCalendarFormatError(pattern) {
     return null;
 }
 
+/**
+ * Whether a pattern prints a month name the month does not have: `MMMM` needs
+ * a `name`, `MMM` an `abbreviation` or a `name`.
+ */
+export function calendarFormatBlanksMonth(pattern, month) {
+    return calendarFormatSegments(pattern).some(
+        (segment) =>
+            segment.token &&
+            ((segment.value === "MMMM" && !month?.name) ||
+                (segment.value === "MMM" && !month?.abbreviation && !month?.name)),
+    );
+}
+
 /** Whether a selected pattern prints clock components. */
 export function calendarFormatHasClock(pattern) {
     return calendarFormatSegments(pattern).some(

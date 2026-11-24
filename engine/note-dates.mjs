@@ -40,6 +40,7 @@ import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
 import { addressedCalendarDate } from "./calendar-human.mjs";
 import {
     calendarFormatHasClock,
+    calendarFormatBlanksMonth,
     formatCalendarPattern,
     selectCalendarFormat,
     displayCalendarPattern,
@@ -637,6 +638,7 @@ export function formatNoteDate(date, era, daysPerYear, formatName, { display = f
     if (year < 1) return null;
     if (Math.floor((delta + date.spanDays - 1) / daysPerYear) !== cycle) return null;
 
+    let plain = false;
     let month = null;
     let day = null;
     if (date.precision !== "year") {
@@ -663,29 +665,40 @@ export function formatNoteDate(date, era, daysPerYear, formatName, { display = f
         target.abbreviation || target.marker || target.name || target.era.split(".").at(-1);
     let text = `${date.approximate ? "~" : ""}${day === null ? "" : `${day} `}${monthName ? `${monthName} ` : ""}${year} ${eraName}${clock}`;
     if (target.calendar?.formats) {
-        const pattern =
-            (display && formatName === undefined ?
+        const displayPattern =
+            display && formatName === undefined ?
                 displayCalendarPattern(target.calendar)
-            :   undefined) ?? selectCalendarFormat(target.calendar, formatName).pattern;
-        const hasClock = calendarFormatHasClock(pattern);
-        const rendered = formatCalendarPattern(
-            pattern,
-            {
-                calendar: target.calendar,
-                era: target,
-                eraYear: year,
-                calendarYear: target.beforeEra ? -year : target.startYear + year - 1,
-                month,
-                day,
-                dayOfYear: (((delta % daysPerYear) + daysPerYear) % daysPerYear) + 1,
-                seconds: date.seconds,
-                canonicalOffset: start,
-                calendarEpochOffset: target.calendarEpochOffset,
-            },
-            date.precision,
-            date.seconds !== undefined,
-        );
-        text = `${date.approximate ? "~" : ""}${rendered}${date.seconds !== undefined && !hasClock ? clock : ""}`;
+            :   undefined;
+        const pattern = displayPattern ?? selectCalendarFormat(target.calendar, formatName).pattern;
+        const monthEntry =
+            month === null ? null : calendarStructure(target.calendar).months?.[month - 1];
+        if (month !== null && calendarFormatBlanksMonth(pattern, monthEntry)) {
+            const dayOfYear = (((delta % daysPerYear) + daysPerYear) % daysPerYear) + 1;
+            const unit = day === null ? `month ${month}` : `day ${dayOfYear}`;
+            const calendarYear = target.beforeEra ? year : target.startYear + year - 1;
+            text = `${date.approximate ? "~" : ""}${unit} of ${calendarYear} ${eraName}${clock}`;
+            plain = true;
+        } else {
+            const hasClock = calendarFormatHasClock(pattern);
+            const rendered = formatCalendarPattern(
+                pattern,
+                {
+                    calendar: target.calendar,
+                    era: target,
+                    eraYear: year,
+                    calendarYear: target.beforeEra ? -year : target.startYear + year - 1,
+                    month,
+                    day,
+                    dayOfYear: (((delta % daysPerYear) + daysPerYear) % daysPerYear) + 1,
+                    seconds: date.seconds,
+                    canonicalOffset: start,
+                    calendarEpochOffset: target.calendarEpochOffset,
+                },
+                date.precision,
+                date.seconds !== undefined,
+            );
+            text = `${date.approximate ? "~" : ""}${rendered}${date.seconds !== undefined && !hasClock ? clock : ""}`;
+        }
     }
     const digits = `${Math.abs(year)}${month === null ? "" : `/${month}`}${day === null ? "" : `/${day}${clock.replaceAll(":", "").replace(/^ /, ":")}`}`;
     const label =
@@ -702,7 +715,7 @@ export function formatNoteDate(date, era, daysPerYear, formatName, { display = f
         : typeof label === "string" && label.includes("{date}") ?
             label.replace("{date}", `${date.approximate ? "~" : ""}${digits}`)
         :   null;
-    return { era, year, month, day, text, prose };
+    return { era, year, month, day, text, prose, plain };
 }
 
 /**

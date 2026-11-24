@@ -52,7 +52,7 @@ export function dateToCalendar(reference, value, context, formatName) {
     const era = eraCovering(parsed, calendarEras(reference, context), context.daysPerYear);
     if (!era) throw new RangeError(`canonical date falls outside calendar ${reference}`);
     const printed = formatNoteDate(parsed, era, context.daysPerYear, formatName);
-    if (!printed || printed.day === null)
+    if (!printed || printed.day === null || printed.plain)
         throw new RangeError(`canonical date cannot be expressed in calendar ${reference}`);
     return printed.text;
 }
