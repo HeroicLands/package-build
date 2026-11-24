@@ -403,7 +403,7 @@ Attributes follow the marker and apply to the alert:
 > Use the ridge path instead.
 ```
 
-Use `#id`, `.class` and named attributes in the shared braced grammar. The marker determines the default label, icon and color. An authored `title` replaces the default **Note**, **Tip**, **Important** or **Warning** heading while preserving the alert type’s icon and color. Event-handler attributes, malformed attributes, unknown alert types and empty alert bodies are errors. Ordinary blockquotes and alert examples inside literal code remain unchanged. A leading caption can describe an alert as a quote block, normally with the `prose` type or an explicit `example` type.
+Use `#id`, `.class` and named attributes in the shared braced grammar. The marker determines the default label, icon and color. An authored `title` replaces the default **Note**, **Tip**, **Important** or **Warning** heading while preserving the alert type’s icon and color. Event-handler attributes, malformed attributes, a marker that is not one of `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]` or `[!WARNING]` in capitals (including `[!]`), and empty alert bodies are errors. Ordinary blockquotes and alert examples inside literal code remain unchanged. A leading caption can describe an alert as a quote block, normally with the `prose` type or an explicit `example` type.
 
 ### Secret blocks
 
@@ -1609,16 +1609,20 @@ Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.
 
 The build adds sections to the end of a note, after everything you wrote, listing what other notes say about it. Each appears only where it has something to list, under a fixed anchor:
 
-| Section           | Anchor           | Lists                                                                         |
-| ----------------- | ---------------- | ----------------------------------------------------------------------------- |
-| Within            | `within`         | on a place, the places whose `parents` name it, grouped by kind               |
-| Governed by       | `governedby`     | on a place, the affiliation its `government` names                            |
-| Governed places   | `governedplaces` | on an affiliation, the places naming it as their `government`                 |
-| Office holders    | `officeholders`  | on an affiliation, each office's living holders, from the beings that name it |
-| In song and story | `insongandstory` | the works of literature whose `subjects` name the note or its events          |
-| From here         | `fromhere`       | on a place with borders or routes, the map drawn from it                      |
+| Section           | Anchor            | Lists                                                                                                                                    |
+| ----------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Settlements       | `settlements`     | on a polity, its direct settlements: those it lists, those that name it as their `government`, its own seat and its subordinate polities |
+| Settlement index  | `settlementindex` | on a polity, the settlements beneath it that its Settlements table does not list                                                         |
+| Within            | `within`          | on a place, the places whose `parents` name it, grouped by kind                                                                          |
+| Governed by       | `governedby`      | on a place, the affiliation its `government` names                                                                                       |
+| Governed places   | `governedplaces`  | on an affiliation, the places naming it as their `government`                                                                            |
+| Office holders    | `officeholders`   | on an affiliation, each office's living holders, from the beings that name it                                                            |
+| In song and story | `insongandstory`  | the works of literature whose `subjects` name the note or its events                                                                     |
+| From here         | `fromhere`        | on a place with borders or routes, the map drawn from it                                                                                 |
 
-The event sections below sit among them, and the [format reference](../reference/format-details.md#generated-sections) gives the order. Each entry links to the note it names; a note with no page of its own is named in plain text. Replace a section the way you replace an event view, by writing your own with the same anchor:
+The event sections below sit among them, and the [format reference](../reference/format-details.md#generated-sections) gives the order. Each entry links to the note it names; a note with no page of its own is named in plain text. Replace a section the way you replace an event view, by writing your own with the same anchor. Settlements and Settlement index are the exception: write a section with their anchor or heading and the build adds the table after your introduction, and a table of your own there is an error.
+
+To replace another section:
 
 ```markdown
 # Within {#within}

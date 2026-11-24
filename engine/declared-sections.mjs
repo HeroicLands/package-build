@@ -82,7 +82,10 @@ export function insertDeclaredSections(
             ],
         });
     }
-    for (const edit of edits.sort((a, b) => b.at - a.at)) {
+    // Later positions first keep earlier indexes valid; edits at one position
+    // apply last-declared first so the declared order reads top to bottom.
+    const ordered = edits.map((edit, index) => ({ ...edit, index }));
+    for (const edit of ordered.sort((a, b) => b.at - a.at || b.index - a.index)) {
         lines.splice(edit.at, 0, ...edit.lines);
         locations.splice(
             edit.at,

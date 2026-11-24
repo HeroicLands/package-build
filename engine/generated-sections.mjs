@@ -15,7 +15,8 @@
  * A note's **generated sections**: the H1 sections the build appends after
  * everything the author wrote, each under a fixed anchor.
  *
- * Two families share the one mechanism. The derived lists —
+ * Two families share the one mechanism. The settlement tables (Settlements and
+ * Settlement index) head the list; the derived lists —
  * {@link module:engine/derived-sections} — say where a place sits, who governs
  * it, what it governs, which works concern the note and what the map from a
  * place shows. The event views — {@link module:engine/event-views} — list the
@@ -29,7 +30,9 @@
  *
  * - **An author's own anchor replaces it.** A note whose body declares a prose
  *   anchor with the section's slug keeps its own section and is given no
- *   generated one.
+ *   generated one. The settlement tables are the exception: an authored
+ *   section with their anchor or heading receives the table after its
+ *   introduction.
  * - **A section with nothing to show is not generated.**
  * - **Sections follow the author's text in the order of
  *   {@link GENERATED_SECTIONS}.**
@@ -49,7 +52,8 @@
 export const CHRONOLOGY_SLUG = "chronology";
 
 /**
- * Every generated section, in the order it follows the author's text: where a
+ * Every generated section, in the order it follows the author's text: the
+ * settlement tables of a polity, where a
  * place sits and who governs it, then what happened, then what was written
  * about it, then the map.
  *
