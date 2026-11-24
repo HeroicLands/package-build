@@ -32,23 +32,34 @@ specific file. A field that cannot be known is dropped rather than guessed:
 `file:line:` when the column means nothing, `file:` when only the file is
 known. See [Diagnostics](diagnostics.md) for the full contract.
 
-**Exit codes are 0 or 1.** 0 is success — including a command that found
-advisory warnings but no error, and a command that had deliberately nothing to
-do. 1 is failure: a configuration error, a missing prerequisite, or findings
-that the command treats as errors. Each command's own **EXIT STATUS** states
-exactly what makes its run a 1.
+**Exit status** is one of four things, and each command's own **EXIT STATUS**
+states exactly which conditions apply to it.
+
+- **0** is success — including a command that found advisory warnings but no
+  error, and a command that had deliberately nothing to do. `--help` and
+  `--version` exit 0.
+- **1** is failure: a configuration error, a missing prerequisite, a thrown
+  error, or findings that the command treats as errors. A parse error from an
+  unknown command or option, a missing required option or an invalid action
+  exits 1, and so does running `package-build` with no command, after printing
+  usage.
+- **2** is a usage error from `encode` or `decode` only: a missing `--enc`, the
+  wrong number of inputs, or any parse failure on those two commands. Every
+  other failure of those commands is 1.
+- **The child's status** is what `container` and `e2e run|open|fast|sweep`
+  exit with: the status of `docker` or of the suite, whatever value that is.
+  Their own failures, such as a missing prerequisite, are 1.
 
 Packaging handlers report a thrown error as `package-build: <message>`, or as
 the bare diagnostic when it already has a location. Content handlers report
 their own failures, with ordinary failures prefixed by loglevel and located
-diagnostics unprefixed. Both forms exit 1. A parse error from an unknown flag,
-missing option, or invalid action also exits 1.
+diagnostics unprefixed. [Diagnostics](diagnostics.md) lists, for every
+command, what it reports and when it fails.
 
 The command uses `strict()` and `demandCommand(1, …)`. An unknown
-command or option is refused rather than ignored, and running it with no
-command prints usage and exits 1. `package-build e2e <action>` relaxes to
-`.strict(false)` for everything after the action, because that belongs to the
-suite or the fast loop and this command line must not judge it.
+command or option is refused rather than ignored. `package-build e2e <action>`
+relaxes to `.strict(false)` for everything after the action, because that
+belongs to the suite or the fast loop and this command line must not judge it.
 
 **`--help` / `-h` and `--version` are global.** The parser registers them
 once, and `--help` can be used with any command for its own actions and options.
@@ -1590,9 +1601,13 @@ runs an S3-compatible server beside the container; see
 **EXIT STATUS**
 
 The command's own status is `docker`'s exit status — `process.exit(status)`
-— so a Docker failure surfaces as this command's own non-zero exit. 1 if
-Docker is not on `PATH`, or (for `start`/`restart`/`recreate`) if the
-stage's data root is unset or does not exist.
+— so a Docker failure surfaces as this command's own non-zero exit; `rm`
+always exits 0, and `restart` ignores the status of its `docker stop`. The
+command itself exits 1 when Docker is not on `PATH`, when the stage has no
+port, when a configuration error is thrown, when a
+`FOUNDRYVTT_CONTAINER_S3` input file is missing or irregular, and (for
+`start`/`restart`/`recreate`) when the stage's data root is unset, does not
+exist or is a remote target.
 
 **EXAMPLES**
 
@@ -1690,7 +1705,8 @@ apply to the container these actions create, except `FOUNDRYVTT_<STAGE>_WORLD`:
 
 **EXIT STATUS**
 
-`seed` — 1 if `FOUNDRYVTT_<STAGE>_DATA` is unset, or on any other thrown error;
+`seed` — 1 if the data-root variable of the configured end-to-end stage
+(`FOUNDRYVTT_<STAGE>_DATA`) is unset, or on any other thrown error;
 otherwise 0. `run`/`open`/`fast`/`sweep` — the command's own status is the
 suite's own exit status, via `process.exit(status)`; 1 if
 `packageBuild.e2e.suite` names no runner for the action being asked for.
@@ -3550,8 +3566,11 @@ A refusal writes no result and preserves an existing output file.
 
 **EXIT STATUS**
 
-0 on success; 1 for unreadable files or an encoding refusal; 2 for a usage
-error. Findings go to standard error as `file:line:column: error: message`.
+0 on success; 1 for an unreadable input file, an unwritable `--out` file, an
+encoding document that does not resolve, a content-index or configuration
+problem when `--enc` is not `default`, or an encoding refusal; 2 for a usage
+error. Findings go to standard error as `file:line:column: error: message`, or
+`file: error: message` when a finding has no position.
 Line and column count Unicode code points, starting at one. String input is
 named `<text>` and standard input `<stdin>`.
 
@@ -3599,7 +3618,8 @@ adds lexical recovery.
 
 **EXIT STATUS**
 
-0 on success; 1 for unreadable files or a decoding refusal; 2 for a usage
+0 on success; 1 for the same causes as `encode`, with a decoding refusal in
+place of an encoding refusal; 2 for a usage
 error. Diagnostics and output bytes follow the same rules as `encode`.
 
 **EXAMPLES**
@@ -4047,8 +4067,7 @@ The `prompt` action has no options; it reads the being's settings.
 
 **EXIT STATUS**
 
-The command exits zero on success and nonzero if the Address, settings or
-indexed items cannot be resolved.
+0 on success. 1 if the Address, settings or indexed items cannot be resolved.
 
 **EXAMPLES**
 

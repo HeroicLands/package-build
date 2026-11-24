@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 import { CONTAINER_ACTIONS } from "../../container.mjs";
 import { E2E_MODES } from "../../e2e.mjs";
 
-const ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
+export const ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 
 /** One command parsed from a `<name>Command()` function body. */
 export interface CommandNode {
@@ -107,13 +107,13 @@ function choicesIn(body: string): string[] {
 export function parseCommandTree(source: string): CommandNode[] {
     const bodies = functionBodies(source);
 
-    // Every registered command, including one wrapped by the index preflight.
-    const refs = [
-        ...source.matchAll(/\.command\(\s*(?:with(?:Index|Body)Preflight\(\s*)*(\w+Command)\(\)/g),
-    ].map((m) => ({
-        fnName: m[1],
-        index: m.index,
-    }));
+    // Every registered command, including one wrapped by a preflight or config helper.
+    const refs = [...source.matchAll(/\.command\(\s*(?:with\w+\(\s*)*(\w+Command)\(\)/g)].map(
+        (m) => ({
+            fnName: m[1],
+            index: m.index,
+        }),
+    );
 
     /** The innermost `*Command()` body a source index falls inside, if any. */
     function enclosingFn(index: number): string | undefined {
@@ -246,3 +246,6 @@ export function commandSurface(): CommandSurfaceEntry[] {
         subcommands: node.children.map((child) => `${binary} ${nodePath.join(" ")} ${child.name}`),
     }));
 }
+
+/** Every command of every binary, parsed once. */
+export const nodes = allNodes();
