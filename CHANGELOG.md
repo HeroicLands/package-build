@@ -1,5 +1,25 @@
 # @heroiclands/package-build
 
+## 25.11.2
+
+**Builds and commands**
+
+- A package whose notes need more than 2 GB for SQL queries can raise the limit with `sql.memoryLimit`, and a malformed value is reported with its file, line and column.
+
+**Content**
+
+- A being can declare `hair_style: tied_back` or `hair_style: pinned_up`, for hair drawn back and tied, or pinned or dressed high.
+
+**Settlement calibration**
+
+- A calibration trial can give a culture a household size of its own, so a culture whose note declares none can be run from the trial file alone.
+- The result states for each culture whether the household size came from the note or from the trial, and a malformed or repeated trial size is reported as a missing input.
+
+**Vehicles**
+
+- Vehicle movement rows can carry a label, such as sail or oar, and the number of oarsmen who row them.
+- A blank movement label, or an oarsman count that is not a whole number, is reported at its line.
+
 ## 25.11.1
 
 **Builds and commands**
