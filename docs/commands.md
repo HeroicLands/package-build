@@ -1014,8 +1014,7 @@ package-build: 2 file(s) checked · 0 error(s) · 0 warning(s)
 **NAME**
 
 Lint release prose — pending changesets, or a `CHANGELOG.md` release section
-— against the rules a changeset is actually held to (`check` is the only
-action).
+— against the rules a changeset is actually held to.
 
 **SYNOPSIS**
 
@@ -1241,7 +1240,7 @@ Zip the staged package for a GitHub release.
 **SYNOPSIS**
 
 ```
-package-build release [--no-pdf]
+package-build release [--pdf | --no-pdf]
 ```
 
 **DESCRIPTION**
@@ -1264,9 +1263,9 @@ the staged package and (for the book) the content tree; writes
 
 **OPTIONS**
 
-| Option     | Type    | Default | Description                                                                 |
-| ---------- | ------- | ------- | --------------------------------------------------------------------------- |
-| `--no-pdf` | boolean | —       | Skip the content-tree book even when the package would otherwise build one. |
+| Option  | Type    | Default | Description                                                                                       |
+| ------- | ------- | ------- | ------------------------------------------------------------------------------------------------- |
+| `--pdf` | boolean | `true`  | Build the content-tree book. `--no-pdf` skips it even when the package would otherwise build one. |
 
 **EXIT STATUS**
 
@@ -2040,8 +2039,8 @@ configuration reference for the required version and URL rules. Set
 forge token to authenticate mirror requests. Authenticated mirrors require HTTPS,
 except for loopback HTTP hosts. Authenticated redirects stay on the mirror origin.
 
-`lint`, `links`, `site`, `pdf`, `map`, `reachability`, and `package compile`
-check the declared dependencies' content-index cache before reading notes or
+`lint`, `links`, `site`, `pdf`, `map`, `reachability`, `package compile`,
+`content run`, `content build`, `npc` and `vehicle` check the declared dependencies' content-index cache before reading notes or
 writing output. A cold cache produces a diagnostic at the package configuration
 file naming `deps fetch`. These checks only read local files; `deps fetch` is
 the separate step that reaches the network.
@@ -2255,7 +2254,7 @@ consumer may add keys (`description`, `tags`) or override any of the derived
 ones. `--check` then compares the **whole** file, envelope included — a page
 committed with a hand-written or stale envelope reads as out of date exactly
 as a stale body does. A destination outside the content tree gets the page
-body alone, with no frontmatter, exactly as before.
+body alone, with no frontmatter.
 
 **OPTIONS**
 
@@ -2519,11 +2518,11 @@ $ package-build lint
 [Diagnostics](diagnostics.md),
 [Configuration](configuration.md).
 
-`package-build content-format <action>` checks `docs/content-format.md` —
-the content-format specification this package ships — against reality, in
+`package-build content-format <action>` checks a content-format specification
+against reality, in
 two ways that fail for different reasons at different times: `schema`
 and `fields`, one section below per action. Both read the
-specification named by `--spec`, defaulting to the one this package ships,
+specification named by `--spec`, defaulting to `engine/content-format.yaml`,
 and write nothing.
 
 ### `package-build items coverage`
@@ -2592,8 +2591,8 @@ package-build content-format schema --schema <system>=<path> [--schema <system>=
 **DESCRIPTION**
 
 Compares every `system.*` target the specification names against a
-published `schema.json` (see `package-build schema`). A schema a system has
-not yet published — HM3 today — is reported as unchecked rather than
+published `schema.json` (see `package-build schema`). A system that publishes
+no schema is reported as unchecked rather than
 skipped in silence, because a check that quietly does nothing reads exactly
 like one that passed.
 
@@ -2648,7 +2647,7 @@ one side describes is named as out of reach rather than silently skipped.
 declarations together and configures no content tree of its own, so a
 consumer's arrangement would not apply here. `--coverage` lists, per type,
 the fields only one side names — advisory, not findings, since the two
-vocabularies differ by design until a note's data fully moves under `data:`.
+vocabularies differ by design wherever a note's data is not under `data:`.
 
 **OPTIONS**
 
@@ -3919,9 +3918,9 @@ it, the section is its heading alone.
 
 **OPTIONS**
 
-| Positional | Type                 | Default | Description            |
-| ---------- | -------------------- | ------- | ---------------------- |
-| `action`   | string, one of `new` | —       | The action to perform. |
+| Positional | Type                           | Default | Description            |
+| ---------- | ------------------------------ | ------- | ---------------------- |
+| `action`   | string, one of `new`, `prompt` | —       | The action to perform. |
 
 | Option       | Type   | Default         | Description                                                                      |
 | ------------ | ------ | --------------- | -------------------------------------------------------------------------------- |
@@ -4104,11 +4103,11 @@ Build a vehicle picture prompt.
 
 **DESCRIPTION**
 
-The `prompt` action prints JSON with a `positive` string and, for `sdxl`, a `negative` string from indexed vehicle facts and items. It refuses any lint error in the vehicle note and prints located diagnostics to stderr.
+The `prompt` action prints JSON with a `positive` string and, for `sdxl`, a `negative` string from indexed vehicle facts and items. It resolves explicitly authored item models through the content index and includes their names and declared quantities as vehicle item facts. It does not infer which items are visible, where they are placed, or what a container holds, and it does not draw appearance values, write the note, or generate a picture. It refuses any lint error in the vehicle note and prints located diagnostics to stderr.
 
 **OPTIONS**
 
-`--model` accepts `flux-dev`, `flux2-pro`, or `sdxl`. It and `--seed` supply transient settings without a picture record. `--view` selects `side` or `three-quarter`; an omitted view is seeded. A stored record refuses overrides.
+`--model` accepts `flux-dev`, `flux2-pro`, or `sdxl`. Without a picture record, `--model` and `--seed` are required and supply transient settings. `--view` selects `side` or `three-quarter`; an omitted view is chosen from the seed. A vehicle with a picture record uses its stored settings and refuses all three overrides.
 
 **EXIT STATUS**
 
@@ -4122,7 +4121,7 @@ package-build vehicle prompt vehicle-cart --model sdxl --seed example
 
 **SEE ALSO**
 
-[Vehicle command manual](commands/vehicle.md).
+[Content format](content-format.md).
 
 ### `package-build settlement`
 
@@ -4132,7 +4131,12 @@ Propose named rural settlements and optionally save their rows.
 
 **SYNOPSIS**
 
-`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE --checks-module FILE --checks-guide FILE --checks-english-words FILE --checks-english-sources FILE --seed TEXT --name-limit NUMBER [--checks-root DIR] --checks-index FILE [--wordlist-dir DIR] [--checks-byte-limit NUMBER] [--checks-entry-limit NUMBER] [--checks-work-limit NUMBER] [--write]`
+`package-build settlement --polity ADDRESS --map FILE --json FILE --inputs FILE [--checks-module FILE --checks-guide FILE --checks-english-words FILE --checks-english-sources FILE --checks-index FILE] [--checks-root DIR] [--wordlist-dir DIR] [--checks-byte-limit NUMBER] [--checks-entry-limit NUMBER] [--checks-work-limit NUMBER] [--seed TEXT] [--name-limit NUMBER] [--write]`
+
+Without `--checks-module` the run reports naming as missing. Naming settlements
+requires `--checks-module`, `--checks-guide`, `--checks-english-words`,
+`--checks-english-sources` and `--checks-index` together, with `--seed` and
+`--name-limit`.
 
 **DESCRIPTION**
 
@@ -4153,10 +4157,10 @@ must match the captured notes.
 - `--checks-module` `FILE` — trusted local JavaScript module supplying the setting
   resource loader and check factory. The module executes with the caller's access.
 - `--checks-root` `DIR` — root for setting resources; defaults to the current directory.
-- `--checks-guide` `FILE` — required pronunciation-guide file, relative to the checks root.
-- `--checks-english-words` `FILE` — required English word-list JSON, relative to the checks root.
-- `--checks-english-sources` `FILE` — required English word-list source manifest, relative to the checks root.
-- `--checks-index` `FILE` — required index path, relative to the checks root.
+- `--checks-guide` `FILE` — pronunciation-guide file, required with `--checks-module`, relative to the checks root.
+- `--checks-english-words` `FILE` — English word-list JSON, required with `--checks-module`, relative to the checks root.
+- `--checks-english-sources` `FILE` — English word-list source manifest, required with `--checks-module`, relative to the checks root.
+- `--checks-index` `FILE` — index path, required with `--checks-module`, relative to the checks root.
 - `--checks-byte-limit` `NUMBER` — maximum combined bytes of the index, guide, English resources and word lists;
   defaults to 268435456.
 - `--checks-entry-limit` `NUMBER` — maximum word-list directory entries; defaults to 100000.

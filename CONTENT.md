@@ -308,4 +308,4 @@ native writing and first-listed ties. Marked words keep exact decoding.
 See [encodings](docs/reference/format-details.md#encodings) and
 [native spellings and parts](docs/reference/format-details.md#native-spellings-and-parts).
 
-Vehicle notes can list actual cargo and fittings in `data.items`; an item entry may name an item model or define an item inline, using the same fields, including `chance`, as a being’s items. A vehicle picture record pairs `data.portrait` and `data.portraitSettings` with an authored `data.icon` image or icon Address. The text-only [vehicle prompt command](docs/commands/vehicle.md) composes from indexed facts and items without writing the note.
+Vehicle notes can list actual cargo and fittings in `data.items`; an item entry may name an item model or define an item inline, using the same fields, including `chance`, as a being’s items. A vehicle picture record pairs `data.portrait` and `data.portraitSettings` with an authored `data.icon` image or icon Address. The text-only [vehicle prompt command](docs/commands.md#package-build-vehicle) composes from indexed facts and items without writing the note.

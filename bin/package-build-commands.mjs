@@ -14,65 +14,28 @@
 /**
  * The `package-build` command line — clean, stage, check, package, deploy.
  *
- * **Why this exists.** This package was library-only, so every consuming
- * repository wrote a wrapper script per job: six of them in the Song of Heroic
- * Lands repository, 441 lines that between them contained no logic. `clean.mjs`
- * was 47 lines that computed a `repoRoot` from `import.meta.url`, read one
- * flag, and made one call. `push-stage.mjs` hard-coded `packageKind: "systems"`
- * and `packageId: "sohl"` beside a configuration that already declared both.
- * Each copy had drifted from its sibling in the other repositories, because
- * copies do.
+ * Each job a consuming repository needs is a command here, configured by the
+ * reserved `packageBuild:` section of `package-build.config.yaml`, so no
+ * repository carries a wrapper script that states a literal the configuration
+ * already declares. The configuration is resolved when a command runs and
+ * never at module scope, so `--version` and `--help` answer in a directory
+ * with no configuration at all. Running an actual command still resolves it,
+ * and still fails loudly when it is missing.
  *
- * It is the same shape the configuration had before it became data: not logic,
- * but the boilerplate a code file needs in order to state a literal. So the
- * literals move into `package-build.config.yaml`'s reserved `packageBuild:`
- * section, and the boilerplate lives here, once.
+ * A capability with a single operation is a bare command (`clean`, `assets`,
+ * `manifest`, `release`, `deploy <stage>`); one with several takes a positional
+ * action (`lang check`, `bundle check`), so each operation is addressed under
+ * its capability.
  *
- * **Every side effect lives in this file.** argv parsing, the environment,
- * writing to the filesystem, and the process exit code. The library modules
- * stay import-safe, so a consuming repository's build — or a test — can call
- * them without any of it happening.
+ * The library modules stay import-safe: argv parsing, the environment, writes
+ * to the filesystem and the process exit code live in the `bin/` command
+ * modules, so a consuming repository's build or a test can call a library
+ * module without any of them happening.
  *
- * **The shape of the command surface.** A capability with a single operation is
- * a bare command (`clean`, `assets`, `manifest`, `release`, `deploy <stage>`);
- * one with more than a single operation takes a positional action, so it can
- * grow another without renaming the first (`lang check`, `bundle check`). The
- * alternative — flat `lang:check`-style names — makes the second operation a
- * new top-level command and the relationship between them invisible.
- *
- * The side effects that need *configuration* live inside the command handlers,
- * never at module scope, so `--version` and `--help` answer in a directory with
- * no configuration at all. Running an actual command still resolves it, and
- * still fails loudly when it is missing.
- *
- * Usage:
- *   npx package-build clean [--distclean]
- *   npx package-build assets
- *   npx package-build calendars --calendaria-version <version>
- *   npx package-build datefrom <calendar> <date>
- *   npx package-build dateto <calendar> <canonical-date>
- *   npx package-build manifest
- *   npx package-build lang check
- *   npx package-build lang coverage [--unused]
- *   npx package-build lang hardcoded
- *   npx package-build changelog check [--release] [paths..]
- *   npx package-build changelog group [paths..]
- *   npx package-build bundle check
- *   npx package-build release
- *   npx package-build deploy <stage>
- *   npx package-build cdn publish [--dest internal|cloudflare] --set <file> --name <display name> [--dry-run]
- *   npx package-build container <stage> <action>
- *   npx package-build e2e <seed|run|open|fast|sweep>
- *
- * In a consuming repository, wrapped as npm scripts — SoHL spells them:
- *   npm run clean                          // → … clean
- *   npm run build:assets                   // → … assets
- *   npm run lint:lang                      // → … lang check
- *   npm run lint:lang-coverage             // → … lang coverage
- *   npm run lint:lang-hardcoded            // → … lang hardcoded
- *   npm run lint:bundle-globals            // → … bundle check
- *   npm run build:pack-release             // → … release
- *   npm run push:qa                        // → … deploy qa
+ * `npx package-build --help` lists every command, and `docs/commands.md`
+ * documents each one. A consuming repository wraps the commands it uses as
+ * npm scripts, for example `"clean": "package-build clean"` or
+ * `"push:qa": "package-build deploy qa"`.
  */
 
 import fs from "node:fs";
@@ -1349,18 +1312,22 @@ function releaseCommand() {
         command: "release",
         describe: "Package the staged build for release",
         builder: (y) =>
-            y.option("no-pdf", {
+            // Declared positively so yargs derives `--no-pdf` from it; an
+            // option literally named `no-pdf` is rejected as unknown when it
+            // is actually passed.
+            y.option("pdf", {
                 describe:
-                    "Skip the content-tree book. A package that publishes no content " +
-                    "already builds none; this is for a release that has a tree and " +
-                    "does not want the book.",
+                    "Build the content-tree book. `--no-pdf` skips it: a package " +
+                    "that publishes no content already builds none; this is for a " +
+                    "release that has a tree and does not want the book.",
                 type: "boolean",
+                default: true,
             }),
         handler: handler(async (argv) => {
             const config = loadPackageBuildConfig();
             const result = await packRelease({
                 artifact: config.artifact,
-                pdf: argv.pdf !== false,
+                pdf: argv.pdf,
             });
             const { zip, version, bytes } = result;
             console.log(

@@ -260,3 +260,40 @@ describe("package-build pdf's own error handling", () => {
         SUBPROCESS_TEST_TIMEOUT,
     );
 });
+
+describe("`release --no-pdf`", () => {
+    it(
+        "parses under strict option checking",
+        () => {
+            const { err } = run("release", "--no-pdf");
+
+            expect(err).not.toMatch(/Unknown argument/);
+            // The option parsed; the failure is the missing configuration.
+            expect(err).toMatch(/PACKAGE_BUILD_CONFIG names .*which does not exist/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "is listed in help as the negation of `--pdf`",
+        () => {
+            const { out } = run("release", "--help");
+
+            expect(out).toContain("--pdf");
+            expect(out).toContain("--no-pdf");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+});
+
+describe("the docs and content-index commands", () => {
+    it.each([["docs"], ["content-index"]])(
+        "declare no `--seed` option: %s",
+        (command) => {
+            const { out } = run(command, "--help");
+
+            expect(out).not.toContain("--seed");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+});

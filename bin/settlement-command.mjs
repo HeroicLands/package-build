@@ -252,19 +252,23 @@ export function settlementCommand() {
                 })
                 .option("checks-guide", {
                     type: "string",
-                    describe: "Setting pronunciation guide, relative to the checks root",
+                    describe:
+                        "Setting pronunciation guide, relative to the checks root; required with --checks-module",
                 })
                 .option("checks-english-words", {
                     type: "string",
-                    describe: "English word-list JSON, relative to the checks root",
+                    describe:
+                        "English word-list JSON, relative to the checks root; required with --checks-module",
                 })
                 .option("checks-english-sources", {
                     type: "string",
-                    describe: "English word-list source manifest, relative to the checks root",
+                    describe:
+                        "English word-list source manifest, relative to the checks root; required with --checks-module",
                 })
                 .option("checks-index", {
                     type: "string",
-                    describe: "Setting content index path relative to the checks root",
+                    describe:
+                        "Setting content index path relative to the checks root; required with --checks-module",
                 })
                 .option("wordlist-dir", {
                     type: "array",
@@ -289,10 +293,14 @@ export function settlementCommand() {
                     describe:
                         "Finite authoring work budget; sizing examples: docs/reference/settlement-placement.md",
                 })
-                .option("seed", { type: "string", describe: "Deterministic name selection seed" })
+                .option("seed", {
+                    type: "string",
+                    describe: "Deterministic name selection seed; required with --checks-module",
+                })
                 .option("name-limit", {
                     type: "number",
-                    describe: "Maximum candidate names examined per settlement",
+                    describe:
+                        "Maximum candidate names examined per settlement; required with --checks-module",
                 })
                 .option("write", {
                     type: "boolean",

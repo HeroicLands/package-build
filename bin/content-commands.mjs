@@ -211,9 +211,8 @@ import { portraitFromData, resolvePortraitItems } from "../engine/portrait-promp
  * From the configuration's own pack list, which is where the build already
  * knows them. It does not come out of the shipped manifest — a second
  * declaration of the same list, in a second format, with nothing checking that
- * the two agreed. The manifest is generated from this list now
- *, so reading it back would be a round trip through an
- * artifact that need not exist.
+ * the two agreed. The manifest is generated from this list, so reading it back would be a
+ * round trip through an artifact that need not exist.
  *
  * Read on demand rather than at load, so `--version` and `--help` still answer
  * with no configuration present.
@@ -624,12 +623,6 @@ function docsCommand() {
                 describe: "Documentation root for the links and index checks.",
                 type: "string",
                 default: "docs",
-            });
-            yargs.option("seed", {
-                describe:
-                    "Text that seeds generation beside the spec, to draw a different person " +
-                    "from the same spec.",
-                type: "string",
             });
             yargs.option("out", {
                 describe: "Write to this file instead of the configured location.",
@@ -2062,12 +2055,6 @@ function contentIndexCommand() {
                 describe: "Content tree to read. Defaults to the configured contentBase.",
                 type: "string",
             });
-            yargs.option("seed", {
-                describe:
-                    "Text that seeds generation beside the spec, to draw a different person " +
-                    "from the same spec.",
-                type: "string",
-            });
             yargs.option("out", {
                 describe:
                     "Directory to write into. Defaults to the configured " +
@@ -3328,7 +3315,7 @@ function packageCommand() {
             });
             yargs.positional("entry", {
                 describe:
-                    "Name of any entry within a pack upon which to work. Only applicable to extract & clean commands.",
+                    "Name of any entry within a pack upon which to work. Only applicable to the unpack and clean actions.",
                 type: "string",
             });
         },

@@ -46,7 +46,7 @@ Build a Foundry system or module, author its content once, and publish it to Fou
 ## Reference
 
 - [Command reference](commands.md)
-- [Vehicle command](commands/vehicle.md)
+- [Vehicle command](commands.md#package-build-vehicle)
 - [Configuration](configuration.md)
 - [Diagnostics](diagnostics.md)
 - [API reference](api.md)
