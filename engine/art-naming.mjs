@@ -104,3 +104,72 @@ export function namedImages({ frontmatter, body, contentPackage, assetRecords = 
     }
     return [...found].sort();
 }
+
+/**
+ * The references a note makes to pictures of the given packages, as written.
+ *
+ * Reads the same three places {@link namedImages} reads: an art slot under
+ * `data:`, an embed and a body image whose pathname names one of the packages.
+ * A body image's Address is its package, its picture root's type and its file
+ * name without the extension.
+ *
+ * @param {object} input
+ * @param {Record<string, any>} input.frontmatter - The note's frontmatter as authored.
+ * @param {string} [input.body] - The note's markdown body.
+ * @param {string} input.contentPackage - The content package the note belongs to.
+ * @param {ReadonlySet<string>} input.packages - The packages whose pictures are wanted.
+ * @param {object} [input.config] - The resolved configuration, for pathnames.
+ * @returns {Array<{address: string, written: string}>} One entry per reference,
+ *   in the order slots, embeds and body images are read.
+ */
+export function pictureReferences({ frontmatter, body, contentPackage, packages, config }) {
+    const vocabulary = {
+        system: ASSET_SYSTEM,
+        package: contentPackage,
+        types: ASSET_TYPE_NAMES,
+        packages: new Set([contentPackage, ...packages]),
+    };
+    const named = (value, defaultType, accepts) => {
+        const tuple =
+            isAddressTuple(value) ? value : artTarget(value, defaultType, accepts, vocabulary);
+        if (tuple.reason || !packages.has(tuple.package) || !isAssetType(tuple.type)) {
+            return undefined;
+        }
+        return renderAddress(tuple);
+    };
+    const found = [];
+    for (const slot of ART_SLOTS) {
+        const value = frontmatter?.data?.[slot.key];
+        if (!value || value === slot.declines) continue;
+        if (typeof value !== "string" && !isAddressTuple(value)) continue;
+        const address = named(value, slot.type, slot.accepts);
+        if (address)
+            found.push({
+                address,
+                written: typeof value === "string" ? value : address,
+            });
+    }
+    const text = body ?? "";
+    for (const embed of embedsIn(text)) {
+        const address = named(embed.written, EMBED_DEFAULT_TYPE, undefined);
+        if (address) found.push({ address, written: embed.written });
+    }
+    for (const image of imagesIn(text)) {
+        let forms;
+        try {
+            forms = resolvePathname(image.src, config ?? { contentPackage });
+        } catch {
+            continue;
+        }
+        if (forms?.state !== "package" || !packages.has(forms.package)) continue;
+        const segments = forms.suffix.split("/");
+        const type = DEPLOYED_ASSET_TYPES.find((entry) => entry.root === segments[0]);
+        if (!type || segments.length < 2) continue;
+        const shortcode = segments[segments.length - 1].replace(/\.[^.]+$/, "");
+        found.push({
+            address: `${forms.package}-${ASSET_SYSTEM}-${type.type}-${shortcode}`,
+            written: image.src,
+        });
+    }
+    return found;
+}

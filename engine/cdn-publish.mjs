@@ -476,7 +476,9 @@ const artworkReaders = new WeakMap();
  * @typedef {object} CdnUpload
  * @property {object} record - The asset record.
  * @property {string} address - Its canonical address.
- * @property {string} target - `<icons|images>/<basename>`.
+ * @property {string} target - `<icons|images>/<basename>`, or
+ *   `<icons|images>/<picture package>/<basename>` for a picture of a picture
+ *   package declared under `art.packages`.
  * @property {string} key - The object key, `<package>/<target>`.
  * @property {Buffer} [body] - The bytes for ordinary file inputs.
  * @property {number} size - The planned byte length.
@@ -514,6 +516,8 @@ const artworkReaders = new WeakMap();
  * @param {object[]} [opts.records] - Asset records for this build.
  * @param {Map<string, string>} [opts.preparedMasters] - Rendered private inputs by address.
  * @param {Map<string, () => Buffer>} [opts.artSources] - Captured verified artwork by address.
+ * @param {readonly string[]} [opts.picturePackages] - The picture packages the
+ *   package declares under `art.packages`.
  * @returns {CdnPlan} The plan.
  */
 export function planCdnPublish({
@@ -527,6 +531,7 @@ export function planCdnPublish({
     records: suppliedRecords,
     preparedMasters,
     artSources,
+    picturePackages = [],
 }) {
     const findings = [];
     const cdnRoot = `${host.replace(/\/+$/, "")}/${contentPackage}/`;
@@ -549,7 +554,7 @@ export function planCdnPublish({
                 : transformed != null ? Buffer.from(transformed, "utf8")
                 : fs.readFileSync(from);
             if (!Buffer.isBuffer(body)) throw new Error("artwork input must return a Buffer");
-            const target = /** @type {string} */ (deployedAssetPath(record));
+            const target = /** @type {string} */ (deployedAssetPath(record, picturePackages));
             const upload = {
                 record,
                 address: record.address.canonical,

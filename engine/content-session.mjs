@@ -157,7 +157,9 @@ async function createContentSessionInternal(
     assertPrivateArtRoots(privateArtRoots(config), [assets], { role: "input" });
     const art =
         artModule ?
-            artModule.collectArtMasters(roots, config.contentPackage, { componentRoots })
+            (await import("./art-packages.mjs")).collectPackageArtMasters(roots, config, {
+                componentRoots,
+            })
         :   { masters: new Map(), findings: [], paths: [] };
     const fingerprint = (file) => {
         const stat = fs.statSync(file, { throwIfNoEntry: false });

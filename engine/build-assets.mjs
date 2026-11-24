@@ -27,6 +27,7 @@ import { createContentSession } from "./content-session.mjs";
 import { privateArtRoots } from "./art-inputs.mjs";
 import { assertPrivateArtRoots, shippingAssetRecords } from "./art-masters.mjs";
 import { renderArtMasters } from "./art-master-render.mjs";
+import { artPackageNames } from "./art-packages.mjs";
 
 /**
  * A finding for each `packageBuild.assets` row that would stage a picture root
@@ -168,6 +169,7 @@ export async function stagePackageBuildAssets({
             shippingLicenses: config.shippingLicenses,
             preparedMasters,
             records: preparedMasters ? shippingAssetRecords(artSession.records) : undefined,
+            picturePackages: artPackageNames(packConfig),
         });
         if (pictures.findings.length) {
             const error = new Error(pictures.findings.map(formatDiagnostic).join("\n"));

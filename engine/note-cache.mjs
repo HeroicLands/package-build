@@ -64,7 +64,8 @@ import { AddressEntries, AddressLink } from "./address-values.mjs";
 import { isAddressTuple, readCanonicalKey, renderAddress } from "./address.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { privateArtRoots } from "./art-inputs.mjs";
-import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
+import { assertPrivateArtRoots, masterAssetRecords } from "./art-masters.mjs";
+import { collectPackageArtMasters } from "./art-packages.mjs";
 import { formatDiagnostic } from "./diagnostics.mjs";
 import { walkMarkdownFiles, parseMarkdownFile } from "./helpers.mjs";
 import { cachedMetadataFiles, loadForeignIndexes } from "./metadata-index.mjs";
@@ -966,8 +967,8 @@ async function readTree(config, { cache, toolchain, loadForeign, prepareTables }
     const skipDirectories = config.skipDirectories;
     if (cache && configMovedOn(config)) throw inputsChanged(config);
     const before = cache ? packageFingerprint(config) : "";
-    const art = collectArtMasters(config.art?.masterRoots ?? [], config.contentPackage, {
-        componentRoots: config.art?.componentRoots,
+    const art = collectPackageArtMasters(config.art?.masterRoots ?? [], config, {
+        componentRoots: config.art?.componentRoots ?? [],
     });
     if (art.findings.length) throw new Error(art.findings.map(formatDiagnostic).join("\n"));
     const masterRecords = masterAssetRecords(art.masters);

@@ -97,12 +97,25 @@ export function screenRasterFormat(bytes) {
 
 /**
  * Read each PNG and SVG in the configured roots once.
+ *
+ * A master's address names the consuming package or one of the picture
+ * packages it declares under `art.packages`; any other package is a finding at
+ * the master naming the address and the declared packages. A master of a
+ * declared picture package is marked `dependency`.
+ *
  * @param {readonly string[]} roots Private input directories.
  * @param {string} contentPackage The package owning the inputs.
- * @param {{componentRoots?: readonly string[]}} [options] Unpublished component input roots.
- * @returns {{masters: Map<string, {file: string, publication?: "master"|"component", record: import('./art-provenance-core.mjs').ProvenanceRecord, dimensions?: {width: number, height: number}}>, components: Map<string, {file: string, publication?: "master"|"component", record: import("./art-provenance-core.mjs").ProvenanceRecord, dimensions?: {width: number, height: number}}>, findings: object[], paths: string[]}} Parsed masters, input paths and findings.
+ * @param {{componentRoots?: readonly string[], dependencyPackages?: Iterable<string>}} [options]
+ *   Unpublished component input roots, and the picture packages whose masters
+ *   this package accepts.
+ * @returns {{masters: Map<string, {file: string, publication?: "master"|"component", dependency?: boolean, indexed?: Record<string, any>, record: import('./art-provenance-core.mjs').ProvenanceRecord, dimensions?: {width: number, height: number}}>, components: Map<string, {file: string, publication?: "master"|"component", dependency?: boolean, indexed?: Record<string, any>, record: import("./art-provenance-core.mjs").ProvenanceRecord, dimensions?: {width: number, height: number}}>, findings: object[], paths: string[]}} Parsed masters, input paths and findings.
  */
-export function collectArtMasters(roots, contentPackage, { componentRoots = [] } = {}) {
+export function collectArtMasters(
+    roots,
+    contentPackage,
+    { componentRoots = [], dependencyPackages = [] } = {},
+) {
+    const declared = [...dependencyPackages];
     assertPrivateArtRoots(roots, componentRoots, { inspectChildren: false, role: "input" });
     const masters = new Map();
     const components = new Map();
@@ -157,11 +170,17 @@ export function collectArtMasters(roots, contentPackage, { componentRoots = [] }
                 if (
                     !tuple ||
                     !Object.values(tuple).every(isAddressSegment) ||
-                    tuple.package !== contentPackage ||
                     tuple.system !== "none" ||
                     !["image", "icon"].includes(tuple.type)
                 )
                     throw new Error("master address must name an image or icon in this package");
+                const dependency = tuple.package !== contentPackage;
+                if (dependency && !declared.includes(tuple.package))
+                    throw new Error(
+                        `master address ${address} names package \`${tuple.package}\`, which is ` +
+                            `neither this package nor a picture package declared under ` +
+                            `\`art.packages\` (declared: ${declared.join(", ") || "none"})`,
+                    );
                 if (publication === "component") {
                     if (
                         !Array.isArray(record.creator) ||
@@ -191,6 +210,7 @@ export function collectArtMasters(roots, contentPackage, { componentRoots = [] }
                     file,
                     record,
                     publication,
+                    ...(dependency ? { dependency: true } : {}),
                     dimensions: imageDimensions(file, path.extname(file).toLowerCase(), bytes),
                 };
                 const previous = all.get(address)?.[0];
@@ -217,6 +237,14 @@ export function collectArtMasters(roots, contentPackage, { componentRoots = [] }
  * Make public asset records without private source paths or provenance.
  * A declared `nonAiAlternative` is carried as a complete canonical asset Address
  * string, or null when absent; standard index decoding restores its Address value.
+ *
+ * A master of a declared picture package lies under a directory named for that
+ * package — `images/<package>/<shortcode>.<ext>` — so its shortcode never meets
+ * one of the consuming package's own. Its creator, license, AI status,
+ * alternative and dimensions are the picture package's indexed values, bound by
+ * {@link module:engine/art-packages.bindDependencyMasters}; the master supplies
+ * only the pixels.
+ *
  * @param {ReturnType<typeof collectArtMasters>["masters"]} masters Parsed masters.
  * @returns {Record<string, any>[]} Asset records.
  */
@@ -226,8 +254,10 @@ export function masterAssetRecords(masters) {
         .map(([address, master]) => {
             const tuple = readCanonicalKey(address);
             const extension = path.extname(master.file).toLowerCase();
+            const indexed = master.indexed;
             const dimensions = master.dimensions;
             const root = tuple.type === "icon" ? "icons" : "images";
+            const directory = master.dependency ? `${root}/${tuple.package}` : root;
             return setArtSource(
                 {
                     package: tuple.package,
@@ -235,7 +265,7 @@ export function masterAssetRecords(masters) {
                     shortcode: tuple.shortcode,
                     address: { canonical: address },
                     asset: {
-                        path: `${root}/${tuple.shortcode}${
+                        path: `${directory}/${tuple.shortcode}${
                             extension === ".svg" ? ".svg"
                             : (
                                 (master.screenFormat ??
@@ -244,15 +274,18 @@ export function masterAssetRecords(masters) {
                                 ".jpg"
                             :   ".webp"
                         }`,
-                        attribution: master.record.creator ?? [],
+                        attribution: indexed ? indexed.attribution : (master.record.creator ?? []),
                         source: "",
-                        ai: provenanceAi(master.record),
-                        nonAiAlternative: master.record.nonAiAlternative ?? null,
-                        license: master.record.license ?? "",
+                        ai: indexed ? indexed.ai : provenanceAi(master.record),
+                        nonAiAlternative:
+                            indexed ?
+                                indexed.nonAiAlternative
+                            :   (master.record.nonAiAlternative ?? null),
+                        license: indexed ? indexed.license : (master.record.license ?? ""),
                         notes: "",
                         role: "",
-                        width: dimensions?.width ?? "",
-                        height: dimensions?.height ?? "",
+                        width: indexed ? indexed.width : (dimensions?.width ?? ""),
+                        height: indexed ? indexed.height : (dimensions?.height ?? ""),
                     },
                 },
                 master.file,

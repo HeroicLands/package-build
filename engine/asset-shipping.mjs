@@ -116,17 +116,27 @@ export const STAND_IN_SHORTCODE = "missing";
 
 /**
  * The deployed path of one asset record, or `undefined` for a record of a type
- * that does not deploy flat.
+ * that does not deploy.
  *
- * @param {{type?: string, asset?: {path?: string}}} record - An asset record.
- * @returns {string|undefined} `<icons|images>/<basename>`.
+ * A record of one of `picturePackages`, the picture packages the serving
+ * package declares under `art.packages`, deploys under a directory named for
+ * its package. Every other record deploys flat.
+ *
+ * @param {{type?: string, package?: string, asset?: {path?: string}}} record - An asset record.
+ * @param {Iterable<string>} [picturePackages] - The declared picture packages.
+ * @returns {string|undefined} `<icons|images>/<basename>`, or
+ *   `<icons|images>/<package>/<basename>` for a picture-package picture.
  */
-export function deployedAssetPath(record) {
+export function deployedAssetPath(record, picturePackages = []) {
     const source = record?.asset?.path;
     if (!source) return undefined;
     const type = DEPLOYED_ASSET_TYPES.find((entry) => entry.type === record.type);
     if (!type) return undefined;
-    const deployed = deployedSuffix(source);
+    const dependency =
+        record.package && [...picturePackages].includes(record.package) ?
+            record.package
+        :   undefined;
+    const deployed = deployedSuffix(source, dependency);
     return deployed.startsWith(`${type.root}/`) ? deployed : undefined;
 }
 
@@ -244,12 +254,15 @@ export function shippedSetName(title) {
  * @param {readonly object[]} staged - The records staged.
  * @param {string} stageDir - The staged package root, where each file's size
  *   is measured — after any transform, since that is the file a location holds.
+ * @param {Iterable<string>} [picturePackages] - The picture packages the
+ *   staged package declares, whose pictures sit under their package's
+ *   directory.
  * @returns {AssetsManifestEntry[]} In target order.
  */
-export function assetsManifest(staged, stageDir) {
+export function assetsManifest(staged, stageDir, picturePackages = []) {
     return staged
         .map((record) => {
-            const target = /** @type {string} */ (deployedAssetPath(record));
+            const target = /** @type {string} */ (deployedAssetPath(record, picturePackages));
             return {
                 address: record.address.canonical,
                 source: path.posix.relative(path.posix.dirname(SHIPPED_SET_FILE), target),
@@ -262,7 +275,9 @@ export function assetsManifest(staged, stageDir) {
 
 /**
  * Stage a package's shipped pictures flat at the package root, and write the
- * package's own asset set, `asset-sets/default.json`.
+ * package's own asset set, `asset-sets/default.json`. A picture of a picture
+ * package declared under `art.packages` is staged one level down, under
+ * `<icons|images>/<package>/`.
  *
  * The records are read by {@link module:engine/asset-index.collectAssetRecords},
  * so provenance resolves exactly as the content index resolves it — per file,
@@ -292,6 +307,8 @@ export function assetsManifest(staged, stageDir) {
  * @param {Map<string, string>} [opts.preparedMasters] - Rendered private inputs by address.
  * @param {Map<string, () => Buffer>} [opts.artSources] - Captured verified artwork by address.
  * @param {object[]} [opts.records] - Asset records for this build.
+ * @param {readonly string[]} [opts.picturePackages] - The picture packages the
+ *   package declares under `art.packages`.
  * @returns {{staged: object[], excluded: {record: object, reason: string}[],
  *   findings: object[], manifest: AssetSet|null}}
  *   What was staged and left out, and the findings that stopped the stage —
@@ -308,6 +325,7 @@ export function stagePackageAssets({
     preparedMasters,
     artSources,
     records: suppliedRecords,
+    picturePackages = [],
 }) {
     const findings = [];
     const hasPictures = DEPLOYED_ASSET_TYPES.some(({ root }) =>
@@ -333,7 +351,7 @@ export function stagePackageAssets({
             transformed: !prepared && !source && transform ? transform(from) : null,
             to: path.join(
                 stageDir,
-                .../** @type {string} */ (deployedAssetPath(record)).split("/"),
+                .../** @type {string} */ (deployedAssetPath(record, picturePackages)).split("/"),
             ),
         };
     });
@@ -348,7 +366,7 @@ export function stagePackageAssets({
             file: to,
             severity: "error",
             message:
-                `\`${deployedAssetPath(record)}\` is already in the stage, copied by a ` +
+                `\`${deployedAssetPath(record, picturePackages)}\` is already in the stage, copied by a ` +
                 `\`packageBuild.assets\` row; the picture \`${path.relative(process.cwd(), from)}\` ` +
                 "was not staged over it",
         });
@@ -364,7 +382,7 @@ export function stagePackageAssets({
     const manifest = {
         name: shippedSetName(title),
         package: contentPackage,
-        assets: assetsManifest(staged, stageDir),
+        assets: assetsManifest(staged, stageDir, picturePackages),
     };
     const setFile = path.join(stageDir, ...SHIPPED_SET_FILE.split("/"));
     fs.mkdirSync(path.dirname(setFile), { recursive: true });

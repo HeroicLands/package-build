@@ -2577,9 +2577,13 @@ type root and the basename alone:
 | Foundry  | `modules/thalorna/images/thorn.webp`                        |
 
 Foundry and the website serve a picture under `icons/` or `images/` flat, by
-type root and basename — see [what a package ships](#what-a-package-ships);
+type root and basename — see [what a package ships](#what-a-package-ships) — except
+a picture of a picture package declared under `art.packages`, which they serve
+one level down, under `<icons|images>/<package>/`, from the consuming package;
 every other file keeps its path under `assets/`, and the local and book forms
-keep the repository's arrangement. Foundry paths use the **Foundry package id**. The two values are both `thalorna`
+keep the repository's arrangement. A picture package's picture has no local
+form, since it is rendered from its master, and its book form is
+`assets/<icons|images>/<package>/<basename>`. Foundry paths use the **Foundry package id**. The two values are both `thalorna`
 for this image; `harnensemble` content uses `harn-ensemble` in its Foundry paths.
 
 ##### What a role declares
@@ -2716,13 +2720,20 @@ public records or renders. A master can carry the closed ordered `composition`
 object described in the [composition API](../api.md#image-composition); it stays
 private and addresses its source images without paths or prose parsing.
 Private master roots are configured with `art.masterRoots`; each
-PNG or SVG master carries its image or icon Address. Missing, malformed and
-duplicate identities are errors at the source files. A master marked as a
+PNG or SVG master carries its image or icon Address. A master's Address names
+the package being built or a picture package it declares under
+[`art.packages`](../configuration.md#artpackages); any other package is an error
+at the master naming the Address and the declared picture packages. Missing,
+malformed and duplicate identities are errors at the source files. A master marked as a
 derivative is refused. A master supplies the record and public output for its
 Address when a public asset also carries that Address.
 
-The index uses the embedded creator, license, optional boolean `hl:ai` and IPTC
-digital source type. Explicit `hl:ai` states whether the image is generated and
+For the package's own masters, the index uses the embedded creator, license,
+optional boolean `hl:ai` and IPTC digital source type. A picture package's
+master takes its creator, license, AI status, non-AI alternative and
+dimensions from that package's pinned index; its own creator, license, AI
+status and dimensions must equal the indexed row's, and a difference is an
+error at the master. Its embedded alternative is not compared. Explicit `hl:ai` states whether the image is generated and
 takes precedence over source type. Writers use `True` or `False`; readers also
 accept `true` and `false`. Malformed or duplicate `hl:ai` declarations and
 self-closing `hl:ai` properties are refused. Bare AI prose and literal
@@ -2933,6 +2944,17 @@ being one namespace is what keeps the flattening collision-free. The same
 layout serves Foundry (`modules/thalorna/images/thorn.webp`), the website's CDN
 (`<cdn base>/thalorna/images/thorn.webp`), and every location a world copies
 the pictures to.
+
+**A picture package's pictures sit one level down.** A picture of a picture
+package declared under [`art.packages`](../configuration.md#artpackages) ships in
+the consuming package at `icons/<package>/<basename>` or
+`images/<package>/<basename>`, so its shortcodes never meet the package's own:
+`modules/thalorna/images/artthalorna/thorn.webp` beside
+`modules/thalorna/images/thorn.webp`. Only declared picture packages take the
+extra directory. A picture package's pinned index holds only records of
+that package, its package record included, and its package record lists no
+required modules; an index that breaks either rule is refused at its
+`art.packages` entry.
 
 **A row's files are kept.** Staging the pictures writes them beside whatever a
 `packageBuild.assets` row copied under `icons/` or `images/`, such as a
@@ -4142,7 +4164,8 @@ This package's own notes stay at the unqualified `notes`, and a query may read
 both at once — joining your beings against the skills they cite is one `FROM`
 clause. It needs no fetch and no configuration: a dependency's published index
 is already cached when a compile starts, because resolving addresses across
-packages needs it.
+packages needs it. A picture package declared under `art.packages` is not a
+dependency in this sense and is not attached as a schema.
 
 Which dataset a query reads is `FROM`'s job rather than a fence property. A
 fence naming a file would write a build artifact's path into the corpus, so

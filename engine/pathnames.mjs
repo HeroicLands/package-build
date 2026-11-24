@@ -164,10 +164,15 @@ export const PATHNAME_SURFACES = Object.freeze(["foundry", "local", "web", "pdf"
  *   directory, as its repository arranges it.
  * @property {boolean} own  Whether the owner is the package being built, and so
  *   whether `local` names a file this build may open.
+ * @property {boolean} served  Whether the owner is a picture package declared
+ *   under `art.packages`, whose pictures the package being built serves from
+ *   its own install and site under `<icons|images>/<package>/`.
  * @property {string|null} foundry  The address inside a Foundry install.
- * @property {string|null} local  The file in the owning repository's tree.
+ * @property {string|null} local  The file in the owning repository's tree;
+ *   `null` for a picture package's picture, which is rendered from its master.
  * @property {string|null} web  The address the website serves.
- * @property {string|null} pdf  Where the book stages its copy.
+ * @property {string|null} pdf  Where the book stages its copy; under
+ *   `assets/<icons|images>/<package>/` for a picture package's picture.
  */
 
 /**
@@ -292,7 +297,7 @@ export function foundryAddressProblem(raw, config) {
             "`/`-rooted path or a URL"
         );
     }
-    if (forms.own) {
+    if (forms.own || forms.served) {
         return (
             `\`${forms.authored}\` names a file this package serves, and a ` +
             "`documentation` package has no asset root to serve it from — Foundry " +
@@ -343,22 +348,31 @@ function declaredSystemIds(config) {
  * relationship with, which states that package's Foundry id and — where the two
  * words differ — what its content is called.
  *
+ * Every picture package declared under `art.packages` is served by the package
+ * being built, so it takes that package's Foundry root and id and is marked
+ * `served`.
+ *
  * @param {object} config - The resolved build configuration.
- * @returns {Map<string, {root: string|null, id: string|null, own: boolean}>} The
+ * @returns {Map<string, {root: string|null, id: string|null, own: boolean, served?: boolean}>} The
  *   packages, by content package name. `root` is the Foundry directory the
  *   package is served from, `null` where the package ships no Foundry package.
  */
 export function packageAddresses(config) {
-    /** @type {Map<string, {root: string|null, id: string|null, own: boolean}>} */
+    /** @type {Map<string, {root: string|null, id: string|null, own: boolean, served?: boolean}>} */
     const out = new Map();
-    out.set(config.contentPackage, {
+    const own = {
         // `assetRoot` is `<root>/<id>/assets`, and `null` for a
         // `documentation` package — which is the same "Foundry serves no
         // files for this" the `root` below says.
         root: config.assetRoot ? config.packageKind : null,
         id: config.foundryPackage ?? null,
         own: true,
-    });
+    };
+    out.set(config.contentPackage, own);
+    for (const entry of config.art?.packages ?? []) {
+        if (out.has(entry.package)) continue;
+        out.set(entry.package, { root: own.root, id: own.id, own: false, served: true });
+    }
     // The package being built wins every collision: it is the one whose files
     // this repository actually holds, and another declaration of the same name
     // describes that very package from outside.
@@ -375,6 +389,21 @@ export function packageAddresses(config) {
         }
     }
     return out;
+}
+
+/**
+ * The packages whose pictures the package being built ships: itself and every
+ * picture package declared under `art.packages`. Licences the package adds
+ * under `packageBuild.shippingLicenses` apply to all of them.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {Set<string>} The content package names.
+ */
+export function servedPackages(config) {
+    return new Set([
+        config.contentPackage,
+        ...(config.art?.packages ?? []).map((entry) => entry.package),
+    ]);
 }
 
 /**
@@ -410,6 +439,7 @@ export function resolvePathname(raw, config) {
             package: null,
             suffix: null,
             own: false,
+            served: false,
             foundry: authored,
             local: authored,
             web,
@@ -433,8 +463,10 @@ export function resolvePathname(raw, config) {
     const entry = owner ? packages.get(owner) : undefined;
     const host = String(config.site?.assets ?? "").replace(/\/+$/, "");
     // A picture deploys flat at the package root; anything else keeps its
-    // path under the package's `assets/`.
-    const deployed = deployedSuffix(suffix);
+    // path under the package's `assets/`. A picture package's picture is
+    // served by the package being built, one level down under its own name.
+    const served = entry?.served === true;
+    const deployed = deployedSuffix(suffix, served ? owner : undefined);
     const installed = isDeployedSuffix(suffix) ? deployed : `${ASSETS_SEGMENT}/${suffix}`;
 
     return {
@@ -443,16 +475,19 @@ export function resolvePathname(raw, config) {
         package: owner,
         suffix,
         own: entry?.own === true,
+        served,
         // `null` where the owning package ships no Foundry package, and where
         // the first segment names a package this build has never heard of:
         // both are "there is no install path to derive", and guessing one
         // writes an address into a document nobody would check.
         foundry: entry?.root && entry.id ? `${entry.root}/${entry.id}/${installed}` : null,
-        local: `${ASSETS_SEGMENT}/${suffix}`,
+        // A picture package's picture is rendered from its master and has no
+        // file in this repository's tree.
+        local: served ? null : `${ASSETS_SEGMENT}/${suffix}`,
         // `null` where no asset host is configured. The website is the one
         // surface whose address is not derivable from the repository itself.
-        web: host && owner ? `${host}/${owner}/${deployed}` : null,
-        pdf: `${ASSETS_SEGMENT}/${suffix}`,
+        web: host && owner ? `${host}/${served ? config.contentPackage : owner}/${deployed}` : null,
+        pdf: `${ASSETS_SEGMENT}/${served ? deployed : suffix}`,
     };
 }
 
@@ -489,5 +524,8 @@ export function assetPathnameKey(src, config) {
         return null;
     }
     if (!forms || forms.state !== "package" || !forms.package) return null;
-    return `${forms.package}/${ASSETS_SEGMENT}/${forms.suffix}`;
+    // A picture package's picture is keyed by the one path its record holds,
+    // `<icons|images>/<package>/<basename>`, whichever directory it was written in.
+    const suffix = forms.served ? deployedSuffix(forms.suffix, forms.package) : forms.suffix;
+    return `${forms.package}/${ASSETS_SEGMENT}/${suffix}`;
 }

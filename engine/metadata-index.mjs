@@ -42,12 +42,15 @@
 import { buildReferenceTargets } from "./reference-targets.mjs";
 
 import { completeAddress, renderAddress } from "./address.mjs";
+import { IMAGE_EXTENSIONS } from "./asset-types.mjs";
 
 import { decodeIndexAddresses, noteAddressContext, encodeAddresses } from "./note-addresses.mjs";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
 import { formatDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
+import { configSourcePath, locateConfigError } from "./pack-config.mjs";
 // The artifact's name, declared with the package registry so the toolchain's
 // own index can name its file without importing this module back.
 import { metadataFileName, PACKAGEBUILD_PACKAGE } from "./packages.mjs";
@@ -251,8 +254,9 @@ export function cachedMetadataFiles(config) {
  * already stated.
  *
  * @param {object} config - The resolved build configuration.
- * @returns {Array<{id: string, file: string}>} One entry per declared
- *   dependency.
+ * @returns {Array<{id: string, file: string, text?: string, picture?: true}>}
+ *   One entry per declared dependency and picture package; a picture package's
+ *   entry is marked `picture` and carries the verified `text` it was hashed from.
  * @throws {Error} When a declared dependency has not been fetched.
  */
 export function cachedMetadataIndexes(config) {
@@ -267,7 +271,168 @@ export function cachedMetadataIndexes(config) {
         }
         files.push({ id: rel.id, file });
     }
+    files.push(...cachedArtPackageIndexes(config));
     return files;
+}
+
+/**
+ * Where one pinned picture package's index is cached: keyed by its digest, so
+ * changing the pin is a different cache rather than an overwrite.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {{package: string, sha256: string}} entry - One `art.packages` entry.
+ * @returns {string} The cached index file.
+ */
+export function artPackageIndexFile(config, entry) {
+    return path.join(
+        metadataCacheDir(config, entry.package, entry.sha256),
+        `${entry.sha256}.jsonl`,
+    );
+}
+
+/**
+ * An error located at one `art.packages` entry of the configuration file.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {number} index - The entry's position.
+ * @param {string} message - What is wrong, and the remedy.
+ * @returns {Error} The error, located when the configuration has a file.
+ */
+export function artPackageError(config, index, message) {
+    const field = `art.packages[${index}]`;
+    return locateConfigError(
+        Object.assign(new Error(`${field}: ${message}`), { field }),
+        configSourcePath(config),
+    );
+}
+
+/** The picture root each picture type is published under. */
+const PICTURE_ROOTS = Object.freeze({ image: "images", icon: "icons" });
+
+/**
+ * Why a picture-package row's `asset.path` cannot be trusted, or `""`.
+ *
+ * The path is published by another repository and reaches file names, so it
+ * must be a relative, `/`-separated path under the picture root its type
+ * names, with no empty, `.` or `..` segment and no backslash, ending in
+ * `<shortcode>.<ext>` with an image extension.
+ *
+ * @param {unknown} value - The row's `asset.path`.
+ * @param {{type: string, shortcode: string}} tuple - The row's address.
+ * @returns {string} The problem, or `""`.
+ */
+export function artPackagePathProblem(value, tuple) {
+    const root = PICTURE_ROOTS[tuple.type];
+    if (typeof value !== "string" || !value) return "has no `asset.path`";
+    const segments = value.split("/");
+    const name = segments[segments.length - 1];
+    const extension = path.posix.extname(name).toLowerCase();
+    if (
+        value.includes("\\") ||
+        path.posix.isAbsolute(value) ||
+        segments.length < 2 ||
+        segments.some((segment) => segment === "" || segment === "." || segment === "..") ||
+        segments[0] !== root ||
+        !IMAGE_EXTENSIONS.includes(extension) ||
+        name.slice(0, -extension.length) !== tuple.shortcode
+    )
+        return (
+            `has \`asset.path\` ${JSON.stringify(value)}, which is not ` +
+            `\`${root}/…/${tuple.shortcode}.<ext>\` inside the package's pictures`
+        );
+    return "";
+}
+
+/**
+ * The cached index of every picture package `art.packages` pins.
+ *
+ * Reads the cache only, as {@link cachedMetadataIndexes} does. Each file is
+ * read once: those bytes are hashed against the pin and are the bytes every
+ * reader parses, returned as `text`. Every line must parse as JSON; every
+ * record, the package record included, must name the pinned package in its
+ * `package` field and in its Address where it has one; the package record
+ * must list no required modules; and every image or icon row must carry a
+ * trustworthy `asset.path` ({@link artPackagePathProblem}). The entry is
+ * marked `picture`.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {Array<{id: string, file: string, text: string, picture: true}>} One
+ *   entry per picture package.
+ * @throws {Error} Located at the entry, when an index has not been fetched,
+ *   its bytes differ from the pinned digest, a line does not parse, or a row
+ *   names another package or an untrustworthy path.
+ */
+export function cachedArtPackageIndexes(config) {
+    return (config?.art?.packages ?? []).map((entry, index) => {
+        const file = artPackageIndexFile(config, entry);
+        if (!isComplete(path.dirname(file)))
+            throw artPackageError(
+                config,
+                index,
+                `the index of \`${entry.package}\` pinned at ${entry.url} has not been ` +
+                    "fetched. Run `package-build deps fetch` first.",
+            );
+        const bytes = fs.readFileSync(file);
+        const actual = createHash("sha256").update(bytes).digest("hex");
+        if (actual !== entry.sha256)
+            throw artPackageError(
+                config,
+                index,
+                `the cached index of \`${entry.package}\` has SHA-256 ${actual}, not the pinned ` +
+                    `${entry.sha256}. Run \`package-build deps fetch\` again.`,
+            );
+        const text = bytes.toString("utf8");
+        const shown = path.relative(process.cwd(), file);
+        text.split("\n").forEach((line, at) => {
+            if (!line.trim()) return;
+            let row;
+            try {
+                row = JSON.parse(line);
+            } catch (cause) {
+                throw artPackageError(
+                    config,
+                    index,
+                    `${shown}:${at + 1}: the index of \`${entry.package}\` does not parse: ${cause.message}`,
+                );
+            }
+            const refuse = (problem) =>
+                artPackageError(
+                    config,
+                    index,
+                    `${shown}:${at + 1}: the index pinned as \`${entry.package}\` ${problem}`,
+                );
+            const canonical = row?.address?.canonical;
+            const tuple = readCanonicalKey(
+                typeof canonical?.address === "string" ? canonical.address : canonical,
+            );
+            // Both the record's `package` field and its Address must name the
+            // pinned package; either one naming another is refused.
+            const owners = [row?.package, tuple?.package].filter((owner) => owner != null);
+            const foreign = owners.find((owner) => owner !== entry.package);
+            if (!owners.length || foreign !== undefined)
+                throw refuse(
+                    `holds a record of \`${foreign ?? "no package"}\`; a picture package's ` +
+                        "index holds only its own records",
+                );
+            if (isPackageRecord(row)) {
+                if (row.packageModules.length)
+                    throw refuse(
+                        `requires the modules ${row.packageModules.join(", ")}; a picture ` +
+                            "package's index requires no other package",
+                    );
+                return;
+            }
+            if (!tuple || !row.asset || !PICTURE_ROOTS[tuple.type]) return;
+            const problem = artPackagePathProblem(row.asset.path, tuple);
+            if (problem)
+                throw artPackageError(
+                    config,
+                    index,
+                    `${shown}:${at + 1}: ${renderAddress(tuple)} ${problem}`,
+                );
+        });
+        return { id: entry.package, file, text, picture: true };
+    });
 }
 
 /**
@@ -420,9 +585,13 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
      * @param {Array<Record<string, any>>} records - Its index records.
      * @param {string} [sourceFile] - The cached file they were read from;
      *   absent for records the toolchain generates itself.
+     * @param {string} [sourceText] - That file's verified contents, when
+     *   already read.
+     * @param {boolean} [picture] - Whether the records are a pinned picture
+     *   package's.
      * @returns {void}
      */
-    const ingest = (pkg, records, sourceFile) => {
+    const ingest = (pkg, records, sourceFile, sourceText, picture = false) => {
         // A base is only needed to resolve a page *URL*, so a pack-only
         // dependency — Foundry addresses and no site, which `kethira` is by
         // licensing rather than by accident — needs none. Demanding one would
@@ -438,13 +607,16 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
         // The file line of each record, so a decode finding lands on its own.
         const recordLines = [];
         if (sourceFile)
-            fs.readFileSync(sourceFile, "utf8")
+            (sourceText ?? fs.readFileSync(sourceFile, "utf8"))
                 .split("\n")
                 .forEach((text, at) => text.trim() && recordLines.push(at + 1));
 
         const pageAliases = [];
         for (const [recordIndex, record] of records.entries()) {
             if (isPackageRecord(record)) {
+                // A picture package's index requires no module; its package
+                // record is checked, never followed.
+                if (picture) continue;
                 requires.set(pkg, [
                     ...new Set([...(requires.get(pkg) ?? []), ...record.packageModules]),
                 ]);
@@ -659,13 +831,15 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
      * Read and fold one cached index file.
      *
      * @param {string} file - The cached index file.
+     * @param {string} [text] - Its verified contents, when already read.
+     * @param {string} [pinned] - The package a picture-package index is pinned
+     *   as, which it is filed under whatever its records say.
      * @returns {void}
      */
-    const load = (file) => {
+    const load = (file, text, pinned) => {
         let records;
         try {
-            records = fs
-                .readFileSync(file, "utf8")
+            records = (text ?? fs.readFileSync(file, "utf8"))
                 .split("\n")
                 .filter((line) => line.trim())
                 .map((line) => JSON.parse(line));
@@ -673,12 +847,13 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
             stale.push({ package: packageOfCache(file), reason: `unreadable: ${err.message}` });
             return;
         }
-        const pkg = records[0]?.package ?? packageOfCache(file);
+        const pkg = pinned ?? records[0]?.package ?? packageOfCache(file);
         if (local.has(pkg)) return;
-        ingest(pkg, records, file);
+        ingest(pkg, records, file, text, pinned !== undefined);
     };
 
-    for (const file of cachedMetadataFiles(config)) load(file);
+    for (const { file, text, picture, id } of cachedMetadataIndexes(config))
+        load(file, text, picture ? id : undefined);
 
     // The modules a loaded package publishes as required are read from the
     // cache too, transitively, so a module reached only through another module

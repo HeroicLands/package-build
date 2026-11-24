@@ -21,14 +21,15 @@ import {
     shipsAsset,
 } from "./asset-shipping.mjs";
 import { METADATA_RELATIONSHIP_KINDS, metadataRelationships } from "./metadata-index.mjs";
-import { packageAddresses, resolvePathname } from "./pathnames.mjs";
+import { packageAddresses, resolvePathname, servedPackages } from "./pathnames.mjs";
 
 const ALTERNATIVE_TYPES = new Set(DEPLOYED_ASSET_TYPES.map((entry) => entry.type));
 
 /**
  * Local and required packages whose asset indexes this build declares as inputs.
  * @param {object} config Resolved build configuration.
- * @returns {Set<string>} Own package and required content dependencies.
+ * @returns {Set<string>} Own package, the picture packages it serves and
+ *   required content dependencies.
  */
 export function alternativePackages(config) {
     const ids = new Set(
@@ -37,7 +38,7 @@ export function alternativePackages(config) {
             .map((entry) => entry.id),
     );
     return new Set([
-        config.contentPackage,
+        ...servedPackages(config),
         ...[...packageAddresses(config)]
             .filter(([, entry]) => ids.has(entry.id))
             .map(([name]) => name),
@@ -81,7 +82,7 @@ export function alternativeProblem(record, index, config) {
     if (target.asset.ai !== false)
         return `nonAiAlternative ${key} is not explicitly non-AI; ${remedy}`;
     const additions =
-        target.package === config.contentPackage ?
+        servedPackages(config).has(target.package) ?
             (config.packageBuild?.shippingLicenses ?? [])
         :   [];
     if (!shipsAsset(target, additions))

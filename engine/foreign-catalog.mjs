@@ -309,7 +309,7 @@ const DOWNLOAD_DELAY_MS = 1000;
 const DOWNLOAD_JITTER_MS = 250;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 const MAX_MIRROR_REDIRECTS = 10;
-const MAX_INDEX_BYTES = 256 * 1024 * 1024;
+export const MAX_INDEX_BYTES = 256 * 1024 * 1024;
 
 class MirrorRedirectError extends Error {}
 
@@ -554,7 +554,7 @@ async function githubAssetDigest(manifestUrl, assetUrl, cache) {
 }
 
 /** Retry transient metadata requests with bounded time per attempt. */
-async function retryMetadata(action) {
+export async function retryMetadata(action) {
     for (let attempt = 0; ; attempt++) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);

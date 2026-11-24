@@ -182,14 +182,21 @@ export function isDeployedSuffix(suffix) {
  * under no deployed root — `audio/…`, `ui/…`, `generated/…` — is returned
  * unchanged, because only the picture roots deploy flat.
  *
+ * A picture of a picture package declared under `art.packages` deploys one
+ * level down, in a directory named for that package: with `pkg` set to
+ * `artsample`, `images/artsample/thorn.webp` stays `images/artsample/thorn.webp`.
+ * The package's own pictures pass no `pkg` and deploy flat.
+ *
  * @param {string} suffix - A path inside a package's `assets/` directory,
  *   `/`-separated.
+ * @param {string} [pkg] - The picture package a dependency picture belongs to.
  * @returns {string} The path the file has in a deployed location.
  */
-export function deployedSuffix(suffix) {
+export function deployedSuffix(suffix, pkg) {
     if (!isDeployedSuffix(suffix)) return suffix;
     const segments = String(suffix).split("/");
-    return `${segments[0]}/${segments[segments.length - 1]}`;
+    const basename = segments[segments.length - 1];
+    return pkg ? `${segments[0]}/${pkg}/${basename}` : `${segments[0]}/${basename}`;
 }
 
 /**

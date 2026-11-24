@@ -91,6 +91,7 @@ import { createContentSession } from "../engine/content-session.mjs";
 import { privateArtRoots } from "../engine/art-inputs.mjs";
 import { assertPrivateArtRoots, shippingAssetRecords } from "../engine/art-masters.mjs";
 import { artSource } from "../engine/art-source.mjs";
+import { artPackageNames } from "../engine/art-packages.mjs";
 import { renderArtMasters } from "../engine/art-master-render.mjs";
 import { emitDiagnostic, formatDiagnostic } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
@@ -1554,6 +1555,7 @@ function cdnPublishCommand() {
                     shippingLicenses: config.shippingLicenses,
                     records: artRecords,
                     preparedMasters,
+                    picturePackages: artPackageNames(packConfig),
                 });
                 if (plan.findings.length) {
                     const located = plan.findings.map((finding) => ({

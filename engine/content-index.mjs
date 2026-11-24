@@ -126,7 +126,8 @@ import { requiredModulePackages, resolveItemDefaults } from "./item-entries.mjs"
 import { collectAssetRecords } from "./asset-index.mjs";
 import { privateArtRoots } from "./art-inputs.mjs";
 import { checkArtAlternatives } from "./art-alternatives.mjs";
-import { assertPrivateArtRoots, collectArtMasters, masterAssetRecords } from "./art-masters.mjs";
+import { assertPrivateArtRoots, masterAssetRecords } from "./art-masters.mjs";
+import { checkUnmasteredPictures, collectPackageArtMasters } from "./art-packages.mjs";
 import { copyArtSource } from "./art-source.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
@@ -1608,6 +1609,22 @@ export function serializeContentIndex(records) {
 }
 
 /**
+ * The records a package publishes in its own content index.
+ *
+ * Every record but the picture records of the picture packages it declares
+ * under `art.packages`: each picture package's own index is the one publisher
+ * of its addresses, so a package downstream resolves them through that index
+ * and never through this one.
+ *
+ * @param {readonly Record<string, any>[]} records - The package's index records.
+ * @param {string} contentPackage - The package being published.
+ * @returns {Record<string, any>[]} The records to serialize.
+ */
+export function publishedIndexRecords(records, contentPackage) {
+    return records.filter((record) => !(record.asset && record.package !== contentPackage));
+}
+
+/**
  * Whether an absent content tree is a mistake.
  *
  * A package that declares a pack has notes to compile into it, so a missing
@@ -1751,11 +1768,9 @@ export function indexRecordsFor({
         !masterRecords &&
         (resolved.art?.masterRoots?.length || resolved.art?.componentRoots?.length)
     ) {
-        const collected = collectArtMasters(
-            resolved.art.masterRoots ?? [],
-            resolved.contentPackage,
-            { componentRoots: resolved.art.componentRoots },
-        );
+        const collected = collectPackageArtMasters(resolved.art.masterRoots ?? [], resolved, {
+            componentRoots: resolved.art.componentRoots,
+        });
         if (problems) problems.push(...collected.findings);
         else if (collected.findings.length) {
             const error = new Error(collected.findings.map(formatDiagnostic).join("\n"));
@@ -1778,6 +1793,7 @@ export function indexRecordsFor({
         foreign ??= foreignIndex ?? dependencies().index;
         return foreign.get(key);
     };
+    const notes = parsed ?? new Map();
     const records = collectContentIndex(tree, {
         rootDir: resolved.rootDir,
         contentPackage: resolved.contentPackage,
@@ -1799,7 +1815,7 @@ export function indexRecordsFor({
         },
         problems,
         foreignRecord,
-        parsed,
+        parsed: notes,
         sources,
         syntax,
         nameTypes: nameTypes ?? resolved.itemTypes,
@@ -1810,11 +1826,22 @@ export function indexRecordsFor({
         assetRecords,
         warnings,
     });
-    const alternativeFindings = checkArtAlternatives(records, {
+    const unmastered = checkUnmasteredPictures(records, {
+        parsed: notes,
         config: resolved,
-        foreignIndex: () => (foreign ??= foreignIndex ?? dependencies().index),
-        assetsBase: assetsBase ?? resolved.paths.assets,
+        indexed: foreignRecord,
     });
+    for (const finding of unmastered) {
+        if (finding.severity === "warning") warnings?.push(finding);
+    }
+    const alternativeFindings = [
+        ...unmastered.filter((finding) => finding.severity === "error"),
+        ...checkArtAlternatives(records, {
+            config: resolved,
+            foreignIndex: () => (foreign ??= foreignIndex ?? dependencies().index),
+            assetsBase: assetsBase ?? resolved.paths.assets,
+        }),
+    ];
     if (problems) {
         const key = ({ file, message }) => JSON.stringify([file, message]);
         const seen = new Set(problems.map(key));
@@ -2564,7 +2591,7 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
         );
     }
 
-    const text = serializeContentIndex(records);
+    const text = serializeContentIndex(publishedIndexRecords(records, contentPackage));
     const file = path.join(dir, metadataFileName(contentPackage));
 
     // The `dictionary` and `terms` relations as datafiles beside the index, for

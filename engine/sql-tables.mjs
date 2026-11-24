@@ -501,8 +501,7 @@ async function openDatabase(
                 base,
                 `dependency-${String(dep.id).replace(/[^a-z0-9]/gi, "_")}.jsonl`,
             );
-            const depRecords = fs
-                .readFileSync(dep.file, "utf8")
+            const depRecords = (dep.text ?? fs.readFileSync(dep.file, "utf8"))
                 .split("\n")
                 .filter((line) => line.trim())
                 .map((line) =>
@@ -1939,7 +1938,8 @@ function pageLanguages(records, contentBase) {
 
 /**
  * Each declared dependency's cached index, as {@link openNotesDatabase} attaches
- * them. Empty where none has been fetched.
+ * them. Empty where none has been fetched. A picture package declared under
+ * `art.packages` is not a dependency a query reads, and is not attached.
  *
  * @param {object} [config] - Resolved configuration, defaulting to ambient.
  * @returns {Promise<Array<{id: string, file: string}>>} The dependencies.
@@ -1948,7 +1948,7 @@ export async function cachedDependencies(config) {
     try {
         const { cachedMetadataIndexes } = await import("./metadata-index.mjs");
         const { loadPackConfig } = await import("./pack-config.mjs");
-        return cachedMetadataIndexes(config ?? loadPackConfig());
+        return cachedMetadataIndexes(config ?? loadPackConfig()).filter((entry) => !entry.picture);
     } catch {
         return [];
     }

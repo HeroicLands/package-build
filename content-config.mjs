@@ -724,7 +724,7 @@ export function publishesContentPages(config) {
  * @property {Record<string, any> & {inputs?: string}} [site] Site settings;
  *                                          inputs names the optional local input provider.
  * @property {PathsInput} [paths]           Layout overrides. See {@link DEFAULT_PATHS}.
- * @property {{masterRoots?: string[], componentRoots?: string[], archives?: {url:string, sha256:string}[]}} [art] Private roots or pinned original artwork archives.
+ * @property {{masterRoots?: string[], componentRoots?: string[], archives?: {url:string, sha256:string}[], packages?: {package:string, url:string, sha256:string}[]}} [art] Private roots or pinned original artwork archives, and the pinned indexes of picture packages whose masters this package accepts.
  * @property {string[]} [skipDirectories]   Directory names the content walk ignores
  *                                          wherever they appear (e.g. Obsidian's
  *                                          `Templates`). Default `[]`.
@@ -791,7 +791,7 @@ export function publishesContentPages(config) {
  * @property {Readonly<Record<string, any> & {inputs: string}>} site Frozen site settings;
  *                                     inputs is the local provider path or an empty string.
  * @property {Readonly<ResolvedPaths>} paths
- * @property {Readonly<{masterRoots: readonly string[], componentRoots: readonly string[], archives: readonly {url:string, sha256:string}[]}>} art Artwork inputs.
+ * @property {Readonly<{masterRoots: readonly string[], componentRoots: readonly string[], archives: readonly {url:string, sha256:string}[], packages: readonly {package:string, url:string, sha256:string}[]}>} art Artwork inputs.
  * @property {Readonly<StatsSpec>|null} stats  `null` for a `documentation`
  *                                     package, which stamps no `_stats`.
  * @property {Readonly<Record<string, Function>>} itemBuilders  Derived: the
@@ -1648,11 +1648,44 @@ function normalizePaths(value, rootDir) {
     return Object.freeze(/** @type {ResolvedPaths} */ (resolved));
 }
 
-/** Resolve private master roots against the package root. */
-function normalizeArt(value, rootDir) {
+/**
+ * Refuse a pinned download that is not an HTTPS URL and a lowercase SHA-256.
+ * @param {Record<string, unknown>} entry - The authored entry.
+ * @param {string} label - The entry's field path.
+ * @returns {void}
+ */
+function requirePinnedDownload(entry, label) {
+    if (typeof entry.url !== "string" || !entry.url) fail(`${label}.url`, "must be an HTTPS URL");
+    let parsed;
+    try {
+        parsed = new URL(entry.url);
+    } catch {
+        fail(`${label}.url`, "must be an HTTPS URL");
+    }
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password)
+        fail(`${label}.url`, "must be an HTTPS URL without user information");
+    if (typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.sha256))
+        fail(`${label}.sha256`, "must be a lowercase SHA-256 digest");
+}
+
+/**
+ * Resolve private master roots against the package root, and validate the
+ * pinned picture-package indexes.
+ * @param {unknown} value - The authored `art` block.
+ * @param {string} rootDir - The package root.
+ * @param {{contentPackage: string, relationships: unknown, systems: unknown,
+ *   requiresSystem: unknown, packs: unknown}} context - The package's own name,
+ *   its authored relationships and the systems it compiles for, none of which a
+ *   picture package may name.
+ */
+function normalizeArt(
+    value,
+    rootDir,
+    { contentPackage, relationships, systems, requiresSystem, packs },
+) {
     if (value !== undefined && !isPlainObject(value)) fail("art", "must be an object");
     const input = /** @type {Record<string, unknown>} */ (value ?? {});
-    rejectUnknownKeys(input, ["masterRoots", "componentRoots", "archives"], "art.");
+    rejectUnknownKeys(input, ["masterRoots", "componentRoots", "archives", "packages"], "art.");
     const archives = input.archives === undefined ? [] : input.archives;
     if (!Array.isArray(archives)) fail("art.archives", "must be an array");
     const hashes = new Set();
@@ -1660,21 +1693,60 @@ function normalizeArt(value, rootDir) {
         const label = `art.archives[${index}]`;
         if (!isPlainObject(entry)) fail(label, "must be an object");
         rejectUnknownKeys(entry, ["url", "sha256"], `${label}.`);
-        if (typeof entry.url !== "string" || !entry.url)
-            fail(`${label}.url`, "must be an HTTPS URL");
-        let parsed;
-        try {
-            parsed = new URL(entry.url);
-        } catch {
-            fail(`${label}.url`, "must be an HTTPS URL");
-        }
-        if (parsed.protocol !== "https:" || parsed.username || parsed.password)
-            fail(`${label}.url`, "must be an HTTPS URL without user information");
-        if (typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.sha256))
-            fail(`${label}.sha256`, "must be a lowercase SHA-256 digest");
+        requirePinnedDownload(entry, label);
         if (hashes.has(entry.sha256)) fail(label, "duplicates an artwork archive");
         hashes.add(entry.sha256);
         return Object.freeze({ url: entry.url, sha256: entry.sha256 });
+    });
+    const packages = input.packages === undefined ? [] : input.packages;
+    if (!Array.isArray(packages)) fail("art.packages", "must be an array");
+    const related = new Set(
+        isPlainObject(relationships) ?
+            Object.values(relationships)
+                .filter(Array.isArray)
+                .flat()
+                .filter(isPlainObject)
+                .map((rel) => rel.contentPackage ?? rel.id)
+        :   [],
+    );
+    const compiledFor = new Set([
+        ...(isPlainObject(systems) ? Object.keys(systems) : []),
+        ...(typeof requiresSystem === "string" ? [requiresSystem] : []),
+        ...(Array.isArray(packs) ?
+            packs.filter(isPlainObject).flatMap((pack) => pack.system ?? [])
+        :   []),
+    ]);
+    const named = new Set();
+    const normalizedPackages = packages.map((entry, index) => {
+        const label = `art.packages[${index}]`;
+        if (!isPlainObject(entry)) fail(label, "must be an object");
+        rejectUnknownKeys(entry, ["package", "url", "sha256"], `${label}.`);
+        if (typeof entry.package !== "string" || !isAddressSegment(entry.package))
+            fail(
+                `${label}.package`,
+                "must be a content package name — lowercase letters and digits",
+            );
+        if (entry.package === contentPackage)
+            fail(`${label}.package`, "names this package, whose own masters need no declaration");
+        if (isReservedPackage(entry.package))
+            fail(
+                `${label}.package`,
+                `names \`${entry.package}\`, which is a reserved package name`,
+            );
+        if (compiledFor.has(entry.package))
+            fail(
+                `${label}.package`,
+                `names \`${entry.package}\`, a system this package compiles for; a system's pictures are its own`,
+            );
+        if (related.has(entry.package))
+            fail(
+                `${label}.package`,
+                `names \`${entry.package}\`, which \`relationships\` already declares; a picture package is declared in one place`,
+            );
+        if (named.has(entry.package)) fail(`${label}.package`, "duplicates a picture package");
+        named.add(entry.package);
+        requirePinnedDownload(entry, label);
+        return Object.freeze({ package: entry.package, url: entry.url, sha256: entry.sha256 });
     });
     const entries = [];
     const groups = {};
@@ -1720,6 +1792,7 @@ function normalizeArt(value, rootDir) {
         fail("art.archives", "cannot be combined with private artwork roots");
     return Object.freeze({
         archives: Object.freeze(normalizedArchives),
+        packages: Object.freeze(normalizedPackages),
         masterRoots: Object.freeze(groups.masterRoots),
         componentRoots: Object.freeze(groups.componentRoots),
     });
@@ -3432,7 +3505,13 @@ export function defineConfig(config) {
         // rather than rooting a path against nothing.
         assetRoot: documentation ? null : `${packageKind}/${foundryPackage}/assets`,
         paths: normalizePaths(input.paths, rootDir),
-        art: normalizeArt(input.art, rootDir),
+        art: normalizeArt(input.art, rootDir, {
+            contentPackage: /** @type {string} */ (input.contentPackage),
+            relationships: input.relationships,
+            systems: input.systems,
+            requiresSystem: input.requiresSystem,
+            packs: input.packs,
+        }),
         // The package-wide system, derived. A **system** package is its
         // own system, which is true by construction and needs no declaration. A
         // **module** takes the one it requires, or the one system it declares

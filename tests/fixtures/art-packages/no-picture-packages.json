@@ -1,0 +1,98 @@
+{
+    "findings": [],
+    "index": [
+        "{\"package\":\"sample\",\"packageModules\":[\"library\"]}",
+        "{\"address\":{\"canonical\":{\"address\":\"sample-note-lore-harbor\",\"anchor\":null,\"anchorKind\":null},\"slug\":\"lore-harbor\"},\"anchors\":[],\"description\":\"The harbor.\",\"documentation\":null,\"file\":{\"folder\":\"\",\"name\":\"harbor\",\"path\":\"harbor.md\"},\"formsAscii\":{},\"foundry\":{\"note\":{\"anchors\":{\"$lead\":\"Compendium.sample.journals.JournalEntry.e9f6ebe7298ba9d8.JournalEntryPage.538773adceb07a04\"},\"uuid\":\"Compendium.sample.journals.JournalEntry.e9f6ebe7298ba9d8\"}},\"id\":\"e9f6ebe7298ba9d8\",\"lang\":\"en\",\"name\":{\"full\":\"The Harbor\"},\"nameAscii\":\"The Harbor\",\"namedImages\":[{\"address\":\"sample-none-icon-hammer\",\"anchor\":null,\"anchorKind\":null},{\"address\":\"sample-none-image-harbor\",\"anchor\":null,\"anchorKind\":null}],\"names\":[],\"package\":\"sample\",\"runs\":[],\"shortcode\":\"harbor\",\"subType\":\"history\",\"type\":\"lore\"}",
+        "{\"address\":{\"canonical\":{\"address\":\"sample-none-icon-anvil\",\"anchor\":null,\"anchorKind\":null}},\"asset\":{\"ai\":false,\"attribution\":[\"Artist\"],\"height\":\"\",\"license\":\"CC-BY-SA-4.0\",\"nonAiAlternative\":null,\"notes\":\"\",\"path\":\"icons/anvil.svg\",\"role\":\"\",\"source\":\"\",\"width\":\"\"},\"package\":\"sample\",\"shortcode\":\"anvil\",\"type\":\"icon\"}",
+        "{\"address\":{\"canonical\":{\"address\":\"sample-none-icon-hammer\",\"anchor\":null,\"anchorKind\":null}},\"asset\":{\"ai\":false,\"attribution\":[\"Artist\"],\"height\":\"\",\"license\":\"CC-BY-SA-4.0\",\"nonAiAlternative\":null,\"notes\":\"\",\"path\":\"icons/tools/hammer.svg\",\"role\":\"\",\"source\":\"\",\"width\":\"\"},\"package\":\"sample\",\"shortcode\":\"hammer\",\"type\":\"icon\"}",
+        "{\"address\":{\"canonical\":{\"address\":\"sample-none-image-harbor\",\"anchor\":null,\"anchorKind\":null}},\"asset\":{\"ai\":false,\"attribution\":[\"Artist\"],\"height\":2,\"license\":\"CC-BY-SA-4.0\",\"nonAiAlternative\":null,\"notes\":\"\",\"path\":\"images/harbor.jpg\",\"role\":\"\",\"source\":\"\",\"width\":3},\"package\":\"sample\",\"shortcode\":\"harbor\",\"type\":\"image\"}",
+        ""
+    ],
+    "stage": [
+        [
+            "asset-sets/default.json",
+            "402373fcf8ef154df3ca8eebcc77fbf60256b4c04ee4606a67ee71e0f2d33d12"
+        ],
+        ["icons/anvil.svg", "a396fe24102cd29c641ca1ab109d495221da0f91fefdc599086c7d422b7eb0f6"],
+        ["icons/hammer.svg", "900fbe934249ad120004bd24adf66aad8817d89586273c0cc50e187bddebb601"],
+        ["images/harbor.jpg", "beeb805a4b0ea3ec34d666b04c20f2cc8e66dd39faf61122189d2540cac39f7b"]
+    ],
+    "cdn": [
+        ["sample/icons/anvil.svg", 665],
+        ["sample/icons/hammer.svg", 41],
+        ["sample/images/harbor.jpg", 792]
+    ],
+    "dependencies": {
+        "cached": [["library", "build/cache/metadata/library@1.0.0/library-metadata.jsonl"]],
+        "sql": [["library", "build/cache/metadata/library@1.0.0/library-metadata.jsonl"]],
+        "packages": ["library", "packagebuild"],
+        "shield": "icons/shield.svg"
+    },
+    "compendium": [
+        ["library-none-icon-shield", "modules/library/icons/shield.svg", true],
+        ["sample-none-icon-anvil", "modules/sample/icons/anvil.svg", true],
+        ["sample-none-icon-hammer", "modules/sample/icons/hammer.svg", true],
+        ["sample-none-image-harbor", "modules/sample/images/harbor.jpg", true]
+    ],
+    "book": [
+        [
+            "sample/assets/images/harbor.jpg",
+            "assets/images/harbor.jpg",
+            "assets/images/harbor.jpg",
+            false
+        ],
+        [
+            "sample/assets/icons/tools/hammer.svg",
+            "assets/icons/tools/hammer.svg",
+            "assets/icons/tools/hammer.svg",
+            false
+        ]
+    ],
+    "pathnames": [
+        [
+            "sample/assets/images/deep/harbor.png",
+            "modules/sample/images/harbor.png",
+            "assets/images/deep/harbor.png",
+            "https://cdn.example.test/sample/images/harbor.png",
+            "assets/images/deep/harbor.png",
+            true,
+            false
+        ],
+        [
+            "images/harbor.png",
+            "modules/sample/images/harbor.png",
+            "assets/images/harbor.png",
+            "https://cdn.example.test/sample/images/harbor.png",
+            "assets/images/harbor.png",
+            true,
+            false
+        ],
+        [
+            "sample/assets/icons/tools/hammer.svg",
+            "modules/sample/icons/hammer.svg",
+            "assets/icons/tools/hammer.svg",
+            "https://cdn.example.test/sample/icons/hammer.svg",
+            "assets/icons/tools/hammer.svg",
+            true,
+            false
+        ],
+        [
+            "sohl/assets/icons/shield.svg",
+            null,
+            "assets/icons/shield.svg",
+            "https://cdn.example.test/sohl/icons/shield.svg",
+            "assets/icons/shield.svg",
+            false,
+            false
+        ],
+        [
+            "library/assets/icons/shield.svg",
+            "modules/library/icons/shield.svg",
+            "assets/icons/shield.svg",
+            "https://cdn.example.test/library/icons/shield.svg",
+            "assets/icons/shield.svg",
+            false,
+            false
+        ]
+    ]
+}

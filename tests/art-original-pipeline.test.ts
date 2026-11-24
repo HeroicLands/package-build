@@ -380,7 +380,7 @@ it.each(["corrupt", "invalid master", "second archive"])(
         expect(result.status, result.stderr + result.stdout).toBe(1);
         expect(result.stderr + result.stdout).toMatch(
             kind === "invalid master" ?
-                /master address must name an image or icon in this package/
+                /master address foreign-none-image-portrait names package `foreign`, which is neither this package nor a picture package declared under `art\.packages` \(declared: none\)/
             :   /art\.archives\[[01]\]: download request failed: https:\/\/127\.0\.0\.1:1\/(?:original|missing)\.zip/,
         );
         if (kind !== "invalid master") {
@@ -389,8 +389,9 @@ it.each(["corrupt", "invalid master", "second archive"])(
         }
         if (kind === "invalid master") {
             expect(
-                result.stderr.match(/master address must name an image or icon in this package/g) ??
-                    [],
+                result.stderr.match(
+                    /names package `foreign`, which is neither this package nor a picture package declared under `art\.packages` \(declared: none\)/g,
+                ) ?? [],
             ).toHaveLength(1);
             expect(result.stderr).not.toContain("Content preparation failed");
         }

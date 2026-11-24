@@ -3052,7 +3052,8 @@ async function fetchFromLocalArtifact(config, argv) {
 
 /**
  * `deps fetch` — fill the caches this build resolves other packages through:
- * the **content index** of every declared dependency, the **item catalogue**
+ * the **content index** of every declared dependency, the pinned index of
+ * every picture package declared under `art.packages`, the **item catalogue**
  * of those additionally declaring `itemCatalog: true`, and the **site navigation** heroiclands.org
  * publishes, which the site build writes its menu from.
  *
@@ -3080,7 +3081,9 @@ async function fetchFromLocalArtifact(config, argv) {
 function depsCommand() {
     return {
         command: "deps <action>",
-        describe: "Manage build-time dependencies on other packages",
+        describe:
+            "Manage build-time dependencies on other packages: their content indexes, " +
+            "item catalogues and the picture indexes pinned under `art.packages`",
         builder: (yargs) => {
             // Required, for the reason `package <action>` is: an optional
             // action exits 0 having done nothing.
@@ -3090,7 +3093,10 @@ function depsCommand() {
                 choices: ["fetch"],
             });
             yargs.epilog(
-                "PACKAGE_BUILD_FORGE_TOKEN_FILE names a private token file for authenticated build mirrors.",
+                "`deps fetch` also downloads every picture index pinned under `art.packages` " +
+                    "and refuses one whose SHA-256 differs from its pin; `--from` fetches them " +
+                    "too. PACKAGE_BUILD_FORGE_TOKEN_FILE names a private token file for " +
+                    "authenticated build mirrors.",
             );
             yargs.option("from", {
                 describe:
@@ -3103,15 +3109,19 @@ function depsCommand() {
             yargs.option("id", {
                 describe:
                     "Which declared dependency `--from` supplies. Only needed " +
-                    "when a package declares more than one.",
+                    "when a package declares more than one; picture packages " +
+                    "under `art.packages` do not count.",
                 type: "string",
             });
         },
         handler: async (argv) => {
             try {
                 const config = loadPackConfig();
+                const { fetchArtPackageIndexes } = await import("../engine/art-packages.mjs");
                 if (argv.from) {
                     await fetchFromLocalArtifact(config, argv);
+                    const pinned = await fetchArtPackageIndexes(config);
+                    if (pinned) log.info(`Fetched ${pinned} picture package index(es).`);
                     return;
                 }
                 // First, because every package needs it and it depends on
@@ -3124,9 +3134,11 @@ function depsCommand() {
                 );
                 const indexes = await fetchAllMetadata(config);
                 if (indexes) log.info(`Fetched ${indexes} dependency content index(es).`);
+                const pictures = await fetchArtPackageIndexes(config);
+                if (pictures) log.info(`Fetched ${pictures} picture package index(es).`);
                 const count = await fetchAllCatalogs(config);
                 if (count) log.info(`Fetched ${count} dependency catalogue(s).`);
-                if (!indexes && !count) {
+                if (!indexes && !count && !pictures) {
                     // Distinguished from a package declaring nothing at all: a
                     // relationship may still be declared, just narrowed to the
                     // Foundry manifest by `contentIndex: false` — reporting

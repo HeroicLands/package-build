@@ -49,8 +49,10 @@ index, the corresponding metadata JSONL and its filename-bound `.sha256` checksu
 manifest that advertises an index the build has not produced fails the
 release. An opted-in staged `schema.json` is published beside it too. A
 package whose stage holds pictures also gets `icons.zip` and `images.zip`:
-each holds one picture root of the stage, flat, with the package's asset
-set `asset-sets/default.json`, so a GM can place the files by hand.
+each holds one picture root of the stage, flat apart from the
+`<package>/` directories of picture packages declared under `art.packages`,
+with the package's asset set `asset-sets/default.json`, so a GM can place the
+files by hand.
 
 When the package publishes content and has a book configuration, the release
 also builds a PDF beside the archive. Book findings are reported without
@@ -134,7 +136,8 @@ the other actions and environment variables.
 ## Publish pictures to the CDN
 
 Run `package-build cdn publish` manually after pictures or their provenance change.
-It uploads every icon and image flat, applies the stage's transformations, skips
+It uploads every icon and image flat, a picture package's pictures under
+`<icons|images>/<package>/`, applies the stage's transformations, skips
 pictures already present at the same size, and writes a named set listing the
 pictures the Foundry package leaves out. Site builds and releases do not publish
 pictures.

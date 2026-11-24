@@ -52,7 +52,7 @@ import { readCanonicalKey, renderAddress } from "./address.mjs";
 import { hasMasterSource } from "./art-source.mjs";
 import { alternativeProblem } from "./art-alternatives.mjs";
 import { isAssetRecord } from "./index-records.mjs";
-import { ASSETS_SEGMENT, resolvePathname } from "./pathnames.mjs";
+import { ASSETS_SEGMENT, resolvePathname, servedPackages } from "./pathnames.mjs";
 import { deployedAssetPath, exclusionReason, standInAddress } from "./asset-shipping.mjs";
 
 /**
@@ -111,7 +111,9 @@ export const ASSET_PATH_FIELDS = Object.freeze({
  *
  * @typedef {object} AssetReferenceEntry
  * @property {string} address - The canonical address.
- * @property {string} package - The content package shipping it.
+ * @property {string} package - The content package its address names.
+ * @property {string} shipper - The package whose install holds it: the package
+ *   being built for one of its picture packages, otherwise `package`.
  * @property {string} type - `icon` or `image`.
  * @property {string} foundry - Its path in a Foundry install.
  * @property {boolean} shipped - Whether its package ships it.
@@ -142,6 +144,8 @@ export function assetReferenceLookup(linkIndex, config) {
         ...(linkIndex?.assets?.entries() ?? []),
     ];
     const records = new Map(entries);
+    const served = servedPackages(config);
+    const local = new Set(linkIndex?.assets?.keys() ?? []);
     for (const [key, record] of entries) {
         if (!isAssetRecord(record) || !record.package) continue;
         if (deployedAssetPath(record) === undefined) continue;
@@ -158,6 +162,7 @@ export function assetReferenceLookup(linkIndex, config) {
         const entry = {
             address: key,
             package: record.package,
+            shipper: served.has(record.package) ? config.contentPackage : record.package,
             type: record.type,
             foundry: forms.foundry,
             requiresAlternative:
@@ -174,13 +179,16 @@ export function assetReferenceLookup(linkIndex, config) {
                 ) ?
                     alternativeProblem({ ...record, address: { canonical: key } }, records, config)
                 :   "",
-            // Additions are this package's own: a dependency's list is its own.
+            // Additions are this package's own, and cover the picture packages
+            // it serves: a dependency's list is its own. A picture-package
+            // picture ships only when this build holds its master.
             shipped:
+                (!served.has(record.package) ||
+                    record.package === config.contentPackage ||
+                    local.has(key)) &&
                 exclusionReason(
                     record,
-                    record.package === config.contentPackage ?
-                        (config.packageBuild?.shippingLicenses ?? [])
-                    :   [],
+                    served.has(record.package) ? (config.packageBuild?.shippingLicenses ?? []) : [],
                 ) === "",
         };
         byPath.set(entry.foundry, entry);
@@ -213,11 +221,11 @@ function resolveReference(value, lookup, report) {
         );
         return { src: value, address: entry.address };
     }
-    const standIn = lookup.byAddress.get(standInAddress(entry.package, entry.type));
+    const standIn = lookup.byAddress.get(standInAddress(entry.shipper, entry.type));
     if (standIn?.shipped) return { src: standIn.foundry, address: entry.address };
     report(
-        `\`${entry.address}\` is not shipped in the \`${entry.package}\` package, and that ` +
-            `package has no shipped stand-in \`${standInAddress(entry.package, entry.type)}\` ` +
+        `\`${entry.address}\` is not shipped in the \`${entry.shipper}\` package, and that ` +
+            `package has no shipped stand-in \`${standInAddress(entry.shipper, entry.type)}\` ` +
             "to draw in its place — add a human-made `missing` picture under its " +
             `${entry.type === "icon" ? "icons" : "images"}/ root, licensed to ship`,
     );

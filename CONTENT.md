@@ -17,6 +17,10 @@ master carries its image Address and can state creator, rights, an exact
 `hl:license` ID, optional `hl:ai` status and IPTC digital source type. Public
 derivatives use the Address for their target;
 see [masters and derivatives](docs/reference/format-details.md#masters-and-derivatives).
+A package can also take masters addressed in a picture package it pins under
+`art.packages`, by the URL and SHA-256 of that package's published index; the
+index supplies their metadata and they ship under `<icons|images>/<package>/`.
+See [pictures from a picture package](docs/authoring/assets.md#pictures-from-a-picture-package).
 Unpublished source components belong in separate `art.componentRoots`. Their
 embedded Addresses can appear in a master’s private ordered composition recipe;
 components never enter public asset records or renders.

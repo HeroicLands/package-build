@@ -1890,6 +1890,8 @@ the content index of every module those packages require, followed
 transitively through each package's own published requirements (a game system
 is never followed, and a cycle ends at the first module fetched twice),
 the **item catalogue** of those that additionally declare `itemCatalog: true`,
+the pinned **index of every picture package** declared under
+[`art.packages`](configuration.md#artpackages),
 and the **site navigation** —
 `https://www.heroiclands.org/nav.json`, the header menu every package site
 renders, fetched for every package because every package publishes a site.
@@ -1898,6 +1900,15 @@ Its own command rather than a step of `package compile` or
 not reproducible and hides a dependency's version change behind a passing
 run. Each cache is stamped complete only once its fetch finishes, so a
 half-finished one reads as cold.
+
+A picture package's index is pinned by its URL and SHA-256 in the
+configuration. It is downloaded through the shared download cache, kept when
+the cached copy still has the pinned digest, and refused when the downloaded
+bytes do not, with the error located at the entry:
+
+```
+package-build.config.yaml:14:7: error: art.packages[0]: download SHA-256 does not match: https://github.com/example/art-sample/releases/download/v1.0.0/artsample-metadata.jsonl
+```
 
 For a pinned GitHub release, dependency fetch reuses a saved checksum when its receipt matches the dependency, version, manifest, index URL and mirror, and the cached index bytes pass SHA-256 verification. Otherwise it reads the SHA-256 of the exact content-index asset from GitHub release metadata. The shared download cache verifies every hit. GitHub API availability and rate limits affect that lookup; a missing or invalid asset digest stops the fetch. The optional `PACKAGE_BUILD_GITHUB_API_TOKEN` supplies a GitHub-issued read-only token sent only to `https://api.github.com`; see [dependency configuration](configuration.md#relationships). A local `--from` artifact is read directly.
 
@@ -1930,16 +1941,18 @@ cannot be read stops the run with the navigation already cached.
 the directory it was built from — instead of a release, which is what makes
 testing a dependency change against its consumers possible before any of it
 ships; `--id` names which declared dependency `--from` supplies, needed only
-when the repository declares more than one. `--from` fills that one
-dependency's caches and nothing else: the navigation is not an artifact of
+when the repository declares more than one, and picture packages under
+`art.packages` do not count. `--from` fills that one dependency's caches and
+fetches the pinned picture indexes, which are downloaded from their pinned
+URLs whatever artifact `--from` names. The navigation is not an artifact of
 any dependency, and is fetched by a plain `deps fetch`.
 
 **OPTIONS**
 
-| Option   | Type   | Default | Description                                                                              |
-| -------- | ------ | ------- | ---------------------------------------------------------------------------------------- |
-| `--from` | string | —       | Fill the cache from a locally built artifact instead of a release.                       |
-| `--id`   | string | —       | Which declared dependency `--from` supplies. Only needed when more than one is declared. |
+| Option   | Type   | Default | Description                                                                                                             |
+| -------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `--from` | string | —       | Fill the cache from a locally built artifact instead of a release.                                                      |
+| `--id`   | string | —       | Which declared dependency `--from` supplies. Only needed when more than one is declared; picture packages do not count. |
 
 **EXIT STATUS**
 

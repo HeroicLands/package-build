@@ -167,15 +167,19 @@ import { typstScriptFontPath } from "./script-font-delivery.mjs";
  * makes the source a consumer can compile by hand with no flags, and what keeps
  * a build from touching a path outside its own output.
  *
- * A file **this** package ships stages directly. A pathname naming another
- * package's file, or a URL, names something no build here can open — a build
- * reaches no network — and the caller reports it as a picture the book will
- * not carry.
+ * A file **this** package ships stages directly. A picture of a picture
+ * package it declares under `art.packages` has no file in this tree: it is
+ * marked `served`, `from` names where its render is written under
+ * `build/art`, and the book draws it from its master only — without one the
+ * caller treats it as a picture the book does not carry. A pathname naming
+ * another package's file, or a URL, names something no build here can open — a
+ * build reaches no network — and the caller reports it as a picture the book
+ * will not carry.
  *
  * @param {string} src - The pathname, as authored.
  * @param {object} config - The resolved configuration.
- * @returns {{from: string, to: string}|null} The file, and where under the
- *   output directory it is staged.
+ * @returns {{from: string, to: string, served?: true}|null} The file, and where
+ *   under the output directory it is staged.
  */
 export function stagedImagePath(src, config) {
     const forms = resolvePathname(src, config);
@@ -186,7 +190,42 @@ export function stagedImagePath(src, config) {
             to: forms.pdf,
         };
     }
+    if (forms.served) {
+        return {
+            from: path.resolve(config.rootDir, "build", "art", forms.pdf.slice("assets/".length)),
+            to: forms.pdf,
+            served: true,
+        };
+    }
     return null;
+}
+
+/**
+ * Refuse a staged copy whose source leaves the package root or whose target
+ * leaves the book's output directory.
+ *
+ * @param {{from: string}} staged - What {@link stagedImagePath} answered.
+ * @param {string} target - The absolute target file.
+ * @param {string} rootDir - The package root.
+ * @param {string} outDir - The book's output directory.
+ * @returns {void}
+ * @throws {Error} When either path escapes its directory.
+ */
+export function assertStagedInside(staged, target, rootDir, outDir) {
+    const inside = (parent, child) => {
+        const relative = path.relative(path.resolve(parent), path.resolve(child));
+        return (
+            relative !== "" &&
+            relative !== ".." &&
+            !relative.startsWith(`..${path.sep}`) &&
+            !path.isAbsolute(relative)
+        );
+    };
+    if (!inside(rootDir, staged.from) || !inside(outDir, target))
+        throw new Error(
+            `\`${path.relative(rootDir, staged.from)}\` resolves outside the package or the ` +
+                "book's output directory, so the book does not copy it",
+        );
 }
 
 /**
@@ -1138,6 +1177,8 @@ async function buildBook(book, shared) {
         if (!staged) return null;
         const master = world.masterByPath.get(assetPathnameKey(src, resolved));
         const screen = world.screenByPath.get(assetPathnameKey(src, resolved));
+        // A picture package's picture is drawn from its master or not at all.
+        if (staged.served && !master && !screen) return null;
         return {
             ...staged,
             ...(master ? { master } : {}),
@@ -1273,6 +1314,17 @@ async function buildBook(book, shared) {
                 continue;
             }
             const dest = path.join(outDir, staged.to);
+            try {
+                assertStagedInside(staged, dest, resolved.rootDir, outDir);
+            } catch (err) {
+                findings.push({
+                    file,
+                    ...where(image.locate ?? src, occurrence),
+                    severity: "error",
+                    message: err.message,
+                });
+                continue;
+            }
             try {
                 fs.mkdirSync(path.dirname(dest), { recursive: true });
                 if (staged.screen) fs.writeFileSync(dest, staged.screen());
@@ -1729,6 +1781,12 @@ async function buildBook(book, shared) {
             return;
         }
         const target = path.join(outDir, staged.to);
+        try {
+            assertStagedInside(staged, target, resolved.rootDir, outDir);
+        } catch (err) {
+            findings.push({ file, ...where(), severity: "error", message: err.message });
+            return;
+        }
         fs.mkdirSync(path.dirname(target), { recursive: true });
         if (staged.screen) fs.writeFileSync(target, staged.screen());
         else if (!staged.master) fs.copyFileSync(staged.from, target);
