@@ -20,7 +20,7 @@ import { pathToFileURL } from "node:url";
 import { zipSync } from "fflate";
 import YAML from "yaml";
 import { writeSvgProvenance } from "../engine/art-provenance.mjs";
-import { releaseArchives, releaseDigest } from "./consumer-art-release-proof.mjs";
+import { releaseArchives, releaseDigest, releaseIndex } from "./consumer-art-release-proof.mjs";
 
 assert.ok(process.env.GITHUB_ACTIONS === "true" || process.env.GITEA_ACTIONS === "true", "CI only");
 assert.ok(path.isAbsolute(process.env.RUNNER_TEMP ?? ""));
@@ -228,6 +228,10 @@ try {
     const cases = [
         ["overlaid", null],
         ["declared", null],
+        ["metadata-index", null],
+        ["index-sidecar", /does not identify the exact native-digest metadata index/],
+        ["index-sidecar-name", /does not identify the exact native-digest metadata index/],
+        ["index-digest", /download SHA-256 does not match/],
         ["draft", /draft is not a published/],
         ["fixture-origin", /127\.0\.0\.1/],
         ["tls", /TLS verification is required/],
@@ -269,24 +273,37 @@ try {
         const sidecar = Buffer.from(
             `${fault === "sidecar" ? "0".repeat(64) : hash(zip)}  ${name}\n`,
         );
-        metadata = [zip, sidecar].map((bytes, i) => ({
+        const files = [
+            [name, zip, fault === "zip-digest" ? Buffer.alloc(zip.length) : zip],
+            [`${name}.sha256`, sidecar, sidecar],
+        ];
+        if (fault.startsWith("index-") || fault === "metadata-index") {
+            const indexName = "thalorna-metadata.jsonl";
+            const index = Buffer.from('{"fixture":true}\n');
+            const indexSidecar = Buffer.from(
+                `${fault === "index-sidecar" ? "0".repeat(64) : hash(index)}  ${
+                    fault === "index-sidecar-name" ? "other-metadata.jsonl" : indexName
+                }\n`,
+            );
+            files.push(
+                [indexName, index, fault === "index-digest" ? Buffer.alloc(index.length) : index],
+                [`${indexName}.sha256`, indexSidecar, indexSidecar],
+            );
+        }
+        metadata = files.map(([file, bytes], i) => ({
             id: i + 1,
-            name: name + (i ? ".sha256" : ""),
+            name: file,
             state: "uploaded",
             size: bytes.length,
             digest: `sha256:${hash(bytes)}`,
-            browser_download_url: base + name + (i ? ".sha256" : ""),
+            browser_download_url: base + file,
         }));
         activeRelease = { ...release, draft: fault === "draft" };
         payloads = new Map(
-            metadata.map((asset, i) => [
-                new URL(asset.browser_download_url).pathname,
-                i ? sidecar
-                : fault === "zip-digest" ? Buffer.alloc(zip.length)
-                : zip,
-            ]),
+            metadata.map((asset, i) => [new URL(asset.browser_download_url).pathname, files[i][2]]),
         );
         const archives = releaseArchives(release, metadata, tag);
+        const index = releaseIndex(release, metadata, tag);
         const selected = structuredClone(config);
         if (fault === "declared" || fault === "declared-mismatch")
             selected.art = {
@@ -312,7 +329,7 @@ try {
             CONSUMER_SHA: git("rev-parse", "HEAD"),
             ART_RELEASE_TAG: tag,
             ART_RELEASE_SHA256:
-                fault === "digest" ? "0".repeat(64) : releaseDigest(release, archives),
+                fault === "digest" ? "0".repeat(64) : releaseDigest(release, archives, index),
             FIXTURE_FAULT: fault,
             FIXTURE_OPTIONS: JSON.stringify({
                 proof,
@@ -352,7 +369,8 @@ try {
             const receipt = JSON.parse(fs.readFileSync(evidence, "utf8"));
             assert.equal(receipt.fixture, true);
             assert.match(receipt.scope, /Synthetic/);
-            assert.equal(receipt.config.mode, fault);
+            assert.equal(receipt.config.mode, fault === "declared" ? "declared" : "overlaid");
+            assert.deepEqual(receipt.index, index ?? undefined);
             assert.equal(receipt.originals.length, 2);
             assert.equal(receipt.cold.outputs.length, 1);
             assert.ok(receipt.cold.references.length > 0);

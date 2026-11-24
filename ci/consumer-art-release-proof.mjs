@@ -21,6 +21,7 @@ import { createInterface } from "node:readline";
 
 const repository = "HeroicLands/art-thalorna";
 const maxReleaseBytes = 8 * 1024 ** 3;
+const maxIndexBytes = 64 * 1024 ** 2;
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 /** Compare a public derivative with the rights retained from its released master. */
@@ -33,8 +34,22 @@ export function assertDerivativeRights(rightsByAddress, address, rights) {
     );
 }
 
-/** Select the complete published archive/checksum set without guessing any digest. */
-export function releaseArchives(release, assets, tag) {
+const indexName = /^[a-z0-9]+-metadata\.jsonl$/;
+
+/** Native coordinates of one release asset. */
+const pin = (asset) => ({
+    id: asset.id,
+    name: asset.name,
+    url: asset.browser_download_url,
+    sha256: asset.digest.slice(7),
+    bytes: asset.size,
+});
+
+/**
+ * Validate the complete published asset set without guessing any digest: ZIP/checksum
+ * pairs and at most one `<package>-metadata.jsonl` index with its checksum.
+ */
+function releaseAssets(release, assets, tag) {
     assert.match(tag, /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
     assert.equal(release.tag_name, tag, "release tag differs from the requested pin");
     assert.equal(release.draft, false, "a draft is not a published release");
@@ -44,7 +59,7 @@ export function releaseArchives(release, assets, tag) {
             Number.isFinite(Date.parse(release.published_at)),
     );
     assert.equal(release.html_url, `https://github.com/${repository}/releases/tag/${tag}`);
-    assert.ok(Array.isArray(assets) && assets.length > 0 && assets.length <= 64);
+    assert.ok(Array.isArray(assets) && assets.length > 0 && assets.length <= 66);
     const names = new Map();
     const ids = new Set();
     const base = `thalorna-originals-${tag.slice(1)}`;
@@ -71,38 +86,84 @@ export function releaseArchives(release, assets, tag) {
         );
         names.set(asset.name, asset);
     }
+    const indexes = [...names.keys()].filter((name) => name.endsWith(".jsonl"));
+    for (const name of indexes)
+        assert.match(
+            name,
+            indexName,
+            `${name}: a metadata index is named <package>-metadata.jsonl`,
+        );
+    assert.ok(indexes.length <= 1, `${indexes[1]}: a release carries one metadata index`);
+    for (const name of names.keys())
+        if (name.endsWith(".jsonl.sha256"))
+            assert.ok(
+                names.has(name.slice(0, -".sha256".length)),
+                `${name}: checksum has no metadata index`,
+            );
+    for (const name of indexes)
+        assert.ok(names.has(`${name}.sha256`), `${name}: metadata index has no checksum`);
+    const indexPair = indexes.flatMap((name) => [name, `${name}.sha256`]);
+    for (const name of names.keys())
+        assert.ok(
+            name.endsWith(".zip") || name.endsWith(".zip.sha256") || indexPair.includes(name),
+            `${name}: release asset is not a ZIP, a ZIP checksum or the metadata index pair`,
+        );
     const zipNames = [...names.keys()].filter((name) => name.endsWith(".zip"));
+    for (const name of zipNames)
+        assert.ok(names.has(`${name}.sha256`), `${name}: ZIP has no checksum`);
+    for (const name of names.keys())
+        if (name.endsWith(".zip.sha256"))
+            assert.ok(names.has(name.slice(0, -".sha256".length)), `${name}: checksum has no ZIP`);
     assert.ok(
-        zipNames.length > 0 && assets.length === zipNames.length * 2,
+        zipNames.length > 0 && assets.length - indexPair.length === zipNames.length * 2,
         "release requires exactly ZIP/checksum pairs",
     );
+    assert.ok(zipNames.length <= 32, "release exceeds 32 ZIP/checksum pairs");
     const single = zipNames.length === 1 && zipNames[0] === `${base}.zip`;
     const ordered =
         single ? zipNames : (
             Array.from({ length: zipNames.length }, (_, i) => `${base}-part${i + 1}.zip`)
         );
-    if (!single) assert.ok(zipNames.length > 1, "a single ZIP uses the unsuffixed name");
+    if (!single)
+        assert.ok(zipNames.length > 1, `${zipNames[0]}: a single ZIP uses the unsuffixed name`);
+    for (const name of zipNames)
+        assert.ok(ordered.includes(name), `${name}: release part is mixed or nonsequential`);
     let total = 0;
-    return ordered.map((name) => {
+    const archives = ordered.map((name) => {
         const archive = names.get(name);
         const checksum = names.get(`${name}.sha256`);
         assert.ok(archive && checksum, "release parts are missing, mixed or nonsequential");
         assert.ok(checksum.size <= 1024, "checksum sidecar exceeds its limit");
         total += archive.size;
         assert.ok(total <= maxReleaseBytes, "release exceeds the proof byte budget");
-        const pin = (asset) => ({
-            id: asset.id,
-            name: asset.name,
-            url: asset.browser_download_url,
-            sha256: asset.digest.slice(7),
-            bytes: asset.size,
-        });
         return { ...pin(archive), checksum: pin(checksum) };
     });
+    let index = null;
+    if (indexes.length) {
+        const file = names.get(indexes[0]);
+        assert.ok(file.size <= maxIndexBytes, `${file.name}: metadata index exceeds its limit`);
+        const checksum = names.get(`${indexes[0]}.sha256`);
+        assert.ok(checksum.size <= 1024, `${checksum.name}: checksum sidecar exceeds its limit`);
+        index = { ...pin(file), checksum: pin(checksum) };
+    }
+    return { archives, index };
 }
 
-/** Pin the release identity and ordered native asset digests independently of its tag. */
-export function releaseDigest(release, archives) {
+/** Select the ordered archive pins; the metadata index pair is not an archive. */
+export function releaseArchives(release, assets, tag) {
+    return releaseAssets(release, assets, tag).archives;
+}
+
+/** Select the metadata index pin with its checksum, or null when the release has none. */
+export function releaseIndex(release, assets, tag) {
+    return releaseAssets(release, assets, tag).index;
+}
+
+/**
+ * Pin the release identity, ordered native archive digests and any metadata index
+ * independently of its tag.
+ */
+export function releaseDigest(release, archives, index = null) {
     return hash(
         JSON.stringify({
             repository,
@@ -110,6 +171,7 @@ export function releaseDigest(release, archives) {
             id: release.id,
             publishedAt: release.published_at,
             archives,
+            ...(index ? { index } : {}),
         }),
     );
 }
@@ -255,8 +317,8 @@ export async function proveRelease({ fixture } = {}) {
         assets.push(...batch);
         if (batch.length < 100) break;
     }
-    const archives = releaseArchives(release, assets, tag);
-    const releaseSha256 = releaseDigest(release, archives);
+    const { archives, index } = releaseAssets(release, assets, tag);
+    const releaseSha256 = releaseDigest(release, archives, index);
     assert.equal(
         releaseSha256,
         process.env.ART_RELEASE_SHA256,
@@ -384,13 +446,16 @@ export async function proveRelease({ fixture } = {}) {
     let expected;
     let rightsByAddress;
     const inspectOutputs = async () => {
-        const index = path.join(consumer, "build/content-index/thalorna-metadata.jsonl");
+        const indexFile = path.join(consumer, "build/content-index/thalorna-metadata.jsonl");
         assert.ok(
-            fs.statSync(index).size <= 512 * 1024 * 1024,
+            fs.statSync(indexFile).size <= 512 * 1024 * 1024,
             "consumer index exceeds proof limit",
         );
         const byAddress = new Map();
-        const lines = createInterface({ input: fs.createReadStream(index), crlfDelay: Infinity });
+        const lines = createInterface({
+            input: fs.createReadStream(indexFile),
+            crlfDelay: Infinity,
+        });
         for await (const line of lines) {
             if (!line.trim()) continue;
             const record = decodeIndexAddresses(JSON.parse(line), { package: "thalorna" });
@@ -519,6 +584,36 @@ export async function proveRelease({ fixture } = {}) {
                 "cold archive cache must be empty",
             );
         }
+        if (index) {
+            // The released index bytes are verified before its checksum can vouch for them.
+            const indexFile = await downloadCached(upstream.transport(index.url), index.sha256, {
+                cacheDir: cache,
+                maxBytes: maxIndexBytes,
+                signal: AbortSignal.timeout(Math.min(5 * 60 * 1000, remaining())),
+            });
+            assert.equal(
+                fs.statSync(indexFile).size,
+                index.bytes,
+                `${index.name}: released metadata index differs from its native size`,
+            );
+            const indexSha256 = await fileHash(indexFile);
+            assert.equal(
+                indexSha256,
+                index.sha256,
+                `${index.name}: released metadata index differs from its native digest`,
+            );
+            const sidecar = await downloadCached(
+                upstream.transport(index.checksum.url),
+                index.checksum.sha256,
+                { cacheDir: cache, maxBytes: 1024, signal: AbortSignal.timeout(30000) },
+            );
+            assert.equal(fs.statSync(sidecar).size, index.checksum.bytes);
+            assert.equal(
+                fs.readFileSync(sidecar, "utf8"),
+                `${indexSha256}  ${index.name}\n`,
+                `${index.checksum.name}: released checksum does not identify the exact native-digest metadata index`,
+            );
+        }
         fs.writeFileSync(configFile, overlaidConfig);
         clearOutputs(consumer);
         await runBuild("cold");
@@ -638,6 +733,7 @@ export async function proveRelease({ fixture } = {}) {
                 url: release.html_url,
             },
             archives,
+            ...(index ? { index } : {}),
             originals,
             releaseSha256,
             consumerGitTreeSha256: gitTreeSha256,

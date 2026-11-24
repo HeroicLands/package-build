@@ -8,6 +8,7 @@ import {
     clearOutputs,
     releaseArchives,
     releaseDigest,
+    releaseIndex,
 } from "../ci/consumer-art-release-proof.mjs";
 import { archiveFetch } from "../ci/consumer-art-release-network.mjs";
 
@@ -90,6 +91,125 @@ it("refuses incomplete, duplicate, nonsequential and mixed attachment sets", () 
     const hugeSidecar = assets();
     hugeSidecar[1].size = 1025;
     expect(() => releaseArchives(release, hugeSidecar, tag)).toThrow();
+});
+
+function indexAssets(name = "artthalorna-metadata.jsonl", first = 100) {
+    return [name, `${name}.sha256`].map((name, j) => ({
+        id: first + j,
+        name,
+        state: "uploaded",
+        size: j ? 100 : 4096,
+        digest: `sha256:${String(first + j).padStart(64, "0")}`,
+        browser_download_url: `${root}/download/${tag}/${name}`,
+    }));
+}
+
+it("accepts one metadata index and its checksum beside the archives without pinning it as one", () => {
+    const list = [...indexAssets(), ...assets(2)];
+    expect(releaseArchives(release, list, tag)).toEqual(releaseArchives(release, assets(2), tag));
+    expect(releaseIndex(release, list, tag)).toEqual({
+        id: 100,
+        name: "artthalorna-metadata.jsonl",
+        url: `${root}/download/${tag}/artthalorna-metadata.jsonl`,
+        sha256: "100".padStart(64, "0"),
+        bytes: 4096,
+        checksum: {
+            id: 101,
+            name: "artthalorna-metadata.jsonl.sha256",
+            url: `${root}/download/${tag}/artthalorna-metadata.jsonl.sha256`,
+            sha256: "101".padStart(64, "0"),
+            bytes: 100,
+        },
+    });
+    expect(releaseIndex(release, assets(2), tag)).toBeNull();
+});
+
+it.each([
+    [
+        "an index without its checksum",
+        () => [indexAssets()[0], ...assets()],
+        /index has no checksum/,
+    ],
+    [
+        "a checksum without its index",
+        () => [indexAssets()[1], ...assets()],
+        /checksum has no metadata index/,
+    ],
+    [
+        "two indexes",
+        () => [...indexAssets(), ...indexAssets("thalorna-metadata.jsonl", 200), ...assets()],
+        /one metadata index/,
+    ],
+    [
+        "an index named outside the pattern",
+        () => [...indexAssets("Art-Thalorna-metadata.jsonl"), ...assets()],
+        /^Art-Thalorna-metadata\.jsonl: a metadata index is named/,
+    ],
+    [
+        "an index with a hyphen in its package prefix",
+        () => [...indexAssets("art-thalorna-metadata.jsonl"), ...assets()],
+        /^art-thalorna-metadata\.jsonl: a metadata index is named/,
+    ],
+    [
+        "an index with a dot in its package prefix",
+        () => [...indexAssets("art.thalorna-metadata.jsonl"), ...assets()],
+        /^art\.thalorna-metadata\.jsonl: a metadata index is named/,
+    ],
+    [
+        "an oversized index",
+        () => {
+            const list = indexAssets();
+            list[0].size = 64 * 1024 ** 2 + 1;
+            return [...list, ...assets()];
+        },
+        /^artthalorna-metadata\.jsonl: metadata index exceeds its limit/,
+    ],
+    [
+        "an extra ZIP beside the index",
+        () => [...indexAssets(), ...assets(2), ...indexAssets("extra.zip", 200)],
+        /^extra\.zip: release part is mixed or nonsequential/,
+    ],
+    [
+        "an extra ZIP checksum beside the index",
+        () => [...indexAssets(), ...assets(), ...indexAssets("extra.zip", 200).slice(1)],
+        /^extra\.zip\.sha256: checksum has no ZIP/,
+    ],
+    [
+        "an index without a package prefix",
+        () => [...indexAssets("metadata.jsonl"), ...assets()],
+        /^metadata\.jsonl: a metadata index is named/,
+    ],
+    [
+        "another extra asset beside the index",
+        () => [...indexAssets(), ...indexAssets("notes.txt", 200).slice(0, 1), ...assets()],
+        /^notes\.txt: release asset is not a ZIP/,
+    ],
+    [
+        "another extra asset without an index",
+        () => [...indexAssets("notes.txt").slice(0, 1), ...assets()],
+        /^notes\.txt: release asset is not a ZIP/,
+    ],
+    [
+        "an oversized index checksum",
+        () => {
+            const list = indexAssets();
+            list[1].size = 1025;
+            return [...list, ...assets()];
+        },
+        /artthalorna-metadata\.jsonl\.sha256: checksum sidecar exceeds its limit/,
+    ],
+    ["an index with no archives", () => indexAssets(), /exactly ZIP\/checksum pairs/],
+])("refuses %s", (_, build, message) => {
+    expect(() => releaseArchives(release, build(), tag)).toThrow(message);
+    expect(() => releaseIndex(release, build(), tag)).toThrow(message);
+});
+
+it("keeps the 32-pair archive limit when a release carries a metadata index", () => {
+    expect(releaseArchives(release, [...indexAssets(), ...assets(32)], tag)).toHaveLength(32);
+    expect(() => releaseArchives(release, [...indexAssets(), ...assets(33)], tag)).toThrow();
+    expect(() => releaseArchives(release, assets(33), tag)).toThrow(
+        /exceeds 32 ZIP\/checksum pairs/,
+    );
 });
 
 it("checks derivative rights against the released master for each address", () => {
@@ -194,4 +314,12 @@ it("pins native release identity and bytes independently of a movable tag", () =
         ),
     ).not.toBe(digest);
     expect(releaseDigest(release, releaseArchives(release, assets().reverse(), tag))).toBe(digest);
+    expect(releaseDigest(release, selected, null)).toBe(digest);
+    const list = [...assets(), ...indexAssets()];
+    const index = releaseIndex(release, list, tag);
+    const indexed = releaseDigest(release, releaseArchives(release, list, tag), index);
+    expect(indexed).not.toBe(digest);
+    expect(releaseDigest(release, selected, { ...index, sha256: "f".repeat(64) })).not.toBe(
+        indexed,
+    );
 });

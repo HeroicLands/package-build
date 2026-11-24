@@ -46,25 +46,39 @@ Dispatch `consumer-proof.yml` on the candidate branch with these inputs:
 
 The tag must identify a real published release with the complete ZIP/checksum
 set. A single ZIP uses `thalorna-originals-<version>.zip`; multipart releases use
-sequential `-part<n>.zip` files. Every attachment requires GitHub's native SHA-256
-digest and an exact versioned download URL. Each checksum file identifies its
-matching ZIP. Missing, extra, incomplete or inconsistent attachments fail the
-proof. The helper reads GitHub metadata anonymously; unavailable release metadata
+sequential `-part<n>.zip` files, each with its `<name>.zip.sha256` checksum file.
+Beside the archives, a release may carry one metadata index named
+`<package>-metadata.jsonl`, where `<package>` is lowercase letters and digits, such
+as `artthalorna-metadata.jsonl`, together with its `<name>.jsonl.sha256` checksum
+file. Those are the only accepted attachments. Every attachment requires GitHub's
+native SHA-256 digest and an exact versioned download URL. Each checksum file is at
+most 1024 bytes and contains exactly `<sha256>  <name>` and a newline, naming its
+ZIP or index by its native digest. The index is at most 64 MiB. The index pair is
+never an archive pin. An index without its checksum, a checksum without its index, a
+second index, an index whose name does not match the pattern, a ZIP without its
+checksum, a ZIP checksum without its ZIP, a ZIP outside the release's sequence, and
+any other extra attachment each fail the proof with a diagnostic naming the
+attachment. Missing, incomplete or inconsistent attachments also fail the proof.
+The helper reads GitHub metadata anonymously; unavailable release metadata
 and exhausted API quotas remain failures. No fixture release or checksum fallback
 is used.
 
 The digest pins the release ID, tag, publication timestamp and ordered native
-archive/checksum coordinates, sizes and hashes. A changed release fails even when
+archive/checksum coordinates, sizes and hashes, and, when the release carries a
+metadata index, the index and checksum coordinates, sizes and hashes. A changed release fails even when
 its tag stays the same. Review the anonymous GitHub release JSON and complete
 assets JSON array, then compute the input from those saved files:
 
 ```sh
 node --input-type=module - release.json assets.json <<'NODE'
 import fs from 'node:fs';
-import { releaseArchives, releaseDigest } from './ci/consumer-art-release-proof.mjs';
+import { releaseArchives, releaseDigest, releaseIndex } from './ci/consumer-art-release-proof.mjs';
 const release = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const assets = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
-console.log(releaseDigest(release, releaseArchives(release, assets, release.tag_name)));
+const tag = release.tag_name;
+console.log(
+  releaseDigest(release, releaseArchives(release, assets, tag), releaseIndex(release, assets, tag)),
+);
 NODE
 ```
 
@@ -81,8 +95,11 @@ configuration as `declared` or `overlaid`. Notes, artwork identities, licensing
 and alternative selections come from the real source and release. The normal
 `npm run build:db` runs twice. The cold compile requests every archive exactly
 once into an archive cache outside the source tree with no ZIP entries. The
-checksum sidecars are already verified in that shared download cache; they cannot
-seed the ZIP entries. The warm compile keeps
+checksum sidecars, the index checksum included, are already verified in that shared
+download cache; they cannot seed the ZIP entries. Before the cold compile, the proof
+downloads a released metadata index into that cache under its 64 MiB bound and
+requires its bytes to match the native size and SHA-256 and the digest its checksum
+file states. The build reads no released metadata index. The warm compile keeps
 verified download and materialized dependency caches but clears generated outputs,
 note caches (`build/cache/note-page`) and image renditions (`build/.cache/art`). A CI-only fetch observer delegates real cold
 requests and rejects warm archive requests before network access. Other dependency
@@ -146,7 +163,9 @@ pack compilation commands in both phases. OpenSSL creates a short-lived loopback
 certificate; `NODE_EXTRA_CA_CERTS` trusts that certificate without disabling TLS
 verification. Python 3.8 or newer supplies the independent ZIP inventory.
 
-The fixture covers declared and overlaid pins, checksum and ZIP corruption,
+The fixture covers declared and overlaid pins, a release carrying a metadata
+index, index byte corruption, an index checksum with the wrong digest or file name,
+checksum and ZIP corruption,
 release identity, layout, indexed credits and private fields, alternative
 selection, derivative rights and privacy, AI staging, compiled references and
 packs, source preservation, cleanup, cache clearing, output parity and refused
