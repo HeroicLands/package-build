@@ -1019,6 +1019,32 @@ export function linkValue(ref, resolve, hint) {
 }
 
 /**
+ * A value that is either an Address or a plain name, shown as the name of the
+ * note it addresses.
+ *
+ * A string is looked up as each of the types in turn, because a shortcode is
+ * unique within a type and not across a tree. One that names no note is a name
+ * written out, and reads as written. A resolved note keeps every part of the
+ * medium's answer — `url`, `uuid` and `address` — so each medium links it the way
+ * it links anything else.
+ *
+ * @param {string} raw - The authored string.
+ * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
+ *   medium's resolver.
+ * @param {readonly string[]} types - The Address types a string may name.
+ * @returns {{found: true, link: object}|{found: false, text: string}} The
+ *   resolved link, or the text as written.
+ */
+function holderValue(raw, resolve, types) {
+    for (const type of types) {
+        if (resolve?.(raw, { type })?.name) {
+            return { found: true, link: linkValue(raw, resolve, { type }) };
+        }
+    }
+    return { found: false, text: String(raw) };
+}
+
+/**
  * The note infobox: the subject from `data:`, plus the name every note has.
  *
  * The rows are {@link NOTE_VOCABULARY}'s declaration for the type, in its
@@ -1162,6 +1188,17 @@ function noteBox(
                 // the group appears where the vocabulary put it.
                 rows.push({ label: group.label, kind: "list", value: group.entries });
             }
+            shown.add(field.name);
+            continue;
+        }
+
+        if (field.kind === "address-or-string" && field.accepts && typeof raw === "string") {
+            const held = holderValue(raw, resolve, field.accepts);
+            rows.push({
+                label: overlay.label ?? humanizeFieldName(field.name),
+                kind: held.found ? "link" : "text",
+                value: held.found ? held.link : held.text,
+            });
             shown.add(field.name);
             continue;
         }

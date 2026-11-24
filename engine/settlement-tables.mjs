@@ -673,8 +673,7 @@ export function checkSettlementTables(
                     );
             } else if (key === "location") checkRef(value, ["place"], [...at, key]);
             else if (key === "polity") checkRef(value, ["affiliation"], [...at, key], true, true);
-            else if (key === "holder")
-                checkRef(value, ["affiliation", "being"], [...at, key], false, true);
+            else if (key === "holder") checkRef(value, field.accepts, [...at, key], false, true);
             else if (!text(value))
                 report(
                     "settlement field",

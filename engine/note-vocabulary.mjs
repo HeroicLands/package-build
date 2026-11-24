@@ -207,6 +207,9 @@ import {
  *   so each takes a row labelled and anchored by the post's own name.
  * @property {"subType"} [keySelector] - An alternative `subType:<skill-subtype>` key.
  * @property {readonly string[]} [accepts] - Allowed Address types, separate from `ref`.
+ *   On an `address-or-string` field they are also the types a written string is
+ *   looked up as: a string naming a note of one of them shows that note's name as a
+ *   link, and any other string shows as written.
  * @property {string} [declines] - The literal value that declines the art this
  *   Address field names. It is not an Address, is never resolved, and is not
  *   reported as unresolved.

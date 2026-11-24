@@ -154,6 +154,7 @@ export const SETTLEMENT_ROW_FIELDS = Object.freeze(
             name: "holder",
             kind: "address-or-string",
             shape: "an affiliation or being Address, or a name",
+            accepts: Object.freeze(["affiliation", "being"]),
             describe: "Who holds the land.",
         },
         {

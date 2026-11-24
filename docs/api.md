@@ -323,6 +323,8 @@ The note types the engine itself declares — vocabulary that is a fact about th
 
 `DataFieldSpec.nullText` declares the infobox text for an explicitly authored null. The place `government` field uses “Complete anarchy”; omitted fields remain absent. Its Address targets must be affiliations.
 
+`DataFieldSpec.accepts` on an `address-or-string` field, such as a settlement's `holder`, lists the Address types a written string is looked up as. The infobox shows a string naming a note of one of those types as that note's name, linked in every medium that links a note, and shows any other string as written.
+
 An addressed content note accepts exactly these top-level keys, in this order: `shortcode`, `name`, `type`, `subType`, `description`, `tags`, `data`, `dnd5e`, `hm3`, `sohl`. A key outside this list is an error at its own line. The system blocks are one per system the address vocabulary recognizes, sorted by name after the fixed keys, so a further system is a change to `SYSTEM_IDS` alone. No dnd5e-specific document types are declared. Within that shape, the closed vocabularies are the `data:` container and each type's `subType`.
 
 | Export                    | Signature                                    | Returns                                         | Use it when                                                                                                                   |

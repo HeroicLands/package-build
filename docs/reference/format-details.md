@@ -109,6 +109,11 @@ affiliation shows the culture it inherits. A culture note has no `Culture` row:
 its resolved culture is its own Address, whether it leaves the field out or
 names itself. See [Culture in the index](#culture-in-the-index).
 
+A row that takes an Address or a plain name, such as a settlement's `Holder`,
+shows the name of the note the value addresses, as a link wherever the medium
+links notes. A value naming no note of the types the row accepts shows as
+written.
+
 **Embedded models link to documentation in an infobox.** The model Address
 continues to identify the native Item used for compilation. Its displayed link
 uses that same package, type and Shortcode under `note`, which names the

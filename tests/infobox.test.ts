@@ -263,6 +263,53 @@ function fullyStated(type: string): Record<string, unknown> {
 }
 
 describe("the note box's fields are the type's own vocabulary", () => {
+    it("shows a settlement's holder by name, linked in every medium, from a shortcode or an Address string", () => {
+        const notes: Record<string, { name: string; url: string; uuid: string }> = {
+            "affiliation:kingdomofdunmere": {
+                name: "Kingdom of Dunmere",
+                url: "/kingdom",
+                uuid: "JournalEntry.kingdom",
+            },
+            "being:lordrath": { name: "Lord Rath", url: "/rath", uuid: "JournalEntry.rath" },
+        };
+        const keyOf = (ref: unknown, hint?: { type?: string }) => {
+            const text = String(ref);
+            const [type, shortcode] = text.includes("-") ? text.split("-") : [hint?.type, text];
+            return `${type}:${shortcode}`;
+        };
+        const resolve = (ref: unknown, hint?: { type?: string }) => notes[keyOf(ref, hint)];
+        const uuidOnly = (ref: unknown, hint?: { type?: string }) => {
+            const found = notes[keyOf(ref, hint)];
+            return found && { name: found.name, uuid: found.uuid };
+        };
+        const holderRow = (holder: unknown, resolver: typeof resolve) =>
+            noteInfobox(
+                { type: "place", name: { full: "Dunmere" }, data: { holder } },
+                { resolve: resolver },
+            ).sections[0].rows.find((row: { label: string }) => row.label === "Holder");
+
+        expect(holderRow("kingdomofdunmere", resolve)).toEqual({
+            label: "Holder",
+            kind: "link",
+            value: { text: "Kingdom of Dunmere", url: "/kingdom", uuid: "JournalEntry.kingdom" },
+        });
+        expect(holderRow("being-lordrath", resolve)).toEqual({
+            label: "Holder",
+            kind: "link",
+            value: { text: "Lord Rath", url: "/rath", uuid: "JournalEntry.rath" },
+        });
+        expect(holderRow("lordrath", uuidOnly)).toEqual({
+            label: "Holder",
+            kind: "link",
+            value: { text: "Lord Rath", uuid: "JournalEntry.rath" },
+        });
+        expect(holderRow("the Abbot of Hale", resolve)).toEqual({
+            label: "Holder",
+            kind: "text",
+            value: "the Abbot of Hale",
+        });
+    });
+
     it("shows structured place links and affiliation relations", () => {
         const resolve = (ref: unknown) => ({ name: `Named ${ref}`, url: `/note/${ref}` });
         const place = noteInfobox(
