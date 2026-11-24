@@ -37,58 +37,14 @@ import {
     PACK_DOCUMENT_TYPES,
 } from "../content-config.mjs";
 import { resolvePackageBuildConfig, DERIVED_MANIFEST_KEYS } from "../config.mjs";
+import {
+    configurationKeys,
+    minimal,
+    sharedMinimal,
+    thrown,
+} from "./helpers/configuration-surface.js";
 
 const DOC = readFileSync(path.resolve(__dirname, "../docs/configuration.md"), "utf8");
-
-/** A minimal configuration `defineConfig` accepts without complaint. */
-function minimal(overrides: Record<string, unknown> = {}) {
-    return {
-        rootDir: "/repo",
-        contentPackage: "acme",
-        foundryPackage: "acme",
-        packageKind: "systems",
-        compatibility: { minimum: "14.359" },
-        stats: { lastModifiedBy: "acmebuilder0000" },
-        packs: [{ name: "items", type: "Item" }],
-        ...overrides,
-    };
-}
-
-/** The shared configuration `resolvePackageBuildConfig` accepts without complaint. */
-function sharedMinimal(packageBuild: Record<string, unknown> = {}) {
-    return { rootDir: "/repo", packageKind: "systems", foundryPackage: "acme", packageBuild };
-}
-
-/**
- * The allowed-keys list `rejectUnknownKeys` reports when `build` declares one
- * key it does not recognise.
- *
- * @param build - A call expected to throw the "not a recognized option" message.
- * @returns The allowed keys, in the order the validator lists them.
- */
-function allowedKeys(build: () => unknown): string[] {
-    try {
-        build();
-    } catch (err) {
-        const message = (err as Error).message;
-        const match = message.match(/expected one of: (.+)\)\.$/);
-        if (!match) {
-            throw new Error(`could not read an allowed-keys list from: ${message}`);
-        }
-        return match[1].split(", ");
-    }
-    throw new Error("expected the build to throw an unrecognised-key error");
-}
-
-/** The message a `build` throws, in full. */
-function thrown(build: () => unknown): string {
-    try {
-        build();
-    } catch (err) {
-        return (err as Error).message;
-    }
-    throw new Error("expected the build to throw");
-}
 
 /** Every key of `keys`, documented under `prefix` as `` `prefix.key` `` (or bare when `prefix` is empty). */
 function assertDocuments(prefix: string, keys: readonly string[]) {
@@ -144,7 +100,7 @@ describe("every closed-set value is documented", () => {
 });
 
 describe("every top-level key is documented", () => {
-    const keys = allowedKeys(() => defineConfig(minimal({ __unrecognised__: true })));
+    const keys = configurationKeys("");
 
     it("reads a key list worth checking", () => {
         // Guards the guard: were the validator's message shape to change, the
@@ -170,84 +126,31 @@ describe("every top-level key is documented", () => {
 
 describe("every nested key list is documented", () => {
     it("`stats`", () => {
-        assertDocuments(
-            "stats",
-            allowedKeys(() =>
-                defineConfig(minimal({ stats: { lastModifiedBy: "x", __unrecognised__: true } })),
-            ),
-        );
+        assertDocuments("stats", configurationKeys("stats"));
     });
 
     it("`paths`", () => {
-        assertDocuments(
-            "paths",
-            allowedKeys(() => defineConfig(minimal({ paths: { __unrecognised__: true } }))),
-        );
+        assertDocuments("paths", configurationKeys("paths"));
     });
 
     it("`docs` and `docs.itemFields`", () => {
-        assertDocuments(
-            "docs",
-            allowedKeys(() => defineConfig(minimal({ docs: { __unrecognised__: true } }))),
-        );
-        assertDocuments(
-            "docs.itemFields",
-            allowedKeys(() =>
-                defineConfig(minimal({ docs: { itemFields: { __unrecognised__: true } } })),
-            ),
-        );
+        assertDocuments("docs", configurationKeys("docs"));
+        assertDocuments("docs.itemFields", configurationKeys("docs.itemFields"));
     });
 
     it("`site` and its nested shapes", () => {
-        assertDocuments(
-            "site",
-            allowedKeys(() => defineConfig(minimal({ site: { __unrecognised__: true } }))),
-        );
-        assertDocuments(
-            "site.notfound",
-            allowedKeys(() =>
-                defineConfig(
-                    minimal({
-                        site: { notfound: { tagline: "t", sitenoun: "s", __unrecognised__: true } },
-                    }),
-                ),
-            ),
-        );
+        assertDocuments("site", configurationKeys("site"));
+        assertDocuments("site.notfound", configurationKeys("site.notfound"));
     });
 
     it("`pdf` and its nested shapes", () => {
-        const book = { id: "core", title: "t", document: "d" };
-        assertDocuments(
-            "pdf",
-            allowedKeys(() =>
-                defineConfig(minimal({ pdf: { __unrecognised__: true, books: [book] } })),
-            ),
-        );
-        assertDocuments(
-            "pdf.fonts",
-            allowedKeys(() =>
-                defineConfig(
-                    minimal({
-                        pdf: { books: [book], fonts: { __unrecognised__: true } },
-                    }),
-                ),
-            ),
-        );
-        assertDocuments(
-            "pdf.books[]",
-            allowedKeys(() =>
-                defineConfig(minimal({ pdf: { books: [{ ...book, __unrecognised__: true }] } })),
-            ),
-        );
+        assertDocuments("pdf", configurationKeys("pdf"));
+        assertDocuments("pdf.fonts", configurationKeys("pdf.fonts"));
+        assertDocuments("pdf.books[]", configurationKeys("pdf.books[]"));
     });
 
     it("`authors[]` and its closed `role` list", () => {
-        assertDocuments(
-            "authors[]",
-            allowedKeys(() =>
-                defineConfig(minimal({ authors: [{ name: "n", __unrecognised__: true }] })),
-            ),
-        );
+        assertDocuments("authors[]", configurationKeys("authors[]"));
         // The roles are read out of the validator's own refusal, so a role
         // added to the list and not to the document fails here.
         const message = thrown(() =>
@@ -260,234 +163,87 @@ describe("every nested key list is documented", () => {
     });
 
     it("`compatibility`", () => {
-        assertDocuments(
-            "compatibility",
-            allowedKeys(() =>
-                defineConfig(minimal({ compatibility: { minimum: "1", __unrecognised__: true } })),
-            ),
-        );
+        assertDocuments("compatibility", configurationKeys("compatibility"));
     });
 
     it("`relationships`", () => {
-        assertDocuments(
-            "relationships",
-            allowedKeys(() => defineConfig(minimal({ relationships: { __unrecognised__: true } }))),
-        );
-        assertDocuments(
-            "relationships.systems[]",
-            allowedKeys(() =>
-                defineConfig(
-                    minimal({
-                        relationships: { systems: [{ id: "x", __unrecognised__: true }] },
-                    }),
-                ),
-            ),
-        );
+        assertDocuments("relationships", configurationKeys("relationships"));
+        assertDocuments("relationships.systems[]", configurationKeys("relationships.systems[]"));
     });
 
     it("`systems.<id>`", () => {
-        assertDocuments(
-            "systems.<id>",
-            allowedKeys(() =>
-                defineConfig(
-                    minimal({
-                        packageKind: "modules",
-                        systems: {
-                            sohl: {
-                                __unrecognised__: true,
-                                compatibility: { verified: "1.0" },
-                            },
-                        },
-                    }),
-                ),
-            ),
-        );
+        assertDocuments("systems.<id>", configurationKeys("systems.<id>"));
     });
 
     it("`itemBuilders.<type>` and the list-of-registries form", () => {
-        assertDocuments(
-            "itemBuilders.<type>",
-            allowedKeys(() =>
-                defineConfig(
-                    minimal({
-                        itemBuilders: { foo: { __unrecognised__: true, system: () => ({}) } },
-                    }),
-                ),
-            ),
-        );
-        assertDocuments(
-            "itemBuilders[]",
-            allowedKeys(() =>
-                defineConfig(
-                    minimal({
-                        itemBuilders: [{ __unrecognised__: true, system: "sohl", builders: {} }],
-                    }),
-                ),
-            ),
-        );
+        assertDocuments("itemBuilders.<type>", configurationKeys("itemBuilders.<type>"));
+        assertDocuments("itemBuilders[]", configurationKeys("itemBuilders[]"));
     });
 
     it("`packs[]`", () => {
-        assertDocuments(
-            "packs[]",
-            allowedKeys(() =>
-                defineConfig(
-                    minimal({ packs: [{ name: "x", type: "Item", __unrecognised__: true }] }),
-                ),
-            ),
-        );
+        assertDocuments("packs[]", configurationKeys("packs[]"));
     });
 
     it("`sql`", () => {
-        assertDocuments(
-            "sql",
-            allowedKeys(() => defineConfig(minimal({ sql: { __unrecognised__: true } }))),
-        );
+        assertDocuments("sql", configurationKeys("sql"));
     });
 
     it("`publish` and `publish.address`", () => {
-        assertDocuments(
-            "publish",
-            allowedKeys(() => defineConfig(minimal({ publish: { __unrecognised__: true } }))),
-        );
-        assertDocuments(
-            "publish.address",
-            allowedKeys(() =>
-                defineConfig(minimal({ publish: { address: { __unrecognised__: true } } })),
-            ),
-        );
+        assertDocuments("publish", configurationKeys("publish"));
+        assertDocuments("publish.address", configurationKeys("publish.address"));
     });
 
     it("`languages.<name>`", () => {
-        assertDocuments(
-            "languages.<name>",
-            allowedKeys(() =>
-                defineConfig(minimal({ languages: { vyl: { __unrecognised__: true } } })),
-            ),
-        );
+        assertDocuments("languages.<name>", configurationKeys("languages.<name>"));
     });
 });
 
 describe("the `packageBuild` section is documented", () => {
     it("its own keys", () => {
-        assertDocuments(
-            "packageBuild",
-            allowedKeys(() => resolvePackageBuildConfig(sharedMinimal({ __unrecognised__: true }))),
-        );
+        assertDocuments("packageBuild", configurationKeys("packageBuild"));
     });
 
     it("`packageBuild.assets[]`", () => {
-        assertDocuments(
-            "packageBuild.assets[]",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(sharedMinimal({ assets: [{ __unrecognised__: true }] })),
-            ),
-        );
+        assertDocuments("packageBuild.assets[]", configurationKeys("packageBuild.assets[]"));
     });
 
     it("`packageBuild.clean`", () => {
-        assertDocuments(
-            "packageBuild.clean",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(sharedMinimal({ clean: { __unrecognised__: true } })),
-            ),
-        );
+        assertDocuments("packageBuild.clean", configurationKeys("packageBuild.clean"));
     });
 
     it("`packageBuild.lang`", () => {
-        assertDocuments(
-            "packageBuild.lang",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(sharedMinimal({ lang: { __unrecognised__: true } })),
-            ),
-        );
+        assertDocuments("packageBuild.lang", configurationKeys("packageBuild.lang"));
     });
 
     it("`packageBuild.deploy`", () => {
-        assertDocuments(
-            "packageBuild.deploy",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(sharedMinimal({ deploy: { __unrecognised__: true } })),
-            ),
-        );
+        assertDocuments("packageBuild.deploy", configurationKeys("packageBuild.deploy"));
     });
 
     it("`packageBuild.release`", () => {
-        assertDocuments(
-            "packageBuild.release",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(sharedMinimal({ release: { __unrecognised__: true } })),
-            ),
-        );
+        assertDocuments("packageBuild.release", configurationKeys("packageBuild.release"));
     });
 
     it("`packageBuild.bundle`", () => {
-        assertDocuments(
-            "packageBuild.bundle",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(sharedMinimal({ bundle: { __unrecognised__: true } })),
-            ),
-        );
+        assertDocuments("packageBuild.bundle", configurationKeys("packageBuild.bundle"));
     });
 
     it("`packageBuild.container` and `packageBuild.container.stages.<name>`", () => {
-        assertDocuments(
-            "packageBuild.container",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(sharedMinimal({ container: { __unrecognised__: true } })),
-            ),
-        );
+        assertDocuments("packageBuild.container", configurationKeys("packageBuild.container"));
         assertDocuments(
             "packageBuild.container.stages.<name>",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(
-                    sharedMinimal({ container: { stages: { dev: { __unrecognised__: true } } } }),
-                ),
-            ),
+            configurationKeys("packageBuild.container.stages.<name>"),
         );
     });
 
     it("`packageBuild.e2e` and its nested shapes", () => {
-        assertDocuments(
-            "packageBuild.e2e",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(sharedMinimal({ e2e: { __unrecognised__: true } })),
-            ),
-        );
-        assertDocuments(
-            "packageBuild.e2e.suite",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(
-                    sharedMinimal({ e2e: { suite: { __unrecognised__: true, run: ["x"] } } }),
-                ),
-            ),
-        );
+        assertDocuments("packageBuild.e2e", configurationKeys("packageBuild.e2e"));
+        assertDocuments("packageBuild.e2e.suite", configurationKeys("packageBuild.e2e.suite"));
         assertDocuments(
             "packageBuild.e2e.build.<name>",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(
-                    sharedMinimal({
-                        e2e: { build: { fast: { __unrecognised__: true, script: "x" } } },
-                    }),
-                ),
-            ),
+            configurationKeys("packageBuild.e2e.build.<name>"),
         );
-        assertDocuments(
-            "packageBuild.e2e.world",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(
-                    sharedMinimal({ e2e: { world: { __unrecognised__: true } } }),
-                ),
-            ),
-        );
-        assertDocuments(
-            "packageBuild.e2e.gm",
-            allowedKeys(() =>
-                resolvePackageBuildConfig(
-                    sharedMinimal({ e2e: { gm: { __unrecognised__: true } } }),
-                ),
-            ),
-        );
+        assertDocuments("packageBuild.e2e.world", configurationKeys("packageBuild.e2e.world"));
+        assertDocuments("packageBuild.e2e.gm", configurationKeys("packageBuild.e2e.gm"));
     });
 
     it("the manifest keys the build derives, which a repository may not author", () => {
