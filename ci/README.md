@@ -59,6 +59,21 @@ second index, an index whose name does not match the pattern, a ZIP without its
 checksum, a ZIP checksum without its ZIP, a ZIP outside the release's sequence, and
 any other extra attachment each fail the proof with a diagnostic naming the
 attachment. Missing, incomplete or inconsistent attachments also fail the proof.
+
+An archive part may carry the index as one root-level member with the index's
+name. When any part carries it, the release must publish the index asset of that
+name, every part must carry it, and each member's size and SHA-256 must equal the
+release asset's; the bytes the archive reader returns are compared too. A member
+that differs, a part without the member while another has it, a member with no
+released asset, a second index member in a part, and a member named differently
+from the asset each fail the proof with a diagnostic naming the part. The index
+member is not an original and is not counted among the originals. For example, a
+two-part release with `artthalorna-metadata.jsonl` published as an asset passes
+only when `thalorna-originals-1.0.0-part1.zip` and
+`thalorna-originals-1.0.0-part2.zip` each hold that file at their root with the
+asset's bytes; deleting the member from `thalorna-originals-1.0.0-part2.zip` fails
+with
+`thalorna-originals-1.0.0-part2.zip: the metadata index is missing from this archive part`.
 The helper reads GitHub metadata anonymously; unavailable release metadata
 and exhausted API quotas remain failures. No fixture release or checksum fallback
 is used.
@@ -99,7 +114,7 @@ checksum sidecars, the index checksum included, are already verified in that sha
 download cache; they cannot seed the ZIP entries. Before the cold compile, the proof
 downloads a released metadata index into that cache under its 64 MiB bound and
 requires its bytes to match the native size and SHA-256 and the digest its checksum
-file states. The build reads no released metadata index. The warm compile keeps
+file states. The build does not use the released metadata index. The warm compile keeps
 verified download and materialized dependency caches but clears generated outputs,
 note caches (`build/cache/note-page`) and image renditions (`build/.cache/art`). A CI-only fetch observer delegates real cold
 requests and rejects warm archive requests before network access. Other dependency
@@ -164,7 +179,7 @@ certificate; `NODE_EXTRA_CA_CERTS` trusts that certificate without disabling TLS
 verification. Python 3.8 or newer supplies the independent ZIP inventory.
 
 The fixture covers declared and overlaid pins, a release carrying a metadata
-index, index byte corruption, an index checksum with the wrong digest or file name,
+index with the index in the archive, an archive index that differs from the asset, an archive index with no released asset, index byte corruption, an index checksum with the wrong digest or file name,
 checksum and ZIP corruption,
 release identity, layout, indexed credits and private fields, alternative
 selection, derivative rights and privacy, AI staging, compiled references and

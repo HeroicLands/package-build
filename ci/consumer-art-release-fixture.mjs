@@ -232,6 +232,8 @@ try {
         ["index-sidecar", /does not identify the exact native-digest metadata index/],
         ["index-sidecar-name", /does not identify the exact native-digest metadata index/],
         ["index-digest", /download SHA-256 does not match/],
+        ["index-member-differs", /archive metadata index differs from the release asset/],
+        ["unreleased-index-member", /the release has no metadata index asset/],
         ["draft", /draft is not a published/],
         ["fixture-origin", /127\.0\.0\.1/],
         ["tls", /TLS verification is required/],
@@ -269,6 +271,11 @@ try {
             entries["other/portrait.svg"] = entries["artwork/portrait.svg"];
             delete entries["artwork/portrait.svg"];
         }
+        const indexName = "thalorna-metadata.jsonl";
+        const index = Buffer.from('{"fixture":true}\n');
+        if (["metadata-index", "index-member-differs", "unreleased-index-member"].includes(fault))
+            entries[indexName] =
+                fault === "index-member-differs" ? Buffer.from('{"fixture":nope}\n') : index;
         const zip = Buffer.from(zipSync(entries, { level: 0 }));
         const sidecar = Buffer.from(
             `${fault === "sidecar" ? "0".repeat(64) : hash(zip)}  ${name}\n`,
@@ -278,8 +285,6 @@ try {
             [`${name}.sha256`, sidecar, sidecar],
         ];
         if (fault.startsWith("index-") || fault === "metadata-index") {
-            const indexName = "thalorna-metadata.jsonl";
-            const index = Buffer.from('{"fixture":true}\n');
             const indexSidecar = Buffer.from(
                 `${fault === "index-sidecar" ? "0".repeat(64) : hash(index)}  ${
                     fault === "index-sidecar-name" ? "other-metadata.jsonl" : indexName
@@ -303,7 +308,7 @@ try {
             metadata.map((asset, i) => [new URL(asset.browser_download_url).pathname, files[i][2]]),
         );
         const archives = releaseArchives(release, metadata, tag);
-        const index = releaseIndex(release, metadata, tag);
+        const released = releaseIndex(release, metadata, tag);
         const selected = structuredClone(config);
         if (fault === "declared" || fault === "declared-mismatch")
             selected.art = {
@@ -329,7 +334,7 @@ try {
             CONSUMER_SHA: git("rev-parse", "HEAD"),
             ART_RELEASE_TAG: tag,
             ART_RELEASE_SHA256:
-                fault === "digest" ? "0".repeat(64) : releaseDigest(release, archives, index),
+                fault === "digest" ? "0".repeat(64) : releaseDigest(release, archives, released),
             FIXTURE_FAULT: fault,
             FIXTURE_OPTIONS: JSON.stringify({
                 proof,
@@ -370,7 +375,7 @@ try {
             assert.equal(receipt.fixture, true);
             assert.match(receipt.scope, /Synthetic/);
             assert.equal(receipt.config.mode, fault === "declared" ? "declared" : "overlaid");
-            assert.deepEqual(receipt.index, index ?? undefined);
+            assert.deepEqual(receipt.index, released ?? undefined);
             assert.equal(receipt.originals.length, 2);
             assert.equal(receipt.cold.outputs.length, 1);
             assert.ok(receipt.cold.references.length > 0);

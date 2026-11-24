@@ -36,6 +36,57 @@ export function assertDerivativeRights(rightsByAddress, address, rights) {
 
 const indexName = /^[a-z0-9]+-metadata\.jsonl$/;
 
+/**
+ * Check the metadata index each archive part carries against the released index.
+ * When any part carries a root-level `<package>-metadata.jsonl`, the release has
+ * an index asset of that name, every part carries it, and each member's size and
+ * SHA-256 (and the bytes the reader returned) equal the asset's.
+ * @param {{name: string, inventory: {name: string, bytes: number, sha256: string}[], metadataIndex?: Buffer}[]} parts One entry per archive part.
+ * @param {{name: string, bytes: number, sha256: string}|null} index The released index asset, or null.
+ */
+export function assertArchiveIndexes(parts, index) {
+    const carried = parts.map((part) => {
+        const members = part.inventory.filter((entry) => indexName.test(entry.name));
+        assert.ok(members.length <= 1, `${part.name}: an archive carries one metadata index`);
+        assert.equal(
+            Boolean(part.metadataIndex),
+            members.length === 1,
+            `${part.name}: the archive reader and the member inventory disagree about the metadata index`,
+        );
+        return members[0];
+    });
+    if (!carried.some(Boolean)) return;
+    assert.ok(
+        index,
+        `${parts[carried.findIndex(Boolean)].name}: the release has no metadata index asset`,
+    );
+    parts.forEach((part, i) => {
+        const member = carried[i];
+        assert.ok(member, `${part.name}: the metadata index is missing from this archive part`);
+        assert.equal(
+            member.name,
+            index.name,
+            `${part.name}: archive metadata index is not named like the release asset`,
+        );
+        assert.equal(
+            member.bytes,
+            index.bytes,
+            `${part.name}: archive metadata index size differs from the release asset`,
+        );
+        assert.equal(
+            member.sha256,
+            index.sha256,
+            `${part.name}: archive metadata index differs from the release asset`,
+        );
+        assert.ok(part.metadataIndex, `${part.name}: the reader returned no metadata index`);
+        assert.equal(
+            hash(part.metadataIndex),
+            index.sha256,
+            `${part.name}: the metadata index the reader returned differs from the release asset`,
+        );
+    });
+}
+
 /** Native coordinates of one release asset. */
 const pin = (asset) => ({
     id: asset.id,
@@ -629,6 +680,7 @@ export async function proveRelease({ fixture } = {}) {
         assertClean();
         const inventoryDeadline = Date.now() + Math.min(20 * 60 * 1000, remaining());
         const sessions = [];
+        const parts = [];
         originals = [];
         try {
             for (const archive of archives) {
@@ -668,7 +720,9 @@ export async function proveRelease({ fixture } = {}) {
                 assert.equal(inventory.filter((entry) => entry.name === "README.md").length, 1);
                 assert.equal(inventory.filter((entry) => entry.name === "CHANGELOG.md").length, 1);
                 for (const entry of inventory.filter(
-                    (entry) => !["README.md", "CHANGELOG.md"].includes(entry.name),
+                    (entry) =>
+                        !["README.md", "CHANGELOG.md"].includes(entry.name) &&
+                        !indexName.test(entry.name),
                 )) {
                     assert.match(entry.name, /^artwork\/[A-Za-z0-9_-]+\.(png|svg)$/);
                     const file = path.join(session.root, entry.name);
@@ -681,7 +735,13 @@ export async function proveRelease({ fixture } = {}) {
                     originals.push({ archive: archive.name, ...entry });
                 }
                 archive.layout = inventory;
+                parts.push({
+                    name: archive.name,
+                    inventory,
+                    metadataIndex: session.metadataIndex,
+                });
             }
+            assertArchiveIndexes(parts, index);
             const collected = collectArtMasters(
                 sessions.map((session) => session.root),
                 "thalorna",

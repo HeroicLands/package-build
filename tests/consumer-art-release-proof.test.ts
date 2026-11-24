@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import {
+    assertArchiveIndexes,
     assertDerivativeRights,
     clearOutputs,
     releaseArchives,
@@ -322,4 +324,64 @@ it("pins native release identity and bytes independently of a movable tag", () =
     expect(releaseDigest(release, selected, { ...index, sha256: "f".repeat(64) })).not.toBe(
         indexed,
     );
+});
+
+const sha = (text: string) => createHash("sha256").update(text).digest("hex");
+const indexText = '{"id":"a"}\n';
+const released = { name: "art-metadata.jsonl", bytes: indexText.length, sha256: sha(indexText) };
+const member = (name = released.name, text = indexText) => ({
+    name,
+    bytes: text.length,
+    sha256: sha(text),
+});
+const inventory = (...extra: ReturnType<typeof member>[]) => [
+    { name: "README.md", bytes: 1, sha256: sha("r") },
+    { name: "artwork/a.png", bytes: 1, sha256: sha("p") },
+    ...extra,
+];
+const part = (name: string, extra: ReturnType<typeof member>[] = [], text = indexText) => ({
+    name,
+    inventory: inventory(...extra),
+    ...(extra.length ? { metadataIndex: Buffer.from(text) } : {}),
+});
+
+it("accepts archive parts that all carry the released index and archives with none", () => {
+    expect(() =>
+        assertArchiveIndexes([part("p1", [member()]), part("p2", [member()])], released),
+    ).not.toThrow();
+    expect(() => assertArchiveIndexes([part("p1"), part("p2")], released)).not.toThrow();
+    expect(() => assertArchiveIndexes([part("p1"), part("p2")], null)).not.toThrow();
+});
+
+it("refuses an archive index that differs from, or is absent from, the release", () => {
+    expect(() =>
+        assertArchiveIndexes([part("p1", [member(released.name, '{"id":"b"}\n')])], released),
+    ).toThrow(/p1: archive metadata index differs from the release asset/);
+    expect(() =>
+        assertArchiveIndexes([part("p1", [member(released.name, "{}\n")])], released),
+    ).toThrow(/size differs/);
+    expect(() => assertArchiveIndexes([part("p1", [member()])], null)).toThrow(
+        /the release has no metadata index asset/,
+    );
+    expect(() =>
+        assertArchiveIndexes([part("p1", [member("other-metadata.jsonl")])], released),
+    ).toThrow(/not named like the release asset/);
+    expect(() => assertArchiveIndexes([part("p1", [member()]), part("p2")], released)).toThrow(
+        /p2: the metadata index is missing from this archive part/,
+    );
+    expect(() =>
+        assertArchiveIndexes([part("p1", [member(), member("two-metadata.jsonl")])], released),
+    ).toThrow(/carries one metadata index/);
+    expect(() =>
+        assertArchiveIndexes(
+            [{ ...part("p1", [member()]), metadataIndex: Buffer.from('{"id":"z"}\n') }],
+            released,
+        ),
+    ).toThrow(/the reader returned differs/);
+    expect(() =>
+        assertArchiveIndexes([{ name: "p1", inventory: inventory(member()) }], released),
+    ).toThrow(/reader and the member inventory disagree/);
+    expect(() =>
+        assertArchiveIndexes([{ ...part("p1"), metadataIndex: Buffer.from(indexText) }], null),
+    ).toThrow(/reader and the member inventory disagree/);
 });

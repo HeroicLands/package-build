@@ -420,3 +420,82 @@ it("reclaims dead local sessions while preserving live, foreign and unrecognized
     expect(await fs.readFile(path.join(b.root, "image.png"))).toEqual(png);
     await b.dispose();
 });
+
+const indexBytes = new TextEncoder().encode('{"id":"a"}\n{"id":"b"}\n');
+async function openWith(files: Record<string, Uint8Array>, options = {}) {
+    const { cacheDir } = await setup();
+    const bytes = zip(files);
+    return openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes), ...options });
+}
+
+it("returns one root-level metadata index and never extracts it as a picture", async () => {
+    const opened = await openWith({ "art-metadata.jsonl": indexBytes, "image.png": png });
+    expect(Buffer.from(opened.metadataIndex!).equals(Buffer.from(indexBytes))).toBe(true);
+    expect(await fs.readdir(opened.root)).toEqual(["image.png"]);
+    await opened.dispose();
+});
+
+it("reads an empty and a deflated metadata index", async () => {
+    const empty = await openWith({ "art-metadata.jsonl": new Uint8Array(0), "image.png": png });
+    expect(empty.metadataIndex).toEqual(Buffer.alloc(0));
+    await empty.dispose();
+    const { cacheDir } = await setup();
+    const big = new TextEncoder().encode("{}\n".repeat(5000));
+    const bytes = Buffer.from(
+        zipSync({ "art-metadata.jsonl": [big, { level: 9 }], "image.png": png }),
+    );
+    const opened = await openArtArchive(url, hash(bytes), { cacheDir, fetch: fetcher(bytes) });
+    expect(Buffer.from(opened.metadataIndex!).equals(Buffer.from(big))).toBe(true);
+    await opened.dispose();
+});
+
+it("behaves as before for an archive without an index", async () => {
+    const opened = await openWith({ "README.md": indexBytes, "image.png": png });
+    expect("metadataIndex" in opened).toBe(false);
+    expect(await fs.readdir(opened.root)).toEqual(["image.png"]);
+    await opened.dispose();
+});
+
+it("refuses a second index, a wrong name, a nested path and an oversize index", async () => {
+    await expect(
+        openWith({ "a-metadata.jsonl": indexBytes, "b-metadata.jsonl": indexBytes, "i.png": png }),
+    ).rejects.toThrow(/more than one metadata index/);
+    for (const name of [
+        "Art-metadata.jsonl",
+        "art_metadata.jsonl",
+        "art-metadata.json",
+        "-metadata.jsonl",
+        "my-art-metadata.jsonl",
+        "artwork/art-metadata.jsonl",
+        "sub/art-metadata.jsonl",
+    ])
+        await expect(openWith({ [name]: indexBytes, "i.png": png })).rejects.toThrow(
+            /unsupported artwork archive content/,
+        );
+    const { cacheDir } = await setup();
+    const big = zip({ "art-metadata.jsonl": new Uint8Array(64 * 1024 ** 2 + 1), "i.png": png });
+    await expect(
+        openArtArchive(url, hash(big), {
+            cacheDir,
+            fetch: fetcher(big),
+            maxEntryBytes: 100 * 1024 ** 2,
+        }),
+    ).rejects.toThrow(/metadata index exceeds its limit/);
+});
+
+it("refuses an index whose bytes fail the checksum or whose size differs from its header", async () => {
+    const { cacheDir } = await setup();
+    const files = { "art-metadata.jsonl": indexBytes, "i.png": png };
+    const corrupted = zip(files);
+    corrupted[30 + corrupted.readUInt16LE(26) + corrupted.readUInt16LE(28)] ^= 1;
+    await expect(
+        openArtArchive(url, hash(corrupted), { cacheDir, fetch: fetcher(corrupted) }),
+    ).rejects.toThrow(/checksum or size mismatch/);
+    const lying = zip(files);
+    const directory = lying.readUInt32LE(lying.length - 6);
+    lying.writeUInt32LE(indexBytes.length + 1, directory + 24);
+    lying.writeUInt32LE(indexBytes.length + 1, 22);
+    await expect(
+        openArtArchive(url, hash(lying), { cacheDir, fetch: fetcher(lying) }),
+    ).rejects.toThrow(/checksum or size mismatch/);
+});

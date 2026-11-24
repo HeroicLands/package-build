@@ -106,7 +106,9 @@ async function createContentSessionInternal(
         try {
             for (const [index, archive] of config.art.archives.entries()) {
                 try {
-                    opened.push(await openArtArchive(archive.url, archive.sha256));
+                    // The session keeps the root and its cleanup, not the index bytes.
+                    const { root, dispose } = await openArtArchive(archive.url, archive.sha256);
+                    opened.push({ root, dispose });
                 } catch (cause) {
                     const field = `art.archives[${index}]`;
                     const error = Object.assign(new Error(`${field}: ${cause.message}`), { field });

@@ -164,8 +164,35 @@ derived under `build/`; local notes remain authoritative. AI assets name explici
 eligible non-AI alternatives by address, and unknown AI status remains unknown.
 An archive may also contain root-level `README.md` and `CHANGELOG.md`. These
 files count toward archive safety limits and are checked for corruption; they
-are not artwork inputs. Other non-image files are refused. Archive inputs and
-local master or component roots are separate modes.
+are not artwork inputs. Other non-image files are refused.
+
+An archive may also carry exactly one root-level `<name>-metadata.jsonl`, where
+`<name>` is lowercase letters and digits, as the package's metadata index. The
+archive reader returns its bytes and never extracts it as a picture. The entry is
+limited to 64 MiB, and its path is checked like every other entry: a second
+index, a differently named file, a path under `artwork/` or a case-variant name
+is refused, and a bad checksum or a size that differs from the entry header
+fails the archive. An archive without an index is accepted with the members
+listed above.
+
+The index inside an archive and the release asset of the same name carry
+identical bytes. The release proof enforces this: when any part of a release
+carries the index, the release has an index asset of that name with its
+`.sha256` checksum file, every part carries the index, and each part's member has
+the release asset's size and SHA-256. A release whose parts disagree with the
+asset, carry the index in only some parts, or carry an index the release does
+not publish fails the proof. To publish an index, write the file, add it to every
+archive part, and attach the same file to the release. For a package `artthalorna`
+with two parts:
+
+```text
+thalorna-originals-1.0.0-part1.zip     README.md, CHANGELOG.md, artthalorna-metadata.jsonl, artwork/a.png
+thalorna-originals-1.0.0-part2.zip     README.md, CHANGELOG.md, artthalorna-metadata.jsonl, artwork/b.svg
+artthalorna-metadata.jsonl                the same bytes as both members
+artthalorna-metadata.jsonl.sha256         <sha256>  artthalorna-metadata.jsonl
+```
+
+Archive inputs and local master or component roots are separate modes.
 
 A release with several ZIP assets declares each complete ZIP separately, with its
 own digest. These are independent archives, not byte segments of a split ZIP.

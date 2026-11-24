@@ -46,6 +46,8 @@ function crc32(state, bytes) {
     for (const byte of bytes) state = (state >>> 8) ^ crcTable[(state ^ byte) & 255];
     return state >>> 0;
 }
+const maxIndexBytes = 64 * 1024 ** 2;
+const indexName = /^[a-z0-9]+-metadata\.jsonl$/u;
 async function readAt(file, length, position) {
     const bytes = Buffer.alloc(length);
     let offset = 0;
@@ -124,7 +126,8 @@ async function entries(file, size, limits, signal) {
         seen = new Set(),
         ranges = [];
     let at = 0,
-        total = 0;
+        total = 0,
+        indexes = 0;
     for (let i = 0; i < count; i++) {
         signal?.throwIfAborted();
         if (at + 46 > directory.length || directory.readUInt32LE(at) !== 0x02014b50)
@@ -154,7 +157,13 @@ async function entries(file, size, limits, signal) {
         const nameBytes = directory.subarray(at + 46, at + 46 + nl),
             name = entryName(nameBytes),
             isDir = name.endsWith("/"),
-            documentation = name === "README.md" || name === "CHANGELOG.md";
+            index = indexName.test(name),
+            documentation = name === "README.md" || name === "CHANGELOG.md" || index;
+        if (index) {
+            if (indexes++) throw new Error("artwork archive carries more than one metadata index");
+            if (plain > maxIndexBytes)
+                throw new Error("artwork archive metadata index exceeds its limit");
+        }
         const key = name.replace(/\/$/u, "").normalize("NFC").toLowerCase();
         if (seen.has(key)) throw new Error("duplicate artwork archive path");
         seen.add(key);
@@ -201,7 +210,7 @@ async function entries(file, size, limits, signal) {
             rangeEnd += signed ? 16 : 12;
         }
         ranges.push([local, rangeEnd]);
-        result.push({ name, isDir, documentation, method, crc, compressed, plain, start });
+        result.push({ name, isDir, documentation, index, method, crc, compressed, plain, start });
         at += 46 + nl + el + cl;
     }
     if (at !== directory.length) throw new Error("invalid artwork archive directory length");
@@ -216,7 +225,7 @@ async function entries(file, size, limits, signal) {
  * @param {string} url HTTPS archive URL.
  * @param {string} sha256 Expected lowercase SHA-256.
  * @param {{cacheDir?: string, fetch?: typeof globalThis.fetch, signal?: AbortSignal, maxArchiveBytes?: number, maxDirectoryBytes?: number, maxEntries?: number, maxEntryBytes?: number, maxTotalBytes?: number}} [options] Cache, request and archive limits.
- * @returns {Promise<{root: string, dispose: () => Promise<void>}>} The root and its cleanup function.
+ * @returns {Promise<{root: string, metadataIndex?: Buffer, dispose: () => Promise<void>}>} The root, the bytes of the root-level `<name>-metadata.jsonl` when the archive carries one, and its cleanup function.
  */
 export async function openArtArchive(url, sha256, options = {}) {
     const limits = {
@@ -276,6 +285,7 @@ export async function openArtArchive(url, sha256, options = {}) {
         archive = await open(snapshot, "r");
         const list = await entries(archive, size, limits, options.signal);
         await mkdir(root, { mode: 0o700 });
+        let metadataIndex;
         for (const item of list) {
             options.signal?.throwIfAborted();
             const output = path.join(root, ...item.name.split("/"));
@@ -299,7 +309,9 @@ export async function openArtArchive(url, sha256, options = {}) {
             if (item.compressed === 0) {
                 if (item.plain !== 0 || item.method !== 0)
                     throw new Error("invalid empty artwork entry");
-                if (!item.documentation) await open(output, "wx", 0o600).then((f) => f.close());
+                if (item.index) metadataIndex = Buffer.alloc(0);
+                else if (!item.documentation)
+                    await open(output, "wx", 0o600).then((f) => f.close());
             } else {
                 const input = archive.createReadStream({
                     autoClose: false,
@@ -308,8 +320,16 @@ export async function openArtArchive(url, sha256, options = {}) {
                     signal: options.signal,
                 });
                 const inflater = item.method === 8 ? createInflateRaw() : undefined;
+                const collected = [];
                 const target =
-                    item.documentation ?
+                    item.index ?
+                        new Writable({
+                            write(chunk, _encoding, done) {
+                                collected.push(chunk);
+                                done();
+                            },
+                        })
+                    : item.documentation ?
                         new Writable({
                             write(_chunk, _encoding, done) {
                                 done();
@@ -321,6 +341,7 @@ export async function openArtArchive(url, sha256, options = {}) {
                 await pipeline(streams, { signal: options.signal });
                 if (inflater && inflater.bytesWritten !== item.compressed)
                     throw new Error("artwork entry has trailing compressed bytes");
+                if (item.index) metadataIndex = Buffer.concat(collected);
             }
             if (actual !== item.plain || (crc ^ 0xffffffff) >>> 0 !== item.crc)
                 throw new Error("artwork entry checksum or size mismatch");
@@ -330,6 +351,7 @@ export async function openArtArchive(url, sha256, options = {}) {
         await rm(snapshot);
         return {
             root,
+            ...(metadataIndex && { metadataIndex }),
             async dispose() {
                 await rm(session, { recursive: true, force: true });
             },
