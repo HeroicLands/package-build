@@ -37,6 +37,8 @@ import {
     PACK_DOCUMENT_TYPES,
 } from "../content-config.mjs";
 import { resolvePackageBuildConfig, DERIVED_MANIFEST_KEYS } from "../config.mjs";
+import { createPackRouter } from "../engine/pack-router.mjs";
+import { populationJournalPlan } from "../engine/population-journals.mjs";
 import {
     configurationKeys,
     minimal,
@@ -244,6 +246,89 @@ describe("the `packageBuild` section is documented", () => {
         );
         assertDocuments("packageBuild.e2e.world", configurationKeys("packageBuild.e2e.world"));
         assertDocuments("packageBuild.e2e.gm", configurationKeys("packageBuild.e2e.gm"));
+    });
+
+    it("`packageBuild.proseLint`, `packageBuild.proseScore` and its bands", () => {
+        assertDocuments("packageBuild.proseLint", configurationKeys("packageBuild.proseLint"));
+        assertDocuments("packageBuild.proseScore", configurationKeys("packageBuild.proseScore"));
+        assertDocuments(
+            "packageBuild.proseScore.bands",
+            configurationKeys("packageBuild.proseScore.bands"),
+        );
+        assertDocuments(
+            "packageBuild.proseScore.bands.<metric>",
+            configurationKeys("packageBuild.proseScore.bands.<metric>"),
+        );
+    });
+
+    it("`packageBuild.settlementExemptions[]` and its closed `scope` list", () => {
+        assertDocuments(
+            "packageBuild.settlementExemptions[]",
+            configurationKeys("packageBuild.settlementExemptions[]"),
+        );
+        const message = thrown(() =>
+            resolvePackageBuildConfig(
+                sharedMinimal({ settlementExemptions: [{ scope: "__unrecognised__" }] }),
+            ),
+        );
+        expect(message).toContain("must be all or urban-share");
+        assertValuesDocumented(["all", "urban-share"], (value) => `\`${value}\``);
+    });
+
+    it("`packageBuild.settlementPopulation` and its closed `mode` list", () => {
+        // This validator does not list its keys in its refusal, so they are
+        // read from behaviour: each accepted key passes and any other is refused.
+        const keys = ["mode", "urbanShare"];
+        for (const key of keys) {
+            const value = key === "mode" ? "ceiling" : 0.2;
+            expect(() =>
+                resolvePackageBuildConfig(
+                    sharedMinimal({ settlementPopulation: { [key]: value } }),
+                ),
+            ).not.toThrow();
+        }
+        expect(
+            thrown(() =>
+                resolvePackageBuildConfig(
+                    sharedMinimal({ settlementPopulation: { __unrecognised__: 1 } }),
+                ),
+            ),
+        ).toContain("is not a recognised key");
+        assertDocuments("packageBuild.settlementPopulation", keys);
+        const mode = thrown(() =>
+            resolvePackageBuildConfig(
+                sharedMinimal({ settlementPopulation: { mode: "__unrecognised__" } }),
+            ),
+        );
+        expect(mode).toContain("must be ceiling or complete");
+        assertValuesDocumented(["ceiling", "complete"], (value) => `\`${value}\``);
+    });
+
+    it("`packageBuild.converterData` and `packageBuild.shippingLicenses`", () => {
+        assertDocuments("packageBuild", ["converterData", "shippingLicenses"]);
+    });
+
+    it("the `art` keys and the `art.archives[]` and `art.packages[]` entry keys", () => {
+        assertDocuments("art", configurationKeys("art"));
+        assertDocuments("art.archives[]", configurationKeys("art.archives[]"));
+        assertDocuments("art.packages[]", configurationKeys("art.packages[]"));
+    });
+
+    it("the `packageBuild` sections sit under their own heading, ahead of the forbidden-key table", () => {
+        const forbidden = DOC.indexOf("## Every forbidden key, in one place");
+        const section = DOC.indexOf("## The `packageBuild` section");
+        expect(forbidden).toBeGreaterThan(section);
+        for (const heading of [
+            "### `packageBuild.converterData`",
+            "### Settlement exemptions",
+            "### Settlement population",
+            "### `packageBuild.proseLint`",
+            "### `packageBuild.proseScore`",
+        ]) {
+            const at = DOC.indexOf(heading);
+            expect(at, `${heading} is missing`).toBeGreaterThan(section);
+            expect(at, `${heading} belongs above the forbidden-key table`).toBeLessThan(forbidden);
+        }
     });
 
     it("the manifest keys the build derives, which a repository may not author", () => {
@@ -541,5 +626,148 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
 
     it("`compatibility.minimum`, when a Foundry package does not declare one", () => {
         assertQuoted(thrown(() => defineConfig(minimal({ compatibility: undefined }))));
+    });
+
+    /** Assert the document quotes the whole refusal, its list indexes written `<index>`. */
+    function assertQuotedWhole(build: () => unknown, placeholders: [string, string][] = []) {
+        let message = thrown(build).replace(/\[\d+\]/g, "[<index>]");
+        for (const [written, placeholder] of placeholders) {
+            message = message.replace(written, placeholder);
+        }
+        assertQuoted(message);
+    }
+
+    it("`art` and the `art.archives` entries", () => {
+        const archive = {
+            url: "https://example.invalid/originals.zip",
+            sha256: "a".repeat(64),
+        };
+        const art = (value: unknown) => () => defineConfig(minimal({ art: value }));
+        assertQuotedWhole(art({ archives: "x" }));
+        assertQuotedWhole(art({ archives: ["x"] }));
+        assertQuotedWhole(art({ archives: [{ ...archive, url: "" }] }));
+        assertQuotedWhole(art({ archives: [{ ...archive, url: "http://example.invalid/a.zip" }] }));
+        assertQuotedWhole(
+            art({ archives: [{ ...archive, url: "https://user@example.invalid/a.zip" }] }),
+        );
+        assertQuotedWhole(art({ archives: [{ ...archive, sha256: "ABC" }] }));
+        assertQuotedWhole(art({ archives: [archive, archive] }));
+        assertQuotedWhole(art({ archives: [archive], masterRoots: ["masters"] }));
+    });
+
+    it("`art.packages` entries", () => {
+        const entry = {
+            package: "artsample",
+            url: "https://example.invalid/index.jsonl",
+            sha256: "a".repeat(64),
+        };
+        const art = (value: unknown) => () => defineConfig(minimal({ art: value }));
+        assertQuotedWhole(art({ packages: "x" }));
+        assertQuotedWhole(art({ packages: ["x"] }));
+        // The `url` and `sha256` refusals read as the `art.archives` ones, with
+        // the entry's own path.
+        assertQuotedWhole(
+            art({ packages: [{ ...entry, url: "http://example.invalid/i.jsonl" }] }),
+            [["art.packages[<index>]", "art.archives[<index>]"]],
+        );
+        assertQuotedWhole(art({ packages: [{ ...entry, sha256: "ABC" }] }), [
+            ["art.packages[<index>]", "art.archives[<index>]"],
+        ]);
+    });
+
+    it("`packageBuild.proseLint`", () => {
+        const lint = (value: unknown) => () =>
+            resolvePackageBuildConfig(sharedMinimal({ proseLint: value }));
+        assertQuotedWhole(lint("x"));
+        assertQuotedWhole(lint({ rules: "everything" }));
+        assertQuotedWhole(lint({ age: 0 }));
+        assertQuotedWhole(lint({ threshold: 8 }));
+    });
+
+    it("`packageBuild.proseScore`", () => {
+        const score = (value: unknown) => () =>
+            resolvePackageBuildConfig(sharedMinimal({ proseScore: value }));
+        assertQuotedWhole(score("x"));
+        assertQuotedWhole(score({ minWords: 0 }));
+        assertQuotedWhole(score({ bands: "x" }));
+        assertQuotedWhole(score({ bands: { flesch: "x" } }), [
+            [".bands.flesch", ".bands.<metric>"],
+        ]);
+        assertQuotedWhole(score({ bands: { flesch: {} } }), [[".bands.flesch", ".bands.<metric>"]]);
+        assertQuotedWhole(score({ bands: { flesch: { min: "x" } } }), [
+            [".bands.flesch", ".bands.<metric>"],
+        ]);
+        assertQuotedWhole(score({ bands: { flesch: { min: 9, max: 1 } } }), [
+            [".bands.flesch", ".bands.<metric>"],
+        ]);
+    });
+
+    it("`packageBuild.settlementExemptions`", () => {
+        const exempt = (value: unknown, population?: unknown) => () =>
+            resolvePackageBuildConfig(
+                sharedMinimal({ settlementExemptions: value, settlementPopulation: population }),
+            );
+        const good = { address: "affiliation-council", reason: "r" };
+        assertQuotedWhole(exempt("x"));
+        assertQuotedWhole(exempt(["x"]));
+        assertQuotedWhole(exempt([{ ...good, scope: "some" }]));
+        assertQuotedWhole(exempt([{ ...good, scope: "urban-share" }], { mode: "complete" }));
+        assertQuotedWhole(exempt([{ address: "affiliation-council" }]));
+        assertQuotedWhole(exempt([{ ...good, prefix: "place-" }]));
+        assertQuotedWhole(exempt([{ reason: "r" }]));
+        assertQuotedWhole(exempt([{ ...good, address: "Not An Address" }]));
+        assertQuotedWhole(exempt([{ reason: "r", prefix: "Place" }]));
+        assertQuotedWhole(exempt([good, good]));
+        assertQuotedWhole(exempt([{ address: "", reason: "r" }]));
+        assertQuotedWhole(exempt([{ prefix: "", reason: "r" }]));
+    });
+
+    it("`packageBuild.settlementPopulation`", () => {
+        const population = (value: unknown) => () =>
+            resolvePackageBuildConfig(sharedMinimal({ settlementPopulation: value }));
+        assertQuotedWhole(population("x"));
+        assertQuotedWhole(population({ mode: "partial" }));
+        assertQuotedWhole(population({ mode: "complete", urbanShare: 0.2 }));
+        assertQuotedWhole(population({ urbanShare: 1.2 }));
+        assertQuotedWhole(population({ density: 1 }), [[".density", ".<key>"]]);
+    });
+
+    it("`packageBuild.converterData`", () => {
+        const data = (value: unknown) => () =>
+            resolvePackageBuildConfig(sharedMinimal({ converterData: value }));
+        assertQuotedWhole(data(""));
+        assertQuotedWhole(data("../converter.json"));
+    });
+
+    it("the private JournalEntry pack that differing population figures need", () => {
+        const packs = [{ name: "journals", type: "JournalEntry", default: true }];
+        const record = {
+            package: "demo",
+            type: "affiliation",
+            subType: "polity",
+            shortcode: "hidden",
+            name: { full: "Hidden Realm" },
+            file: { path: "hidden.md" },
+            address: { canonical: "demo-note-affiliation-hidden", slug: "affiliation-hidden" },
+            data: { population: { actual: 230, apparent: 0 } },
+        };
+        let findings: { message: string }[] = [];
+        try {
+            populationJournalPlan([record], {
+                config: { contentPackage: "demo", packs },
+                router: createPackRouter(packs),
+            });
+        } catch (error) {
+            findings = (error as { findings: { message: string }[] }).findings;
+        }
+        expect(findings, "the plan should refuse a package with no private pack").toHaveLength(1);
+        assertQuoted(findings[0].message);
+    });
+
+    it("`packageBuild.schema`, whose authored default is an empty mapping", () => {
+        expect(resolvePackageBuildConfig(sharedMinimal()).schema).toEqual([]);
+        expect(DOC).toMatch(
+            /\| \[`packageBuild\.schema`\][^\n]*\| no\s+\| none \(an empty mapping\)/,
+        );
     });
 });

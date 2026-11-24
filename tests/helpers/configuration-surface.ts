@@ -291,6 +291,67 @@ const KEY_PROBES: { path: string; probe: () => string[] }[] = [
             ),
     },
     {
+        path: "art",
+        probe: () => allowedKeys(() => defineConfig(minimal({ art: { __unrecognised__: true } }))),
+    },
+    {
+        path: "art.archives[]",
+        probe: () =>
+            allowedKeys(() =>
+                defineConfig(minimal({ art: { archives: [{ __unrecognised__: true }] } })),
+            ),
+    },
+    {
+        path: "art.packages[]",
+        probe: () =>
+            allowedKeys(() =>
+                defineConfig(minimal({ art: { packages: [{ __unrecognised__: true }] } })),
+            ),
+    },
+    {
+        path: "packageBuild.proseLint",
+        probe: () =>
+            allowedKeys(() =>
+                resolvePackageBuildConfig(sharedMinimal({ proseLint: { __unrecognised__: 1 } })),
+            ),
+    },
+    {
+        path: "packageBuild.proseScore",
+        probe: () =>
+            allowedKeys(() =>
+                resolvePackageBuildConfig(sharedMinimal({ proseScore: { __unrecognised__: 1 } })),
+            ),
+    },
+    {
+        path: "packageBuild.proseScore.bands",
+        probe: () =>
+            allowedKeys(() =>
+                resolvePackageBuildConfig(
+                    sharedMinimal({ proseScore: { bands: { __unrecognised__: {} } } }),
+                ),
+            ),
+    },
+    {
+        path: "packageBuild.proseScore.bands.<metric>",
+        probe: () =>
+            allowedKeys(() =>
+                resolvePackageBuildConfig(
+                    sharedMinimal({
+                        proseScore: { bands: { flesch: { min: 1, __unrecognised__: 1 } } },
+                    }),
+                ),
+            ),
+    },
+    {
+        path: "packageBuild.settlementExemptions[]",
+        probe: () =>
+            allowedKeys(() =>
+                resolvePackageBuildConfig(
+                    sharedMinimal({ settlementExemptions: [{ __unrecognised__: 1 }] }),
+                ),
+            ),
+    },
+    {
         path: "packageBuild.e2e",
         probe: () =>
             allowedKeys(() =>

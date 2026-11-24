@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
 import { NOTE_TOP_LEVEL_KEYS } from "../engine/note-frontmatter.mjs";
+import { moduleStatuses, signatureProblems } from "../ci/api-signatures.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -190,4 +191,76 @@ describe("docs/api.md documents the real export surface", () => {
             // The time goes to importing the entry's whole module graph.
         }, 20_000);
     }
+});
+
+describe("docs/api.md states each function's signature as the code declares it", () => {
+    it("matches every row's parameter list, names and arity, to its declaration", () => {
+        expect(signatureProblems(API_DOC, ROOT)).toEqual([]);
+    }, 60_000);
+
+    it("fails on a `name(args)` row whose parameters differ from the code", () => {
+        const wrong = API_DOC.replace(
+            /(\| `findConfigFile` +\| `findConfigFile\()[^)]*\)/,
+            "$1from, wrong, more)",
+        );
+        expect(wrong).not.toBe(API_DOC);
+        expect(signatureProblems(wrong, ROOT).join("\n")).toContain("`findConfigFile`");
+    }, 60_000);
+
+    it("fails on an `async name(args)` row whose parameters differ from the code", () => {
+        const wrong = API_DOC.replace(
+            /(\| `unpackPacks` +\| `async unpackPacks\()[^)]*\)/,
+            "$1packs)",
+        );
+        expect(wrong).not.toBe(API_DOC);
+        expect(signatureProblems(wrong, ROOT).join("\n")).toContain("`unpackPacks`");
+    }, 60_000);
+
+    it("fails on a row documented twice under one heading", () => {
+        const row = API_DOC.match(/^\| `findConfigFile` .*$/m)![0];
+        const doubled = API_DOC.replace(row, `${row}\n${row}`);
+        expect(signatureProblems(doubled, ROOT).join("\n")).toContain("documented twice");
+    }, 60_000);
+
+    it("ends no returns or use-it-when cell on `e.g.` or `i.e.`", () => {
+        const truncated = API_DOC.split("\n").filter(
+            (line) => line.startsWith("| `") && /\b(?:e\.g|i\.e)\.\s*\|/.test(line),
+        );
+        expect(truncated.map((line) => line.slice(0, 60))).toEqual([]);
+    });
+});
+
+describe("docs/api.md marks every reachable module supported or internal", () => {
+    const section = API_DOC.slice(API_DOC.indexOf("## Reachable modules"));
+    const table = new Map<string, string>();
+    for (const match of section.matchAll(
+        /^\|\s*`((?:engine|sohl|hm3)\/[a-z0-9-]+)`\s*\|\s*(\S+)\s*\|$/gm,
+    )) {
+        table.set(match[1], match[2]);
+    }
+
+    it("reads a table worth checking", () => {
+        expect(table.size).toBeGreaterThan(100);
+    });
+
+    it("lists no module twice", () => {
+        const rows = [...section.matchAll(/^\|\s*`(?:engine|sohl|hm3)\/[a-z0-9-]+`\s*\|/gm)];
+        expect(rows.length).toBe(table.size);
+    });
+
+    it("names every module under engine, sohl and hm3 once, with a status", () => {
+        const statuses = moduleStatuses(API_DOC, ROOT);
+        expect([...table.keys()].sort()).toEqual([...statuses.keys()].sort());
+        for (const status of table.values()) {
+            expect(["supported", "internal"]).toContain(status);
+        }
+    }, 60_000);
+
+    it("marks a module supported exactly when every one of its exports is documented", () => {
+        const statuses = moduleStatuses(API_DOC, ROOT);
+        const wrong = [...statuses]
+            .filter(([name, status]) => table.get(name) !== status)
+            .map(([name, status]) => `${name} is ${status}, the table says ${table.get(name)}`);
+        expect(wrong).toEqual([]);
+    }, 60_000);
 });

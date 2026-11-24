@@ -614,6 +614,38 @@ local notes remain authoritative. AI images require eligible non-AI alternatives
 Each ZIP is limited to 2,000,000,000 bytes; the [archive API](api.md#original-artwork-archive)
 documents the entry and extraction limits.
 
+| Key (under `art.archives[]`) | Type                      | Required |
+| ---------------------------- | ------------------------- | -------- |
+| `art.archives[].url`         | string (an HTTPS URL)     | yes      |
+| `art.archives[].sha256`      | string (64 lowercase hex) | yes      |
+
+```yaml
+art:
+  archives:
+    - url: https://github.com/example/art-sample/releases/download/v1.0.0/originals.zip
+      sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+```
+
+The `url` carries no user information, and no two entries share a `sha256`.
+Any other key on an entry is refused, and so is a declaration that mixes archives
+with private roots:
+
+> ``package-build config: `art.archives` must be an array.``
+
+> ``package-build config: `art.archives[<index>]` must be an object.``
+
+> ``package-build config: `art.archives[<index>].url` must be an HTTPS URL.``
+
+> ``package-build config: `art.archives[<index>].url` must be an HTTPS URL without user information.``
+
+> ``package-build config: `art.archives[<index>].sha256` must be a lowercase SHA-256 digest.``
+
+> ``package-build config: `art.archives[<index>]` duplicates an artwork archive.``
+
+> ``package-build config: `art.archives` cannot be combined with private artwork roots.``
+
+> ``package-build config: `art.archives[<index>].<key>` is not a recognized option (expected one of: url, sha256).``
+
 ### `art.componentRoots`
 
 **Type:** array of paths · **Optional** · default `[]`.
@@ -721,7 +753,21 @@ toolchain's own reserved package.
 
 > ``package-build config: `art.packages[<index>].package` duplicates a picture package.``
 
-The `url` and `sha256` are checked as in [`art.archives`](#artarchives).
+| Key (under `art.packages[]`) | Type                      | Required |
+| ---------------------------- | ------------------------- | -------- |
+| `art.packages[].package`     | string                    | yes      |
+| `art.packages[].url`         | string (an HTTPS URL)     | yes      |
+| `art.packages[].sha256`      | string (64 lowercase hex) | yes      |
+
+> ``package-build config: `art.packages` must be an array.``
+
+> ``package-build config: `art.packages[<index>]` must be an object.``
+
+> ``package-build config: `art.packages[<index>].<key>` is not a recognized option (expected one of: package, url, sha256).``
+
+The `url` and `sha256` are checked as in [`art.archives`](#artarchives), and
+their refusals read the same with `art.packages[<index>]` in place of
+`art.archives[<index>]`.
 
 `art` accepts `masterRoots`, `componentRoots`, `archives` and `packages`. Invalid shapes and unknown keys are refused:
 
@@ -1081,6 +1127,29 @@ compiles only into private packs. Set `data.pack` to a private pack for the
 note's own document. A note that also creates a JournalEntry needs one private
 JournalEntry pack; the derived entry routes there automatically when the
 ordinary JournalEntry default is public.
+
+A note whose `data.population` states differing `actual` and `apparent`
+figures gets a small GM entry holding both figures, unless its own JournalEntry
+pack is private and compiled (not `prebuilt`) and the page already has
+content, with its generated Settlements section when settlement rows differ.
+Notes that get the entry share one destination: a private JournalEntry pack
+that is compiled and declares no `system`. The destination is the JournalEntry
+default when the default is such a pack; otherwise it is the single such pack
+the package declares. A package with no such pack, or with several and no
+qualifying default, stops before writing:
+
+```yaml
+packs:
+  - { name: journals, type: JournalEntry, label: Journals, default: true }
+  - { name: gm-journals, type: JournalEntry, label: GM Journals, private: true }
+```
+
+> `Differing actual and apparent populations require one private JournalEntry destination; configure a unique system-neutral private pack or a private default.`
+
+The refusal is a located diagnostic that names the configuration file. Site-only
+and index-only runs write no Foundry pack and need no private pack. The note
+side of the rule is in
+[Frontmatter](authoring/frontmatter.md).
 
 `packs` itself:
 
@@ -2252,7 +2321,7 @@ packageBuild:
 | [`packageBuild.manifest`](#packagebuildmanifest)                                           | object, pass-through                        | no       | `{}`                                                       |
 | [`packageBuild.manifestFlags`](#packagebuildassettransform-and-packagebuildmanifestflags)  | string (path to a module)                   | no       | `null`                                                     |
 | [`packageBuild.converterData`](#packagebuildconverterdata)                                 | string (stage-relative JSON path)           | no       | `null`                                                     |
-| [`packageBuild.schema`](#packagebuildschema)                                               | object (`{documentType: {from, registry}}`) | no       | `[]`                                                       |
+| [`packageBuild.schema`](#packagebuildschema)                                               | object (`{documentType: {from, registry}}`) | no       | none (an empty mapping)                                    |
 | [`packageBuild.clean`](#packagebuildclean)                                                 | object                                      | no       | `{extra: []}`                                              |
 | [`packageBuild.lang`](#packagebuildlang)                                                   | object                                      | no       | see below                                                  |
 | [`packageBuild.deploy`](#packagebuilddeploy)                                               | object                                      | no       | `{envPrefix: "SOHL"}`                                      |
@@ -2276,10 +2345,30 @@ required to flag a sentence (1–7), and `minWords` is the minimum sentence
 length. `rules` is `readability`, `simplify`, or `all`. Each numeric setting is
 a positive integer; command-line options can override them for one analysis.
 
+| Key                                | Type                               | Required | Default       |
+| ---------------------------------- | ---------------------------------- | -------- | ------------- |
+| `packageBuild.proseLint.age`       | positive integer                   | no       | `21`          |
+| `packageBuild.proseLint.threshold` | integer, 1 to 7                    | no       | `5`           |
+| `packageBuild.proseLint.minWords`  | positive integer                   | no       | `8`           |
+| `packageBuild.proseLint.rules`     | `readability`, `simplify` or `all` | no       | `readability` |
+
 ```yaml
 packageBuild:
   proseLint: { age: 21, threshold: 5, minWords: 8, rules: readability }
 ```
+
+> ``package-build config: `packageBuild.proseLint` must be a mapping.``
+
+> ``package-build config: `packageBuild.proseLint.rules` must be readability, simplify, or all.``
+
+> ``package-build config: `packageBuild.proseLint.age` must be a positive integer.``
+
+> ``package-build config: `packageBuild.proseLint.threshold` must be an integer from 1 to 7.``
+
+`packageBuild.proseLint.minWords` is refused with the same "must be a positive
+integer" text as `age`. Any other key is refused:
+
+> ``package-build config: `packageBuild.proseLint.<key>` is not a recognised key (expected one of: age, threshold, minWords, rules).``
 
 ### `packageBuild.proseScore`
 
@@ -2306,6 +2395,46 @@ packageBuild:
 Flesch is a reading-ease score, so a value below its minimum is harder prose
 and one above its maximum is simpler prose. These sample bounds are editorial
 choices for illustration. `--min-words` overrides `minWords` for one score run.
+
+| Key                                          | Type             | Required | Default |
+| -------------------------------------------- | ---------------- | -------- | ------- |
+| `packageBuild.proseScore.minWords`           | positive integer | no       | `80`    |
+| `packageBuild.proseScore.bands`              | mapping          | no       | `{}`    |
+| `packageBuild.proseScore.bands.<metric>`     | mapping          | no       | absent  |
+| `packageBuild.proseScore.bands.<metric>.min` | finite number    | no       | open    |
+| `packageBuild.proseScore.bands.<metric>.max` | finite number    | no       | open    |
+
+`<metric>` is one of the six reported metrics, each a key under
+`packageBuild.proseScore.bands`: `packageBuild.proseScore.bands.flesch`,
+`packageBuild.proseScore.bands.syllablesPerWord`,
+`packageBuild.proseScore.bands.meanSentenceWords`,
+`packageBuild.proseScore.bands.longestSentenceWords`,
+`packageBuild.proseScore.bands.unfamiliarWordPercent` and
+`packageBuild.proseScore.bands.nominalizationsPer1000Words`. A band names at
+least one of `min` and `max`, and `min` does not exceed `max`.
+
+> ``package-build config: `packageBuild.proseScore` must be a mapping.``
+
+> ``package-build config: `packageBuild.proseScore.minWords` must be a positive integer.``
+
+> ``package-build config: `packageBuild.proseScore.bands` must be a mapping.``
+
+> ``package-build config: `packageBuild.proseScore.bands.<metric>` must be a mapping.``
+
+> ``package-build config: `packageBuild.proseScore.bands.<metric>` must specify min, max, or both.``
+
+> ``package-build config: `packageBuild.proseScore.bands.<metric>.min` must be a finite number.``
+
+> ``package-build config: `packageBuild.proseScore.bands.<metric>` min must not exceed max.``
+
+`max` is refused with the same "must be a finite number" text as `min`. Any
+other key is refused:
+
+> ``package-build config: `packageBuild.proseScore.<key>` is not a recognised key (expected one of: minWords, bands).``
+
+> ``package-build config: `packageBuild.proseScore.bands.<key>` is not a recognised key (expected one of: flesch, syllablesPerWord, meanSentenceWords, longestSentenceWords, unfamiliarWordPercent, nominalizationsPer1000Words).``
+
+> ``package-build config: `packageBuild.proseScore.bands.<metric>.<key>` is not a recognised key (expected one of: min, max).``
 
 ### `packageBuild.stageDir` and `packageBuild.assets`
 
@@ -2876,23 +3005,6 @@ reported at the entry's `page` key in `package-build.config.yaml`:
 
 > ``package-build config: `packageBuild.texinfo[<index>].out` names `<out>` more than once.``
 
----
-
-## Every forbidden key, in one place
-
-| Key                                                                                                                                             | Why                                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `rootDir`                                                                                                                                       | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
-| `foundryPackage`                                                                                                                                | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
-| `homepage`                                                                                                                                      | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage`.                                                               |
-| `author`                                                                                                                                        | Refused as an unknown key — the byline is the first entry of [`authors`](#authors).                                                                    |
-| `packageBuild.manifest.authors`                                                                                                                 | Forbidden — derived from [`authors`](#authors), without each entry's `role`.                                                                           |
-| `stats.systemId`                                                                                                                                | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
-| `stats.systemVersion`                                                                                                                           | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
-| `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs` | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
-| `publish.site` (any value)                                                                                                                      | Refused — publication follows the authored content tree.                                                                                               |
-| `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                       | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |
-
 ### `packageBuild.converterData`
 
 Optional path for a browser converter's JSON data, relative to
@@ -2913,6 +3025,10 @@ ships with that stage in the release archive. See the
 [data format](reference/format-details.md#converter-data-format) and
 [browser API](api.md#browser-conversion).
 
+> ``package-build config: `packageBuild.converterData` must be a non-empty string.``
+
+> ``package-build config: `packageBuild.converterData` must name a JSON artifact within the build stage, such as data/converter.json.``
+
 ### Settlement exemptions
 
 `packageBuild.settlementExemptions` is a list of mappings with a nonempty
@@ -2921,6 +3037,13 @@ ships with that stage in the release archive. See the
 at the hyphen, such as `place-`. Exact addresses may include the package and
 `note` system. Selectors use lowercase letters and digits, never paths.
 An optional `scope` is `all` or `urban-share`; omission means `all`.
+
+| Key (under `packageBuild.settlementExemptions[]`) | Type                        | Required                           |
+| ------------------------------------------------- | --------------------------- | ---------------------------------- |
+| `packageBuild.settlementExemptions[].address`     | string (typed note address) | exactly one of `address`, `prefix` |
+| `packageBuild.settlementExemptions[].prefix`      | string (address prefix)     | exactly one of `address`, `prefix` |
+| `packageBuild.settlementExemptions[].reason`      | non-empty string            | yes                                |
+| `packageBuild.settlementExemptions[].scope`       | `all` or `urban-share`      | no (`all`)                         |
 
 ```yaml
 packageBuild:
@@ -2963,6 +3086,35 @@ hierarchy checks. This scope is refused in complete mode. A scoped selector
 that matches a note but suppresses no finding is stale; overlapping selectors
 receive credit only for findings within their scope.
 
+The list and each entry are checked as configuration is read:
+
+> ``package-build config: `packageBuild.settlementExemptions` must be a list.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>]` must be a mapping.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>].scope` must be all or urban-share.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>].scope` urban-share is not allowed in complete mode.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>].reason` must be a non-empty string.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>]` must declare exactly one of address or prefix.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>].address` must be a non-empty string.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>].address` must be a lowercase typed note address or prefix.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>].prefix` must be a non-empty string.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>].prefix` must be a lowercase typed note address or prefix.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>].address` duplicates a settlement exemption selector.``
+
+> ``package-build config: `packageBuild.settlementExemptions[<index>].<key>` is not a recognised key (expected one of: address, prefix, reason, scope).``
+
+A `prefix` selector is refused with the same two texts under
+`packageBuild.settlementExemptions[<index>].prefix`.
+
 ### Settlement population
 
 Omitting `packageBuild.settlementPopulation` selects `mode: ceiling` with an
@@ -2978,6 +3130,11 @@ packageBuild:
     mode: ceiling
     urbanShare: 0.2
 ```
+
+| Key                                            | Type                    | Required | Default                                  |
+| ---------------------------------------------- | ----------------------- | -------- | ---------------------------------------- |
+| `packageBuild.settlementPopulation.mode`       | `ceiling` or `complete` | no       | `ceiling`                                |
+| `packageBuild.settlementPopulation.urbanShare` | number, 0 to 1          | no       | `0.1`; refused when `mode` is `complete` |
 
 A package that lists a complete inventory selects `mode: complete`. Its listed
 known total must not exceed the territorial population by more than five percent.
@@ -2996,3 +3153,30 @@ packageBuild:
 ```text
 package-build.config.yaml:12:5: error: package-build config: `packageBuild.settlementPopulation.urbanShare` must be a finite fraction from 0 to 1.
 ```
+
+The other refusals:
+
+> ``package-build config: `packageBuild.settlementPopulation` must be a mapping.``
+
+> ``package-build config: `packageBuild.settlementPopulation.mode` must be ceiling or complete.``
+
+> ``package-build config: `packageBuild.settlementPopulation.urbanShare` is not allowed in complete mode.``
+
+> ``package-build config: `packageBuild.settlementPopulation.<key>` is not a recognised key.``
+
+---
+
+## Every forbidden key, in one place
+
+| Key                                                                                                                                             | Why                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `rootDir`                                                                                                                                       | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
+| `foundryPackage`                                                                                                                                | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
+| `homepage`                                                                                                                                      | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage`.                                                               |
+| `author`                                                                                                                                        | Refused as an unknown key — the byline is the first entry of [`authors`](#authors).                                                                    |
+| `packageBuild.manifest.authors`                                                                                                                 | Forbidden — derived from [`authors`](#authors), without each entry's `role`.                                                                           |
+| `stats.systemId`                                                                                                                                | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
+| `stats.systemVersion`                                                                                                                           | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
+| `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs` | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
+| `publish.site` (any value)                                                                                                                      | Refused — publication follows the authored content tree.                                                                                               |
+| `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                       | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |
