@@ -14,6 +14,7 @@
 import { acceptsType, parseAddress, renderAddress } from "./address.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
+import { secretBodies } from "./standings.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 
 export { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES };
@@ -83,6 +84,11 @@ export function checkSocialTies(note, { index } = {}) {
         ];
     const findings = [];
     const seen = new Map();
+    const secret = secretBodies(note.fm?.data?.affiliations, {
+        package: index?.contentPackage,
+        types: index?.types,
+        packages: index?.packages,
+    });
     for (const { key, term, sourceKey } of entries) {
         const tuple = parseAddress(
             key,
@@ -106,6 +112,12 @@ export function checkSocialTies(note, { index } = {}) {
             });
         } else {
             const target = renderAddress(tuple);
+            if (secret.has(target)) {
+                findings.push({
+                    ...at(sourceKey),
+                    message: `data.socialTies names ${target}, a body this being's \`data.affiliations\` marks \`secret: true\`; a public tie would reveal the membership`,
+                });
+            }
             if (seen.has(target)) {
                 findings.push({
                     ...at(sourceKey),

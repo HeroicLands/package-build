@@ -1493,13 +1493,17 @@ export function collectContentIndex(
 
     // An office's holders are the living beings naming it, read once every
     // being is recorded. A public body lists only public beings, as its page
-    // does.
+    // does; no body lists a membership marked secret, since the index is
+    // published.
     phase("index office holders");
-    const publicHolders = officeHolders(records.filter((record) => !isGmNote(record)));
-    const allHolders = officeHolders(records);
+    const publicHolders = officeHolders(
+        records.filter((record) => !isGmNote(record)),
+        "public",
+    );
+    const gmBodyHolders = officeHolders(records, "public");
     for (const record of records) {
         if (!isNoteRecord(record) || record.type !== "affiliation") continue;
-        const held = (isGmNote(record) ? allHolders : publicHolders).get(officeBodyKey(record));
+        const held = (isGmNote(record) ? gmBodyHolders : publicHolders).get(officeBodyKey(record));
         if (!held) continue;
         record.officeHolders = [...held].map(([office, holders]) => ({
             office,
@@ -1517,7 +1521,7 @@ export function collectContentIndex(
     phase("index lexical sections");
     const visible = records.filter((record) => !isGmNote(record));
     const publicSections = lexicalSectionsFor(visible, records);
-    const allSections = lexicalSectionsFor(records);
+    const allSections = lexicalSectionsFor(records, records, { audience: "all" });
     for (const { record, body } of bodies) {
         const key = canonicalKey(contentPackage, "note", record.type, record.shortcode);
         const sections = (isGmNote(record) ? allSections : publicSections).get(key);
@@ -2553,7 +2557,8 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
                 records,
             )
         );
-    const allLexical = publication ? undefined : lexicalSectionsFor(records);
+    const allLexical =
+        publication ? undefined : lexicalSectionsFor(records, records, { audience: "all" });
     for (const record of notes) {
         const file = noteFile(tree, record);
         const lexical = (isGmNote(record) ? allLexical : publicLexical)?.get(
@@ -2596,7 +2601,11 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
 
     // The `dictionary` and `terms` relations as datafiles beside the index, for
     // `jq`, an editor or another package. Nothing in the build reads them back.
-    const derived = dictionaryAndTermRows(records.map((record) => encodeAddresses(record)));
+    const derived = dictionaryAndTermRows(
+        records.map((record) => encodeAddresses(record)),
+        undefined,
+        { audience: "public" },
+    );
     const serialized = Object.fromEntries(
         ["dictionary", "terms"].map((relation) => [relation, serializeRows(derived[relation])]),
     );

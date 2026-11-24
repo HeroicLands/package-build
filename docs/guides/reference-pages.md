@@ -139,7 +139,8 @@ listed forms by language, for searching names typed without diacritics, and
 [a note's language](../reference/format-details.md#a-notes-language) describes.
 A language note that `languages:` names carries its code as `languageCode`.
 An affiliation carries `officeHolders`, each of its offices that a living
-being holds with those beings' Addresses, derived as
+being holds with those beings' Addresses, leaving out any membership marked
+`secret: true`, derived as
 [office holders](../reference/format-details.md#type-affiliation) describes. Asset files under `assets/icons`, `assets/images`, and
 `assets/audio` have records in the same index, identified by an `asset` block.
 The index is disposable build output; regenerate it from the authored tree

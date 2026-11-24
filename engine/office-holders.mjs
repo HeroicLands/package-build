@@ -19,7 +19,13 @@ import { reckoningContext } from "./reckoning-markers.mjs";
 import { HOLDER_FIELDS, OFFICE_FIELDS } from "./standing-terms.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { isAddressTuple } from "./address.mjs";
-import { officeRoster, readStandings, standingOffices } from "./standings.mjs";
+import {
+    isSecretStanding,
+    officeRoster,
+    readStandings,
+    secretBodies,
+    standingOffices,
+} from "./standings.mjs";
 
 export { HOLDER_FIELDS, OFFICE_FIELDS };
 
@@ -51,13 +57,17 @@ export function officeBodyKey(tuple) {
  *
  * Offices keep the body's declared order; holders are ordered by name.
  *
+ * A membership marked `secret: true` counts only for the `all` audience, so a
+ * public list omits a secret holder.
+ *
  * @param {object[]} records - Content-index records; only note records are
  *   read.
+ * @param {"public"|"all"} [audience] - Whose list this is.
  * @returns {Map<string, Map<string, object[]>>} Body identity
  *   (`package-type-shortcode`) → office → the holding beings' records, for every
  *   body with at least one held office.
  */
-export function officeHolders(records) {
+export function officeHolders(records, audience = "public") {
     const notes = records.filter((record) => isNoteRecord(record) && record.shortcode);
     /** Body identity → office → holding beings. */
     const named = new Map();
@@ -66,6 +76,7 @@ export function officeHolders(records) {
         for (const { body, standing } of readStandings(record.data?.affiliations).entries) {
             const key = isAddressTuple(body) ? officeBodyKey(body) : "";
             if (!key || !mapping(standing)) continue;
+            if (audience === "public" && isSecretStanding(standing)) continue;
             const offices = named.get(key) ?? new Map();
             for (const office of standingOffices(standing)) {
                 const holders = offices.get(office) ?? [];
@@ -96,6 +107,28 @@ export function officeHolders(records) {
     return out;
 }
 
+/** The rendered Address of the affiliation a note is, or `""`. */
+function renderOwnAddress(note, index) {
+    const tuple = parseAddress(note.fm?.shortcode, {
+        package: index?.contentPackage,
+        system: "note",
+        type: "affiliation",
+        types: index?.types,
+        packages: index?.packages,
+    });
+    return tuple.reason ? "" : renderAddress(tuple);
+}
+
+/** Whether a being's membership in the body at `own` is marked secret. */
+function holdsSecretly(being, own, index) {
+    if (!own) return false;
+    return secretBodies(being?.data?.affiliations, {
+        package: index?.contentPackage,
+        types: index?.types,
+        packages: index?.packages,
+    }).has(own);
+}
+
 const mapping = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 /**
@@ -119,6 +152,7 @@ export function checkDatedOffices(note, { index } = {}) {
     if (!mapping(offices)) return [];
 
     const dates = reckoningContext(index);
+    const own = renderOwnAddress(note, index);
     for (const [office, value] of Object.entries(offices)) {
         const base = ["data", "governance", "offices", office];
         if (!mapping(value) || !Array.isArray(value.holders)) continue;
@@ -148,6 +182,15 @@ export function checkDatedOffices(note, { index } = {}) {
                             at(
                                 [...rowPath, "being"],
                                 `office ${office} holder ${row.being} does not resolve`,
+                            ),
+                        );
+                    else if (holdsSecretly(target.fm ?? target, own, index))
+                        findings.push(
+                            at(
+                                [...rowPath, "being"],
+                                `office ${office} names holder ${row.being}, whose membership in ` +
+                                    "this body is marked `secret: true`; a public roster would " +
+                                    "reveal it",
                             ),
                         );
                     else if ((target.fm ?? target).data?.died != null && row.end == null)

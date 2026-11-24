@@ -86,7 +86,7 @@ describe("a being's standing names the body that confers it", () => {
         expect(field.keyKind).toBe("address");
         expect(field.standings).toBe(true);
         expect(field.check).toBe(checkStandings);
-        expect(STANDING_KEYS).toEqual(["rank", "office", "societies"]);
+        expect(STANDING_KEYS).toEqual(["rank", "office", "societies", "secret"]);
     });
 
     it("refuses a list as an error at the line of data.affiliations", () => {
@@ -264,7 +264,7 @@ describe("a being's standing names the body that confers it", () => {
             /"grade" is not a key of `data\.affiliations\.vrystwldtrbs`; it takes only `rank`, `office`/,
         );
         expect(standingFindings({ vrystwldtrbs: "Hárár" })[0].message).toMatch(
-            /`data\.affiliations\.vrystwldtrbs` should be a map — `\{ rank\?, office\?, societies\? \}`/,
+            /`data\.affiliations\.vrystwldtrbs` should be a map — `\{ rank\?, office\?, societies\?, secret\? \}`/,
         );
         expect(
             checkStandings(

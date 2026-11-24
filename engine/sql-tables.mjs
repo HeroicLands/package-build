@@ -1115,7 +1115,7 @@ async function createWordRelations(connection, stem, records, prefix, audience) 
         `${prefix}language_lineage`,
         LINEAGE_COLUMNS,
     );
-    const { dictionary, terms } = dictionaryAndTermRows(visible, records);
+    const { dictionary, terms } = dictionaryAndTermRows(visible, records, { audience });
     const dictionaryTypes = {
         etymology:
             "STRUCT(kind VARCHAR, language VARCHAR, language_tag VARCHAR, form VARCHAR, " +
@@ -1742,7 +1742,9 @@ export async function generatedSectionsFor(
     const publicRecords = records.filter((record) => !isGmNote(record));
     const publicOwners = lexicalSectionsFor(publicRecords, all);
     const allOwners =
-        publicRecords.length === records.length ? publicOwners : lexicalSectionsFor(records, all);
+        publicRecords.length === records.length ?
+            publicOwners
+        :   lexicalSectionsFor(records, all, { audience: "all" });
     const lexical = new Map();
     for (const note of notes) {
         const owners = isGmNote(note) ? allOwners : publicOwners;

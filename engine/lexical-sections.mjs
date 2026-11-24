@@ -112,9 +112,11 @@ const keyOf = (record) =>
  *
  * @param {object[]} records - The audience's visible index records.
  * @param {object[]} [all=records] - Complete records for lineage traversal.
+ * @param {{audience?: "public"|"all"}} [options] - Whose sections these are; a
+ *   `public` audience (the default) never cites a secret membership.
  * @returns {Map<string, LexicalSection[]>} Sections by owning Address.
  */
-export function lexicalSectionsFor(records, all = records) {
+export function lexicalSectionsFor(records, all = records, { audience = "public" } = {}) {
     const visible = encodeAddresses(records).filter(isNoteRecord);
     const complete = encodeAddresses(all).filter(isNoteRecord);
     const byKey = new Map(visible.map((record) => [keyOf(record), record]));
@@ -124,7 +126,7 @@ export function lexicalSectionsFor(records, all = records) {
         packages: new Set(complete.map((record) => record.package)),
         system: "note",
     };
-    const { dictionary, terms } = dictionaryAndTermRows(visible, complete);
+    const { dictionary, terms } = dictionaryAndTermRows(visible, complete, { audience });
     const sections = new Map();
     for (const [key, record] of byKey) {
         if (!key) continue;

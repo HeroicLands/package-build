@@ -50,7 +50,7 @@
  */
 
 import { pluralOf, pluralByRule } from "./word-inflections.mjs";
-import { standingOffices } from "./standings.mjs";
+import { isSecretStanding, standingOffices } from "./standings.mjs";
 export { pluralOf, pluralByRule } from "./word-inflections.mjs";
 import { createHash } from "node:crypto";
 import { parseAddress, renderAddress } from "./address.mjs";
@@ -221,12 +221,15 @@ function refKey(value, pkg, type, types) {
  * @param {Iterable<Record<string, any>>} [all] - Every record of the package,
  *   for resolving a language or a culture through a note the audience does not
  *   see.
+ * @param {{audience?: "public"|"all"}} [options] - Whose rows these are. A
+ *   `public` audience (the default) never cites a being through a membership
+ *   marked `secret: true`; `all` does.
  * @returns {{dictionary: object[], terms: object[]}} The rows: `dictionary`
  *   sorted by language, `name_sort`, name and normalized class, `terms` by owner,
  *   `name_sort`, name and normalized class, each carrying every column of {@link DICTIONARY_COLUMNS} or
  *   {@link TERM_COLUMNS}.
  */
-export function dictionaryAndTermRows(records, all = records) {
+export function dictionaryAndTermRows(records, all = records, { audience = "public" } = {}) {
     const byKey = new Map();
     for (const record of all) {
         if (!isNoteRecord(record)) continue;
@@ -351,7 +354,9 @@ export function dictionaryAndTermRows(records, all = records) {
             .filter(([, record]) => {
                 const standing =
                     isMap(record.data?.affiliations) ? record.data.affiliations[body] : undefined;
-                return isMap(standing) && test(standing);
+                if (!isMap(standing) || (audience === "public" && isSecretStanding(standing)))
+                    return false;
+                return test(standing);
             })
             .map(([key]) => key);
     const glossaryOf = (key) => {

@@ -40,6 +40,7 @@ export const STANDING_BODY_TYPES = Object.freeze(["affiliation"]);
  * a list of them where the being holds several posts in that body, and is
  * stated only where the being holds a post. `societies` names the societies
  * the membership is held in, as a list because a membership can span several.
+ * `secret` marks a membership only the GM sees.
  *
  * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
  */
@@ -70,6 +71,14 @@ export const STANDING_FIELDS = Object.freeze([
         describe:
             "The societies the membership is held in, by name. SoHL carries one, " +
             "the first, as the affiliation item's `system.society`.",
+    }),
+    Object.freeze({
+        name: "secret",
+        kind: "boolean",
+        shape: "`true` or `false`",
+        describe:
+            "`true` for a membership only the GM sees: every public surface leaves it out, " +
+            "and the GM's surfaces keep it.",
     }),
 ]);
 

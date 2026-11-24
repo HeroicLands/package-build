@@ -14,6 +14,7 @@
 import { parseAddress, renderAddress, hasAnchor } from "./address.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
+import { secretBodies } from "./standings.mjs";
 
 /**
  * Validate note references, refusing unresolved, repeated and self destinations.
@@ -43,6 +44,7 @@ export function checkSeeAlso(note, { index, addressContext } = {}) {
     const own = parseAddress(note.fm.shortcode, { ...defaults, type: note.fm.type });
     const seen = new Set();
     const findings = [];
+    const secret = secretBodies(note.fm?.data?.affiliations, defaults);
     entries.forEach((entry, i) => {
         if (entry === null) {
             findings.push({
@@ -71,7 +73,9 @@ export function checkSeeAlso(note, { index, addressContext } = {}) {
                 "does not resolve in this package or its declared dependencies"
             : self ? "names the note itself"
             : seen.has(destination) ? "is a duplicate destination"
-            : undefined;
+            : key && secret.has(key) ?
+                "names a body this note's `data.affiliations` marks `secret: true`"
+            :   undefined;
         seen.add(destination);
         if (reason)
             findings.push({

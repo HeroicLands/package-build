@@ -112,6 +112,62 @@ export function readStandings(value) {
 }
 
 /**
+ * Whether a standing is marked secret.
+ *
+ * @param {unknown} standing - One entry's authored standing.
+ * @returns {boolean} Whether it states `secret: true`.
+ */
+export function isSecretStanding(standing) {
+    return mapping(standing) && standing.secret === true;
+}
+
+/**
+ * The memberships a public audience may see.
+ *
+ * An entry stating `secret: true` is left out; every other entry, and the
+ * shape the map arrived in, is kept. A value that is not a map of entries is
+ * returned as written.
+ *
+ * @param {unknown} value - The authored `data.affiliations`, in either form.
+ * @returns {unknown} The map without its secret entries.
+ */
+export function publicStandings(value) {
+    if (value instanceof AddressEntries) {
+        if (!value.entries.some((entry) => isSecretStanding(entry.value))) return value;
+        return new AddressEntries(value.entries.filter((entry) => !isSecretStanding(entry.value)));
+    }
+    if (!mapping(value) || isAddressTuple(value)) return value;
+    if (!Object.values(value).some(isSecretStanding)) return value;
+    return Object.fromEntries(
+        Object.entries(value).filter(([, entry]) => !isSecretStanding(entry)),
+    );
+}
+
+/**
+ * The Addresses of the bodies a being's membership in is secret.
+ *
+ * @param {unknown} value - The authored `data.affiliations`, in either form.
+ * @param {object} [context] - The Address context a written key is read in.
+ * @returns {Set<string>} Each secret body's rendered Address.
+ */
+export function secretBodies(value, context = {}) {
+    const found = new Set();
+    for (const { body, standing } of readStandings(value).entries) {
+        if (!isSecretStanding(standing)) continue;
+        const tuple =
+            isAddressTuple(body) ? body : (
+                parseAddress(
+                    body,
+                    { ...context, system: "note", type: "affiliation" },
+                    { declared: true },
+                )
+            );
+        if (isAddressTuple(tuple)) found.add(renderAddress(tuple));
+    }
+    return found;
+}
+
+/**
  * The rungs an affiliation's ladder declares, as level → title.
  *
  * A rung states its own `level`, so the ladder is read by that number rather

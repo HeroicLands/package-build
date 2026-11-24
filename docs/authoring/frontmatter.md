@@ -88,6 +88,17 @@ state a rank from the body's ladder, such as
 ladder standing. Empty memberships and unknown offices are errors. A ranked
 officeholder states both values, such as `{ rank: 1, office: Chancellor }`.
 
+A membership only the GM should see is marked `secret: true`, as in
+`affiliation-nightcourt: { rank: 3, secret: true }`. The infobox, the body's
+office-holder list, the public index and the public compendium leave the entry
+out, and the GM's surfaces keep it. Do not name the body elsewhere in the
+being's public text. Four mentions are errors: a `data.socialTies` entry for
+the body, a `data.seeAlso` entry for it, a wikilink to it in the being's prose,
+and an entry of the body's own `holders` list naming the being. A wikilink is
+exempt inside a `:::secret` block or a `.secret` section; an inline
+`[text]{.secret}` span is not an exemption. The body's name in plain text is
+not checked. Prose about the membership belongs in a `:::secret` block.
+
 A being's `data.archetypes` names the roles it can fill in an adventure. Choose every specific role that fits, such as `entertainer` for a performer or `guildsperson` for someone whose professional training or connections matter. Use `[commoner]` when no specific archetype fits. `commoner` cannot share the list with another value. The [archetype reference](../reference/format-details.md#actors) defines the available roles.
 
 A being's look is stated in a closed vocabulary. `data.gender` and `data.frame` take one word each, as do `data.appearance.eye_color`, `hair_color`, `skin_color`, `hair_texture`, `hair_style`, `facial_hair`, `face_shape`, `nose`, `brow` and `mouth`; `data.appearance.complexion` takes a list of words, `[]` where no condition is established, and is required once a being states an appearance. A value outside a field's list — a variant spelling such as `gray`, a word from another field's list, or an empty string — is an error naming the words the field takes. Leave a field out when the fact is unrecorded. `data.appearance.extra_features` lists the visible physical marks no word covers, each a short plain description of one, such as `a burn scar on the left forearm`. `data.portraitSettings` states the model, seed, age band and optional extra details for the prompt. `data.portrait.prompt` holds the exact positive text used for a portrait, and `data.portrait.negativePrompt` holds its separate negative text where applicable; a being with no portrait states no `portrait` block. The [look reference](../reference/format-details.md#a-beings-look) gives every word and what it means.

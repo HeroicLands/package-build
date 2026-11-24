@@ -1606,7 +1606,7 @@ The `natives.enc` SQL column preserves the authored reference. Conversion
 inputs resolve native encoding references to canonical Addresses in each
 source note's own package.
 
-Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.weight`, `data.born`. Every Address is a string — the full canonical Address, as in `list_contains(data.parents, 'thalorna-note-place-xerathia')` — whichever package published it. Every note carries a computed `state` column of `full`, `draft` or `stub`, and a `nameSort` column holding its `name.sort` or, without one, its `name.full`, to `ORDER BY`. Notes tagged `gm` are absent from the relations on public surfaces.
+Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.weight`, `data.born`. Every Address is a string — the full canonical Address, as in `list_contains(data.parents, 'thalorna-note-place-xerathia')` — whichever package published it. Every note carries a computed `state` column of `full`, `draft` or `stub`, and a `nameSort` column holding its `name.sort` or, without one, its `name.full`, to `ORDER BY`. Notes tagged `gm` are absent from the relations on public surfaces, and a public relation's `data.affiliations` omits every membership marked `secret: true`.
 
 ### Sections the build adds
 
@@ -2160,7 +2160,7 @@ affiliation using the same language choose independently, and a word may be
 common in one glossary and absent from another. Dictionaries mark nothing
 common.
 
-Public dictionaries omit citations to GM-only notes. `links` checks generated
+Public dictionaries omit citations to GM-only notes, and a rank or office term never cites a being through a membership marked `secret: true`. `links` checks generated
 tables in the source note's audience: public notes use public rows, and GM
 notes retain GM citations. An authored wikilink from a public note to a GM-only
 note is valid and follows the [secret-reference rules](#references-to-secret-subjects).

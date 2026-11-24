@@ -104,6 +104,7 @@ import {
 // question, asked the way `checkPlace` and `checkCalendarNote` are.
 import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
+import { checkSecretMentions } from "./secret-mentions.mjs";
 import { checkStandings } from "./standings.mjs";
 import {
     OFFICE_FIELDS,
@@ -1000,7 +1001,7 @@ const STANDINGS = Object.freeze({
     keyKind: "address",
     values: Object.freeze({
         kind: "map",
-        shape: "a map — `{ rank?, office?, societies? }`; rank or a declared office is required",
+        shape: "a map — `{ rank?, office?, societies?, secret? }`; rank or a declared office is required",
         fields: STANDING_FIELDS,
     }),
     standings: true,
@@ -1776,6 +1777,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             ...checkBeingAge(note, context),
             ...checkMovementProfiles(note),
             ...checkPortraitSettings(note, context),
+            ...checkSecretMentions(note, context),
         ],
         data: Object.freeze([
             TOKEN_ICON,
@@ -1824,7 +1826,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "Bodies the being belongs to, keyed by Address, each entry holding the " +
                     "standing it holds there — `rank`, a level on that body's own ladder, " +
                     "and `office`, a post that body names. Ordinary members require a rank; " +
-                    "a declared officeholder may omit it and holds the post by appointment.",
+                    "a declared officeholder may omit it and holds the post by appointment. " +
+                    "A `secret: true` entry is left out of every public surface.",
             },
             {
                 name: "socialTies",

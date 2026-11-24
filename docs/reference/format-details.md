@@ -923,7 +923,8 @@ data:
 
 The vocabulary declares the closed entry shape. The note boundary decodes each
 nested Address, and the frontmatter check locates unresolved, duplicate and
-self references at `data.seeAlso.<index>.address`. Duplicate detection compares
+self references at `data.seeAlso.<index>.address`, and refuses an entry naming a
+body the same note marks `secret: true` in `data.affiliations`. Duplicate detection compares
 resolved destinations, so alternative spellings of one target do not make two
 entries. Anchors are not accepted.
 
@@ -4934,6 +4935,7 @@ Being and vehicle notes may declare `data.movementProfiles` as a list of closed 
 | `affiliations.<Address>.rank`        | `integer`, required unless appointed           | The level on that body's own `governance.ranks` ladder; `1` is an ordinary member, `0` someone cast out                                               |
 | `affiliations.<Address>.office`      | `string` or `string[]`                         | A post that body names in its `governance.offices`, where the being holds one                                                                         |
 | `affiliations.<Address>.societies`   | `string[]`                                     | The societies the membership is held in, by name; SoHL carries the first as `system.society`                                                          |
+| `affiliations.<Address>.secret`      | `boolean`                                      | `true` for a membership only the GM sees; every public surface leaves it out                                                                          |
 | `socialTies`                         | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                                                                                   |
 | `gender`                             | `male \| female \| nonbinary \| none \| other` | Gender of the being — see [a being's look](#a-beings-look)                                                                                            |
 | `species`                            | `Address`                                      | Being's species (lore)                                                                                                                                |
@@ -5659,7 +5661,7 @@ names, an empty name, a missing `pattern` or `given`, a missing `female` or
 
 #### The bodies a being belongs to, and its standing in each
 
-**Membership**: `{rank?: number, office?: string | string[], societies?: string[]}` —
+**Membership**: `{rank?: number, office?: string | string[], societies?: string[], secret?: boolean}` —
 `rank` is required for ordinary members; an officeholder may omit it when every
 named office is declared by the body. `societies` is optional.
 
@@ -5668,7 +5670,7 @@ the standing the being holds in that body. The key is what makes the pair
 expressible: a being in two bodies holds a standing in each, and two bodies may
 call a rung the same word.
 
-An entry carries three keys and nothing else:
+An entry carries four keys and nothing else:
 
 - **`rank`** — a **number**, required unless holding an office by appointment,
   the level on that body's own
@@ -5681,6 +5683,8 @@ An entry carries three keys and nothing else:
 - **`societies`** — optional, a **list of names**, the societies the membership
   is held in. It is always a list, even with one name; a bare string is an
   error at the key.
+- **`secret`** — optional, `true` or `false`. A membership marked `secret: true`
+  is a fact only the GM sees; see [a secret membership](#a-secret-membership).
 
 **An ordinary member states a `rank`.** Level `1` is the ordinary member;
 `0` is the body's rung for someone cast out. Neither number stands for an
@@ -5730,6 +5734,52 @@ first name reaches it. An appointment without rank emits no `system.level`,
 including no inherited level from the body's item. A standing is a fact
 about the setting rather than about one system, so the `sohl:` block states
 none of it.
+
+##### A secret membership
+
+An entry stating `secret: true` records a membership that only the GM knows,
+such as a being who fronts for a hidden society:
+
+```yaml
+data:
+  affiliations:
+    affiliation-greenwardens: { rank: 1 }
+    affiliation-nightcourt: { rank: 3, office: Whisperer, secret: true }
+```
+
+The entry is complete data — the rank and office are checked against the body
+as for any membership — and each audience reads it as follows.
+
+| Surface                                                                        | Secret membership |
+| ------------------------------------------------------------------------------ | ----------------- |
+| The being's infobox on the website, in the book, and in a public journal       | Left out          |
+| The body's **Office holders** section, on every page and in every pack         | Left out          |
+| The body's generated **Glossary** and the term rows citing a rank or office    | Left out          |
+| The published content index, `<package>-terms.jsonl` and the public SQL tables | Left out          |
+| The being's actor in a public compendium pack                                  | Left out          |
+| The being's infobox, glossary citations and actor in a private pack            | Kept              |
+| The SQL database a private build queries                                       | Kept              |
+
+No published file keeps the membership, the content index included: the index
+is published whatever its notes' audience, so a body tagged `gm` lists no
+secret holder either. Only the authored note and the private outputs carry it.
+
+A `:::secret` block or `.secret` section in the being's prose may state the
+membership in words. The lint checks four mentions, each an error at the
+mention:
+
+- a `data.socialTies` key in the being naming the body;
+- a `data.seeAlso` entry in the being naming the body;
+- a wikilink in the being's prose naming the body, outside every `:::secret`
+  block and `.secret` section;
+- an entry of the body's own `governance.offices.<office>.holders` naming the
+  being.
+
+The lint checks nothing else. The body's name written as plain text in the
+being's prose is not checked, and a mention in another note is that note's own
+text. An inline `[text]{.secret}` span still counts as public prose, so a
+wikilink inside one is refused; move the link into a `:::secret` block or
+`.secret` section.
 
 #### The people who matter to a being
 
@@ -6427,7 +6477,8 @@ An office may remain a string description or declare a `description` and a
 `holders` list. Each holder names a `being` Address; optional `start` and `end`
 use the date forms above. Omit `end` for a current holder. Set `contested: true`
 when a holder's term may overlap another's. The build checks addresses, term
-order, and unmarked overlaps. A being with any `died` value, including
+order, and unmarked overlaps, and refuses a holder whose membership in that
+society is marked `secret: true`. A being with any `died` value, including
 `unknown`, cannot be named as a current holder. Office entries accept only
 `description` and `holders`; holder rows accept only `being`, `start`, `end`,
 and `contested`.
@@ -6453,7 +6504,8 @@ being naming it whose `data.died` is unset, so several holders at once, a post
 held jointly, a vacant post that lists no one and a holder who has died
 all need no further key. Offices follow the body's order, and holders are
 ordered by name; an office nobody living holds has no line, and a body with no
-held office has no section. A public body lists only public beings. The
+held office has no section. A public body lists only public beings, and no body lists a being whose
+membership in it is marked `secret: true`. The
 content index carries the same list on the body's record as `officeHolders`, one
 `{ office, holders }` entry per held office, each holder a being Address:
 

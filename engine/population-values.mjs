@@ -12,6 +12,7 @@
  */
 
 import { fitsKind } from "./data-keys.mjs";
+import { publicStandings } from "./standings.mjs";
 
 /** @typedef {{actual: number|string|null, apparent?: number|string|null}} Population */
 /** @typedef {{actual: number|null, apparent: number|null}} ProjectedPopulation */
@@ -63,7 +64,14 @@ export function projectPopulation(value, audience = "public") {
         apparent,
     };
 }
-/** @param {any} fm @param {PopulationAudience} [audience] @returns {any} */
+/**
+ * Frontmatter as an audience sees it: the population figures it may read and,
+ * for the public, none of the memberships marked secret.
+ *
+ * @param {any} fm
+ * @param {PopulationAudience} [audience]
+ * @returns {any}
+ */
 export function projectPopulationFrontmatter(fm, audience = "public") {
     populationForAudience(undefined, audience);
     if (!fm || typeof fm !== "object") return fm;
@@ -80,6 +88,8 @@ export function projectPopulationFrontmatter(fm, audience = "public") {
     for (const key of ["population", "territorial_population"]) {
         if (Object.hasOwn(data, key)) projected[key] = projectPopulation(data[key], audience);
     }
+    if (audience === "public" && Object.hasOwn(data, "affiliations"))
+        projected.affiliations = publicStandings(data.affiliations);
     if (Array.isArray(data.settlements))
         projected.settlements = data.settlements.map((row) => {
             if (

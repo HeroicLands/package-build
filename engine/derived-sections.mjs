@@ -317,7 +317,7 @@ export function derivedSections(
         { types: new Set(Object.keys(NOTE_VOCABULARY)) },
     );
     const mapped = new Set(placesWithMaps(notes, { foreignIndex, config }));
-    const offices = officeHolders(notes);
+    const offices = officeHolders(notes, audience);
 
     const settlementRecords = [...notes, ...foreignIndex.values()];
     const out = new Map();
