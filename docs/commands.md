@@ -54,12 +54,39 @@ suite or the fast loop and this command line must not judge it.
 once, and `--help` can be used with any command for its own actions and options.
 The command entries below list only their own options.
 
-**`PACKAGE_BUILD_CONFIG`** names the configuration file explicitly instead of
-the walk up from the working directory the CLI otherwise does — the only
-environment variable the toolchain itself reads for configuration
-resolution. `deploy`, `container` and `e2e` additionally read `FOUNDRYVTT_*`,
-`cdn publish` reads `CDN_*`, and `deps fetch` reads `PACKAGE_BUILD_FORGE_TOKEN_FILE`,
-documented where each applies.
+**Environment variables.** `deploy`, `container`, `e2e` and `cdn publish` load
+`.env.local`, then `.env`, from the repository root; a variable already in the
+shell wins over both files. This index names every variable the commands read.
+`<STAGE>` is a stage name in upper case: `DEV`, `QA`, `PROD` or `TEST`
+(`deploy` and the end-to-end stage accept only these four; `container` also
+accepts a stage the repository declares under `packageBuild.container.stages`).
+`<PREFIX>` is `packageBuild.deploy.envPrefix` (default `SOHL`). The command sections below hold the detail.
+
+| Variable                                                                   | Meaning                                                                                                                                            | Read by                         |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `PACKAGE_BUILD_CONFIG`                                                     | The configuration file, instead of the walk up from the working directory.                                                                         | every command                   |
+| `PACKAGE_BUILD_USER_AGENT_URL`, `_EMAIL`, `_EMAIL_HOSTS`                   | The contact in the User-Agent of outbound requests; see [User-Agent contact](configuration.md#user-agent-contact).                                 | every outbound request          |
+| `PACKAGE_BUILD_GITHUB_API_TOKEN`                                           | A read-only GitHub token for a pinned GitHub release.                                                                                              | `deps fetch`                    |
+| `PACKAGE_BUILD_FORGE_TOKEN_FILE`                                           | A file holding the read-only token of a private build mirror.                                                                                      | `deps fetch`                    |
+| `XDG_CACHE_HOME`, `LOCALAPPDATA`                                           | Locate the download cache; see [Artwork archives](authoring/assets.md#artwork-archives). `XDG_CACHE_HOME` also locates the pinned browser's cache. | every download, `e2e`           |
+| `SOURCE_DATE_EPOCH`                                                        | The timestamp written into archives, in seconds; unset or invalid uses a fixed epoch.                                                              | `release`, `pdf`                |
+| `CDN_INTERNAL_DESTINATION`                                                 | The SSH alias and path of the internal CDN.                                                                                                        | `cdn publish`                   |
+| `CDN_ENDPOINT`, `CDN_BUCKET`, `CDN_ACCESS_KEY_ID`, `CDN_SECRET_ACCESS_KEY` | The R2 store, all four or none.                                                                                                                    | `cdn publish --dest cloudflare` |
+| `FOUNDRYVTT_<STAGE>_DATA`                                                  | The stage's Foundry data root: a local path, or `[user@]host:/path` over SFTP.                                                                     | `deploy`, `container`, `e2e`    |
+| `FOUNDRYVTT_<STAGE>_AGENT`, `<PREFIX>_SFTP_AGENT`                          | The SSH agent endpoint for an SFTP destination.                                                                                                    | `deploy`                        |
+| `FOUNDRYVTT_<STAGE>_PORT`                                                  | Two meanings: the SFTP port of a deploy and the container's host port. See the warning under `container`.                                          | `deploy`, `container`, `e2e`    |
+| `<PREFIX>_SFTP_PORT`                                                       | The SFTP port when `FOUNDRYVTT_<STAGE>_PORT` is unset.                                                                                             | `deploy`                        |
+| `FOUNDRYVTT_<STAGE>_USER`, `FOUNDRYVTT_<STAGE>_KEY`                        | The SFTP user and the path of a private key file.                                                                                                  | `deploy`                        |
+| `SSH_AUTH_SOCK`, `USER`                                                    | The SSH agent socket and the SFTP user when nothing more specific is set.                                                                          | `deploy`                        |
+| `FOUNDRYVTT_<STAGE>_VERSION`                                               | The exact Foundry build the stage's container runs.                                                                                                | `container`, `e2e`              |
+| `FOUNDRYVTT_<STAGE>_WORLD`                                                 | The world the container launches; empty launches none.                                                                                             | `container`, `e2e`              |
+| `FOUNDRYVTT_<STAGE>_LICENSE_KEY`                                           | A Foundry licence key dedicated to the stage.                                                                                                      | `container`, `e2e`              |
+| `FOUNDRYVTT_CONTAINER_IMAGE`, `_USER`, `_S3`                               | The image, the `docker run --user` value, and the S3-server switch.                                                                                | `container`, `e2e`              |
+| `FOUNDRYVTT_CACHE`                                                         | The shared Foundry download cache mounted into the container.                                                                                      | `container`, `e2e`              |
+| `FOUNDRY_*`, `CONTAINER_*` (not `CONTAINER_CACHE`)                         | Passed through to the image, `FOUNDRY_LICENSE_KEY`, `FOUNDRY_USERNAME` and `FOUNDRY_PASSWORD` among them.                                          | `container`, `e2e`              |
+| `<PREFIX>_E2E_WORLD_ID`, `_WORLD_TITLE`, `_GM_NAME`, `_GM_PASSWORD`        | The disposable world's identity and GM credentials.                                                                                                | `e2e`                           |
+| `HL_BROWSER_CACHE`, `HL_E2E_ROOT`                                          | Locate the pinned browser's cache; see [Choose a browser](guides/e2e.md#choose-a-browser).                                                         | `e2e`                           |
+| `PATH`, `PATHEXT`                                                          | Where the suite's executable is found.                                                                                                             | `e2e`                           |
 
 An option name recurring across commands is not a recurring meaning —
 `--out`, `--check`, `--from` and `--strict` each carry their own default and
@@ -1285,14 +1312,35 @@ and leaves the tree under its `.old-<pid>` name for the next deploy to sweep.
 
 **OPTIONS**
 
-| Positional | Type   | Default | Description                                     |
-| ---------- | ------ | ------- | ----------------------------------------------- |
-| `stage`    | string | —       | Target stage, e.g. `dev`, `qa`, `prod`, `test`. |
+| Positional | Type   | Default | Description                                                              |
+| ---------- | ------ | ------- | ------------------------------------------------------------------------ |
+| `stage`    | string | —       | Target stage: `dev`, `qa`, `prod` or `test`. Any other value is refused. |
 
-**Environment.** `FOUNDRYVTT_<STAGE>_DATA` (required — the destination).
-`FOUNDRYVTT_<STAGE>_AGENT`, `FOUNDRYVTT_<STAGE>_PORT`,
-`FOUNDRYVTT_<STAGE>_USER`, `FOUNDRYVTT_<STAGE>_KEY` (SFTP destinations
-only).
+**Environment.** `FOUNDRYVTT_<STAGE>_DATA` is required: it is the
+destination. The rest apply to an SFTP destination only. `<PREFIX>` is
+`packageBuild.deploy.envPrefix`, `SOHL` unless the repository sets another.
+
+| Variable                   | Meaning                                                                                                                                      | Default                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `FOUNDRYVTT_<STAGE>_AGENT` | The SSH agent endpoint for this stage. `pageant` selects PuTTY's agent; a named-pipe path is accepted.                                       | `<PREFIX>_SFTP_AGENT`                                   |
+| `<PREFIX>_SFTP_AGENT`      | The SSH agent endpoint for every stage.                                                                                                      | `SSH_AUTH_SOCK`, then on Windows the OpenSSH agent pipe |
+| `FOUNDRYVTT_<STAGE>_PORT`  | The SFTP port. The same variable is the container's host port; see the warning below.                                                        | `<PREFIX>_SFTP_PORT`                                    |
+| `<PREFIX>_SFTP_PORT`       | The SFTP port for every stage.                                                                                                               | `22`                                                    |
+| `FOUNDRYVTT_<STAGE>_USER`  | The SFTP user, used when the destination names none (`user@host:/path`).                                                                     | `USER`                                                  |
+| `FOUNDRYVTT_<STAGE>_KEY`   | The path of a private key file. When set, the key is used and no agent is consulted. No passphrase or password is read from the environment. | the agent                                               |
+
+**Warning: one variable, two meanings.** `FOUNDRYVTT_<STAGE>_PORT` is read by
+two commands for two different ports. `deploy` uses it as the SSH port of a
+remote destination. `container` and `e2e` use it as the host port the stage's
+Foundry container publishes (default `30000` for `dev`, `30001` for `qa`,
+`30002` for `prod` and `30003` for `test`; a stage declared under
+`packageBuild.container.stages` takes its `port`). Setting it to move a
+container off its default port therefore also moves the SSH port a remote
+`deploy` of that stage dials, and a stage with a remote
+`FOUNDRYVTT_<STAGE>_DATA` and a container port set cannot have both right.
+Leave it unset for a remote stage and declare the container's port in
+`packageBuild.container.stages.<stage>.port`, and use `<PREFIX>_SFTP_PORT` for
+a remote SSH port other than `22`.
 
 **EXIT STATUS**
 
@@ -1522,7 +1570,14 @@ exact pin takes the major tag of its pin or of `compatibility.minimum`
 | `action`   | string, one of `start`, `stop`, `restart`, `recreate`, `rm`, `status`, `logs`, `pull` | —       | What to do with the stage's container.          |
 
 **Environment.** `FOUNDRYVTT_<STAGE>_DATA` (`start`, `restart`, `recreate`).
-`FOUNDRYVTT_<STAGE>_PORT`, `FOUNDRYVTT_<STAGE>_VERSION`,
+`FOUNDRYVTT_<STAGE>_PORT` is the host port the container publishes. It
+overrides `packageBuild.container.stages.<stage>.port`, which overrides the
+default for the stage (`30000` for `dev`, `30001` for `qa`, `30002` for `prod`,
+`30003` for `test`); a stage with none of the three is refused. **The same
+variable is the SFTP port of `deploy <stage>`**, so setting it for a stage
+whose `FOUNDRYVTT_<STAGE>_DATA` is a remote destination also changes the port
+that deploy dials; see the warning under
+[`deploy`](#package-build-deploy-stage). `FOUNDRYVTT_<STAGE>_VERSION`,
 `FOUNDRYVTT_<STAGE>_WORLD`, `FOUNDRYVTT_<STAGE>_LICENSE_KEY`,
 `FOUNDRYVTT_CONTAINER_IMAGE`, `FOUNDRYVTT_CACHE` (a shared download-cache
 mount), `FOUNDRYVTT_CONTAINER_USER` (passed to `docker run --user`; `0:0`
@@ -1563,17 +1618,23 @@ Drive the repository's end-to-end suite against a served Foundry world.
 package-build e2e seed
 package-build e2e <run|open> [-- <suite args>]
 package-build e2e fast [-- <suite args>]
-package-build e2e sweep [-- <suite args>]
+package-build e2e sweep <version> [-- <suite args>]
 ```
 
 **DESCRIPTION**
 
-Stands a disposable Foundry world up against the `test` stage and drives the
-repository's own end-to-end suite against it — the suite itself is never
-this package's; it is named in `packageBuild.e2e.suite`. Everything after
-the action is the suite's own and is passed through untouched — this
-command line deliberately parses none of it (`.strict(false)`; see
-[Conventions](#conventions)). `.env.local` and `.env` are loaded first.
+Stands a disposable Foundry world up against the end-to-end stage and drives
+the repository's own end-to-end suite against it — the suite itself is never
+this package's; it is named in `packageBuild.e2e.suite`. The stage is
+`packageBuild.e2e.stage`, `test` unless the repository names another, and
+every `FOUNDRYVTT_<STAGE>_*` variable below is read for that stage. `run`,
+`open`, `fast` and `sweep` deploy through [`deploy`](#package-build-deploy-stage),
+so the stage must be `dev`, `qa`, `prod` or `test` for them; only `seed`
+accepts another name. For `run` and `open`, everything after the action is the
+suite's own; for `sweep`, everything after the build is, and both are passed
+through untouched. `fast` reads four flags of its own and passes the
+rest to the suite. Neither is judged by this command line (`.strict(false)`;
+see [Conventions](#conventions)). `.env.local` and `.env` are loaded first.
 
 | Action  | Description                                                                  |
 | ------- | ---------------------------------------------------------------------------- |
@@ -1588,15 +1649,48 @@ so `compatibility.verified` can be evidence rather than hope.
 
 **OPTIONS**
 
-No options of its own; every flag after the action belongs to the suite.
+`seed`, `run`, `open` and `sweep` have no options of their own: every flag
+after the action belongs to the suite. `sweep` takes one positional, the
+build.
 
-**Environment.** `FOUNDRYVTT_TEST_DATA` (required for every action —
-end-to-end always targets the `test` stage). `FOUNDRYVTT_TEST_VERSION`,
-`FOUNDRYVTT_TEST_LICENSE_KEY` for `run`/`open`/`fast`/`sweep`.
+| Positional | Type   | Default | Description                                                                                                                    |
+| ---------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `version`  | string | —       | `sweep` only, required. An exact Foundry build, a major and a build number such as `14.367`. A bare major or a tag is refused. |
+
+`fast` reads these flags itself; every other argument, and everything after
+`--`, goes to the suite verbatim.
+
+| Option       | Type    | Default | Description                                                                                                                                                                      |
+| ------------ | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--build=`   | string  | `all`   | The build targets to run first: `all`, `none`, or a comma-separated subset of the names under `packageBuild.e2e.build`. They run in declared order. An unknown name is an error. |
+| `--recreate` | boolean | `false` | Recreate the container instead of restarting it. A selected target declared `recreate: true` implies it, and a missing container is always created.                              |
+| `--no-run`   | boolean | `false` | Rebuild, deploy and wait for the world, then stop without running the suite.                                                                                                     |
+| `--spec`     | string  | —       | A spec for the suite: `--spec <file>` or `--spec=<file>` is passed on as `--spec <file>`.                                                                                        |
+
+**Environment.** `FOUNDRYVTT_<STAGE>_DATA` is required for every action, where
+`<STAGE>` is the end-to-end stage, and must be a local directory no other stage
+shares among `dev`, `qa` and `prod`. `<PREFIX>` is `packageBuild.deploy.envPrefix`, `SOHL` unless the
+repository sets another.
+
+| Variable                                              | Meaning                                                                                    | Default                                                                                  | Read by                        |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------ |
+| `<PREFIX>_E2E_WORLD_ID`                               | The disposable world's id.                                                                 | `packageBuild.e2e.world.id`, then `<packageId>-e2e`                                      | `seed`, `run`, `open`, `sweep` |
+| `<PREFIX>_E2E_WORLD_TITLE`                            | The world's title.                                                                         | `packageBuild.e2e.world.title`, then `<packageId> E2E`                                   | `seed`, `run`, `open`, `sweep` |
+| `<PREFIX>_E2E_GM_NAME`                                | The Gamemaster's user name.                                                                | `packageBuild.e2e.gm.name`, then `Gamemaster`                                            | `seed`, `run`, `open`, `sweep` |
+| `<PREFIX>_E2E_GM_PASSWORD`                            | The Gamemaster's password.                                                                 | `packageBuild.e2e.gm.password`, then `<packageId>-e2e`                                   | `seed`, `run`, `open`, `sweep` |
+| `FOUNDRYVTT_<STAGE>_VERSION`                          | The Foundry build the container runs. `sweep` sets it to its `version` for the run.        | `packageBuild.container.stages.<stage>.version`, then `compatibility.minimum` when exact | `run`, `open`, `fast`, `sweep` |
+| `FOUNDRYVTT_<STAGE>_LICENSE_KEY`                      | A licence key dedicated to the stage.                                                      | none                                                                                     | `run`, `open`, `fast`, `sweep` |
+| `FOUNDRYVTT_<STAGE>_PORT`                             | The container's host port; see the warning under [`deploy`](#package-build-deploy-stage).  | `30003` for `test`; no default for any other stage                                       | `run`, `open`, `fast`, `sweep` |
+| `HL_BROWSER_CACHE`, `HL_E2E_ROOT`, `FOUNDRYVTT_CACHE` | Locate the pinned browser's cache; see [Choose a browser](guides/e2e.md#choose-a-browser). | the user's cache directory                                                               | `run`, `open`, `fast`, `sweep` |
+
+The other `FOUNDRYVTT_*` variables of [`container`](#package-build-container-stage-action)
+apply to the container these actions create, except `FOUNDRYVTT_<STAGE>_WORLD`:
+`run`, `open` and `sweep` replace it with the id of the world they seed, and
+`fast` uses the variable as set.
 
 **EXIT STATUS**
 
-`seed` — 1 if `FOUNDRYVTT_TEST_DATA` is unset, or on any other thrown error;
+`seed` — 1 if `FOUNDRYVTT_<STAGE>_DATA` is unset, or on any other thrown error;
 otherwise 0. `run`/`open`/`fast`/`sweep` — the command's own status is the
 suite's own exit status, via `process.exit(status)`; 1 if
 `packageBuild.e2e.suite` names no runner for the action being asked for.

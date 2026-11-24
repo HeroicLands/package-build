@@ -136,6 +136,15 @@ describe("resolveAgent", () => {
 });
 
 describe("buildConnection", () => {
+    it("treats an empty port variable as unset", async () => {
+        const conn = await buildConnection(
+            "QA",
+            { username: undefined, host: "h" },
+            { env: { FOUNDRYVTT_QA_PORT: "", SOHL_SFTP_PORT: "2222", SSH_AUTH_SOCK: "/sock" } },
+        );
+        expect(conn.port).toBe(2222);
+    });
+
     it("uses the agent, reading no secret from disk", async () => {
         const conn = await buildConnection(
             "QA",

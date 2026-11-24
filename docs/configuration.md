@@ -2526,7 +2526,13 @@ the escape hatch from becoming a place unexplained exceptions accumulate:
 | ------------------------------- | ------ | -------- | ------- |
 | `packageBuild.deploy.envPrefix` | string | no       | `SOHL`  |
 
-Prefix of the deploy environment variables.
+Prefix of the environment variables that belong to the repository rather than
+to a stage: `<envPrefix>_SFTP_AGENT` and `<envPrefix>_SFTP_PORT`, the agent and
+port a remote deploy falls back to, and `<envPrefix>_E2E_WORLD_ID`,
+`<envPrefix>_E2E_WORLD_TITLE`, `<envPrefix>_E2E_GM_NAME` and
+`<envPrefix>_E2E_GM_PASSWORD`, which override the end-to-end world. See
+[`deploy`](commands.md#package-build-deploy-stage) and
+[`e2e`](commands.md#package-build-e2e-action).
 
 > ``package-build config: `packageBuild.deploy` must be a mapping.``
 

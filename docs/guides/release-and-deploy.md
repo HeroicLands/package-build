@@ -127,11 +127,38 @@ removed through a throwaway container of the stage's image, and a tree that
 still cannot be removed is reported as a warning naming it, without failing the
 deploy.
 For a remote destination it uses the SSH agent unless the stage names an
-explicit key. The `container` command manages the Foundry Docker instance for
+explicit key (see below). The `container` command manages the Foundry Docker instance for
 the same stage;
 `restart` stops it, clears a stale lock, then starts it. See the
 [container command](../commands.md#package-build-container-stage-action) for
 the other actions and environment variables.
+
+### SFTP settings
+
+A remote destination reads these variables, from `.env.local` or the shell.
+`<STAGE>` is the stage name in upper case and `<PREFIX>` is
+`packageBuild.deploy.envPrefix`, `SOHL` unless the repository sets another.
+
+```dotenv
+FOUNDRYVTT_QA_USER=deploy
+FOUNDRYVTT_QA_KEY=/home/me/.ssh/qa_ed25519
+SOHL_SFTP_PORT=2222
+```
+
+- The user is the one in `user@host:/path`, then `FOUNDRYVTT_<STAGE>_USER`,
+  then the `USER` variable.
+- The port is `FOUNDRYVTT_<STAGE>_PORT`, then `<PREFIX>_SFTP_PORT`, then `22`.
+- The credential is the key file named by `FOUNDRYVTT_<STAGE>_KEY` when set.
+  Otherwise it is the SSH agent: `FOUNDRYVTT_<STAGE>_AGENT`, then
+  `<PREFIX>_SFTP_AGENT`, then `SSH_AUTH_SOCK`, then on Windows the OpenSSH
+  agent pipe. `pageant` selects PuTTY's agent. No password or passphrase is
+  read from the environment.
+
+`FOUNDRYVTT_<STAGE>_PORT` is also the host port the stage's container
+publishes. Setting it for a stage whose data root is remote changes the SSH
+port of its deploy too, so a remote stage sets its SSH port with
+`<PREFIX>_SFTP_PORT` and its container port in
+`packageBuild.container.stages.<stage>.port`.
 
 ## Publish pictures to the CDN
 

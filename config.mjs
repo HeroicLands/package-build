@@ -665,7 +665,7 @@ export function normalizeSettlementExemptions(value, population = {}) {
  *                                   unreferenced advisory.
  * @property {readonly string[]} langAllow  Template literals that are
  *                                   deliberately not localization keys.
- * @property {string} envPrefix      Prefix of the deploy environment variables.
+ * @property {string} envPrefix      Prefix of the deploy and end-to-end environment variables.
  * @property {string} bundleEntry   The bundle file Foundry loads, as the
  *   manifest spells it. Derived from the package id.
  * @property {string|null} compatibilityMinimum  The Foundry floor the package

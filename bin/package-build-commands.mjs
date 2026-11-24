@@ -1409,10 +1409,18 @@ function deployCommand() {
         command: "deploy <stage>",
         describe: "Deploy the staged package to a stage",
         builder: (y) =>
-            y.positional("stage", {
-                type: "string",
-                describe: "Target stage (e.g. dev, qa, prod, test)",
-            }),
+            y
+                .positional("stage", {
+                    type: "string",
+                    describe: "Target stage: dev, qa, prod or test",
+                })
+                .epilog(
+                    "Environment: FOUNDRYVTT_<STAGE>_DATA (required), and for an SFTP " +
+                        "destination FOUNDRYVTT_<STAGE>_AGENT or <PREFIX>_SFTP_AGENT, " +
+                        "FOUNDRYVTT_<STAGE>_PORT or <PREFIX>_SFTP_PORT, " +
+                        "FOUNDRYVTT_<STAGE>_USER, FOUNDRYVTT_<STAGE>_KEY, SSH_AUTH_SOCK and USER. " +
+                        "<STAGE> is the stage in upper case; <PREFIX> is packageBuild.deploy.envPrefix.",
+                ),
         handler: handler(async (args) => {
             const config = loadPackageBuildConfig();
 
@@ -1671,7 +1679,15 @@ function containerCommand() {
                 .positional("action", {
                     choices: [...CONTAINER_ACTIONS],
                     describe: "What to do with the stage's container",
-                }),
+                })
+                .epilog(
+                    "Environment: FOUNDRYVTT_<STAGE>_DATA, FOUNDRYVTT_<STAGE>_VERSION, " +
+                        "FOUNDRYVTT_<STAGE>_PORT (the container's host port), " +
+                        "FOUNDRYVTT_<STAGE>_WORLD, FOUNDRYVTT_<STAGE>_LICENSE_KEY, " +
+                        "FOUNDRYVTT_CONTAINER_IMAGE, FOUNDRYVTT_CONTAINER_USER, " +
+                        "FOUNDRYVTT_CONTAINER_S3, FOUNDRYVTT_CACHE, and FOUNDRY_* and " +
+                        "CONTAINER_* passed through to the image.",
+                ),
         handler: handler(async (args) => {
             const config = loadPackageBuildConfig();
             await loadEnvironment(config);
@@ -1720,6 +1736,21 @@ function e2eCommand() {
                         "seed: write the world · run/open: from scratch · " +
                         "fast: rebuild and re-run · sweep: another Foundry build",
                 })
+                .epilog(
+                    "sweep <version> requires an exact Foundry build, a major and a build " +
+                        "number such as 14.367.\n" +
+                        "fast reads --build=<all|none|targets>, --recreate, --no-run and " +
+                        "--spec <file>; every other argument and everything after -- goes " +
+                        "to the suite.\n" +
+                        "The stage is packageBuild.e2e.stage and must be dev, qa, prod or test " +
+                        "for run, open, fast and sweep.\n" +
+                        "Environment: FOUNDRYVTT_<STAGE>_DATA (required), " +
+                        "FOUNDRYVTT_<STAGE>_VERSION, FOUNDRYVTT_<STAGE>_PORT, " +
+                        "FOUNDRYVTT_<STAGE>_LICENSE_KEY, <PREFIX>_E2E_WORLD_ID, " +
+                        "<PREFIX>_E2E_WORLD_TITLE, <PREFIX>_E2E_GM_NAME, " +
+                        "<PREFIX>_E2E_GM_PASSWORD, HL_BROWSER_CACHE, HL_E2E_ROOT and " +
+                        "FOUNDRYVTT_CACHE.",
+                )
                 // Everything after the action belongs to the suite or to the
                 // fast loop, so this command line must not judge it.
                 .strict(false),

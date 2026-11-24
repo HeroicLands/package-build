@@ -169,7 +169,7 @@ export async function buildConnection(
     remote,
     { env = process.env, prefix = "SOHL" } = {},
 ) {
-    const port = Number(env[`FOUNDRYVTT_${stageUpper}_PORT`] ?? env[`${prefix}_SFTP_PORT`] ?? 22);
+    const port = Number(env[`FOUNDRYVTT_${stageUpper}_PORT`] || env[`${prefix}_SFTP_PORT`] || 22);
     const username = remote.username || env[`FOUNDRYVTT_${stageUpper}_USER`] || env.USER;
 
     const conn = { host: remote.host, port, username };

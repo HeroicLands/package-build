@@ -50,6 +50,12 @@ Cypress test suite; `suite.run` and `suite.open` name the repository's own.
 
 ## Keep local settings in `.env.local`
 
+The harness runs against one stage, `packageBuild.e2e.stage`, which is `test`
+unless the repository names another. The stage must be `dev`, `qa`, `prod` or
+`test`, the stages `deploy` accepts; only `e2e seed` takes another name. The
+variables below are written for `test`; for another stage, read `<STAGE>` as
+that stage's name in upper case (`FOUNDRYVTT_QA_DATA` for a stage named `qa`).
+
 Create `.env.local` at the repository root with a data directory reserved for
 this harness and a Foundry license available to the test container:
 
@@ -112,6 +118,30 @@ replaces the seeded world with the same ID each time. The harness refuses a
 root shared with another Foundry stage, so test seeding cannot overwrite a
 development or production world.
 
+`FOUNDRYVTT_TEST_PORT` is the host port the container publishes, `30003` for
+`test` when unset. The same variable is the SSH port a `deploy` to a remote
+destination uses, so a stage that is both deployed remotely and run in a
+container should declare the container's port under
+`packageBuild.container.stages.<stage>.port` and leave the variable unset. See
+the [deploy command](../commands.md#package-build-deploy-stage).
+
+The world's identity and the Gamemaster's credentials come from
+`packageBuild.e2e.world` and `packageBuild.e2e.gm`. Four environment variables
+override them for one machine, under the repository's variable prefix
+(`packageBuild.deploy.envPrefix`, `SOHL` unless set; this example uses `SOHL`):
+
+```dotenv
+SOHL_E2E_WORLD_ID=scratch-world
+SOHL_E2E_WORLD_TITLE="Scratch world"
+SOHL_E2E_GM_NAME=Tester
+SOHL_E2E_GM_PASSWORD=replace-with-a-password
+```
+
+An unset variable falls back to the configuration, and that to `<packageId>-e2e`
+(world id), `<packageId> E2E` (title), `Gamemaster` (name) and `<packageId>-e2e`
+(password). `seed`, `run`, `open` and `sweep` read them; `fast` keeps the world
+it already has.
+
 ## Run the whole suite
 
 Build the staged package first, then use one of the full-run modes:
@@ -130,8 +160,8 @@ enough: the harness waits until Foundry's join page shows the world is active.
 
 ## Choose a browser
 
-For a Cypress suite, `e2e fast`, `e2e run` and `e2e open` use pinned
-Chrome for Testing **155.0.8059.84** on macOS arm64 and Linux x64. The first run
+For a Cypress suite, `e2e fast`, `e2e run`, `e2e open` and `e2e sweep` use pinned
+Chrome for Testing on macOS arm64 and Linux x64. The first run
 downloads it; later runs reuse the cached executable. Each run prints the
 resolved browser and version, and Cypress reports the browser in its header.
 Other suite commands run as declared.
@@ -169,12 +199,15 @@ package-build e2e fast --build=none --no-run
 `--build=` takes declared target names, a comma-separated subset, `all`, or
 `none`. `--no-run` updates the environment without launching the suite.
 `--recreate` forces a fresh container even when the selected targets do not
-require it. This mode keeps the existing seeded world's Foundry generation;
+require it. `--spec <file>` runs one spec: it is passed to the suite as
+`--spec <file>`, and every other argument, with everything after `--`, goes to
+the suite unchanged. This mode keeps the existing seeded world's Foundry generation;
 use a full run when changing the Foundry build.
 
 ## Verify another Foundry build
 
-Name an exact Foundry build for a compatibility sweep:
+Name an exact Foundry build for a compatibility sweep. The build is required
+and has no default; arguments after it go to the suite:
 
 ```bash
 package-build e2e sweep 14.367
