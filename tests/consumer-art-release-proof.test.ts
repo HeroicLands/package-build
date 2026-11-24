@@ -11,6 +11,9 @@ import {
     releaseArchives,
     releaseDigest,
     releaseIndex,
+    releaseArt,
+    verifiedIndexFile,
+    releasePackage,
 } from "../ci/consumer-art-release-proof.mjs";
 import { archiveFetch } from "../ci/consumer-art-release-network.mjs";
 
@@ -95,7 +98,18 @@ it("refuses incomplete, duplicate, nonsequential and mixed attachment sets", () 
     expect(() => releaseArchives(release, hugeSidecar, tag)).toThrow();
 });
 
-function indexAssets(name = "artthalorna-metadata.jsonl", first = 100) {
+function packageAssets(pkg: string) {
+    return assets().map((asset: any) => {
+        const name = asset.name.replace(/^thalorna/, pkg);
+        return {
+            ...asset,
+            name,
+            browser_download_url: `${root}/download/${tag}/${name}`,
+        };
+    });
+}
+
+function indexAssets(name = "thalorna-metadata.jsonl", first = 100) {
     return [name, `${name}.sha256`].map((name, j) => ({
         id: first + j,
         name,
@@ -111,14 +125,14 @@ it("accepts one metadata index and its checksum beside the archives without pinn
     expect(releaseArchives(release, list, tag)).toEqual(releaseArchives(release, assets(2), tag));
     expect(releaseIndex(release, list, tag)).toEqual({
         id: 100,
-        name: "artthalorna-metadata.jsonl",
-        url: `${root}/download/${tag}/artthalorna-metadata.jsonl`,
+        name: "thalorna-metadata.jsonl",
+        url: `${root}/download/${tag}/thalorna-metadata.jsonl`,
         sha256: "100".padStart(64, "0"),
         bytes: 4096,
         checksum: {
             id: 101,
-            name: "artthalorna-metadata.jsonl.sha256",
-            url: `${root}/download/${tag}/artthalorna-metadata.jsonl.sha256`,
+            name: "thalorna-metadata.jsonl.sha256",
+            url: `${root}/download/${tag}/thalorna-metadata.jsonl.sha256`,
             sha256: "101".padStart(64, "0"),
             bytes: 100,
         },
@@ -139,7 +153,7 @@ it.each([
     ],
     [
         "two indexes",
-        () => [...indexAssets(), ...indexAssets("thalorna-metadata.jsonl", 200), ...assets()],
+        () => [...indexAssets(), ...indexAssets("other-metadata.jsonl", 200), ...assets()],
         /one metadata index/,
     ],
     [
@@ -164,7 +178,7 @@ it.each([
             list[0].size = 64 * 1024 ** 2 + 1;
             return [...list, ...assets()];
         },
-        /^artthalorna-metadata\.jsonl: metadata index exceeds its limit/,
+        /^thalorna-metadata\.jsonl: metadata index exceeds its limit/,
     ],
     [
         "an extra ZIP beside the index",
@@ -198,7 +212,7 @@ it.each([
             list[1].size = 1025;
             return [...list, ...assets()];
         },
-        /artthalorna-metadata\.jsonl\.sha256: checksum sidecar exceeds its limit/,
+        /thalorna-metadata\.jsonl\.sha256: checksum sidecar exceeds its limit/,
     ],
     ["an index with no archives", () => indexAssets(), /exactly ZIP\/checksum pairs/],
 ])("refuses %s", (_, build, message) => {
@@ -384,4 +398,100 @@ it("refuses an archive index that differs from, or is absent from, the release",
     expect(() =>
         assertArchiveIndexes([{ ...part("p1"), metadataIndex: Buffer.from(indexText) }], null),
     ).toThrow(/reader and the member inventory disagree/);
+});
+
+it("takes the picture package from the archive names", () => {
+    expect(releasePackage(release, assets(), tag)).toBe("thalorna");
+    const second = packageAssets("artthalorna");
+    expect(releasePackage(release, second, tag)).toBe("artthalorna");
+    expect(releaseArchives(release, second, tag)[0].name).toBe("artthalorna-originals-1.2.3.zip");
+});
+
+it("accepts a second package's index and refuses an index of another package", () => {
+    const second = packageAssets("artthalorna");
+    expect(
+        releaseIndex(release, [...indexAssets("artthalorna-metadata.jsonl"), ...second], tag),
+    ).toMatchObject({ name: "artthalorna-metadata.jsonl" });
+    expect(() =>
+        releaseIndex(release, [...indexAssets("thalorna-metadata.jsonl"), ...second], tag),
+    ).toThrow(/not named for the package of the archives, artthalorna/);
+});
+
+it("pins a different digest for a release of another package", () => {
+    const one = releaseArchives(release, assets(), tag);
+    const two = releaseArchives(release, packageAssets("artthalorna"), tag);
+    expect(releaseDigest(release, one)).not.toBe(releaseDigest(release, two));
+});
+
+it.each(["Art", "art-thalorna", "art.thalorna", "art_thalorna", ""])(
+    "refuses the package name %j",
+    (pkg) => {
+        const list = assets().map((asset: any) => ({
+            ...asset,
+            name: asset.name.replace(/^thalorna/, pkg),
+            browser_download_url: `${root}/download/${tag}/${asset.name.replace(/^thalorna/, pkg)}`,
+        }));
+        expect(() => releasePackage(release, list, tag)).toThrow(/an archive is named/);
+    },
+);
+
+function pins(list: any[]) {
+    return {
+        archives: releaseArchives(release, list, tag),
+        index: releaseIndex(release, list, tag),
+        packageName: releasePackage(release, list, tag),
+    };
+}
+
+it("overlays only the archives for the consumer's own package", () => {
+    const art = releaseArt(pins([...indexAssets(), ...assets()]), "thalorna");
+    expect(Object.keys(art)).toEqual(["archives"]);
+    expect(art.archives).toEqual([
+        {
+            url: `${root}/download/${tag}/thalorna-originals-1.2.3.zip`,
+            sha256: "1".padStart(64, "0"),
+        },
+    ]);
+});
+
+it("pins the released index under art.packages for another picture package", () => {
+    const list = [...indexAssets("artthalorna-metadata.jsonl"), ...packageAssets("artthalorna")];
+    const art = releaseArt(
+        pins(list),
+        "thalorna",
+        (url: string) => `https://127.0.0.1:1${new URL(url).pathname}`,
+    );
+    expect(art.archives).toHaveLength(1);
+    expect(art.archives[0].url).toMatch(/^https:\/\/127\.0\.0\.1:1\//);
+    expect(art.packages).toEqual([
+        {
+            package: "artthalorna",
+            url: `https://127.0.0.1:1${new URL(root).pathname}/download/${tag}/artthalorna-metadata.jsonl`,
+            sha256: "100".padStart(64, "0"),
+        },
+    ]);
+});
+
+it("refuses a release of another package that has no metadata index", () => {
+    expect(() => releaseArt(pins(packageAssets("artthalorna")), "thalorna")).toThrow(
+        /^artthalorna-originals: .*no `artthalorna-metadata\.jsonl` asset/s,
+    );
+});
+
+it("re-hashes the cached released index before reading its rows", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "index-"));
+    try {
+        const bytes = Buffer.from('{"row":1}\n');
+        const sha256 = createHash("sha256").update(bytes).digest("hex");
+        const file = path.join(dir, sha256);
+        fs.writeFileSync(file, bytes);
+        const index = { name: "artthalorna-metadata.jsonl", sha256 };
+        await expect(verifiedIndexFile(file, index)).resolves.toBe(file);
+        fs.writeFileSync(file, '{"row":2}\n');
+        await expect(verifiedIndexFile(file, index)).rejects.toThrow(
+            /^artthalorna-metadata\.jsonl: cached released metadata index differs from its native digest/,
+        );
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
 });

@@ -45,19 +45,26 @@ Dispatch `consumer-proof.yml` on the candidate branch with these inputs:
 | `art_release_sha256` | The reviewed complete release digest, computed as described below.      |
 
 The tag must identify a real published release with the complete ZIP/checksum
-set. A single ZIP uses `thalorna-originals-<version>.zip`; multipart releases use
-sequential `-part<n>.zip` files, each with its `<name>.zip.sha256` checksum file.
+set. The picture package's name comes from the release: a single ZIP is named
+`<package>-originals-<version>.zip`; multipart releases use sequential
+`-part<n>.zip` files, each with its `<name>.zip.sha256` checksum file. The
+`<package>` is lowercase letters and digits (`^[a-z0-9]+$`) and is the same in every
+archive name. The proof uses it as the owner of the released originals' addresses
+and for the derivative checks, and the receipt records it as `release.package`.
+A release of a picture package named differently from the consumer, such as
+`artthalorna` consumed by `thalorna`, is named `artthalorna-originals-1.2.3.zip`
+and must carry its index (below), which the proof pins under `art.packages`.
 Beside the archives, a release may carry one metadata index named
-`<package>-metadata.jsonl`, where `<package>` is lowercase letters and digits, such
-as `artthalorna-metadata.jsonl`, together with its `<name>.jsonl.sha256` checksum
+`<package>-metadata.jsonl` for that same package, such as
+`artthalorna-metadata.jsonl`, together with its `<name>.jsonl.sha256` checksum
 file. Those are the only accepted attachments. Every attachment requires GitHub's
 native SHA-256 digest and an exact versioned download URL. Each checksum file is at
 most 1024 bytes and contains exactly `<sha256>  <name>` and a newline, naming its
 ZIP or index by its native digest. The index is at most 64 MiB. The index pair is
 never an archive pin. An index without its checksum, a checksum without its index, a
-second index, an index whose name does not match the pattern, a ZIP without its
-checksum, a ZIP checksum without its ZIP, a ZIP outside the release's sequence, and
-any other extra attachment each fail the proof with a diagnostic naming the
+second index, an index whose name does not match the pattern or names another
+package than the archives, a ZIP without its checksum, a ZIP checksum without its
+ZIP, a ZIP outside the release's sequence, and any other extra attachment each fail the proof with a diagnostic naming the
 attachment. Missing, incomplete or inconsistent attachments also fail the proof.
 
 An archive part may carry the index as one root-level member with the index's
@@ -69,11 +76,11 @@ released asset, a second index member in a part, and a member named differently
 from the asset each fail the proof with a diagnostic naming the part. The index
 member is not an original and is not counted among the originals. For example, a
 two-part release with `artthalorna-metadata.jsonl` published as an asset passes
-only when `thalorna-originals-1.0.0-part1.zip` and
-`thalorna-originals-1.0.0-part2.zip` each hold that file at their root with the
-asset's bytes; deleting the member from `thalorna-originals-1.0.0-part2.zip` fails
+only when `artthalorna-originals-1.0.0-part1.zip` and
+`artthalorna-originals-1.0.0-part2.zip` each hold that file at their root with the
+asset's bytes; deleting the member from `artthalorna-originals-1.0.0-part2.zip` fails
 with
-`thalorna-originals-1.0.0-part2.zip: the metadata index is missing from this archive part`.
+`artthalorna-originals-1.0.0-part2.zip: the metadata index is missing from this archive part`.
 The helper reads GitHub metadata anonymously; unavailable release metadata
 and exhausted API quotas remain failures. No fixture release or checksum fallback
 is used.
@@ -87,10 +94,16 @@ assets JSON array, then compute the input from those saved files:
 ```sh
 node --input-type=module - release.json assets.json <<'NODE'
 import fs from 'node:fs';
-import { releaseArchives, releaseDigest, releaseIndex } from './ci/consumer-art-release-proof.mjs';
+import {
+  releaseArchives,
+  releaseDigest,
+  releaseIndex,
+  releasePackage,
+} from './ci/consumer-art-release-proof.mjs';
 const release = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const assets = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
 const tag = release.tag_name;
+console.log(`package: ${releasePackage(release, assets, tag)}`);
 console.log(
   releaseDigest(release, releaseArchives(release, assets, tag), releaseIndex(release, assets, tag)),
 );
@@ -98,15 +111,20 @@ NODE
 ```
 
 This command hashes reviewed metadata; it neither acquires artwork nor runs a
-build. The dispatch records that expected digest separately from the tag.
+build. It prints the picture package the proof will prove, read from the archive
+names. The dispatch records that expected digest separately from the tag.
 
 The job archives the pinned Thalorna tree into disposable session storage,
 installs the exact candidate with the existing dependency lock and installed-byte
-guards, and uses only the complete release's `art.archives` pins. A consumer with
-no `art` configuration receives a temporary overlay. An existing declaration must
-contain exactly those archive URLs and SHA-256 hashes, in release order, with no
-additional art settings; otherwise the proof fails. The receipt identifies the
-configuration as `declared` or `overlaid`. Notes, artwork identities, licensing
+guards, and uses only the complete release's pins: `art.archives` and, when the
+released package is not the consumer's own, `art.packages` with one entry naming
+the package and the release's metadata index URL and SHA-256. A consumer with no
+`art` configuration receives a temporary overlay. An existing declaration must
+contain exactly those archive URLs and SHA-256 hashes, in release order, and that
+one picture package entry when the package differs, with no additional art
+settings; otherwise the proof fails. A release of another package without a
+metadata index fails the proof. The receipt identifies the configuration as
+`declared` or `overlaid`. Notes, artwork identities, licensing
 and alternative selections come from the real source and release. The normal
 `npm run build:db` runs twice. The cold compile requests every archive exactly
 once into an archive cache outside the source tree with no ZIP entries. The
@@ -114,9 +132,13 @@ checksum sidecars, the index checksum included, are already verified in that sha
 download cache; they cannot seed the ZIP entries. Before the cold compile, the proof
 downloads a released metadata index into that cache under its 64 MiB bound and
 requires its bytes to match the native size and SHA-256 and the digest its checksum
-file states. The build does not use the released metadata index. The warm compile keeps
-verified download and materialized dependency caches but clears generated outputs,
-note caches (`build/cache/note-page`) and image renditions (`build/.cache/art`). A CI-only fetch observer delegates real cold
+file states. For a picture package of another name, the proof then fills the
+consumer's picture-package index cache from that download, as `package-build deps
+fetch` does for `art.packages`, and the build reads the pinned index; for the
+consumer's own package the build does not use the released metadata index. The
+warm compile keeps verified download and materialized dependency caches but
+clears generated outputs, note caches (`build/cache/note-page`) and image
+renditions (`build/.cache/art`). A CI-only fetch observer delegates real cold
 requests and rejects warm archive requests before network access. Other dependency
 requests retain their normal behavior; this is an offline artwork-cache proof,
 not a fully disconnected build.
@@ -124,8 +146,16 @@ not a fully disconnected build.
 Normal extraction validates the archive, and an independent streaming ZIP read
 compares every extracted original's size and hash with its released member.
 Each part contains root `README.md` and `CHANGELOG.md`, with originals under
-`artwork/`. The proof verifies indexed identity, credits, license, AI status and
-declared alternatives; sanitized public derivatives; non-AI Foundry staging;
+`artwork/`. The proof reads the originals as the consumer's own pictures when the
+package is the consumer's, and as the pictures of a declared picture package
+otherwise. For the consumer's own package it looks for each picture's row in the
+consumer's index and stages it at `images/<shortcode>`. For another picture
+package the row is in the released index, which the consumer's own index never
+lists, and the proof requires that no such address appears in the consumer's
+index; the derivative is staged at `build/stage/images/<package>/<shortcode>` and compiled
+documents refer to it as `modules/<consumer>/images/<package>/<shortcode>`. The
+proof verifies indexed identity, credits, license, AI status and declared
+alternatives; sanitized public derivatives; non-AI Foundry staging;
 compiled document references to released artwork; nonempty packs; matching cold
 and warm outputs; unchanged source bytes; and extraction cleanup. It refuses a
 release without a real compiled reference to its staged artwork. It does not

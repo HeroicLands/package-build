@@ -37,18 +37,47 @@ for (const args of [["content-index"], ["assets"], ["package", "compile"]]) {
     );
     assert.equal(result.status, 0, "fixture consumer compilation failed");
 }
-const index = "build/content-index/thalorna-metadata.jsonl";
-const rows = fs.readFileSync(index, "utf8").trim().split("\n").map(JSON.parse);
-const art = rows.find((row) => row.asset?.ai === false);
-const ai = rows.find((row) => row.asset?.ai === true);
-assert.ok(art && ai, "fixture requires both original statuses");
-const fault = process.env.FIXTURE_FAULT;
-if (fault === "missing-index") rows.splice(rows.indexOf(ai), 1);
-if (fault === "private-index") art.asset.prompt = "private fixture sentinel";
-if (fault === "license") art.asset.license = "CC-BY-SA-4.0";
-if (fault === "credits") art.asset.attribution = ["Wrong credit"];
-if (fault === "alternative") ai.asset.nonAiAlternative = null;
-fs.writeFileSync(index, rows.map((row) => JSON.stringify(row)).join("\n") + "\n");
+const prefix = "picture-package";
+const picture = process.env.FIXTURE_FAULT.startsWith(prefix);
+const fault = process.env.FIXTURE_FAULT.slice(picture ? prefix.length + 1 : 0);
+let art;
+let ai;
+if (picture) {
+    // The picture package's own index, not the consumer's, holds its pictures.
+    const pictures = (name) => ({ asset: { path: `images/artthalorna/${name}.svg` } });
+    art = pictures("portrait");
+    ai = pictures("artificial");
+    if (fault === "consumer-index") {
+        // The consumer's own index lists the released rows.
+        const metadata = "build/cache/metadata";
+        const cached = fs
+            .readdirSync(metadata)
+            .filter((entry) => entry.startsWith("artthalorna@"))
+            .flatMap((entry) =>
+                fs
+                    .readdirSync(path.join(metadata, entry))
+                    .filter((file) => file.endsWith(".jsonl"))
+                    .map((file) => path.join(metadata, entry, file)),
+            );
+        assert.equal(cached.length, 1, "fixture requires the cached picture package index");
+        fs.appendFileSync(
+            "build/content-index/thalorna-metadata.jsonl",
+            fs.readFileSync(cached[0], "utf8"),
+        );
+    }
+} else {
+    const index = "build/content-index/thalorna-metadata.jsonl";
+    const rows = fs.readFileSync(index, "utf8").trim().split("\n").map(JSON.parse);
+    art = rows.find((row) => row.asset?.ai === false);
+    ai = rows.find((row) => row.asset?.ai === true);
+    assert.ok(art && ai, "fixture requires both original statuses");
+    if (fault === "missing-index") rows.splice(rows.indexOf(ai), 1);
+    if (fault === "private-index") art.asset.prompt = "private fixture sentinel";
+    if (fault === "license") art.asset.license = "CC-BY-SA-4.0";
+    if (fault === "credits") art.asset.attribution = ["Wrong credit"];
+    if (fault === "alternative") ai.asset.nonAiAlternative = null;
+    fs.writeFileSync(index, rows.map((row) => JSON.stringify(row)).join("\n") + "\n");
+}
 const image = path.join("build/stage", art.asset.path);
 if (fault === "rights")
     fs.writeFileSync(

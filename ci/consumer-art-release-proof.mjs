@@ -87,6 +87,24 @@ export function assertArchiveIndexes(parts, index) {
     });
 }
 
+const packageNamePattern = /^[a-z0-9]+$/;
+
+/**
+ * The picture package a release carries, read from an archive name of the form
+ * `<package>-originals-<version>[-part<n>].zip`. The package is lowercase
+ * letters and digits.
+ * @param {string} archive An archive asset name.
+ * @returns {string} The package name.
+ */
+export function archivePackage(archive) {
+    const match = /^([^-]+)-originals-/.exec(archive);
+    assert.ok(
+        match && packageNamePattern.test(match[1]),
+        `${archive}: an archive is named <package>-originals-<version>.zip with a package of lowercase letters and digits`,
+    );
+    return match[1];
+}
+
 /** Native coordinates of one release asset. */
 const pin = (asset) => ({
     id: asset.id,
@@ -113,7 +131,6 @@ function releaseAssets(release, assets, tag) {
     assert.ok(Array.isArray(assets) && assets.length > 0 && assets.length <= 66);
     const names = new Map();
     const ids = new Set();
-    const base = `thalorna-originals-${tag.slice(1)}`;
     for (const asset of assets) {
         assert.ok(
             Number.isSafeInteger(asset.id) && asset.id > 0 && !ids.has(asset.id),
@@ -160,6 +177,15 @@ function releaseAssets(release, assets, tag) {
             `${name}: release asset is not a ZIP, a ZIP checksum or the metadata index pair`,
         );
     const zipNames = [...names.keys()].filter((name) => name.endsWith(".zip"));
+    assert.ok(zipNames.length > 0, "release requires exactly ZIP/checksum pairs");
+    const packageName = archivePackage(zipNames[0]);
+    for (const name of indexes)
+        assert.equal(
+            name,
+            `${packageName}-metadata.jsonl`,
+            `${name}: the metadata index is not named for the package of the archives, ${packageName}`,
+        );
+    const base = `${packageName}-originals-${tag.slice(1)}`;
     for (const name of zipNames)
         assert.ok(names.has(`${name}.sha256`), `${name}: ZIP has no checksum`);
     for (const name of names.keys())
@@ -197,7 +223,40 @@ function releaseAssets(release, assets, tag) {
         assert.ok(checksum.size <= 1024, `${checksum.name}: checksum sidecar exceeds its limit`);
         index = { ...pin(file), checksum: pin(checksum) };
     }
-    return { archives, index };
+    return { archives, index, packageName };
+}
+
+/**
+ * The `art` configuration the proof gives the consumer: the release's archive
+ * pins and, when the released package is not the consumer's own, the release's
+ * metadata index pinned under `art.packages`.
+ * @param {{archives: {url: string, sha256: string}[], index: {url: string, sha256: string}|null, packageName: string}} release The release pins and its package.
+ * @param {string} consumerPackage The consuming content package.
+ * @param {(url: string) => string} [transport] Maps a release URL to the URL fetched.
+ * @returns {{archives: {url: string, sha256: string}[], packages?: {package: string, url: string, sha256: string}[]}} The configuration.
+ */
+export function releaseArt(
+    { archives, index, packageName },
+    consumerPackage,
+    transport = (url) => url,
+) {
+    const art = {
+        archives: archives.map(({ url, sha256 }) => ({ url: transport(url), sha256 })),
+    };
+    if (packageName === consumerPackage) return art;
+    assert.ok(
+        index,
+        `${packageName}-originals: the release is a picture package of \`${packageName}\`, which \`${consumerPackage}\` accepts through \`art.packages\`, and it has no \`${packageName}-metadata.jsonl\` asset to pin`,
+    );
+    return {
+        ...art,
+        packages: [{ package: packageName, url: transport(index.url), sha256: index.sha256 }],
+    };
+}
+
+/** Select the picture package the release's archives are named for. */
+export function releasePackage(release, assets, tag) {
+    return releaseAssets(release, assets, tag).packageName;
 }
 
 /** Select the ordered archive pins; the metadata index pair is not an archive. */
@@ -274,6 +333,22 @@ async function fileHash(file) {
     const digest = createHash("sha256");
     for await (const chunk of fs.createReadStream(file)) digest.update(chunk);
     return digest.digest("hex");
+}
+
+/**
+ * The cached released index, after its bytes are hashed again: the file is read
+ * after both builds, so a changed cache entry cannot supply the rows.
+ * @param {string} file The cached index file.
+ * @param {{name: string, sha256: string}} index The released index asset.
+ * @returns {Promise<string>} The file.
+ */
+export async function verifiedIndexFile(file, index) {
+    assert.equal(
+        await fileHash(file),
+        index.sha256,
+        `${index.name}: cached released metadata index differs from its native digest`,
+    );
+    return file;
 }
 
 function files(directory) {
@@ -368,7 +443,7 @@ export async function proveRelease({ fixture } = {}) {
         assets.push(...batch);
         if (batch.length < 100) break;
     }
-    const { archives, index } = releaseAssets(release, assets, tag);
+    const { archives, index, packageName } = releaseAssets(release, assets, tag);
     const releaseSha256 = releaseDigest(release, archives, index);
     assert.equal(
         releaseSha256,
@@ -379,9 +454,8 @@ export async function proveRelease({ fixture } = {}) {
     const originalConfig = fs.readFileSync(configFile);
     const config = YAML.parse(originalConfig.toString("utf8"));
     assert.equal(config.contentPackage, "thalorna");
-    const art = {
-        archives: archives.map(({ url, sha256 }) => ({ url: upstream.transport(url), sha256 })),
-    };
+    const consumerPackage = config.contentPackage;
+    const art = releaseArt({ archives, index, packageName }, consumerPackage, upstream.transport);
     const configMode = config.art === undefined ? "overlaid" : "declared";
     if (configMode === "declared")
         assert.deepEqual(
@@ -464,6 +538,26 @@ export async function proveRelease({ fixture } = {}) {
             });
         });
     };
+    // Fills the consumer's picture-package index cache from the verified download
+    // cache, the step `package-build deps fetch` performs for `art.packages`.
+    const seedPictureIndexes = async () => {
+        const seedEnv = { ...env, NODE_OPTIONS: process.env.NODE_OPTIONS ?? "" };
+        delete seedEnv.ART_RELEASE_PROOF_NETWORK;
+        const seed = `import { loadPackConfig } from ${JSON.stringify(pathToFileURL(path.join(installed, "engine/pack-config.mjs")).href)}; import { fetchArtPackageIndexes } from ${JSON.stringify(pathToFileURL(path.join(installed, "engine/art-packages.mjs")).href)}; await fetchArtPackageIndexes(loadPackConfig());`;
+        await new Promise((resolve, reject) => {
+            const seeding = spawn(process.execPath, ["--input-type=module", "-e", seed], {
+                cwd: consumer,
+                env: seedEnv,
+                stdio: "inherit",
+            });
+            seeding.once("error", reject);
+            seeding.once("close", (code) =>
+                code === 0 ? resolve() : (
+                    reject(new Error(`picture package index fetch failed: exit=${code}`))
+                ),
+            );
+        });
+    };
     const requests = () =>
         fs.readFileSync(requestsFile, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse);
     const assertSources = async (overlay = true) => {
@@ -493,36 +587,61 @@ export async function proveRelease({ fixture } = {}) {
             );
         }
     };
+    const pictureOnly = packageName !== consumerPackage;
     let originals;
     let expected;
     let rightsByAddress;
     const inspectOutputs = async () => {
-        const indexFile = path.join(consumer, "build/content-index/thalorna-metadata.jsonl");
+        const indexFile = path.join(
+            consumer,
+            `build/content-index/${consumerPackage}-metadata.jsonl`,
+        );
         assert.ok(
             fs.statSync(indexFile).size <= 512 * 1024 * 1024,
             "consumer index exceeds proof limit",
         );
-        const byAddress = new Map();
-        const lines = createInterface({
-            input: fs.createReadStream(indexFile),
-            crlfDelay: Infinity,
-        });
-        for await (const line of lines) {
-            if (!line.trim()) continue;
-            const record = decodeIndexAddresses(JSON.parse(line), { package: "thalorna" });
-            if (record.asset) {
-                const address = renderAddress(record.address.canonical);
-                assert.ok(!byAddress.has(address), "duplicate indexed artwork identity");
-                byAddress.set(address, record);
+        // Pictures of a picture package are indexed by the picture package alone, so
+        // the released index holds their rows and the consumer's own index holds none.
+        const readRows = async (file, context) => {
+            const rows = new Map();
+            const lines = createInterface({
+                input: fs.createReadStream(file),
+                crlfDelay: Infinity,
+            });
+            for await (const line of lines) {
+                if (!line.trim()) continue;
+                const record = decodeIndexAddresses(JSON.parse(line), { package: context });
+                if (record.asset) {
+                    const address = renderAddress(record.address.canonical);
+                    assert.ok(!rows.has(address), "duplicate indexed artwork identity");
+                    rows.set(address, record);
+                }
             }
-        }
+            return rows;
+        };
+        const ownRows = await readRows(indexFile, consumerPackage);
+        const byAddress =
+            pictureOnly ?
+                await readRows(
+                    await verifiedIndexFile(path.join(cache, index.sha256), index),
+                    packageName,
+                )
+            :   ownRows;
+        if (pictureOnly)
+            for (const address of byAddress.keys())
+                assert.ok(
+                    !ownRows.has(address),
+                    `${address}: a picture package's picture is indexed in the consumer's own index`,
+                );
         const staged = new Map();
         const outputs = [];
         for (const original of expected) {
             const address = original.address.canonical;
             const indexed = byAddress.get(address);
             assert.ok(indexed, `released artwork is absent from the index: ${address}`);
-            for (const key of ["path", "attribution", "ai", "license"])
+            for (const key of pictureOnly ?
+                ["attribution", "ai", "license"]
+            :   ["path", "attribution", "ai", "license"])
                 assert.deepEqual(
                     indexed.asset[key],
                     original.asset[key],
@@ -554,7 +673,7 @@ export async function proveRelease({ fixture } = {}) {
             }
             assert.equal(original.asset.ai, false, "released artwork requires explicit AI status");
             const bytes = fs.readFileSync(file);
-            const output = inspectPublicDerivative(original.asset.path, bytes, "thalorna");
+            const output = inspectPublicDerivative(original.asset.path, bytes, packageName);
             assert.equal(output.metadata.address, address);
             assert.equal(output.metadata.ai, false);
             assert.deepEqual(output.metadata.creator, original.asset.attribution);
@@ -564,7 +683,7 @@ export async function proveRelease({ fixture } = {}) {
                     "jpeg"
                 :   path.extname(original.asset.path).slice(1);
             assert.equal(output.format, format);
-            const reference = `modules/thalorna/${original.asset.path}`;
+            const reference = `modules/${consumerPackage}/${original.asset.path}`;
             staged.set(reference, address);
             outputs.push({ address, path: original.asset.path, format, sha256: hash(bytes) });
         }
@@ -667,6 +786,7 @@ export async function proveRelease({ fixture } = {}) {
         }
         fs.writeFileSync(configFile, overlaidConfig);
         clearOutputs(consumer);
+        if (art.packages) await seedPictureIndexes();
         await runBuild("cold");
         for (const archive of archives)
             assert.equal(
@@ -742,10 +862,17 @@ export async function proveRelease({ fixture } = {}) {
                 });
             }
             assertArchiveIndexes(parts, index);
-            const collected = collectArtMasters(
-                sessions.map((session) => session.root),
-                "thalorna",
-            );
+            const collected =
+                pictureOnly ?
+                    collectArtMasters(
+                        sessions.map((session) => session.root),
+                        consumerPackage,
+                        { dependencyPackages: [packageName] },
+                    )
+                :   collectArtMasters(
+                        sessions.map((session) => session.root),
+                        packageName,
+                    );
             assert.equal(
                 collected.findings.length,
                 0,
@@ -787,6 +914,7 @@ export async function proveRelease({ fixture } = {}) {
             candidateSha256: await fileHash(path.join(proof, "candidate.tgz")),
             release: {
                 repository,
+                package: packageName,
                 tag,
                 id: release.id,
                 publishedAt: release.published_at,

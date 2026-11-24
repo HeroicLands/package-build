@@ -19,6 +19,8 @@ import { execFileSync, spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { zipSync } from "fflate";
 import YAML from "yaml";
+import { collectArtMasters, masterAssetRecords } from "../engine/art-masters.mjs";
+import { collectContentIndex, serializeContentIndex } from "../engine/content-index.mjs";
 import { writeSvgProvenance } from "../engine/art-provenance.mjs";
 import { releaseArchives, releaseDigest, releaseIndex } from "./consumer-art-release-proof.mjs";
 
@@ -75,7 +77,6 @@ const checked = async (...args) => {
     assert.equal(result.code, 0, result.output);
 };
 const tag = "v1.2.3";
-const name = "thalorna-originals-1.2.3.zip";
 const base = `https://github.com/HeroicLands/art-thalorna/releases/download/${tag}/`;
 const release = {
     id: 17,
@@ -95,14 +96,36 @@ const master = (address, extra) =>
         prompt: "private fixture sentinel",
         ...extra,
     }).bytes;
-const members = {
+const membersFor = (pkg, extra = {}) => ({
     "README.md": Buffer.from("Synthetic release fixture.\n"),
     "CHANGELOG.md": Buffer.from("Synthetic release fixture.\n"),
-    "artwork/portrait.svg": master("thalorna-none-image-portrait", { ai: false }),
-    "artwork/artificial.svg": master("thalorna-none-image-artificial", {
+    "artwork/portrait.svg": master(`${pkg}-none-image-portrait`, { ai: false, ...extra }),
+    "artwork/artificial.svg": master(`${pkg}-none-image-artificial`, {
         ai: true,
-        nonAiAlternative: "thalorna-none-image-portrait",
+        nonAiAlternative: `${pkg}-none-image-portrait`,
+        ...extra,
     }),
+});
+/** The published metadata index of a picture package holding the fixture originals. */
+const pictureIndex = (pkg, extra = {}) => {
+    const originals = path.join(root, `${pkg}-originals`);
+    for (const [member, bytes] of Object.entries(membersFor(pkg, extra)))
+        if (member.startsWith("artwork/"))
+            write(path.join(originals, path.basename(member)), bytes);
+    const collected = collectArtMasters([originals], pkg);
+    assert.deepEqual(collected.findings, []);
+    for (const directory of ["content", "assets"])
+        fs.mkdirSync(path.join(root, `${pkg}-${directory}`), { recursive: true });
+    return Buffer.from(
+        serializeContentIndex(
+            collectContentIndex(path.join(root, `${pkg}-content`), {
+                skipDirectories: [],
+                contentPackage: pkg,
+                assetsBase: path.join(root, `${pkg}-assets`),
+                masterRecords: masterAssetRecords(collected.masters),
+            }),
+        ),
+    );
 };
 let payloads = new Map();
 let metadata;
@@ -258,21 +281,46 @@ try {
         ["cleanup", /temporary files leak/],
         ["warm-output", /cold and cached release outputs differ/],
         ["warm-fetch", /warm artwork cache attempted/],
+        ["picture-package", null],
+        ["picture-package-declared", null],
+        [
+            "picture-package-no-index",
+            /artthalorna-originals: .* no `artthalorna-metadata\.jsonl` asset to pin/,
+        ],
+        [
+            "picture-package-consumer-index",
+            /picture package's picture is indexed in the consumer's own index/,
+        ],
+        ["picture-package-credits", /creator is .* in the master and .* in the index/],
+        ["picture-package-license", /license is .* in the master and .* in the index/],
+        ["picture-package-rights", /derivative rights differ/],
+        ["picture-package-private-derivative", /publication allowlist/],
+        ["picture-package-ai-stage", /AI original is present/],
+        ["picture-package-reference", /no real compiled note refers/],
+        ["picture-package-warm-output", /cold and cached release outputs differ/],
     ];
     for (const [fault, failure] of cases) {
         fs.rmSync(path.join(proof, "fixture-evidence"), { recursive: true, force: true });
         fs.rmSync(path.join(consumer, "build"), { recursive: true, force: true });
-        fs.copyFileSync(
-            path.join(source, "assets/content/fixture.md"),
+        const picture = fault.startsWith("picture-package");
+        const pkg = picture ? "artthalorna" : "thalorna";
+        const name = `${pkg}-originals-1.2.3.zip`;
+        const note = fs.readFileSync(path.join(source, "assets/content/fixture.md"), "utf8");
+        write(
             path.join(consumer, "assets/content/fixture.md"),
+            picture ? note.replace("image-portrait", `${pkg}-none-image-portrait`) : note,
         );
-        const entries = { ...members };
+        const entries = membersFor(pkg);
         if (fault === "layout") {
             entries["other/portrait.svg"] = entries["artwork/portrait.svg"];
             delete entries["artwork/portrait.svg"];
         }
-        const indexName = "thalorna-metadata.jsonl";
-        const index = Buffer.from('{"fixture":true}\n');
+        const indexName = `${pkg}-metadata.jsonl`;
+        const differing = {
+            "picture-package-credits": { creator: ["Other artist", "Fixture credit"] },
+            "picture-package-license": { license: "CC-BY-SA-4.0" },
+        }[fault];
+        const index = picture ? pictureIndex(pkg, differing) : Buffer.from('{"fixture":true}\n');
         if (["metadata-index", "index-member-differs", "unreleased-index-member"].includes(fault))
             entries[indexName] =
                 fault === "index-member-differs" ? Buffer.from('{"fixture":nope}\n') : index;
@@ -284,7 +332,11 @@ try {
             [name, zip, fault === "zip-digest" ? Buffer.alloc(zip.length) : zip],
             [`${name}.sha256`, sidecar, sidecar],
         ];
-        if (fault.startsWith("index-") || fault === "metadata-index") {
+        if (
+            fault.startsWith("index-") ||
+            fault === "metadata-index" ||
+            (picture && fault !== "picture-package-no-index")
+        ) {
             const indexSidecar = Buffer.from(
                 `${fault === "index-sidecar" ? "0".repeat(64) : hash(index)}  ${
                     fault === "index-sidecar-name" ? "other-metadata.jsonl" : indexName
@@ -310,12 +362,23 @@ try {
         const archives = releaseArchives(release, metadata, tag);
         const released = releaseIndex(release, metadata, tag);
         const selected = structuredClone(config);
-        if (fault === "declared" || fault === "declared-mismatch")
+        if (["declared", "declared-mismatch", "picture-package-declared"].includes(fault))
             selected.art = {
                 archives: archives.map(({ url, sha256 }) => ({
                     url: origin + new URL(url).pathname,
                     sha256: fault === "declared-mismatch" ? "0".repeat(64) : sha256,
                 })),
+                ...(fault === "picture-package-declared" ?
+                    {
+                        packages: [
+                            {
+                                package: pkg,
+                                url: origin + new URL(released.url).pathname,
+                                sha256: released.sha256,
+                            },
+                        ],
+                    }
+                :   {}),
             };
         const originalConfig = YAML.stringify(selected);
         write(path.join(consumer, "package-build.config.yaml"), originalConfig);
@@ -374,7 +437,10 @@ try {
             const receipt = JSON.parse(fs.readFileSync(evidence, "utf8"));
             assert.equal(receipt.fixture, true);
             assert.match(receipt.scope, /Synthetic/);
-            assert.equal(receipt.config.mode, fault === "declared" ? "declared" : "overlaid");
+            assert.equal(
+                receipt.config.mode,
+                ["declared", "picture-package-declared"].includes(fault) ? "declared" : "overlaid",
+            );
             assert.deepEqual(receipt.index, released ?? undefined);
             assert.equal(receipt.originals.length, 2);
             assert.equal(receipt.cold.outputs.length, 1);
