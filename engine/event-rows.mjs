@@ -51,7 +51,13 @@ import { calendarAddress } from "./reckoning-markers.mjs";
 const IDENTITY_COLUMNS = Object.freeze(["note", "address"]);
 
 /** The sort keys a row carries, after the event's own keys. */
-export const EVENT_SORT_COLUMNS = Object.freeze(["whenSort", "whenYear", "untilSort", "untilYear"]);
+export const EVENT_SORT_COLUMNS = Object.freeze([
+    "whenSort",
+    "whenOrder",
+    "whenYear",
+    "untilSort",
+    "untilYear",
+]);
 
 /** The printed dates a row carries, after the sort keys. */
 export const EVENT_TEXT_COLUMNS = Object.freeze(["whenText", "untilText"]);
@@ -70,6 +76,85 @@ export const EVENT_COLUMNS = Object.freeze([
 
 /** The keys whose authored value is a date, printed as the text it was written as. */
 const DATE_KEYS = new Set(["when", "until"]);
+
+/**
+ * The position of each row among the rows sharing its `whenSort`, so events no
+ * day separates read in the order they happened.
+ *
+ * A row's `follows` edges that name another row of its own group put that row
+ * first. An edge is named by `<note>#<id>`, or by the note alone when the note
+ * holds one event. An edge to a row of another date, or to no row of the
+ * corpus, carries no order, and neither does an edge on a cycle: the cycle's
+ * links are dropped and the rest are sorted normally. Among the rows the
+ * remaining edges leave free, the smaller `address` goes first, so the order is
+ * the same on every run. Undated rows stay in `address` order.
+ *
+ * @param {object[]} rows - The event rows, `whenSort` already set.
+ * @returns {void} Each row gains `whenOrder`.
+ */
+function orderWithinDates(rows) {
+    const perNote = new Map();
+    for (const row of rows) perNote.set(row.note, (perNote.get(row.note) ?? 0) + 1);
+    const groups = new Map();
+    for (const row of rows) {
+        const key = row.whenSort;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
+    }
+    const byAddress = (a, b) =>
+        a.address < b.address ? -1
+        : a.address > b.address ? 1
+        : 0;
+    for (const [key, group] of groups) {
+        group.sort(byAddress);
+        const later = new Map(group.map((row) => [row, new Set()]));
+        if (key !== null) {
+            const named = new Map();
+            const name = (text, row) => {
+                if (!named.has(text)) named.set(text, []);
+                named.get(text).push(row);
+            };
+            for (const row of group) {
+                name(row.address, row);
+                if (perNote.get(row.note) === 1) name(row.note, row);
+            }
+            for (const row of group) {
+                for (const edge of Array.isArray(row.follows) ? row.follows : []) {
+                    const target = typeof edge?.event === "string" ? edge.event : null;
+                    for (const earlier of named.get(target) ?? [])
+                        if (earlier !== row) later.get(earlier).add(row);
+                }
+            }
+            // An edge lies on a cycle when its far end leads back to its near end.
+            const reaches = (from, goal) => {
+                const seen = new Set();
+                const work = [from];
+                while (work.length) {
+                    const node = work.pop();
+                    if (node === goal) return true;
+                    if (seen.has(node)) continue;
+                    seen.add(node);
+                    work.push(...later.get(node));
+                }
+                return false;
+            };
+            const cyclic = [];
+            for (const [from, targets] of later)
+                for (const to of targets) if (reaches(to, from)) cyclic.push([from, to]);
+            for (const [from, to] of cyclic) later.get(from).delete(to);
+        }
+        const waiting = new Map(group.map((row) => [row, 0]));
+        for (const targets of later.values())
+            for (const to of targets) waiting.set(to, waiting.get(to) + 1);
+        const placed = new Set();
+        group.forEach((_, position) => {
+            const next = group.find((row) => !placed.has(row) && waiting.get(row) === 0);
+            placed.add(next);
+            next.whenOrder = position;
+            for (const to of later.get(next)) waiting.set(to, waiting.get(to) - 1);
+        });
+    }
+}
 
 /**
  * The owning note's canonical Address, as a string: the one the record
@@ -202,5 +287,6 @@ export function eventRows(records, dates, calendars) {
             rows.push(row);
         });
     }
+    orderWithinDates(rows);
     return rows;
 }

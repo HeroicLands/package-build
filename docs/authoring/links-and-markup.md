@@ -1656,7 +1656,7 @@ The [format reference](../reference/format-details.md#event-views) lists what ea
 
 ### A century view
 
-A view of what happened in one century is a fence an author writes, on whatever note should carry it. Filter `events` on `whenYear`, leave out events of local reach, and order by `whenSort`:
+A view of what happened in one century is a fence an author writes, on whatever note should carry it. Filter `events` on `whenYear`, leave out events of local reach, and order by `whenSort`, then `whenOrder`, which puts events of one year in the order their [`follows` links](../reference/format-details.md#the-order-of-events-within-a-year) give:
 
 ````markdown
 # The Third Century {#third-century}
@@ -1669,7 +1669,7 @@ SELECT note                                   AS _ref,
 FROM events
 WHERE whenYear BETWEEN 200 AND 299
   AND depth <> 'local'
-ORDER BY whenSort, address
+ORDER BY whenSort, whenOrder, address
 ```
 ````
 
@@ -1694,8 +1694,8 @@ FROM events e
 LEFT JOIN notes p ON list_contains(e."where".locus, p.address.canonical)
 WHERE e.whenYear BETWEEN 200 AND 299
   AND e.depth <> 'local'
-GROUP BY e.note, e.address, e.summary, e."when", e.whenSort
-ORDER BY e.whenSort, e.address
+GROUP BY e.note, e.address, e.summary, e."when", e.whenSort, e.whenOrder
+ORDER BY e.whenSort, e.whenOrder, e.address
 ```
 ````
 

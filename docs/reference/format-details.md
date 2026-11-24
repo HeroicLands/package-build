@@ -3711,6 +3711,7 @@ ORDER BY whenSort
 | `whenSort`, `untilSort`  | The date's position on the canonical axis: the canonical year, with a day as its fraction of the year where the calendar states the year's length. `ORDER BY whenSort` is date order.                                                                                    |
 | `whenText`, `untilText`  | The date as a reader of the owning note sees it, printed as `dateformat` prints it in [the owning note's calendar](#a-notes-calendar), else in the era the date itself names; `~` marks an approximate date. A date that does not resolve keeps the text its note wrote. |
 | `whenIn`, `untilIn`      | The date in every calendar: a struct keyed by each calendar note's canonical Address, holding the date as `dateformat` prints it there. `whenIn['thalorna-note-lore-commoncal']` reads it in that calendar; a date that calendar cannot print reads as in `whenText`.    |
+| `whenOrder`              | The event's position among the events sharing its `whenSort`, set by their `follows` links; see [the order of events within a year](#the-order-of-events-within-a-year). `ORDER BY whenSort, whenOrder, address` is the order the event views use.                       |
 | `whenYear`, `untilYear`  | The canonical year alone, for a filter such as `whenYear BETWEEN 200 AND 299`.                                                                                                                                                                                           |
 
 A fence chooses which calendar its dates print in. `whenText` prints each
@@ -4594,6 +4595,36 @@ The build appends sections to the end of a note's body that list the events conc
 - **An author's own section replaces a view.** A note whose body declares a prose anchor with the view's slug — `# Chronology {#chronology}`, or a block or span with that `id` — gets no generated section for it, and its own section is left exactly as written. This is the one way to turn a view off, and the way to choose a different table: write the section and its own `sql` fence.
 - Places below a place are found by walking `parents` down from it, so an event felt in towns under two continents is in each continent's chronology and each region's.
 - A stub publishes no page and gets no view. The views read this package's own events; a dependency's are read with a fence over `<package>.events`.
+
+#### The order of events within a year
+
+Events are listed by date, undated last. Events whose `whenSort` is equal have no date to separate them, so their `follows` links do: an event that follows another is listed after it. Equal `whenSort` means a date written as a year alone, two events on the same day, or day-dated events in a calendar that states no year length, which all sort by their bare year. Among events that no link orders, the smaller `address` goes first, so the order is the same in every build.
+
+A link names its event as `note#id`, or as the note alone where the note holds one event. Only a link between two events of one group orders them. A link to an event of another package, or to one that does not exist (which is reported where the note is checked), adds nothing, because that event is not among this package's events. A link to an event with a different `whenSort` adds nothing either, and the dates decide: a year-only event sorts before every day-dated event of its year, even one it follows. A link that lies on a `follows` cycle, which is reported where the note is checked, orders nothing; the remaining links are sorted normally and the events of the cycle come out in `address` order among whatever they leave free.
+
+For example, three events of year 712, none with a day:
+
+```yaml
+# lore-peace
+events:
+  - { id: peace, when: 712, summary: The peace is sworn. }
+# lore-abdication
+events:
+  - id: abdication
+    when: 712
+    summary: The king abdicates.
+    follows: [{ event: lore-peace#peace, how: caused }]
+# lore-enthronement
+events:
+  - id: enthroned
+    when: 712
+    summary: The heir is enthroned.
+    follows: [{ event: lore-abdication#abdication, how: caused }]
+```
+
+Address order alone would list the abdication, then the enthronement, then the peace. The links list the peace, the abdication, and the enthronement. A fourth event of 712, `lore-battle`, that states no `follows` and is followed by none, sorts among the free ones by address: it is listed before the peace, because `lore-battle` is smaller than `lore-peace`, and the chain keeps its order behind it.
+
+An author's own `sql` fence gets the same order by ending in `ORDER BY whenSort, whenOrder, address`.
 
 #### What sort of event: `kind`
 

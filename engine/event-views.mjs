@@ -60,8 +60,11 @@ const literals = (texts) => texts.map(literal).join(", ");
  */
 const whenColumn = (calendar) => (calendar ? `e.whenIn[${literal(calendar)}]` : "e.whenText");
 
-/** The order every view sorts its rows in: by date, undated last. */
-const BY_DATE = "ORDER BY e.whenSort NULLS LAST, e.address";
+/**
+ * The order every view sorts its rows in: by date, undated last, events no day
+ * separates by their `follows` links, then by address.
+ */
+const BY_DATE = "ORDER BY e.whenSort NULLS LAST, e.whenOrder, e.address";
 
 /**
  * The views, in the order
