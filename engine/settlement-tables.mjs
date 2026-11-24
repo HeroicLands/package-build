@@ -954,7 +954,40 @@ export function assertSettlementRecords(
         });
 }
 
-/** Render a polity's direct subjects or all settlements beneath it. */
+/** The identity under which a settlement row is listed once on a polity page. */
+function rowIdentity(row) {
+    return row.noted ? `key:${row.settlement}` : `name:${text(row.settlement).toLowerCase()}`;
+}
+
+/** A polity's direct subjects: its own rows plus its subordinate polities' seats. */
+function directRows(corpus, owner) {
+    const rows = rowsOf(corpus, owner, false);
+    for (const child of corpus.children.get(owner.key) ?? []) {
+        const seat = corpus.resolve(child.fm.data?.seat, "place", child.fm.package);
+        if (seat && settlement(seat.fm)) {
+            if (!rows.some((r) => r.noted && r.settlement === seat.key))
+                rows.push({
+                    ...seat.fm.data,
+                    settlement: seat.key,
+                    polity: child.key,
+                    location: seat.fm.data?.parents?.[0],
+                    noted: true,
+                });
+        } else
+            rows.push({
+                settlement: child.key,
+                polity: child.key,
+                population: child.fm.data?.territorial_population,
+                noted: true,
+            });
+    }
+    return rows;
+}
+
+/**
+ * Render a polity's direct subjects, or with `recursive` the settlements
+ * beneath it that the direct table does not list.
+ */
 export function settlementMarkdown(
     record,
     records = [record],
@@ -977,27 +1010,13 @@ export function settlementMarkdown(
     const corpus = corpusOf(indexes.get(cacheKey));
     const owner = corpus.byRecord.get(record);
     if (!owner) return "";
-    const rows = rowsOf(corpus, owner, recursive);
-    if (!recursive)
-        for (const child of corpus.children.get(owner.key) ?? []) {
-            const seat = corpus.resolve(child.fm.data?.seat, "place", child.fm.package);
-            if (seat && settlement(seat.fm)) {
-                if (!rows.some((r) => r.noted && r.settlement === seat.key))
-                    rows.push({
-                        ...seat.fm.data,
-                        settlement: seat.key,
-                        polity: child.key,
-                        location: seat.fm.data?.parents?.[0],
-                        noted: true,
-                    });
-            } else
-                rows.push({
-                    settlement: child.key,
-                    polity: child.key,
-                    population: child.fm.data?.territorial_population,
-                    noted: true,
-                });
-        }
+    const direct = directRows(corpus, owner);
+    const rows =
+        recursive ?
+            rowsOf(corpus, owner, true).filter(
+                (row) => !direct.some((held) => rowIdentity(held) === rowIdentity(row)),
+            )
+        :   direct;
     if (!rows.length) return "";
     const escape = (value) =>
         String(value ?? "")

@@ -223,9 +223,49 @@ positive householdSize.
 A settlement with a note states its own facts in `data`, with `government`
 naming its governing polity or lineage and `parents` naming its enclosing places. A settlement
 governed by a polity has no authored row in that polity. The build merges the two sources into a Settlements table
-of direct subjects and a Settlement index of every settlement beneath the
-polity. Direct subordinate polities appear through their seats, or as linked
+of direct subjects and a Settlement index of the settlements beneath the
+polity that the Settlements table does not list, so no settlement appears in
+both. A settlement seated by a subordinate polity is a direct subject and stays
+out of the index, which therefore holds the settlements held by subordinate
+polities and lords' domains. A polity with no such settlements has no Settlement
+index. Direct subordinate polities appear through their seats, or as linked
 polity summaries where no settlement seat is stated. Public tables use the apparent figures; private tables use the actual figures.
+
+For example, the polity `affiliation-crown` has an authored row for East Farm and a
+subordinate polity `affiliation-council` seated at `place-town`. West Farm is
+an authored row of the council. Capital and Town are settlement notes: Capital
+is governed by the crown and Town by the council:
+
+```yaml
+# affiliation-crown
+data:
+  seat: place-capital
+  settlements:
+    - {
+        settlement: East Farm,
+        polity: The Crown,
+        type: hamlet,
+        population: { actual: 60 },
+        market: subsistence,
+      }
+# affiliation-council
+data:
+  parents: [affiliation-crown]
+  seat: place-town
+  settlements:
+    - {
+        settlement: West Farm,
+        polity: The Council,
+        type: village,
+        population: { actual: 300 },
+        market: local,
+      }
+```
+
+The crown page's Settlements table lists East Farm, Capital and Town, the
+council's seat. Its Settlement index lists West Farm alone, the one settlement
+beneath the crown that is neither a direct row nor a seat. The council page's
+Settlements table lists West Farm and Town, and it has no Settlement index.
 
 A settlement governed by a lineage appears in no polity settlement table, membership, listed total or urban share, and cannot have an authored row in any polity’s table.
 

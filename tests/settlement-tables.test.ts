@@ -145,16 +145,15 @@ describe("settlement population declarations", () => {
                     (record) => isNoteRecord(record) && record.shortcode === "crown",
                 );
                 const publicTable = settlementMarkdown(crown, records, {
-                    recursive: true,
                     audience: "all",
                 });
                 expect(publicTable).not.toContain("Town");
                 const gmCrown = { ...crown, tags: ["gm"] };
                 const gmRecords = records.map((record) => (record === crown ? gmCrown : record));
-                expect(settlementMarkdown(gmCrown, gmRecords, { recursive: true })).toContain("40");
-                expect(
-                    settlementMarkdown(gmCrown, gmRecords, { recursive: true, audience: "all" }),
-                ).toContain("400");
+                expect(settlementMarkdown(gmCrown, gmRecords)).toContain("40");
+                expect(settlementMarkdown(gmCrown, gmRecords, { audience: "all" })).toContain(
+                    "400",
+                );
             },
         ));
     it.each([null, 0])("accepts %s in notes and listed rows", (value) =>
@@ -758,6 +757,30 @@ describe("settlement boundary cases", () => {
     });
 });
 describe("indexed settlement output", () => {
+    it("lists no settlement in both the Settlements table and the Settlement index", () =>
+        checked(
+            () => {},
+            (f) => {
+                const records = f.records();
+                const crown = records.find(
+                    (r) => r.shortcode === "crown" && r.type === "affiliation" && !r.documents,
+                )!;
+                const council = records.find(
+                    (r) => r.shortcode === "council" && r.type === "affiliation" && !r.documents,
+                )!;
+                const names = (table: string) =>
+                    table
+                        .split("\n")
+                        .slice(2)
+                        .map((line) => line.split(" | ")[0]);
+                const direct = names(settlementMarkdown(crown, records));
+                const index = names(settlementMarkdown(crown, records, { recursive: true }));
+                expect(index.length).toBeGreaterThan(0);
+                expect(index.filter((name) => direct.includes(name))).toEqual([]);
+                // A polity whose subjects are all direct has no index.
+                expect(settlementMarkdown(council, records, { recursive: true })).toBe("");
+            },
+        ));
     it("separates direct subjects from recursive settlements and preserves audience boundaries", () =>
         checked(
             (n) => {
@@ -789,7 +812,10 @@ describe("indexed settlement output", () => {
                 expect(direct).toContain("place-town");
                 expect(direct).not.toContain("West Farm");
                 expect(recursive).toContain("West Farm");
-                expect(recursive.match(/place-town\\\|/g)).toHaveLength(1);
+                expect(recursive).not.toContain("place-town");
+                expect(recursive).not.toContain("East Farm");
+                expect(recursive).not.toContain("place-capital");
+                expect(direct.match(/place-town\\\|/g)).toHaveLength(1);
                 expect(recursive).not.toContain("Secret Camp");
                 expect(recursive).not.toContain("place-secret");
             },
