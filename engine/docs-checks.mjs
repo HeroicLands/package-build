@@ -74,21 +74,42 @@ export function docHeadingSlug(value) {
         .replace(/\s/g, "-");
 }
 
-/** @param {string} source */
-export function docAnchors(source) {
+/**
+ * Each ATX heading outside code, in source order, with the anchor a link
+ * reaches it by: its explicit id, or its slug with `-1`, `-2` … for repeats.
+ * @param {string} source
+ * @returns {Array<{line: number, anchor: string}>} `line` is 1-based.
+ */
+export function docHeadingAnchors(source) {
     const body = maskMarkdownCode(source, false);
-    const anchors = new Set();
+    const headings = [];
+    const taken = new Set();
     const suffixes = new Map();
-    for (const [, heading] of body.matchAll(/^#{1,6}\s+(.+?)\s*#*$/gm)) {
-        const explicit = splitHeadingAttributes(heading);
+    let line = 1;
+    let counted = 0;
+    for (const match of body.matchAll(/^#{1,6}\s+(.+?)\s*#*$/gm)) {
+        for (let i = body.indexOf("\n", counted); i >= 0 && i < match.index;) {
+            line++;
+            i = body.indexOf("\n", i + 1);
+        }
+        counted = match.index;
+        const explicit = splitHeadingAttributes(match[1]);
         const base =
             explicit.id || docHeadingSlug(explicit.text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1"));
         let anchor = base;
         let suffix = suffixes.get(base) || 0;
-        while (anchors.has(anchor)) anchor = `${base}-${++suffix}`;
+        while (taken.has(anchor)) anchor = `${base}-${++suffix}`;
         suffixes.set(base, suffix);
-        anchors.add(anchor);
+        taken.add(anchor);
+        headings.push({ line, anchor });
     }
+    return headings;
+}
+
+/** @param {string} source */
+export function docAnchors(source) {
+    const body = maskMarkdownCode(source, false);
+    const anchors = new Set(docHeadingAnchors(source).map(({ anchor }) => anchor));
     for (const [, anchor] of body.matchAll(/<a\s[^>]*(?:id|name)="([^"]+)"/g)) {
         anchors.add(anchor);
     }

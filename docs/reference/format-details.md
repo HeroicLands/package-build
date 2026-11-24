@@ -8774,17 +8774,21 @@ circular and inclined.
 `population` counts inhabitants; `market` states the reach of their trade.
 A populated settlement declares both.
 
-| `type` | settlement kind | Encampment, homestead, hamlet, village, town, city or metropolis |
-| `fortification` | string or null | None, minimal, palisade, walled or fortress |
-| `stronghold` | string or null | Fort, castle, keep, fortified manor or tower |
-| `holder` | Address or name | An affiliation or being, or a plain name |
-| `notes` | string | Short settlement description |
-| `market` | string | International, regional, local or subsistence |
-| --- | --- |
-| `international` | Trade across nations |
-| `regional` | Trade across the surrounding region |
-| `local` | Trade among nearby settlements |
-| `subsistence` | Production for local needs |
+| Key             | Type            | Meaning                                                          |
+| --------------- | --------------- | ---------------------------------------------------------------- |
+| `type`          | settlement kind | Encampment, homestead, hamlet, village, town, city or metropolis |
+| `fortification` | string or null  | None, minimal, palisade, walled or fortress                      |
+| `stronghold`    | string or null  | Fort, castle, keep, fortified manor or tower                     |
+| `holder`        | Address or name | An affiliation or being, or a plain name                         |
+| `notes`         | string          | Short settlement description                                     |
+| `market`        | string          | International, regional, local or subsistence                    |
+
+| `market`        | Meaning                             |
+| --------------- | ----------------------------------- |
+| `international` | Trade across nations                |
+| `regional`      | Trade across the surrounding region |
+| `local`         | Trade among nearby settlements      |
+| `subsistence`   | Production for local needs          |
 
 #### Where a place is, in relation to other places
 

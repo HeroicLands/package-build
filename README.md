@@ -71,6 +71,40 @@ Real Typst and PDF fixture compilation requires owner permission and an availabl
 Typst installation. Once authorized, run `PACKAGE_BUILD_COMPILE_TESTS=1 npm test`
 to include those fixtures. The default test command leaves them disabled.
 
+### The Texinfo manual
+
+`node scripts/docs-texinfo.mjs` converts every page under `docs/` into one
+Texinfo manual, `build/docs/package-build.texi`; `--out <file>` writes it
+elsewhere, `--check` converts without writing, and `--help` prints the usage.
+A construct the converter cannot map is reported as
+`file:line:column: error: message`, and any finding exits with status 1 and
+writes nothing.
+
+`scripts/docs-texinfo/manifest.mjs` sets the manual's order: the first entry
+is the Top node and every other entry is a chapter. A new page under `docs/`
+goes into the manifest in the same change, at its place in reading order, or
+attached inside another page's chapter after a named heading; a test fails
+when a page is missing from the manifest or listed twice.
+
+The documentation keeps to the Markdown the converter maps: headings, paragraphs,
+inline code, strong and emphasis, links, fenced code, lists, quotations and pipe
+tables with a header row. A table whose first column is all inline code becomes
+a keyed table; any other table becomes columns when each column fits its
+longest word, and a keyed table otherwise. The converter refuses:
+
+- images;
+- raw HTML other than comments;
+- footnotes;
+- reference links and link reference definitions;
+- strikethrough;
+- task lists;
+- definition lists;
+- fenced divs (`:::`);
+- GitHub alerts (`> [!NOTE]` and its siblings);
+- a pipe table without a header row and delimiter row;
+- a heading inside a list or quotation;
+- a link or anchor that resolves to no page, heading or shipped file.
+
 ## Documentation
 
 The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md). This toolchain does not build its own site or book.
