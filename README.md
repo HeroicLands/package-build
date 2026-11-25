@@ -115,6 +115,30 @@ failure. Outside CI they skip, with the reason, when a tool or `texinfo.tex` is
 missing; in CI, where the Build and Test job installs Texinfo and TeX, a missing
 tool fails them.
 
+### Reading the manual as Info
+
+`npm run build:info` (`node scripts/build-info.mjs`) converts the manual, runs
+`makeinfo` on it into `info/package-build.info`, and lists it in `info/dir`
+with `install-info`. `prepack` runs it, so the published package carries
+`info/`. It needs Texinfo 7.0 or later; a missing or older `makeinfo` or
+`install-info`, and any warning `makeinfo` prints, fail the build with a
+`file:line:column: error: message` line. Packing runs this build, so
+the machine that runs `npm pack` or `npm publish` needs Texinfo 7.0 or later on
+`PATH`: CI runner images must provide it (Debian 13 and Ubuntu 24.04 do; Debian
+12 and Ubuntu 22.04 carry 6.8), and on macOS the system `makeinfo` is 4.8, so
+put Homebrew's keg-only Texinfo first with
+`export PATH="$(brew --prefix texinfo)/bin:$PATH"`.
+
+Three ways to read the installed manual:
+
+- **Open the file directly:**
+  `info -f node_modules/@heroiclands/package-build/info/package-build.info`.
+- **Add the directory to `INFOPATH`:**
+  `export INFOPATH="$PWD/node_modules/@heroiclands/package-build/info:$INFOPATH"`,
+  then `info package-build`, or pick Package Build from the `info` menu.
+- **In Emacs:** `C-u M-x info RET` and the file name above, or add the
+  directory to `Info-additional-directory-list` and run `M-x info`.
+
 ## Documentation
 
 The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md). This toolchain does not build its own site or book.

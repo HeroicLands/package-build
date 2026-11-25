@@ -143,3 +143,14 @@ export function buildPdf(dir: string, master: string): ToolProblem[] {
     if (!fs.existsSync(path.join(dir, "out.pdf"))) problems.push("pdf: no PDF was written");
     return problems;
 }
+
+/** Why the Info build tools cannot run, or undefined when `makeinfo` and `install-info` are 7.0 or later. */
+export function infoToolsSkip(): string | undefined {
+    for (const tool of ["makeinfo", "install-info"]) {
+        const run = spawnSync(tool, ["--version"], { encoding: "utf8" });
+        if (run.error || run.status !== 0) return `${tool} is not installed`;
+        const match = /\(GNU texinfo\)\s+(\d+)\./.exec(run.stdout.split("\n")[0] ?? "");
+        if (!match || Number(match[1]) < 7) return `${tool} is older than Texinfo 7.0`;
+    }
+    return undefined;
+}

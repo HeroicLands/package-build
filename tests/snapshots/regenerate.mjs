@@ -18,7 +18,9 @@
  *
  * `<thalorna-checkout>` is a checkout of the thalorna repository with its
  * dependencies installed (`npm ci`). The script installs this package into it
- * from a tarball (`npm pack`, then `npm i --no-save`), builds the site with
+ * from a tarball (`npm pack`, then `npm i --no-save`; packing builds the Info
+ * manual, so Texinfo 7.0 or later must be on `PATH`, and on macOS
+ * `export PATH="$(brew --prefix texinfo)/bin:$PATH"`), builds the site with
  * `package-build site build` into a scratch directory, builds each book's
  * Typst source without compiling it, and writes:
  *

@@ -27,7 +27,16 @@ const WORKFLOW = path.join(ROOT, ".gitea", "workflows", "build.yml");
 const BASH = ["/bin/bash", "/usr/bin/bash"].find((p) => fs.existsSync(p)) ?? "bash";
 
 /** The tool each install step provides, keyed by what its `--version` probe calls. */
-const TOOLS = ["typst", "dot", "texi2any", "texi2pdf", "pdftex", "kpsewhich"];
+const TOOLS = [
+    "typst",
+    "dot",
+    "makeinfo",
+    "install-info",
+    "texi2any",
+    "texi2pdf",
+    "pdftex",
+    "kpsewhich",
+];
 
 const installSteps = stepsIn(WORKFLOW).run.filter((step: { run: string }) =>
     /\/usr\/local\/bin|apt-get/.test(step.run),

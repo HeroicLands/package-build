@@ -74,6 +74,21 @@ jobs:
                   cache: npm
             - name: Check the consumer lock guard
               run: node --test ci/consumer-lock-guard.test.mjs
+            # `prepack` builds the Info manual, which needs `makeinfo` and
+            # `install-info` from Texinfo 7.0 or later; `install-info` is a separate
+            # package, and the runner image must provide version 7.0 or later.
+            - name: Texinfo, for the Info manual
+              run: |
+                  set -euo pipefail
+                  if ! command -v makeinfo >/dev/null 2>&1 || ! command -v install-info >/dev/null 2>&1; then
+                      if command -v sudo >/dev/null 2>&1; then
+                          sudo apt-get update -q && sudo apt-get install -y -q texinfo install-info
+                      else
+                          apt-get update -q && apt-get install -y -q texinfo install-info
+                      fi
+                  fi
+                  makeinfo --version | head -n 1
+                  install-info --version | head -n 1
             - name: Pack the candidate
               env:
                   CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
@@ -114,6 +129,21 @@ jobs:
               with:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
                   cache: npm
+            # `prepack` builds the Info manual, which needs `makeinfo` and
+            # `install-info` from Texinfo 7.0 or later; `install-info` is a separate
+            # package, and the runner image must provide version 7.0 or later.
+            - name: Texinfo, for the Info manual
+              run: |
+                  set -euo pipefail
+                  if ! command -v makeinfo >/dev/null 2>&1 || ! command -v install-info >/dev/null 2>&1; then
+                      if command -v sudo >/dev/null 2>&1; then
+                          sudo apt-get update -q && sudo apt-get install -y -q texinfo install-info
+                      else
+                          apt-get update -q && apt-get install -y -q texinfo install-info
+                      fi
+                  fi
+                  makeinfo --version | head -n 1
+                  install-info --version | head -n 1
             - name: Pack the candidate
               env:
                   CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
@@ -165,6 +195,21 @@ jobs:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
             - name: Verify Python ZIP inventory support
               run: python3 -c 'import sys,zipfile; assert sys.version_info >= (3, 8)'
+            # `prepack` builds the Info manual, which needs `makeinfo` and
+            # `install-info` from Texinfo 7.0 or later; `install-info` is a separate
+            # package, and the runner image must provide version 7.0 or later.
+            - name: Texinfo, for the Info manual
+              run: |
+                  set -euo pipefail
+                  if ! command -v makeinfo >/dev/null 2>&1 || ! command -v install-info >/dev/null 2>&1; then
+                      if command -v sudo >/dev/null 2>&1; then
+                          sudo apt-get update -q && sudo apt-get install -y -q texinfo install-info
+                      else
+                          apt-get update -q && apt-get install -y -q texinfo install-info
+                      fi
+                  fi
+                  makeinfo --version | head -n 1
+                  install-info --version | head -n 1
             - name: Pack the exact candidate
               run: bash ci/consumer-proof-pack.sh
             - name: Check release proof and install guards
@@ -220,6 +265,21 @@ jobs:
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
               with:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
+            # `prepack` builds the Info manual, which needs `makeinfo` and
+            # `install-info` from Texinfo 7.0 or later; `install-info` is a separate
+            # package, and the runner image must provide version 7.0 or later.
+            - name: Texinfo, for the Info manual
+              run: |
+                  set -euo pipefail
+                  if ! command -v makeinfo >/dev/null 2>&1 || ! command -v install-info >/dev/null 2>&1; then
+                      if command -v sudo >/dev/null 2>&1; then
+                          sudo apt-get update -q && sudo apt-get install -y -q texinfo install-info
+                      else
+                          apt-get update -q && apt-get install -y -q texinfo install-info
+                      fi
+                  fi
+                  makeinfo --version | head -n 1
+                  install-info --version | head -n 1
             - name: Pack the exact candidate
               run: bash ci/consumer-proof-pack.sh
             - name: Verify the population contract
@@ -332,6 +392,21 @@ jobs:
                   node-version: ${{ vars.CI_NODE_VERSION || '24' }}
             - name: Check the consumer lock guard
               run: node --test ci/consumer-lock-guard.test.mjs
+            # `prepack` builds the Info manual, which needs `makeinfo` and
+            # `install-info` from Texinfo 7.0 or later; `install-info` is a separate
+            # package, and the runner image must provide version 7.0 or later.
+            - name: Texinfo, for the Info manual
+              run: |
+                  set -euo pipefail
+                  if ! command -v makeinfo >/dev/null 2>&1 || ! command -v install-info >/dev/null 2>&1; then
+                      if command -v sudo >/dev/null 2>&1; then
+                          sudo apt-get update -q && sudo apt-get install -y -q texinfo install-info
+                      else
+                          apt-get update -q && apt-get install -y -q texinfo install-info
+                      fi
+                  fi
+                  makeinfo --version | head -n 1
+                  install-info --version | head -n 1
             - name: Pack the exact candidate
               run: bash ci/consumer-proof-pack.sh
             - name: Verify the facial-hair contract

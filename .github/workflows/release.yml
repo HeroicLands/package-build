@@ -32,6 +32,22 @@ jobs:
             # `prepack` builds `types/`, which needs the dependencies.
             - run: npm ci
 
+            # `prepack` builds the Info manual, which needs `makeinfo` and
+            # `install-info` from Texinfo 7.0 or later; `install-info` is a separate
+            # package, and the runner image must provide version 7.0 or later.
+            - name: Texinfo, for the Info manual
+              run: |
+                  set -euo pipefail
+                  if ! command -v makeinfo >/dev/null 2>&1 || ! command -v install-info >/dev/null 2>&1; then
+                      if command -v sudo >/dev/null 2>&1; then
+                          sudo apt-get update -q && sudo apt-get install -y -q texinfo install-info
+                      else
+                          apt-get update -q && apt-get install -y -q texinfo install-info
+                      fi
+                  fi
+                  makeinfo --version | head -n 1
+                  install-info --version | head -n 1
+
             - run: npm publish --provenance
 
             - name: Create the GitHub Release

@@ -254,4 +254,7 @@ desk:
   CI runner that can mint a Sigstore identity — GitHub Actions with an OIDC
   token, or GitLab CI with `SIGSTORE_ID_TOKEN` — and anywhere else the publish
   goes ahead without it. Arguments after `--` reach `npm publish`, so
-  `npm run deploy:npm -- --dry-run` lists the tarball without publishing.
+  `npm run deploy:npm -- --dry-run` lists the tarball without publishing. Publishing runs `prepack`, which builds
+  the Info manual and needs `makeinfo` and `install-info` from Texinfo 7.0 or
+  later on `PATH`; on macOS the system `makeinfo` is 4.8, so run
+  `export PATH="$(brew --prefix texinfo)/bin:$PATH"` first.

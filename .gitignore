@@ -90,3 +90,7 @@ Session.vim
 # Hidden files
 /nogit/
 *.wip
+
+# The Info manual. `npm run build:info` writes it, which `prepack` runs, so the
+# published tarball carries it and the tree does not.
+/info/

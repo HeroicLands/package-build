@@ -226,21 +226,25 @@ jobs:
             # The Texinfo manual tests build the manual with texi2any and
             # texi2pdf and fail, rather than skip, when a tool is missing in CI.
             # `texinfo` supplies texinfo.tex and texi2any; the TeX packages
-            # supply pdfTeX, the fonts and epsf.tex that images need.
+            # supply pdfTeX, the fonts and epsf.tex that images need. The Info
+            # build needs makeinfo 7.0 or later and `install-info`, a separate
+            # package on Debian and Ubuntu.
             - name: Texinfo and TeX, for the manual tests
               run: |
                   set -euo pipefail
-                  if ! command -v texi2pdf >/dev/null 2>&1 || ! command -v pdftex >/dev/null 2>&1 || ! kpsewhich epsf.tex >/dev/null 2>&1; then
+                  makeinfo_major() { makeinfo --version 2>/dev/null | sed -n '1s/.*(GNU texinfo) \([0-9]*\)\..*/\1/p'; }
+                  if ! command -v makeinfo >/dev/null 2>&1 || [ "$(makeinfo_major || true)" -lt 7 ] 2>/dev/null || ! command -v install-info >/dev/null 2>&1 || ! command -v texi2pdf >/dev/null 2>&1 || ! command -v pdftex >/dev/null 2>&1 || ! kpsewhich epsf.tex >/dev/null 2>&1; then
                       if [ "$(uname -s)" != Linux ]; then
-                          echo "texi2pdf and pdftex are not on PATH; install Texinfo and TeX to run the manual tests off Linux." >&2
+                          echo "makeinfo, install-info, texi2pdf and pdftex are not on PATH; install Texinfo 7.0 or later and TeX to run the manual tests off Linux." >&2
                           exit 1
                       elif command -v sudo >/dev/null 2>&1; then
-                          sudo apt-get update -q && sudo apt-get install -y -q texinfo texlive-binaries texlive-base texlive-plain-generic texlive-fonts-recommended
+                          sudo apt-get update -q && sudo apt-get install -y -q texinfo install-info texlive-binaries texlive-base texlive-plain-generic texlive-fonts-recommended
                       else
-                          apt-get update -q && apt-get install -y -q texinfo texlive-binaries texlive-base texlive-plain-generic texlive-fonts-recommended
+                          apt-get update -q && apt-get install -y -q texinfo install-info texlive-binaries texlive-base texlive-plain-generic texlive-fonts-recommended
                       fi
                   fi
                   texi2any --version >/dev/null
+                  install-info --version >/dev/null
                   pdftex --version >/dev/null
                   kpsewhich epsf.tex >/dev/null
               if: ${{ !startsWith(github.event.pull_request.title, 'WIP:') && steps.ready.outcome == 'success' && steps.light_checks.outcome == 'success' && (success()) }}
