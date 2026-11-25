@@ -3692,6 +3692,7 @@ one of them a status:
 | `engine/site-root`                | internal  |
 | `engine/site-search`              | internal  |
 | `engine/site-serve-http`          | internal  |
+| `engine/site-texinfo`             | internal  |
 | `engine/site-serve`               | internal  |
 | `engine/site-theme-banner`        | internal  |
 | `engine/site-theme-urls`          | internal  |

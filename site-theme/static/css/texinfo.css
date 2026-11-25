@@ -1,0 +1,777 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
+/* The stylesheet of a Texinfo manual the site converts with texi2any. It stands
+   alone: a manual's pages load this sheet and the Info script's own, not the
+   site's style.css. The properties on :root hold the palette; the dark scheme
+   is the site's own and the light scheme follows the reader's preference. A
+   package restyles a manual by supplying its own texinfo.css in its Texinfo
+   folder, or by setting these properties from a sheet loaded after this one.
+   The faces named in the font properties are used where the reader has them;
+   otherwise the pages set in Georgia and the system monospace. */
+
+:root {
+  color-scheme: dark light;
+  --tx-bg: #0f1923;
+  --tx-bg-card: #15202d;
+  --tx-surface: #1c2b3a;
+  --tx-border: #2a3d52;
+  --tx-text: #c8d6e0;
+  --tx-muted: #7e96aa;
+  --tx-accent: #5aa3f0;
+  --tx-accent-strong: #8dbff5;
+  --tx-heading: #c9a84c;
+  --tx-code-bg: #0a1219;
+  --tx-code-text: #dbe6ee;
+  --tx-mark: #2a3d52;
+  --tx-highlight: #7a5a12;
+  --tx-overlay: rgb(0 0 0 / 0.6);
+  --tx-font-body: "Lora", Georgia, serif;
+  --tx-font-heading: "Cinzel", Georgia, serif;
+  --tx-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --tx-width: 52rem;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --tx-bg: #fbf9f4;
+    --tx-bg-card: #f2eee5;
+    --tx-surface: #e9e3d6;
+    --tx-border: #cfc6b2;
+    --tx-text: #1f2933;
+    --tx-muted: #5b6770;
+    --tx-accent: #1c5fae;
+    --tx-accent-strong: #0f4585;
+    --tx-heading: #7a5a12;
+    --tx-code-bg: #f0ebdf;
+    --tx-code-text: #1f2933;
+    --tx-mark: #e3dcc9;
+    --tx-highlight: #ffe08a;
+    --tx-overlay: rgb(0 0 0 / 0.4);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0 auto;
+  padding: 1rem 1rem 4rem;
+  max-width: var(--tx-width);
+  background: var(--tx-bg);
+  color: var(--tx-text);
+  font-family: var(--tx-font-body);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+
+a {
+  color: var(--tx-accent);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.15em;
+}
+
+a:hover,
+a:focus-visible {
+  color: var(--tx-accent-strong);
+}
+
+a:focus-visible {
+  outline: 2px solid var(--tx-accent);
+  outline-offset: 2px;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--tx-border);
+  margin: 2rem 0;
+}
+
+/* Page structure and navigation */
+
+.nav-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin: 0 0 1.5rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--tx-bg-card);
+  border: 1px solid var(--tx-border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.nav-panel ul,
+.nav-panel ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-label {
+  color: var(--tx-muted);
+}
+
+.nav-panel + hr {
+  display: none;
+}
+
+.nav-panel:not(:first-of-type) {
+  margin-top: 2.5rem;
+}
+
+div.top-level-extent,
+div.chapter-level-extent,
+div.section-level-extent,
+div.subsection-level-extent,
+div.subsubsection-level-extent,
+div.appendix-level-extent,
+div.unnumbered-level-extent,
+div.element-contents {
+  margin: 0;
+}
+
+/* Headings */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--tx-font-heading);
+  color: var(--tx-heading);
+  line-height: 1.25;
+  margin: 2rem 0 0.75rem;
+  letter-spacing: 0.01em;
+}
+
+h1.top,
+h1.settitle,
+h1.chapter,
+h1.unnumbered {
+  font-size: 2rem;
+  margin-top: 1rem;
+}
+
+h2.chapter,
+h2.appendix,
+h2.unnumbered,
+h2.contents-heading,
+h2.top {
+  font-size: 1.55rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--tx-border);
+}
+
+h3.section,
+h3.appendixsec,
+h3.unnumberedsec,
+h3.heading,
+h3.majorheading {
+  font-size: 1.3rem;
+}
+
+h4.subsection,
+h4.appendixsubsec,
+h4.unnumberedsubsec,
+h4.subheading {
+  font-size: 1.12rem;
+}
+
+h5.subsubsection,
+h5.appendixsubsubsec,
+h5.unnumberedsubsubsec,
+h5.subsubheading {
+  font-size: 1rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  scroll-margin-top: 1rem;
+}
+
+p.subtitle,
+p.author,
+p.titlefont {
+  color: var(--tx-muted);
+}
+
+a.copiable-link {
+  margin-left: 0.4em;
+  color: var(--tx-muted);
+}
+
+span:hover a.copiable-link,
+a.copiable-link:focus-visible {
+  visibility: visible;
+}
+
+/* Code and examples */
+
+code,
+kbd,
+samp,
+pre,
+tt {
+  font-family: var(--tx-font-mono);
+  font-size: 0.9em;
+}
+
+code.code,
+samp.samp,
+samp.file,
+kbd.kbd,
+code.env,
+code.command,
+code.option {
+  padding: 0.08em 0.35em;
+  background: var(--tx-code-bg);
+  color: var(--tx-code-text);
+  border: 1px solid var(--tx-border);
+  border-radius: 4px;
+}
+
+kbd.kbd {
+  font-style: normal;
+  border-bottom-width: 2px;
+}
+
+var.var,
+em.emph,
+cite {
+  font-style: italic;
+}
+
+var.var {
+  font-family: var(--tx-font-mono);
+  font-size: 0.92em;
+}
+
+small.sc {
+  font-variant: small-caps;
+  font-size: 1em;
+  letter-spacing: 0.04em;
+}
+
+abbr.acronym {
+  text-decoration: underline dotted;
+}
+
+a.url,
+a.email {
+  word-break: break-all;
+}
+
+div.example,
+div.display,
+div.format,
+div.lisp,
+pre.verbatim {
+  margin: 1rem 0;
+}
+
+div.example,
+div.display,
+div.format {
+  margin-left: 0;
+}
+
+pre.example-preformatted,
+pre.lisp-preformatted,
+pre.verbatim,
+pre.smallexample-preformatted,
+pre.smalllisp-preformatted {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  background: var(--tx-code-bg);
+  color: var(--tx-code-text);
+  border: 1px solid var(--tx-border);
+  border-left: 3px solid var(--tx-accent);
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.5;
+  tab-size: 4;
+}
+
+pre.verbatim {
+  border-left-color: var(--tx-border);
+}
+
+div.example.smallexample pre,
+div.smalllisp pre {
+  font-size: 0.82em;
+}
+
+pre.display-preformatted,
+pre.format-preformatted {
+  margin: 0;
+  padding: 0.5rem 0;
+  font-family: var(--tx-font-body);
+  font-size: 1em;
+  white-space: pre-wrap;
+}
+
+span.r {
+  font-family: var(--tx-font-body);
+}
+
+/* Quotations and boxes */
+
+blockquote.quotation,
+blockquote.indentedblock {
+  margin: 1.25rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid var(--tx-heading);
+  background: var(--tx-bg-card);
+  border-radius: 0 4px 4px 0;
+}
+
+blockquote.indentedblock {
+  background: none;
+  border-left-color: var(--tx-border);
+}
+
+blockquote > :first-child {
+  margin-top: 0;
+}
+
+blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+blockquote.quotation > p.quotation-author,
+div.quotation-author {
+  text-align: right;
+  color: var(--tx-muted);
+}
+
+table.cartouche {
+  width: 100%;
+  margin: 1.25rem 0;
+  border-collapse: separate;
+  border: 1px solid var(--tx-border);
+  border-radius: 12px;
+  background: var(--tx-bg-card);
+}
+
+table.cartouche td {
+  padding: 0.75rem 1rem;
+}
+
+div.float {
+  margin: 1.25rem 0;
+}
+
+div.caption {
+  margin-top: 0.5rem;
+  color: var(--tx-muted);
+  font-size: 0.92em;
+}
+
+p.exdent {
+  margin-left: 0;
+  text-indent: 0;
+}
+
+/* Lists, tables and definitions */
+
+ul.itemize,
+ol.enumerate {
+  margin: 0 0 1em;
+  padding-left: 1.6rem;
+}
+
+li {
+  margin: 0.2em 0;
+}
+
+li > p {
+  margin-bottom: 0.4em;
+}
+
+dl.table,
+dl.first-deffn,
+dl.def-block {
+  margin: 0 0 1.25em;
+}
+
+dl.table > dt {
+  margin-top: 0.8em;
+  font-weight: 600;
+}
+
+dl.table > dd {
+  margin: 0.2em 0 0 1.5rem;
+}
+
+dl.first-deffn > dt,
+dl.def-block > dt,
+dt.deffn,
+dt.defvr,
+dt.deftp {
+  margin-top: 1.1em;
+  padding: 0.35rem 0.75rem;
+  background: var(--tx-bg-card);
+  border-left: 3px solid var(--tx-accent);
+  border-radius: 0 4px 4px 0;
+  font-family: var(--tx-font-mono);
+  font-size: 0.92em;
+}
+
+dl.first-deffn > dd,
+dl.def-block > dd {
+  margin: 0.4em 0 0 1.5rem;
+}
+
+strong.def-name {
+  font-family: var(--tx-font-mono);
+  font-size: 1em;
+  color: var(--tx-heading);
+}
+
+var.def-var-arguments {
+  font-family: var(--tx-font-mono);
+}
+
+span.category-def {
+  float: right;
+  margin-left: 1rem;
+  color: var(--tx-muted);
+  font-family: var(--tx-font-body);
+  font-size: 0.9em;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+table.multitable {
+  display: block;
+  max-width: 100%;
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  font-size: 0.95em;
+}
+
+table.multitable th,
+table.multitable td {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--tx-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+table.multitable th,
+table.multitable thead td {
+  background: var(--tx-surface);
+  font-weight: 600;
+}
+
+table.multitable tr:nth-child(even) td {
+  background: var(--tx-bg-card);
+}
+
+/* Menus, contents and the index */
+
+pre.menu-comment,
+pre.menu-preformatted {
+  font-family: var(--tx-font-body);
+  font-size: 1em;
+  white-space: pre-wrap;
+}
+
+table.menu {
+  width: 100%;
+  margin: 1rem 0;
+}
+
+table.menu td {
+  padding: 0.3rem 0.5rem;
+  vertical-align: top;
+}
+
+td.menu-entry-destination {
+  white-space: nowrap;
+  padding-right: 1rem;
+}
+
+td.menu-entry-description {
+  color: var(--tx-muted);
+}
+
+ul.mini-toc,
+div.contents ul,
+ul.toc-numbered-mark,
+ul.toc-unnumbered-mark {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.25rem;
+  list-style: none;
+}
+
+div.contents {
+  margin: 1.5rem 0;
+}
+
+div.contents li {
+  margin: 0.3em 0;
+}
+
+div.printindex {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+}
+
+table[class*="entries-printindex"] {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+td.printindex-index-entry,
+td.printindex-index-section {
+  padding: 0.2rem 0.5rem;
+  border-bottom: 1px solid var(--tx-border);
+  vertical-align: top;
+}
+
+td.printindex-index-section {
+  color: var(--tx-muted);
+}
+
+th.entries-header-printindex,
+th.sections-header-printindex {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 2px solid var(--tx-border);
+  text-align: left;
+}
+
+table[class*="letters-header-printindex"],
+table[class*="letters-footer-printindex"] {
+  margin: 0.75rem 0;
+  max-width: 100%;
+}
+
+table[class*="letters-header-printindex"] td,
+table[class*="letters-footer-printindex"] td {
+  padding: 0.1rem 0.3rem;
+}
+
+a.summary-letter-printindex {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0.1rem 0.35rem;
+  background: var(--tx-surface);
+  border-radius: 4px;
+  text-align: center;
+}
+
+a.index-entry-id {
+  scroll-margin-top: 1rem;
+}
+
+/* Footnotes */
+
+a.footnote {
+  vertical-align: super;
+  font-size: 0.75em;
+  text-decoration: none;
+}
+
+div.footnotes-segment {
+  margin-top: 3rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--tx-border);
+  color: var(--tx-muted);
+  font-size: 0.92em;
+}
+
+h4.footnotes-heading,
+h5.footnote-body-heading {
+  margin: 1rem 0 0.4rem;
+  font-size: 1rem;
+  color: var(--tx-muted);
+}
+
+h5.footnote-body-heading {
+  display: inline-block;
+  font-size: 0.9rem;
+}
+
+/* The Info script's own interface. Its sheet loads after this one and sets
+   light colours, so each rule here names an extra element to outrank it. */
+
+html body:not([show-sidebar]) {
+  margin: 0 auto;
+  padding: 1rem 1rem 4rem;
+}
+
+html body #slider {
+  background: var(--tx-bg-card);
+  color: var(--tx-text);
+  border: 0 solid var(--tx-border);
+  border-right-width: 1px;
+}
+
+html body #slider a {
+  color: var(--tx-accent);
+}
+
+html body #slider div.toc a[toc-current] {
+  color: var(--tx-heading);
+}
+
+html body #slider header,
+html body #slider header a {
+  color: var(--tx-heading);
+  font-family: var(--tx-font-heading);
+}
+
+html body .sidebar-hider {
+  background: var(--tx-surface);
+  color: var(--tx-text);
+}
+
+html body .highlight {
+  background: var(--tx-highlight);
+  color: var(--tx-text);
+}
+
+html body .modal {
+  background: var(--tx-overlay);
+}
+
+html body .modal-content {
+  background: var(--tx-bg-card);
+  color: var(--tx-text);
+  border: 1px solid var(--tx-border);
+  border-radius: 6px;
+}
+
+html body .close,
+html body .icon {
+  color: var(--tx-muted);
+}
+
+html body .icon:hover,
+html body .icon:focus,
+html body .close:hover,
+html body .close:focus {
+  color: var(--tx-text);
+}
+
+html body table#keyboard-shortcuts td,
+html body table#keyboard-shortcuts th {
+  border-bottom: 1px solid var(--tx-border);
+}
+
+html body .text-input,
+html body .echo-area {
+  background: var(--tx-surface);
+  color: var(--tx-text);
+}
+
+html body .error {
+  background: var(--tx-heading);
+  color: var(--tx-bg);
+}
+
+html body .text-input input {
+  background: var(--tx-bg);
+  color: var(--tx-text);
+  border: 1px solid var(--tx-border);
+}
+
+/* Narrow screens */
+
+@media (max-width: 40rem) {
+  body {
+    padding: 0.75rem 0.75rem 3rem;
+    font-size: 1rem;
+  }
+
+  h1.top,
+  h1.settitle {
+    font-size: 1.6rem;
+  }
+
+  h2.chapter,
+  h2.appendix {
+    font-size: 1.35rem;
+  }
+
+  dl.table > dd,
+  dl.first-deffn > dd,
+  dl.def-block > dd {
+    margin-left: 0.75rem;
+  }
+
+  span.category-def {
+    float: none;
+    display: block;
+    margin-left: 0;
+  }
+
+  table.menu,
+  table.menu tbody,
+  table.menu tr,
+  table.menu td {
+    display: block;
+    width: 100%;
+  }
+
+  td.menu-entry-destination {
+    white-space: normal;
+    padding-bottom: 0;
+  }
+
+  td.menu-entry-description {
+    padding-top: 0;
+    padding-bottom: 0.6rem;
+  }
+}
+
+@media print {
+  :root {
+    --tx-bg: #fff;
+    --tx-bg-card: #fff;
+    --tx-surface: #eee;
+    --tx-border: #bbb;
+    --tx-text: #000;
+    --tx-muted: #444;
+    --tx-accent: #000;
+    --tx-heading: #000;
+    --tx-code-bg: #fff;
+    --tx-code-text: #000;
+  }
+
+  .nav-panel,
+  a.copiable-link {
+    display: none;
+  }
+}

@@ -152,6 +152,7 @@ import {
     pageDiagnostics,
 } from "../engine/site-page.mjs";
 import { buildPackageSite, siteDirectory } from "../engine/site-render.mjs";
+import { TEXINFO_OUTPUT } from "../engine/site-texinfo.mjs";
 import { serveSite } from "../engine/site-serve.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
@@ -2333,7 +2334,7 @@ function withSiteBuildConfig(command) {
  *
  * @param {readonly object[]} findings - The findings.
  */
-function reportSiteFindings(findings) {
+export function reportSiteFindings(findings) {
     const configFile = packConfigPath();
     const configText = fs.existsSync(configFile) ? fs.readFileSync(configFile, "utf8") : "";
     for (const finding of findings) {
@@ -2347,6 +2348,8 @@ function reportSiteFindings(findings) {
         } else {
             emitDiagnostic({
                 file: finding.file ?? finding.page,
+                line: finding.line,
+                column: finding.line === undefined ? undefined : (finding.column ?? 1),
                 severity: finding.severity,
                 message: finding.message,
             });
@@ -2359,7 +2362,10 @@ function reportSiteFindings(findings) {
  *
  * Every page is drawn by the site theme from the shared renderer's HTML and
  * written under `<out>/<package>/`, with `404.html`, `sitemap.xml`, the
- * theme's stylesheets, scripts and fonts and the package's script fonts.
+ * theme's stylesheets, scripts and fonts and the package's script fonts, and
+ * a package's Texinfo manuals converted to HTML under `texi/`. A conversion
+ * `texi2any` reports as an error, or cannot run, fails the command; its
+ * warnings are reported and do not.
  * `_headers` is then written beside it and the search index built inside it,
  * as `package-build site-root` does. The site's settings and cached menu are
  * read before the tree, so a site that cannot be described fails with the
@@ -2412,7 +2418,10 @@ function siteBuildCommand() {
                 }
                 reportSiteFindings(result.written.findings);
                 for (const finding of result.fonts.findings) emitDiagnostic(finding);
-                if (result.fonts.findings.length) {
+                if (
+                    result.fonts.findings.length ||
+                    result.texinfo.findings.some((finding) => finding.severity === "error")
+                ) {
                     process.exitCode = 1;
                     return;
                 }
@@ -2420,6 +2429,11 @@ function siteBuildCommand() {
                     `wrote ${result.written.pages.length} page(s) to ` +
                         `${path.relative(process.cwd(), out)}`,
                 );
+                if (result.texinfo.manuals.length)
+                    log.info(
+                        `converted ${result.texinfo.manuals.length} Texinfo manual(s) to ` +
+                            `${path.relative(process.cwd(), path.join(out, TEXINFO_OUTPUT))}`,
+                    );
                 if (result.fonts.count)
                     log.info(
                         `wrote ${result.fonts.count} script font file(s) to ` +

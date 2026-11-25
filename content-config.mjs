@@ -909,6 +909,7 @@ const SITE_KEYS = [
     "sitemaps",
     "mergeIndexes",
     "inputs",
+    "texinfo",
 ];
 const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
 const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
@@ -2232,6 +2233,7 @@ function normalizeSite(value, contentPackage) {
         sitemaps: Object.freeze([]),
         mergeIndexes: Object.freeze([]),
         inputs: "",
+        texinfo: "texinfo",
     });
     if (value === undefined) return empty;
     if (!isPlainObject(value)) fail("site", "must be a mapping");
@@ -2265,6 +2267,14 @@ function normalizeSite(value, contentPackage) {
         fail("site.inputs", "must be a plain relative module path without dot segments");
     }
 
+    const texinfo =
+        input.texinfo === undefined ?
+            "texinfo"
+        :   requireNonEmptyString(input.texinfo, "site.texinfo");
+    if (!texinfo.split("/").every((segment) => /^[a-z0-9][a-z0-9._-]*$/i.test(segment))) {
+        fail("site.texinfo", "must be a plain relative folder path without dot segments");
+    }
+
     return Object.freeze({
         base,
         title: input.title === undefined ? "" : requireNonEmptyString(input.title, "site.title"),
@@ -2288,6 +2298,7 @@ function normalizeSite(value, contentPackage) {
         sitemaps,
         mergeIndexes,
         inputs,
+        texinfo,
     });
 }
 

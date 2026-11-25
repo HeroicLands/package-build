@@ -111,7 +111,7 @@ describe("a root site resolves", () => {
         const { message } = refusal(["sitemap: [sohl]"]);
         expect(message).toContain(
             "expected one of: base, title, assets, description, packages, pass, passOptions, " +
-                "notfound, search, maps, sections, feed, tags, sitemaps, mergeIndexes, inputs",
+                "notfound, search, maps, sections, feed, tags, sitemaps, mergeIndexes, inputs, texinfo",
         );
     });
 });
@@ -254,5 +254,24 @@ describe("`package.json`'s `homepage`", () => {
         expect(() => checkHomepage("https://www.example.org/", "rootdemo")).toThrow(
             "must end `/rootdemo/`",
         );
+    });
+});
+
+describe("`site.texinfo`", () => {
+    it("defaults to the conventional folder", () => {
+        const { run } = resolve(configText([]));
+        expect(run().site.texinfo).toBe("texinfo");
+    });
+
+    it("accepts a plain relative folder", () => {
+        const { run } = resolve(configText(["texinfo: build/docs"]));
+        expect(run().site.texinfo).toBe("build/docs");
+    });
+
+    it.each(["../docs", "/abs", "a//b", "a\\b"])("refuses %s", (folder) => {
+        const { message, at } = refusal([`texinfo: ${JSON.stringify(folder)}`]);
+        expect(message).toContain("`site.texinfo`");
+        expect(message).toContain("plain relative folder path");
+        expect(at).toContain("texinfo:");
     });
 });

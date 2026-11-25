@@ -290,6 +290,76 @@ installed the fonts, or whose notes set no text in a face, ships no font files
 and its pages carry no link. `font=serif`, `sans` and `mono` need no fonts
 package.
 
+## Publish Texinfo manuals
+
+A package that carries Texinfo manuals publishes them as HTML with its site.
+`package-build site build` looks in the `texinfo` folder at the repository root,
+or in the folder `site.texinfo` names, for files ending in `.texi` or
+`.texinfo`. A file holding an `@setfilename` line is a manual; a file without
+one is a chapter that a manual includes, and is left to it. A package with no
+such file builds without running `texi2any`.
+
+Each manual is converted by
+
+```bash
+texi2any --html --css-ref=<stylesheet-url> -c INFO_JS_DIR=../js \
+    -o <out>/texi/<name> <manual>
+```
+
+where `<stylesheet-url>` is the address the site serves the stylesheet at,
+`<out>` is the package's directory of the built site and `<name>` is the
+manual's file name without its extension. A name begins with a letter or digit
+and holds letters, digits, dots, underscores and hyphens. `js` is not a usable
+name, and two names that differ only in case are one name; either is an error
+located at the manual. The output is split HTML, one page per node:
+
+| Path                        | Holds                                                  |
+| --------------------------- | ------------------------------------------------------ |
+| `texi/<name>/index.html`    | the manual's top page and its table of contents        |
+| `texi/<name>/*.html`        | one page for each node                                 |
+| `texi/<name>/<image files>` | the images the manual's `@image` commands show         |
+| `texi/js/`                  | the Info JavaScript and stylesheet every manual shares |
+
+`texi2any` copies no images. The build copies each file a page shows with a
+relative `src`, found beside the manual and inside the Texinfo folder, to the
+same relative path under `texi/<name>/`.
+
+The pages load the site's `css/texinfo.css`, which styles the page and its
+navigation panels, headings, `@example` and `@lisp` blocks, `@table` and
+`@multitable`, `@code`, `@samp` and `@kbd`, menus, the table of contents,
+indices, footnotes, `@quotation` and `@cartouche`, and the Info script's
+sidebar and help window. Dark is the default, as on the rest of the site; light
+follows `prefers-color-scheme: light`, and the sheet narrows to a phone. Its
+colours, fonts and measure are custom properties on `:root`, whose names begin
+`--tx-`. The sheet names the site's faces and falls back to Georgia and the
+system monospace where the reader does not have them.
+
+A package replaces the stylesheet by putting a `texinfo.css` in its Texinfo
+folder. The build publishes that file at `texi/texinfo.css` and the manuals
+load it in place of the site's; it carries every rule the manual needs, since
+the manual does not load the site's sheet as well.
+
+`texi2any` comes with the `texinfo` package of the operating system. With
+Texinfo files present and no `texi2any` on `PATH`, the build fails with an
+error that names the tool, located at the first manual:
+
+```text
+texinfo/guide.texi:1:1: error: `texi2any` is not installed, and this package has Texinfo files to convert; install the texinfo package
+```
+
+A message the converter prints is reported at its own file, line and column,
+the column being 1 where the converter gives none. A message the converter
+gives as a warning is a warning; every other message is an error and fails the
+build. A conversion that runs longer than five minutes is stopped and reported
+as an error at its manual.
+
+**The Texinfo folder is trusted input.** `texi2any` follows `@include` and
+`@verbatiminclude` to any readable path, copies a file those commands name
+into the page as text, passes `@html` through to the page unchanged, and
+follows symbolic links. Nothing here confines them to the folder. Keep the
+folder to content that has been reviewed, and name no file outside the
+repository.
+
 ## Build and serve
 
 ```bash
@@ -300,7 +370,7 @@ package-build site build
 
 `package-build site build` renders every page and writes the site under
 `build/site/<contentPackage>/`: the pages, `404.html`, `sitemap.xml`, the
-theme's files and the script fonts, then `_headers` beside it and the search
+theme's files, the script fonts and any [Texinfo manuals](#publish-texinfo-manuals), then `_headers` beside it and the search
 index inside it. Nothing else renders the pages: the body of each is the same
 HTML the Foundry journals and the editor preview read, drawn into the site
 theme's layouts and minified.

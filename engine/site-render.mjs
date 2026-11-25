@@ -105,6 +105,7 @@ import { basePath, relUrl, tagUrl } from "./site-theme-urls.mjs";
 import { slugify } from "./content-slug.mjs";
 import { isPost } from "./post-fields.mjs";
 import { siteBase } from "../content-config.mjs";
+import { buildTexinfo, TEXINFO_OUTPUT } from "./site-texinfo.mjs";
 
 /** This package's root. */
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -736,6 +737,7 @@ function siteInputFiles(files, { out, site, pages }) {
             "fonts",
             "pagefind",
             "tags",
+            TEXINFO_OUTPUT,
             ...fs.readdirSync(SITE_STATIC_DIR),
             ...siteThemeAssets().map((asset) => asset.path.split("/")[0]),
         ].map((name) => name.toLowerCase()),
@@ -801,6 +803,7 @@ function siteInputFiles(files, { out, site, pages }) {
  * @param {import("./content-session.mjs").ContentSession} [options.session] - Shared prepared content session.
  * @param {(message: string) => void} [options.progress] - Build phase summaries.
  * @returns {Promise<{built: object, written: object|null, fonts: object|null,
+ *   texinfo?: {manuals: {name: string, dir: string}[], findings: object[]},
  *   site?: object, pages?: object[], pageOf?: (entry: object) => object}>}
  *   What the build found, and, when it found nothing that stops it, what was
  *   written, the pages it was written from and how a note rendered again
@@ -848,8 +851,10 @@ export async function buildPackageSite({
             fs.writeFileSync(file, content, "utf8");
             written.files.push(file);
         }
+        const texinfo = buildTexinfo({ config, out, base: siteBase(config) });
+        written.findings.push(...texinfo.findings);
         const fonts = deliverSiteFonts(config, out);
-        return { built, written, fonts, site, pages, pageOf };
+        return { built, written, fonts, texinfo, site, pages, pageOf };
     } finally {
         if (!suppliedSession) await session?.dispose();
     }

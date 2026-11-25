@@ -3000,7 +3000,19 @@ emptied first:
 - with `site.tags`, a page for each tag at `tags/<tag>/` and the tag index at
   `tags/`;
 - with `site.sitemaps`, `sitemap-index.xml` and `robots.txt`, naming this
-  site's sitemap and each package site's.
+  site's sitemap and each package site's;
+- with Texinfo manuals in the package's `texinfo` folder (or the folder
+  `site.texinfo` names), each manual as split HTML at `texi/<name>/`, the Info
+  scripts they share at `texi/js/`, the images the manuals show beside their
+  pages, and the stylesheet `css/texinfo.css` they link, or the package's own
+  `texinfo.css` at `texi/texinfo.css`.
+
+Each manual is converted by `texi2any`, which must be installed when the
+package has manuals. A missing `texi2any`, a conversion that fails or runs
+longer than five minutes, a manual named `js` or named like another apart from
+case, and any message `texi2any` prints as an error are located errors that
+fail the command; a message it prints as a warning is a located warning. See
+[Publish Texinfo manuals](guides/site.md#publish-texinfo-manuals).
 
 Without `site.tags` a tag is a label and links nowhere. A link of
 `site.notfound.links` to a page the site does not publish is left off the

@@ -1295,6 +1295,7 @@ Any other key under `docs.itemFields` is refused:
 | `site.sitemaps`     | string[] | `[]`, and only at the root of an origin       |
 | `site.mergeIndexes` | string[] | `[]`                                          |
 | `site.inputs`       | string   | `""`; optional local input-provider module    |
+| `site.texinfo`      | string   | `"texinfo"`; the folder of Texinfo manuals    |
 
 The authored content tree determines which pages reach the web. `site` is
 framing: which named pass bundle
@@ -1320,7 +1321,7 @@ renders it under the deployment root `build/site/`, at
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, title, assets, description, packages, pass, passOptions, notfound, search, maps, sections, feed, tags, sitemaps, mergeIndexes, inputs).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, title, assets, description, packages, pass, passOptions, notfound, search, maps, sections, feed, tags, sitemaps, mergeIndexes, inputs, texinfo).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -1607,6 +1608,23 @@ the brand license link and absolute canonical www recovery links in
 use an absolute canonical www URL for a sibling package. Neither function writes
 the cache or changes external attribution links.
 
+### Texinfo manuals
+
+`site.texinfo` names the folder, relative to the repository root, that
+`site build` searches for Texinfo manuals. It defaults to `texinfo`, and a
+plain relative path such as `build/docs` is accepted; dot segments, absolute
+paths and backslashes are refused. A folder that does not exist holds no
+manuals.
+
+Every `.texi` or `.texinfo` file under the folder that holds an `@setfilename`
+line is converted with `texi2any --html` to split HTML at
+`texi/<name>/` in the package's site, where `<name>` is the file name without
+its extension, and the Info JavaScript is written once to `texi/js/`. The pages
+link `css/texinfo.css`, the site's Texinfo stylesheet. A `texinfo.css` in the
+folder is published at `texi/texinfo.css` and linked in its place. A missing
+`texi2any` is an error located at the first manual when the folder holds
+manuals. See [Publish Texinfo manuals](guides/site.md#publish-texinfo-manuals).
+
 ### Local site inputs
 
 `site.inputs` optionally names a local module relative to `rootDir`, such as
@@ -1633,7 +1651,7 @@ key the builder continues to require the navigation cache from `deps fetch`.
 letters, numbers, dots, underscores and hyphens within segments, with each
 segment beginning with a letter or number. Absolute paths, dot segments,
 symlinks, case collisions and file/directory collisions are refused. A provider
-cannot claim HTML, theme/static assets, fonts, search/tag trees, page paths,
+cannot claim HTML, theme/static assets, fonts, search/tag trees, the `texi` tree, page paths,
 feeds, sitemap files, robots or deployment headers. All files are validated
 before output replacement, then written inside the package site's output after
 the renderer clears it. Their paths are included in `written.files`.
