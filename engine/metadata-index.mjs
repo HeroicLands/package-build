@@ -39,6 +39,7 @@
  * @module
  */
 
+import { requirePathToken, versionMessage } from "./path-token.mjs";
 import { buildReferenceTargets } from "./reference-targets.mjs";
 
 import { completeAddress, renderAddress } from "./address.mjs";
@@ -187,6 +188,8 @@ export function noContentIndexPackages(config) {
  * @returns {string} The directory.
  */
 export function metadataCacheDir(config, id, version) {
+    requirePathToken(id, `${id}: a dependency id must be one plain name`);
+    requirePathToken(version, versionMessage(`${id}: the version is`, version));
     return path.join(config.paths.metadataCache, `${id}@${version}`);
 }
 

@@ -98,12 +98,14 @@ function safeUrl(value, base, allowLoopback = false) {
 /**
  * Fetch bytes into the shared checksum cache and return their verified path.
  * @param {string} url HTTPS URL without user information.
- * @param {string} sha256 Expected lowercase SHA-256.
- * @param {{cacheDir?: string, maxBytes?: number, signal?: AbortSignal, fetch?: typeof globalThis.fetch, token?: string, allowLoopback?: boolean, config?: object}} [options] Download options.
+ * @param {string|null} sha256 Expected lowercase SHA-256, or `null` with `trustOnFirstUse`, which
+ *   names the file by the SHA-256 of the bytes received.
+ * @param {{trustOnFirstUse?: boolean, cacheDir?: string, maxBytes?: number, signal?: AbortSignal, fetch?: typeof globalThis.fetch, token?: string, allowLoopback?: boolean, config?: object}} [options] Download options.
  * @returns {Promise<string>} Absolute path of the verified cached file.
  */
 export async function downloadCached(url, sha256, options = {}) {
-    if (typeof sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(sha256))
+    const firstUse = sha256 === null && options.trustOnFirstUse === true;
+    if (!firstUse && (typeof sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(sha256)))
         throw new Error("expected a lowercase SHA-256 digest");
     let parsed = safeUrl(url, undefined, options.allowLoopback === true);
     const origin = parsed.origin;
@@ -118,8 +120,8 @@ export async function downloadCached(url, sha256, options = {}) {
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 0)
         throw new Error("download size limit must be a non-negative safe integer");
     await mkdir(cache, { recursive: true });
-    const target = path.join(cache, sha256);
-    if (await matches(target, sha256, maxBytes, options.signal)) return target;
+    if (!firstUse && (await matches(path.join(cache, sha256), sha256, maxBytes, options.signal)))
+        return path.join(cache, sha256);
     const temporary = await mkdtemp(path.join(cache, ".download-"));
     const file = path.join(temporary, "content");
     let response;
@@ -210,8 +212,11 @@ export async function downloadCached(url, sha256, options = {}) {
             error.retryable = true;
             throw error;
         }
-        if (hash.digest("hex") !== sha256)
+        const actual = hash.digest("hex");
+        if (!firstUse && actual !== sha256)
             throw failure("download SHA-256 does not match", response?.status);
+        sha256 = actual;
+        const target = path.join(cache, sha256);
         await rename(file, target);
         for (let attempt = 0; attempt < 3; attempt++)
             if (await matches(target, sha256, maxBytes, options.signal)) return target;

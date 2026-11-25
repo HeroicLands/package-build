@@ -52,7 +52,7 @@
  */
 
 import fs from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
@@ -71,6 +71,8 @@ import { isPackageRecord } from "./index-records.mjs";
 import { systemPackages } from "./item-entries.mjs";
 import { downloadCached } from "./download-cache.mjs";
 import { buildUserAgent, fetchFollowingRedirects } from "./user-agent.mjs";
+import { forgeAssetUrl, forgeToken, resolveForge } from "./forge-url.mjs";
+import { requirePathToken, versionMessage } from "./path-token.mjs";
 
 /** Written once a fetch completes, so a half-finished cache is never used. */
 const STAMP = ".complete";
@@ -112,6 +114,8 @@ export function itemCatalogRelationships(config) {
  * @returns {string} The directory.
  */
 export function catalogDir(config, id, version) {
+    requirePathToken(id, `${id}: a dependency id must be one plain name`);
+    requirePathToken(version, versionMessage(`${id}: the version is`, version));
     return path.join(config.paths.foreignCache, `${id}@${version}`);
 }
 
@@ -396,21 +400,29 @@ async function fetchBytes(url, context, token, mirror = false) {
     }
 }
 
-/** Read an explicit GitHub-issued credential without using ambient forge tokens. */
-function githubApiToken() {
-    const token = process.env.PACKAGE_BUILD_GITHUB_API_TOKEN;
-    if (!token) return undefined;
-    if (/[^\x21-\x7e]/.test(token))
-        throw new Error("PACKAGE_BUILD_GITHUB_API_TOKEN must contain one non-empty GitHub token");
-    return token;
-}
-
-/** Read bounded GitHub API JSON without passing mirror credentials. */
-async function githubJson(url, signal) {
+/**
+ * Read bounded forge API JSON without passing mirror credentials.
+ *
+ * @param {import("./forge-url.mjs").Forge} forge - The forge the API belongs to.
+ * @param {string} url - The API URL.
+ * @param {AbortSignal} signal - Aborts the request.
+ * @param {string} [etag] - A stored entity tag to revalidate.
+ * @returns {Promise<{notModified: true}|{notModified: false, body: any, etag: string|null}>}
+ */
+async function forgeJson(forge, url, signal, etag) {
     const target = new URL(url);
-    if (target.origin !== "https://api.github.com" || target.username || target.password)
-        throw new Error("GitHub metadata requires the HTTPS api.github.com origin");
-    const token = githubApiToken();
+    if (target.origin !== forge.apiOrigin || target.username || target.password)
+        throw new Error(
+            `${forge.name} metadata requires the HTTPS ${new URL(forge.apiOrigin).host} origin`,
+        );
+    let token;
+    try {
+        token = forgeToken(forge);
+    } catch (error) {
+        // The message names the variable and never its value, so it is shown as written.
+        error.showAsIs = true;
+        throw error;
+    }
     let response;
     try {
         try {
@@ -418,28 +430,42 @@ async function githubJson(url, signal) {
                 redirect: "manual",
                 signal,
                 headers: {
-                    Accept: "application/vnd.github+json",
+                    Accept:
+                        forge.kind === "github" ?
+                            "application/vnd.github+json"
+                        :   "application/json",
                     "user-agent": buildUserAgent(url),
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(etag ? { "If-None-Match": etag } : {}),
+                    ...(token ?
+                        {
+                            Authorization:
+                                forge.kind === "github" ? `Bearer ${token}` : `token ${token}`,
+                        }
+                    :   {}),
                 },
             });
         } catch {
-            const error = new Error("GitHub release metadata request failed");
+            const error = new Error(`${forge.name} release metadata request failed`);
             error.retryable = true;
             throw error;
         }
+        if (response.status === 304 && etag) return { notModified: true };
         if (!response.ok || !response.body) {
             const rateLimited =
                 response.status === 429 ||
                 (response.status === 403 &&
                     (response.headers.get("x-ratelimit-remaining") === "0" ||
                         response.headers.has("retry-after")));
+            const unauthorised = response.status === 401;
             const error = new Error(
                 rateLimited ?
-                    `GitHub API rate limit reached (HTTP ${response.status}); retry after the quota resets or set PACKAGE_BUILD_GITHUB_API_TOKEN to a GitHub-issued token`
-                :   `GitHub release metadata request failed (HTTP ${response.status})`,
+                    `${forge.name} API rate limit reached (HTTP ${response.status}); retry after the quota resets or set ${forge.tokenVariable} to a ${forge.name}-issued token`
+                : unauthorised ?
+                    `${forge.name} rejected the credential (HTTP 401); check ${forge.tokenVariable}`
+                :   `${forge.name} release metadata request failed (HTTP ${response.status})`,
             );
             error.rateLimited = rateLimited;
+            error.showAsIs = unauthorised;
             error.retryable = response.status >= 500 && response.status < 600;
             throw error;
         }
@@ -449,33 +475,118 @@ async function githubJson(url, signal) {
             for await (const chunk of response.body) {
                 size += chunk.length;
                 if (size > 2 * 1024 * 1024)
-                    throw new Error("GitHub release metadata exceeds size limit");
+                    throw new Error(`${forge.name} release metadata exceeds size limit`);
                 chunks.push(chunk);
             }
         } catch (cause) {
             if (size > 2 * 1024 * 1024) throw cause;
-            const error = new Error("GitHub release metadata response interrupted");
+            const error = new Error(`${forge.name} release metadata response interrupted`);
             error.retryable = true;
             throw error;
         }
         try {
-            return JSON.parse(
-                new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
-            );
+            return {
+                notModified: false,
+                etag: response.headers.get("etag"),
+                body: JSON.parse(
+                    new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
+                ),
+            };
         } catch {
-            throw new Error("GitHub release metadata is not valid UTF-8 JSON");
+            throw new Error(`${forge.name} release metadata is not valid UTF-8 JSON`);
         }
     } finally {
         if (response?.body && !response.body.locked) await response.body.cancel().catch(() => {});
     }
 }
 
+const confirmedForges = new Map();
+
+/**
+ * Confirm a non-GitHub forge is a Gitea instance before any token goes to it.
+ *
+ * One unauthenticated, redirect-free `GET /api/v1/version` per origin per process.
+ */
+function confirmGitea(forge) {
+    let pending = confirmedForges.get(forge.origin);
+    if (!pending) {
+        pending = (async () => {
+            const refuse = (why) => {
+                const error = new Error(
+                    `PACKAGE_BUILD_FORGE_URL names ${forge.origin}, which ${why}; set it to a Gitea forge or to https://github.com`,
+                );
+                error.showAsIs = true;
+                return error;
+            };
+            let response;
+            try {
+                response = await fetch(`${forge.origin}/api/v1/version`, {
+                    redirect: "manual",
+                    signal: AbortSignal.timeout(10_000),
+                    headers: {
+                        Accept: "application/json",
+                        "user-agent": buildUserAgent(forge.origin),
+                    },
+                });
+            } catch {
+                throw refuse("could not be reached");
+            }
+            try {
+                if (!response.ok) throw refuse("does not answer the Gitea version API");
+                let body;
+                try {
+                    const chunks = [];
+                    let size = 0;
+                    for await (const chunk of response.body ?? []) {
+                        size += chunk.length;
+                        if (size > 64 * 1024) throw new Error("too large");
+                        chunks.push(chunk);
+                    }
+                    body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+                } catch {
+                    throw refuse("does not answer the Gitea version API");
+                }
+                if (typeof body?.version !== "string" || !body.version)
+                    throw refuse("does not answer the Gitea version API");
+            } finally {
+                await response.body?.cancel().catch(() => {});
+            }
+        })();
+        confirmedForges.set(forge.origin, pending);
+    }
+    return pending;
+}
+
+/** The forge to read from, confirmed when it is not GitHub. */
+async function readyForge() {
+    const forge = resolveForge();
+    if (forge.kind === "gitea") await confirmGitea(forge);
+    return forge;
+}
+
+/**
+ * The credential for a manifest, archive or index download: the build mirror's
+ * when a mirror serves it, otherwise the Gitea forge token when the URL's origin
+ * is the forge's own. Every other URL is read anonymously, and GitHub downloads
+ * carry none.
+ */
+function downloadToken(rel, forge, url) {
+    if (rel.buildManifest) return mirrorToken(rel);
+    if (forge.kind !== "gitea") return undefined;
+    let origin;
+    try {
+        origin = new URL(url).origin;
+    } catch {
+        return undefined;
+    }
+    return origin === forge.origin ? forgeToken(forge) : undefined;
+}
+
 class MetadataSourceError extends Error {}
 
-/** Require an exact public GitHub release asset as the checksum source. */
-function githubReleaseAsset(value) {
-    const message =
-        "content index fetching requires a pinned GitHub release asset URL; use a GitHub release or package-build deps fetch --from <path> for a local artifact";
+/** Require an exact public release asset on the chosen forge as the checksum source. */
+function forgeReleaseAsset(forge, value) {
+    const message = `content index fetching requires a pinned ${forge.name} release asset URL; use a ${forge.name} release or package-build deps fetch --from <path> for a local artifact`;
     let url;
     try {
         url = new URL(value);
@@ -484,8 +595,7 @@ function githubReleaseAsset(value) {
     }
     if (
         url.protocol !== "https:" ||
-        url.hostname !== "github.com" ||
-        url.port ||
+        url.origin !== forge.origin ||
         url.username ||
         url.password ||
         url.search ||
@@ -508,50 +618,118 @@ function githubReleaseAsset(value) {
 }
 
 /** Bind the manifest and index to the same exact public release. */
-function githubReleaseIdentity(manifestUrl, assetUrl) {
-    const manifest = githubReleaseAsset(manifestUrl);
-    const asset = githubReleaseAsset(assetUrl);
+function forgeReleaseIdentity(forge, manifestUrl, assetUrl) {
+    const manifest = forgeReleaseAsset(forge, manifestUrl);
+    const asset = forgeReleaseAsset(forge, assetUrl);
     if (manifest.slice(1, 6).join("/") !== asset.slice(1, 6).join("/"))
-        throw new MetadataSourceError("content index is not in the pinned GitHub release");
+        throw new MetadataSourceError(`content index is not in the pinned ${forge.name} release`);
     return manifest;
 }
 
-/** Resolve a pinned GitHub release asset's digest from its exact advertised URL. */
-async function githubAssetDigest(manifestUrl, assetUrl, cache) {
-    const manifest = githubReleaseIdentity(manifestUrl, assetUrl);
-    const api = `https://api.github.com/repos/${manifest[1]}/${manifest[2]}/releases/tags/${manifest[5]}`;
+/** The file beside a dependency's index that remembers its release lookup. */
+const RELEASE_RECORD = "release.json";
+
+function readReleaseRecord(dir, api) {
+    try {
+        const record = JSON.parse(fs.readFileSync(path.join(dir, RELEASE_RECORD), "utf8"));
+        if (record.api === api && typeof record.etag === "string" && record.release) return record;
+    } catch {
+        // No usable record: the lookup is unconditional.
+    }
+    return undefined;
+}
+
+function writeReleaseRecord(dir, api, etag, release) {
+    try {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, RELEASE_RECORD), JSON.stringify({ api, etag, release }));
+    } catch {
+        // The record only saves a request; failing to keep it costs nothing else.
+    }
+}
+
+/** The release's id, tag and assets, as the lookup keeps them. */
+function releaseSummary(release) {
+    return {
+        id: release.id,
+        tag_name: release.tag_name,
+        assets:
+            Array.isArray(release.assets) ?
+                release.assets.map((asset) => ({
+                    id: asset.id,
+                    browser_download_url: asset.browser_download_url,
+                    digest: asset.digest,
+                }))
+            :   undefined,
+    };
+}
+
+/**
+ * Resolve a pinned release asset's digest from its exact advertised URL.
+ *
+ * One release lookup serves every asset of that release in the run; a stored
+ * entity tag turns a repeat lookup into a conditional request. A forge that
+ * publishes no asset digest (Gitea) yields `undefined`.
+ *
+ * The release record that saves the next lookup is handed back in `record.store` and written by
+ * the caller once the index is accepted, so a refused fetch leaves it unwritten.
+ *
+ * @returns {Promise<string|undefined>} The SHA-256, or undefined when the forge publishes none.
+ */
+async function forgeAssetDigest(forge, manifestUrl, assetUrl, cache, dir, record) {
+    const manifest = forgeReleaseIdentity(forge, manifestUrl, assetUrl);
+    const base =
+        forge.kind === "github" ? `${forge.apiOrigin}/repos` : `${forge.apiOrigin}/api/v1/repos`;
+    const api = `${base}/${manifest[1]}/${manifest[2]}/releases/tags/${manifest[5]}`;
     let pending = cache.get(api);
     if (!pending) {
         pending = (async () => {
-            const release = await retryMetadata((signal) => githubJson(api, signal));
+            const stored = readReleaseRecord(dir, api);
+            const reply = await retryMetadata((signal) =>
+                forgeJson(forge, api, signal, stored?.etag),
+            );
+            const release = reply.notModified ? stored.release : releaseSummary(reply.body);
+            const store =
+                !reply.notModified && reply.etag ? { api, etag: reply.etag, release } : undefined;
             if (
                 !Number.isSafeInteger(release.id) ||
                 release.id <= 0 ||
                 release.tag_name !== decodeURIComponent(manifest[5])
             )
-                throw new Error("GitHub release identity mismatch");
+                throw new Error(`${forge.name} release identity mismatch`);
+            if (forge.kind === "gitea") {
+                if (!Array.isArray(release.assets))
+                    throw new Error(`${forge.name} release lists no assets`);
+                return { assets: release.assets, store };
+            }
+            if (Array.isArray(release.assets) && release.assets.length < 100)
+                return { assets: release.assets, store };
             const assets = [];
             for (let page = 1; page <= 100; page++) {
-                const url = `https://api.github.com/repos/${manifest[1]}/${manifest[2]}/releases/${release.id}/assets?per_page=100&page=${page}`;
-                const batch = await retryMetadata((signal) => githubJson(url, signal));
+                const url = `${base}/${manifest[1]}/${manifest[2]}/releases/${release.id}/assets?per_page=100&page=${page}`;
+                const batch = (await retryMetadata((signal) => forgeJson(forge, url, signal))).body;
                 if (!Array.isArray(batch) || batch.length > 100)
-                    throw new Error("invalid GitHub asset listing");
+                    throw new Error(`invalid ${forge.name} asset listing`);
                 assets.push(...batch);
-                if (batch.length < 100) return assets;
+                if (batch.length < 100) return { assets, store };
             }
-            throw new Error("GitHub asset listing exceeds page limit");
+            throw new Error(`${forge.name} asset listing exceeds page limit`);
         })();
         cache.set(api, pending);
     }
-    const matches = (await pending).filter((entry) => entry.browser_download_url === assetUrl);
-    if (
-        matches.length !== 1 ||
-        !Number.isSafeInteger(matches[0].id) ||
-        matches[0].id <= 0 ||
-        !/^sha256:[0-9a-f]{64}$/.test(matches[0].digest ?? "")
-    )
-        throw new Error("GitHub release asset digest unavailable or ambiguous");
-    return matches[0].digest.slice(7);
+    const listed = await pending;
+    if (record) record.store = listed.store;
+    const matches = listed.assets.filter((entry) => entry.browser_download_url === assetUrl);
+    if (matches.length !== 1 || !Number.isSafeInteger(matches[0].id) || matches[0].id <= 0)
+        throw new Error(`${forge.name} release asset digest unavailable or ambiguous`);
+    const digest = matches[0].digest;
+    if (digest === undefined || digest === null || digest === "") {
+        if (forge.kind === "gitea") return undefined;
+        throw new Error(`${forge.name} release asset digest unavailable or ambiguous`);
+    }
+    if (!/^sha256:[0-9a-f]{64}$/.test(digest))
+        throw new Error(`${forge.name} release asset digest unavailable or ambiguous`);
+    return digest.slice(7);
 }
 
 /** Retry transient metadata requests with bounded time per attempt. */
@@ -599,15 +777,52 @@ async function indexDigest(file) {
     }
 }
 
-/** Reuse a checksum only when its source identity and materialized bytes verify. */
-async function verifiedMetadataDigest(dir, source) {
+/** The largest receipt, in bytes, that is read. */
+const MAX_RECEIPT_BYTES = 16 * 1024;
+/** The largest stored manifest, in bytes, that is read. */
+const MAX_STORED_MANIFEST_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Read a small cache file without following a symlink.
+ *
+ * @param {string} file - The file.
+ * @param {number} maxBytes - The largest size read.
+ * @returns {{missing: true}|{unusable: string}|{bytes: Buffer}} The file's bytes, its absence, or
+ *   why it is not a plain regular file within the limit.
+ */
+function readGuarded(file, maxBytes) {
     let fd;
     try {
-        fd = fs.openSync(path.join(dir, STAMP), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+        fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
         const stat = fs.fstatSync(fd);
-        if (!stat.isFile() || stat.size > 16 * 1024) return undefined;
-        const marker = JSON.parse(fs.readFileSync(fd, "utf8"));
+        if (!stat.isFile()) return { unusable: "it is not a regular file" };
+        if (stat.size > maxBytes) return { unusable: `it is larger than ${maxBytes} bytes` };
+        return { bytes: fs.readFileSync(fd) };
+    } catch (error) {
+        if (error.code === "ENOENT") return { missing: true };
+        if (error.code === "ELOOP") return { unusable: "it is a symbolic link" };
+        return { unusable: `it cannot be read (${error.code ?? "error"})` };
+    } finally {
+        if (fd !== undefined) fs.closeSync(fd);
+    }
+}
+
+/** A dependency's receipt, or undefined when it is absent or unusable. */
+function readMarker(dir) {
+    const read = readGuarded(path.join(dir, STAMP), MAX_RECEIPT_BYTES);
+    if (!read.bytes) return undefined;
+    try {
+        return JSON.parse(read.bytes.toString("utf8"));
+    } catch {
+        return undefined;
+    }
+}
+
+/** Reuse a checksum only when its source identity and materialized bytes verify. */
+async function verifiedMetadataDigest(dir, source, marker = readMarker(dir)) {
+    try {
         if (
+            !marker ||
             !/^[0-9a-f]{64}$/.test(marker.sha256 ?? "") ||
             marker.file !== `${marker.sha256}.jsonl` ||
             !marker.source ||
@@ -619,16 +834,209 @@ async function verifiedMetadataDigest(dir, source) {
             :   undefined;
     } catch {
         return undefined;
+    }
+}
+
+/**
+ * The pin receipt of a content index that its forge publishes without a digest.
+ *
+ * The first download of such an index is trusted over HTTPS, and its checksum is
+ * recorded in one receipt per identity: the forge origin, the build mirror (or
+ * none), the dependency and the declared manifest URL. The version the manifest
+ * reports and the index URL it advertises are recorded in it and compared, never
+ * part of the identity, so a republished release cannot step outside the pin.
+ * Only a missing receipt means that nothing is pinned.
+ */
+function pinFile(config, rel, forge, declaredUrl) {
+    const identity = {
+        forge: forge.origin,
+        mirror: rel.buildManifest ?? null,
+        id: rel.id,
+        manifest: declaredUrl,
+    };
+    const name = createHash("sha256").update(JSON.stringify(identity)).digest("hex");
+    return { identity, file: path.join(config.paths.metadataCache, ".pins", `${name}.json`) };
+}
+
+/** The sentence that says how to accept a legitimately republished release. */
+const repinAdvice = (file) =>
+    `To accept the release as it is now published, delete the pin receipt ${file} and fetch again.`;
+
+/**
+ * Read a pin receipt, refusing every receipt that is present but unusable.
+ *
+ * @returns {{version: string, index: string, sha256: string}|undefined} The pin, or undefined
+ *   when no receipt exists.
+ */
+function readPin({ identity, file }, rel) {
+    const read = readGuarded(file, MAX_RECEIPT_BYTES);
+    if (read.missing) return undefined;
+    const refuse = (why) => {
+        const error = new Error(
+            `${rel.id}: the pin receipt ${file} is unusable (${why}). Nothing was cached or recorded. To accept the release as it is now published, delete that receipt and fetch again.`,
+        );
+        error.showAsIs = true;
+        return error;
+    };
+    if (!read.bytes) throw refuse(read.unusable);
+    let pin;
+    try {
+        pin = JSON.parse(read.bytes.toString("utf8"));
+    } catch {
+        throw refuse("it is not valid JSON");
+    }
+    if (
+        !pin ||
+        typeof pin !== "object" ||
+        !/^[0-9a-f]{64}$/.test(pin.sha256 ?? "") ||
+        typeof pin.version !== "string" ||
+        typeof pin.index !== "string" ||
+        JSON.stringify(pin.identity) !== JSON.stringify(identity)
+    )
+        throw refuse("it does not describe this release");
+    return pin;
+}
+
+/**
+ * Record a pin receipt, creating it exclusively.
+ *
+ * The receipt is written to a freshly created, unpredictable temporary file and
+ * linked into place, which fails when a receipt exists. Where hard links are not
+ * supported, the receipt is created in place with `O_EXCL`, which fails the same
+ * way; a reader that meets a half-written receipt in that window refuses it. A run that loses the race
+ * compares its pin with the one that won and is refused when they differ.
+ *
+ * @throws {Error} When another fetch pinned a different release first.
+ */
+function writePin(pinned, rel, pin) {
+    const { identity, file } = pinned;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const body = JSON.stringify({ identity, ...pin });
+    const temporary = `${file}.${randomBytes(8).toString("hex")}.tmp`;
+    const fd = fs.openSync(
+        temporary,
+        fs.constants.O_WRONLY |
+            fs.constants.O_CREAT |
+            fs.constants.O_EXCL |
+            fs.constants.O_NOFOLLOW,
+        0o600,
+    );
+    try {
+        try {
+            fs.writeFileSync(fd, body);
+        } finally {
+            fs.closeSync(fd);
+        }
+        try {
+            fs.linkSync(temporary, file);
+        } catch (error) {
+            // A filesystem without hard links creates the receipt itself, still
+            // exclusively, so an existing receipt is never overwritten.
+            if (!["EPERM", "ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EXDEV"].includes(error.code))
+                throw error;
+            const direct = fs.openSync(
+                file,
+                fs.constants.O_WRONLY |
+                    fs.constants.O_CREAT |
+                    fs.constants.O_EXCL |
+                    fs.constants.O_NOFOLLOW,
+                0o600,
+            );
+            try {
+                fs.writeFileSync(direct, body);
+            } finally {
+                fs.closeSync(direct);
+            }
+        }
+    } catch (error) {
+        if (error.code !== "EEXIST") throw error;
+        const winner = readPin(pinned, rel);
+        if (
+            winner?.sha256 !== pin.sha256 ||
+            winner.version !== pin.version ||
+            winner.index !== pin.index
+        ) {
+            const refusal = new Error(
+                `${rel.id}: another fetch pinned a different content index for this release first. ${repinAdvice(file)}`,
+            );
+            refusal.showAsIs = true;
+            throw refusal;
+        }
     } finally {
-        if (fd !== undefined) fs.closeSync(fd);
+        fs.rmSync(temporary, { force: true });
+    }
+}
+
+/**
+ * Hold a fetch to its pin.
+ *
+ * @param {{version: string, index: string, sha256: string}} pin - The pin.
+ * @param {string} file - The pin receipt's path.
+ * @param {{version: string, index: string, digest?: string}} now - What the release publishes now.
+ * @throws {Error} When the release changed after it was pinned.
+ */
+function checkPin(pin, file, rel, now) {
+    const changed = (what) => {
+        const error = new Error(
+            `the release changed after its content index was pinned: ${what}. ${repinAdvice(file)}`,
+        );
+        error.showAsIs = true;
+        return error;
+    };
+    if (now.version !== pin.version)
+        throw changed(`it now reports version ${now.version}, not ${pin.version}`);
+    if (now.index !== pin.index) throw changed(`it now advertises ${now.index}, not ${pin.index}`);
+    if (now.digest !== undefined && now.digest !== pin.sha256)
+        throw changed("the forge now publishes a different digest for the index");
+}
+
+const MANIFEST_RECORD = "manifest.json";
+
+/**
+ * A dependency's manifest and index as a finished fetch left them, when the
+ * receipt names this source, the index bytes match the receipt and the stored
+ * manifest matches its recorded checksum.
+ */
+async function storedMetadata(dir, source) {
+    const marker = readMarker(dir);
+    const sha256 = await verifiedMetadataDigest(dir, source, marker);
+    if (!sha256) return undefined;
+    try {
+        const read = readGuarded(path.join(dir, MANIFEST_RECORD), MAX_STORED_MANIFEST_BYTES);
+        if (
+            !read.bytes ||
+            !/^[0-9a-f]{64}$/.test(marker.manifestSha256 ?? "") ||
+            createHash("sha256").update(read.bytes).digest("hex") !== marker.manifestSha256
+        )
+            return undefined;
+        const manifest = JSON.parse(read.bytes.toString("utf8"));
+        if (
+            manifest.version !== source.version ||
+            manifest.flags?.metadataUrl !== marker.source.index
+        )
+            return undefined;
+        return {
+            file: path.join(dir, marker.file),
+            manifest,
+            sha256,
+            index: marker.source.index,
+        };
+    } catch {
+        return undefined;
     }
 }
 
 /** Atomically publish a verified index and its exact checksum source identity. */
-function markVerifiedMetadataComplete(dir, file, sha256, source) {
+function markVerifiedMetadataComplete(dir, file, sha256, source, manifest) {
     const temporary = fs.mkdtempSync(path.join(dir, ".marker-"));
     try {
-        fs.writeFileSync(path.join(temporary, STAMP), JSON.stringify({ file, sha256, source }));
+        const manifestBytes = JSON.stringify(manifest);
+        fs.writeFileSync(path.join(dir, MANIFEST_RECORD), manifestBytes);
+        const manifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
+        fs.writeFileSync(
+            path.join(temporary, STAMP),
+            JSON.stringify({ file, sha256, source, manifestSha256 }),
+        );
         fs.renameSync(path.join(temporary, STAMP), path.join(dir, STAMP));
     } finally {
         fs.rmSync(temporary, { recursive: true, force: true });
@@ -650,12 +1058,42 @@ export function writeZipEntries(files, dest) {
         // A zip may name entries outside the destination; refuse those rather
         // than write wherever the archive says.
         const rel = path.relative(dest, full);
-        if (rel.startsWith("..") || path.isAbsolute(rel)) {
+        if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
             throw new Error(`archive entry escapes the destination: ${name}`);
         }
         fs.mkdirSync(path.dirname(full), { recursive: true });
         fs.writeFileSync(full, bytes);
     }
+}
+
+/**
+ * The file name an extracted document is written under.
+ *
+ * The extractor names a file from the document's database key, which a
+ * downloaded pack controls. The name is built here instead, from the document's
+ * id, which must be one plain token, and its name with every character outside
+ * letters and digits replaced, so it holds no separator and no leading dot. A
+ * document that is named and one that is not get the names the extractor gives
+ * them for an ordinary id.
+ *
+ * @param {{_id?: unknown, _key?: unknown, name?: unknown}} doc - The document.
+ * @param {string} out - The directory the file is written into.
+ * @param {string} where - What the diagnostic calls the pack.
+ * @returns {string} The file name.
+ */
+function extractedName(doc, out, where) {
+    requirePathToken(
+        doc._id,
+        `${where} holds a document whose id ${JSON.stringify(doc._id)} is not one plain name`,
+    );
+    const collection = String(doc._key ?? "").split("!")[1] ?? "";
+    const name =
+        typeof doc.name === "string" && doc.name ?
+            `${doc.name.replace(/[^a-zA-Z0-9А-я]/g, "_").slice(0, 200)}_${doc._id}.json`
+        :   `!${collection}!${doc._id}.json`;
+    if (!/^[A-Za-z]+$/.test(collection) || path.relative(out, path.join(out, name)) !== name)
+        throw new Error(`${where} holds a document that cannot be extracted under a plain name`);
+    return name;
 }
 
 /**
@@ -671,7 +1109,7 @@ export function writeZipEntries(files, dest) {
  * @param {string} dir - The dependency's cache directory.
  * @returns {Promise<void>}
  */
-async function extractItemPacks(id, version, manifest, root, dir) {
+async function extractItemPacks(id, version, manifest, root, dir, from) {
     const itemPacks = (manifest.packs ?? []).filter((pack) => pack.type === "Item");
     if (!itemPacks.length) {
         throw new Error(
@@ -682,7 +1120,11 @@ async function extractItemPacks(id, version, manifest, root, dir) {
     // Loaded here so importing the content index does not load the extractor.
     const { extractPack } = await import("@foundryvtt/foundryvtt-cli");
     for (const pack of itemPacks) {
-        const src = resolvePackPath(root, pack.path);
+        requirePathToken(
+            pack.name,
+            `${id}@${version}: its manifest ${from} declares the Item pack ${JSON.stringify(pack.name)}, which is not one plain name`,
+        );
+        const src = resolvePackPath(root, pack.path, `${id}@${version}: pack "${pack.name}"`);
         if (!src) {
             throw new Error(
                 `${id}@${version}: pack "${pack.name}" is declared at ` +
@@ -691,7 +1133,17 @@ async function extractItemPacks(id, version, manifest, root, dir) {
         }
         const out = path.join(dir, "items", pack.name);
         fs.mkdirSync(out, { recursive: true });
-        await extractPack(src, out, { log: false });
+        await extractPack(src, out, {
+            log: false,
+            transformName: (doc) =>
+                extractedName(doc, out, `${id}@${version}: pack "${pack.name}" of ${from}`),
+        });
+        const realItems = fs.realpathSync(path.join(dir, "items"));
+        const realOut = path.relative(realItems, fs.realpathSync(out));
+        if (realOut === ".." || realOut.startsWith(`..${path.sep}`) || path.isAbsolute(realOut))
+            throw new Error(
+                `${id}@${version}: pack "${pack.name}" of ${from} was extracted outside the cache`,
+            );
         log.info(
             `${id}@${version}: extracted pack "${pack.name}"` +
                 (pack.system ? ` (system: ${pack.system})` : ""),
@@ -798,9 +1250,15 @@ export function mirroredAssetUrl(asset, manifest, mirror) {
  * @returns {Promise<{manifest: object, version: string}>} The manifest and
  *   its resolved version.
  */
-async function resolveManifest(rel) {
-    const { url, pinned } = pinnedManifestUrl(rel.manifest, rel.verified);
-    const manifest = await fetchManifest(rel.buildManifest ?? url, mirrorToken(rel), rel);
+async function resolveManifest(rel, forge = resolveForge()) {
+    const pin = pinnedManifestUrl(rel.manifest, rel.verified);
+    const pinned = pin.pinned;
+    const url = forgeAssetUrl(forge, pin.url);
+    const manifest = await fetchManifest(
+        rel.buildManifest ?? url,
+        downloadToken(rel, forge, rel.buildManifest ?? url),
+        rel,
+    );
     const version = manifest.version;
     if (!version) {
         throw new Error(`${rel.id}: its manifest declares no \`version\``);
@@ -832,7 +1290,15 @@ async function resolveManifest(rel) {
  * @returns {Promise<string>} The dependency's cache directory.
  */
 export async function fetchCatalog(config, rel) {
-    const { manifest, version } = await resolveManifest(rel);
+    const forge = await readyForge();
+    const { manifest, version } = await resolveManifest(rel, forge);
+    requirePathToken(
+        version,
+        versionMessage(
+            `${rel.id}: its manifest ${rel.buildManifest ?? rel.manifest} reports version`,
+            version,
+        ),
+    );
     const dir = catalogDir(config, rel.id, version);
     if (isComplete(dir)) {
         log.info(`${rel.id}@${version}: already cached`);
@@ -842,8 +1308,8 @@ export async function fetchCatalog(config, rel) {
     const download =
         manifest.download &&
         mirroredAssetUrl(
-            manifest.download,
-            pinnedManifestUrl(rel.manifest, rel.verified).url,
+            forgeAssetUrl(forge, manifest.download),
+            forgeAssetUrl(forge, pinnedManifestUrl(rel.manifest, rel.verified).url),
             rel.buildManifest,
         );
     if (!download) {
@@ -857,9 +1323,9 @@ export async function fetchCatalog(config, rel) {
     fs.mkdirSync(raw, { recursive: true });
 
     log.info(`${rel.id}@${version}: downloading ${download}`);
-    await downloadAndUnzip(download, raw, mirrorToken(rel), rel);
+    await downloadAndUnzip(download, raw, downloadToken(rel, forge, download), rel);
 
-    await extractItemPacks(rel.id, version, manifest, raw, dir);
+    await extractItemPacks(rel.id, version, manifest, raw, dir, rel.buildManifest ?? rel.manifest);
     cacheSchemaArtifact(raw, dir);
     return dir;
 }
@@ -872,15 +1338,29 @@ export async function fetchCatalog(config, rel) {
  *
  * @param {string} root - The unpacked archive root.
  * @param {string} packPath - The manifest's declared pack path.
+ * @param {string} [label] - What the diagnostic calls the pack.
  * @returns {string|null} The directory, or null when absent.
+ * @throws {Error} When the path resolves outside the root, symbolic links included.
  */
-function resolvePackPath(root, packPath) {
+export function resolvePackPath(root, packPath, label = "pack") {
+    if (typeof packPath !== "string" || packPath === "" || packPath.includes("\0"))
+        throw new Error(`${label} declares no usable path`);
+    const realRoot = fs.realpathSync(root);
+    const inside = (candidate) => {
+        const real = fs.realpathSync(candidate);
+        const relative = path.relative(realRoot, real);
+        if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
+            throw new Error(
+                `${label} is declared at ${packPath}, which resolves outside the unpacked package`,
+            );
+        return candidate;
+    };
     const direct = path.join(root, packPath);
-    if (fs.existsSync(direct)) return direct;
+    if (fs.existsSync(direct)) return inside(direct);
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
         const nested = path.join(root, entry.name, packPath);
-        if (fs.existsSync(nested)) return nested;
+        if (fs.existsSync(nested)) return inside(nested);
     }
     return null;
 }
@@ -951,9 +1431,13 @@ export async function fetchCatalogFromPath(config, rel, source) {
             throw new Error(`${rel.id}: ${source} declares no \`version\``);
         }
 
+        requirePathToken(
+            version,
+            versionMessage(`${rel.id}: the manifest in ${source} reports version`, version),
+        );
         const dir = catalogDir(config, rel.id, version);
         fs.rmSync(dir, { recursive: true, force: true });
-        await extractItemPacks(rel.id, version, manifest, root, dir);
+        await extractItemPacks(rel.id, version, manifest, root, dir, source);
         cacheSchemaArtifact(root, dir);
         log.info(`${rel.id}@${version}: cached from ${source}`);
         return dir;
@@ -973,7 +1457,7 @@ export async function fetchCatalogFromPath(config, rel, source) {
  * URL is rewritten to it. A consumer resolving addresses against whatever the
  * dependency published this morning is not reproducible.
  *
- * A matching verified cache receipt supplies the checksum; a miss reads it from GitHub.
+ * A matching verified cache receipt supplies the checksum; a miss reads it from the chosen forge.
  * The shared cache is verified before use.
  *
  * @param {object} config - The resolved build configuration.
@@ -995,13 +1479,49 @@ export async function fetchMetadata(config, rel) {
  * @returns {Promise<{file: string, manifest: object}>} The cached index file
  *   and the parsed manifest.
  */
-async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
+async function fetchMetadataWithManifest(config, rel, releaseCache = new Map()) {
+    const forge = resolveForge();
     if (!rel.verified && rel.manifest?.includes("/releases/latest/download/"))
         throw new Error(
             `${rel.id}: set compatibility.verified to the dependency version or use a pinned release manifest URL before package-build deps fetch`,
         );
-    const { url } = pinnedManifestUrl(rel.manifest, rel.verified);
-    const manifest = await fetchManifest(rel.buildManifest ?? url, mirrorToken(rel), rel);
+    requirePathToken(
+        rel.id,
+        `${rel.id}: a dependency id must be one plain name (declared for the manifest ${rel.manifest})`,
+    );
+    if (rel.verified !== undefined)
+        requirePathToken(
+            rel.verified,
+            versionMessage(
+                `${rel.id}: compatibility.verified (declared for the manifest ${rel.manifest}) is`,
+                rel.verified,
+            ),
+        );
+    const declaredUrl = pinnedManifestUrl(rel.manifest, rel.verified).url;
+    const url = forgeAssetUrl(forge, declaredUrl);
+    const pinned = pinFile(config, rel, forge, declaredUrl);
+    if (rel.verified) {
+        const kept = await storedMetadata(metadataCacheDir(config, rel.id, rel.verified), {
+            id: rel.id,
+            version: rel.verified,
+            manifest: declaredUrl,
+            forge: forge.origin,
+            mirror: rel.buildManifest ?? null,
+        });
+        if (kept) {
+            if (forge.kind === "gitea" && !readPin(pinned, rel))
+                writePin(pinned, rel, {
+                    version: rel.verified,
+                    index: kept.index,
+                    sha256: kept.sha256,
+                });
+            log.info(`${rel.id}@${rel.verified}: content index already cached`);
+            return { file: kept.file, manifest: kept.manifest };
+        }
+    }
+    if (forge.kind === "gitea") await confirmGitea(forge);
+    const token = downloadToken(rel, forge, rel.buildManifest ?? url);
+    const manifest = await fetchManifest(rel.buildManifest ?? url, token, rel);
     const version = manifest.version;
     if (!version) {
         throw new Error(`${rel.id}: its manifest declares no \`version\``);
@@ -1015,9 +1535,18 @@ async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
         );
     }
 
+    requirePathToken(
+        version,
+        versionMessage(
+            `${rel.id}: its manifest ${rel.buildManifest ?? url} reports version`,
+            version,
+        ),
+    );
+    const pin = readPin(pinned, rel);
     const dir = metadataCacheDir(config, rel.id, version);
     const advertisedIndex = manifest.flags?.metadataUrl;
-    const indexUrl = advertisedIndex && mirroredAssetUrl(advertisedIndex, url, rel.buildManifest);
+    const effectiveIndex = advertisedIndex && forgeAssetUrl(forge, advertisedIndex);
+    const indexUrl = effectiveIndex && mirroredAssetUrl(effectiveIndex, url, rel.buildManifest);
     if (!indexUrl) {
         throw new Error(
             `${rel.id}@${version}: its manifest advertises no ` +
@@ -1027,42 +1556,60 @@ async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
         );
     }
 
-    const token = mirrorToken(rel);
     const source = {
         id: rel.id,
         version,
-        manifest: url,
-        index: advertisedIndex,
+        manifest: declaredUrl,
+        forge: forge.origin,
         mirror: rel.buildManifest ?? null,
     };
     let expected;
+    const release = {};
     try {
-        githubReleaseIdentity(url, advertisedIndex);
-        expected =
-            (await verifiedMetadataDigest(dir, source)) ??
-            (await githubAssetDigest(url, advertisedIndex, githubCache));
+        forgeReleaseIdentity(forge, url, effectiveIndex);
+        if (pin) checkPin(pin, pinned.file, rel, { version, index: advertisedIndex });
+        const kept = await verifiedMetadataDigest(dir, { ...source, index: advertisedIndex });
+        const published =
+            kept ??
+            (await forgeAssetDigest(forge, url, effectiveIndex, releaseCache, dir, release));
+        if (pin)
+            checkPin(pin, pinned.file, rel, { version, index: advertisedIndex, digest: published });
+        expected = published ?? pin?.sha256;
     } catch (cause) {
-        if (cause instanceof MetadataSourceError || cause.rateLimited)
+        if (cause instanceof MetadataSourceError || cause.rateLimited || cause.showAsIs)
             throw new Error(`${rel.id}@${version}: ${cause.message}`);
         const status =
             cause instanceof Error ?
-                /^GitHub release metadata request failed \(HTTP ([0-9]{3})\)$/.exec(
-                    cause.message,
-                )?.[1]
+                /^.* release metadata request failed \(HTTP ([0-9]{3})\)$/.exec(cause.message)?.[1]
             :   undefined;
         throw new Error(
-            `${rel.id}@${version}: content index GitHub checksum unavailable${status ? ` (GitHub HTTP ${status})` : ""}`,
+            `${rel.id}@${version}: content index ${forge.name} checksum unavailable${status ? ` (${forge.name} HTTP ${status})` : ""}`,
             token ? undefined : { cause },
         );
     }
-    const cached = await retryMetadata((signal) =>
-        downloadCached(indexUrl, expected, {
-            token,
-            allowLoopback: !!rel.buildManifest,
-            maxBytes: MAX_INDEX_BYTES,
-            signal,
-        }),
-    );
+    let cached;
+    try {
+        cached = await retryMetadata((signal) =>
+            downloadCached(indexUrl, expected ?? null, {
+                trustOnFirstUse: expected === undefined,
+                token: downloadToken(rel, forge, indexUrl),
+                allowLoopback: !!rel.buildManifest,
+                maxBytes: MAX_INDEX_BYTES,
+                signal,
+            }),
+        );
+    } catch (cause) {
+        if (pin && /SHA-256 does not match/.test(cause.message))
+            throw new Error(
+                `${rel.id}@${version}: the downloaded content index does not match the checksum pinned at its first download, and it was rejected. ${repinAdvice(pinned.file)}`,
+            );
+        throw cause;
+    }
+    expected ??= path.basename(cached);
+    if (forge.kind === "gitea" && !pin)
+        writePin(pinned, rel, { version, index: advertisedIndex, sha256: expected });
+    if (release.store)
+        writeReleaseRecord(dir, release.store.api, release.store.etag, release.store.release);
     fs.mkdirSync(dir, { recursive: true });
     const temporary = fs.mkdtempSync(path.join(dir, ".metadata-"));
     const file = path.join(dir, `${expected}.jsonl`);
@@ -1072,7 +1619,13 @@ async function fetchMetadataWithManifest(config, rel, githubCache = new Map()) {
         if ((await indexDigest(staged)) !== expected)
             throw new Error(`${rel.id}@${version}: cached content index failed verification`);
         fs.renameSync(staged, file);
-        markVerifiedMetadataComplete(dir, path.basename(file), expected, source);
+        markVerifiedMetadataComplete(
+            dir,
+            path.basename(file),
+            expected,
+            { ...source, index: advertisedIndex },
+            manifest,
+        );
     } finally {
         fs.rmSync(temporary, { recursive: true, force: true });
     }
@@ -1128,6 +1681,10 @@ export async function fetchMetadataFromPath(config, rel, source) {
             manifest.flags?.metadataUrl ?
                 path.basename(new URL(manifest.flags.metadataUrl).pathname)
             :   metadataFileName(rel.id);
+        requirePathToken(
+            name,
+            `${rel.id}: the index name ${JSON.stringify(name)} in ${source} is not one plain file name`,
+        );
         const found = findLocalIndex(root, name);
         if (!found) {
             throw new Error(
@@ -1136,6 +1693,10 @@ export async function fetchMetadataFromPath(config, rel, source) {
             );
         }
 
+        requirePathToken(
+            version,
+            versionMessage(`${rel.id}: the manifest in ${source} reports version`, version),
+        );
         const dir = metadataCacheDir(config, rel.id, version);
         fs.rmSync(dir, { recursive: true, force: true });
         fs.mkdirSync(dir, { recursive: true });
@@ -1211,10 +1772,10 @@ export async function fetchAllMetadata(config) {
     const queue = metadataRelationships(config);
     const seen = new Set([config.contentPackage, ...queue.map((rel) => rel.id)]);
     let count = 0;
-    const githubCache = new Map();
+    const releaseCache = new Map();
     while (queue.length) {
         const rel = queue.shift();
-        const { file, manifest } = await fetchMetadataWithManifest(config, rel, githubCache);
+        const { file, manifest } = await fetchMetadataWithManifest(config, rel, releaseCache);
         count += 1;
         if (systems.has(rel.id)) continue;
         for (const id of publishedModules(file)) {

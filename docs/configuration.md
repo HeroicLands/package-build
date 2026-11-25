@@ -2036,8 +2036,10 @@ Omit it where the two are the same word, which they are for every system:
 
 > ``package-build config: `relationships.<kind>[<index>].contentPackage` must be a non-empty string.``
 
-Remote content-index fetching requires a credential-free HTTPS GitHub release
-manifest and an index advertised in that same release. Set the relationship's
+Remote content-index fetching requires a credential-free HTTPS release
+manifest and an index advertised in that same release. The manifest is a
+GitHub release URL, or a release URL on the forge that
+`PACKAGE_BUILD_FORGE_URL` names. Set the relationship's
 `compatibility.verified` when its manifest uses `releases/latest/download/`:
 
 ```yaml
@@ -2051,27 +2053,77 @@ relationships:
 An exact `releases/download/<tag>/` manifest URL needs no separate `verified`
 value; when supplied, it must match the manifest's version. This requirement
 also applies to dependencies reached transitively. Other public hosting
-providers are unsupported for remote content indexes. Use a GitHub release or
+providers are unsupported for remote content indexes. Use a release on GitHub or the chosen forge, or
 `package-build deps fetch --from <path>` with a locally built artifact. A
 `contentIndex: false` relationship with no item catalogue requires no index
 fetch.
 
-The expected SHA-256 comes from GitHub's metadata for the exact release asset.
-A saved checksum is reused only when its dependency, version, public manifest,
-index URL and mirror match and the materialized index's bytes verify. A missing
-or invalid receipt requires GitHub API access. The shared downloaded bytes are
-also verified before use; a corrupt shared entry requires another download.
-`deps fetch` still reads the dependency manifest on each invocation. Compilation
-reads the prepared cache without network access.
+The expected SHA-256 comes from the forge's metadata for the exact release
+asset, and a GitHub asset without a digest stops the fetch. A Gitea release that
+publishes no asset digest is trusted on first use over HTTPS: the checksum of
+the first download is recorded in a pin receipt under the metadata cache's
+`.pins` directory (`build/cache/metadata/.pins/` by default), one receipt per
+forge, build mirror, dependency and declared manifest URL, so a fetch through
+another forge or mirror never replaces it. A Gitea fetch writes the receipt at
+its first successful use whatever the source of the checksum, a forge digest
+included, so a forge that later drops its digest stays held to it. Every later
+fetch of that identity must match the pin. It is refused, with the receipt's
+path and the way out in the message, when the downloaded bytes (downloaded and
+rejected), the advertised index URL or the version the manifest reports differ
+from the pin, when the forge starts publishing a digest that differs from the
+pin, and when the pin receipt itself is unreadable, empty, over 16 KiB, a
+symbolic link or for another release; nothing is cached or recorded in that
+case. Two fetches that race to their first use create the receipt exclusively,
+and the loser is refused unless it saw the same bytes. Only a missing receipt
+means that nothing is pinned. To accept a legitimately republished release,
+delete the named pin receipt and fetch again; the new release is then trusted
+on first use. The pin protects against a later change, not against a forge that
+serves altered bytes at the first download. `package-build clean` removes the metadata cache
+while it is under `build/`, which is the default, and removing `build/` or a
+fresh checkout deletes every pin receipt too, so the next fetch is a first use;
+a cache placed outside `build/` keeps its pins, and a CI job that does not
+restore the metadata cache never has a pin. A dependency id,
+`compatibility.verified`, the version a manifest reports, each Item pack name,
+the `_id` of each document in an Item pack and a local index file name each become part of a cache path, so each must be
+one plain token: letters, digits, `.`, `+`, `_` and `-`, starting with a letter
+or digit, with no `..`. Anything else is refused naming the dependency and the
+manifest or local artifact it came from, on GitHub as on a Gitea forge. A version written as an unquoted
+number is refused with a note to quote it, and a manifest pack path that
+resolves outside the unpacked archive, symbolic links included, is refused. Extracted documents are named from their
+checked `_id` and a sanitized name, never from a key inside the pack.
+The recorded checksum is
+reused without any network request only when its dependency, version, public
+manifest, forge, index URL and mirror match, the stored manifest matches its
+recorded checksum, and the materialized index's bytes verify. Otherwise
+`deps fetch` reads the manifest and makes one release lookup per dependency,
+revalidated with the stored entity tag when the forge returned one.
+The shared downloaded bytes are also verified before use; a corrupt shared entry
+requires another download. Compilation reads the prepared cache without network
+access.
 
-For authenticated GitHub API access, optionally set
-`PACKAGE_BUILD_GITHUB_API_TOKEN` to a GitHub-issued read-only token with access
-to the dependency release. It is sent only to `https://api.github.com`; API
-redirects are refused, and release downloads and mirrors receive no copy.
-Ambient `GITHUB_TOKEN`, `GH_TOKEN` and `GITEA_TOKEN` values are not used for this
-purpose. A GitHub API rate-limit error calls for retrying after the quota resets
-or supplying this explicit GitHub token. Keep tokens outside configuration and
-source control.
+The forge is named by the `PACKAGE_BUILD_FORGE_URL` environment variable, never
+by a configuration key, so a committed `package-build.config.yaml` builds the
+same way for everyone. Unset or empty, the forge is GitHub. `https://github.com` and
+`https://api.github.com` name GitHub; any other HTTPS origin must answer Gitea's unauthenticated
+`GET /api/v1/version` (once per process, no token, no redirects) and is refused with
+an error naming the variable otherwise. A host whose name contains `github`,
+other than those two, is refused without a request. A Gitea forge's declared GitHub release URLs are read from the same
+`/<owner>/<repo>/releases/download/<tag>/<file>` path on that origin. The value
+is one HTTPS origin with no credentials, path, query or fragment; any other
+value stops the fetch with an error naming the variable.
+
+For authenticated API access, optionally set the token variable of the chosen
+forge: `PACKAGE_BUILD_GITHUB_API_TOKEN` for GitHub, a GitHub-issued read-only
+token, or `PACKAGE_BUILD_FORGE_TOKEN` for a Gitea forge, a Gitea access token
+with read access to the dependency release. The GitHub token goes only to
+`https://api.github.com`; API redirects are refused. The Gitea token also goes to
+the manifest, archive and index downloads on the forge's own origin, with
+redirects held to that origin; mirrors never receive it. It is distinct from
+`PACKAGE_BUILD_FORGE_TOKEN_FILE`, which supplies the token of a private build
+mirror and is used instead of it for a mirror download. `PACKAGE_BUILD_FORGE_TOKEN` must not be empty when set. Ambient
+`GITHUB_TOKEN`, `GH_TOKEN` and `GITEA_TOKEN` values are not used for this
+purpose. A rate-limit error names the forge and the token variable to set. Keep
+tokens outside configuration and source control.
 
 `buildManifest` names a mirrored copy of the pinned manifest for dependency
 fetches. Set `manifest` to the public install URL and `compatibility.verified`

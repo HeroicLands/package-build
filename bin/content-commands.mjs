@@ -3082,8 +3082,15 @@ function depsCommand() {
             yargs.epilog(
                 "`deps fetch` also downloads every picture index pinned under `art.packages` " +
                     "and refuses one whose SHA-256 differs from its pin; `--from` fetches them " +
-                    "too. PACKAGE_BUILD_FORGE_TOKEN_FILE names a private token file for " +
-                    "authenticated build mirrors.",
+                    "too. PACKAGE_BUILD_FORGE_URL names the forge dependency releases are read " +
+                    "from, an HTTPS origin such as https://git.example.org; unset or empty, " +
+                    "it is GitHub. PACKAGE_BUILD_GITHUB_API_TOKEN is the token for GitHub and " +
+                    "PACKAGE_BUILD_FORGE_TOKEN the token for a Gitea forge, sent only to URLs on " +
+                    "that forge's own origin. The picture indexes under art.packages are read " +
+                    "from their configured URLs, whatever PACKAGE_BUILD_FORGE_URL says. " +
+                    "PACKAGE_BUILD_FORGE_TOKEN_FILE is separate: it names a private token file " +
+                    "for authenticated build mirrors, and a mirror download uses it instead of " +
+                    "PACKAGE_BUILD_FORGE_TOKEN.",
             );
             yargs.option("from", {
                 describe:

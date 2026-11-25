@@ -3525,6 +3525,7 @@ one of them a status:
 | `engine/folder-notes`             | supported |
 | `engine/font-outlines`            | internal  |
 | `engine/foreign-catalog`          | internal  |
+| `engine/forge-url`                | internal  |
 | `engine/format-generated`         | supported |
 | `engine/foundry-entries`          | supported |
 | `engine/frontmatter-lint`         | internal  |
@@ -3612,6 +3613,7 @@ one of them a status:
 | `engine/page-breaks`              | internal  |
 | `engine/page-lists`               | internal  |
 | `engine/path-charset`             | supported |
+| `engine/path-token`               | internal  |
 | `engine/pathnames`                | supported |
 | `engine/pdf-build`                | supported |
 | `engine/pdf-coverage`             | internal  |

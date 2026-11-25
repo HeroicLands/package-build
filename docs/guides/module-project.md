@@ -940,7 +940,9 @@ package publishes is a `doc` note carrying a content table.
 `[[…]]` links into it resolve. A relationship marked `itemCatalog: true` also
 caches the release's Item packs, which is what lets a being embed items by
 `(type, shortcode)`. Fetching never happens during a compile: a cold cache
-fails naming `deps fetch` rather than reaching the network.
+fails naming `deps fetch` rather than reaching the network. Releases are read
+from GitHub unless the `PACKAGE_BUILD_FORGE_URL` environment variable names
+another forge; see [`deps fetch`](../commands.md#package-build-deps-fetch).
 
 **A game system's documents.** A module shipping Actors or Items names its
 `itemBuilders` registry — `sohl` or `hm3` — and declares the system under

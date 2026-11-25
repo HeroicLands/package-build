@@ -56,19 +56,19 @@ it("verifies shared hits and restores damaged materialized and shared files", as
         path.join(root, "shared", "heroiclands", "downloads", digest("index")),
         "damaged",
     );
+    fs.writeFileSync(file, "damaged");
     await fetchMetadata(config, rel);
     expect(fetcher.mock.calls.filter(([url]) => url === index)).toHaveLength(2);
 });
-it("reuses a verified receipt without GitHub API access", async () => {
+it("makes no network call when the stored index for the pinned version is current", async () => {
     const { config, fetcher } = setup(`${digest("index")}  index.jsonl\n`);
     const file = await fetchMetadata(config, rel);
     fetcher.mockClear();
-    fetcher.mockImplementation(async (url: string) => {
-        if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
+    fetcher.mockImplementation(async () => {
         throw new Error("network unavailable");
     });
     expect(await fetchMetadata(config, rel)).toBe(file);
-    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([manifest]);
+    expect(fetcher).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -87,6 +87,7 @@ it.each([
 ])("refetches the checksum when the receipt has invalid %s", async (kind) => {
     const { config, fetcher, root } = setup(`${digest("index")}  index.jsonl\n`);
     const file = await fetchMetadata(config, rel);
+    fs.rmSync(path.join(path.dirname(file), "release.json"), { force: true });
     const stamp = path.join(path.dirname(file), ".complete");
     const receipt = JSON.parse(fs.readFileSync(stamp, "utf8"));
     if (["id", "version", "manifest", "index", "mirror"].includes(kind))
@@ -126,6 +127,7 @@ it("rejects a mismatching replacement of corrupt shared bytes with a valid recei
         path.join(root, "shared", "heroiclands", "downloads", digest("index")),
         "corrupt",
     );
+    fs.rmSync(path.join(path.dirname(file), "manifest.json"));
     fetcher.mockClear();
     fetcher.mockImplementation(async (url: string) => {
         if (url === manifest) return Response.json({ version: "1", flags: { metadataUrl: index } });
@@ -139,7 +141,8 @@ it("rejects a mismatching replacement of corrupt shared bytes with a valid recei
 
 it("does not reuse a receipt for a different exact index URL", async () => {
     const { config, fetcher } = setup(`${digest("index")}  index.jsonl\n`);
-    await fetchMetadata(config, rel);
+    const file = await fetchMetadata(config, rel);
+    fs.rmSync(path.join(path.dirname(file), "manifest.json"));
     fetcher.mockClear();
     fetcher.mockImplementation(async (url: string) => {
         if (url === manifest)
