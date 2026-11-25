@@ -1,5 +1,37 @@
 # @heroiclands/package-build
 
+## 25.12.0
+
+**Verse**
+
+- Verse in a vertical-column script is set in columns read from the right on the site, in Foundry journals and in the book. Lines, indents, stanza labels and paired versions are kept; Roman text and English stay in lines.
+- A verse line longer than 40 characters continues in the next column, and an editorial gap (`lang=zxx`) is one empty cell. A verse div that writes the class `verse-vertical` is refused with a finding at the class.
+
+**Content and notes**
+
+- Events in the same year that state no day are listed in the order their `follows` links give, and in address order where no link orders them. An event query can order by `whenSort, whenOrder, address` for the same order.
+- A date in a month with no name prints as `day 120 of 709 AF` or `month 4 of 709 AF`, keeping the clock and `~` mark. A day in no calendar prints as `day 120 of 709`.
+- A calendar can set `formats.display`, such as `D MMMM Y GGG`, so a date reads `29 Brazemandi 709 AF`, not `04/29/709 AF`. It applies to the infobox, `dateformat`, event views and the index.
+- A `display` format that needs Calendaria runtime data is reported at `data.formats.display`. `package-build dateto` reports that a date cannot be expressed when `std` names a month that has no name.
+- A being's `data.affiliations` entry can state `secret: true`, and only the GM sees that membership. The infobox, office-holder list, glossary citations, public index, SQL tables and public compendium leave it out.
+- A being cannot name its secret society in `data.socialTies`, in `data.seeAlso` or in a link outside a secret block, and a society's `holders` list cannot name a being whose membership is secret.
+
+**Rendering and sites**
+
+- A polity page lists each settlement once. The Settlement index holds only the settlements the Settlements table does not list, and a polity with none has no Settlement index.
+- A settlement's Holder field shows the holder's name, linked to its page on the website, in the book and in Foundry journals, instead of the shortcode. A holder written as a plain name is shown as written.
+
+**Builds and commands**
+
+- A package can pin the published index of a picture package and use its pictures by their own addresses. Fetching dependencies downloads each pinned index and refuses one that does not match its checksum.
+- Pictures from a pinned package ship under `images/<package>/` and `icons/<package>/`, so names never collide. A picture whose creator, license, AI status or size differs from its pin stops the build. An art archive with `<name>-metadata.jsonl` at its root is accepted.
+- `package-build docs` and `content-index` refuse the inert `--seed` as an unknown argument. `release --no-pdf` skips the content-tree book. An empty `FOUNDRYVTT_<STAGE>_PORT` in `.env.local` falls back to the SFTP port instead of dialing port 0.
+- The command pages state every exit status, every environment variable the commands read (warning that `FOUNDRYVTT_<STAGE>_PORT` is both an SSH port and a container host port), the `fast` and `sweep` flags, and what `settlement --help` requires.
+
+**Miscellaneous**
+
+- The documentation lists the Settlements and Settlement index sections a polity receives, names the four alert markers (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`), and states current rules in the calendar, vehicle and settlement guides. The documentation text is licensed CC-BY-SA-4.0.
+
 ## 25.11.2
 
 **Builds and commands**
