@@ -230,6 +230,48 @@ const EXEMPT: readonly Exemption[] = [
             "(which always renders all four) describes a two-segment value, " +
             "so this is not the Address this module owns",
     },
+    {
+        file: "ci/consumer-art-release-fixture.mjs",
+        snippet: "`${pkg}-${directory}`",
+        count: 1,
+        converts: null,
+        why: "a fixture directory name under a scratch root: it names a folder of the proof's synthetic package, not a note address, and nothing parses it back",
+    },
+    {
+        file: "ci/consumer-art-release-fixture.mjs",
+        snippet: "`${pkg}-assets`",
+        count: 1,
+        converts: null,
+        why: "a fixture directory name under a scratch root: it names a folder of the proof's synthetic package, not a note address, and nothing parses it back",
+    },
+    {
+        file: "ci/consumer-art-release-fixture.mjs",
+        snippet: "`${pkg}-content`",
+        count: 1,
+        converts: null,
+        why: "a fixture directory name under a scratch root: it names a folder of the proof's synthetic package, not a note address, and nothing parses it back",
+    },
+    {
+        file: "ci/consumer-art-release-fixture.mjs",
+        snippet: "`${pkg}-originals`",
+        count: 1,
+        converts: null,
+        why: "a fixture directory name under a scratch root: it names a folder of the proof's synthetic package, not a note address, and nothing parses it back",
+    },
+    {
+        file: "ci/consumer-art-release-fixture.mjs",
+        snippet: "`${pkg}-none-image-artificial`",
+        count: 1,
+        converts: null,
+        why: "a fixed picture address the art-release proof fixture writes into its synthetic master notes and archive, so the proof can assert on a known value; the fixture is test scaffolding that resolves no address",
+    },
+    {
+        file: "ci/consumer-art-release-fixture.mjs",
+        snippet: "`${pkg}-none-image-portrait`",
+        count: 3,
+        converts: null,
+        why: "a fixed picture address the art-release proof fixture writes into its synthetic master notes and archive, so the proof can assert on a known value; the fixture is test scaffolding that resolves no address",
+    },
 ];
 
 describe("an Address is read and written in one place", () => {

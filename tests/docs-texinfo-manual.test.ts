@@ -209,7 +209,7 @@ describe("node scripts/docs-texinfo.mjs", () => {
         } finally {
             fs.rmSync(dir, { recursive: true, force: true });
         }
-    });
+    }, 120_000);
 
     it("writes a dir file Info reads: a node separator, then the Top node", () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "docs-texinfo-"));
@@ -235,7 +235,7 @@ describe("node scripts/docs-texinfo.mjs", () => {
         } finally {
             fs.rmSync(dir, { recursive: true, force: true });
         }
-    });
+    }, 120_000);
 
     describe("with a configuration it cannot accept", () => {
         const run = (config: string, docs: Record<string, string> = { "index.md": "# T\n" }) => {

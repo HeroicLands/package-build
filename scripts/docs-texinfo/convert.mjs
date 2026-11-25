@@ -246,6 +246,40 @@ function oneLine(value) {
     return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
+/**
+ * Splits the `@ref` cross-references out of a table term. Texinfo rejects a
+ * reference on an `@item` line, so the term keeps the reference's label as
+ * plain text and the references come back as `@xref` lines for the body.
+ *
+ * @param {string} term
+ * @returns {{ term: string, refs: string[] }}
+ */
+function plainTerm(term) {
+    const refs = [];
+    let out = "";
+    let at = 0;
+    for (;;) {
+        const start = term.indexOf("@ref{", at);
+        if (start < 0) break;
+        let depth = 0;
+        let end = start + 4;
+        const commas = [];
+        for (; end < term.length; end++) {
+            const ch = term[end];
+            if (ch === "@") end++;
+            else if (ch === "{") depth++;
+            else if (ch === "}" && --depth === 0) break;
+            else if (ch === "," && depth === 1) commas.push(end);
+        }
+        const node = term.slice(start + 5, commas[0] ?? end);
+        const label = commas.length > 1 ? term.slice(commas[1] + 1, end) : node;
+        out += term.slice(at, start) + label;
+        refs.push(`@xref{${node}}.`);
+        at = end + 1;
+    }
+    return { term: out + term.slice(at), refs };
+}
+
 /** A file-name stem for a node name. */
 function slugOf(name) {
     return (
@@ -1301,12 +1335,14 @@ function convertManual({
             }),
         );
         const body = items.map((item) => {
+            const refs = [];
             const terms = item.terms.map((term, index) => {
-                const text = line(inlineOf(term), { doc });
-                return `${index ? "@itemx" : "@item"} ${text}`;
+                const plain = plainTerm(line(inlineOf(term), { doc }));
+                refs.push(...plain.refs);
+                return `${index ? "@itemx" : "@item"} ${plain.term}`;
             });
             const defs = item.definitions.map((definition) => line(inlineOf(definition), { doc }));
-            return [...terms, defs.join("\n\n")].join("\n");
+            return [...terms, [...refs, defs.join("\n\n")].filter(Boolean).join("\n")].join("\n");
         });
         return `@table ${coded ? "@code" : "@asis"}\n${body.join("\n\n")}\n@end table`;
     };
@@ -1359,15 +1395,19 @@ function convertManual({
             ].join("\n");
         const out = ["@table @asis"];
         for (const row of texts) {
-            out.push(`@item ${row[0] || "@w{}"}`);
-            const body = row
-                .slice(1)
-                .map((text, i) => {
-                    if (!text) return "";
-                    const label = headers[i + 1];
-                    return headers.length > 2 && label ? `@emph{${label}}: ${text}` : text;
-                })
-                .filter(Boolean);
+            const first = plainTerm(row[0] || "@w{}");
+            out.push(`@item ${first.term}`);
+            const body = [
+                ...first.refs,
+                ...row
+                    .slice(1)
+                    .map((text, i) => {
+                        if (!text) return "";
+                        const label = headers[i + 1];
+                        return headers.length > 2 && label ? `@emph{${label}}: ${text}` : text;
+                    })
+                    .filter(Boolean),
+            ];
             if (body.length) out.push(body.join("\n\n"));
         }
         out.push("@end table");
