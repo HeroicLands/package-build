@@ -248,6 +248,14 @@ describe("the `packageBuild` section is documented", () => {
         assertDocuments("packageBuild.e2e.gm", configurationKeys("packageBuild.e2e.gm"));
     });
 
+    it("`packageBuild.texinfo[]` and its `indices`", () => {
+        assertDocuments("packageBuild.texinfo[]", configurationKeys("packageBuild.texinfo[]"));
+        assertDocuments(
+            "packageBuild.texinfo[].indices",
+            configurationKeys("packageBuild.texinfo[].indices"),
+        );
+    });
+
     it("`packageBuild.proseLint`, `packageBuild.proseScore` and its bands", () => {
         assertDocuments("packageBuild.proseLint", configurationKeys("packageBuild.proseLint"));
         assertDocuments("packageBuild.proseScore", configurationKeys("packageBuild.proseScore"));

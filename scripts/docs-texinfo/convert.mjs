@@ -116,6 +116,109 @@ const PROGRAM_INDEX = Object.freeze({
     description: "Index of commands.",
 });
 
+/**
+ * The indexes the documentation structure fills, by role. A command section
+ * enters the command index and each option of its tables enters the option
+ * index under the command; a key table enters the configuration key index; an
+ * export table or heading enters the API index.
+ */
+export const STRUCTURE_INDEXES = Object.freeze({
+    command: Object.freeze({
+        code: "cm",
+        command: "@cmindex",
+        node: "Command Index",
+        description: "Index of command invocations.",
+    }),
+    option: Object.freeze({
+        code: "op",
+        command: "@opindex",
+        node: "Option Index",
+        description: "Index of command options, by command.",
+    }),
+    key: Object.freeze({
+        code: "ck",
+        command: "@ckindex",
+        node: "Configuration Key Index",
+        description: "Index of configuration keys.",
+    }),
+    api: Object.freeze({
+        code: "ap",
+        command: "@apindex",
+        node: "API Index",
+        description: "Index of API exports.",
+    }),
+});
+
+/**
+ * An index term. An option is wrapped in `@option`, which keeps its dashes
+ * from turning into dashes of the typeset text.
+ */
+const indexTerm = (term) =>
+    /^-/.test(term) ? `@option{${escapeTexinfo(term)}}` : escapeTexinfo(term);
+
+/**
+ * Heading text as an index entry. TeX sets index entries in a font that lacks
+ * the dash characters, so they are written as the Texinfo dash ligatures.
+ */
+const indexText = (text) => text.replace(/\u2014/g, "---").replace(/\u2013/g, "--");
+
+/** The value of every inline code span under a node, in document order. */
+function inlineCodes(node) {
+    if (node.type === "inlineCode") return [node.value];
+    return (node.children ?? []).flatMap(inlineCodes);
+}
+
+/**
+ * The invocations a command heading names: each code span whose first word is
+ * one of the package's binaries, with its placeholders dropped. A later span
+ * without a binary takes the binary of the one before it.
+ *
+ * @param {string[]} codes
+ * @param {ReadonlySet<string>} binaries
+ * @returns {string[]}
+ */
+function commandInvocations(codes, binaries) {
+    let binary;
+    const out = [];
+    for (const code of codes) {
+        const words = code.split(/\s+/).filter((word) => word && !/^[<[]/.test(word));
+        if (!words.length) continue;
+        if (binaries.has(words[0])) binary = words[0];
+        else if (binary) words.unshift(binary);
+        else continue;
+        out.push(words.join(" "));
+    }
+    return out;
+}
+
+/** The first header cell of a table, as plain text. */
+const firstHeader = (table) => plainText(table.children[0]?.children[0]?.children ?? []);
+
+/** The label a paragraph made of one bold word names, such as `OPTIONS`. */
+const sectionLabel = (node) =>
+    node.type === "paragraph" && node.children.length === 1 && node.children[0].type === "strong" ?
+        plainText(node.children[0].children).trim()
+    :   undefined;
+
+/** The first code span of each item of a list. */
+const itemCodes = (list) =>
+    list.children.flatMap((item) => {
+        const first = item.children[0];
+        const code = first ? inlineCodes(first)[0] : undefined;
+        return code === undefined ? [] : [code];
+    });
+
+/** The option names among code spans: `--name` and `-n`, without a value. */
+const optionNames = (codes) =>
+    codes.flatMap((code) => {
+        const match = /^(--?[A-Za-z][\w-]*)/.exec(code);
+        return match ? [match[1]] : [];
+    });
+
+/** The code spans of every body row's first cell, for a table. */
+const firstColumnCodes = (table) =>
+    table.children.slice(1).flatMap((row) => (row.children[0] ? inlineCodes(row.children[0]) : []));
+
 /** Commands whose spans are `@command`. */
 const COMMANDS = new Set([
     "npm",
@@ -328,6 +431,8 @@ function direntry(title, name, description) {
  * @param {(file: string) => boolean} options.exists
  * @param {(dir: string) => string[]} options.list
  * @param {string[]} options.shipped
+ * @param {{commands: readonly string[], configuration: readonly string[],
+ *   api: readonly string[]}} options.indices - The page shortcodes by index role.
  */
 function convertManual({
     docsDir,
@@ -342,9 +447,18 @@ function convertManual({
     exists,
     list,
     shipped: shippedPaths,
+    indices,
 }) {
     /** @type {Finding[]} */
     const findings = [];
+    /** The configured index pages the manual contains, by shortcode. */
+    const indexPages = new Set();
+    const missingIndexPages = new Set();
+    const binaries = new Set(
+        typeof pkg.bin === "string" ? [String(pkg.name).replace(/^@[^/]+\//, "")]
+        : pkg.bin && typeof pkg.bin === "object" ? Object.keys(pkg.bin)
+        : [],
+    );
     const problem = (file, position, severity, kind, message) => {
         findings.push({
             file,
@@ -867,6 +981,7 @@ function convertManual({
             CONCEPT_INDEX.node,
             VARIABLE_INDEX.node,
             PROGRAM_INDEX.node,
+            ...Object.values(STRUCTURE_INDEXES).map((index) => index.node),
             ...Object.values(SUBTYPE_INDEXES).map((index) => index.node),
         ].map((name) => name.toLowerCase()),
     );
@@ -1572,7 +1687,7 @@ function convertManual({
         const index = subtypeIndex(entry.doc);
         if (index) lines.push(`@${index.code}index ${escapeTexinfo(entry.title)}`);
         for (const term of terms.variables) {
-            lines.push(`${VARIABLE_INDEX.command} ${escapeTexinfo(term)}`);
+            lines.push(`${VARIABLE_INDEX.command} ${indexTerm(term)}`);
             used.add(VARIABLE_INDEX);
         }
         for (const term of terms.programs) {
@@ -1596,12 +1711,67 @@ function convertManual({
         const terms = { variables: new Set(), programs: new Set() };
         const outer = collected;
         collected = terms;
+        const shortcode = doc.front.shortcode;
+        const roles = {
+            commands: indices.commands.includes(shortcode),
+            configuration: indices.configuration.includes(shortcode),
+            api: indices.api.includes(shortcode),
+        };
+        if (roles.commands || roles.configuration || roles.api) indexPages.add(shortcode);
+        /** The command section the walk is in: its invocations and heading depth. */
+        let section;
+        /** Whether the walk is under a command's **OPTIONS** label. */
+        let options = false;
+        /** The index entries the page has made; a repeated entry is made once. */
+        const entered = new Set();
+        /** Index commands for a run of entries, each on its own line. */
+        const indexed = (index, texts, subentry) =>
+            texts.flatMap((text) => {
+                indexNodes.add(index);
+                const entry = `${index.command} ${indexTerm(text)}${
+                    subentry === undefined ? "" : ` @subentry ${escapeTexinfo(subentry)}`
+                }`;
+                if (entered.has(entry)) return [];
+                entered.add(entry);
+                return [entry];
+            });
+        /** Option index commands for names, under each invocation of the section. */
+        const optionEntries = (names) =>
+            section.invocations.flatMap((invocation) =>
+                indexed(STRUCTURE_INDEXES.option, names, invocation),
+            );
+        /** The index commands the table fills. */
+        const tableIndexes = (node) => {
+            const header = firstHeader(node);
+            if (roles.commands && section && (options || /^Option\b/i.test(header)))
+                return optionEntries(optionNames(firstColumnCodes(node)));
+            if (roles.configuration && /^Key\b/.test(header)) {
+                const keys = firstColumnCodes(node).filter((code) =>
+                    /^[A-Za-z_][\w.<>[\]-]*$/.test(code),
+                );
+                return indexed(STRUCTURE_INDEXES.key, keys);
+            }
+            if (roles.api && /^Export\b/.test(header)) {
+                const names = firstColumnCodes(node).filter((code) =>
+                    /^[A-Za-z_$][\w$]*$/.test(code),
+                );
+                return indexed(STRUCTURE_INDEXES.api, names);
+            }
+            return [];
+        };
         for (const node of doc.tree.children) {
             if (node === doc.titleHeading) continue;
             if (summaryOnly && node.type === "heading") break;
             if (node.type !== "heading") {
+                const label = sectionLabel(node);
+                if (label !== undefined) options = label === "OPTIONS";
                 const text = block(node, doc);
-                if (text) out.push(text);
+                const entries =
+                    node.type === "table" ? tableIndexes(node)
+                    : node.type === "list" && options && section ?
+                        optionEntries(optionNames(itemCodes(node)))
+                    :   [];
+                if (text) out.push([...entries, text].join("\n"));
                 continue;
             }
             const raw = HEADING_LINE.exec(doc.lines[node.position.start.line - 1] ?? "")?.[2] ?? "";
@@ -1628,7 +1798,22 @@ function convertManual({
                 ) ?
                     `@anchor{${escapeTexinfo(symbols.get(`${entry.relative}#${slug}`))}}\n`
                 :   "";
-            out.push(`${anchor}${command} ${title}`);
+            const headingIndexes = [`@cindex ${indexText(title)}`];
+            const codes = inlineCodes(node);
+            const invocations = roles.commands ? commandInvocations(codes, binaries) : [];
+            options = false;
+            if (invocations.length) {
+                section = { invocations, depth: node.depth };
+                headingIndexes.push(...indexed(STRUCTURE_INDEXES.command, invocations));
+            } else if (section && node.depth <= section.depth) {
+                section = undefined;
+            }
+            if (codes.length === 1 && plainText(node.children).trim() === codes[0]) {
+                if (roles.configuration && /^[A-Za-z_][\w.<>[\]-]*$/.test(codes[0]))
+                    headingIndexes.push(...indexed(STRUCTURE_INDEXES.key, codes));
+                if (roles.api) headingIndexes.push(...indexed(STRUCTURE_INDEXES.api, codes));
+            }
+            out.push([`${anchor}${command} ${title}`, ...headingIndexes].join("\n"));
         }
         collected = outer;
         return Object.assign(out, { terms });
@@ -1763,6 +1948,8 @@ function convertManual({
         ...[VARIABLE_INDEX, PROGRAM_INDEX].filter((index) => used.has(index)),
         ...[...indexNodes].sort((a, b) => compare(a.node, b.node)),
     ];
+    for (const shortcode of [...indices.commands, ...indices.configuration, ...indices.api])
+        if (!indexPages.has(shortcode)) missingIndexPages.add(shortcode);
     const detail = [];
     for (const chapter of top.children) {
         const below = [];
@@ -1848,6 +2035,7 @@ function convertManual({
         hasDirentry: typeof dircategory === "string" && Boolean(dircategory.trim()),
         dircategory: typeof dircategory === "string" ? oneLine(dircategory) : "",
         chapters,
+        missingIndexPages,
         assets: [...assets].map(([to, from]) => ({ from, to })).sort((a, b) => compare(a.to, b.to)),
         findings,
     };
@@ -1873,7 +2061,9 @@ function listFiles(root, dir) {
  * Convert the documentation to Texinfo manuals, one per declared top page.
  *
  * @param {object} options
- * @param {ReadonlyArray<{page: string, out?: string|null, title?: string|null}>} options.manuals
+ * @param {ReadonlyArray<{page: string, out?: string|null, title?: string|null,
+ *   indices?: {commands: readonly string[], configuration: readonly string[],
+ *   api: readonly string[]}}>} options.manuals
  *   Each manual's top page relative to `docsDir`, output name without
  *   extension (the page's stem, or the package name for `index`, by default)
  *   and title (the top page's by default).
@@ -1945,11 +2135,22 @@ export function convertDocs({
 
     const written = new Map();
     const results = [];
-    const declared = (index, manual, message) => ({
+    const declared = (index, manual, message, key = [["page"]]) => ({
         ...(config ?
             {
                 file: config.file,
-                ...positionOfYamlPath(config.text, ["packageBuild", "texinfo", index, "page"]),
+                ...key.reduce(
+                    (found, candidate) =>
+                        found.line !== undefined ?
+                            found
+                        :   positionOfYamlPath(config.text, [
+                                "packageBuild",
+                                "texinfo",
+                                index,
+                                ...candidate,
+                            ]),
+                    {},
+                ),
             }
         :   { file: path.posix.join(docsDir, manual.page) }),
         severity: "error",
@@ -1993,8 +2194,23 @@ export function convertDocs({
             exists,
             list,
             shipped: pkg.files ?? [],
+            indices: manual.indices ?? { commands: [], configuration: [], api: [] },
         });
         for (const finding of result.findings) note(finding);
+        for (const role of ["commands", "configuration", "api"])
+            for (const [position, shortcode] of (manual.indices?.[role] ?? []).entries())
+                if (result.missingIndexPages?.has(shortcode))
+                    note(
+                        declared(
+                            index,
+                            manual,
+                            `the ${role} index page \`${shortcode}\` is not a page of the manual`,
+                            [
+                                ["indices", role, position],
+                                ["indices", role],
+                            ],
+                        ),
+                    );
         if (result.texinfo) results.push({ out, ...result });
     }
 

@@ -247,6 +247,16 @@ function requireBoolean(value, fallback, where) {
  *   `null` for the default.
  * @property {string|null} title  The manual's title, or `null` for the top
  *   page's title.
+ * @property {Readonly<TexinfoIndices>} indices  The pages that fill the
+ *   structural indexes.
+ *
+ * @typedef {object} TexinfoIndices
+ * @property {readonly string[]} commands  Shortcodes of the pages whose command
+ *   sections fill the command and option indexes.
+ * @property {readonly string[]} configuration  Shortcodes of the pages whose key
+ *   tables fill the configuration key index.
+ * @property {readonly string[]} api  Shortcodes of the pages whose export tables
+ *   fill the API index.
  */
 
 /**
@@ -350,8 +360,41 @@ function normalizeManifest(value) {
     return Object.freeze(structuredClone(input));
 }
 
-const TEXINFO_KEYS = ["page", "out", "title"];
+const TEXINFO_KEYS = ["page", "out", "title", "indices"];
+const TEXINFO_INDEX_ROLES = ["commands", "configuration", "api"];
 const TEXINFO_OUT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/**
+ * The pages whose structure fills the manual's command, option, configuration
+ * key and API indexes: each role names the shortcodes of its pages.
+ *
+ * @param {unknown} value
+ * @param {string} where
+ * @returns {Readonly<TexinfoIndices>}
+ */
+function normalizeTexinfoIndices(value, where) {
+    /** @type {Record<string, readonly string[]>} */
+    const roles = {};
+    for (const role of TEXINFO_INDEX_ROLES) roles[role] = Object.freeze([]);
+    if (value === undefined) return Object.freeze(roles);
+    if (!isMapping(value)) fail(where, "must be a mapping");
+    const input = /** @type {Record<string, unknown>} */ (value);
+    rejectUnknownKeys(input, TEXINFO_INDEX_ROLES, `${where}.`);
+    for (const role of TEXINFO_INDEX_ROLES) {
+        const declared = input[role];
+        if (declared === undefined) continue;
+        const names = Array.isArray(declared) ? declared : [declared];
+        if (!names.length) fail(`${where}.${role}`, "must name at least one page shortcode");
+        const shortcodes = names.map((name, position) =>
+            requireNonEmptyString(
+                name,
+                Array.isArray(declared) ? `${where}.${role}[${position}]` : `${where}.${role}`,
+            ),
+        );
+        roles[role] = Object.freeze([...new Set(shortcodes)]);
+    }
+    return Object.freeze(roles);
+}
 
 /**
  * The Texinfo manuals the documentation converter writes: a list of top pages,
@@ -402,7 +445,12 @@ function normalizeTexinfo(value) {
                 input.title === undefined ?
                     null
                 :   requireNonEmptyString(input.title, `${where}.title`);
-            return Object.freeze({ page, out, title });
+            return Object.freeze({
+                page,
+                out,
+                title,
+                indices: normalizeTexinfoIndices(input.indices, `${where}.indices`),
+            });
         }),
     );
 }

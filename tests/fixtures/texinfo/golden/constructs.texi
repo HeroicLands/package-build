@@ -2,7 +2,7 @@
 @chapter Constructs
 @cindex Constructs
 @cindex constructs
-@vindex --check
+@vindex @option{--check}
 
 Intro with a footnote@footnote{The footnote, with a comma.} and a @ref{Escaping and Links,,reference link} and struck text.
 A line break:@*
@@ -10,17 +10,21 @@ second line, with an image @image{fixture-images/docs-pic,,,The alt@comma{} text
 
 @anchor{Inline code}
 @heading Inline code
+@cindex Inline code
 
 Use @option{--check}, @var{dir}, @code{name} and @code{a@@b}.
 
 @subheading Deeper heading
+@cindex Deeper heading
 
 @anchor{Deepest heading}
 @subsubheading Deepest heading
+@cindex Deepest heading
 
 Text under the deepest heading, linked from @ref{Deepest heading,,here}.
 
 @heading Blocks
+@cindex Blocks
 
 @example
 $ tool --flag <file> @{braces@} @@at

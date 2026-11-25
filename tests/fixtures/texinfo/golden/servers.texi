@@ -15,5 +15,6 @@
 Server settings.
 
 @subheading Options
+@cindex Options
 
 Server options.

@@ -16,5 +16,6 @@ Client settings.
 
 @anchor{Options}
 @subheading Options
+@cindex Options
 
 Client options.

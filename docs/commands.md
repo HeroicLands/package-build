@@ -466,8 +466,8 @@ notes and before this command. Stage the generated directory with
 
 **OPTIONS**
 
-`--calendaria-version` is required and identifies the Calendaria
-import format targeted by the envelope. It has the form `major.minor.patch`.
+- `--calendaria-version` is required and identifies the Calendaria
+  import format targeted by the envelope. It has the form `major.minor.patch`.
 
 **EXIT STATUS**
 
@@ -550,7 +550,7 @@ eras has no conversion.
 
 **OPTIONS**
 
-`--format` selects another named pattern from the calendar note; pass its name as the value.
+- `--format` selects another named pattern from the calendar note; pass its name as the value.
 
 **EXIT STATUS**
 
@@ -736,7 +736,7 @@ search deploys none.
 
 **OPTIONS**
 
-`--out <dir>` — the directory that is deployed. Defaults to `build/site`.
+- `--out <dir>` — the directory that is deployed. Defaults to `build/site`.
 
 **EXIT STATUS**
 
@@ -3043,22 +3043,19 @@ run fails before the search index is built.
 
 **OPTIONS**
 
-`--out <dir>` — the directory that is deployed. Defaults to `build/site`.
-
-`--root <domain>` — domain for the build's addresses, defaulting to
-`internal.heroiclands.org`. The site uses `https://www.<domain>` with the
-package's existing homepage path. An explicit root also selects
-`https://cdn.<domain>` over configured `site.assets`; omitting this flag keeps
-configured assets, or derives the CDN when none are configured. Supply a plain
-DNS domain without a scheme, path, port, credentials, query or fragment.
-
-`--base-url <url>` — the absolute HTTP(S) address of this build. Its pathname
-becomes the effective `site.base`, and must end with `/`; `/` serves the site
-at the origin's root. Pages, local links, theme files, script fonts and search
-all use that prefix. Output lands under `<out>/<pathname>/`.
-
-`--assets <url>` — the absolute HTTP(S) asset root for this build. It may
-include a path; trailing slashes are trimmed.
+- `--out <dir>` — the directory that is deployed. Defaults to `build/site`.
+- `--root <domain>` — domain for the build's addresses, defaulting to
+  `internal.heroiclands.org`. The site uses `https://www.<domain>` with the
+  package's existing homepage path. An explicit root also selects
+  `https://cdn.<domain>` over configured `site.assets`; omitting this flag keeps
+  configured assets, or derives the CDN when none are configured. Supply a plain
+  DNS domain without a scheme, path, port, credentials, query or fragment.
+- `--base-url <url>` — the absolute HTTP(S) address of this build. Its pathname
+  becomes the effective `site.base`, and must end with `/`; `/` serves the site
+  at the origin's root. Pages, local links, theme files, script fonts and search
+  all use that prefix. Output lands under `<out>/<pathname>/`.
+- `--assets <url>` — the absolute HTTP(S) asset root for this build. It may
+  include a path; trailing slashes are trimmed.
 
 Explicit `--base-url` overrides the root-derived site URL, including its path;
 explicit `--assets` overrides both root-derived and configured assets. These
@@ -3167,12 +3164,10 @@ running. Interrupt it to stop.
 
 **OPTIONS**
 
-`--port` — the port to listen on, a number. Defaults to `1313`.
-
-`--host` — the address to listen on. Defaults to `127.0.0.1`.
-
-`--out <dir>` — the directory the site is written to. Defaults to
-`build/site`.
+- `--port` — the port to listen on, a number. Defaults to `1313`.
+- `--host` — the address to listen on. Defaults to `127.0.0.1`.
+- `--out <dir>` — the directory the site is written to. Defaults to
+  `build/site`.
 
 **EXIT STATUS**
 
@@ -4142,7 +4137,13 @@ The `prompt` action prints JSON with a `positive` string and, for `sdxl`, a `neg
 
 **OPTIONS**
 
-`--model` accepts `flux-dev`, `flux2-pro`, or `sdxl`. Without a picture record, `--model` and `--seed` are required and supply transient settings. `--view` selects `side` or `three-quarter`; an omitted view is chosen from the seed. A vehicle with a picture record uses its stored settings and refuses all three overrides.
+- `--model` — `flux-dev`, `flux2-pro` or `sdxl`.
+- `--seed` — the generation seed.
+- `--view` — `side` or `three-quarter`; an omitted view is chosen from the seed.
+
+Without a picture record, `--model` and `--seed` are required and supply
+transient settings. A vehicle with a picture record uses its stored settings
+and refuses all three overrides.
 
 **EXIT STATUS**
 

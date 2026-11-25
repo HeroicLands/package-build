@@ -42,6 +42,7 @@ Folded. @ref{Deep Six,,Next}, and @ref{Deep Four,,back to four}.
 
 @anchor{Folded heading}
 @subsubheading Folded heading
+@cindex Folded heading
 
 Text.
 

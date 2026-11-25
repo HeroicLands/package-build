@@ -22,6 +22,8 @@ import { describe, it, expect } from "vitest";
 import { convertDocs, formatFinding, infoText } from "../scripts/docs-texinfo/convert.mjs";
 import { resolvePackageBuildConfig } from "../config.mjs";
 import { readPackConfig } from "../engine/pack-config.mjs";
+import { commandSurface } from "./helpers/command-surface";
+import { configurationSurface } from "./helpers/configuration-surface";
 import {
     buildInfoAndHtml,
     buildPdf,
@@ -81,6 +83,10 @@ describe("the documentation as a manual", () => {
             "Reference Index",
             "Variable Index",
             "Program Index",
+            "Command Index",
+            "Option Index",
+            "Configuration Key Index",
+            "API Index",
         ];
         expect(nodes.filter((name) => !indexNodes.includes(name))).toHaveLength(
             pages(DOCS).length - 1,
@@ -169,6 +175,165 @@ describe("the documentation as a manual", () => {
                 fs.rmSync(dir, { recursive: true, force: true });
             }
         }, 600_000);
+    });
+});
+
+// The guard converts the real documentation and imports every export surface,
+// so it lives with the other tests that convert the real docs rather than with
+// the fixture-based converter tests.
+describe("the indexes hold the real surface", () => {
+    const result = convertDocs({ root: ROOT, manuals: CONFIGURED });
+    const manual = result.manuals[0];
+    const texinfo = `${manual.texinfo}\n${manual.chapters.map((c: any) => c.texinfo).join("\n")}`;
+
+    /** The entries of one index, by the command that fills it. */
+    const entries = (command: string) =>
+        new Set(
+            [...texinfo.matchAll(new RegExp(`^@${command} (.+)$`, "gm"))].map((m) =>
+                (command === "opindex" ? m[1].replace(/@option\{([^}]*)\}/g, "$1") : m[1]).replace(
+                    /@([@{}])/g,
+                    "$1",
+                ),
+            ),
+        );
+
+    const commands = entries("cmindex");
+    const options = entries("opindex");
+    const keys = entries("ckindex");
+    const api = entries("apindex");
+    const surface = commandSurface();
+
+    it("reads inventories worth checking", () => {
+        // Guards the guard: an empty inventory would let every check pass.
+        expect(surface.length).toBeGreaterThan(40);
+        expect(surface.some((entry) => entry.options.length > 0)).toBe(true);
+        expect(configurationSurface().length).toBeGreaterThan(100);
+    });
+
+    /** Whether a command entry or an entry beneath it is in a set. */
+    const covered = (invocation: string, indexed: Set<string>) =>
+        [...indexed].some((name) => name === invocation || name.startsWith(`${invocation} `));
+
+    it("has a command index entry for every command", () => {
+        // A command that takes an action has a section for each action, and
+        // those sections carry its entries.
+        const missing = surface
+            .map((entry) => entry.invocation)
+            .filter((name) => !covered(name, commands));
+        expect(missing).toEqual([]);
+    });
+
+    it("has an option index entry for every option of every command", () => {
+        // An option of a command that takes an action is documented in the
+        // section of the action that takes it.
+        const missing = surface.flatMap((entry) =>
+            entry.options
+                .filter(
+                    (option) =>
+                        ![...options].some((name) => {
+                            const [flag, command] = name.split(" @subentry ");
+                            return (
+                                flag === `--${option}` &&
+                                (command === entry.invocation ||
+                                    command.startsWith(`${entry.invocation} `))
+                            );
+                        }),
+                )
+                .map((option) => `${entry.invocation} --${option}`),
+        );
+        expect(missing).toEqual([]);
+    });
+
+    it("has a configuration key index entry for every configuration key", () => {
+        expect(
+            configurationSurface()
+                .map((key) => key.path)
+                .filter((name) => !keys.has(name)),
+        ).toEqual([]);
+    });
+
+    it("has an API index entry for every export of every subpath entry", async () => {
+        const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+        const subpaths = Object.keys(pkg.exports).filter(
+            (entry) => !entry.endsWith("*") && entry !== "./package.json",
+        );
+        const interop = new Set(["default", "module.exports"]);
+        const missing: string[] = [];
+        for (const subpath of subpaths) {
+            const specifier =
+                subpath === "." ?
+                    "@heroiclands/package-build"
+                :   `@heroiclands/package-build/${subpath.slice(2)}`;
+            const mod: Record<string, unknown> = await import(specifier);
+            for (const [name, value] of Object.entries(mod)) {
+                if (interop.has(name)) continue;
+                if (!api.has(name) && !api.has(`${subpath.slice(2)}.${name}`))
+                    missing.push(`${subpath} ${name}`);
+                if (Object.prototype.toString.call(value) === "[object Module]")
+                    for (const member of Object.keys(value as object))
+                        if (!api.has(member) && !api.has(`${name}.${member}`))
+                            missing.push(`${subpath} ${name}.${member}`);
+            }
+        }
+        expect(missing).toEqual([]);
+    }, 120_000);
+
+    const DOCUMENTED_WILDCARD_MODULES = new Set(
+        [
+            "see-also",
+            "content-sources",
+            "first-use",
+            "name-markup",
+            "name-rows",
+            "names",
+            "markup-validation",
+        ].map((name) => `engine/${name}`),
+    );
+
+    it("has an API index entry for every export of every documented wildcard module", async () => {
+        const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+        const missing: string[] = [];
+        let checked = 0;
+        for (const subpath of Object.keys(pkg.exports).filter((entry) => entry.endsWith("/*"))) {
+            const dir = subpath.slice(2, -2);
+            // The wildcard modules whose exports the API reference documents.
+            const modules = fs
+                .readdirSync(path.join(ROOT, dir))
+                .filter((file) => DOCUMENTED_WILDCARD_MODULES.has(`${dir}/${file.slice(0, -4)}`));
+            checked += modules.length;
+            for (const file of modules) {
+                const name = file.slice(0, -4);
+                const mod: Record<string, unknown> = await import(
+                    `@heroiclands/package-build/${dir}/${name}`
+                );
+                for (const exported of Object.keys(mod))
+                    if (!api.has(exported) && !api.has(`${dir}.${exported}`))
+                        missing.push(`${dir}/${name} ${exported}`);
+            }
+        }
+        expect(checked).toBeGreaterThan(0);
+        expect(missing).toEqual([]);
+    }, 300_000);
+
+    it("has a concept index entry for every heading", () => {
+        const concepts = entries("cindex");
+        const headings = [
+            ...texinfo.matchAll(
+                /^@(?:chapter|section|subsection|subsubsection|heading|subheading|subsubheading) (.+)$/gm,
+            ),
+        ].map((m) =>
+            m[1]
+                .replace(/@([@{}])/g, "$1")
+                .replace(/\u2014/g, "---")
+                .replace(/\u2013/g, "--"),
+        );
+        expect(headings.length).toBeGreaterThan(100);
+        expect(headings.filter((name) => !concepts.has(name))).toEqual([]);
+    });
+
+    it("prints every index it fills", () => {
+        for (const code of ["cp", "cm", "op", "ck", "ap"])
+            expect(manual.texinfo).toContain(`@printindex ${code}\n`);
     });
 });
 

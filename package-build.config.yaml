@@ -9,3 +9,7 @@ packageBuild:
         - page: index.md
           out: package-build
           title: Package Build
+          indices:
+              commands: commands
+              configuration: configuration
+              api: api

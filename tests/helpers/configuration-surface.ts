@@ -323,6 +323,26 @@ const KEY_PROBES: { path: string; probe: () => string[] }[] = [
             ),
     },
     {
+        path: "packageBuild.texinfo[]",
+        probe: () =>
+            allowedKeys(() =>
+                resolvePackageBuildConfig(
+                    sharedMinimal({ texinfo: [{ page: "index.md", __unrecognised__: true }] }),
+                ),
+            ),
+    },
+    {
+        path: "packageBuild.texinfo[].indices",
+        probe: () =>
+            allowedKeys(() =>
+                resolvePackageBuildConfig(
+                    sharedMinimal({
+                        texinfo: [{ page: "index.md", indices: { __unrecognised__: true } }],
+                    }),
+                ),
+            ),
+    },
+    {
         path: "packageBuild.proseScore.bands",
         probe: () =>
             allowedKeys(() =>

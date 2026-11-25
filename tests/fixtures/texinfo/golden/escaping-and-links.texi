@@ -4,10 +4,10 @@
 @cindex escaping
 @cindex links
 @rfindex Escaping and Links
-@vindex --option
-@vindex -x
-@vindex --dashes
-@vindex --check
+@vindex @option{--option}
+@vindex @option{-x}
+@vindex @option{--dashes}
+@vindex @option{--check}
 @vindex SOURCE_DATE_EPOCH
 @vindex XDG_CACHE_HOME
 @pindex git

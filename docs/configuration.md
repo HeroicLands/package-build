@@ -2475,13 +2475,17 @@ choices for illustration. `--min-words` overrides `minWords` for one score run.
 | `packageBuild.proseScore.bands.<metric>.max` | finite number    | no       | open    |
 
 `<metric>` is one of the six reported metrics, each a key under
-`packageBuild.proseScore.bands`: `packageBuild.proseScore.bands.flesch`,
-`packageBuild.proseScore.bands.syllablesPerWord`,
-`packageBuild.proseScore.bands.meanSentenceWords`,
-`packageBuild.proseScore.bands.longestSentenceWords`,
-`packageBuild.proseScore.bands.unfamiliarWordPercent` and
-`packageBuild.proseScore.bands.nominalizationsPer1000Words`. A band names at
-least one of `min` and `max`, and `min` does not exceed `max`.
+`packageBuild.proseScore.bands`. A band names at least one of `min` and `max`,
+and `min` does not exceed `max`.
+
+| Key                                                         | Metric                             |
+| ----------------------------------------------------------- | ---------------------------------- |
+| `packageBuild.proseScore.bands.flesch`                      | Flesch reading ease                |
+| `packageBuild.proseScore.bands.syllablesPerWord`            | Mean syllables per word            |
+| `packageBuild.proseScore.bands.meanSentenceWords`           | Mean words per sentence            |
+| `packageBuild.proseScore.bands.longestSentenceWords`        | Words in the longest sentence      |
+| `packageBuild.proseScore.bands.unfamiliarWordPercent`       | Percentage of unfamiliar words     |
+| `packageBuild.proseScore.bands.nominalizationsPer1000Words` | Nominalizations per thousand words |
 
 > ``package-build config: `packageBuild.proseScore` must be a mapping.``
 
@@ -2886,16 +2890,26 @@ published package; a consuming package's configuration does not use it. Each
 entry names the manual's top page, and the pages that take part and the order
 of their chapters come from the `texinfo` front matter of the pages themselves.
 
-| Key                            | Type   | Required | Default                                                                   |
-| ------------------------------ | ------ | -------- | ------------------------------------------------------------------------- |
-| `packageBuild.texinfo[].page`  | string | yes      | none                                                                      |
-| `packageBuild.texinfo[].out`   | string | no       | the page's file name without `.md`; the package name when that is `index` |
-| `packageBuild.texinfo[].title` | string | no       | the top page's `name.full`                                                |
+| Key                                            | Type                      | Required | Default                                                                   |
+| ---------------------------------------------- | ------------------------- | -------- | ------------------------------------------------------------------------- |
+| `packageBuild.texinfo[].page`                  | string                    | yes      | none                                                                      |
+| `packageBuild.texinfo[].out`                   | string                    | no       | the page's file name without `.md`; the package name when that is `index` |
+| `packageBuild.texinfo[].title`                 | string                    | no       | the top page's `name.full`                                                |
+| `packageBuild.texinfo[].indices`               | mapping                   | no       | no structural index                                                       |
+| `packageBuild.texinfo[].indices.commands`      | string or list of strings | no       | none                                                                      |
+| `packageBuild.texinfo[].indices.configuration` | string or list of strings | no       | none                                                                      |
+| `packageBuild.texinfo[].indices.api`           | string or list of strings | no       | none                                                                      |
 
 `page` is a path relative to `docs/`, ending in `.md`. `out` names the files
 the manual becomes, `<out>.texi` and `<out>.info`, and `title` is the manual's
 title. The Info directory file, `dir`, lists every manual that has a directory
 entry, with the top page's `description` front matter.
+
+`indices` names the pages whose structure fills the command, option,
+configuration key and API indexes (see [Indexes](#indexes)). It is a mapping
+whose keys are `commands`, `configuration` and `api`; each value is the
+shortcode of a page of the manual, or a list of shortcodes. A shortcode that
+names no page of the manual is an error.
 
 ```yaml
 packageBuild:
@@ -2903,6 +2917,10 @@ packageBuild:
     - page: index.md
       out: tools
       title: Tools Guide
+      indices:
+        commands: commands
+        configuration: configuration
+        api: api
 ```
 
 #### Page front matter
@@ -2960,6 +2978,28 @@ parent is ignored and reported. When the hints of a group contradict each other,
 all of that group's hints are dropped and the group is reported. Ties and
 unhinted groups are ordered by `name.full`, then by path, so the same input
 always writes the same bytes.
+
+#### Indexes
+
+Every manual has a concept index, and the structure of the pages fills the
+others. Each index is its own node at the end of the manual, and an index with
+no entries is not written.
+
+| Index                   | Entries                                                                                                                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Concept index           | Each page's `name.full` and `tags`, and every heading in a page.                                                                                                                                             |
+| Reference index         | The pages whose `subType` is `reference`.                                                                                                                                                                    |
+| Variable index          | Each option and environment variable the text names.                                                                                                                                                         |
+| Program index           | Each command name the text names.                                                                                                                                                                            |
+| Command index           | Each heading of a `commands` page whose code spans start with a binary from `package.json`'s `bin`, keyed by the invocation with its placeholders dropped.                                                   |
+| Option index            | Each option in the first column of a table under a command's **OPTIONS** label or headed `Option`, or in a list item under that label, once per command section, grouped by option with the command beneath. |
+| Configuration key index | The code spans of the first column of each table headed `Key` on a `configuration` page, and each heading that is a single key.                                                                              |
+| API index               | The code spans of the first column of each table headed `Export` on an `api` page, and each heading that is a single code span.                                                                              |
+
+A command section runs from its heading to the next heading of the same or a
+higher level. A heading that names several invocations, such as
+`package-build prose lint [path]` and `prose score [path]`, makes one entry for
+each, and a span without a binary takes the binary of the span before it.
 
 #### Depth and node names
 
@@ -3238,7 +3278,7 @@ The other refusals:
 
 ## Every forbidden key, in one place
 
-| Key                                                                                                                                             | Why                                                                                                                                                    |
+| Forbidden key                                                                                                                                   | Why                                                                                                                                                    |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `rootDir`                                                                                                                                       | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
 | `foundryPackage`                                                                                                                                | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |

@@ -398,7 +398,7 @@ describe("depth", () => {
             }),
         );
         expect(manual.chapters[0].texinfo).toContain(
-            "@heading One\n\n@anchor{Two}\n@subheading Two\n\n@subsubheading Three\n\n@subsubheading Four\n",
+            "@heading One\n@cindex One\n\n@anchor{Two}\n@subheading Two\n@cindex Two\n\n@subsubheading Three\n@cindex Three\n\n@subsubheading Four\n@cindex Four\n",
         );
     });
 });
@@ -606,7 +606,7 @@ describe("what a code span, a link or plain text is", () => {
             }),
         );
         expect(manual.chapters[0].texinfo).toContain(
-            "@cindex A\n@vindex --out\n@vindex HOME_DIR\n@pindex npm\n",
+            "@cindex A\n@vindex @option{--out}\n@vindex HOME_DIR\n@pindex npm\n",
         );
         expect(manual.texinfo).toContain(
             "@node Variable Index\n@unnumbered Variable Index\n@printindex vr",
@@ -738,6 +738,129 @@ describe("indexes", () => {
             }),
         );
         expect(manual.texinfo).toContain(`${"* Alpha::".padEnd(32)} Does a thing.\n* Beta::\n`);
+    });
+});
+
+describe("the structural indexes", () => {
+    const INDICES = { commands: ["cmds"], configuration: ["conf"], api: ["api"] };
+    const PACKAGE_WITH_BIN = JSON.stringify({
+        ...JSON.parse(PACKAGE),
+        bin: { tool: "./bin/tool.mjs", "tool-lite": "./bin/lite.mjs" },
+    });
+    const page = (name: string, body: string) => note(name, "  parent: index.md", body);
+    const files = () => ({
+        ...small({
+            "cmds.md": page(
+                "Commands",
+                [
+                    "# Commands",
+                    "## Running",
+                    "### `tool build <dir>`",
+                    "**OPTIONS**",
+                    "| Option | Type |\n| --- | --- |\n| `--out <dir>` | string |\n| `-v` | boolean |",
+                    "### `tool lint [path]` and `lint score`",
+                    "**OPTIONS**",
+                    "- `--age` years\n- `--rules` names",
+                    "### `tool-lite`",
+                    "No options.",
+                    "## Other",
+                    "| Option | Type |\n| --- | --- |\n| `--stray` | string |",
+                ].join("\n\n"),
+            ),
+            "conf.md": page(
+                "Configuration",
+                [
+                    "# Configuration",
+                    "### `site`",
+                    "| Key | Type |\n| --- | --- |\n| `site.out` | string |\n| `pdf.books[].id` | string |\n| not code | text |",
+                    "| Setting | Value |\n| --- | --- |\n| `ignored` | x |",
+                ].join("\n\n"),
+            ),
+            "api.md": page(
+                "API",
+                [
+                    "# API",
+                    "### `engine.ids`",
+                    "| Export | Signature |\n| --- | --- |\n| `makeId` | `makeId(a)` |\n| `MAP_TYPES` | const |",
+                ].join("\n\n"),
+            ),
+        }),
+        "package.json": PACKAGE_WITH_BIN,
+    });
+    const text = () => {
+        const { manual } = run(files(), {
+            manuals: [{ page: "index.md", out: "manual", indices: INDICES }],
+        });
+        return `${manual.texinfo}\n${manual.chapters.map((c: any) => c.texinfo).join("\n")}`;
+    };
+
+    it("indexes each command section by its invocation, placeholders dropped", () => {
+        const out = text();
+        const commands = [...out.matchAll(/^@cmindex (.+)$/gm)].map((m) => m[1]);
+        expect(commands).toEqual(["tool build", "tool lint", "tool lint score", "tool-lite"]);
+    });
+
+    it("indexes each option once per command section, under the command", () => {
+        const options = [...text().matchAll(/^@opindex (.+)$/gm)].map((m) => m[1]);
+        expect(options).toEqual([
+            "@option{--out} @subentry tool build",
+            "@option{-v} @subentry tool build",
+            "@option{--age} @subentry tool lint",
+            "@option{--rules} @subentry tool lint",
+            "@option{--age} @subentry tool lint score",
+            "@option{--rules} @subentry tool lint score",
+        ]);
+    });
+
+    it("indexes the first column of key and export tables, and a code heading", () => {
+        const out = text();
+        expect([...out.matchAll(/^@ckindex (.+)$/gm)].map((m) => m[1])).toEqual([
+            "site",
+            "site.out",
+            "pdf.books[].id",
+        ]);
+        expect([...out.matchAll(/^@apindex (.+)$/gm)].map((m) => m[1])).toEqual([
+            "engine.ids",
+            "makeId",
+            "MAP_TYPES",
+        ]);
+    });
+
+    it("enters every heading in the concept index", () => {
+        const out = text();
+        for (const heading of ["Running", "Other"]) expect(out).toContain(`@cindex ${heading}\n`);
+        expect(out).toMatch(/^@cindex @code\{tool build .*\}$/m);
+    });
+
+    it("defines and prints an index node for each structural index it fills", () => {
+        const { manual } = run(files(), {
+            manuals: [{ page: "index.md", out: "manual", indices: INDICES }],
+        });
+        for (const code of ["cm", "op", "ck", "ap"]) {
+            expect(manual.texinfo).toContain(`@defindex ${code}\n`);
+            expect(manual.texinfo).toContain(`@printindex ${code}\n`);
+        }
+    });
+
+    it("defines no structural index when no page is configured", () => {
+        const { manual } = run(files());
+        expect(manual.texinfo).not.toMatch(/@defindex (?:cm|op|ck|ap)\b/);
+        expect(manual.texinfo).not.toContain("API Index");
+    });
+
+    it("reports a configured page that is not in the manual", () => {
+        const result = run(files(), {
+            manuals: [
+                { page: "index.md", out: "manual", indices: { ...INDICES, api: ["nowhere"] } },
+            ],
+        });
+        expect(result.lines.join("\n")).toMatch(
+            /error: the api index page `nowhere` is not a page of the manual/,
+        );
+    });
+
+    it("writes the same text on every run", () => {
+        expect(text()).toBe(text());
     });
 });
 
