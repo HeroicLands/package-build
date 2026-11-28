@@ -1,5 +1,31 @@
 # @heroiclands/package-build
 
+## 25.12.1
+
+**Languages and scripts**
+
+- An encoding note takes `rules.word-spaces`, `space` by default or `none` for a script whose signs sit side by side.
+- With `none`, a space, tab or line break between Roman words writes nothing.
+- With `none`, decoding puts a space after each word and around marks, as in a spaced script.
+- A note with `word-spaces: none` that states `word-separators` is refused.
+
+**Rendering and sites**
+
+- `package-build site build` converts a package's Texinfo manuals to HTML under `texi/` in the site, reading the `texinfo` folder or the one `site.texinfo` names.
+- The site carries a Texinfo stylesheet that follows the reader's light or dark preference and fits a phone; a package replaces it with a `texinfo.css` in its Texinfo folder.
+- A package with Texinfo files and no `texi2any` on `PATH` fails the site build with an error that names the tool.
+
+**Builds and commands**
+
+- Setting `PACKAGE_BUILD_FORGE_URL` makes `package-build deps fetch` read dependency releases from that Gitea forge, and unset or empty it reads from GitHub as before.
+- A host that does not answer as a Gitea forge, and any GitHub-looking host other than `github.com`, is refused with an error naming the variable.
+- `PACKAGE_BUILD_FORGE_TOKEN` supplies the token for a Gitea forge, separate from `PACKAGE_BUILD_FORGE_TOKEN_FILE`, which stays the token of a private build mirror.
+- A dependency whose index is already fetched for its pinned version makes no network request, so a build reaches the GitHub rate limit far less often.
+- A rate-limit error names the forge and the token variable to set, and `package-build deps --help` lists the variables.
+- The package ships its manual in Info format: read it with
+  `info -f node_modules/@heroiclands/package-build/info/package-build.info`, or
+  put the package's `info` directory on `INFOPATH` and run `info package-build`.
+
 ## 25.12.0
 
 **Verse**
