@@ -249,7 +249,8 @@ groups while refusing other mixed or uppercase group spellings. Encoding keeps
 authored case and never rewrites a word's Roman spelling.
 
 Outside literal markers, a run of Unicode Zs characters or U+0009 through
-U+000D writes one space. Other whitespace needs an explicit mapping. Standard
+U+000D is one word separator. It writes one space, or nothing in an encoding
+that declares `rules.word-spaces: none`. Other whitespace needs an explicit mapping. Standard
 Roman punctuation, verse and name controls are inherited from the shared
 standard. A logographic encoding's explicit mapping can give a standard
 source its font glyph; sound encodings retain the standard controls.
@@ -523,6 +524,21 @@ registered reading in authored order, as `[sun | day]`; a single reading stays
 plain. Literal spans decode through their font codes. Unknown unmarked signs
 in a codes-only script become `⟦codes⟧` with a finding. Logographs make no
 exact round-trip promise.
+
+A script whose signs sit side by side declares `rules.word-spaces: none` on its
+encoding note; the other value, `space`, is the default. With `none`, a run of
+Roman whitespace, including tabs and line breaks, writes nothing, so `ho jing`
+writes its two signs side by side. Every other encoding, codage included,
+writes one space for each run of whitespace unless it declares `none`; a
+sound encoding follows the shared guide and does not state the key. A note
+that declares `none` states no `word-separators`: they would write a space, and
+the note refuses them. Decoding puts a space after each word, before a word
+that follows a mark, and around marks as a spaced script does: `ho jing. sui`
+decodes with the space after the point, `{Tan} ho` and `«…» sui` keep theirs,
+`—` and a verse `/` have a space on each side, and a literal `⟦…⟧` span reads as
+one more word. Whitespace in the native text is a word boundary. Punctuation,
+verse line marks, literal codage and the diagnostics for unwritten words are
+otherwise the same as in every other encoding.
 
 ## Emphasis in a script
 

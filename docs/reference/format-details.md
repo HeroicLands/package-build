@@ -2150,7 +2150,8 @@ groups while refusing other mixed or uppercase group spellings. Encoding keeps
 authored case and never rewrites a word's Roman spelling.
 
 Outside literal markers, a run of Unicode Zs characters or U+0009 through
-U+000D writes one space. Other whitespace needs an explicit mapping. Standard
+U+000D is one word separator. It writes one space, or nothing in an encoding
+that declares `rules.word-spaces: none`. Other whitespace needs an explicit mapping. Standard
 Roman punctuation, verse and name controls are inherited from the shared
 standard; an explicit mapping can give a standard source its font glyph.
 
@@ -9311,6 +9312,7 @@ did not foresee. Holes found in play are fixed in the scenario itself.
 | `rules.matching`                                  | "longest-first"                                             | Required value: "longest-first".                                                                                                                                                                           |
 | `rules.roundTrip`                                 | a string                                                    | Exact sound conversion requires the configured language note’s guide-subset data.sounds.letters and one form per sound. Logographic none makes no round-trip promise and returns every registered reading. |
 | `rules.word-separators`                           | a list of nonempty NFC source sequences                     | Source word dividers written as shared spaces, after contextual alternatives; cannot also be ordinary mappings or replace shared punctuation.                                                              |
+| `rules.word-spaces`                               | a string                                                    | Whether a run of Roman whitespace writes one space between words, the default `space`, or nothing, `none`; `none` refuses `word-separators`.                                                               |
 | `rules.case`                                      | a map                                                       | Case handling for letters and consonant groups.                                                                                                                                                            |
 | `rules.case.single-letter`                        | "preserve"                                                  | Required value: "preserve".                                                                                                                                                                                |
 | `rules.case.consonant-group`                      | "lowercase-or-initial-uppercase"                            | Required value: "lowercase-or-initial-uppercase".                                                                                                                                                          |

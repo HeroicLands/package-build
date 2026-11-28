@@ -1,0 +1,111 @@
+# SPDX-License-Identifier: CC-BY-SA-4.0
+# Word entries of the Tantsou, Jurthati and Khelathi language notes.
+# Source: Thalorna revision 0bf52a7b85342f91f4f6f9499ca28e77885fbf72 (branch packet/1588-guide-poems).
+tant:
+    shortcode: tantsoulng
+    roman: abcdefghijklmnorstuwyz0123456789()–-
+    words:
+        - form: ho
+          class: n
+          field: Sky, land and the elements
+          gloss: fire
+          concept: fire
+          native:
+              - text: 󱀀
+                enc: tanttengchouenc
+        - form: jing
+          class: n
+          field: Sky, land and the elements
+          gloss: metal, gold
+          concept: metal
+          native:
+              - text: 󱀁
+                enc: tanttengchouenc
+        - form: shou
+          class: n
+          field: Sky, land and the elements
+          gloss: water, river
+          concept:
+              - water
+              - river
+          native:
+              - text: 󱀃
+                enc: tanttengchouenc
+        - form: tou
+          class: n
+          field: Sky, land and the elements
+          gloss: earth, soil
+          concept:
+              - earth
+              - soil
+          native:
+              - text: 󱀄
+                enc: tanttengchouenc
+jurt:
+    shortcode: jurthatlng
+    roman: abcdefghijkmnorstuwyzáéíóúë0123456789()–-
+    words:
+        - form: shu
+          class: n
+          field: Land, sea and sky
+          gloss: water, river
+          concept:
+              - water
+              - river
+          source:
+              kind: inherited
+          native:
+              - text: 󱀃
+                enc: jurttengchouenc
+        - form: we
+          class: n
+          field: Land, sea and sky
+          gloss: wind
+          source:
+              kind: inherited
+          concept: wind
+          native:
+              - text: 󱀅
+                enc: jurttengchouenc
+        - form: chai
+          class: n
+          field: Land, sea and sky
+          gloss: mountain, peak; an island
+          source:
+              kind: inherited
+          concept: mountain
+          native:
+              - text: 󱀆
+                enc: jurttengchouenc
+khel:
+    shortcode: khelathlng
+    roman: abcdefghijklmnopqrstuvwyzáéíóúë0123456789·-'
+    words:
+        - form: agu
+          class: part
+          field: Particles
+          gloss: shall—marking what is undertaken rather than what is done
+          native:
+              - text: 𞯜𞮒
+                enc: khelzethuenc
+        - form: zelar
+          class: n
+          field: Rank morphemes
+          gloss: a commoner, the free rank of no house
+          native:
+              - text: 𞰈
+                enc: khelzethuenc
+        - form: zuqat
+          class: n
+          field: Occupations
+          gloss: tiller
+          native:
+              - text: 𞩓
+                enc: khelzethuenc
+        - form: meglu
+          class: n
+          field: Occupations
+          gloss: herder
+          native:
+              - text: 𞩘
+                enc: khelzethuenc

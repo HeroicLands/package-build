@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: CC-BY-SA-4.0
+# The frontmatter of the Khelathi Zethu Encoding note, `khelzethuenc`.
+# Source: Thalorna revision 0bf52a7b85342f91f4f6f9499ca28e77885fbf72 (branch packet/1588-guide-poems),
+# with `word-spaces: none` added under `rules`.
+type: doc
+subType: reference
+shortcode: khelzethuenc
+name:
+    full: Khelathi Zethu Encoding
+data:
+    packFolder: languages
+    language: khel
+    font: khelathi-zethu-glyphs
+    mappings: {}
+    rules:
+        normalization: NFC
+        matching: longest-first
+        roundTrip: none
+        word-spaces: none

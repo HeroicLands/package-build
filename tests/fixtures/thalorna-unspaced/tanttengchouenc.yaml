@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: CC-BY-SA-4.0
+# The frontmatter of the Tantsou Teng Chou Encoding note, `tanttengchouenc`.
+# Source: Thalorna revision 0bf52a7b85342f91f4f6f9499ca28e77885fbf72 (branch packet/1588-guide-poems),
+# with `word-spaces: none` added under `rules`.
+type: doc
+subType: reference
+shortcode: tanttengchouenc
+name:
+    full: Tantsou Teng Chou Encoding
+data:
+    packFolder: languages
+    language: tant
+    font: teng-chou
+    mappings: {}
+    rules:
+        normalization: NFC
+        matching: longest-first
+        roundTrip: none
+        word-spaces: none

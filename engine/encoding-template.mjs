@@ -29,7 +29,6 @@ const DIAERESIS_VOWELS = Object.freeze(
     ),
 );
 const codeName = /^[A-Za-z0-9_]+$/;
-
 /**
  * Validate note data and resolve its code references without reading files.
  * @param {any} data - Encoding-note data, excluding ordinary document metadata.
@@ -94,6 +93,7 @@ export function templateProgram(data, options, fault) {
             "matching",
             "roundTrip",
             "word-separators",
+            "word-spaces",
             "case",
             "stress",
             "vowel-groups",
@@ -110,7 +110,15 @@ export function templateProgram(data, options, fault) {
     if (rules.roundTrip !== undefined && !["exact", "none"].includes(rules.roundTrip))
         fault("rules.roundTrip", "roundTrip is exact or none");
     closed(data.mappings, Object.keys(map(data.mappings) ? data.mappings : {}), "mappings");
+    if (rules["word-spaces"] !== undefined && !["space", "none"].includes(rules["word-spaces"]))
+        fault("rules.word-spaces", "word-spaces is space or none");
     const none = rules.roundTrip === "none";
+    const unspaced = rules["word-spaces"] === "none";
+    if (unspaced && rules["word-separators"] !== undefined)
+        fault(
+            "rules.word-separators",
+            "An encoding with word-spaces: none writes no word spaces, so it states no word-separators",
+        );
     if (!none && options.sounds !== undefined) {
         const sound = soundProgram(data, options, fault);
         sound.capitals = new Map(
@@ -408,7 +416,7 @@ export function templateProgram(data, options, fault) {
                         { from: row[0], to: row[1], key: sourceKey(row) }
                     :   { ...row, key: sourceKey(row) },
                 ),
-                { from: " ", to: " ", key: "rules" },
+                ...(unspaced ? [] : [{ from: " ", to: " ", key: "rules" }]),
             ],
             fault,
         );
@@ -443,7 +451,7 @@ export function templateProgram(data, options, fault) {
                 ...Object.keys(derived ?? {}),
                 ...STANDARD_ROWS.flatMap((r) => [...(Array.isArray(r) ? r[0] : r.from)]),
             ],
-            separator: " ",
+            separator: unspaced ? "" : " ",
             roundTrip: none ? "none" : "exact",
             vowels,
             rows,

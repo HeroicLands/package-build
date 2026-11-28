@@ -448,11 +448,15 @@ export function decodeWithLanguage(enc, text, options = {}) {
     }
     const rowAt = (offset) =>
         (reader.get(cp(text, offset)) ?? []).find((row) => text.startsWith(row.to, offset));
-    const wordEnd = (from) => {
+    // A script without word spaces ends a stretch of mapped letters where the
+    // next lexical word begins, and a lexical word needs no letter boundary.
+    const unspaced = !enc.separator;
+    const wordEnd = (from, beforeNative = false) => {
         let cursor = from;
         while (cursor < text.length && !text.startsWith(OPEN, cursor)) {
             const row = rowAt(cursor);
             if (row && !lexical(row.from)) break;
+            if (beforeNative && cursor > from && nativeAt(cursor)) break;
             cursor += row?.to.length ?? cp(text, cursor).length;
         }
         return cursor;
@@ -460,24 +464,55 @@ export function decodeWithLanguage(enc, text, options = {}) {
     const nativeAt = (offset) =>
         (nativeReadings.get(cp(text, offset)) ?? []).find((entry) => {
             if (!entry.text || !text.startsWith(entry.text, offset)) return false;
-            if (noLetters) return true;
+            if (noLetters || unspaced) return true;
             // A shorter native spelling must not consume a prefix of a complete
             // alphabetic word. A native writing may itself cross spaces or marks.
             const end = offset + entry.text.length;
             return end === wordEnd(end);
         });
     let previousWord = false;
+    // A script without word spaces writes none, so the spaces of the Roman
+    // text come back from what each piece is: words, literals and closing
+    // marks end a piece that a following word, literal or opening mark follows.
+    const OPENING = new Set(["{", "«", "‹"]);
+    const SPANNING = new Set(["—", "/"]);
+    let last = "none",
+        lastMark = "",
+        boundary = false;
+    const join = (kind, mark = "") => {
+        // Two verse slashes in a row are the stanza mark and stay together.
+        const stanza = mark === "/" && lastMark === "/" && !boundary;
+        lastMark = mark;
+        if (stanza) {
+            last = kind;
+            return;
+        }
+        const ends = last === "word" || last === "close" || last === "span";
+        const begins = kind === "word" || kind === "open" || kind === "span";
+        if (
+            (ends && begins) ||
+            (boundary && last !== "none" && last !== "open" && kind !== "close")
+        )
+            out += " ";
+        boundary = false;
+        last = kind;
+    };
     const appendWord = (roman) => {
-        if (noLetters && previousWord) out += " ";
+        if (unspaced) join("word");
+        else if (noLetters && previousWord) out += " ";
         out += roman;
         previousWord = true;
     };
     while (at < text.length) {
         if (text.startsWith(OPEN, at)) {
             const end = literalEnd(text, at);
-            out += plain(text.slice(at, end), at);
+            const literal = plain(text.slice(at, end), at);
+            if (unspaced && literal) appendWord(literal);
+            else {
+                out += literal;
+                previousWord = false;
+            }
             at = end;
-            previousWord = false;
             continue;
         }
         const native = nativeAt(at);
@@ -503,8 +538,20 @@ export function decodeWithLanguage(enc, text, options = {}) {
             at += native.text.length;
             continue;
         }
+        if (unspaced && /\s/u.test(cp(text, at))) {
+            boundary = true;
+            at += cp(text, at).length;
+            continue;
+        }
         const row = rowAt(at);
         if (row && !lexical(row.from)) {
+            if (unspaced)
+                join(
+                    OPENING.has(row.from) ? "open"
+                    : SPANNING.has(row.from) ? "span"
+                    : "close",
+                    row.from,
+                );
             out += row.from;
             named =
                 row.from === "{" ? true
@@ -536,9 +583,10 @@ export function decodeWithLanguage(enc, text, options = {}) {
             );
             continue;
         }
-        at = wordEnd(at);
+        at = wordEnd(at, unspaced);
         const raw = text.slice(start, at);
         const decoded = plain(raw, start);
+        if (unspaced && decoded) join("word");
         if (enc.roundTrip === "none" || MARKS.test(raw)) {
             out += decoded;
             continue;

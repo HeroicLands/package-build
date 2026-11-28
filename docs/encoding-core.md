@@ -135,6 +135,18 @@ are returned. An unregistered sign in a codes-only script becomes literal
 `⟦codes⟧` with a finding. The decoder does not recover missing sounds from
 vocabulary skeletons.
 
+The encoding note's `rules.word-spaces` is `space` by default and `none` for a
+script whose signs sit side by side. With `none`, a run of Roman whitespace,
+including tabs and line breaks, is a word separator that writes nothing, so
+`ho jing` writes its two signs side by side; the note states no
+`word-separators`, which would write a space. Every other encoding, codage
+included, writes one space for a whitespace run. Decoding with a lexicon puts a
+space after each word and around marks as a spaced script does: before a word,
+literal or opening mark that follows a word, literal or closing mark, and on
+both sides of `—` and a verse `/`. A literal span reads as one more word, and
+whitespace in the native text is a word boundary. Verse line and stanza marks,
+punctuation and literal codage are the same in both.
+
 Additional logographic glyph-selection rules use the closed vocabulary in
 [the encoding note reference](reference/note-types.md#doc). `accepts` lists
 source characters or ranges; `vowels` supplies glyph-selection categories.
@@ -219,7 +231,8 @@ validates the same subset and mappings, without Node dependencies or files.
 
 Every encoding uses the standard punctuation, verse and name controls.
 `‼` closes an imperative and `!` an exclamation. Outside literal markers,
-Unicode Zs and U+0009 through U+000D normalize to one space.
+Unicode Zs and U+0009 through U+000D normalize to one word separator: one
+space, or nothing when the note declares `rules.word-spaces: none`.
 
 `⟦…⟧` contains font codes or strict `U+XXXX` scalars: four to six uppercase
 hex digits, with no surrogates. Whitespace between codes writes nothing.

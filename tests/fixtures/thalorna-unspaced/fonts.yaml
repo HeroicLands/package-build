@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: OFL-1.1
+# The Teng Chou and Khelathi Zethu Glyphs entries of the fonts manifest of
+# @heroiclands/fonts 1.4.1, as installed by Thalorna revision 0bf52a7b85342f91f4f6f9499ca28e77885fbf72,
+# trimmed to the code points the lexicon excerpts use.
+families:
+    - name: Khelathi Zethu Glyphs
+      family: Khelathi Zethu Glyphs
+      class: hl-khelathi-zethu-glyphs
+      files:
+          woff2: fonts/KhelathiZethuGlyphs-Regular.woff2
+          ttf: fonts/KhelathiZethuGlyphs-Regular.ttf
+      direction: rtl
+      features: []
+      codepoints:
+          - codepoint: U+1EA53
+            name: ZETHU CHARACTER 020
+            code: TILLER
+            glyph: z01_020.a
+            kind: sign
+          - codepoint: U+1EA58
+            name: ZETHU CHARACTER 025
+            code: HERDER
+            glyph: z01_025.a
+            kind: sign
+          - codepoint: U+1EB92
+            name: ZETHU CHARACTER 339
+            code: SHEAF_CUT
+            glyph: z13_008.a
+            kind: sign
+          - codepoint: U+1EBDC
+            name: ZETHU CHARACTER 413
+            code: CATCH
+            glyph: z16_001.a
+            kind: sign
+          - codepoint: U+1EC08
+            name: ZETHU CHARACTER 457
+            code: COMMONER
+            glyph: z01_068.a
+            kind: sign
+    - name: Teng Chou
+      family: Teng Chou
+      class: hl-teng-chou
+      files:
+          woff2: fonts/TengChou-Regular.woff2
+          ttf: fonts/TengChou-Regular.ttf
+      direction: ltr
+      features: []
+      codepoints:
+          - codepoint: U+F1000
+            name: TENG CHOU CHARACTER HO
+            code: HO
+            glyph: tc.ho
+            kind: character
+          - codepoint: U+F1001
+            name: TENG CHOU CHARACTER JING
+            code: JING
+            glyph: tc.jing
+            kind: character
+          - codepoint: U+F1003
+            name: TENG CHOU CHARACTER SHOU
+            code: SHOU
+            glyph: tc.shou
+            kind: character
+          - codepoint: U+F1004
+            name: TENG CHOU CHARACTER TOU
+            code: TOU
+            glyph: tc.tou
+            kind: character
+          - codepoint: U+F1005
+            name: TENG CHOU CHARACTER WENG
+            code: WENG
+            glyph: tc.weng
+            kind: character
+          - codepoint: U+F1006
+            name: TENG CHOU CHARACTER CHAI
+            code: CHAI
+            glyph: tc.chai
+            kind: character

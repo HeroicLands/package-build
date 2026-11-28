@@ -58,6 +58,13 @@ export const ENCODING_RULE_FIELDS = Object.freeze([
         describe:
             "Source word dividers written as shared spaces, after contextual alternatives; cannot also be ordinary mappings or replace shared punctuation.",
     },
+    {
+        ...text(
+            "word-spaces",
+            "Whether a run of Roman whitespace writes one space between words, the default space, or nothing, none, for a script whose signs sit side by side. With none, decoding puts a space after each word and around marks as in a spaced script, and the encoding states no word-separators. A sound encoding follows the shared guide and does not state it.",
+        ),
+        allowed: ["space", "none"],
+    },
     block("case", "Case handling for letters and consonant groups.", [
         fixed("single-letter", "preserve"),
         fixed("consonant-group", "lowercase-or-initial-uppercase"),
